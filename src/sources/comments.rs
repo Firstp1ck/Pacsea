@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use crate::state::types::AurComment;
 
+/// Result type alias for AUR comments fetching operations.
 type Result<T> = super::Result<T>;
 
 /// Context for extracting comment data from HTML elements.

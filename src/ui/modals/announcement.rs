@@ -11,18 +11,30 @@ use crate::i18n;
 use crate::state::AppState;
 use crate::theme::theme;
 
+/// Minimum width for announcement modal.
 const MODAL_MIN_WIDTH: u16 = 40;
+/// Maximum width ratio for announcement modal.
 const MODAL_MAX_WIDTH_RATIO: u16 = 3;
+/// Maximum width divisor for announcement modal.
 const MODAL_MAX_WIDTH_DIVISOR: u16 = 4;
+/// Minimum height for announcement modal.
 const MODAL_MIN_HEIGHT: u16 = 6;
+/// Maximum height for announcement modal.
 const MODAL_MAX_HEIGHT: u16 = 25;
+/// Height padding for announcement modal.
 const MODAL_HEIGHT_PADDING: u16 = 4;
+/// Border width for announcement modal.
 const BORDER_WIDTH: u16 = 2;
+/// Number of header lines.
 const HEADER_LINES: u16 = 2;
+/// Number of footer lines.
 const FOOTER_LINES: u16 = 1;
+/// Total header and footer lines.
 const TOTAL_HEADER_FOOTER_LINES: u16 = HEADER_LINES + FOOTER_LINES;
-const CONTENT_PADDING: u16 = 2; // Left/right padding for content
-const CONTENT_FOOTER_BUFFER: u16 = 2; // Buffer lines between content and footer
+/// Left/right padding for content.
+const CONTENT_PADDING: u16 = 2;
+/// Buffer lines between content and footer.
+const CONTENT_FOOTER_BUFFER: u16 = 2;
 
 /// What: Calculate the number of display lines needed for content with wrapping.
 ///

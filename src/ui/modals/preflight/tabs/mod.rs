@@ -1,7 +1,12 @@
+/// Dependencies tab rendering for preflight modal.
 pub mod deps;
+/// Files tab rendering for preflight modal.
 pub mod files;
+/// Sandbox tab rendering for preflight modal.
 pub mod sandbox;
+/// Services tab rendering for preflight modal.
 pub mod services;
+/// Summary tab rendering for preflight modal.
 pub mod summary;
 
 pub use deps::render_deps_tab;

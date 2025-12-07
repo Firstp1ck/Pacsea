@@ -3,15 +3,24 @@
 //! This module splits the previous monolithic `install.rs` into focused
 //! submodules. Public API is preserved via re-exports.
 
+/// Batch installation operations.
 mod batch;
 pub mod command;
+/// Direct installation operations.
 mod direct;
+/// Executor for package operations.
 mod executor;
+/// Logging utilities for install operations.
 mod logging;
+/// Package removal operations.
 mod remove;
+/// Security scanning operations.
 mod scan;
+/// Shell command execution.
 mod shell;
+/// Single package installation.
 mod single;
+/// Utility functions for install operations.
 mod utils;
 
 pub use batch::spawn_install_all;

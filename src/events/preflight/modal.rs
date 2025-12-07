@@ -4,34 +4,55 @@ use crate::state::{AppState, PackageItem};
 
 /// Parameters for handling deps tab switch.
 struct DepsTabParams<'a> {
+    /// Dependency information list.
     dependency_info: &'a mut Vec<crate::state::modal::DependencyInfo>,
+    /// Currently selected dependency index.
     dep_selected: &'a mut usize,
+    /// Dependency info from install list.
     install_list_deps: &'a [crate::state::modal::DependencyInfo],
+    /// Whether dependency resolution is in progress.
     preflight_deps_resolving: bool,
+    /// Pending dependency resolution request (packages, action).
     preflight_deps_items: &'a mut Option<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
+    /// Flag indicating if preflight summary was cleared for remove action.
     remove_preflight_summary_cleared: &'a mut bool,
+    /// Cached reverse dependency report.
     cached_reverse_deps_report: &'a mut Option<crate::logic::deps::ReverseDependencyReport>,
 }
 
 /// Parameters for handling services tab switch.
 struct ServicesTabParams<'a> {
+    /// Service impact information list.
     service_info: &'a mut Vec<crate::state::modal::ServiceImpact>,
+    /// Currently selected service index.
     service_selected: &'a mut usize,
+    /// Whether service information has been loaded.
     services_loaded: &'a mut bool,
+    /// Service info from install list.
     install_list_services: &'a [crate::state::modal::ServiceImpact],
+    /// Path to services cache file.
     services_cache_path: &'a std::path::PathBuf,
+    /// Whether service resolution is in progress.
     services_resolving: bool,
+    /// Pending service analysis request (packages).
     preflight_services_items: &'a mut Option<Vec<PackageItem>>,
+    /// Whether preflight service resolution is in progress.
     preflight_services_resolving: &'a mut bool,
 }
 
 /// Parameters for handling sandbox tab switch.
 struct SandboxTabParams<'a> {
+    /// Sandbox analysis information list.
     sandbox_info: &'a mut Vec<crate::logic::sandbox::SandboxInfo>,
+    /// Currently selected sandbox item index.
     sandbox_selected: &'a mut usize,
+    /// Whether sandbox information has been loaded.
     sandbox_loaded: &'a mut bool,
+    /// Sandbox info from install list.
     install_list_sandbox: &'a [crate::logic::sandbox::SandboxInfo],
+    /// Pending sandbox analysis request (packages).
     preflight_sandbox_items: &'a mut Option<Vec<PackageItem>>,
+    /// Whether preflight sandbox resolution is in progress.
     preflight_sandbox_resolving: &'a mut bool,
 }
 

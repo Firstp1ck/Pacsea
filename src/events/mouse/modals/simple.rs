@@ -178,6 +178,23 @@ pub(super) fn handle_announcement_modal(
     None
 }
 
+/// What: Handle mouse events in the News modal.
+///
+/// Inputs:
+/// - `m`: Mouse event
+/// - `mx`: Mouse X coordinate
+/// - `my`: Mouse Y coordinate
+/// - `is_left_down`: Whether left mouse button is pressed
+/// - `app`: Mutable application state
+///
+/// Output:
+/// - `Some(true)` if application should exit
+/// - `Some(false)` if event was handled
+/// - `None` if event was not handled
+///
+/// Details:
+/// - Handles left clicks to select/open news items or close modal on outside click
+/// - Handles scrolling in the news list
 pub(super) fn handle_news_modal(
     m: MouseEvent,
     mx: u16,

@@ -2,11 +2,17 @@ use ratatui::{Frame, prelude::Rect, widgets::Wrap};
 
 use crate::state::AppState;
 
+/// Comments viewer rendering.
 mod comments;
+/// Footer rendering for details pane.
 mod footer;
+/// Layout calculation for details pane.
 mod layout;
+/// Package information rendering.
 mod package_info;
+/// PKGBUILD viewer rendering.
 mod pkgbuild;
+/// PKGBUILD syntax highlighting.
 mod pkgbuild_highlight;
 
 /// What: Render the bottom details pane, footer, optional PKGBUILD viewer, and optional comments viewer.

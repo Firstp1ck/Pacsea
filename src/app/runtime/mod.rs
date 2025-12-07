@@ -5,13 +5,21 @@ use crate::state::AppState;
 
 use super::terminal::{restore_terminal, setup_terminal};
 
+/// Background worker management and spawning.
 mod background;
+/// Channel definitions for runtime communication.
 mod channels;
+/// Cleanup operations on application exit.
 mod cleanup;
+/// Main event loop implementation.
 mod event_loop;
+/// Event handlers for different event types.
 mod handlers;
+/// Application state initialization module.
 pub mod init;
+/// Tick handler for periodic UI updates.
 mod tick_handler;
+/// Background worker implementations.
 mod workers;
 
 use background::{Channels, spawn_auxiliary_workers, spawn_event_thread};
@@ -19,6 +27,7 @@ use cleanup::cleanup_on_exit;
 use event_loop::run_event_loop;
 use init::{initialize_app_state, trigger_initial_resolutions};
 
+/// Result type alias for runtime operations.
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 /// What: Run the Pacsea TUI application end-to-end.

@@ -1,14 +1,29 @@
 //! Network and system data retrieval module split into submodules.
 
+/// Security advisories fetching.
 mod advisories;
+/// AUR comments fetching.
 mod comments;
+/// Package details fetching.
 mod details;
+/// News feed fetching.
 mod feeds;
+/// Arch Linux news fetching.
 mod news;
+/// PKGBUILD content fetching.
 mod pkgbuild;
+/// Package search functionality.
 mod search;
+/// Arch Linux status page monitoring.
 pub mod status;
 
+/// What: Result type alias for sources module errors.
+///
+/// Inputs: None (type alias).
+///
+/// Output: Result type with boxed error trait object.
+///
+/// Details: Standard error type for network and parsing operations in the sources module.
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 pub use advisories::fetch_security_advisories;

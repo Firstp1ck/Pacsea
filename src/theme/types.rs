@@ -81,13 +81,21 @@ pub struct Settings {
     pub selected_countries: String,
     /// Number of mirrors to fetch/rank when updating.
     pub mirror_count: u16,
+    /// `VirusTotal` API key for security scanning.
     pub virustotal_api_key: String,
+    /// Whether to run `ClamAV` scan on AUR packages.
     pub scan_do_clamav: bool,
+    /// Whether to run `Trivy` scan on AUR packages.
     pub scan_do_trivy: bool,
+    /// Whether to run `Semgrep` scan on AUR packages.
     pub scan_do_semgrep: bool,
+    /// Whether to run `ShellCheck` scan on AUR packages.
     pub scan_do_shellcheck: bool,
+    /// Whether to run `VirusTotal` scan on AUR packages.
     pub scan_do_virustotal: bool,
+    /// Whether to run custom scan on AUR packages.
     pub scan_do_custom: bool,
+    /// Whether to run Sleuth scan on AUR packages.
     pub scan_do_sleuth: bool,
     /// Visual marker style for packages added to Install/Remove/Downgrade lists.
     pub package_marker: PackageMarker,
@@ -178,7 +186,9 @@ impl Default for Settings {
 /// A single keyboard chord (modifiers + key).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct KeyChord {
+    /// The key code (e.g., Char('a'), Enter, Esc).
     pub code: KeyCode,
+    /// The modifier keys (e.g., Ctrl, Shift, Alt).
     pub mods: KeyModifiers,
 }
 
@@ -294,8 +304,11 @@ mod tests {
 #[derive(Clone, Debug)]
 pub struct KeyMap {
     // Global
+    /// Key chords to show help overlay.
     pub help_overlay: Vec<KeyChord>,
+    /// Key chords to reload configuration.
     pub reload_config: Vec<KeyChord>,
+    /// Key chords to exit the application.
     pub exit: Vec<KeyChord>,
     /// Global: Show/Hide PKGBUILD viewer
     pub show_pkgbuild: Vec<KeyChord>,
@@ -303,8 +316,11 @@ pub struct KeyMap {
     pub comments_toggle: Vec<KeyChord>,
     /// Global: Change results sorting mode
     pub change_sort: Vec<KeyChord>,
+    /// Key chords to move to next pane.
     pub pane_next: Vec<KeyChord>,
+    /// Key chords to move focus left.
     pub pane_left: Vec<KeyChord>,
+    /// Key chords to move focus right.
     pub pane_right: Vec<KeyChord>,
     /// Global: Toggle Config/Lists dropdown
     pub config_menu_toggle: Vec<KeyChord>,
@@ -314,14 +330,23 @@ pub struct KeyMap {
     pub panels_menu_toggle: Vec<KeyChord>,
 
     // Search
+    /// Key chords to move selection up in search results.
     pub search_move_up: Vec<KeyChord>,
+    /// Key chords to move selection down in search results.
     pub search_move_down: Vec<KeyChord>,
+    /// Key chords to page up in search results.
     pub search_page_up: Vec<KeyChord>,
+    /// Key chords to page down in search results.
     pub search_page_down: Vec<KeyChord>,
+    /// Key chords to add package to install list.
     pub search_add: Vec<KeyChord>,
+    /// Key chords to install selected package.
     pub search_install: Vec<KeyChord>,
+    /// Key chords to move focus left from search pane.
     pub search_focus_left: Vec<KeyChord>,
+    /// Key chords to move focus right from search pane.
     pub search_focus_right: Vec<KeyChord>,
+    /// Key chords for backspace in search input.
     pub search_backspace: Vec<KeyChord>,
     /// Insert mode: clear entire search input (default: Shift+Del)
     pub search_insert_clear: Vec<KeyChord>,
@@ -351,12 +376,19 @@ pub struct KeyMap {
     pub toggle_fuzzy: Vec<KeyChord>,
 
     // Recent
+    /// Key chords to move selection up in recent queries.
     pub recent_move_up: Vec<KeyChord>,
+    /// Key chords to move selection down in recent queries.
     pub recent_move_down: Vec<KeyChord>,
+    /// Key chords to find/search in recent queries.
     pub recent_find: Vec<KeyChord>,
+    /// Key chords to use selected recent query.
     pub recent_use: Vec<KeyChord>,
+    /// Key chords to add package from recent to install list.
     pub recent_add: Vec<KeyChord>,
+    /// Key chords to move focus from recent to search pane.
     pub recent_to_search: Vec<KeyChord>,
+    /// Key chords to move focus right from recent pane.
     pub recent_focus_right: Vec<KeyChord>,
     /// Remove one entry from Recent
     pub recent_remove: Vec<KeyChord>,
@@ -364,13 +396,21 @@ pub struct KeyMap {
     pub recent_clear: Vec<KeyChord>,
 
     // Install
+    /// Key chords to move selection up in install list.
     pub install_move_up: Vec<KeyChord>,
+    /// Key chords to move selection down in install list.
     pub install_move_down: Vec<KeyChord>,
+    /// Key chords to confirm and execute install/remove operation.
     pub install_confirm: Vec<KeyChord>,
+    /// Key chords to remove item from install list.
     pub install_remove: Vec<KeyChord>,
+    /// Key chords to clear install list.
     pub install_clear: Vec<KeyChord>,
+    /// Key chords to find/search in install list.
     pub install_find: Vec<KeyChord>,
+    /// Key chords to move focus from install to search pane.
     pub install_to_search: Vec<KeyChord>,
+    /// Key chords to move focus left from install pane.
     pub install_focus_left: Vec<KeyChord>,
 
     // News modal

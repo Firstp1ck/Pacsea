@@ -442,6 +442,17 @@ fn handle_mode_toggle(app: &mut AppState, details_tx: &mpsc::UnboundedSender<Pac
     }
 }
 
+/// What: Toggle news maximum age filter between 7, 30, 90 days, and no limit.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+///
+/// Output:
+/// - None (modifies app state directly)
+///
+/// Details:
+/// - Cycles through age options: 7 days → 30 days → 90 days → no limit → 7 days
+/// - Refreshes news results after changing the filter
 fn handle_news_age_toggle(app: &mut AppState) {
     const AGES: [Option<u32>; 4] = [Some(7), Some(30), Some(90), None];
     let current = app.news_max_age_days;

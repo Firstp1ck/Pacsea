@@ -7,9 +7,13 @@
 //! - `settings_ensure`: Settings initialization and migration
 //! - `tests`: Test module
 
+/// Settings initialization and migration module.
 mod settings_ensure;
+/// Settings persistence module.
 mod settings_save;
+/// Default configuration file templates module.
 mod skeletons;
+/// Theme loading and parsing module.
 pub mod theme_loader;
 
 #[cfg(test)]

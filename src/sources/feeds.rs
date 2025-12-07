@@ -4,6 +4,7 @@ use std::collections::HashSet;
 use crate::state::types::{NewsFeedItem, NewsFeedSource, NewsSortMode};
 use tracing::{info, warn};
 
+/// Result type alias for news feed fetching operations.
 type Result<T> = super::Result<T>;
 
 /// What: Fetch combined news feed (Arch news + security advisories) and sort.
@@ -93,6 +94,15 @@ pub async fn fetch_news_feed<S: std::hash::BuildHasher + Send + Sync + 'static>(
     Ok(items)
 }
 
+/// What: Sort news feed items by the specified mode.
+///
+/// Inputs:
+/// - `items`: Mutable slice of news feed items to sort.
+/// - `mode`: Sort mode (date descending, etc.).
+///
+/// Output: Items are sorted in place.
+///
+/// Details: Sorts news items according to the specified sort mode.
 fn sort_news_items(items: &mut [NewsFeedItem], mode: NewsSortMode) {
     match mode {
         NewsSortMode::DateDesc => items.sort_by(|a, b| b.date.cmp(&a.date)),

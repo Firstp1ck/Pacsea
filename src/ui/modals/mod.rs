@@ -3,19 +3,33 @@ use ratatui::{Frame, prelude::Rect, style::Style, widgets::Block};
 use crate::state::AppState;
 use crate::theme::theme;
 
+/// Alert modal rendering.
 mod alert;
+/// Announcement modal rendering.
 mod announcement;
+/// Common utilities for modal rendering.
 mod common;
+/// Confirmation modal rendering.
 mod confirm;
+/// Help overlay modal rendering.
 mod help;
+/// Miscellaneous modal rendering utilities.
 mod misc;
+/// News modal rendering.
 mod news;
+/// Password prompt modal rendering.
 mod password;
+/// Post-summary modal rendering.
 mod post_summary;
+/// Preflight modal rendering.
 mod preflight;
+/// Preflight execution modal rendering.
 mod preflight_exec;
+/// Modal renderer utilities.
 mod renderer;
+/// System update modal rendering.
 mod system_update;
+/// Updates modal rendering.
 mod updates;
 
 /// What: Render modal overlays (`Alert`, `ConfirmInstall`, `ConfirmRemove`, `SystemUpdate`, `Help`, `News`).

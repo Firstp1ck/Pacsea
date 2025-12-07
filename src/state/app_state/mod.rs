@@ -340,8 +340,11 @@ pub struct AppState {
     pub toast_expires_at: Option<Instant>,
 
     // User settings loaded at startup
+    /// Left pane width percentage.
     pub layout_left_pct: u16,
+    /// Center pane width percentage.
     pub layout_center_pct: u16,
+    /// Right pane width percentage.
     pub layout_right_pct: u16,
     /// Resolved key bindings from user settings
     pub keymap: KeyMap,

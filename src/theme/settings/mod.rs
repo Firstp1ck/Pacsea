@@ -8,24 +8,47 @@ use crate::theme::paths::{resolve_keybinds_config_path, resolve_settings_config_
 use crate::theme::types::Settings;
 use tracing::{debug, warn};
 
+/// Settings normalization module.
 mod normalize;
+/// Keybind parsing module.
 mod parse_keybinds;
+/// Settings parsing module.
 mod parse_settings;
 
 use normalize::normalize;
 use parse_keybinds::parse_keybinds;
 use parse_settings::parse_settings;
 
+/// What: Cache for settings and keybinds with file metadata.
+///
+/// Inputs: Loaded from disk files.
+///
+/// Output: Cached settings with modification times.
+///
+/// Details: Tracks settings and keybinds along with file metadata for cache invalidation.
 struct SettingsCache {
+    /// Cached settings.
     settings: Settings,
+    /// Settings file modification time.
     settings_mtime: Option<SystemTime>,
+    /// Keybinds file modification time.
     keybinds_mtime: Option<SystemTime>,
+    /// Settings file size.
     settings_size: Option<u64>,
+    /// Keybinds file size.
     keybinds_size: Option<u64>,
+    /// Whether the cache has been initialized.
     initialized: bool,
 }
 
 impl SettingsCache {
+    /// What: Create a new settings cache with default values.
+    ///
+    /// Inputs: None.
+    ///
+    /// Output: New cache instance with uninitialized state.
+    ///
+    /// Details: Initializes all fields to default/empty values.
     fn new() -> Self {
         Self {
             settings: Settings::default(),
@@ -38,6 +61,9 @@ impl SettingsCache {
     }
 }
 
+/// Global settings cache singleton.
+///
+/// Details: Initialized on first access, providing thread-safe access to cached settings.
 static SETTINGS_CACHE: OnceLock<Mutex<SettingsCache>> = OnceLock::new();
 
 /// What: Load user settings and keybinds from config files under HOME/XDG.

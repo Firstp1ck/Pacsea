@@ -129,7 +129,12 @@ pub struct NewsFeedItem {
 pub enum Source {
     /// Official repository package and its associated repository and target
     /// architecture.
-    Official { repo: String, arch: String },
+    Official {
+        /// Repository name (e.g., "core", "extra", "community").
+        repo: String,
+        /// Target architecture (e.g., `x86_64`).
+        arch: String,
+    },
     /// AUR package.
     Aur,
 }

@@ -87,9 +87,13 @@ fn configure_test_env(cmd: &mut Command) {
 /// Details:
 /// - Groups related logging parameters to reduce function argument count.
 struct SpawnContext<'a> {
+    /// Comma-separated package names string.
     names_str: &'a str,
+    /// Number of package names.
     names_len: usize,
+    /// Whether this is a dry-run operation.
     dry_run: bool,
+    /// Cascade removal mode.
     cascade_mode: CascadeMode,
 }
 

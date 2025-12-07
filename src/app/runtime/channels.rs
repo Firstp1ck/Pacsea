@@ -16,165 +16,290 @@ use crate::state::{
 ///   between the main event loop and background workers
 #[allow(dead_code)]
 pub struct Channels {
+    /// Sender for terminal events (keyboard/mouse) from the event reading thread.
     pub event_tx: mpsc::UnboundedSender<CEvent>,
+    /// Receiver for terminal events in the main event loop.
     pub event_rx: mpsc::UnboundedReceiver<CEvent>,
+    /// Atomic flag to signal cancellation of the event reading thread.
     pub event_thread_cancelled: Arc<AtomicBool>,
+    /// Sender for search results from the search worker.
     pub search_result_tx: mpsc::UnboundedSender<SearchResults>,
+    /// Receiver for search results in the main event loop.
     pub results_rx: mpsc::UnboundedReceiver<SearchResults>,
+    /// Sender for package details requests to the details worker.
     pub details_req_tx: mpsc::UnboundedSender<PackageItem>,
+    /// Sender for package details responses from the details worker.
     pub details_res_tx: mpsc::UnboundedSender<PackageDetails>,
+    /// Receiver for package details responses in the main event loop.
     pub details_res_rx: mpsc::UnboundedReceiver<PackageDetails>,
+    /// Sender for tick events to trigger periodic UI updates.
     pub tick_tx: mpsc::UnboundedSender<()>,
+    /// Receiver for tick events in the main event loop.
     pub tick_rx: mpsc::UnboundedReceiver<()>,
+    /// Sender for network error messages from background workers.
     pub net_err_tx: mpsc::UnboundedSender<String>,
+    /// Receiver for network error messages in the main event loop.
     pub net_err_rx: mpsc::UnboundedReceiver<String>,
+    /// Sender for preview requests (package details for Recent pane).
     pub preview_tx: mpsc::UnboundedSender<PackageItem>,
+    /// Receiver for preview responses in the main event loop.
     pub preview_rx: mpsc::UnboundedReceiver<PackageItem>,
+    /// Sender for adding packages to the install list.
     pub add_tx: mpsc::UnboundedSender<PackageItem>,
+    /// Receiver for add requests in the install list handler.
     pub add_rx: mpsc::UnboundedReceiver<PackageItem>,
+    /// Sender for index update notifications.
     pub index_notify_tx: mpsc::UnboundedSender<()>,
+    /// Receiver for index update notifications in the main event loop.
     pub index_notify_rx: mpsc::UnboundedReceiver<()>,
+    /// Sender for PKGBUILD content requests.
     pub pkgb_req_tx: mpsc::UnboundedSender<PackageItem>,
+    /// Sender for PKGBUILD content responses (package name, PKGBUILD content).
     pub pkgb_res_tx: mpsc::UnboundedSender<(String, String)>,
+    /// Receiver for PKGBUILD content responses in the main event loop.
     pub pkgb_res_rx: mpsc::UnboundedReceiver<(String, String)>,
+    /// Sender for AUR comments requests (package name).
     pub comments_req_tx: mpsc::UnboundedSender<String>,
+    /// Sender for AUR comments responses (package name, comments or error).
     pub comments_res_tx:
         mpsc::UnboundedSender<(String, Result<Vec<crate::state::types::AurComment>, String>)>,
+    /// Receiver for AUR comments responses in the main event loop.
     pub comments_res_rx:
         mpsc::UnboundedReceiver<(String, Result<Vec<crate::state::types::AurComment>, String>)>,
+    /// Sender for Arch Linux status updates (status text, color).
     pub status_tx: mpsc::UnboundedSender<(String, ArchStatusColor)>,
+    /// Receiver for Arch Linux status updates in the main event loop.
     pub status_rx: mpsc::UnboundedReceiver<(String, ArchStatusColor)>,
+    /// Sender for Arch Linux news items.
     pub news_tx: mpsc::UnboundedSender<Vec<NewsItem>>,
+    /// Receiver for Arch Linux news items in the main event loop.
     pub news_rx: mpsc::UnboundedReceiver<Vec<NewsItem>>,
+    /// Sender for news feed items.
     pub news_feed_tx: mpsc::UnboundedSender<Vec<NewsFeedItem>>,
+    /// Receiver for news feed items in the main event loop.
     pub news_feed_rx: mpsc::UnboundedReceiver<Vec<NewsFeedItem>>,
     /// Request channel for fetching news article content (URL).
     pub news_content_req_tx: mpsc::UnboundedSender<String>,
     /// Response channel for news article content (URL, content).
     pub news_content_res_rx: mpsc::UnboundedReceiver<(String, String)>,
+    /// Sender for system updates information (count, package names).
     pub updates_tx: mpsc::UnboundedSender<(usize, Vec<String>)>,
+    /// Receiver for system updates information in the main event loop.
     pub updates_rx: mpsc::UnboundedReceiver<(usize, Vec<String>)>,
+    /// Sender for remote announcements.
     pub announcement_tx: mpsc::UnboundedSender<crate::announcements::RemoteAnnouncement>,
+    /// Receiver for remote announcements in the main event loop.
     pub announcement_rx: mpsc::UnboundedReceiver<crate::announcements::RemoteAnnouncement>,
+    /// Sender for dependency resolution requests (packages, action).
     pub deps_req_tx:
         mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
+    /// Sender for dependency resolution responses.
     pub deps_res_tx: mpsc::UnboundedSender<Vec<crate::state::modal::DependencyInfo>>,
+    /// Receiver for dependency resolution responses in the main event loop.
     pub deps_res_rx: mpsc::UnboundedReceiver<Vec<crate::state::modal::DependencyInfo>>,
+    /// Sender for file analysis requests (packages, action).
     pub files_req_tx:
         mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
+    /// Sender for file analysis responses.
     pub files_res_tx: mpsc::UnboundedSender<Vec<crate::state::modal::PackageFileInfo>>,
+    /// Receiver for file analysis responses in the main event loop.
     pub files_res_rx: mpsc::UnboundedReceiver<Vec<crate::state::modal::PackageFileInfo>>,
+    /// Sender for service impact analysis requests (packages, action).
     pub services_req_tx:
         mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
+    /// Sender for service impact analysis responses.
     pub services_res_tx: mpsc::UnboundedSender<Vec<crate::state::modal::ServiceImpact>>,
+    /// Receiver for service impact analysis responses in the main event loop.
     pub services_res_rx: mpsc::UnboundedReceiver<Vec<crate::state::modal::ServiceImpact>>,
+    /// Sender for sandbox analysis requests (packages).
     pub sandbox_req_tx: mpsc::UnboundedSender<Vec<PackageItem>>,
+    /// Sender for sandbox analysis responses.
     pub sandbox_res_tx: mpsc::UnboundedSender<Vec<crate::logic::sandbox::SandboxInfo>>,
+    /// Receiver for sandbox analysis responses in the main event loop.
     pub sandbox_res_rx: mpsc::UnboundedReceiver<Vec<crate::logic::sandbox::SandboxInfo>>,
+    /// Sender for preflight summary requests (packages, action).
     pub summary_req_tx:
         mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
+    /// Sender for preflight summary responses.
     pub summary_res_tx: mpsc::UnboundedSender<crate::logic::preflight::PreflightSummaryOutcome>,
+    /// Receiver for preflight summary responses in the main event loop.
     pub summary_res_rx: mpsc::UnboundedReceiver<crate::logic::preflight::PreflightSummaryOutcome>,
+    /// Sender for executor requests (install/remove/downgrade operations).
     pub executor_req_tx: mpsc::UnboundedSender<crate::install::ExecutorRequest>,
+    /// Receiver for executor responses in the main event loop.
     pub executor_res_rx: mpsc::UnboundedReceiver<crate::install::ExecutorOutput>,
+    /// Sender for post-summary computation requests (packages, success flag).
     pub post_summary_req_tx: mpsc::UnboundedSender<(Vec<PackageItem>, Option<bool>)>,
+    /// Receiver for post-summary computation results in the main event loop.
     pub post_summary_res_rx: mpsc::UnboundedReceiver<crate::logic::summary::PostSummaryData>,
+    /// Sender for search queries to the search worker.
     pub query_tx: mpsc::UnboundedSender<QueryInput>,
 }
 
 /// What: Event channel pair and cancellation flag.
 struct EventChannels {
+    /// Sender for terminal events.
     tx: mpsc::UnboundedSender<CEvent>,
+    /// Receiver for terminal events.
     rx: mpsc::UnboundedReceiver<CEvent>,
+    /// Cancellation flag for event thread.
     cancelled: Arc<AtomicBool>,
 }
 
 /// What: Search-related channels.
 struct SearchChannels {
+    /// Sender for search results.
     result_tx: mpsc::UnboundedSender<SearchResults>,
+    /// Receiver for search results.
     results_rx: mpsc::UnboundedReceiver<SearchResults>,
+    /// Sender for search queries.
     query_tx: mpsc::UnboundedSender<QueryInput>,
+    /// Receiver for search queries.
     query_rx: mpsc::UnboundedReceiver<QueryInput>,
 }
 
 /// What: Package details channels.
 struct DetailsChannels {
+    /// Sender for package details requests.
     req_tx: mpsc::UnboundedSender<PackageItem>,
+    /// Receiver for package details requests.
     req_rx: mpsc::UnboundedReceiver<PackageItem>,
+    /// Sender for package details responses.
     res_tx: mpsc::UnboundedSender<PackageDetails>,
+    /// Receiver for package details responses.
     res_rx: mpsc::UnboundedReceiver<PackageDetails>,
 }
 
 /// What: Preflight-related channels (dependencies, files, services, sandbox, summary).
 struct PreflightChannels {
+    /// Sender for dependency resolution requests.
     deps_req_tx: mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
+    /// Receiver for dependency resolution requests.
     deps_req_rx: mpsc::UnboundedReceiver<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
+    /// Sender for dependency resolution responses.
     deps_res_tx: mpsc::UnboundedSender<Vec<crate::state::modal::DependencyInfo>>,
+    /// Receiver for dependency resolution responses.
     deps_res_rx: mpsc::UnboundedReceiver<Vec<crate::state::modal::DependencyInfo>>,
+    /// Sender for file analysis requests.
     files_req_tx: mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
+    /// Receiver for file analysis requests.
     files_req_rx: mpsc::UnboundedReceiver<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
+    /// Sender for file analysis responses.
     files_res_tx: mpsc::UnboundedSender<Vec<crate::state::modal::PackageFileInfo>>,
+    /// Receiver for file analysis responses.
     files_res_rx: mpsc::UnboundedReceiver<Vec<crate::state::modal::PackageFileInfo>>,
+    /// Sender for service impact analysis requests.
     services_req_tx:
         mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
+    /// Receiver for service impact analysis requests.
     services_req_rx:
         mpsc::UnboundedReceiver<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
+    /// Sender for service impact analysis responses.
     services_res_tx: mpsc::UnboundedSender<Vec<crate::state::modal::ServiceImpact>>,
+    /// Receiver for service impact analysis responses.
     services_res_rx: mpsc::UnboundedReceiver<Vec<crate::state::modal::ServiceImpact>>,
+    /// Sender for sandbox analysis requests.
     sandbox_req_tx: mpsc::UnboundedSender<Vec<PackageItem>>,
+    /// Receiver for sandbox analysis requests.
     sandbox_req_rx: mpsc::UnboundedReceiver<Vec<PackageItem>>,
+    /// Sender for sandbox analysis responses.
     sandbox_res_tx: mpsc::UnboundedSender<Vec<crate::logic::sandbox::SandboxInfo>>,
+    /// Receiver for sandbox analysis responses.
     sandbox_res_rx: mpsc::UnboundedReceiver<Vec<crate::logic::sandbox::SandboxInfo>>,
+    /// Sender for preflight summary requests.
     summary_req_tx: mpsc::UnboundedSender<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
+    /// Receiver for preflight summary requests.
     summary_req_rx:
         mpsc::UnboundedReceiver<(Vec<PackageItem>, crate::state::modal::PreflightAction)>,
+    /// Sender for preflight summary responses.
     summary_res_tx: mpsc::UnboundedSender<crate::logic::preflight::PreflightSummaryOutcome>,
+    /// Receiver for preflight summary responses.
     summary_res_rx: mpsc::UnboundedReceiver<crate::logic::preflight::PreflightSummaryOutcome>,
 }
 
 /// What: Utility channels (tick, network errors, preview, add, index notify, PKGBUILD, status, news).
 struct UtilityChannels {
+    /// Sender for tick events.
     tick_tx: mpsc::UnboundedSender<()>,
+    /// Receiver for tick events.
     tick_rx: mpsc::UnboundedReceiver<()>,
+    /// Sender for network error messages.
     net_err_tx: mpsc::UnboundedSender<String>,
+    /// Receiver for network error messages.
     net_err_rx: mpsc::UnboundedReceiver<String>,
+    /// Sender for preview requests.
     preview_tx: mpsc::UnboundedSender<PackageItem>,
+    /// Receiver for preview requests.
     preview_rx: mpsc::UnboundedReceiver<PackageItem>,
+    /// Sender for add to install list requests.
     add_tx: mpsc::UnboundedSender<PackageItem>,
+    /// Receiver for add to install list requests.
     add_rx: mpsc::UnboundedReceiver<PackageItem>,
+    /// Sender for index update notifications.
     index_notify_tx: mpsc::UnboundedSender<()>,
+    /// Receiver for index update notifications.
     index_notify_rx: mpsc::UnboundedReceiver<()>,
+    /// Sender for PKGBUILD requests.
     pkgb_req_tx: mpsc::UnboundedSender<PackageItem>,
+    /// Receiver for PKGBUILD requests.
     pkgb_req_rx: mpsc::UnboundedReceiver<PackageItem>,
+    /// Sender for PKGBUILD responses.
     pkgb_res_tx: mpsc::UnboundedSender<(String, String)>,
+    /// Receiver for PKGBUILD responses.
     pkgb_res_rx: mpsc::UnboundedReceiver<(String, String)>,
+    /// Sender for AUR comments requests.
     comments_req_tx: mpsc::UnboundedSender<String>,
+    /// Receiver for AUR comments requests.
     comments_req_rx: mpsc::UnboundedReceiver<String>,
+    /// Sender for AUR comments responses.
     comments_res_tx:
         mpsc::UnboundedSender<(String, Result<Vec<crate::state::types::AurComment>, String>)>,
+    /// Receiver for AUR comments responses.
     comments_res_rx:
         mpsc::UnboundedReceiver<(String, Result<Vec<crate::state::types::AurComment>, String>)>,
+    /// Sender for Arch Linux status updates.
     status_tx: mpsc::UnboundedSender<(String, ArchStatusColor)>,
+    /// Receiver for Arch Linux status updates.
     status_rx: mpsc::UnboundedReceiver<(String, ArchStatusColor)>,
+    /// Sender for Arch Linux news items.
     news_tx: mpsc::UnboundedSender<Vec<NewsItem>>,
+    /// Receiver for Arch Linux news items.
     news_rx: mpsc::UnboundedReceiver<Vec<NewsItem>>,
+    /// Sender for news feed items.
     news_feed_tx: mpsc::UnboundedSender<Vec<NewsFeedItem>>,
+    /// Receiver for news feed items.
     news_feed_rx: mpsc::UnboundedReceiver<Vec<NewsFeedItem>>,
+    /// Sender for news article content requests.
     news_content_req_tx: mpsc::UnboundedSender<String>,
+    /// Receiver for news article content requests.
     news_content_req_rx: mpsc::UnboundedReceiver<String>,
+    /// Sender for news article content responses.
     news_content_res_tx: mpsc::UnboundedSender<(String, String)>,
+    /// Receiver for news article content responses.
     news_content_res_rx: mpsc::UnboundedReceiver<(String, String)>,
+    /// Sender for system updates information.
     updates_tx: mpsc::UnboundedSender<(usize, Vec<String>)>,
+    /// Receiver for system updates information.
     updates_rx: mpsc::UnboundedReceiver<(usize, Vec<String>)>,
+    /// Sender for remote announcements.
     announcement_tx: mpsc::UnboundedSender<crate::announcements::RemoteAnnouncement>,
+    /// Receiver for remote announcements.
     announcement_rx: mpsc::UnboundedReceiver<crate::announcements::RemoteAnnouncement>,
+    /// Sender for executor requests.
     executor_req_tx: mpsc::UnboundedSender<crate::install::ExecutorRequest>,
+    /// Receiver for executor requests.
     executor_req_rx: mpsc::UnboundedReceiver<crate::install::ExecutorRequest>,
+    /// Sender for executor responses.
     executor_res_tx: mpsc::UnboundedSender<crate::install::ExecutorOutput>,
+    /// Receiver for executor responses.
     executor_res_rx: mpsc::UnboundedReceiver<crate::install::ExecutorOutput>,
+    /// Sender for post-summary computation requests.
     post_summary_req_tx: mpsc::UnboundedSender<(Vec<PackageItem>, Option<bool>)>,
+    /// Receiver for post-summary computation requests.
     post_summary_req_rx: mpsc::UnboundedReceiver<(Vec<PackageItem>, Option<bool>)>,
+    /// Sender for post-summary computation results.
     post_summary_res_tx: mpsc::UnboundedSender<crate::logic::summary::PostSummaryData>,
+    /// Receiver for post-summary computation results.
     post_summary_res_rx: mpsc::UnboundedReceiver<crate::logic::summary::PostSummaryData>,
 }
 

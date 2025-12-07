@@ -7,6 +7,7 @@ use super::utils::{
     find_in_install, refresh_install_details, refresh_remove_details, refresh_selected_details,
 };
 
+/// Preflight modal opening functions for install operations.
 mod preflight;
 
 #[cfg(test)]

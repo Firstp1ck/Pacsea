@@ -6,11 +6,17 @@ use crate::util::percent_encode;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
+/// Result type alias for PKGBUILD fetching operations.
 type Result<T> = super::Result<T>;
 
-// Rate limiter for PKGBUILD requests to avoid overwhelming AUR servers
+/// Rate limiter for PKGBUILD requests to avoid overwhelming AUR servers.
+///
+/// Tracks the timestamp of the last PKGBUILD request to enforce minimum intervals.
 static PKGBUILD_RATE_LIMITER: Mutex<Option<Instant>> = Mutex::new(None);
-const PKGBUILD_MIN_INTERVAL_MS: u64 = 200; // Minimum 200ms between requests (reduced from 500ms for faster preview)
+/// Minimum interval between PKGBUILD requests in milliseconds.
+///
+/// Reduced from 500ms to 200ms for faster preview operations.
+const PKGBUILD_MIN_INTERVAL_MS: u64 = 200;
 
 /// What: Fetch PKGBUILD content for a package from AUR or official Git packaging repos.
 ///

@@ -3,11 +3,17 @@
 //! Split from a monolithic file into submodules for maintainability. Public
 //! re-exports keep the `crate::theme::*` API stable.
 
+/// Configuration file management and migration.
 mod config;
+/// Configuration parsing utilities.
 mod parsing;
+/// Path resolution for config directories.
 mod paths;
+/// Settings access and management.
 mod settings;
+/// Theme store and caching.
 mod store;
+/// Theme type definitions.
 mod types;
 
 pub use config::{

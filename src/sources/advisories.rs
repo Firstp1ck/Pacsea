@@ -2,6 +2,7 @@
 use crate::state::types::{AdvisorySeverity, NewsFeedItem, NewsFeedSource};
 use tracing::{info, warn};
 
+/// Result type alias for advisory fetching operations.
 type Result<T> = super::Result<T>;
 
 /// What: Fetch security advisories from security.archlinux.org and convert to feed items.
@@ -98,6 +99,14 @@ fn extract_between(s: &str, start: &str, end: &str) -> Option<String> {
     Some(s[i..j].to_string())
 }
 
+/// What: Extract href attribute value from a link tag in HTML string.
+///
+/// Inputs:
+/// - `s`: HTML string containing a link tag.
+///
+/// Output: Option containing the href value if found.
+///
+/// Details: Parses HTML to find link tag and extract href attribute value.
 fn extract_link_href(s: &str) -> Option<String> {
     // Look for link tag with href attribute
     let link_pos = s.find("<link")?;
@@ -108,6 +117,14 @@ fn extract_link_href(s: &str) -> Option<String> {
     Some(after[..end].to_string())
 }
 
+/// What: Strip time component from ISO 8601 datetime string.
+///
+/// Inputs:
+/// - `s`: ISO 8601 datetime string (e.g., "2024-01-01T12:00:00").
+///
+/// Output: Date string without time component.
+///
+/// Details: Splits on 'T' and returns only the date part.
 fn strip_time(s: &str) -> String {
     s.split('T').next().unwrap_or(s).trim().to_string()
 }

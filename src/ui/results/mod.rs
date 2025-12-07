@@ -9,11 +9,17 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, List, ListItem},
 };
 
+/// Dropdown menu rendering module.
 mod dropdowns;
+/// Search results list rendering module.
 mod list;
+/// Sort menu rendering module.
 mod sort_menu;
+/// Status bar rendering module.
 mod status;
+/// Title bar rendering module.
 mod title;
+/// Utility functions for results rendering.
 mod utils;
 
 /// What: Context struct containing all extracted values needed for rendering.
@@ -24,9 +30,13 @@ mod utils;
 ///
 /// Details: Reduces data flow complexity by grouping related values together.
 pub struct RenderContext {
+    /// Number of search results.
     pub results_len: usize,
+    /// Optional repositories configuration.
     pub optional_repos: OptionalRepos,
+    /// Menu states for dropdowns and menus.
     pub menu_states: MenuStates,
+    /// Filter states for search results.
     pub filter_states: FilterStates,
 }
 
@@ -39,15 +49,25 @@ pub struct RenderContext {
 /// Details: Used to pass multiple optional repo flags as a single parameter.
 #[allow(clippy::struct_excessive_bools)]
 pub struct OptionalRepos {
+    /// Whether `EndeavourOS` repository is available.
     pub has_eos: bool,
+    /// Whether `CachyOS` repository is available.
     pub has_cachyos: bool,
+    /// Whether `Artix` repository is available.
     pub has_artix: bool,
+    /// Whether `Artix Omniverse` repository is available.
     pub has_artix_omniverse: bool,
+    /// Whether `Artix Universe` repository is available.
     pub has_artix_universe: bool,
+    /// Whether `Artix Lib32` repository is available.
     pub has_artix_lib32: bool,
+    /// Whether `Artix Galaxy` repository is available.
     pub has_artix_galaxy: bool,
+    /// Whether `Artix World` repository is available.
     pub has_artix_world: bool,
+    /// Whether `Artix System` repository is available.
     pub has_artix_system: bool,
+    /// Whether `Manjaro` repository is available.
     pub has_manjaro: bool,
 }
 
@@ -60,10 +80,15 @@ pub struct OptionalRepos {
 /// Details: Used to pass multiple menu states as a single parameter.
 #[allow(clippy::struct_excessive_bools)]
 pub struct MenuStates {
+    /// Whether the sort menu is open.
     pub sort_menu_open: bool,
+    /// Whether the config menu is open.
     pub config_menu_open: bool,
+    /// Whether the panels menu is open.
     pub panels_menu_open: bool,
+    /// Whether the options menu is open.
     pub options_menu_open: bool,
+    /// Whether the collapsed menu is open.
     pub collapsed_menu_open: bool,
 }
 
@@ -76,19 +101,33 @@ pub struct MenuStates {
 /// Details: Used to pass multiple filter states as a single parameter.
 #[allow(clippy::struct_excessive_bools)]
 pub struct FilterStates {
+    /// Whether to show AUR packages.
     pub show_aur: bool,
+    /// Whether to show core repository packages.
     pub show_core: bool,
+    /// Whether to show extra repository packages.
     pub show_extra: bool,
+    /// Whether to show multilib repository packages.
     pub show_multilib: bool,
+    /// Whether to show `EndeavourOS` repository packages.
     pub show_eos: bool,
+    /// Whether to show `CachyOS` repository packages.
     pub show_cachyos: bool,
+    /// Whether to show `Artix` repository packages.
     pub show_artix: bool,
+    /// Whether to show `Artix Omniverse` repository packages.
     pub show_artix_omniverse: bool,
+    /// Whether to show `Artix Universe` repository packages.
     pub show_artix_universe: bool,
+    /// Whether to show `Artix Lib32` repository packages.
     pub show_artix_lib32: bool,
+    /// Whether to show `Artix Galaxy` repository packages.
     pub show_artix_galaxy: bool,
+    /// Whether to show `Artix World` repository packages.
     pub show_artix_world: bool,
+    /// Whether to show `Artix System` repository packages.
     pub show_artix_system: bool,
+    /// Whether to show `Manjaro` repository packages.
     pub show_manjaro: bool,
 }
 
@@ -192,6 +231,16 @@ fn render_list_widget(
 /// to ensure dropdowns appear on top.
 pub use dropdowns::render_dropdowns;
 
+/// What: Render news results in the results area.
+///
+/// Inputs:
+/// - `f`: Frame to render into.
+/// - `app`: Application state.
+/// - `area`: Area to render within.
+///
+/// Output: Renders news feed items as a list.
+///
+/// Details: Renders news feed items from `app.news_results` as a list with source labels.
 fn render_news_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     let th = theme();
     let items: Vec<ListItem> = app

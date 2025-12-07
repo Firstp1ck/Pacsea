@@ -5,6 +5,7 @@ use ego_tree::NodeRef;
 use scraper::{Html, Node, Selector};
 use tracing::{info, warn};
 
+/// Result type alias for Arch Linux news fetching operations.
 type Result<T> = super::Result<T>;
 
 /// What: Fetch recent Arch Linux news items.

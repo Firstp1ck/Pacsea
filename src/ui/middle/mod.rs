@@ -9,9 +9,13 @@ use crate::state::types::AppMode;
 use crate::state::{AppState, Focus};
 use crate::theme::theme;
 
+/// Install pane rendering module.
 mod install;
+/// Installed-only pane rendering module.
 mod installed_only;
+/// Recent packages pane rendering module.
 mod recent;
+/// Search input pane rendering module.
 mod search;
 
 /// What: Render the middle row: Recent (left), Search input (center), Install list (right).
@@ -89,6 +93,16 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
     }
 }
 
+/// What: Render the middle row when news modal is active.
+///
+/// Inputs:
+/// - `f`: Frame to render into.
+/// - `app`: Application state.
+/// - `area`: Area to render within.
+///
+/// Output: Renders the middle row with news content.
+///
+/// Details: Renders a different layout when the news modal is active.
 fn render_middle_news(f: &mut Frame, app: &mut AppState, area: Rect) {
     let th = theme();
     let middle = Layout::default()

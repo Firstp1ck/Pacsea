@@ -10,13 +10,19 @@ use crate::i18n;
 use crate::state::{AppState, NewsItem};
 use crate::theme::{KeyChord, theme};
 
-// Option 2: Extract constants for magic numbers
+/// Width ratio for news modal.
 const MODAL_WIDTH_RATIO: u16 = 2;
+/// Width divisor for news modal.
 const MODAL_WIDTH_DIVISOR: u16 = 3;
+/// Height padding for news modal.
 const MODAL_HEIGHT_PADDING: u16 = 8;
+/// Maximum height for news modal.
 const MODAL_MAX_HEIGHT: u16 = 20;
+/// Border width for news modal.
 const BORDER_WIDTH: u16 = 1;
+/// Number of header lines.
 const HEADER_LINES: u16 = 2;
+/// Total header and footer lines.
 const TOTAL_HEADER_FOOTER_LINES: u16 = 4;
 
 /// What: Determine if a news item title indicates a critical announcement.

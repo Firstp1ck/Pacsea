@@ -49,11 +49,17 @@ const META_PACKAGES: &[&str] = &[
 ///
 /// Details: Contains counts of dependencies by their status type.
 struct DepStats {
+    /// Total number of dependencies.
     total: usize,
+    /// Number of already installed dependencies.
     installed: usize,
+    /// Number of dependencies to install.
     to_install: usize,
+    /// Number of dependencies to upgrade.
     to_upgrade: usize,
+    /// Number of conflicting dependencies.
     conflict: usize,
+    /// Number of missing dependencies.
     missing: usize,
 }
 

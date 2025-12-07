@@ -57,16 +57,22 @@ impl OfficialIndex {
 /// - Serves as the source of truth for UI-facing `PackageItem` conversions.
 ///
 /// Details:
+/// - Represents a package from official Arch Linux repositories.
 /// - Non-name fields may be empty initially; enrichment routines fill them lazily.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct OfficialPkg {
+    /// Package name.
     pub name: String,
+    /// Repository name (e.g., "core", "extra", "community").
     #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub repo: String, // core or extra
+    pub repo: String,
+    /// Target architecture (e.g., `x86_64`, `any`).
     #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub arch: String, // e.g., x86_64/any
+    pub arch: String,
+    /// Package version.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub version: String,
+    /// Package description.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub description: String,
 }
@@ -132,15 +138,23 @@ fn explicit_lock() -> &'static RwLock<HashSet<String>> {
     EXPLICIT_SET.get_or_init(|| RwLock::new(HashSet::new()))
 }
 
+/// Package index enrichment utilities.
 mod enrich;
+/// Explicit package tracking.
 mod explicit;
+/// Package index fetching.
 mod fetch;
+/// Installed package utilities.
 mod installed;
+/// Package index persistence.
 mod persist;
+/// Package query utilities.
 mod query;
 
 #[cfg(windows)]
+/// Mirror configuration for Windows.
 mod mirrors;
+/// Package index update utilities.
 mod update;
 
 pub use enrich::*;

@@ -171,7 +171,9 @@ fn flatten_yaml_value(
 
 /// Locale loader that caches loaded translations.
 pub struct LocaleLoader {
+    /// Directory containing locale translation files.
     locales_dir: PathBuf,
+    /// Cache of loaded translations by locale name.
     cache: HashMap<String, TranslationMap>,
 }
 

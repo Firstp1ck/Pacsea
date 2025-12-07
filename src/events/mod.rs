@@ -10,12 +10,15 @@ use crate::state::{AppState, Focus, PackageItem, QueryInput};
 
 mod distro;
 mod global;
+/// Install pane event handling.
 mod install;
 mod modals;
 mod mouse;
 mod preflight;
+/// Recent packages event handling module.
 mod recent;
 mod search;
+/// Utility functions for event handling.
 pub mod utils;
 
 // Re-export open_preflight_modal for use in tests and other modules

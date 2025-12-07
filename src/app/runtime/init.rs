@@ -137,9 +137,13 @@ pub fn initialize_locale_system(
 /// - Checks for GNOME terminal if on GNOME desktop
 #[allow(clippy::struct_excessive_bools)]
 pub struct InitFlags {
+    /// Whether dependency resolution is needed (cache missing or invalid).
     pub needs_deps_resolution: bool,
+    /// Whether file analysis is needed (cache missing or invalid).
     pub needs_files_resolution: bool,
+    /// Whether service analysis is needed (cache missing or invalid).
     pub needs_services_resolution: bool,
+    /// Whether sandbox analysis is needed (cache missing or invalid).
     pub needs_sandbox_resolution: bool,
 }
 
@@ -418,8 +422,16 @@ fn load_news_read_urls(app: &mut AppState) {
 /// - Handles both old format (single hash) and new format (set of IDs) for migration
 fn load_announcement_state(app: &mut AppState) {
     // Try old format for migration ({ "hash": "..." })
+    /// What: Legacy announcement read state structure.
+    ///
+    /// Inputs: Deserialized from old announcement read file.
+    ///
+    /// Output: Old state structure for migration.
+    ///
+    /// Details: Used for migrating from old announcement read state format.
     #[derive(serde::Deserialize)]
     struct OldAnnouncementReadState {
+        /// Announcement hash if read.
         hash: Option<String>,
     }
     if let Ok(s) = std::fs::read_to_string(&app.announcement_read_path) {
@@ -502,6 +514,23 @@ fn check_version_announcement(app: &mut AppState) {
     // and will be shown when embedded is dismissed via show_next_pending_announcement()
 }
 
+/// What: Initialize application state by loading settings, caches, and persisted data.
+///
+/// Inputs:
+/// - `app`: Mutable application state to initialize
+/// - `dry_run_flag`: Whether to enable dry-run mode for this session
+/// - `headless`: Whether running in headless/test mode
+///
+/// Output:
+/// - Returns `InitFlags` indicating which caches need background resolution
+///
+/// Details:
+/// - Loads and migrates configuration files
+/// - Initializes locale system and translations
+/// - Loads persisted data: recent searches, install list, details cache, dependency/file/service/sandbox caches
+/// - Loads news read URLs and announcement state
+/// - Loads official package index from disk
+/// - Checks for version-embedded announcements
 pub fn initialize_app_state(app: &mut AppState, dry_run_flag: bool, headless: bool) -> InitFlags {
     app.dry_run = if dry_run_flag {
         true
