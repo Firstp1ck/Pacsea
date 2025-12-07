@@ -15,6 +15,7 @@ use crate::state::{AppState, PackageItem};
 /// Details:
 /// - Treats Shift+<char> from config as equivalent to uppercase char without Shift from terminal.
 /// - Handles cases where terminals report Shift inconsistently.
+#[must_use]
 pub fn matches_any(ke: &KeyEvent, list: &[crate::theme::KeyChord]) -> bool {
     list.iter().any(|c| {
         if (c.code, c.mods) == (ke.code, ke.modifiers) {
@@ -49,6 +50,7 @@ pub fn matches_any(ke: &KeyEvent, list: &[crate::theme::KeyChord]) -> bool {
 /// Output: Character count as `usize`
 ///
 /// Details: Counts Unicode scalar values using `s.chars().count()`.
+#[must_use]
 pub fn char_count(s: &str) -> usize {
     s.chars().count()
 }
@@ -60,6 +62,7 @@ pub fn char_count(s: &str) -> usize {
 ///
 /// Details: Returns 0 for `ci==0`; returns `s.len()` when `ci>=char_count(s)`; otherwise maps
 /// the character index to a byte offset via `char_indices()`.
+#[must_use]
 pub fn byte_index_for_char(s: &str, ci: usize) -> usize {
     let cc = char_count(s);
     if ci == 0 {
@@ -168,6 +171,73 @@ pub fn refresh_selected_details(
         } else {
             let _ = details_tx.send(item);
         }
+    }
+}
+
+/// Move news selection by delta, keeping it in view.
+pub fn move_news_selection(app: &mut AppState, delta: isize) {
+    if app.news_results.is_empty() {
+        app.news_selected = 0;
+        app.news_list_state.select(None);
+        app.details.url.clear();
+        return;
+    }
+    let len = app.news_results.len();
+    if app.news_selected >= len {
+        app.news_selected = len.saturating_sub(1);
+    }
+    app.news_list_state.select(Some(app.news_selected));
+    let steps = delta.unsigned_abs();
+    for _ in 0..steps {
+        if delta.is_negative() {
+            app.news_list_state.select_previous();
+        } else {
+            app.news_list_state.select_next();
+        }
+    }
+    let sel = app.news_list_state.selected().unwrap_or(0);
+    app.news_selected = std::cmp::min(sel, len.saturating_sub(1));
+    app.news_list_state.select(Some(app.news_selected));
+    update_news_url(app);
+}
+
+/// Synchronize details URL and content with currently selected news item.
+/// Also triggers content fetching if channel is provided and content is not cached.
+pub fn update_news_url(app: &mut AppState) {
+    if let Some(item) = app.news_results.get(app.news_selected)
+        && let Some(url) = &item.url
+    {
+        app.details.url.clone_from(url);
+        // Check if content is cached
+        app.news_content = app.news_content_cache.get(url).cloned();
+        app.news_content_scroll = 0;
+    } else {
+        app.details.url.clear();
+        app.news_content = None;
+    }
+    app.news_content_loading = false;
+}
+
+/// Request news content fetch if not cached or loading.
+pub fn maybe_request_news_content(
+    app: &mut AppState,
+    news_content_req_tx: &mpsc::UnboundedSender<String>,
+) {
+    // Only request if in news mode with a selected item that has a URL
+    if !matches!(app.app_mode, crate::state::types::AppMode::News) {
+        return;
+    }
+    if app.news_content_loading {
+        return;
+    }
+    if let Some(item) = app.news_results.get(app.news_selected)
+        && let Some(url) = &item.url
+        && app.news_content.is_none()
+        && !app.news_content_cache.contains_key(url)
+    {
+        app.news_content_loading = true;
+        let _ = news_content_req_tx.send(url.clone());
+        tracing::debug!(url = %url, "requesting news content");
     }
 }
 

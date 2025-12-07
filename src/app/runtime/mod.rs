@@ -75,6 +75,7 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
         headless,
         &channels.status_tx,
         &channels.news_tx,
+        &channels.news_feed_tx,
         &channels.announcement_tx,
         &channels.tick_tx,
         &app.news_read_urls,

@@ -2,9 +2,12 @@ use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout},
     prelude::Rect,
+    style::Style,
 };
 
+use crate::state::types::AppMode;
 use crate::state::{AppState, Focus};
+use crate::theme::theme;
 
 mod install;
 mod installed_only;
@@ -26,6 +29,10 @@ mod search;
 ///   Downgrade and Remove subpanes side-by-side.
 /// - Records inner rects for Recent/Install/Downgrade and sets the caret position for the Search input.
 pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
+    if matches!(app.app_mode, AppMode::News) {
+        render_middle_news(f, app, area);
+        return;
+    }
     // Middle row split: left Recent, middle Search input, right Install list
     // If a pane is hidden, reassign its percentage to the center pane.
     let left_pct = if app.show_recent_pane {
@@ -80,6 +87,51 @@ pub fn render_middle(f: &mut Frame, app: &mut AppState, area: Rect) {
             app.focus = Focus::Search;
         }
     }
+}
+
+fn render_middle_news(f: &mut Frame, app: &mut AppState, area: Rect) {
+    let th = theme();
+    let middle = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage(25),
+            Constraint::Percentage(50),
+            Constraint::Percentage(25),
+        ])
+        .split(area);
+
+    // Center search reuses existing search rendering/cursor
+    search::render_search(f, app, middle[1]);
+
+    let recent_focused = matches!(app.focus, Focus::Recent);
+    let recent_block = ratatui::widgets::Paragraph::new("News search history").block(
+        ratatui::widgets::Block::default()
+            .borders(ratatui::widgets::Borders::ALL)
+            .border_type(ratatui::widgets::BorderType::Rounded)
+            .title("History")
+            .border_style(Style::default().fg(if recent_focused {
+                th.mauve
+            } else {
+                th.surface1
+            })),
+    );
+    f.render_widget(recent_block, middle[0]);
+    app.recent_rect = Some((middle[0].x, middle[0].y, middle[0].width, middle[0].height));
+
+    let bookmarks_focused = matches!(app.focus, Focus::Install);
+    let bookmarks_block = ratatui::widgets::Paragraph::new("Bookmarks (news)").block(
+        ratatui::widgets::Block::default()
+            .borders(ratatui::widgets::Borders::ALL)
+            .border_type(ratatui::widgets::BorderType::Rounded)
+            .title("Bookmarks")
+            .border_style(Style::default().fg(if bookmarks_focused {
+                th.mauve
+            } else {
+                th.surface1
+            })),
+    );
+    f.render_widget(bookmarks_block, middle[2]);
+    app.install_rect = Some((middle[2].x, middle[2].y, middle[2].width, middle[2].height));
 }
 
 #[cfg(test)]

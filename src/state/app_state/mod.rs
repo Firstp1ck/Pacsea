@@ -8,10 +8,11 @@ use std::{
 
 use crate::state::modal::{CascadeMode, Modal, PreflightAction, ServiceImpact};
 use crate::state::types::{
-    ArchStatusColor, Focus, InstalledPackagesMode, PackageDetails, PackageItem, RightPaneFocus,
-    SortMode,
+    AppMode, ArchStatusColor, Focus, InstalledPackagesMode, NewsFeedItem, NewsSortMode,
+    PackageDetails, PackageItem, RightPaneFocus, SortMode,
 };
 use crate::theme::KeyMap;
+use chrono::{NaiveDate, Utc};
 
 mod default_impl;
 mod defaults;
@@ -44,6 +45,8 @@ pub const fn recent_capacity() -> NonZeroUsize {
 #[derive(Debug)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct AppState {
+    /// Current top-level mode (package management vs news feed).
+    pub app_mode: AppMode,
     /// Current search input text.
     pub input: String,
     /// Current search results, most relevant first.
@@ -108,6 +111,50 @@ pub struct AppState {
     pub news_read_path: PathBuf,
     /// Dirty flag indicating `news_read_urls` needs to be saved.
     pub news_read_dirty: bool,
+    /// News feed items currently loaded.
+    pub news_items: Vec<NewsFeedItem>,
+    /// Filtered/sorted news results shown in the UI.
+    pub news_results: Vec<NewsFeedItem>,
+    /// Selected index within news results.
+    pub news_selected: usize,
+    /// List state for news results pane.
+    pub news_list_state: ListState,
+    /// News search input text.
+    pub news_search_input: String,
+    /// Caret position within news search input.
+    pub news_search_caret: usize,
+    /// Selection anchor within news search input.
+    pub news_search_select_anchor: Option<usize>,
+    /// LRU cache of recent news searches (case-insensitive key).
+    pub news_recent: LruCache<String, String>,
+    /// Path where news recent searches are persisted.
+    pub news_recent_path: PathBuf,
+    /// Dirty flag indicating `news_recent` needs to be saved.
+    pub news_recent_dirty: bool,
+    /// Whether to show Arch news items.
+    pub news_filter_show_arch_news: bool,
+    /// Whether to show security advisories.
+    pub news_filter_show_advisories: bool,
+    /// Whether to restrict advisories to installed packages.
+    pub news_filter_installed_only: bool,
+    /// Maximum age of news items in days (None = unlimited).
+    pub news_max_age_days: Option<u32>,
+    /// Sort mode for news results.
+    pub news_sort_mode: NewsSortMode,
+    /// Saved news/bookmarked items.
+    pub news_bookmarks: Vec<NewsFeedItem>,
+    /// Path where news bookmarks are persisted.
+    pub news_bookmarks_path: PathBuf,
+    /// Dirty flag indicating `news_bookmarks` needs to be saved.
+    pub news_bookmarks_dirty: bool,
+    /// Cache of fetched news article content (URL -> content).
+    pub news_content_cache: std::collections::HashMap<String, String>,
+    /// Currently displayed news content (for the selected item).
+    pub news_content: Option<String>,
+    /// Whether news content is currently being fetched.
+    pub news_content_loading: bool,
+    /// Scroll offset for news content details.
+    pub news_content_scroll: u16,
 
     // Announcement read tracking (persisted)
     /// Set of announcement IDs the user has marked as read.
@@ -665,6 +712,83 @@ impl AppState {
             let stored = value.clone();
             let key = stored.to_ascii_lowercase();
             self.recent.put(key, stored);
+        }
+    }
+
+    /// What: Recompute news results applying filters, search, age cutoff, and sorting.
+    ///
+    /// Inputs:
+    /// - `self`: Mutable application state containing news items and filter fields.
+    ///
+    /// Output:
+    /// - Updates `news_results`, selection state, and recent news searches.
+    pub fn refresh_news_results(&mut self) {
+        self.news_search_input = self.input.clone();
+        self.news_search_caret = self.search_caret;
+        self.news_search_select_anchor = self.search_select_anchor;
+        let query = self.news_search_input.to_lowercase();
+        if !query.is_empty() {
+            self.news_recent
+                .put(query.clone(), self.news_search_input.clone());
+            self.news_recent_dirty = true;
+        }
+        let mut filtered: Vec<NewsFeedItem> = self
+            .news_items
+            .iter()
+            .filter(|it| match it.source {
+                crate::state::types::NewsFeedSource::ArchNews => self.news_filter_show_arch_news,
+                crate::state::types::NewsFeedSource::SecurityAdvisory => {
+                    self.news_filter_show_advisories
+                }
+            })
+            .cloned()
+            .collect();
+
+        if !query.is_empty() {
+            filtered.retain(|it| {
+                let hay = format!(
+                    "{} {} {}",
+                    it.title,
+                    it.summary.clone().unwrap_or_default(),
+                    it.packages.join(" ")
+                )
+                .to_lowercase();
+                hay.contains(&query)
+            });
+        }
+
+        if let Some(max_days) = self.news_max_age_days
+            && let Some(cutoff_date) = Utc::now()
+                .date_naive()
+                .checked_sub_days(chrono::Days::new(u64::from(max_days)))
+        {
+            filtered.retain(|it| {
+                NaiveDate::parse_from_str(&it.date, "%Y-%m-%d").map_or(true, |d| d >= cutoff_date)
+            });
+        }
+
+        match self.news_sort_mode {
+            NewsSortMode::DateDesc => filtered.sort_by(|a, b| b.date.cmp(&a.date)),
+            NewsSortMode::DateAsc => filtered.sort_by(|a, b| a.date.cmp(&b.date)),
+            NewsSortMode::Title => {
+                filtered.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
+            }
+            NewsSortMode::SourceThenTitle => filtered.sort_by(|a, b| {
+                a.source
+                    .cmp(&b.source)
+                    .then(a.title.to_lowercase().cmp(&b.title.to_lowercase()))
+            }),
+        }
+
+        self.news_results = filtered;
+        if self.news_results.is_empty() {
+            self.news_selected = 0;
+            self.news_list_state.select(None);
+        } else {
+            self.news_selected = self
+                .news_selected
+                .min(self.news_results.len().saturating_sub(1));
+            self.news_list_state.select(Some(self.news_selected));
         }
     }
 }

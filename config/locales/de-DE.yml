@@ -225,6 +225,7 @@ de-DE:
       show_pkgbuild: "PKGBUILD anzeigen"
       hide_pkgbuild: "PKGBUILD verbergen"
       url_label: "URL:"
+      open_url_label: "[Im Browser öffnen]"
       loading_pkgb: "PKGBUILD wird geladen…"
       copy_pkgbuild: "PKGBUILD kopieren"
       reload_pkgbuild: "PKGBUILD neu laden"
@@ -305,6 +306,10 @@ de-DE:
         list_installed_packages: "Installierte Pakete auflisten"
         update_system: "System aktualisieren"
         news: "Neuigkeiten"
+        news_management: "News-Verwaltung"
+        package_mode: "Paketmodus"
+        news_age_days: "News-Alter: {} Tage"
+        news_age_all: "News-Alter: unbegrenzt"
         tui_optional_deps: "TUI Optionale Abhängigkeiten"
 
     modals:

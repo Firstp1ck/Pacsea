@@ -31,6 +31,7 @@ chrono = "0.4"
 portable-pty = "0.9"
 strip-ansi-escapes = "0.2"
 lru = "0.16.2"
+ego-tree = "0.10"
 
 [dev-dependencies]
 tempfile = "3.10"
@@ -42,6 +43,10 @@ cognitive_complexity = "warn"
 pedantic = { level = "deny", priority = -1 }
 nursery = { level = "deny", priority = -1 }
 unwrap_used = "deny"
+# Keep docs linting consistent with clippy naming
+missing_docs_in_private_items = "warn"
 
+[lints.rust]
+missing_docs = "warn"
 # Ignored tests run with:
 # cargo test -- --ignored

@@ -21,6 +21,7 @@ use ratatui::{
 };
 
 use crate::i18n;
+use crate::state::types::AppMode;
 use crate::{state::AppState, theme::theme};
 
 mod details;
@@ -343,10 +344,14 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
 
     results::render_results(f, app, chunks[0]);
     middle::render_middle(f, app, chunks[1]);
-    details::render_details(f, app, chunks[2]);
+    if matches!(app.app_mode, AppMode::News) {
+        details::render_news_details(f, app, chunks[2]);
+    } else {
+        details::render_details(f, app, chunks[2]);
+    }
     modals::render_modals(f, app, area);
 
-    // Render dropdowns last to ensure they appear on top layer
+    // Render dropdowns last to ensure they appear on top layer (now for both modes)
     results::render_dropdowns(f, app, chunks[0]);
 
     // Render transient toast (bottom-right) if present

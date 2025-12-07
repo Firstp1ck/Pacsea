@@ -7,6 +7,7 @@ use ratatui::{
 };
 
 use crate::i18n;
+use crate::state::types::{AppMode, NewsSortMode};
 use crate::state::{AppState, SortMode};
 use crate::theme::theme;
 
@@ -29,14 +30,44 @@ pub fn render_sort_menu(f: &mut Frame, app: &mut AppState, area: Rect, btn_x: u1
 
     app.sort_menu_rect = None;
     if app.sort_menu_open {
-        let opts: Vec<String> = vec![
-            i18n::t(app, "app.results.sort_menu.options.alphabetical"),
-            i18n::t(app, "app.results.sort_menu.options.aur_popularity"),
-            i18n::t(app, "app.results.sort_menu.options.best_matches"),
-        ];
+        let opts: Vec<(String, bool)> = if matches!(app.app_mode, AppMode::News) {
+            vec![
+                (
+                    "Date (newest)".to_string(),
+                    app.news_sort_mode == NewsSortMode::DateDesc,
+                ),
+                (
+                    "Date (oldest)".to_string(),
+                    app.news_sort_mode == NewsSortMode::DateAsc,
+                ),
+                (
+                    "Title".to_string(),
+                    app.news_sort_mode == NewsSortMode::Title,
+                ),
+                (
+                    "Source".to_string(),
+                    app.news_sort_mode == NewsSortMode::SourceThenTitle,
+                ),
+            ]
+        } else {
+            vec![
+                (
+                    i18n::t(app, "app.results.sort_menu.options.alphabetical"),
+                    matches!(app.sort_mode, SortMode::RepoThenName),
+                ),
+                (
+                    i18n::t(app, "app.results.sort_menu.options.aur_popularity"),
+                    matches!(app.sort_mode, SortMode::AurPopularityThenOfficial),
+                ),
+                (
+                    i18n::t(app, "app.results.sort_menu.options.best_matches"),
+                    matches!(app.sort_mode, SortMode::BestMatches),
+                ),
+            ]
+        };
         let widest = opts
             .iter()
-            .map(|s| u16::try_from(s.len()).map_or(u16::MAX, |x| x))
+            .map(|(s, _)| u16::try_from(s.len()).map_or(u16::MAX, |x| x))
             .max()
             .unwrap_or(0);
         let w = widest.saturating_add(2).min(area.width.saturating_sub(2));
@@ -59,13 +90,8 @@ pub fn render_sort_menu(f: &mut Frame, app: &mut AppState, area: Rect, btn_x: u1
 
         // Build lines with current mode highlighted
         let mut lines: Vec<Line> = Vec::new();
-        for (i, text) in opts.iter().enumerate() {
-            let is_selected = matches!(
-                (i, app.sort_mode),
-                (0, SortMode::RepoThenName)
-                    | (1, SortMode::AurPopularityThenOfficial)
-                    | (2, SortMode::BestMatches)
-            );
+        for (text, selected) in &opts {
+            let is_selected = *selected;
             let mark = if is_selected { "✔ " } else { "  " };
             let style = if is_selected {
                 Style::default()

@@ -259,30 +259,54 @@ fn handle_navigation(
 
     // Check keymap-based arrow keys first (works same in normal and insert mode)
     if matches_any(ke, &km.search_move_up) {
-        move_sel_cached(app, -1, details_tx, comments_tx);
+        if matches!(app.app_mode, crate::state::types::AppMode::News) {
+            crate::events::utils::move_news_selection(app, -1);
+        } else {
+            move_sel_cached(app, -1, details_tx, comments_tx);
+        }
         return true;
     }
     if matches_any(ke, &km.search_move_down) {
-        move_sel_cached(app, 1, details_tx, comments_tx);
+        if matches!(app.app_mode, crate::state::types::AppMode::News) {
+            crate::events::utils::move_news_selection(app, 1);
+        } else {
+            move_sel_cached(app, 1, details_tx, comments_tx);
+        }
         return true;
     }
     if matches_any(ke, &km.search_page_up) {
-        move_sel_cached(app, -10, details_tx, comments_tx);
+        if matches!(app.app_mode, crate::state::types::AppMode::News) {
+            crate::events::utils::move_news_selection(app, -10);
+        } else {
+            move_sel_cached(app, -10, details_tx, comments_tx);
+        }
         return true;
     }
     if matches_any(ke, &km.search_page_down) {
-        move_sel_cached(app, 10, details_tx, comments_tx);
+        if matches!(app.app_mode, crate::state::types::AppMode::News) {
+            crate::events::utils::move_news_selection(app, 10);
+        } else {
+            move_sel_cached(app, 10, details_tx, comments_tx);
+        }
         return true;
     }
 
     // Vim-like navigation (j/k, Ctrl+D/U)
     match (ke.code, ke.modifiers) {
         (KeyCode::Char('j'), _) => {
-            move_sel_cached(app, 1, details_tx, comments_tx);
+            if matches!(app.app_mode, crate::state::types::AppMode::News) {
+                crate::events::utils::move_news_selection(app, 1);
+            } else {
+                move_sel_cached(app, 1, details_tx, comments_tx);
+            }
             true
         }
         (KeyCode::Char('k'), _) => {
-            move_sel_cached(app, -1, details_tx, comments_tx);
+            if matches!(app.app_mode, crate::state::types::AppMode::News) {
+                crate::events::utils::move_news_selection(app, -1);
+            } else {
+                move_sel_cached(app, -1, details_tx, comments_tx);
+            }
             true
         }
         (KeyCode::Char('d'), KeyModifiers::CONTROL) => {
@@ -404,6 +428,10 @@ fn handle_pane_navigation(
             true
         }
         _ if matches_any(ke, &app.keymap.pane_next) => {
+            if matches!(app.app_mode, crate::state::types::AppMode::News) {
+                app.focus = crate::state::Focus::Install;
+                return true;
+            }
             if app.installed_only_mode {
                 app.right_pane_focus = crate::state::RightPaneFocus::Downgrade;
                 if app.downgrade_state.selected().is_none() && !app.downgrade_list.is_empty() {

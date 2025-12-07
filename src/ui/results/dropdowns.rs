@@ -376,13 +376,25 @@ fn render_options_menu(
     } else {
         i18n::t(app, "app.results.options_menu.list_installed_packages")
     };
-    let opts = [
+    let mode_toggle_label = if matches!(app.app_mode, crate::state::types::AppMode::News) {
+        i18n::t(app, "app.results.options_menu.package_mode")
+    } else {
+        i18n::t(app, "app.results.options_menu.news_management")
+    };
+    let mut opts: Vec<String> = vec![
         label_toggle,
         i18n::t(app, "app.results.options_menu.update_system"),
+        mode_toggle_label,
         i18n::t(app, "app.results.options_menu.news"),
         i18n::t(app, "app.results.options_menu.tui_optional_deps"),
     ];
-    let opts: Vec<String> = opts.to_vec();
+    if matches!(app.app_mode, crate::state::types::AppMode::News) {
+        let age_label = app.news_max_age_days.map_or_else(
+            || i18n::t(app, "app.results.options_menu.news_age_all"),
+            |d| i18n::t_fmt1(app, "app.results.options_menu.news_age_days", d.to_string()),
+        );
+        opts.push(age_label);
+    }
 
     let widest = opts
         .iter()

@@ -119,7 +119,9 @@ fn handle_recent_to_install_wrap(
     app: &mut AppState,
     details_tx: &mpsc::UnboundedSender<PackageItem>,
 ) {
-    if app.installed_only_mode {
+    if matches!(app.app_mode, crate::state::types::AppMode::News) {
+        app.focus = crate::state::Focus::Install;
+    } else if app.installed_only_mode {
         // In installed-only mode, land on the Remove subpane when wrapping
         app.right_pane_focus = crate::state::RightPaneFocus::Remove;
         if app.remove_state.selected().is_none() && !app.remove_list.is_empty() {

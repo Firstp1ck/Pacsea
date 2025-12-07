@@ -11,6 +11,116 @@ pub struct NewsItem {
     pub url: String,
 }
 
+/// What: High-level application mode.
+///
+/// Inputs: None (enum variants)
+///
+/// Output: Represents whether the UI is in package management or news view.
+///
+/// Details:
+/// - `Package` preserves the existing package management experience.
+/// - `News` switches panes to the news feed experience.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AppMode {
+    /// Package management/search mode (existing UI).
+    Package,
+    /// News feed mode (new UI).
+    News,
+}
+
+/// What: News/advisory source type.
+///
+/// Inputs: None (enum variants)
+///
+/// Output: Identifies where a news feed item originates.
+///
+/// Details:
+/// - Distinguishes Arch news RSS posts from security advisories.
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+pub enum NewsFeedSource {
+    /// Official Arch Linux news RSS item.
+    ArchNews,
+    /// security.archlinux.org advisory.
+    SecurityAdvisory,
+}
+
+/// What: Severity levels for security advisories.
+///
+/// Inputs: None (enum variants)
+///
+/// Output: Normalized advisory severity.
+///
+/// Details:
+/// - Ordered from lowest to highest severity for sorting.
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+pub enum AdvisorySeverity {
+    /// Unknown or not provided.
+    Unknown,
+    /// Low severity.
+    Low,
+    /// Medium severity.
+    Medium,
+    /// High severity.
+    High,
+    /// Critical severity.
+    Critical,
+}
+
+/// What: Sort options for news feed results.
+///
+/// Inputs: None (enum variants)
+///
+/// Output: Selected sort mode for news items.
+///
+/// Details:
+/// - `DateDesc` is newest-first default.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NewsSortMode {
+    /// Newest first by date.
+    DateDesc,
+    /// Oldest first by date.
+    DateAsc,
+    /// Alphabetical by title.
+    Title,
+    /// Group by source then title.
+    SourceThenTitle,
+}
+
+/// What: Unified news/advisory feed item for the news view.
+///
+/// Inputs:
+/// - Fields describing the item (title, summary, url, source, severity, packages, date)
+///
+/// Output:
+/// - Data ready for list and details rendering in news mode.
+///
+/// Details:
+/// - `id` is a stable identifier (URL for news, advisory ID for security).
+/// - `packages` holds affected package names for advisories.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct NewsFeedItem {
+    /// Stable identifier (URL or advisory ID).
+    pub id: String,
+    /// Publication or update date (YYYY-MM-DD).
+    pub date: String,
+    /// Human-readable title/headline.
+    pub title: String,
+    /// Optional summary/description.
+    pub summary: Option<String>,
+    /// Optional link URL for details.
+    pub url: Option<String>,
+    /// Source type (Arch news vs security advisory).
+    pub source: NewsFeedSource,
+    /// Optional advisory severity.
+    pub severity: Option<AdvisorySeverity>,
+    /// Affected packages (advisories only).
+    pub packages: Vec<String>,
+}
+
 /// Package source origin.
 ///
 /// Indicates whether a package originates from the official repositories or

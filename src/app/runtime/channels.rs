@@ -4,6 +4,7 @@ use std::sync::atomic::AtomicBool;
 use crossterm::event::Event as CEvent;
 use tokio::sync::mpsc;
 
+use crate::state::types::NewsFeedItem;
 use crate::state::{
     ArchStatusColor, NewsItem, PackageDetails, PackageItem, QueryInput, SearchResults,
 };
@@ -45,6 +46,12 @@ pub struct Channels {
     pub status_rx: mpsc::UnboundedReceiver<(String, ArchStatusColor)>,
     pub news_tx: mpsc::UnboundedSender<Vec<NewsItem>>,
     pub news_rx: mpsc::UnboundedReceiver<Vec<NewsItem>>,
+    pub news_feed_tx: mpsc::UnboundedSender<Vec<NewsFeedItem>>,
+    pub news_feed_rx: mpsc::UnboundedReceiver<Vec<NewsFeedItem>>,
+    /// Request channel for fetching news article content (URL).
+    pub news_content_req_tx: mpsc::UnboundedSender<String>,
+    /// Response channel for news article content (URL, content).
+    pub news_content_res_rx: mpsc::UnboundedReceiver<(String, String)>,
     pub updates_tx: mpsc::UnboundedSender<(usize, Vec<String>)>,
     pub updates_rx: mpsc::UnboundedReceiver<(usize, Vec<String>)>,
     pub announcement_tx: mpsc::UnboundedSender<crate::announcements::RemoteAnnouncement>,
@@ -151,6 +158,12 @@ struct UtilityChannels {
     status_rx: mpsc::UnboundedReceiver<(String, ArchStatusColor)>,
     news_tx: mpsc::UnboundedSender<Vec<NewsItem>>,
     news_rx: mpsc::UnboundedReceiver<Vec<NewsItem>>,
+    news_feed_tx: mpsc::UnboundedSender<Vec<NewsFeedItem>>,
+    news_feed_rx: mpsc::UnboundedReceiver<Vec<NewsFeedItem>>,
+    news_content_req_tx: mpsc::UnboundedSender<String>,
+    news_content_req_rx: mpsc::UnboundedReceiver<String>,
+    news_content_res_tx: mpsc::UnboundedSender<(String, String)>,
+    news_content_res_rx: mpsc::UnboundedReceiver<(String, String)>,
     updates_tx: mpsc::UnboundedSender<(usize, Vec<String>)>,
     updates_rx: mpsc::UnboundedReceiver<(usize, Vec<String>)>,
     announcement_tx: mpsc::UnboundedSender<crate::announcements::RemoteAnnouncement>,
@@ -270,6 +283,9 @@ fn create_utility_channels() -> UtilityChannels {
         mpsc::unbounded_channel::<(String, Result<Vec<crate::state::types::AurComment>, String>)>();
     let (status_tx, status_rx) = mpsc::unbounded_channel::<(String, ArchStatusColor)>();
     let (news_tx, news_rx) = mpsc::unbounded_channel::<Vec<NewsItem>>();
+    let (news_feed_tx, news_feed_rx) = mpsc::unbounded_channel::<Vec<NewsFeedItem>>();
+    let (news_content_req_tx, news_content_req_rx) = mpsc::unbounded_channel::<String>();
+    let (news_content_res_tx, news_content_res_rx) = mpsc::unbounded_channel::<(String, String)>();
     let (updates_tx, updates_rx) = mpsc::unbounded_channel::<(usize, Vec<String>)>();
     let (announcement_tx, announcement_rx) =
         mpsc::unbounded_channel::<crate::announcements::RemoteAnnouncement>();
@@ -304,6 +320,12 @@ fn create_utility_channels() -> UtilityChannels {
         status_rx,
         news_tx,
         news_rx,
+        news_feed_tx,
+        news_feed_rx,
+        news_content_req_tx,
+        news_content_req_rx,
+        news_content_res_tx,
+        news_content_res_rx,
         updates_tx,
         updates_rx,
         announcement_tx,
@@ -347,6 +369,10 @@ impl Channels {
         crate::app::runtime::workers::comments::spawn_comments_worker(
             utility_channels.comments_req_rx,
             utility_channels.comments_res_tx.clone(),
+        );
+        crate::app::runtime::workers::news_content::spawn_news_content_worker(
+            utility_channels.news_content_req_rx,
+            utility_channels.news_content_res_tx.clone(),
         );
         crate::app::runtime::workers::preflight::spawn_dependency_worker(
             preflight_channels.deps_req_rx,
@@ -412,6 +438,10 @@ impl Channels {
             status_rx: utility_channels.status_rx,
             news_tx: utility_channels.news_tx,
             news_rx: utility_channels.news_rx,
+            news_feed_tx: utility_channels.news_feed_tx,
+            news_feed_rx: utility_channels.news_feed_rx,
+            news_content_req_tx: utility_channels.news_content_req_tx,
+            news_content_res_rx: utility_channels.news_content_res_rx,
             updates_tx: utility_channels.updates_tx,
             updates_rx: utility_channels.updates_rx,
             announcement_tx: utility_channels.announcement_tx,

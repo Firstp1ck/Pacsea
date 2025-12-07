@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-use std::time::Instant;
+use std::{collections::HashMap, fs, path::Path, time::Instant};
 
 use crate::index as pkgindex;
 use crate::state::{AppState, PackageDetails, PackageItem};
@@ -181,6 +180,79 @@ fn load_cache_with_signature<T>(
         },
         |cached| (Some(cached), false),
     )
+}
+
+/// What: Ensure cache directories exist before writing placeholder files.
+///
+/// Inputs:
+/// - `path`: Target cache file path whose parent directory should exist.
+///
+/// Output:
+/// - Parent directory is created if missing; logs a warning on failure.
+///
+/// Details:
+/// - No-op when the path has no parent.
+fn ensure_cache_parent_dir(path: &Path) {
+    if let Some(parent) = path.parent()
+        && let Err(error) = fs::create_dir_all(parent)
+    {
+        tracing::warn!(
+            path = %parent.display(),
+            %error,
+            "[Init] Failed to create cache directory"
+        );
+    }
+}
+
+/// What: Create empty cache files at startup so they always exist on disk.
+///
+/// Inputs:
+/// - `app`: Application state providing cache paths.
+///
+/// Output:
+/// - Writes empty dependency, file, service, and sandbox caches if the files are missing.
+///
+/// Details:
+/// - Uses empty signatures and payloads; leaves existing files untouched.
+/// - Ensures parent directories exist before writing.
+fn initialize_cache_files(app: &AppState) {
+    let empty_signature: Vec<String> = Vec::new();
+
+    if !app.deps_cache_path.exists() {
+        ensure_cache_parent_dir(&app.deps_cache_path);
+        deps_cache::save_cache(&app.deps_cache_path, &empty_signature, &[]);
+        tracing::debug!(
+            path = %app.deps_cache_path.display(),
+            "[Init] Created empty dependency cache"
+        );
+    }
+
+    if !app.files_cache_path.exists() {
+        ensure_cache_parent_dir(&app.files_cache_path);
+        files_cache::save_cache(&app.files_cache_path, &empty_signature, &[]);
+        tracing::debug!(
+            path = %app.files_cache_path.display(),
+            "[Init] Created empty file cache"
+        );
+    }
+
+    if !app.services_cache_path.exists() {
+        ensure_cache_parent_dir(&app.services_cache_path);
+        services_cache::save_cache(&app.services_cache_path, &empty_signature, &[]);
+        tracing::debug!(
+            path = %app.services_cache_path.display(),
+            "[Init] Created empty service cache"
+        );
+    }
+
+    if !app.sandbox_cache_path.exists() {
+        ensure_cache_parent_dir(&app.sandbox_cache_path);
+        sandbox_cache::save_cache(&app.sandbox_cache_path, &empty_signature, &[]);
+        tracing::debug!(
+            path = %app.sandbox_cache_path.display(),
+            "[Init] Created empty sandbox cache"
+        );
+    }
 }
 
 /// What: Apply settings from configuration to application state.
@@ -474,6 +546,7 @@ pub fn initialize_app_state(app: &mut AppState, dry_run_flag: bool, headless: bo
     load_details_cache(app);
     load_recent_searches(app);
     load_install_list(app);
+    initialize_cache_files(app);
 
     // Load dependency cache after install list is loaded (but before channels are created)
     let (deps_cache, needs_deps_resolution) = load_cache_with_signature(
@@ -717,6 +790,82 @@ mod tests {
         // Keymap should be initialized (it's a struct, not a string)
         // Just verify it's not the default empty state by checking a field
         // (KeyMap has many fields, we just verify it's been set)
+    }
+
+    #[test]
+    /// What: Verify that `initialize_cache_files` creates placeholder cache files when missing.
+    ///
+    /// Inputs:
+    /// - `AppState` with cache paths pointed to temporary locations that do not yet exist.
+    ///
+    /// Output:
+    /// - Empty dependency, file, service, and sandbox cache files are created.
+    ///
+    /// Details:
+    /// - Validates that startup eagerly materializes cache files instead of delaying until first use.
+    fn initialize_cache_files_creates_empty_placeholders() {
+        let mut app = new_app();
+        let mut deps_path = std::env::temp_dir();
+        deps_path.push(format!(
+            "pacsea_init_deps_cache_{}_{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("System time is before UNIX epoch")
+                .as_nanos()
+        ));
+        let mut files_path = deps_path.clone();
+        files_path.set_file_name("pacsea_init_files_cache.json");
+        let mut services_path = deps_path.clone();
+        services_path.set_file_name("pacsea_init_services_cache.json");
+        let mut sandbox_path = deps_path.clone();
+        sandbox_path.set_file_name("pacsea_init_sandbox_cache.json");
+
+        app.deps_cache_path = deps_path.clone();
+        app.files_cache_path = files_path.clone();
+        app.services_cache_path = services_path.clone();
+        app.sandbox_cache_path = sandbox_path.clone();
+
+        // Ensure paths are clean
+        let _ = std::fs::remove_file(&app.deps_cache_path);
+        let _ = std::fs::remove_file(&app.files_cache_path);
+        let _ = std::fs::remove_file(&app.services_cache_path);
+        let _ = std::fs::remove_file(&app.sandbox_cache_path);
+
+        initialize_cache_files(&app);
+
+        let deps_body = std::fs::read_to_string(&app.deps_cache_path)
+            .expect("Dependency cache file should exist");
+        let deps_cache: crate::app::deps_cache::DependencyCache =
+            serde_json::from_str(&deps_body).expect("Dependency cache should parse");
+        assert!(deps_cache.install_list_signature.is_empty());
+        assert!(deps_cache.dependencies.is_empty());
+
+        let files_body =
+            std::fs::read_to_string(&app.files_cache_path).expect("File cache file should exist");
+        let files_cache: crate::app::files_cache::FileCache =
+            serde_json::from_str(&files_body).expect("File cache should parse");
+        assert!(files_cache.install_list_signature.is_empty());
+        assert!(files_cache.files.is_empty());
+
+        let services_body = std::fs::read_to_string(&app.services_cache_path)
+            .expect("Service cache file should exist");
+        let services_cache: crate::app::services_cache::ServiceCache =
+            serde_json::from_str(&services_body).expect("Service cache should parse");
+        assert!(services_cache.install_list_signature.is_empty());
+        assert!(services_cache.services.is_empty());
+
+        let sandbox_body = std::fs::read_to_string(&app.sandbox_cache_path)
+            .expect("Sandbox cache file should exist");
+        let sandbox_cache: crate::app::sandbox_cache::SandboxCache =
+            serde_json::from_str(&sandbox_body).expect("Sandbox cache should parse");
+        assert!(sandbox_cache.install_list_signature.is_empty());
+        assert!(sandbox_cache.sandbox_info.is_empty());
+
+        let _ = std::fs::remove_file(&app.deps_cache_path);
+        let _ = std::fs::remove_file(&app.files_cache_path);
+        let _ = std::fs::remove_file(&app.services_cache_path);
+        let _ = std::fs::remove_file(&app.sandbox_cache_path);
     }
 
     #[tokio::test]

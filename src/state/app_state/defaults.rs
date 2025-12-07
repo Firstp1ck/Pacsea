@@ -2,10 +2,15 @@
 
 use lru::LruCache;
 use ratatui::widgets::ListState;
+use serde_json;
+use std::fs;
 use std::{collections::HashMap, collections::HashSet, path::PathBuf, time::Instant};
 
 use crate::state::modal::Modal;
-use crate::state::types::{ArchStatusColor, Focus, PackageDetails, PackageItem, SortMode};
+use crate::state::types::{
+    AppMode, ArchStatusColor, Focus, NewsFeedItem, NewsSortMode, PackageDetails, PackageItem,
+    SortMode,
+};
 use crate::theme::KeyMap;
 
 /// What: Create default paths for persisted data.
@@ -27,6 +32,8 @@ pub(super) fn default_paths() -> (
     std::path::PathBuf,
     std::path::PathBuf,
     std::path::PathBuf,
+    std::path::PathBuf,
+    std::path::PathBuf,
 ) {
     let lists_dir = crate::theme::lists_dir();
     (
@@ -39,6 +46,8 @@ pub(super) fn default_paths() -> (
         lists_dir.join("file_cache.json"),
         lists_dir.join("services_cache.json"),
         lists_dir.join("announcement_read.json"),
+        lists_dir.join("news_recent_searches.json"),
+        lists_dir.join("news_bookmarks.json"),
     )
 }
 
@@ -83,6 +92,96 @@ pub(super) type DefaultSearchState = (
     bool,
     Option<Vec<PackageItem>>,
 );
+
+/// Type alias for default news feed state tuple.
+#[allow(clippy::type_complexity)]
+pub(super) type DefaultNewsFeedState = (
+    Vec<NewsFeedItem>,
+    Vec<NewsFeedItem>,
+    usize,
+    ListState,
+    String,
+    usize,
+    Option<usize>,
+    LruCache<String, String>,
+    PathBuf,
+    bool,
+    bool,
+    bool,
+    bool,
+    Option<u32>,
+    NewsSortMode,
+    Vec<NewsFeedItem>,
+    PathBuf,
+    bool,
+    std::collections::HashMap<String, String>, // news_content_cache
+    Option<String>,                            // news_content
+    bool,                                      // news_content_loading
+    u16,                                       // news_content_scroll
+);
+
+/// What: Default application mode.
+///
+/// Inputs: None
+///
+/// Output: `AppMode::Package`
+#[must_use]
+pub(super) const fn default_app_mode() -> AppMode {
+    AppMode::Package
+}
+
+/// What: Create default state for the news feed.
+///
+/// Inputs:
+/// - `news_recent_path`: Path to persist news recent searches
+/// - `news_bookmarks_path`: Path to persist news bookmarks
+///
+/// Output:
+/// - Tuple containing news feed data, UI state, and persistence flags.
+pub(super) fn default_news_feed_state(
+    news_recent_path: PathBuf,
+    news_bookmarks_path: PathBuf,
+) -> DefaultNewsFeedState {
+    let recent_capacity = super::recent_capacity();
+    let mut news_recent = LruCache::unbounded();
+    news_recent.resize(recent_capacity);
+    if let Ok(s) = fs::read_to_string(&news_recent_path)
+        && let Ok(values) = serde_json::from_str::<Vec<String>>(&s)
+    {
+        for v in values.into_iter().rev() {
+            let key = v.to_ascii_lowercase();
+            news_recent.put(key, v);
+        }
+    }
+    let news_bookmarks: Vec<NewsFeedItem> = fs::read_to_string(&news_bookmarks_path)
+        .ok()
+        .and_then(|s| serde_json::from_str::<Vec<NewsFeedItem>>(&s).ok())
+        .unwrap_or_default();
+    (
+        Vec::new(),           // news_items
+        Vec::new(),           // news_results
+        0,                    // news_selected
+        ListState::default(), // news_list_state
+        String::new(),        // news_search_input
+        0,                    // news_search_caret
+        None,                 // news_search_select_anchor
+        news_recent,
+        news_recent_path,
+        false, // news_recent_dirty
+        true,  // news_filter_show_arch_news
+        true,  // news_filter_show_advisories
+        true,  // news_filter_installed_only
+        Some(30),
+        NewsSortMode::DateDesc,
+        news_bookmarks, // news_bookmarks
+        news_bookmarks_path,
+        false,                            // news_bookmarks_dirty
+        std::collections::HashMap::new(), // news_content_cache
+        None,                             // news_content
+        false,                            // news_content_loading
+        0,                                // news_content_scroll
+    )
+}
 
 /// Type alias for default install lists state tuple.
 pub(super) type DefaultInstallListsState = (

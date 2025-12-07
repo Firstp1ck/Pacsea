@@ -16,7 +16,7 @@ mod mouse;
 mod preflight;
 mod recent;
 mod search;
-mod utils;
+pub mod utils;
 
 // Re-export open_preflight_modal for use in tests and other modules
 pub use search::open_preflight_modal;

@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::sync::OnceLock;
 use std::sync::atomic::AtomicBool;
@@ -10,6 +11,7 @@ use tokio::{
 
 use crate::index as pkgindex;
 use crate::sources;
+use crate::state::types::{NewsFeedSource, NewsSortMode};
 use crate::state::{ArchStatusColor, NewsItem};
 
 /// What: Spawn background workers for status, news, announcements, and tick events.
@@ -18,6 +20,7 @@ use crate::state::{ArchStatusColor, NewsItem};
 /// - `headless`: When `true`, skip terminal-dependent operations
 /// - `status_tx`: Channel sender for Arch status updates
 /// - `news_tx`: Channel sender for Arch news updates
+/// - `news_feed_tx`: Channel sender for aggregated news feed (Arch news + advisories)
 /// - `announcement_tx`: Channel sender for remote announcement updates
 /// - `tick_tx`: Channel sender for tick events
 /// - `news_read_urls`: Set of already-read news URLs
@@ -37,11 +40,12 @@ use crate::state::{ArchStatusColor, NewsItem};
 /// - Refreshes pacman caches (installed, explicit) using the configured installed packages mode
 /// - Spawns tick worker that sends events every 200ms
 /// - Checks for available package updates once at startup and periodically at configured interval
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 pub fn spawn_auxiliary_workers(
     headless: bool,
     status_tx: &mpsc::UnboundedSender<(String, ArchStatusColor)>,
     news_tx: &mpsc::UnboundedSender<Vec<NewsItem>>,
+    news_feed_tx: &mpsc::UnboundedSender<Vec<crate::state::types::NewsFeedItem>>,
     announcement_tx: &mpsc::UnboundedSender<crate::announcements::RemoteAnnouncement>,
     tick_tx: &mpsc::UnboundedSender<()>,
     news_read_urls: &std::collections::HashSet<String>,
@@ -53,6 +57,13 @@ pub fn spawn_auxiliary_workers(
     installed_packages_mode: crate::state::InstalledPackagesMode,
     get_announcement: bool,
 ) {
+    tracing::info!(
+        headless,
+        get_announcement,
+        updates_refresh_interval,
+        "auxiliary workers starting"
+    );
+
     // Fetch Arch status text once at startup (skip in headless mode to avoid network delays)
     if !headless {
         let status_tx_once = status_tx.clone();
@@ -74,10 +85,16 @@ pub fn spawn_auxiliary_workers(
         });
     }
 
-    // Fetch Arch news once at startup; show unread items (by URL) if any (skip in headless mode)
-    if !headless {
+    if headless {
+        tracing::info!("headless mode: skipping news/advisory fetch and announcements");
+    } else {
+        // Fetch Arch news once at startup; show unread items (by URL) if any
         let news_tx_once = news_tx.clone();
         let read_set = news_read_urls.clone();
+        tracing::info!(
+            read_urls = read_set.len(),
+            "queueing arch news fetch (startup)"
+        );
         tokio::spawn(async move {
             if let Ok(list) = sources::fetch_arch_news(10).await {
                 let unread: Vec<NewsItem> = list
@@ -85,6 +102,58 @@ pub fn spawn_auxiliary_workers(
                     .filter(|it| !read_set.contains(&it.url))
                     .collect();
                 let _ = news_tx_once.send(unread);
+            } else {
+                tracing::warn!("arch news fetch failed (see preceding error)");
+            }
+        });
+
+        // Fetch aggregated news feed (Arch news + security advisories)
+        let news_feed_tx_once = news_feed_tx.clone();
+        let installed: HashSet<String> = pkgindex::explicit_names().into_iter().collect();
+        tracing::info!(
+            installed_names = installed.len(),
+            "queueing combined news feed fetch (startup)"
+        );
+        tokio::spawn(async move {
+            match sources::fetch_news_feed(
+                50,
+                true,
+                true,
+                Some(&installed),
+                true,
+                NewsSortMode::DateDesc,
+            )
+            .await
+            {
+                Ok(feed) => {
+                    let arch_ct = feed
+                        .iter()
+                        .filter(|i| matches!(i.source, NewsFeedSource::ArchNews))
+                        .count();
+                    let adv_ct = feed
+                        .iter()
+                        .filter(|i| matches!(i.source, NewsFeedSource::SecurityAdvisory))
+                        .count();
+                    tracing::info!(
+                        total = feed.len(),
+                        arch = arch_ct,
+                        advisories = adv_ct,
+                        installed_names = installed.len(),
+                        "news feed fetched"
+                    );
+                    if feed.is_empty() {
+                        tracing::warn!(
+                            installed_names = installed.len(),
+                            "news feed is empty after fetch"
+                        );
+                    }
+                    if let Err(e) = news_feed_tx_once.send(feed) {
+                        tracing::warn!(error = ?e, "failed to send news feed to channel");
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, "failed to fetch news feed");
+                }
             }
         });
     }

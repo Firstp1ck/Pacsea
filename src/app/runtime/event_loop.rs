@@ -1,9 +1,11 @@
 use ratatui::Terminal;
 use tokio::select;
 
+use crate::state::types::NewsFeedItem;
 use crate::state::{AppState, PackageItem};
 use crate::ui::ui;
 use crate::util::parse_update_entry;
+use tracing::info;
 
 use super::background::Channels;
 use super::handlers::{
@@ -218,6 +220,49 @@ fn handle_updates_list(app: &mut AppState, count: usize, list: Vec<String>) {
     }
 }
 
+/// What: Apply filters and sorting to news feed items.
+///
+/// Inputs:
+/// - `app`: Application state containing news feed data and filter flags.
+/// - `items`: New feed items to store.
+fn handle_news_feed_items(app: &mut AppState, items: Vec<NewsFeedItem>) {
+    app.news_items = items;
+    app.refresh_news_results();
+    info!(
+        fetched = app.news_items.len(),
+        visible = app.news_results.len(),
+        max_age_days = app.news_max_age_days.map(i64::from),
+        installed_only = app.news_filter_installed_only,
+        arch_on = app.news_filter_show_arch_news,
+        advisories_on = app.news_filter_show_advisories,
+        "news feed updated"
+    );
+}
+
+/// What: Handle news article content response.
+///
+/// Inputs:
+/// - `app`: Application state
+/// - `url`: The URL that was fetched
+/// - `content`: The article content
+fn handle_news_content(app: &mut AppState, url: &str, content: String) {
+    // Cache the content
+    app.news_content_cache
+        .insert(url.to_string(), content.clone());
+    app.news_content_loading = false;
+
+    // Update displayed content if this is for the currently selected item
+    if let Some(selected) = app.news_results.get(app.news_selected)
+        && selected.url.as_deref() == Some(url)
+    {
+        app.news_content = if content.is_empty() {
+            None
+        } else {
+            Some(content)
+        };
+    }
+}
+
 /// What: Process one iteration of channel message handling.
 ///
 /// Inputs:
@@ -230,6 +275,7 @@ fn handle_updates_list(app: &mut AppState, count: usize, list: Vec<String>) {
 /// - Waits for and processes a single message from any channel
 /// - Returns `true` when an event handler indicates exit (e.g., quit command)
 /// - Uses select! to wait on multiple channels concurrently
+#[allow(clippy::cognitive_complexity)]
 async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -> bool {
     select! {
         Some(ev) = channels.event_rx.recv() => {
@@ -296,6 +342,14 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
             handle_comments_result(app, pkgname, result, &channels.tick_tx);
             false
         }
+        Some(feed) = channels.news_feed_rx.recv() => {
+            handle_news_feed_items(app, feed);
+            false
+        }
+        Some((url, content)) = channels.news_content_res_rx.recv() => {
+            handle_news_content(app, &url, content);
+            false
+        }
         Some(msg) = channels.net_err_rx.recv() => {
             tracing::warn!(error = %msg, "Network error received");
             #[cfg(not(windows))]
@@ -322,6 +376,7 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
                 &channels.updates_tx,
                 &channels.executor_req_tx,
                 &channels.post_summary_req_tx,
+                &channels.news_content_req_tx,
             );
             false
         }

@@ -228,6 +228,7 @@ hu-HU:
       show_pkgbuild: "PKGBUILD megjelenítése"
       hide_pkgbuild: "PKGBUILD elrejtése"
       url_label: "Webcím:"
+      open_url_label: "[Open in Browser]" # TODO: translate to hungarian
       loading_pkgb: "PKGBUILD betöltése…"
       copy_pkgbuild: "PKGBUILD másolása"
       reload_pkgbuild: "PKGBUILD újratöltése"
@@ -308,6 +309,10 @@ hu-HU:
         list_installed_packages: "Telepített csomagok listázása"
         update_system: "Rendszer frissítése"
         news: "Hírek"
+        news_management: "News management (TODO: translate to hungarian)"
+        package_mode: "Package mode (TODO: translate to hungarian)"
+        news_age_days: "News age: {} days (TODO: translate to hungarian)"
+        news_age_all: "News age: all time (TODO: translate to hungarian)"
         tui_optional_deps: "A PacSea nem kötelező függőségei"
         
     modals:

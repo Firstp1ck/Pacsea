@@ -9,9 +9,9 @@ use crate::state::{AppState, ArchStatusColor, Modal, NewsItem, PackageItem, Quer
 
 use super::super::persist::{
     maybe_flush_announcement_read, maybe_flush_cache, maybe_flush_deps_cache,
-    maybe_flush_files_cache, maybe_flush_install, maybe_flush_news_read,
-    maybe_flush_pkgbuild_parse_cache, maybe_flush_recent, maybe_flush_sandbox_cache,
-    maybe_flush_services_cache,
+    maybe_flush_files_cache, maybe_flush_install, maybe_flush_news_bookmarks,
+    maybe_flush_news_read, maybe_flush_news_recent, maybe_flush_pkgbuild_parse_cache,
+    maybe_flush_recent, maybe_flush_sandbox_cache, maybe_flush_services_cache,
 };
 use super::super::recent::maybe_save_recent;
 
@@ -542,6 +542,7 @@ pub fn handle_tick(
     updates_tx: &mpsc::UnboundedSender<(usize, Vec<String>)>,
     executor_req_tx: &mpsc::UnboundedSender<crate::install::ExecutorRequest>,
     post_summary_req_tx: &mpsc::UnboundedSender<(Vec<PackageItem>, Option<bool>)>,
+    news_content_req_tx: &mpsc::UnboundedSender<String>,
 ) {
     // Check faillock status periodically (every minute via worker, but also check here)
     // We check every tick but only update if enough time has passed
@@ -550,6 +551,8 @@ pub fn handle_tick(
     maybe_save_recent(app);
     maybe_flush_cache(app);
     maybe_flush_recent(app);
+    maybe_flush_news_recent(app);
+    maybe_flush_news_bookmarks(app);
     maybe_flush_news_read(app);
     maybe_flush_announcement_read(app);
     maybe_flush_install(app);
@@ -590,6 +593,9 @@ pub fn handle_tick(
         app.updates_loading = true;
         crate::app::runtime::workers::auxiliary::spawn_updates_worker(updates_tx.clone());
     }
+
+    // Request news content if in news mode and content not cached
+    crate::events::utils::maybe_request_news_content(app, news_content_req_tx);
 
     handle_preflight_resolution(
         app,
@@ -771,6 +777,7 @@ mod tests {
         let (updates_tx, _updates_rx) = mpsc::unbounded_channel();
         let (executor_req_tx, _executor_req_rx) = mpsc::unbounded_channel();
         let (post_summary_req_tx, _post_summary_req_rx) = mpsc::unbounded_channel();
+        let (news_content_req_tx, _news_content_req_rx) = mpsc::unbounded_channel();
 
         // Should not panic
         handle_tick(
@@ -786,6 +793,7 @@ mod tests {
             &updates_tx,
             &executor_req_tx,
             &post_summary_req_tx,
+            &news_content_req_tx,
         );
     }
 
@@ -836,6 +844,7 @@ mod tests {
         let (updates_tx, _updates_rx) = mpsc::unbounded_channel();
         let (executor_req_tx, _executor_req_rx) = mpsc::unbounded_channel();
         let (post_summary_req_tx, _post_summary_req_rx) = mpsc::unbounded_channel();
+        let (news_content_req_tx, _news_content_req_rx) = mpsc::unbounded_channel();
 
         handle_tick(
             &mut app,
@@ -850,6 +859,7 @@ mod tests {
             &updates_tx,
             &executor_req_tx,
             &post_summary_req_tx,
+            &news_content_req_tx,
         );
 
         // Queues should be cleared
@@ -902,6 +912,7 @@ mod tests {
         let (updates_tx, _updates_rx) = mpsc::unbounded_channel();
         let (executor_req_tx, _executor_req_rx) = mpsc::unbounded_channel();
         let (post_summary_req_tx, _post_summary_req_rx) = mpsc::unbounded_channel();
+        let (news_content_req_tx, _news_content_req_rx) = mpsc::unbounded_channel();
 
         handle_tick(
             &mut app,
@@ -916,6 +927,7 @@ mod tests {
             &updates_tx,
             &executor_req_tx,
             &post_summary_req_tx,
+            &news_content_req_tx,
         );
 
         // Request should be sent

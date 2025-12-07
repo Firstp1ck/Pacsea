@@ -220,13 +220,26 @@ pub fn handle_install_key(
             refresh_selected_details(app, details_tx);
         }
         code if matches_any(&km.pane_next) && code == ke.code => {
-            handle_pane_next_navigation(app, details_tx, preview_tx);
+            if matches!(app.app_mode, crate::state::types::AppMode::News) {
+                // Bookmarks -> History
+                app.focus = crate::state::Focus::Recent;
+            } else {
+                handle_pane_next_navigation(app, details_tx, preview_tx);
+            }
         }
         KeyCode::Left => {
-            handle_left_arrow_navigation(app, details_tx);
+            if matches!(app.app_mode, crate::state::types::AppMode::News) {
+                app.focus = crate::state::Focus::Search;
+            } else {
+                handle_left_arrow_navigation(app, details_tx);
+            }
         }
         KeyCode::Right => {
-            handle_right_arrow_navigation(app, details_tx, preview_tx);
+            if matches!(app.app_mode, crate::state::types::AppMode::News) {
+                app.focus = crate::state::Focus::Recent;
+            } else {
+                handle_right_arrow_navigation(app, details_tx, preview_tx);
+            }
         }
         KeyCode::Delete if !ke.modifiers.contains(KeyModifiers::SHIFT) => {
             handle_delete_item(app, details_tx);

@@ -1422,6 +1422,7 @@ dependencies = [
  "chrono",
  "clap",
  "crossterm 0.29.0",
+ "ego-tree",
  "futures",
  "fuzzy-matcher",
  "lru 0.16.2",

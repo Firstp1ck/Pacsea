@@ -1,6 +1,6 @@
 //! Details pane mouse event handling (URL, PKGBUILD buttons, scroll).
 
-use crossterm::event::{MouseEvent, MouseEventKind};
+use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 use crossterm::execute;
 use tokio::sync::mpsc;
 
@@ -36,8 +36,26 @@ const fn is_point_in_rect(mx: u16, my: u16, rect: Option<(u16, u16, u16, u16)>) 
 ///
 /// Output:
 /// - `true` if the click was handled, `false` otherwise.
-fn handle_url_click(mx: u16, my: u16, app: &mut AppState) -> bool {
-    if is_point_in_rect(mx, my, app.url_button_rect) && !app.details.url.is_empty() {
+fn handle_url_click(m: MouseEvent, mx: u16, my: u16, app: &mut AppState) -> bool {
+    // Only log if click is near the URL area to avoid spam
+    if let Some((_, ry, _, _)) = app.url_button_rect
+        && my >= ry.saturating_sub(2)
+        && my <= ry.saturating_add(2)
+    {
+        tracing::info!(
+            mx,
+            my,
+            rect = ?app.url_button_rect,
+            url = %app.details.url,
+            in_rect = is_point_in_rect(mx, my, app.url_button_rect),
+            "URL click check"
+        );
+    }
+    if is_point_in_rect(mx, my, app.url_button_rect)
+        && !app.details.url.is_empty()
+        && matches!(m.kind, MouseEventKind::Down(MouseButton::Left))
+    {
+        tracing::info!(url = %app.details.url, "opening URL via Ctrl+Shift+Click");
         app.mouse_disabled_in_details = false;
         crate::util::open_url(&app.details.url);
         true
@@ -305,11 +323,19 @@ fn handle_details_scroll(m: MouseEvent, mx: u16, my: u16, app: &mut AppState) ->
 
     match m.kind {
         MouseEventKind::ScrollUp => {
-            app.details_scroll = app.details_scroll.saturating_sub(1);
+            if matches!(app.app_mode, crate::state::types::AppMode::News) {
+                app.news_content_scroll = app.news_content_scroll.saturating_sub(1);
+            } else {
+                app.details_scroll = app.details_scroll.saturating_sub(1);
+            }
             true
         }
         MouseEventKind::ScrollDown => {
-            app.details_scroll = app.details_scroll.saturating_add(1);
+            if matches!(app.app_mode, crate::state::types::AppMode::News) {
+                app.news_content_scroll = app.news_content_scroll.saturating_add(1);
+            } else {
+                app.details_scroll = app.details_scroll.saturating_add(1);
+            }
             true
         }
         _ => false,
@@ -475,9 +501,36 @@ pub(super) fn handle_details_mouse(
     pkgb_tx: &mpsc::UnboundedSender<PackageItem>,
     comments_tx: &mpsc::UnboundedSender<String>,
 ) -> Option<bool> {
-    // Handle modifier-clicks in details first, even when selection is enabled
-    if is_left_down && ctrl && shift && handle_url_click(mx, my, app) {
+    // In news mode, allow simple left-click on URL (no Ctrl+Shift needed)
+    if is_left_down
+        && matches!(app.app_mode, crate::state::types::AppMode::News)
+        && is_point_in_rect(mx, my, app.url_button_rect)
+        && !app.details.url.is_empty()
+    {
+        tracing::info!(
+            mx,
+            my,
+            url = %app.details.url,
+            rect = ?app.url_button_rect,
+            "News URL clicked"
+        );
+        crate::util::open_url(&app.details.url);
         return Some(false);
+    }
+
+    // Handle modifier-clicks in details first, even when selection is enabled (package mode)
+    if is_left_down && ctrl && shift {
+        tracing::info!(
+            mx,
+            my,
+            url_button_rect = ?app.url_button_rect,
+            details_rect = ?app.details_rect,
+            url = %app.details.url,
+            "Ctrl+Shift+Click in details area"
+        );
+        if handle_url_click(m, mx, my, app) {
+            return Some(false);
+        }
     }
 
     // Handle comment URL, author, and date clicks (before other button clicks)

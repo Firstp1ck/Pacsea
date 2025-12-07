@@ -31,6 +31,8 @@ impl Default for AppState {
             files_cache_path,
             services_cache_path,
             announcement_read_path,
+            news_recent_path,
+            news_bookmarks_path,
         ) = defaults::default_paths();
         let (
             results_filter_show_aur,
@@ -84,6 +86,33 @@ impl Default for AppState {
             search_cache_fuzzy,
             search_cache_results,
         ) = defaults::default_search_state();
+
+        let app_mode = defaults::default_app_mode();
+
+        let (
+            news_items,
+            news_results,
+            news_selected,
+            news_list_state,
+            news_search_input,
+            news_search_caret,
+            news_search_select_anchor,
+            news_recent,
+            news_recent_path,
+            news_recent_dirty,
+            news_filter_show_arch_news,
+            news_filter_show_advisories,
+            news_filter_installed_only,
+            news_max_age_days,
+            news_sort_mode,
+            news_bookmarks,
+            news_bookmarks_path,
+            news_bookmarks_dirty,
+            news_content_cache,
+            news_content,
+            news_content_loading,
+            news_content_scroll,
+        ) = defaults::default_news_feed_state(news_recent_path, news_bookmarks_path);
 
         let (recent, history_state, recent_path, recent_dirty) =
             defaults::default_recent_state(recent_path);
@@ -288,6 +317,7 @@ impl Default for AppState {
         ) = defaults_cache::default_preflight_state();
 
         Self {
+            app_mode,
             input,
             results,
             all_results,
@@ -316,6 +346,28 @@ impl Default for AppState {
             news_read_urls,
             news_read_path,
             news_read_dirty,
+            news_items,
+            news_results,
+            news_selected,
+            news_list_state,
+            news_search_input,
+            news_search_caret,
+            news_search_select_anchor,
+            news_recent,
+            news_recent_path,
+            news_recent_dirty,
+            news_filter_show_arch_news,
+            news_filter_show_advisories,
+            news_filter_installed_only,
+            news_max_age_days,
+            news_sort_mode,
+            news_bookmarks,
+            news_bookmarks_path,
+            news_bookmarks_dirty,
+            news_content_cache,
+            news_content,
+            news_content_loading,
+            news_content_scroll,
             announcements_read_ids,
             announcement_read_path,
             announcement_dirty,

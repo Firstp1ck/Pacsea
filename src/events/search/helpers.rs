@@ -21,6 +21,18 @@ pub fn navigate_pane(
     details_tx: &tokio::sync::mpsc::UnboundedSender<crate::state::PackageItem>,
     preview_tx: &tokio::sync::mpsc::UnboundedSender<crate::state::PackageItem>,
 ) {
+    if matches!(app.app_mode, crate::state::types::AppMode::News) {
+        match direction {
+            "right" => {
+                app.focus = crate::state::Focus::Install; // bookmarks pane
+            }
+            "left" => {
+                app.focus = crate::state::Focus::Recent; // history pane
+            }
+            _ => {}
+        }
+        return;
+    }
     match direction {
         "right" => {
             if app.installed_only_mode {

@@ -1,3 +1,6 @@
+use crate::state::AppState;
+use crate::state::types::{AppMode, NewsFeedSource};
+use crate::theme::theme;
 use ratatui::{
     Frame,
     prelude::Rect,
@@ -5,9 +8,6 @@ use ratatui::{
     text::Line,
     widgets::{Block, BorderType, Borders, List, ListItem},
 };
-
-use crate::state::AppState;
-use crate::theme::theme;
 
 mod dropdowns;
 mod list;
@@ -109,6 +109,10 @@ pub struct FilterStates {
 /// - Renders dropdown overlays for Sort/Options/Config/Panels when open, and records rects.
 /// - Reduces data flow complexity by extracting all data in one operation and batching mutations.
 pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
+    if matches!(app.app_mode, AppMode::News) {
+        render_news_results(f, app, area);
+        return;
+    }
     // Keep selection centered within the visible results list when possible
     utils::center_selection(app, area);
 
@@ -187,6 +191,79 @@ fn render_list_widget(
 /// This function should be called after all other UI elements are rendered
 /// to ensure dropdowns appear on top.
 pub use dropdowns::render_dropdowns;
+
+fn render_news_results(f: &mut Frame, app: &mut AppState, area: Rect) {
+    let th = theme();
+    let items: Vec<ListItem> = app
+        .news_results
+        .iter()
+        .map(|item| {
+            let source_label = match item.source {
+                NewsFeedSource::ArchNews => "Arch",
+                NewsFeedSource::SecurityAdvisory => "Advisory",
+            };
+            let source_color = match item.source {
+                NewsFeedSource::ArchNews => th.sapphire,
+                NewsFeedSource::SecurityAdvisory => th.yellow,
+            };
+            let sev = item
+                .severity
+                .as_ref()
+                .map_or_else(String::new, |s| format!("{s:?}"));
+            let mut spans = vec![
+                ratatui::text::Span::styled(
+                    format!("[{source_label}]"),
+                    Style::default().fg(source_color),
+                ),
+                ratatui::text::Span::raw(" "),
+                ratatui::text::Span::raw(item.date.clone()),
+                ratatui::text::Span::raw(" "),
+                ratatui::text::Span::raw(item.title.clone()),
+            ];
+            if !sev.is_empty() {
+                spans.push(ratatui::text::Span::raw(" "));
+                spans.push(ratatui::text::Span::styled(
+                    format!("[{sev}]"),
+                    Style::default().fg(th.yellow),
+                ));
+            }
+            ListItem::new(Line::from(spans)).style(Style::default().fg(th.text))
+        })
+        .collect();
+    // Build simple title with Date and Options buttons
+    let title_text = format!("News Feed ({})", app.news_results.len());
+    let date_label = "Date";
+    let options_label = "Options";
+    let title_spans = vec![
+        ratatui::text::Span::styled(title_text.clone(), Style::default().fg(th.overlay1)),
+        ratatui::text::Span::raw("   "),
+        ratatui::text::Span::styled(date_label, Style::default().fg(th.mauve)),
+        ratatui::text::Span::raw("   "),
+        ratatui::text::Span::styled(options_label, Style::default().fg(th.mauve)),
+    ];
+    // Record rects for Date (reuse sort_button_rect) and Options for mouse hit-testing
+    let title_width = u16::try_from(title_text.len()).unwrap_or(0);
+    let date_w = u16::try_from(date_label.len()).unwrap_or(0);
+    let options_w = u16::try_from(options_label.len()).unwrap_or(0);
+    let base_x = area.x + 1 + title_width + 3;
+    app.sort_button_rect = Some((base_x, area.y, date_w, 1));
+    let opt_x = base_x.saturating_add(date_w).saturating_add(3);
+    app.options_button_rect = Some((opt_x, area.y, options_w, 1));
+
+    let list = List::new(items)
+        .style(Style::default().fg(th.text).bg(th.base))
+        .block(
+            Block::default()
+                .title(Line::from(title_spans))
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().fg(th.surface2)),
+        )
+        .highlight_style(Style::default().bg(th.surface1))
+        .highlight_symbol("> ");
+    app.results_rect = Some((area.x, area.y, area.width, area.height));
+    f.render_stateful_widget(list, area, &mut app.news_list_state);
+}
 
 #[cfg(test)]
 mod tests {

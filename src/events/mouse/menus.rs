@@ -152,12 +152,16 @@ fn handle_arch_status() -> bool {
 /// Output:
 /// - `false` if handled
 fn handle_sort_button(app: &mut AppState) -> bool {
-    app.sort_menu_open = !app.sort_menu_open;
-    if app.sort_menu_open {
-        app.sort_menu_auto_close_at =
-            Some(std::time::Instant::now() + std::time::Duration::from_secs(2));
+    if matches!(app.app_mode, crate::state::types::AppMode::News) {
+        handle_news_age_toggle(app);
     } else {
-        app.sort_menu_auto_close_at = None;
+        app.sort_menu_open = !app.sort_menu_open;
+        if app.sort_menu_open {
+            app.sort_menu_auto_close_at =
+                Some(std::time::Instant::now() + std::time::Duration::from_secs(2));
+        } else {
+            app.sort_menu_auto_close_at = None;
+        }
     }
     false
 }
@@ -262,31 +266,42 @@ fn handle_sort_menu_click(
 ) -> Option<bool> {
     if let Some((_x, y, _w, _h)) = app.sort_menu_rect {
         let row = my.saturating_sub(y) as usize;
-        match row {
-            0 => {
-                app.sort_mode = crate::state::SortMode::RepoThenName;
-                crate::theme::save_sort_mode(app.sort_mode);
+        if matches!(app.app_mode, crate::state::types::AppMode::News) {
+            match row {
+                0 => app.news_sort_mode = crate::state::types::NewsSortMode::DateDesc,
+                1 => app.news_sort_mode = crate::state::types::NewsSortMode::DateAsc,
+                2 => app.news_sort_mode = crate::state::types::NewsSortMode::Title,
+                3 => app.news_sort_mode = crate::state::types::NewsSortMode::SourceThenTitle,
+                _ => return None,
             }
-            1 => {
-                app.sort_mode = crate::state::SortMode::AurPopularityThenOfficial;
-                crate::theme::save_sort_mode(app.sort_mode);
+            app.refresh_news_results();
+        } else {
+            match row {
+                0 => {
+                    app.sort_mode = crate::state::SortMode::RepoThenName;
+                    crate::theme::save_sort_mode(app.sort_mode);
+                }
+                1 => {
+                    app.sort_mode = crate::state::SortMode::AurPopularityThenOfficial;
+                    crate::theme::save_sort_mode(app.sort_mode);
+                }
+                2 => {
+                    app.sort_mode = crate::state::SortMode::BestMatches;
+                    crate::theme::save_sort_mode(app.sort_mode);
+                }
+                _ => return None,
             }
-            2 => {
-                app.sort_mode = crate::state::SortMode::BestMatches;
-                crate::theme::save_sort_mode(app.sort_mode);
+            crate::logic::sort_results_preserve_selection(app);
+            if app.results.is_empty() {
+                app.list_state.select(None);
+            } else {
+                app.selected = 0;
+                app.list_state.select(Some(0));
+                refresh_selected_details(app, details_tx);
             }
-            _ => return None,
         }
         app.sort_menu_open = false;
         app.sort_menu_auto_close_at = None;
-        crate::logic::sort_results_preserve_selection(app);
-        if app.results.is_empty() {
-            app.list_state.select(None);
-        } else {
-            app.selected = 0;
-            app.list_state.select(Some(0));
-            refresh_selected_details(app, details_tx);
-        }
         Some(false)
     } else {
         None
@@ -313,12 +328,18 @@ fn handle_options_menu_click(
 ) -> Option<bool> {
     if let Some((_x, y, _w, _h)) = app.options_menu_rect {
         let row = my.saturating_sub(y) as usize;
-        match row {
-            0 => handle_installed_only_toggle(app, details_tx),
-            1 => handle_system_update_option(app),
-            2 => handle_news_option(app),
-            3 => handle_optional_deps_option(app),
-            _ => return None,
+        let news_mode = matches!(app.app_mode, crate::state::types::AppMode::News);
+        if news_mode && row == 5 {
+            handle_news_age_toggle(app);
+        } else {
+            match row {
+                0 => handle_installed_only_toggle(app, details_tx),
+                1 => handle_system_update_option(app),
+                2 => handle_mode_toggle(app, details_tx),
+                3 => handle_news_option(app),
+                4 => handle_optional_deps_option(app),
+                _ => return None,
+            }
         }
         app.options_menu_open = false;
         Some(false)
@@ -392,6 +413,47 @@ fn handle_installed_only_toggle(
         let body = names.join("\n");
         let _ = std::fs::write(path, body);
     }
+}
+
+/// What: Toggle between package mode and news feed mode.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+/// - `details_tx`: Channel to request package details when switching back to package mode
+fn handle_mode_toggle(app: &mut AppState, details_tx: &mpsc::UnboundedSender<PackageItem>) {
+    if matches!(app.app_mode, crate::state::types::AppMode::News) {
+        app.app_mode = crate::state::types::AppMode::Package;
+        if app.results.is_empty() {
+            app.list_state.select(None);
+        } else {
+            app.selected = app.selected.min(app.results.len().saturating_sub(1));
+            app.list_state.select(Some(app.selected));
+            refresh_selected_details(app, details_tx);
+        }
+    } else {
+        app.app_mode = crate::state::types::AppMode::News;
+        if app.news_results.is_empty() {
+            app.news_list_state.select(None);
+            app.news_selected = 0;
+        } else {
+            app.news_selected = 0;
+            app.news_list_state.select(Some(0));
+        }
+    }
+}
+
+fn handle_news_age_toggle(app: &mut AppState) {
+    const AGES: [Option<u32>; 4] = [Some(7), Some(30), Some(90), None];
+    let current = app.news_max_age_days;
+    let next = AGES
+        .iter()
+        .cycle()
+        .skip_while(|&&v| v != current)
+        .nth(1)
+        .copied()
+        .unwrap_or(Some(7));
+    app.news_max_age_days = next;
+    app.refresh_news_results();
 }
 
 /// Handle system update option.
