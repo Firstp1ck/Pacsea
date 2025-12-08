@@ -246,43 +246,57 @@ pub use dropdowns::render_dropdowns;
 #[allow(clippy::too_many_lines)]
 fn render_news_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     let th = theme();
-    let items: Vec<ListItem> = app
-        .news_results
-        .iter()
-        .map(|item| {
-            let source_label = match item.source {
-                NewsFeedSource::ArchNews => "Arch",
-                NewsFeedSource::SecurityAdvisory => "Advisory",
-            };
-            let source_color = match item.source {
-                NewsFeedSource::ArchNews => th.sapphire,
-                NewsFeedSource::SecurityAdvisory => th.yellow,
-            };
-            let sev = item
-                .severity
-                .as_ref()
-                .map_or_else(String::new, |s| format!("{s:?}"));
-            let mut spans = vec![
-                ratatui::text::Span::styled(
-                    format!("[{source_label}]"),
-                    Style::default().fg(source_color),
-                ),
-                ratatui::text::Span::raw(" "),
-                ratatui::text::Span::raw(item.date.clone()),
-                ratatui::text::Span::raw(" "),
-                ratatui::text::Span::raw(item.title.clone()),
-            ];
-            if !sev.is_empty() {
-                spans.push(ratatui::text::Span::raw(" "));
-                spans.push(ratatui::text::Span::styled(
-                    format!("[{sev}]"),
-                    Style::default().fg(th.yellow),
-                ));
-            }
-            ListItem::new(Line::from(spans)).style(Style::default().fg(th.text))
-        })
-        .collect();
-    let title_text = format!("News Feed ({})", app.news_results.len());
+    let items: Vec<ListItem> = if app.news_loading {
+        app.news_list_state.select(None);
+        vec![ListItem::new(Line::from(ratatui::text::Span::styled(
+            "Loading news feed...",
+            Style::default().fg(th.overlay1),
+        )))]
+    } else {
+        app.news_results
+            .iter()
+            .map(|item| {
+                let (source_label, source_color) = match item.source {
+                    NewsFeedSource::ArchNews => ("Arch", th.sapphire),
+                    NewsFeedSource::SecurityAdvisory => ("Advisory", th.yellow),
+                    NewsFeedSource::InstalledPackageUpdate => ("Update", th.green),
+                    NewsFeedSource::AurPackageUpdate => ("AUR Upd", th.mauve),
+                    NewsFeedSource::AurComment => ("AUR Cmt", th.yellow),
+                };
+                let sev = item
+                    .severity
+                    .as_ref()
+                    .map_or_else(String::new, |s| format!("{s:?}"));
+                let mut spans = vec![
+                    ratatui::text::Span::styled(
+                        format!("[{source_label}]"),
+                        Style::default().fg(source_color),
+                    ),
+                    ratatui::text::Span::raw(" "),
+                    ratatui::text::Span::raw(item.date.clone()),
+                    ratatui::text::Span::raw(" "),
+                    ratatui::text::Span::raw(item.title.clone()),
+                ];
+                if !sev.is_empty() {
+                    spans.push(ratatui::text::Span::raw(" "));
+                    spans.push(ratatui::text::Span::styled(
+                        format!("[{sev}]"),
+                        Style::default().fg(th.yellow),
+                    ));
+                }
+                if let Some(summary) = item.summary.as_ref() {
+                    spans.push(ratatui::text::Span::raw(" – "));
+                    spans.extend(render_summary_spans(summary, &th, item.source));
+                }
+                ListItem::new(Line::from(spans)).style(Style::default().fg(th.text))
+            })
+            .collect()
+    };
+    let title_text = if app.news_loading {
+        "News Feed (loading...)".to_string()
+    } else {
+        format!("News Feed ({})", app.news_results.len())
+    };
     let age_label = app
         .news_max_age_days
         .map_or_else(|| "All".to_string(), |d| format!("{d} Days"));
@@ -293,6 +307,8 @@ fn render_news_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     let arch_filter_label = format!("[{}]", i18n::t(app, "app.news.filters.arch"));
     let advisory_filter_label = format!("[{}]", i18n::t(app, "app.news.filters.advisories"));
     let installed_filter_label = format!("[{}]", i18n::t(app, "app.news.filters.installed_only"));
+    let updates_filter_label = "[Updates]".to_string();
+    let aur_comments_filter_label = "[AUR Comments]".to_string();
 
     let button_style = |is_open: bool| -> Style {
         if is_open {
@@ -345,12 +361,20 @@ fn render_news_results(f: &mut Frame, app: &mut AppState, area: Rect) {
         render_filter(&advisory_filter_label, app.news_filter_show_advisories);
     let installed_filter_span =
         render_filter(&installed_filter_label, app.news_filter_installed_only);
+    let updates_filter_span =
+        render_filter(&updates_filter_label, app.news_filter_show_pkg_updates);
+    let aur_comments_filter_span = render_filter(
+        &aur_comments_filter_label,
+        app.news_filter_show_aur_comments,
+    );
 
     let inner_width = area.width.saturating_sub(2);
     let title_width = u16::try_from(title_text.width()).unwrap_or(u16::MAX);
     let arch_width = u16::try_from(arch_filter_label.width()).unwrap_or(u16::MAX);
     let advisory_width = u16::try_from(advisory_filter_label.width()).unwrap_or(u16::MAX);
     let installed_width = u16::try_from(installed_filter_label.width()).unwrap_or(u16::MAX);
+    let updates_width = u16::try_from(updates_filter_label.width()).unwrap_or(u16::MAX);
+    let aur_comments_width = u16::try_from(aur_comments_filter_label.width()).unwrap_or(u16::MAX);
     let date_width = u16::try_from(date_label.width()).unwrap_or(u16::MAX);
     let options_width = u16::try_from(options_label.width()).unwrap_or(u16::MAX);
     let panels_width = u16::try_from(panels_label.width()).unwrap_or(u16::MAX);
@@ -378,7 +402,19 @@ fn render_news_results(f: &mut Frame, app: &mut AppState, area: Rect) {
 
     app.news_filter_installed_rect = Some((x_cursor, area.y, installed_width, 1));
     title_spans.push(installed_filter_span);
-    x_cursor = x_cursor.saturating_add(installed_width).saturating_add(2);
+    x_cursor = x_cursor.saturating_add(installed_width).saturating_add(1);
+    title_spans.push(Span::raw(" "));
+
+    app.news_filter_updates_rect = Some((x_cursor, area.y, updates_width, 1));
+    title_spans.push(updates_filter_span);
+    x_cursor = x_cursor.saturating_add(updates_width).saturating_add(1);
+    title_spans.push(Span::raw(" "));
+
+    app.news_filter_aur_comments_rect = Some((x_cursor, area.y, aur_comments_width, 1));
+    title_spans.push(aur_comments_filter_span);
+    x_cursor = x_cursor
+        .saturating_add(aur_comments_width)
+        .saturating_add(2);
     title_spans.push(Span::raw("  "));
 
     let options_x = area
@@ -416,6 +452,112 @@ fn render_news_results(f: &mut Frame, app: &mut AppState, area: Rect) {
         .highlight_symbol("> ");
     app.results_rect = Some((area.x, area.y, area.width, area.height));
     f.render_stateful_widget(list, area, &mut app.news_list_state);
+}
+
+/// What: Render summary spans with source-aware highlighting (updates vs AUR comments).
+fn render_summary_spans(
+    summary: &str,
+    th: &crate::theme::Theme,
+    source: NewsFeedSource,
+) -> Vec<ratatui::text::Span<'static>> {
+    let highlight_style = ratatui::style::Style::default()
+        .fg(th.yellow)
+        .add_modifier(Modifier::BOLD);
+    let normal = ratatui::style::Style::default().fg(th.subtext1);
+
+    if matches!(
+        source,
+        NewsFeedSource::InstalledPackageUpdate | NewsFeedSource::AurPackageUpdate
+    ) {
+        return vec![ratatui::text::Span::styled(
+            summary.to_string(),
+            highlight_style,
+        )];
+    }
+
+    if matches!(source, NewsFeedSource::AurComment) {
+        return render_aur_comment_keywords(summary, th, highlight_style);
+    }
+
+    vec![ratatui::text::Span::styled(
+        summary.to_string(),
+        normal.add_modifier(Modifier::BOLD),
+    )]
+}
+
+/// What: Highlight AUR comment summaries with red/green keywords and normal text.
+fn render_aur_comment_keywords(
+    summary: &str,
+    th: &crate::theme::Theme,
+    base: ratatui::style::Style,
+) -> Vec<ratatui::text::Span<'static>> {
+    let normal = base;
+    let neg = ratatui::style::Style::default()
+        .fg(th.red)
+        .add_modifier(Modifier::BOLD);
+    let pos = ratatui::style::Style::default()
+        .fg(th.green)
+        .add_modifier(Modifier::BOLD);
+
+    let negative_words = [
+        "crash",
+        "crashed",
+        "crashes",
+        "critical",
+        "bug",
+        "bugs",
+        "fail",
+        "fails",
+        "failed",
+        "failure",
+        "failures",
+        "issue",
+        "issues",
+        "trouble",
+        "troubles",
+        "panic",
+        "segfault",
+        "broken",
+        "regression",
+        "hang",
+        "freeze",
+        "unstable",
+        "error",
+        "errors",
+    ];
+    let positive_words = [
+        "fix",
+        "fixed",
+        "fixes",
+        "patch",
+        "patched",
+        "solve",
+        "solved",
+        "solves",
+        "solution",
+        "resolve",
+        "resolved",
+        "resolves",
+        "workaround",
+    ];
+    let neg_set: std::collections::HashSet<&str> = negative_words.into_iter().collect();
+    let pos_set: std::collections::HashSet<&str> = positive_words.into_iter().collect();
+
+    let mut spans = Vec::new();
+    for token in summary.split_inclusive(' ') {
+        let cleaned = token
+            .trim_matches(|c: char| !c.is_alphanumeric() && c != '-' && c != '_')
+            .to_ascii_lowercase();
+        let style = if pos_set.contains(cleaned.as_str()) {
+            pos
+        } else if neg_set.contains(cleaned.as_str()) {
+            neg
+        } else {
+            normal.add_modifier(Modifier::BOLD)
+        };
+        spans.push(ratatui::text::Span::styled(token.to_string(), style));
+    }
+    spans
 }
 
 #[cfg(test)]

@@ -350,6 +350,16 @@ pub fn save_news_filter_show_advisories(value: bool) {
     save_boolean_key("news_filter_show_advisories", value);
 }
 
+/// Persist whether to show installed package updates in the News view.
+pub fn save_news_filter_show_pkg_updates(value: bool) {
+    save_boolean_key("news_filter_show_pkg_updates", value);
+}
+
+/// Persist whether to show AUR comments in the News view.
+pub fn save_news_filter_show_aur_comments(value: bool) {
+    save_boolean_key("news_filter_show_aur_comments", value);
+}
+
 /// Persist whether to restrict advisories to installed packages.
 pub fn save_news_filter_installed_only(value: bool) {
     save_boolean_key("news_filter_installed_only", value);

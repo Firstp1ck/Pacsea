@@ -217,7 +217,9 @@ fn extract_comment_from_header(
     // Determine if this comment is pinned
     let is_pinned = determine_pinned_status(comment_id, index, context);
 
+    let stable_id = comment_id.map(str::to_string).or_else(|| date_url.clone());
     Some(AurComment {
+        id: stable_id,
         author,
         date: local_date,
         date_timestamp,

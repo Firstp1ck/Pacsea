@@ -289,6 +289,8 @@ pub fn apply_settings_to_app_state(app: &mut AppState, prefs: &crate::theme::Set
     };
     app.news_filter_show_arch_news = prefs.news_filter_show_arch_news;
     app.news_filter_show_advisories = prefs.news_filter_show_advisories;
+    app.news_filter_show_pkg_updates = prefs.news_filter_show_pkg_updates;
+    app.news_filter_show_aur_comments = prefs.news_filter_show_aur_comments;
     app.news_filter_installed_only = prefs.news_filter_installed_only;
     app.news_max_age_days = prefs.news_max_age_days;
     // Recompute news results with loaded filters/age

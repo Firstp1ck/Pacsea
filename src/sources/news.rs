@@ -2,7 +2,7 @@
 
 use crate::state::NewsItem;
 use ego_tree::NodeRef;
-use scraper::{Html, Node, Selector};
+use scraper::{ElementRef, Html, Node, Selector};
 use tracing::{info, warn};
 
 /// Result type alias for Arch Linux news fetching operations.
@@ -113,6 +113,12 @@ fn strip_time_and_tz(s: &str) -> String {
 /// - Fetches the HTML page and extracts content from the article body.
 /// - Strips HTML tags and normalizes whitespace.
 pub async fn fetch_news_content(url: &str) -> Result<String> {
+    if let Some(pkg) = extract_aur_pkg_from_url(url) {
+        let comments = crate::sources::fetch_aur_comments(pkg.clone()).await?;
+        let rendered = render_aur_comments(&pkg, &comments);
+        return Ok(rendered);
+    }
+
     let url_owned = url.to_string();
     let url_for_log = url_owned.clone();
     let body = tokio::task::spawn_blocking(move || crate::util::curl::curl_text(&url_owned))
@@ -124,7 +130,7 @@ pub async fn fetch_news_content(url: &str) -> Result<String> {
     info!(url, bytes = body.len(), "fetched news page");
 
     // Extract article content from HTML
-    let content = parse_arch_news_html(&body);
+    let content = parse_arch_news_html(&body, Some(url));
     let parsed_len = content.len();
     if parsed_len == 0 {
         warn!(url, "parsed news content is empty");
@@ -141,8 +147,10 @@ pub async fn fetch_news_content(url: &str) -> Result<String> {
 ///
 /// Output:
 /// - Extracted article text with formatting preserved (paragraphs, bullets, code markers).
-fn parse_arch_news_html(html: &str) -> String {
+fn parse_arch_news_html(html: &str, base_url: Option<&str>) -> String {
     let document = Html::parse_document(html);
+    let base_origin = base_url.and_then(extract_origin);
+    let is_pkg_page = base_url.is_some_and(is_arch_package_url);
     let selectors = [
         Selector::parse("div.advisory").ok(),
         Selector::parse("div.article-content").ok(),
@@ -159,16 +167,34 @@ fn parse_arch_news_html(html: &str) -> String {
                 .value()
                 .attr("class")
                 .is_some_and(|c| c.contains("advisory"));
-            render_node(&mut buf, node, false, preserve_ws);
+            render_node(&mut buf, node, false, preserve_ws, base_origin.as_deref());
             found = true;
             break;
         }
     }
     if !found && let Some(root) = document.tree.get(document.root_element().id()) {
-        render_node(&mut buf, root, false, false);
+        render_node(&mut buf, root, false, false, base_origin.as_deref());
     }
 
-    prune_news_boilerplate(&buf)
+    let main = prune_news_boilerplate(&buf);
+    if !is_pkg_page {
+        return main;
+    }
+
+    let meta_block = extract_package_metadata(&document, base_origin.as_deref());
+    if meta_block.is_empty() {
+        return main;
+    }
+
+    let mut combined = String::new();
+    combined.push_str("Package Info:\n");
+    for line in meta_block {
+        combined.push_str(&line);
+        combined.push('\n');
+    }
+    combined.push('\n');
+    combined.push_str(&main);
+    combined
 }
 
 /// What: Render a node (and children) into text while preserving basic formatting.
@@ -178,7 +204,13 @@ fn parse_arch_news_html(html: &str) -> String {
 /// - `node`: Node to render
 /// - `in_pre`: Whether we are inside a <pre> block (preserve whitespace)
 /// - `preserve_ws`: Whether to avoid collapsing whitespace (advisory pages).
-fn render_node(buf: &mut String, node: NodeRef<Node>, in_pre: bool, preserve_ws: bool) {
+fn render_node(
+    buf: &mut String,
+    node: NodeRef<Node>,
+    in_pre: bool,
+    preserve_ws: bool,
+    base_origin: Option<&str>,
+) {
     match node.value() {
         Node::Text(t) => push_text(buf, t.as_ref(), in_pre, preserve_ws),
         Node::Element(el) => {
@@ -200,6 +232,7 @@ fn render_node(buf: &mut String, node: NodeRef<Node>, in_pre: bool, preserve_ws:
             let is_br = name == "br";
             let is_pre_tag = name == "pre";
             let is_code = name == "code";
+            let is_anchor = name == "a";
 
             if is_block && !buf.ends_with('\n') {
                 buf.push('\n');
@@ -214,10 +247,40 @@ fn render_node(buf: &mut String, node: NodeRef<Node>, in_pre: bool, preserve_ws:
                 buf.push('\n');
             }
 
+            if is_anchor {
+                let mut tmp = String::new();
+                for child in node.children() {
+                    render_node(&mut tmp, child, in_pre, preserve_ws, base_origin);
+                }
+                let label = tmp.trim();
+                let href = el
+                    .attr("href")
+                    .map(str::trim)
+                    .filter(|h| !h.is_empty())
+                    .unwrap_or_default();
+                if !href.is_empty() {
+                    if !buf.ends_with('\n') && !buf.ends_with(' ') {
+                        buf.push(' ');
+                    }
+                    if label.is_empty() {
+                        buf.push_str(&resolve_href(href, base_origin));
+                    } else {
+                        buf.push_str(label);
+                        buf.push(' ');
+                        buf.push('(');
+                        buf.push_str(&resolve_href(href, base_origin));
+                        buf.push(')');
+                    }
+                } else if !label.is_empty() {
+                    buf.push_str(label);
+                }
+                return;
+            }
+
             if is_code {
                 let mut tmp = String::new();
                 for child in node.children() {
-                    render_node(&mut tmp, child, in_pre, preserve_ws);
+                    render_node(&mut tmp, child, in_pre, preserve_ws, base_origin);
                 }
                 if !tmp.is_empty() {
                     if !buf.ends_with('`') {
@@ -235,7 +298,7 @@ fn render_node(buf: &mut String, node: NodeRef<Node>, in_pre: bool, preserve_ws:
                 }
                 let mut tmp = String::new();
                 for child in node.children() {
-                    render_node(&mut tmp, child, true, preserve_ws);
+                    render_node(&mut tmp, child, true, preserve_ws, base_origin);
                 }
                 buf.push_str(tmp.trim_end());
                 buf.push('\n');
@@ -244,7 +307,7 @@ fn render_node(buf: &mut String, node: NodeRef<Node>, in_pre: bool, preserve_ws:
 
             let next_pre = in_pre;
             for child in node.children() {
-                render_node(buf, child, next_pre, preserve_ws);
+                render_node(buf, child, next_pre, preserve_ws, base_origin);
             }
 
             if is_block || is_list || is_li {
@@ -335,7 +398,7 @@ fn prune_news_boilerplate(text: &str) -> String {
                 || t.starts_with("Linux\u{00ae} is used")
                 || t.starts_with("the exclusive licensee"))
         });
-        return out.join("\n");
+        return collapse_blank_lines(&out);
     }
 
     // Advisory pages don't match the date format; drop leading navigation until the first meaningful header
@@ -362,7 +425,276 @@ fn prune_news_boilerplate(text: &str) -> String {
     while matches!(out.first(), Some(l) if l.trim().is_empty() || l.trim().starts_with('•')) {
         out.remove(0);
     }
-    out.join("\n").trim_end().to_string()
+    collapse_blank_lines(&out)
+}
+
+/// What: Collapse multiple consecutive blank lines into a single blank line and trim trailing blanks.
+fn collapse_blank_lines(lines: &[&str]) -> String {
+    let mut out = Vec::with_capacity(lines.len());
+    let mut last_was_blank = false;
+    for l in lines {
+        let blank = l.trim().is_empty();
+        if blank && last_was_blank {
+            continue;
+        }
+        out.push(l.trim_end());
+        last_was_blank = blank;
+    }
+    while matches!(out.last(), Some(l) if l.trim().is_empty()) {
+        out.pop();
+    }
+    out.join("\n")
+}
+
+/// What: Extract package name from an AUR package URL.
+///
+/// Inputs:
+/// - `url`: URL to inspect.
+///
+/// Output:
+/// - `Some(pkgname)` if the URL matches `https://aur.archlinux.org/packages/<name>`
+///   or official package links we build for AUR items; `None` otherwise.
+fn extract_aur_pkg_from_url(url: &str) -> Option<String> {
+    let lower = url.to_ascii_lowercase();
+    let needle = "aur.archlinux.org/packages/";
+    let pos = lower.find(needle)?;
+    let after = &url[pos + needle.len()..];
+    let end = after
+        .find('/')
+        .or_else(|| after.find('?'))
+        .unwrap_or(after.len());
+    let pkg = &after[..end];
+    if pkg.is_empty() {
+        None
+    } else {
+        Some(pkg.to_string())
+    }
+}
+
+/// What: Render AUR comments into a readable text block for the details pane.
+///
+/// Inputs:
+/// - `pkg`: Package name.
+/// - `comments`: Full comment list (pinned + latest) sorted newest-first.
+///
+/// Output:
+/// - Plaintext content including pinned comments (marked) and newest comments from the last 7 days
+///   (or the latest available if timestamps are missing).
+fn render_aur_comments(pkg: &str, comments: &[crate::state::types::AurComment]) -> String {
+    use chrono::{Duration, Utc};
+
+    let now = Utc::now().timestamp();
+    let cutoff = now - Duration::days(7).num_seconds();
+
+    let pinned: Vec<&crate::state::types::AurComment> =
+        comments.iter().filter(|c| c.pinned).collect();
+    let mut recent: Vec<&crate::state::types::AurComment> = comments
+        .iter()
+        .filter(|c| !c.pinned && c.date_timestamp.is_none_or(|ts| ts >= cutoff))
+        .collect();
+
+    if recent.is_empty()
+        && let Some(first_non_pinned) = comments.iter().find(|c| !c.pinned)
+    {
+        recent.push(first_non_pinned);
+    }
+
+    let mut lines: Vec<String> = Vec::new();
+    lines.push(format!("AUR comments for {pkg}"));
+    lines.push(String::new());
+
+    if !pinned.is_empty() {
+        lines.push("[Pinned]".to_string());
+        for c in pinned {
+            push_comment_lines(&mut lines, c, true);
+        }
+        lines.push(String::new());
+    }
+
+    if recent.is_empty() {
+        lines.push("No recent comments.".to_string());
+    } else {
+        lines.push("Recent (last 7 days)".to_string());
+        for c in recent {
+            push_comment_lines(&mut lines, c, false);
+        }
+    }
+
+    collapse_blank_lines(&lines.iter().map(String::as_str).collect::<Vec<_>>())
+}
+
+/// What: Append a single comment (with metadata) into the output lines.
+fn push_comment_lines(lines: &mut Vec<String>, c: &crate::state::types::AurComment, pinned: bool) {
+    let mut header = String::new();
+    if pinned {
+        header.push_str("[Pinned] ");
+    }
+    header.push_str(&c.author);
+    if !c.date.is_empty() {
+        header.push_str(" — ");
+        header.push_str(&c.date);
+    }
+    if let Some(url) = &c.date_url
+        && !url.is_empty()
+    {
+        header.push(' ');
+        header.push('(');
+        header.push_str(url);
+        header.push(')');
+    }
+    lines.push(header);
+    let content = c.content.trim();
+    if !content.is_empty() {
+        lines.push(content.to_string());
+    }
+    lines.push(String::new());
+}
+
+/// What: Resolve relative hrefs against the provided origin.
+fn resolve_href(href: &str, base_origin: Option<&str>) -> String {
+    if href.starts_with("http://") || href.starts_with("https://") {
+        return href.to_string();
+    }
+    if let Some(origin) = base_origin
+        && href.starts_with('/')
+    {
+        return format!("{origin}{href}");
+    }
+    href.to_string()
+}
+
+/// What: Extract `<scheme://host>` from a URL for resolving relative links.
+fn extract_origin(url: &str) -> Option<String> {
+    let scheme_split = url.split_once("://")?;
+    let scheme = scheme_split.0;
+    let rest = scheme_split.1;
+    let host_end = rest.find('/').unwrap_or(rest.len());
+    if host_end == 0 {
+        return None;
+    }
+    let host = &rest[..host_end];
+    Some(format!("{scheme}://{host}"))
+}
+
+/// What: Check if a URL points to an Arch package details page.
+fn is_arch_package_url(url: &str) -> bool {
+    url.contains("://archlinux.org/packages/")
+}
+
+/// What: Extract selected metadata fields from an Arch package HTML page.
+fn extract_package_metadata(document: &Html, base_origin: Option<&str>) -> Vec<String> {
+    let wanted = [
+        "Upstream URL",
+        "License(s)",
+        "Maintainers",
+        "Package Size",
+        "Installed Size",
+        "Last Packager",
+        "Build Date",
+    ];
+    let wanted_set: std::collections::HashSet<&str> = wanted.into_iter().collect();
+    let row_sel = Selector::parse("tr").ok();
+    let th_sel = Selector::parse("th").ok();
+    let td_selector = Selector::parse("td").ok();
+    let dt_sel = Selector::parse("dt").ok();
+    let dd_selector = Selector::parse("dd").ok();
+    let mut fields: Vec<(String, String)> = Vec::new();
+    if let (Some(row_sel), Some(th_sel), Some(td_sel)) = (row_sel, th_sel, td_selector) {
+        for tr in document.select(&row_sel) {
+            let th_text = normalize_label(
+                &tr.select(&th_sel)
+                    .next()
+                    .map(|th| th.text().collect::<String>())
+                    .unwrap_or_default(),
+            );
+            if !wanted_set.contains(th_text.as_str()) {
+                continue;
+            }
+            if let Some(td) = tr.select(&td_sel).next() {
+                let value = extract_inline(&td, base_origin);
+                if !value.is_empty() {
+                    fields.push((th_text, value));
+                }
+            }
+        }
+    }
+    if let (Some(dt_sel), Some(_dd_sel)) = (dt_sel, dd_selector) {
+        for dt in document.select(&dt_sel) {
+            let label = normalize_label(&dt.text().collect::<String>());
+            if !wanted_set.contains(label.as_str()) {
+                continue;
+            }
+            // Prefer the immediate following sibling <dd>
+            if let Some(dd) = dt
+                .next_sibling()
+                .and_then(ElementRef::wrap)
+                .filter(|sib| sib.value().name() == "dd")
+                .or_else(|| dt.next_siblings().find_map(ElementRef::wrap))
+            {
+                let value = extract_inline(&dd, base_origin);
+                if !value.is_empty() {
+                    fields.push((label, value));
+                }
+            }
+        }
+    }
+    fields
+        .into_iter()
+        .map(|(k, v)| format!("{k}: {v}"))
+        .collect()
+}
+
+/// What: Extract inline text (with resolved links) from a node subtree.
+fn extract_inline(node: &NodeRef<Node>, base_origin: Option<&str>) -> String {
+    let mut parts: Vec<String> = Vec::new();
+    for child in node.children() {
+        match child.value() {
+            Node::Text(t) => {
+                let text = t.trim();
+                if !text.is_empty() {
+                    parts.push(text.to_string());
+                }
+            }
+            Node::Element(el) => {
+                if el.name() == "a" {
+                    let label = ElementRef::wrap(child)
+                        .map(|e| e.text().collect::<String>())
+                        .unwrap_or_default()
+                        .trim()
+                        .to_string();
+                    let href = el
+                        .attr("href")
+                        .map(str::trim)
+                        .filter(|h| !h.is_empty())
+                        .map(|h| resolve_href(h, base_origin))
+                        .unwrap_or_default();
+                    if !label.is_empty() && !href.is_empty() {
+                        parts.push(format!("{label} ({href})"));
+                    } else if !label.is_empty() {
+                        parts.push(label);
+                    } else if !href.is_empty() {
+                        parts.push(href);
+                    }
+                } else {
+                    let inline = extract_inline(&child, base_origin);
+                    if !inline.is_empty() {
+                        parts.push(inline);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    parts
+        .join(" ")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// What: Normalize table/header labels for matching (trim and drop trailing colon).
+fn normalize_label(raw: &str) -> String {
+    raw.trim().trim_end_matches(':').trim().to_string()
 }
 
 /// What: Parse raw news/advisory HTML into displayable text (public helper).
@@ -374,7 +706,7 @@ fn prune_news_boilerplate(text: &str) -> String {
 /// - Plaintext content suitable for the details view.
 #[must_use]
 pub fn parse_news_html(html: &str) -> String {
-    parse_arch_news_html(html)
+    parse_arch_news_html(html, None)
 }
 
 #[cfg(test)]
@@ -417,7 +749,7 @@ The package python-django before version 5.1.11-1 is vulnerable to content spoof
           has a path where if telnet was not available it would fall back to using bash for the given arguments provided; this allows an attacker to execute arbitrary code.
         </div>
         "#;
-        let parsed = parse_arch_news_html(html);
+        let parsed = parse_arch_news_html(html, None);
         assert!(parsed.contains("Arch Linux Security Advisory"));
         assert!(parsed.contains("Severity: Low"));
         assert!(parsed.contains("Package : konsolen"));

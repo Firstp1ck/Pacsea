@@ -115,6 +115,8 @@ pub struct AppState {
     pub news_items: Vec<NewsFeedItem>,
     /// Filtered/sorted news results shown in the UI.
     pub news_results: Vec<NewsFeedItem>,
+    /// Whether the news feed is currently loading.
+    pub news_loading: bool,
     /// Selected index within news results.
     pub news_selected: usize,
     /// List state for news results pane.
@@ -141,6 +143,10 @@ pub struct AppState {
     pub news_filter_show_arch_news: bool,
     /// Whether to show security advisories.
     pub news_filter_show_advisories: bool,
+    /// Whether to show installed package update items.
+    pub news_filter_show_pkg_updates: bool,
+    /// Whether to show AUR comment items.
+    pub news_filter_show_aur_comments: bool,
     /// Whether to restrict advisories to installed packages.
     pub news_filter_installed_only: bool,
     /// Clickable rectangle for Arch news filter chip in news title.
@@ -149,6 +155,10 @@ pub struct AppState {
     pub news_filter_advisory_rect: Option<(u16, u16, u16, u16)>,
     /// Clickable rectangle for installed-only advisory filter chip in news title.
     pub news_filter_installed_rect: Option<(u16, u16, u16, u16)>,
+    /// Clickable rectangle for installed update filter chip in news title.
+    pub news_filter_updates_rect: Option<(u16, u16, u16, u16)>,
+    /// Clickable rectangle for AUR comment filter chip in news title.
+    pub news_filter_aur_comments_rect: Option<(u16, u16, u16, u16)>,
     /// Maximum age of news items in days (None = unlimited).
     pub news_max_age_days: Option<u32>,
     /// Whether to show the news history pane in News mode.
@@ -171,6 +181,20 @@ pub struct AppState {
     pub news_content_loading: bool,
     /// Scroll offset for news content details.
     pub news_content_scroll: u16,
+    /// Path where the cached news feed is persisted.
+    pub news_feed_path: PathBuf,
+    /// Last-seen versions for installed packages (dedup for update feed items).
+    pub news_seen_pkg_versions: HashMap<String, String>,
+    /// Path where last-seen package versions are persisted.
+    pub news_seen_pkg_versions_path: PathBuf,
+    /// Dirty flag indicating `news_seen_pkg_versions` needs to be saved.
+    pub news_seen_pkg_versions_dirty: bool,
+    /// Last-seen AUR comment identifiers per installed package.
+    pub news_seen_aur_comments: HashMap<String, String>,
+    /// Path where last-seen AUR comments are persisted.
+    pub news_seen_aur_comments_path: PathBuf,
+    /// Dirty flag indicating `news_seen_aur_comments` needs to be saved.
+    pub news_seen_aur_comments_dirty: bool,
 
     // Announcement read tracking (persisted)
     /// Set of announcement IDs the user has marked as read.
@@ -860,6 +884,13 @@ impl AppState {
                 crate::state::types::NewsFeedSource::SecurityAdvisory => {
                     self.news_filter_show_advisories
                 }
+                crate::state::types::NewsFeedSource::InstalledPackageUpdate
+                | crate::state::types::NewsFeedSource::AurPackageUpdate => {
+                    self.news_filter_show_pkg_updates
+                }
+                crate::state::types::NewsFeedSource::AurComment => {
+                    self.news_filter_show_aur_comments
+                }
             })
             .cloned()
             .collect();
@@ -927,6 +958,7 @@ impl AppState {
 #[cfg(test)]
 mod tests {
     use super::AppState;
+    use crate::state::types::{AdvisorySeverity, NewsFeedItem, NewsFeedSource};
 
     #[test]
     /// What: Verify `AppState::default` initialises UI flags and filesystem paths under the configured lists directory.
@@ -968,6 +1000,108 @@ mod tests {
         assert!(app.cache_path.starts_with(&lists));
         assert!(app.install_path.starts_with(&lists));
         assert!(app.official_index_path.starts_with(&lists));
+
+        unsafe {
+            if let Some(v) = orig_home {
+                std::env::set_var("HOME", v);
+            } else {
+                std::env::remove_var("HOME");
+            }
+        }
+    }
+
+    #[test]
+    #[allow(clippy::field_reassign_with_default)]
+    /// What: Ensure news filtering respects per-source toggles for updates and comments.
+    ///
+    /// Inputs:
+    /// - Five news items spanning Arch, advisory, official update, AUR update, and AUR comment.
+    /// - Filters that disable Arch/advisory/update sources while leaving AUR comments enabled.
+    ///
+    /// Output:
+    /// - `news_results` retains only the enabled source after applying filters.
+    ///
+    /// Details:
+    /// - Uses the global test mutex and HOME shim to avoid path collisions with other tests.
+    fn refresh_news_results_applies_all_source_filters() {
+        let _guard = crate::state::test_mutex()
+            .lock()
+            .expect("Test mutex poisoned");
+        let orig_home = std::env::var_os("HOME");
+        let dir = std::env::temp_dir().join(format!(
+            "pacsea_test_news_filters_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("System time is before UNIX epoch")
+                .as_nanos()
+        ));
+        let _ = std::fs::create_dir_all(&dir);
+        unsafe { std::env::set_var("HOME", dir.display().to_string()) };
+
+        let mut app = AppState::default();
+        app.news_items = vec![
+            NewsFeedItem {
+                id: "arch".into(),
+                date: "2025-01-01".into(),
+                title: "Arch".into(),
+                summary: None,
+                url: None,
+                source: NewsFeedSource::ArchNews,
+                severity: None,
+                packages: vec![],
+            },
+            NewsFeedItem {
+                id: "adv".into(),
+                date: "2025-01-01".into(),
+                title: "ADV".into(),
+                summary: None,
+                url: None,
+                source: NewsFeedSource::SecurityAdvisory,
+                severity: Some(AdvisorySeverity::High),
+                packages: vec!["openssl".into()],
+            },
+            NewsFeedItem {
+                id: "upd-official".into(),
+                date: "2025-01-01".into(),
+                title: "Official update".into(),
+                summary: None,
+                url: None,
+                source: NewsFeedSource::InstalledPackageUpdate,
+                severity: None,
+                packages: vec!["pacman".into()],
+            },
+            NewsFeedItem {
+                id: "upd-aur".into(),
+                date: "2025-01-01".into(),
+                title: "AUR update".into(),
+                summary: None,
+                url: None,
+                source: NewsFeedSource::AurPackageUpdate,
+                severity: None,
+                packages: vec!["yay".into()],
+            },
+            NewsFeedItem {
+                id: "comment".into(),
+                date: "2025-01-01".into(),
+                title: "New comment".into(),
+                summary: Some("hello".into()),
+                url: None,
+                source: NewsFeedSource::AurComment,
+                severity: None,
+                packages: vec!["yay".into()],
+            },
+        ];
+        app.news_filter_show_arch_news = false;
+        app.news_filter_show_advisories = false;
+        app.news_filter_show_pkg_updates = false;
+        app.news_filter_show_aur_comments = true;
+        app.news_filter_installed_only = false;
+        app.news_max_age_days = None;
+
+        app.refresh_news_results();
+        assert_eq!(app.news_results.len(), 1);
+        assert_eq!(app.news_results[0].id, "comment");
 
         unsafe {
             if let Some(v) = orig_home {

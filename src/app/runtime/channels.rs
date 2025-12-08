@@ -4,7 +4,7 @@ use std::sync::atomic::AtomicBool;
 use crossterm::event::Event as CEvent;
 use tokio::sync::mpsc;
 
-use crate::state::types::NewsFeedItem;
+use crate::state::types::NewsFeedPayload;
 use crate::state::{
     ArchStatusColor, NewsItem, PackageDetails, PackageItem, QueryInput, SearchResults,
 };
@@ -74,10 +74,10 @@ pub struct Channels {
     pub news_tx: mpsc::UnboundedSender<Vec<NewsItem>>,
     /// Receiver for Arch Linux news items in the main event loop.
     pub news_rx: mpsc::UnboundedReceiver<Vec<NewsItem>>,
-    /// Sender for news feed items.
-    pub news_feed_tx: mpsc::UnboundedSender<Vec<NewsFeedItem>>,
-    /// Receiver for news feed items in the main event loop.
-    pub news_feed_rx: mpsc::UnboundedReceiver<Vec<NewsFeedItem>>,
+    /// Sender for news feed items plus last-seen state.
+    pub news_feed_tx: mpsc::UnboundedSender<NewsFeedPayload>,
+    /// Receiver for news feed payloads in the main event loop.
+    pub news_feed_rx: mpsc::UnboundedReceiver<NewsFeedPayload>,
     /// Request channel for fetching news article content (URL).
     pub news_content_req_tx: mpsc::UnboundedSender<String>,
     /// Response channel for news article content (URL, content).
@@ -265,10 +265,10 @@ struct UtilityChannels {
     news_tx: mpsc::UnboundedSender<Vec<NewsItem>>,
     /// Receiver for Arch Linux news items.
     news_rx: mpsc::UnboundedReceiver<Vec<NewsItem>>,
-    /// Sender for news feed items.
-    news_feed_tx: mpsc::UnboundedSender<Vec<NewsFeedItem>>,
-    /// Receiver for news feed items.
-    news_feed_rx: mpsc::UnboundedReceiver<Vec<NewsFeedItem>>,
+    /// Sender for news feed payloads.
+    news_feed_tx: mpsc::UnboundedSender<NewsFeedPayload>,
+    /// Receiver for news feed payloads.
+    news_feed_rx: mpsc::UnboundedReceiver<NewsFeedPayload>,
     /// Sender for news article content requests.
     news_content_req_tx: mpsc::UnboundedSender<String>,
     /// Receiver for news article content requests.
@@ -408,7 +408,7 @@ fn create_utility_channels() -> UtilityChannels {
         mpsc::unbounded_channel::<(String, Result<Vec<crate::state::types::AurComment>, String>)>();
     let (status_tx, status_rx) = mpsc::unbounded_channel::<(String, ArchStatusColor)>();
     let (news_tx, news_rx) = mpsc::unbounded_channel::<Vec<NewsItem>>();
-    let (news_feed_tx, news_feed_rx) = mpsc::unbounded_channel::<Vec<NewsFeedItem>>();
+    let (news_feed_tx, news_feed_rx) = mpsc::unbounded_channel::<NewsFeedPayload>();
     let (news_content_req_tx, news_content_req_rx) = mpsc::unbounded_channel::<String>();
     let (news_content_res_tx, news_content_res_rx) = mpsc::unbounded_channel::<(String, String)>();
     let (updates_tx, updates_rx) = mpsc::unbounded_channel::<(usize, Vec<String>)>();

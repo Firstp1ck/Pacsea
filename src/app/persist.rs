@@ -183,6 +183,84 @@ pub fn maybe_flush_news_read(app: &mut AppState) {
     }
 }
 
+/// What: Persist last-seen package versions for news updates if marked dirty.
+///
+/// Inputs:
+/// - `app`: Application state containing `news_seen_pkg_versions` and its path.
+///
+/// Output:
+/// - Writes JSON file when dirty, clears the dirty flag on success.
+///
+/// Details:
+/// - No-op when dirty flag is false; logs success/failure.
+pub fn maybe_flush_news_seen_versions(app: &mut AppState) {
+    if !app.news_seen_pkg_versions_dirty {
+        return;
+    }
+    if let Ok(s) = serde_json::to_string(&app.news_seen_pkg_versions) {
+        tracing::debug!(
+            path = %app.news_seen_pkg_versions_path.display(),
+            bytes = s.len(),
+            "[Persist] Writing news seen package versions to disk"
+        );
+        match fs::write(&app.news_seen_pkg_versions_path, &s) {
+            Ok(()) => {
+                tracing::debug!(
+                    path = %app.news_seen_pkg_versions_path.display(),
+                    "[Persist] News seen package versions persisted"
+                );
+            }
+            Err(e) => {
+                tracing::warn!(
+                    path = %app.news_seen_pkg_versions_path.display(),
+                    error = %e,
+                    "[Persist] Failed to write news seen package versions"
+                );
+            }
+        }
+        app.news_seen_pkg_versions_dirty = false;
+    }
+}
+
+/// What: Persist last-seen AUR comments if marked dirty.
+///
+/// Inputs:
+/// - `app`: Application state containing `news_seen_aur_comments` and its path.
+///
+/// Output:
+/// - Writes JSON file when dirty, clears the dirty flag on success.
+///
+/// Details:
+/// - No-op when dirty flag is false; logs success/failure.
+pub fn maybe_flush_news_seen_aur_comments(app: &mut AppState) {
+    if !app.news_seen_aur_comments_dirty {
+        return;
+    }
+    if let Ok(s) = serde_json::to_string(&app.news_seen_aur_comments) {
+        tracing::debug!(
+            path = %app.news_seen_aur_comments_path.display(),
+            bytes = s.len(),
+            "[Persist] Writing news seen AUR comments to disk"
+        );
+        match fs::write(&app.news_seen_aur_comments_path, &s) {
+            Ok(()) => {
+                tracing::debug!(
+                    path = %app.news_seen_aur_comments_path.display(),
+                    "[Persist] News seen AUR comments persisted"
+                );
+            }
+            Err(e) => {
+                tracing::warn!(
+                    path = %app.news_seen_aur_comments_path.display(),
+                    error = %e,
+                    "[Persist] Failed to write news seen AUR comments"
+                );
+            }
+        }
+        app.news_seen_aur_comments_dirty = false;
+    }
+}
+
 /// What: Persist the announcement read IDs to disk if marked dirty.
 ///
 /// Inputs:

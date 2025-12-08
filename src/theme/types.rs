@@ -103,6 +103,10 @@ pub struct Settings {
     pub news_filter_show_arch_news: bool,
     /// Whether to show security advisories in the News view.
     pub news_filter_show_advisories: bool,
+    /// Whether to show installed package update items in the News view.
+    pub news_filter_show_pkg_updates: bool,
+    /// Whether to show installed AUR comment items in the News view.
+    pub news_filter_show_aur_comments: bool,
     /// Whether to restrict advisories to installed packages in the News view.
     pub news_filter_installed_only: bool,
     /// Maximum age of news items in days (None = unlimited).
@@ -181,6 +185,8 @@ impl Default for Settings {
             start_in_news: false,
             news_filter_show_arch_news: true,
             news_filter_show_advisories: true,
+            news_filter_show_pkg_updates: true,
+            news_filter_show_aur_comments: true,
             news_filter_installed_only: true,
             news_max_age_days: Some(30),
             package_marker: PackageMarker::Front,

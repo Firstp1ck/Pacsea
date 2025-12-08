@@ -29,7 +29,7 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>
 pub use advisories::fetch_security_advisories;
 pub use comments::fetch_aur_comments;
 pub use details::fetch_details;
-pub use feeds::fetch_news_feed;
+pub use feeds::{NewsFeedContext, fetch_news_feed};
 pub use news::{fetch_arch_news, fetch_news_content, parse_news_html};
 pub use pkgbuild::fetch_pkgbuild_fast;
 pub use search::fetch_all_with_errors;

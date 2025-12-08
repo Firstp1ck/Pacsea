@@ -209,7 +209,22 @@ pub fn update_news_url(app: &mut AppState) {
     {
         app.details.url.clone_from(url);
         // Check if content is cached
-        app.news_content = app.news_content_cache.get(url).cloned();
+        let mut cached = app.news_content_cache.get(url).cloned();
+        if let Some(ref c) = cached
+            && url.contains("://archlinux.org/packages/")
+            && !c.starts_with("Package Info:")
+        {
+            // Cached pre-metadata version: force refresh
+            cached = None;
+            tracing::debug!(
+                url,
+                "news content cache missing package metadata; will refetch"
+            );
+        }
+        app.news_content = cached;
+        if app.news_content.is_some() {
+            tracing::debug!(url, "news content served from cache");
+        }
         app.news_content_scroll = 0;
     } else {
         app.details.url.clear();

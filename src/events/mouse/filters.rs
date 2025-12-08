@@ -255,6 +255,12 @@ pub(super) fn handle_filters_mouse(mx: u16, my: u16, app: &mut AppState) -> Opti
         } else if is_point_in_rect(mx, my, app.news_filter_advisory_rect) {
             app.news_filter_show_advisories = !app.news_filter_show_advisories;
             handled = true;
+        } else if is_point_in_rect(mx, my, app.news_filter_updates_rect) {
+            app.news_filter_show_pkg_updates = !app.news_filter_show_pkg_updates;
+            handled = true;
+        } else if is_point_in_rect(mx, my, app.news_filter_aur_comments_rect) {
+            app.news_filter_show_aur_comments = !app.news_filter_show_aur_comments;
+            handled = true;
         } else if is_point_in_rect(mx, my, app.news_filter_installed_rect) {
             app.news_filter_installed_only = !app.news_filter_installed_only;
             handled = true;
@@ -262,6 +268,8 @@ pub(super) fn handle_filters_mouse(mx: u16, my: u16, app: &mut AppState) -> Opti
         if handled {
             crate::theme::save_news_filter_show_arch_news(app.news_filter_show_arch_news);
             crate::theme::save_news_filter_show_advisories(app.news_filter_show_advisories);
+            crate::theme::save_news_filter_show_pkg_updates(app.news_filter_show_pkg_updates);
+            crate::theme::save_news_filter_show_aur_comments(app.news_filter_show_aur_comments);
             crate::theme::save_news_filter_installed_only(app.news_filter_installed_only);
             app.refresh_news_results();
             return Some(false);

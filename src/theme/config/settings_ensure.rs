@@ -62,6 +62,8 @@ fn get_setting_value(key: &str, skeleton_value: String, prefs: &Settings) -> Str
         }
         "news_filter_show_arch_news" => prefs.news_filter_show_arch_news.to_string(),
         "news_filter_show_advisories" => prefs.news_filter_show_advisories.to_string(),
+        "news_filter_show_pkg_updates" => prefs.news_filter_show_pkg_updates.to_string(),
+        "news_filter_show_aur_comments" => prefs.news_filter_show_aur_comments.to_string(),
         "news_filter_installed_only" => prefs.news_filter_installed_only.to_string(),
         "news_max_age_days" => prefs
             .news_max_age_days

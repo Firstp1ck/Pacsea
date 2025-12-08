@@ -98,6 +98,7 @@ pub(super) type DefaultSearchState = (
 pub(super) type DefaultNewsFeedState = (
     Vec<NewsFeedItem>,
     Vec<NewsFeedItem>,
+    bool,
     usize,
     ListState,
     String,
@@ -109,6 +110,10 @@ pub(super) type DefaultNewsFeedState = (
     bool,
     bool,
     bool,
+    bool,
+    bool,
+    Option<(u16, u16, u16, u16)>,
+    Option<(u16, u16, u16, u16)>,
     Option<(u16, u16, u16, u16)>,
     Option<(u16, u16, u16, u16)>,
     Option<(u16, u16, u16, u16)>,
@@ -149,6 +154,7 @@ pub(super) const fn default_app_mode() -> AppMode {
 pub(super) fn default_news_feed_state(
     news_recent_path: PathBuf,
     news_bookmarks_path: PathBuf,
+    news_feed_path: &PathBuf,
 ) -> DefaultNewsFeedState {
     let recent_capacity = super::recent_capacity();
     let mut news_recent = LruCache::unbounded();
@@ -182,9 +188,15 @@ pub(super) fn default_news_feed_state(
                     })
             })
             .unwrap_or_default();
+    let cached_items: Vec<crate::state::types::NewsFeedItem> = fs::read_to_string(news_feed_path)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default();
+    let news_loading = cached_items.is_empty();
     (
-        Vec::new(),           // news_items
-        Vec::new(),           // news_results
+        cached_items.clone(), // news_items
+        cached_items,         // news_results (filtered later)
+        news_loading,         // news_loading
         0,                    // news_selected
         ListState::default(), // news_list_state
         String::new(),        // news_search_input
@@ -195,10 +207,14 @@ pub(super) fn default_news_feed_state(
         false, // news_recent_dirty
         true,  // news_filter_show_arch_news
         true,  // news_filter_show_advisories
+        true,  // news_filter_show_pkg_updates
+        true,  // news_filter_show_aur_comments
         true,  // news_filter_installed_only
         None,  // news_filter_arch_rect
         None,  // news_filter_advisory_rect
         None,  // news_filter_installed_rect
+        None,  // news_filter_updates_rect
+        None,  // news_filter_aur_comments_rect
         Some(30),
         true, // show_news_history_pane
         true, // show_news_bookmarks_pane

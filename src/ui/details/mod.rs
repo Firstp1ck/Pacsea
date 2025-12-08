@@ -255,6 +255,9 @@ fn render_news_content_lines(
     let inline_code_style = ratatui::style::Style::default()
         .fg(th.lavender)
         .add_modifier(ratatui::style::Modifier::ITALIC);
+    let link_style = ratatui::style::Style::default()
+        .fg(th.sapphire)
+        .add_modifier(ratatui::style::Modifier::UNDERLINED | ratatui::style::Modifier::BOLD);
     let normal_style = ratatui::style::Style::default().fg(th.text);
 
     let mut rendered: Vec<ratatui::text::Line<'static>> = Vec::new();
@@ -290,7 +293,7 @@ fn render_news_content_lines(
                     inline_code_style,
                 ));
             } else {
-                spans.push(ratatui::text::Span::styled(part.to_string(), normal_style));
+                spans.extend(style_links(part, normal_style, link_style));
             }
         }
         if spans.is_empty() {
@@ -303,6 +306,65 @@ fn render_news_content_lines(
         }
     }
     rendered
+}
+
+/// What: Style inline links within a text segment by underlining URLs.
+///
+/// Inputs:
+/// - `segment`: Raw text segment (outside of code spans) to scan.
+/// - `normal_style`: Style applied to non-link text.
+/// - `link_style`: Style applied to detected URLs.
+///
+/// Output:
+/// - Spans with URLs underlined/bold for better visibility; whitespace preserved.
+fn style_links(
+    segment: &str,
+    normal_style: ratatui::style::Style,
+    link_style: ratatui::style::Style,
+) -> Vec<ratatui::text::Span<'static>> {
+    let mut spans: Vec<ratatui::text::Span> = Vec::new();
+    let mut current = String::new();
+    let flush_current = |spans: &mut Vec<ratatui::text::Span>, cur: &mut String| {
+        if !cur.is_empty() {
+            spans.push(ratatui::text::Span::styled(cur.clone(), normal_style));
+            cur.clear();
+        }
+    };
+
+    let mut word = String::new();
+    for ch in segment.chars() {
+        if ch.is_whitespace() {
+            if !word.is_empty() {
+                let span_style = if word.starts_with("http://") || word.starts_with("https://") {
+                    link_style
+                } else {
+                    normal_style
+                };
+                flush_current(&mut spans, &mut current);
+                spans.push(ratatui::text::Span::styled(word.clone(), span_style));
+                word.clear();
+            }
+            current.push(ch);
+            continue;
+        }
+        if !current.is_empty() {
+            flush_current(&mut spans, &mut current);
+        }
+        word.push(ch);
+    }
+
+    if !word.is_empty() {
+        let span_style = if word.starts_with("http://") || word.starts_with("https://") {
+            link_style
+        } else {
+            normal_style
+        };
+        flush_current(&mut spans, &mut current);
+        spans.push(ratatui::text::Span::styled(word, span_style));
+    }
+    flush_current(&mut spans, &mut current);
+
+    spans
 }
 
 #[cfg(test)]

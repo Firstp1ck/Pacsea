@@ -1,7 +1,7 @@
 use ratatui::Terminal;
 use tokio::select;
 
-use crate::state::types::NewsFeedItem;
+use crate::state::types::NewsFeedPayload;
 use crate::state::{AppState, PackageItem};
 use crate::ui::ui;
 use crate::util::parse_update_entry;
@@ -225,8 +225,21 @@ fn handle_updates_list(app: &mut AppState, count: usize, list: Vec<String>) {
 /// Inputs:
 /// - `app`: Application state containing news feed data and filter flags.
 /// - `items`: New feed items to store.
-fn handle_news_feed_items(app: &mut AppState, items: Vec<NewsFeedItem>) {
-    app.news_items = items;
+fn handle_news_feed_items(app: &mut AppState, payload: NewsFeedPayload) {
+    app.news_loading = false;
+    app.news_items = payload.items;
+    app.news_seen_pkg_versions = payload.seen_pkg_versions;
+    app.news_seen_pkg_versions_dirty = true;
+    app.news_seen_aur_comments = payload.seen_aur_comments;
+    app.news_seen_aur_comments_dirty = true;
+    match serde_json::to_string_pretty(&app.news_items) {
+        Ok(serialized) => {
+            if let Err(e) = std::fs::write(&app.news_feed_path, serialized) {
+                tracing::warn!(error = %e, path = ?app.news_feed_path, "failed to persist news feed cache");
+            }
+        }
+        Err(e) => tracing::warn!(error = %e, "failed to serialize news feed cache"),
+    }
     app.refresh_news_results();
     info!(
         fetched = app.news_items.len(),

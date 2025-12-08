@@ -44,6 +44,12 @@ pub enum NewsFeedSource {
     ArchNews,
     /// security.archlinux.org advisory.
     SecurityAdvisory,
+    /// Installed official package received a version update.
+    InstalledPackageUpdate,
+    /// Installed AUR package received a version update.
+    AurPackageUpdate,
+    /// New AUR comment on an installed package.
+    AurComment,
 }
 
 /// What: Severity levels for security advisories.
@@ -119,6 +125,28 @@ pub struct NewsFeedItem {
     pub severity: Option<AdvisorySeverity>,
     /// Affected packages (advisories only).
     pub packages: Vec<String>,
+}
+
+/// What: Bundle of news feed items and associated last-seen state updates.
+///
+/// Inputs:
+/// - `items`: Aggregated news feed entries ready for rendering.
+/// - `seen_pkg_versions`: Updated map of installed package names to last-seen versions.
+/// - `seen_aur_comments`: Updated map of AUR packages to last-seen comment identifiers.
+///
+/// Output:
+/// - Carries feed payload plus dedupe state for persistence.
+///
+/// Details:
+/// - Used as the payload between background fetchers and UI to keep last-seen maps in sync.
+#[derive(Clone, Debug)]
+pub struct NewsFeedPayload {
+    /// Aggregated and sorted feed items.
+    pub items: Vec<NewsFeedItem>,
+    /// Last-seen versions for installed packages.
+    pub seen_pkg_versions: std::collections::HashMap<String, String>,
+    /// Last-seen comment identifiers for installed AUR packages.
+    pub seen_aur_comments: std::collections::HashMap<String, String>,
 }
 
 /// What: Persisted bookmark entry for news items, including cached content and optional local HTML path.
@@ -558,6 +586,9 @@ pub struct OptionalDepRow {
 /// - Includes optional timestamp for reliable chronological sorting.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct AurComment {
+    /// Stable comment identifier parsed from DOM when available.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
     /// Comment author username.
     pub author: String,
     /// Human-readable date string.

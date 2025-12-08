@@ -45,10 +45,12 @@ pub fn spawn_auxiliary_workers(
     headless: bool,
     status_tx: &mpsc::UnboundedSender<(String, ArchStatusColor)>,
     news_tx: &mpsc::UnboundedSender<Vec<NewsItem>>,
-    news_feed_tx: &mpsc::UnboundedSender<Vec<crate::state::types::NewsFeedItem>>,
+    news_feed_tx: &mpsc::UnboundedSender<crate::state::types::NewsFeedPayload>,
     announcement_tx: &mpsc::UnboundedSender<crate::announcements::RemoteAnnouncement>,
     tick_tx: &mpsc::UnboundedSender<()>,
     news_read_urls: &std::collections::HashSet<String>,
+    news_seen_pkg_versions: &std::collections::HashMap<String, String>,
+    news_seen_aur_comments: &std::collections::HashMap<String, String>,
     official_index_path: &std::path::Path,
     net_err_tx: &mpsc::UnboundedSender<String>,
     index_notify_tx: &mpsc::UnboundedSender<()>,
@@ -110,21 +112,48 @@ pub fn spawn_auxiliary_workers(
         // Fetch aggregated news feed (Arch news + security advisories)
         let news_feed_tx_once = news_feed_tx.clone();
         let installed: HashSet<String> = pkgindex::explicit_names().into_iter().collect();
+        let mut seen_versions = news_seen_pkg_versions.clone();
+        let mut seen_aur_comments = news_seen_aur_comments.clone();
         tracing::info!(
             installed_names = installed.len(),
             "queueing combined news feed fetch (startup)"
         );
         tokio::spawn(async move {
-            match sources::fetch_news_feed(
-                50,
-                true,
-                true,
-                Some(&installed),
-                false,
-                NewsSortMode::DateDesc,
-            )
-            .await
-            {
+            let mut installed_set = installed;
+            if installed_set.is_empty() {
+                tracing::info!(
+                    "installed set empty at news fetch startup; refreshing caches before fetch"
+                );
+                crate::index::refresh_installed_cache().await;
+                crate::index::refresh_explicit_cache(
+                    crate::state::InstalledPackagesMode::AllExplicit,
+                )
+                .await;
+                // Re-load after refresh
+                let refreshed: HashSet<String> = pkgindex::explicit_names().into_iter().collect();
+                if refreshed.is_empty() {
+                    tracing::warn!(
+                        "installed set still empty after refresh; skipping updates/comments this cycle"
+                    );
+                } else {
+                    installed_set = refreshed;
+                }
+            }
+            let ctx = sources::NewsFeedContext {
+                force_emit_all: true,
+                updates_list_path: Some(crate::theme::lists_dir().join("available_updates.txt")),
+                limit: 50,
+                include_arch_news: true,
+                include_advisories: true,
+                include_pkg_updates: true,
+                include_aur_comments: true,
+                installed_filter: Some(&installed_set),
+                installed_only: false,
+                sort_mode: NewsSortMode::DateDesc,
+                seen_pkg_versions: &mut seen_versions,
+                seen_aur_comments: &mut seen_aur_comments,
+            };
+            match sources::fetch_news_feed(ctx).await {
                 Ok(feed) => {
                     let arch_ct = feed
                         .iter()
@@ -138,16 +167,21 @@ pub fn spawn_auxiliary_workers(
                         total = feed.len(),
                         arch = arch_ct,
                         advisories = adv_ct,
-                        installed_names = installed.len(),
+                        installed_names = installed_set.len(),
                         "news feed fetched"
                     );
                     if feed.is_empty() {
                         tracing::warn!(
-                            installed_names = installed.len(),
+                            installed_names = installed_set.len(),
                             "news feed is empty after fetch"
                         );
                     }
-                    if let Err(e) = news_feed_tx_once.send(feed) {
+                    let payload = crate::state::types::NewsFeedPayload {
+                        items: feed,
+                        seen_pkg_versions: seen_versions,
+                        seen_aur_comments,
+                    };
+                    if let Err(e) = news_feed_tx_once.send(payload) {
                         tracing::warn!(error = ?e, "failed to send news feed to channel");
                     }
                 }
