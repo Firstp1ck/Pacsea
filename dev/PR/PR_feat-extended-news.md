@@ -1,7 +1,7 @@
 ## Summary
-- Added News mode with Arch news + security advisory feed, filters/sorting, read/unread tracking, bookmarks, and optional `app_start_mode = news` startup setting (alias: `start_in_news`).
-- Added news search history/bookmarks panes with persisted caches, background worker/channels for article content fetch + caching, and news search history dedupe/debounce.
-- Updated UI panes/menus/modals and localization to render news lists, filter chips, item actions, and helper/tests for news queries and persistence flows.
+- Added News mode with Arch news, security advisories, installed updates, and AUR comments plus filters/sorting, read/unread tracking, bookmarks, and optional `app_start_mode = news` startup setting (alias: `start_in_news`).
+- Added cached news feed and last-seen update/comment maps (`news_feed.json`, `news_seen_pkg_updates.json`, `news_seen_aur_comments.json`) with loading state and filter chips for updates/comments.
+- Updated UI panes/menus/modals and localization to render news summaries, highlight AUR comment keywords/links, and extend news history/bookmark panes and workers for the richer feed.
 
 ## Type of change
 - [x] feat (new feature)
@@ -67,8 +67,9 @@ N/A
 
 ## Notes for reviewers
 - News mode persists `news_recent_searches.json`, `news_bookmarks.json`, and `news_read_urls.json` (bookmarks loader keeps backward compatibility with old feed item format).
-- Settings gain `app_start_mode` (`package`/`news`, alias `start_in_news`), `news_filter_show_arch_news`, `news_filter_show_advisories`, `news_filter_installed_only`, and `news_max_age_days`; defaults/locales updated to match.
-- News content worker caches article bodies; filter chips expose clickable rects for mouse-driven toggles.
+- Settings gain `app_start_mode` (`package`/`news`, alias `start_in_news`), `news_filter_show_arch_news`, `news_filter_show_advisories`, `news_filter_show_pkg_updates`, `news_filter_show_aur_comments`, `news_filter_installed_only`, and `news_max_age_days`; defaults/locales updated to match.
+- News content worker caches article bodies and treats AUR package URLs as comment views; filter chips expose clickable rects for mouse-driven toggles.
+- News feed cache and last-seen maps persist under `lists/` (`news_feed.json`, `news_seen_pkg_updates.json`, `news_seen_aur_comments.json`); feed reloads from cache until background refresh completes.
 
 ## Breaking changes
 None.
