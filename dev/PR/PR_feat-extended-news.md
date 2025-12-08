@@ -28,6 +28,7 @@ cargo test complexity -- --nocapture --test-threads=1
 - Launch Pacsea, switch to News mode (or set `app_start_mode = news`), and verify Arch news + advisories load; toggle filter chips and mark items read/unread/bookmarked.
 - Run a news search, confirm the history pane records queries, and restart to ensure history/bookmarks persist.
 - Open a news item to fetch content, scroll, and ensure subsequent openings use the cached body.
+- Load a news bookmark that has no cached HTML/content and confirm the details pane clears stale content, resets `news_content_loading`, and allows a fresh content request.
 
 ## Screenshots / recordings (if UI changes)
 N/A

@@ -179,11 +179,11 @@ fn load_news_bookmark(app: &mut AppState) {
             app.news_content_cache.insert(url.clone(), c.clone());
         }
         app.details.url.clone_from(url);
+    } else {
+        app.details.url.clear();
     }
-    if let Some(c) = content {
-        app.news_content = Some(c);
-        app.news_content_loading = false;
-    }
+    app.news_content = content;
+    app.news_content_loading = false;
 }
 
 /// What: Handle key events inside the news bookmarks pane.

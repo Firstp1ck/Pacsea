@@ -262,12 +262,15 @@ fn handle_news_content(app: &mut AppState, url: &str, content: String) {
     // Cache the content
     app.news_content_cache
         .insert(url.to_string(), content.clone());
-    app.news_content_loading = false;
 
     // Update displayed content if this is for the currently selected item
-    if let Some(selected) = app.news_results.get(app.news_selected)
-        && selected.url.as_deref() == Some(url)
+    if let Some(selected_url) = app
+        .news_results
+        .get(app.news_selected)
+        .and_then(|selected| selected.url.as_deref())
+        && selected_url == url
     {
+        app.news_content_loading = false;
         app.news_content = if content.is_empty() {
             None
         } else {
@@ -668,5 +671,92 @@ pub async fn run_event_loop(
         if process_channel_messages(app, channels).await {
             break;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::handle_news_content;
+    use crate::state::AppState;
+    use crate::state::types::{NewsFeedItem, NewsFeedSource};
+
+    /// What: Build a minimal `NewsFeedItem` for news content tests.
+    ///
+    /// Inputs:
+    /// - `id`: Stable identifier for the item.
+    /// - `url`: URL to associate with the item.
+    ///
+    /// Output:
+    /// - `NewsFeedItem` with Arch news source and empty optional fields.
+    ///
+    /// Details:
+    /// - Uses a fixed date to keep assertions deterministic.
+    fn make_news_item(id: &str, url: &str) -> NewsFeedItem {
+        NewsFeedItem {
+            id: id.to_string(),
+            date: "2024-01-01".to_string(),
+            title: format!("Title {id}"),
+            summary: None,
+            url: Some(url.to_string()),
+            source: NewsFeedSource::ArchNews,
+            severity: None,
+            packages: Vec::new(),
+        }
+    }
+
+    #[test]
+    /// What: Ensure stale news content responses do not clear loading for the active selection.
+    ///
+    /// Inputs:
+    /// - App with selection on item `b` and loading flagged true.
+    /// - Content response for outdated item `a`.
+    ///
+    /// Output:
+    /// - `news_content_loading` remains true and displayed content stays `None`.
+    ///
+    /// Details:
+    /// - Prevents stale responses from cancelling the fetch for the current item.
+    fn handle_news_content_keeps_loading_for_mismatched_url() {
+        let mut app = AppState {
+            news_results: vec![
+                make_news_item("a", "https://example.com/a"),
+                make_news_item("b", "https://example.com/b"),
+            ],
+            news_selected: 1,
+            news_content_loading: true,
+            ..AppState::default()
+        };
+
+        handle_news_content(&mut app, "https://example.com/a", "old".to_string());
+
+        assert!(app.news_content_loading);
+        assert!(app.news_content.is_none());
+        assert!(app.news_content_cache.contains_key("https://example.com/a"));
+    }
+
+    #[test]
+    /// What: Ensure news content responses for the selected item clear loading and set content.
+    ///
+    /// Inputs:
+    /// - App with selection on item `a` and loading flagged true.
+    /// - Content response for the same item.
+    ///
+    /// Output:
+    /// - Loading flag clears and content is stored.
+    ///
+    /// Details:
+    /// - Confirms the happy path still updates UI state correctly.
+    fn handle_news_content_updates_current_selection() {
+        let mut app = AppState {
+            news_results: vec![make_news_item("a", "https://example.com/a")],
+            news_content_loading: true,
+            ..AppState::default()
+        };
+
+        handle_news_content(&mut app, "https://example.com/a", "payload".to_string());
+
+        assert!(!app.news_content_loading);
+        assert_eq!(app.news_content, Some("payload".to_string()));
+        assert!(app.news_content_cache.contains_key("https://example.com/a"));
     }
 }
