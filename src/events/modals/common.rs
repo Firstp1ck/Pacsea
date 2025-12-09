@@ -323,6 +323,8 @@ pub(super) fn handle_news(
         if let Some(it) = items.get(*selected) {
             app.news_read_urls.insert(it.url.clone());
             app.news_read_dirty = true;
+            app.news_read_ids.insert(it.url.clone());
+            app.news_read_ids_dirty = true;
         }
         return false;
     }
@@ -331,6 +333,10 @@ pub(super) fn handle_news(
             app.news_read_urls.insert(it.url.clone());
         }
         app.news_read_dirty = true;
+        for it in items {
+            app.news_read_ids.insert(it.url.clone());
+        }
+        app.news_read_ids_dirty = true;
         return false;
     }
     match ke.code {

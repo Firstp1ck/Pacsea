@@ -26,6 +26,7 @@ impl Default for AppState {
             recent_path,
             cache_path,
             news_read_path,
+            news_read_ids_path,
             install_path,
             official_index_path,
             deps_cache_path,
@@ -122,11 +123,13 @@ impl Default for AppState {
             news_filter_show_pkg_updates,
             news_filter_show_aur_comments,
             news_filter_installed_only,
+            news_filter_read_status,
             news_filter_arch_rect,
             news_filter_advisory_rect,
             news_filter_installed_rect,
             news_filter_updates_rect,
             news_filter_aur_comments_rect,
+            news_filter_read_rect,
             news_max_age_days,
             show_news_history_pane,
             show_news_bookmarks_pane,
@@ -155,6 +158,9 @@ impl Default for AppState {
 
         let (news_read_urls, news_read_path, news_read_dirty) =
             defaults::default_news_state(news_read_path);
+
+        let (news_read_ids, news_read_ids_path, news_read_ids_dirty) =
+            defaults::default_news_read_ids_state(news_read_ids_path);
 
         let (announcements_read_ids, announcement_read_path, announcement_dirty) =
             defaults::default_announcement_state(announcement_read_path);
@@ -379,6 +385,9 @@ impl Default for AppState {
             news_read_urls,
             news_read_path,
             news_read_dirty,
+            news_read_ids,
+            news_read_ids_path,
+            news_read_ids_dirty,
             news_items,
             news_results,
             news_loading,
@@ -395,11 +404,13 @@ impl Default for AppState {
             news_filter_show_pkg_updates,
             news_filter_show_aur_comments,
             news_filter_installed_only,
+            news_filter_read_status,
             news_filter_arch_rect,
             news_filter_advisory_rect,
             news_filter_installed_rect,
             news_filter_updates_rect,
             news_filter_aur_comments_rect,
+            news_filter_read_rect,
             news_max_age_days,
             show_news_history_pane,
             show_news_bookmarks_pane,

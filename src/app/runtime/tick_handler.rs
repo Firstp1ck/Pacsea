@@ -10,9 +10,10 @@ use crate::state::{AppState, ArchStatusColor, Modal, NewsItem, PackageItem, Quer
 use super::super::persist::{
     maybe_flush_announcement_read, maybe_flush_cache, maybe_flush_deps_cache,
     maybe_flush_files_cache, maybe_flush_install, maybe_flush_news_bookmarks,
-    maybe_flush_news_read, maybe_flush_news_recent, maybe_flush_news_seen_aur_comments,
-    maybe_flush_news_seen_versions, maybe_flush_pkgbuild_parse_cache, maybe_flush_recent,
-    maybe_flush_sandbox_cache, maybe_flush_services_cache,
+    maybe_flush_news_read, maybe_flush_news_read_ids, maybe_flush_news_recent,
+    maybe_flush_news_seen_aur_comments, maybe_flush_news_seen_versions,
+    maybe_flush_pkgbuild_parse_cache, maybe_flush_recent, maybe_flush_sandbox_cache,
+    maybe_flush_services_cache,
 };
 use super::super::recent::{maybe_save_news_recent, maybe_save_recent};
 
@@ -556,6 +557,7 @@ pub fn handle_tick(
     maybe_flush_news_recent(app);
     maybe_flush_news_bookmarks(app);
     maybe_flush_news_read(app);
+    maybe_flush_news_read_ids(app);
     maybe_flush_news_seen_versions(app);
     maybe_flush_news_seen_aur_comments(app);
     maybe_flush_announcement_read(app);

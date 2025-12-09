@@ -96,6 +96,25 @@ pub enum NewsSortMode {
     SourceThenTitle,
 }
 
+/// What: Read filter applied to news feed items.
+///
+/// Inputs: None (enum variants)
+///
+/// Output:
+/// - Indicates whether to show all, only read, or only unread items.
+///
+/// Details:
+/// - Used by the News Feed list and toolbar filter chip.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NewsReadFilter {
+    /// Show all items regardless of read status.
+    All,
+    /// Show only items marked as read.
+    Read,
+    /// Show only items not marked as read.
+    Unread,
+}
+
 /// What: Unified news/advisory feed item for the news view.
 ///
 /// Inputs:

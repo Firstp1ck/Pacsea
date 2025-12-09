@@ -1,6 +1,6 @@
 use crate::i18n;
 use crate::state::AppState;
-use crate::state::types::{AppMode, NewsFeedSource};
+use crate::state::types::{AppMode, NewsFeedSource, NewsReadFilter};
 use crate::theme::theme;
 use ratatui::{
     Frame,
@@ -246,6 +246,7 @@ pub use dropdowns::render_dropdowns;
 #[allow(clippy::too_many_lines)]
 fn render_news_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     let th = theme();
+    let prefs = crate::theme::settings();
     let items: Vec<ListItem> = if app.news_loading {
         app.news_list_state.select(None);
         vec![ListItem::new(Line::from(ratatui::text::Span::styled(
@@ -256,6 +257,21 @@ fn render_news_results(f: &mut Frame, app: &mut AppState, area: Rect) {
         app.news_results
             .iter()
             .map(|item| {
+                let is_read = app.news_read_ids.contains(&item.id)
+                    || item
+                        .url
+                        .as_ref()
+                        .is_some_and(|u| app.news_read_urls.contains(u));
+                let read_symbol = if is_read {
+                    &prefs.news_read_symbol
+                } else {
+                    &prefs.news_unread_symbol
+                };
+                let read_style = if is_read {
+                    Style::default().fg(th.overlay1)
+                } else {
+                    Style::default().fg(th.green)
+                };
                 let (source_label, source_color) = match item.source {
                     NewsFeedSource::ArchNews => ("Arch", th.sapphire),
                     NewsFeedSource::SecurityAdvisory => ("Advisory", th.yellow),
@@ -268,6 +284,10 @@ fn render_news_results(f: &mut Frame, app: &mut AppState, area: Rect) {
                     .as_ref()
                     .map_or_else(String::new, |s| format!("{s:?}"));
                 let mut spans = vec![
+                    ratatui::text::Span::styled(
+                        format!("{read_symbol} "),
+                        read_style.add_modifier(Modifier::BOLD),
+                    ),
                     ratatui::text::Span::styled(
                         format!("[{source_label}]"),
                         Style::default().fg(source_color),
@@ -288,7 +308,12 @@ fn render_news_results(f: &mut Frame, app: &mut AppState, area: Rect) {
                     spans.push(ratatui::text::Span::raw(" – "));
                     spans.extend(render_summary_spans(summary, &th, item.source));
                 }
-                ListItem::new(Line::from(spans)).style(Style::default().fg(th.text))
+                let item_style = if is_read {
+                    Style::default().fg(th.subtext1)
+                } else {
+                    Style::default().fg(th.text)
+                };
+                ListItem::new(Line::from(spans)).style(item_style)
             })
             .collect()
     };
@@ -309,6 +334,11 @@ fn render_news_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     let installed_filter_label = format!("[{}]", i18n::t(app, "app.news.filters.installed_only"));
     let updates_filter_label = "[Updates]".to_string();
     let aur_comments_filter_label = "[AUR Comments]".to_string();
+    let read_filter_label = match app.news_filter_read_status {
+        NewsReadFilter::All => "[All]".to_string(),
+        NewsReadFilter::Read => "[Read]".to_string(),
+        NewsReadFilter::Unread => "[Unread]".to_string(),
+    };
 
     let button_style = |is_open: bool| -> Style {
         if is_open {
@@ -367,6 +397,10 @@ fn render_news_results(f: &mut Frame, app: &mut AppState, area: Rect) {
         &aur_comments_filter_label,
         app.news_filter_show_aur_comments,
     );
+    let read_filter_span = render_filter(
+        &read_filter_label,
+        !matches!(app.news_filter_read_status, NewsReadFilter::All),
+    );
 
     let inner_width = area.width.saturating_sub(2);
     let title_width = u16::try_from(title_text.width()).unwrap_or(u16::MAX);
@@ -375,6 +409,7 @@ fn render_news_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     let installed_width = u16::try_from(installed_filter_label.width()).unwrap_or(u16::MAX);
     let updates_width = u16::try_from(updates_filter_label.width()).unwrap_or(u16::MAX);
     let aur_comments_width = u16::try_from(aur_comments_filter_label.width()).unwrap_or(u16::MAX);
+    let read_width = u16::try_from(read_filter_label.width()).unwrap_or(u16::MAX);
     let date_width = u16::try_from(date_label.width()).unwrap_or(u16::MAX);
     let options_width = u16::try_from(options_label.width()).unwrap_or(u16::MAX);
     let panels_width = u16::try_from(panels_label.width()).unwrap_or(u16::MAX);
@@ -412,10 +447,14 @@ fn render_news_results(f: &mut Frame, app: &mut AppState, area: Rect) {
 
     app.news_filter_aur_comments_rect = Some((x_cursor, area.y, aur_comments_width, 1));
     title_spans.push(aur_comments_filter_span);
-    x_cursor = x_cursor
-        .saturating_add(aur_comments_width)
-        .saturating_add(2);
+    x_cursor = x_cursor.saturating_add(aur_comments_width);
     title_spans.push(Span::raw("  "));
+    x_cursor = x_cursor.saturating_add(2);
+    app.news_filter_read_rect = Some((x_cursor, area.y, read_width, 1));
+    title_spans.push(read_filter_span);
+    x_cursor = x_cursor.saturating_add(read_width);
+    title_spans.push(Span::raw("  "));
+    x_cursor = x_cursor.saturating_add(2);
 
     let options_x = area
         .x
@@ -644,6 +683,15 @@ mod tests {
             "app.results.filters.manjaro".to_string(),
             "Manjaro".to_string(),
         );
+        translations.insert("app.news.filters.arch".to_string(), "Arch".to_string());
+        translations.insert(
+            "app.news.filters.advisories".to_string(),
+            "Advisories".to_string(),
+        );
+        translations.insert(
+            "app.news.filters.installed_only".to_string(),
+            "Installed".to_string(),
+        );
         app.translations = translations.clone();
         app.translations_fallback = translations;
     }
@@ -680,5 +728,44 @@ mod tests {
         assert!(app.panels_button_rect.is_some());
         assert!(app.arch_status_rect.is_some());
         assert!(app.results_rect.is_some());
+    }
+
+    #[test]
+    fn news_filters_leave_gap_between_aur_comments_and_read_toggle() {
+        use ratatui::{Terminal, backend::TestBackend};
+
+        let backend = TestBackend::new(160, 10);
+        let mut term = Terminal::new(backend).expect("failed to create test terminal");
+        let mut app = crate::state::AppState::default();
+        init_test_translations(&mut app);
+        app.app_mode = AppMode::News;
+        app.news_results = vec![crate::state::types::NewsFeedItem {
+            id: "1".into(),
+            date: "2025-01-01".into(),
+            title: "Example update".into(),
+            summary: None,
+            url: None,
+            source: NewsFeedSource::AurComment,
+            severity: None,
+            packages: Vec::new(),
+        }];
+
+        term.draw(|f| {
+            let area = f.area();
+            render_results(f, &mut app, area);
+        })
+        .expect("failed to draw test terminal");
+
+        let buffer = term.backend().buffer();
+        let mut title_line = String::new();
+        for x in 0..buffer.area.width {
+            title_line.push_str(buffer[(x, 0)].symbol());
+        }
+
+        let trimmed = title_line.trim_end();
+        assert!(
+            trimmed.contains("[AUR Comments]  [All]"),
+            "expected spacing between AUR comments and read filters, saw: {trimmed}"
+        );
     }
 }

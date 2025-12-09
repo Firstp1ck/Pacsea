@@ -528,6 +528,85 @@ fn handle_input_clear(app: &mut AppState, query_tx: &mpsc::UnboundedSender<Query
     }
 }
 
+/// What: Mark or unmark the selected News Feed item as read.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+/// - `mark_read`: Whether to mark as read (`true`) or unread (`false`)
+///
+/// Output:
+/// - `true` if state changed (set updated), `false` otherwise
+///
+/// Details:
+/// - Updates both the ID-based read set and the legacy URL set when available.
+/// - Refreshes news results to honor read/unread filtering.
+fn mark_news_feed_item(app: &mut AppState, mark_read: bool) -> bool {
+    let Some(item) = app.news_results.get(app.news_selected).cloned() else {
+        return false;
+    };
+
+    let is_read_before = app.news_read_ids.contains(&item.id)
+        || item
+            .url
+            .as_ref()
+            .is_some_and(|u| app.news_read_urls.contains(u));
+
+    let mut changed = false;
+
+    if mark_read {
+        if !is_read_before {
+            app.news_read_ids_dirty = true;
+            app.news_read_dirty = app.news_read_dirty || item.url.is_some();
+            changed = true;
+        }
+        app.news_read_ids.insert(item.id.clone());
+        if let Some(url) = item.url.as_ref() {
+            app.news_read_urls.insert(url.clone());
+        }
+    } else {
+        if is_read_before {
+            app.news_read_ids_dirty = true;
+            app.news_read_dirty = app.news_read_dirty || item.url.is_some();
+            changed = true;
+        }
+        app.news_read_ids.remove(&item.id);
+        if let Some(url) = item.url.as_ref() {
+            app.news_read_urls.remove(url);
+        }
+    }
+
+    if changed {
+        app.refresh_news_results();
+    }
+    changed
+}
+
+/// What: Toggle read/unread state for the selected News Feed item.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+///
+/// Output:
+/// - `true` if state changed (toggled), `false` otherwise
+///
+/// Details:
+/// - Considers both ID-based and legacy URL-based read state for determining current status.
+fn toggle_news_feed_item(app: &mut AppState) -> bool {
+    let Some(item) = app.news_results.get(app.news_selected).cloned() else {
+        return false;
+    };
+    let is_read = app.news_read_ids.contains(&item.id)
+        || item
+            .url
+            .as_ref()
+            .is_some_and(|u| app.news_read_urls.contains(u));
+    if is_read {
+        mark_news_feed_item(app, false)
+    } else {
+        mark_news_feed_item(app, true)
+    }
+}
+
 /// What: Handle key events in Normal mode for the Search pane.
 ///
 /// Inputs:
@@ -560,6 +639,21 @@ pub fn handle_normal_mode(
     {
         let idx = (ch as u8 - b'1') as usize;
         if handle_config_menu_numeric_selection(idx, app) {
+            return false;
+        }
+    }
+
+    if matches!(app.app_mode, crate::state::types::AppMode::News) {
+        if matches_any(&ke, &app.keymap.news_mark_read_feed) {
+            if mark_news_feed_item(app, true) {
+                return false;
+            }
+        } else if matches_any(&ke, &app.keymap.news_mark_unread_feed) {
+            if mark_news_feed_item(app, false) {
+                return false;
+            }
+        } else if matches_any(&ke, &app.keymap.news_toggle_read_feed) && toggle_news_feed_item(app)
+        {
             return false;
         }
     }
@@ -645,4 +739,111 @@ pub fn handle_normal_mode(
     }
 
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::types::{AppMode, NewsFeedItem, NewsFeedSource};
+    use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers};
+    use tokio::sync::mpsc;
+
+    fn make_news_item(id: &str, url: &str) -> NewsFeedItem {
+        NewsFeedItem {
+            id: id.to_string(),
+            date: "2025-01-01".to_string(),
+            title: format!("Item {id}"),
+            summary: None,
+            url: Some(url.to_string()),
+            source: NewsFeedSource::ArchNews,
+            severity: None,
+            packages: vec![],
+        }
+    }
+
+    fn key(code: KeyCode) -> KeyEvent {
+        KeyEvent {
+            code,
+            modifiers: KeyModifiers::empty(),
+            kind: KeyEventKind::Press,
+            state: KeyEventState::empty(),
+        }
+    }
+
+    #[test]
+    fn mark_news_feed_item_sets_read_state() {
+        let item = make_news_item("one", "https://example.com/one");
+        let mut app = AppState {
+            app_mode: AppMode::News,
+            news_items: vec![item.clone()],
+            news_results: vec![item],
+            news_selected: 0,
+            news_max_age_days: None,
+            ..AppState::default()
+        };
+
+        let changed = mark_news_feed_item(&mut app, true);
+        assert!(changed);
+        assert!(app.news_read_ids.contains("one"));
+        assert!(app.news_read_ids_dirty);
+        assert!(app.news_read_urls.contains("https://example.com/one"));
+        assert!(app.news_read_dirty);
+
+        let changed_unread = mark_news_feed_item(&mut app, false);
+        assert!(changed_unread);
+        assert!(!app.news_read_ids.contains("one"));
+        assert!(app.news_read_ids_dirty);
+    }
+
+    #[test]
+    fn toggle_news_feed_item_respects_legacy_url_state() {
+        let item = make_news_item("two", "https://example.com/two");
+        let mut app = AppState {
+            app_mode: AppMode::News,
+            news_items: vec![item.clone()],
+            news_results: vec![item],
+            news_selected: 0,
+            news_max_age_days: None,
+            ..AppState::default()
+        };
+        app.news_read_urls.insert("https://example.com/two".into());
+        app.news_read_dirty = true;
+
+        let toggled = toggle_news_feed_item(&mut app);
+        assert!(toggled);
+        assert!(!app.news_read_ids.contains("two"));
+        assert!(!app.news_read_urls.contains("https://example.com/two"));
+        assert!(app.news_read_ids_dirty);
+        assert!(app.news_read_dirty);
+    }
+
+    #[test]
+    fn handle_normal_mode_marks_read_via_keybinding() {
+        let item = make_news_item("three", "https://example.com/three");
+        let mut app = AppState {
+            app_mode: AppMode::News,
+            news_items: vec![item.clone()],
+            news_results: vec![item],
+            news_selected: 0,
+            ..AppState::default()
+        };
+        let (query_tx, _query_rx) = mpsc::unbounded_channel();
+        let (details_tx, _details_rx) = mpsc::unbounded_channel();
+        let (add_tx, _add_rx) = mpsc::unbounded_channel();
+        let (preview_tx, _preview_rx) = mpsc::unbounded_channel();
+        let (comments_tx, _comments_rx) = mpsc::unbounded_channel();
+
+        let ke = key(KeyCode::Char('r'));
+        let handled = handle_normal_mode(
+            ke,
+            &mut app,
+            &query_tx,
+            &details_tx,
+            &add_tx,
+            &preview_tx,
+            &comments_tx,
+        );
+        assert!(!handled);
+        assert!(app.news_read_ids.contains("three"));
+    }
 }

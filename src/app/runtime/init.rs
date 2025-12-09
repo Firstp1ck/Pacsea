@@ -423,6 +423,39 @@ fn load_news_read_urls(app: &mut AppState) {
     }
 }
 
+/// What: Load news read IDs from disk (feed-level tracking).
+///
+/// Inputs:
+/// - `app`: Application state to update
+///
+/// Output: None (modifies app state in place)
+///
+/// Details:
+/// - Attempts to deserialize news read IDs set from JSON file.
+/// - If no IDs file is found, falls back to populated `news_read_urls` for migration.
+fn load_news_read_ids(app: &mut AppState) {
+    if let Ok(s) = std::fs::read_to_string(&app.news_read_ids_path)
+        && let Ok(set) = serde_json::from_str::<std::collections::HashSet<String>>(&s)
+    {
+        app.news_read_ids = set;
+        tracing::info!(
+            path = %app.news_read_ids_path.display(),
+            count = app.news_read_ids.len(),
+            "loaded read news ids"
+        );
+        return;
+    }
+
+    if app.news_read_ids.is_empty() && !app.news_read_urls.is_empty() {
+        app.news_read_ids.extend(app.news_read_urls.iter().cloned());
+        tracing::info!(
+            copied = app.news_read_ids.len(),
+            "seeded news read ids from legacy URL set"
+        );
+        app.news_read_ids_dirty = true;
+    }
+}
+
 /// What: Load announcement read IDs from disk.
 ///
 /// Inputs:
@@ -559,6 +592,7 @@ pub fn initialize_app_state(app: &mut AppState, dry_run_flag: bool, headless: bo
         details_cache = %app.cache_path.display(),
         index = %app.official_index_path.display(),
         news_read = %app.news_read_path.display(),
+        news_read_ids = %app.news_read_ids_path.display(),
         announcement_read = %app.announcement_read_path.display(),
         "resolved state file paths"
     );
@@ -659,6 +693,7 @@ pub fn initialize_app_state(app: &mut AppState, dry_run_flag: bool, headless: bo
     }
 
     load_news_read_urls(app);
+    load_news_read_ids(app);
     load_announcement_state(app);
 
     pkgindex::load_from_disk(&app.official_index_path);

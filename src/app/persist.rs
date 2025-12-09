@@ -183,6 +183,42 @@ pub fn maybe_flush_news_read(app: &mut AppState) {
     }
 }
 
+/// What: Persist the set of read news IDs to disk if marked dirty.
+///
+/// Inputs:
+/// - `app`: Application state containing `news_read_ids` and `news_read_ids_path`
+///
+/// Output:
+/// - Writes `news_read_ids` JSON to `news_read_ids_path` and clears the dirty flag on success.
+pub fn maybe_flush_news_read_ids(app: &mut AppState) {
+    if !app.news_read_ids_dirty {
+        return;
+    }
+    if let Ok(s) = serde_json::to_string(&app.news_read_ids) {
+        tracing::debug!(
+            path = %app.news_read_ids_path.display(),
+            bytes = s.len(),
+            "[Persist] Writing news read IDs to disk"
+        );
+        match fs::write(&app.news_read_ids_path, &s) {
+            Ok(()) => {
+                tracing::debug!(
+                    path = %app.news_read_ids_path.display(),
+                    "[Persist] News read IDs persisted"
+                );
+            }
+            Err(e) => {
+                tracing::warn!(
+                    path = %app.news_read_ids_path.display(),
+                    error = %e,
+                    "[Persist] Failed to write news read IDs"
+                );
+            }
+        }
+        app.news_read_ids_dirty = false;
+    }
+}
+
 /// What: Persist last-seen package versions for news updates if marked dirty.
 ///
 /// Inputs:
@@ -971,5 +1007,38 @@ mod tests {
             .expect("Failed to read test news read file");
         assert!(body.contains("archlinux.org/news"));
         let _ = std::fs::remove_file(&app.news_read_path);
+    }
+
+    #[test]
+    /// What: Ensure `maybe_flush_news_read_ids` persists read IDs and clears the dirty flag.
+    ///
+    /// Inputs:
+    /// - `AppState` providing a temp `news_read_ids_path`, an ID in the set, and `news_read_ids_dirty = true`.
+    ///
+    /// Output:
+    /// - File contains the expected ID and `news_read_ids_dirty` flips to `false`.
+    ///
+    /// Details:
+    /// - Removes the temp artifact to keep tests idempotent across runs.
+    fn flush_news_read_ids_writes_and_clears_flag() {
+        let mut app = new_app();
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "pacsea_newsread_ids_{}_{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("System time is before UNIX epoch")
+                .as_nanos()
+        ));
+        app.news_read_ids_path = path.clone();
+        app.news_read_ids.insert("advisory:123".into());
+        app.news_read_ids_dirty = true;
+        maybe_flush_news_read_ids(&mut app);
+        assert!(!app.news_read_ids_dirty);
+        let body = std::fs::read_to_string(&app.news_read_ids_path)
+            .expect("Failed to read test news read ids file");
+        assert!(body.contains("advisory:123"));
+        let _ = std::fs::remove_file(&app.news_read_ids_path);
     }
 }

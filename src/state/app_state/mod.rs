@@ -9,7 +9,7 @@ use std::{
 use crate::state::modal::{CascadeMode, Modal, PreflightAction, ServiceImpact};
 use crate::state::types::{
     AppMode, ArchStatusColor, Focus, InstalledPackagesMode, NewsBookmark, NewsFeedItem,
-    NewsSortMode, PackageDetails, PackageItem, RightPaneFocus, SortMode,
+    NewsReadFilter, NewsSortMode, PackageDetails, PackageItem, RightPaneFocus, SortMode,
 };
 use crate::theme::KeyMap;
 use chrono::{NaiveDate, Utc};
@@ -111,6 +111,12 @@ pub struct AppState {
     pub news_read_path: PathBuf,
     /// Dirty flag indicating `news_read_urls` needs to be saved.
     pub news_read_dirty: bool,
+    /// Set of news feed item IDs the user has marked as read.
+    pub news_read_ids: std::collections::HashSet<String>,
+    /// Path where the read news IDs are persisted as JSON.
+    pub news_read_ids_path: PathBuf,
+    /// Dirty flag indicating `news_read_ids` needs to be saved.
+    pub news_read_ids_dirty: bool,
     /// News feed items currently loaded.
     pub news_items: Vec<NewsFeedItem>,
     /// Filtered/sorted news results shown in the UI.
@@ -149,6 +155,8 @@ pub struct AppState {
     pub news_filter_show_aur_comments: bool,
     /// Whether to restrict advisories to installed packages.
     pub news_filter_installed_only: bool,
+    /// Read/unread filter for the News Feed list.
+    pub news_filter_read_status: NewsReadFilter,
     /// Clickable rectangle for Arch news filter chip in news title.
     pub news_filter_arch_rect: Option<(u16, u16, u16, u16)>,
     /// Clickable rectangle for security advisory filter chip in news title.
@@ -159,6 +167,8 @@ pub struct AppState {
     pub news_filter_updates_rect: Option<(u16, u16, u16, u16)>,
     /// Clickable rectangle for AUR comment filter chip in news title.
     pub news_filter_aur_comments_rect: Option<(u16, u16, u16, u16)>,
+    /// Clickable rectangle for read/unread filter chip in news title.
+    pub news_filter_read_rect: Option<(u16, u16, u16, u16)>,
     /// Maximum age of news items in days (None = unlimited).
     pub news_max_age_days: Option<u32>,
     /// Whether to show the news history pane in News mode.
@@ -906,6 +916,18 @@ impl AppState {
             });
         }
 
+        if !matches!(self.news_filter_read_status, NewsReadFilter::All) {
+            filtered.retain(|it| {
+                let is_read = self.news_read_ids.contains(&it.id)
+                    || it
+                        .url
+                        .as_ref()
+                        .is_some_and(|u| self.news_read_urls.contains(u));
+                matches!(self.news_filter_read_status, NewsReadFilter::Read) && is_read
+                    || matches!(self.news_filter_read_status, NewsReadFilter::Unread) && !is_read
+            });
+        }
+
         if !query.is_empty() {
             filtered.retain(|it| {
                 let hay = format!(
@@ -958,7 +980,7 @@ impl AppState {
 #[cfg(test)]
 mod tests {
     use super::AppState;
-    use crate::state::types::{AdvisorySeverity, NewsFeedItem, NewsFeedSource};
+    use crate::state::types::{AdvisorySeverity, NewsFeedItem, NewsFeedSource, NewsReadFilter};
 
     #[test]
     /// What: Verify `AppState::default` initialises UI flags and filesystem paths under the configured lists directory.
@@ -1000,6 +1022,7 @@ mod tests {
         assert!(app.cache_path.starts_with(&lists));
         assert!(app.install_path.starts_with(&lists));
         assert!(app.official_index_path.starts_with(&lists));
+        assert!(app.news_read_ids_path.starts_with(&lists));
 
         unsafe {
             if let Some(v) = orig_home {
@@ -1102,6 +1125,84 @@ mod tests {
         app.refresh_news_results();
         assert_eq!(app.news_results.len(), 1);
         assert_eq!(app.news_results[0].id, "comment");
+
+        unsafe {
+            if let Some(v) = orig_home {
+                std::env::set_var("HOME", v);
+            } else {
+                std::env::remove_var("HOME");
+            }
+        }
+    }
+
+    #[test]
+    #[allow(clippy::field_reassign_with_default)]
+    /// What: Ensure news read filter respects read/unread selections.
+    ///
+    /// Inputs:
+    /// - Two news items with distinct IDs and URLs.
+    /// - `news_read_ids` containing one of the items.
+    ///
+    /// Output:
+    /// - `news_results` reflect the selected read filter (All/Unread/Read).
+    ///
+    /// Details:
+    /// - Uses HOME shim to avoid collisions with persisted paths.
+    fn refresh_news_results_applies_read_filter() {
+        let _guard = crate::state::test_mutex()
+            .lock()
+            .expect("Test mutex poisoned");
+        let orig_home = std::env::var_os("HOME");
+        let dir = std::env::temp_dir().join(format!(
+            "pacsea_test_news_read_filter_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("System time is before UNIX epoch")
+                .as_nanos()
+        ));
+        let _ = std::fs::create_dir_all(&dir);
+        unsafe { std::env::set_var("HOME", dir.display().to_string()) };
+
+        let mut app = AppState::default();
+        app.news_items = vec![
+            NewsFeedItem {
+                id: "read".into(),
+                date: "2025-01-01".into(),
+                title: "Read item".into(),
+                summary: None,
+                url: Some("https://example.com/read".into()),
+                source: NewsFeedSource::ArchNews,
+                severity: None,
+                packages: vec![],
+            },
+            NewsFeedItem {
+                id: "unread".into(),
+                date: "2025-01-02".into(),
+                title: "Unread item".into(),
+                summary: None,
+                url: Some("https://example.com/unread".into()),
+                source: NewsFeedSource::ArchNews,
+                severity: None,
+                packages: vec![],
+            },
+        ];
+        app.news_read_ids.insert("read".into());
+        app.news_filter_read_status = NewsReadFilter::Unread;
+        app.news_max_age_days = None;
+
+        app.refresh_news_results();
+        assert_eq!(app.news_results.len(), 1);
+        assert_eq!(app.news_results[0].id, "unread");
+
+        app.news_filter_read_status = NewsReadFilter::Read;
+        app.refresh_news_results();
+        assert_eq!(app.news_results.len(), 1);
+        assert_eq!(app.news_results[0].id, "read");
+
+        app.news_filter_read_status = NewsReadFilter::All;
+        app.refresh_news_results();
+        assert_eq!(app.news_results.len(), 2);
 
         unsafe {
             if let Some(v) = orig_home {

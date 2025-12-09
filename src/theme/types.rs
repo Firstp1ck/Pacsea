@@ -439,6 +439,12 @@ pub struct KeyMap {
     pub news_mark_read: Vec<KeyChord>,
     /// Mark all listed News items as read
     pub news_mark_all_read: Vec<KeyChord>,
+    /// Mark selected News Feed item as read.
+    pub news_mark_read_feed: Vec<KeyChord>,
+    /// Mark selected News Feed item as unread.
+    pub news_mark_unread_feed: Vec<KeyChord>,
+    /// Toggle read/unread for selected News Feed item.
+    pub news_toggle_read_feed: Vec<KeyChord>,
 }
 
 /// Type alias for global key bindings tuple.
@@ -880,6 +886,34 @@ fn default_news_keys(none: KeyModifiers, ctrl: KeyModifiers) -> (Vec<KeyChord>, 
     )
 }
 
+/// What: Create default News Feed key bindings.
+///
+/// Inputs:
+/// - `none`: Empty key modifiers
+///
+/// Output:
+/// - Tuple of news feed key binding vectors
+///
+/// Details:
+/// - Returns `news_mark_read_feed`, `news_mark_unread_feed`, and `news_toggle_read_feed`.
+fn default_news_feed_keys(none: KeyModifiers) -> (Vec<KeyChord>, Vec<KeyChord>, Vec<KeyChord>) {
+    use KeyCode::Char;
+    (
+        vec![KeyChord {
+            code: Char('r'),
+            mods: none,
+        }],
+        vec![KeyChord {
+            code: Char('u'),
+            mods: none,
+        }],
+        vec![KeyChord {
+            code: Char('t'),
+            mods: none,
+        }],
+    )
+}
+
 /// What: Build the default `KeyMap` by constructing it from helper functions.
 ///
 /// Inputs:
@@ -903,6 +937,7 @@ fn build_default_keymap() -> KeyMap {
     let recent = default_recent_keys(none, shift);
     let install = default_install_keys(none, shift);
     let news = default_news_keys(none, ctrl);
+    let news_feed = default_news_feed_keys(none);
 
     KeyMap {
         help_overlay: global.0,
@@ -960,6 +995,9 @@ fn build_default_keymap() -> KeyMap {
         install_focus_left: install.7,
         news_mark_read: news.0,
         news_mark_all_read: news.1,
+        news_mark_read_feed: news_feed.0,
+        news_mark_unread_feed: news_feed.1,
+        news_toggle_read_feed: news_feed.2,
     }
 }
 

@@ -840,16 +840,23 @@ fn build_news_footer_lines(app: &AppState, th: &Theme) -> Vec<Line<'static>> {
     spans.extend(build_section_header("News".to_string(), th.overlay1));
     add_multi_keybind_entry(
         &mut spans,
-        &app.keymap.news_mark_read,
+        &app.keymap.news_mark_read_feed,
         key_style,
         "Mark read",
         sep_style,
     );
     add_multi_keybind_entry(
         &mut spans,
-        &app.keymap.news_mark_all_read,
+        &app.keymap.news_mark_unread_feed,
         key_style,
-        "Mark all read",
+        "Mark unread",
+        sep_style,
+    );
+    add_multi_keybind_entry(
+        &mut spans,
+        &app.keymap.news_toggle_read_feed,
+        key_style,
+        "Toggle read",
         sep_style,
     );
 

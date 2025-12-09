@@ -447,7 +447,7 @@ where
             if crate::index::find_package_by_name(name).is_some() {
                 None
             } else {
-                Some(name.to_string())
+                Some(name.clone())
             }
         })
         .collect();

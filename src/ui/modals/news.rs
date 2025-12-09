@@ -192,7 +192,8 @@ fn build_news_lines(app: &AppState, items: &[NewsItem], selected: usize) -> Vec<
         for (i, item) in items.iter().enumerate() {
             let is_critical = is_critical_news(&item.title);
             let is_selected = selected == i;
-            let is_read = app.news_read_urls.contains(&item.url);
+            let is_read =
+                app.news_read_urls.contains(&item.url) || app.news_read_ids.contains(&item.url);
             lines.push(format_news_item(item, is_selected, is_read, is_critical));
         }
     }

@@ -8,8 +8,8 @@ use std::{collections::HashMap, collections::HashSet, path::PathBuf, time::Insta
 
 use crate::state::modal::Modal;
 use crate::state::types::{
-    AppMode, ArchStatusColor, Focus, NewsFeedItem, NewsSortMode, PackageDetails, PackageItem,
-    SortMode,
+    AppMode, ArchStatusColor, Focus, NewsFeedItem, NewsReadFilter, NewsSortMode, PackageDetails,
+    PackageItem, SortMode,
 };
 use crate::theme::KeyMap;
 
@@ -34,12 +34,14 @@ pub(super) fn default_paths() -> (
     std::path::PathBuf,
     std::path::PathBuf,
     std::path::PathBuf,
+    std::path::PathBuf,
 ) {
     let lists_dir = crate::theme::lists_dir();
     (
         lists_dir.join("recent_searches.json"),
         lists_dir.join("details_cache.json"),
         lists_dir.join("news_read_urls.json"),
+        lists_dir.join("news_read_ids.json"),
         lists_dir.join("install_list.json"),
         lists_dir.join("official_index.json"),
         lists_dir.join("install_deps_cache.json"),
@@ -112,6 +114,8 @@ pub(super) type DefaultNewsFeedState = (
     bool,
     bool,
     bool,
+    NewsReadFilter,
+    Option<(u16, u16, u16, u16)>,
     Option<(u16, u16, u16, u16)>,
     Option<(u16, u16, u16, u16)>,
     Option<(u16, u16, u16, u16)>,
@@ -204,17 +208,19 @@ pub(super) fn default_news_feed_state(
         None,                 // news_search_select_anchor
         news_recent,
         news_recent_path,
-        false, // news_recent_dirty
-        true,  // news_filter_show_arch_news
-        true,  // news_filter_show_advisories
-        true,  // news_filter_show_pkg_updates
-        true,  // news_filter_show_aur_comments
-        true,  // news_filter_installed_only
-        None,  // news_filter_arch_rect
-        None,  // news_filter_advisory_rect
-        None,  // news_filter_installed_rect
-        None,  // news_filter_updates_rect
-        None,  // news_filter_aur_comments_rect
+        false,               // news_recent_dirty
+        true,                // news_filter_show_arch_news
+        true,                // news_filter_show_advisories
+        true,                // news_filter_show_pkg_updates
+        true,                // news_filter_show_aur_comments
+        true,                // news_filter_installed_only
+        NewsReadFilter::All, // news_filter_read_status
+        None,                // news_filter_arch_rect
+        None,                // news_filter_advisory_rect
+        None,                // news_filter_installed_rect
+        None,                // news_filter_updates_rect
+        None,                // news_filter_aur_comments_rect
+        None,                // news_filter_read_rect
         Some(30),
         true, // show_news_history_pane
         true, // show_news_bookmarks_pane
@@ -472,6 +478,22 @@ pub(super) fn default_news_state(
     news_read_path: PathBuf,
 ) -> (std::collections::HashSet<String>, PathBuf, bool) {
     (std::collections::HashSet::new(), news_read_path, false)
+}
+
+/// What: Create default read-IDs state for news feed items.
+///
+/// Inputs:
+/// - `news_read_ids_path`: Path where read news IDs are persisted.
+///
+/// Output:
+/// - Tuple of news read-id fields: `news_read_ids`, `news_read_ids_path`, `news_read_ids_dirty`.
+///
+/// Details:
+/// - Initializes empty set of read news IDs.
+pub(super) fn default_news_read_ids_state(
+    news_read_ids_path: PathBuf,
+) -> (std::collections::HashSet<String>, PathBuf, bool) {
+    (std::collections::HashSet::new(), news_read_ids_path, false)
 }
 
 /// What: Create default announcement state.

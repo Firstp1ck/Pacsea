@@ -460,4 +460,7 @@ keybind_install_focus_left = Left\n\
 \n\
 # NEWS — Actions\n\
 keybind_news_mark_read = r\n\
-keybind_news_mark_all_read = CTRL+R\n";
+keybind_news_mark_all_read = CTRL+R\n\
+keybind_news_feed_mark_read = r\n\
+keybind_news_feed_mark_unread = u\n\
+keybind_news_feed_toggle_read = t\n";

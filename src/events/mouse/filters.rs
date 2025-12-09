@@ -264,6 +264,19 @@ pub(super) fn handle_filters_mouse(mx: u16, my: u16, app: &mut AppState) -> Opti
         } else if is_point_in_rect(mx, my, app.news_filter_installed_rect) {
             app.news_filter_installed_only = !app.news_filter_installed_only;
             handled = true;
+        } else if is_point_in_rect(mx, my, app.news_filter_read_rect) {
+            app.news_filter_read_status = match app.news_filter_read_status {
+                crate::state::types::NewsReadFilter::All => {
+                    crate::state::types::NewsReadFilter::Unread
+                }
+                crate::state::types::NewsReadFilter::Unread => {
+                    crate::state::types::NewsReadFilter::Read
+                }
+                crate::state::types::NewsReadFilter::Read => {
+                    crate::state::types::NewsReadFilter::All
+                }
+            };
+            handled = true;
         }
         if handled {
             crate::theme::save_news_filter_show_arch_news(app.news_filter_show_arch_news);
@@ -391,7 +404,7 @@ fn handle_simple_filter_toggles(mx: u16, my: u16, app: &mut AppState) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::types::{NewsFeedSource, NewsSortMode};
+    use crate::state::types::{NewsFeedSource, NewsReadFilter, NewsSortMode};
 
     fn sample_news_items() -> Vec<crate::state::types::NewsFeedItem> {
         vec![
@@ -442,5 +455,29 @@ mod tests {
                 .iter()
                 .all(|i| matches!(i.source, NewsFeedSource::SecurityAdvisory))
         );
+    }
+
+    #[test]
+    fn news_read_filter_click_cycles_status() {
+        let mut app = crate::state::AppState {
+            app_mode: crate::state::types::AppMode::News,
+            news_items: sample_news_items(),
+            news_filter_read_status: NewsReadFilter::All,
+            news_filter_read_rect: Some((0, 0, 6, 1)),
+            ..crate::state::AppState::default()
+        };
+        app.refresh_news_results();
+
+        let handled1 = handle_filters_mouse(0, 0, &mut app);
+        assert_eq!(handled1, Some(false));
+        assert_eq!(app.news_filter_read_status, NewsReadFilter::Unread);
+
+        let handled2 = handle_filters_mouse(0, 0, &mut app);
+        assert_eq!(handled2, Some(false));
+        assert_eq!(app.news_filter_read_status, NewsReadFilter::Read);
+
+        let handled3 = handle_filters_mouse(0, 0, &mut app);
+        assert_eq!(handled3, Some(false));
+        assert_eq!(app.news_filter_read_status, NewsReadFilter::All);
     }
 }
