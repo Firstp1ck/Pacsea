@@ -210,6 +210,13 @@ fn parse_news_settings(key: &str, val: &str, settings: &mut Settings) -> bool {
             settings.news_filter_show_pkg_updates = parse_bool(val);
             true
         }
+        "news_filter_show_aur_updates"
+        | "news_filter_aur_updates"
+        | "news_filter_aur_upd"
+        | "news_filter_aur_upd_updates" => {
+            settings.news_filter_show_aur_updates = parse_bool(val);
+            true
+        }
         "news_filter_show_aur_comments" | "news_filter_aur_comments" | "news_filter_comments" => {
             settings.news_filter_show_aur_comments = parse_bool(val);
             true

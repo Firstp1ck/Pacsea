@@ -1,5 +1,6 @@
 ## Summary
 - Added News mode with Arch news, security advisories, installed updates, and AUR comments plus filters/sorting, read/unread tracking, bookmarks, and optional `app_start_mode = news` startup setting (alias: `start_in_news`).
+- Added a dedicated `[AUR Upd]` news filter toggle so AUR update items can be shown/hidden independently of official package updates; defaults on and persists in settings.
 - Added cached news feed and last-seen update/comment maps (`news_feed.json`, `news_seen_pkg_updates.json`, `news_seen_aur_comments.json`) with loading state and filter chips for updates/comments.
 - Updated UI panes/menus/modals and localization to render news summaries, highlight AUR comment keywords/links, and extend news history/bookmark panes and workers for the richer feed.
 

@@ -330,9 +330,15 @@ fn render_news_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     let panels_label = format!("{} v", i18n::t(app, "app.results.buttons.panels"));
     let config_label = format!("{} v", i18n::t(app, "app.results.buttons.config_lists"));
     let arch_filter_label = format!("[{}]", i18n::t(app, "app.news.filters.arch"));
-    let advisory_filter_label = format!("[{}]", i18n::t(app, "app.news.filters.advisories"));
-    let installed_filter_label = format!("[{}]", i18n::t(app, "app.news.filters.installed_only"));
+    let advisory_filter_label = if !app.news_filter_show_advisories {
+        "[Advisories Off]".to_string()
+    } else if app.news_filter_installed_only {
+        "[Advisories Installed]".to_string()
+    } else {
+        "[Advisories All]".to_string()
+    };
     let updates_filter_label = "[Updates]".to_string();
+    let aur_updates_filter_label = "[AUR Upd]".to_string();
     let aur_comments_filter_label = "[AUR Comments]".to_string();
     let read_filter_label = match app.news_filter_read_status {
         NewsReadFilter::All => "[All]".to_string(),
@@ -389,10 +395,10 @@ fn render_news_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     let arch_filter_span = render_filter(&arch_filter_label, app.news_filter_show_arch_news);
     let advisory_filter_span =
         render_filter(&advisory_filter_label, app.news_filter_show_advisories);
-    let installed_filter_span =
-        render_filter(&installed_filter_label, app.news_filter_installed_only);
     let updates_filter_span =
         render_filter(&updates_filter_label, app.news_filter_show_pkg_updates);
+    let aur_updates_filter_span =
+        render_filter(&aur_updates_filter_label, app.news_filter_show_aur_updates);
     let aur_comments_filter_span = render_filter(
         &aur_comments_filter_label,
         app.news_filter_show_aur_comments,
@@ -406,8 +412,8 @@ fn render_news_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     let title_width = u16::try_from(title_text.width()).unwrap_or(u16::MAX);
     let arch_width = u16::try_from(arch_filter_label.width()).unwrap_or(u16::MAX);
     let advisory_width = u16::try_from(advisory_filter_label.width()).unwrap_or(u16::MAX);
-    let installed_width = u16::try_from(installed_filter_label.width()).unwrap_or(u16::MAX);
     let updates_width = u16::try_from(updates_filter_label.width()).unwrap_or(u16::MAX);
+    let aur_updates_width = u16::try_from(aur_updates_filter_label.width()).unwrap_or(u16::MAX);
     let aur_comments_width = u16::try_from(aur_comments_filter_label.width()).unwrap_or(u16::MAX);
     let read_width = u16::try_from(read_filter_label.width()).unwrap_or(u16::MAX);
     let date_width = u16::try_from(date_label.width()).unwrap_or(u16::MAX);
@@ -435,14 +441,14 @@ fn render_news_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     x_cursor = x_cursor.saturating_add(advisory_width).saturating_add(1);
     title_spans.push(Span::raw(" "));
 
-    app.news_filter_installed_rect = Some((x_cursor, area.y, installed_width, 1));
-    title_spans.push(installed_filter_span);
-    x_cursor = x_cursor.saturating_add(installed_width).saturating_add(1);
-    title_spans.push(Span::raw(" "));
-
     app.news_filter_updates_rect = Some((x_cursor, area.y, updates_width, 1));
     title_spans.push(updates_filter_span);
     x_cursor = x_cursor.saturating_add(updates_width).saturating_add(1);
+    title_spans.push(Span::raw(" "));
+
+    app.news_filter_aur_updates_rect = Some((x_cursor, area.y, aur_updates_width, 1));
+    title_spans.push(aur_updates_filter_span);
+    x_cursor = x_cursor.saturating_add(aur_updates_width).saturating_add(1);
     title_spans.push(Span::raw(" "));
 
     app.news_filter_aur_comments_rect = Some((x_cursor, area.y, aur_comments_width, 1));

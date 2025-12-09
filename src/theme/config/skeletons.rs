@@ -324,8 +324,10 @@ news_unread_symbol = ∘\n\
 news_filter_show_arch_news = true\n\
 news_filter_show_advisories = true\n\
 news_filter_show_pkg_updates = true\n\
+news_filter_show_aur_updates = true\n\
 news_filter_show_aur_comments = true\n\
-news_filter_installed_only = true\n\
+# When news_filter_show_advisories is true, this restricts advisories to only those affecting installed packages\n\
+news_filter_installed_only = false\n\
 # Allowed values: number of days | all\n\
 news_max_age_days = 30\n\
 \n\

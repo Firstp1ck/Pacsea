@@ -108,26 +108,28 @@ pub(super) type DefaultNewsFeedState = (
     Option<usize>,
     LruCache<String, String>,
     PathBuf,
-    bool,
-    bool,
-    bool,
-    bool,
-    bool,
-    bool,
+    bool, // news_recent_dirty
+    bool, // news_filter_show_arch_news
+    bool, // news_filter_show_advisories
+    bool, // news_filter_show_pkg_updates
+    bool, // news_filter_show_aur_updates
+    bool, // news_filter_show_aur_comments
+    bool, // news_filter_installed_only
     NewsReadFilter,
-    Option<(u16, u16, u16, u16)>,
-    Option<(u16, u16, u16, u16)>,
-    Option<(u16, u16, u16, u16)>,
-    Option<(u16, u16, u16, u16)>,
-    Option<(u16, u16, u16, u16)>,
-    Option<(u16, u16, u16, u16)>,
-    Option<u32>,
-    bool,
-    bool,
-    NewsSortMode,
+    Option<(u16, u16, u16, u16)>, // arch rect
+    Option<(u16, u16, u16, u16)>, // advisory rect
+    Option<(u16, u16, u16, u16)>, // installed rect
+    Option<(u16, u16, u16, u16)>, // updates rect
+    Option<(u16, u16, u16, u16)>, // aur updates rect
+    Option<(u16, u16, u16, u16)>, // aur comments rect
+    Option<(u16, u16, u16, u16)>, // read rect
+    Option<u32>,                  // max age days
+    bool,                         // show history pane
+    bool,                         // show bookmarks pane
+    NewsSortMode,                 // sort mode
     Vec<crate::state::types::NewsBookmark>,
-    PathBuf,
-    bool,
+    PathBuf,                                   // bookmarks path
+    bool,                                      // bookmarks dirty
     std::collections::HashMap<String, String>, // news_content_cache
     Option<String>,                            // news_content
     bool,                                      // news_content_loading
@@ -212,13 +214,15 @@ pub(super) fn default_news_feed_state(
         true,                // news_filter_show_arch_news
         true,                // news_filter_show_advisories
         true,                // news_filter_show_pkg_updates
+        true,                // news_filter_show_aur_updates
         true,                // news_filter_show_aur_comments
-        true,                // news_filter_installed_only
+        false,               // news_filter_installed_only
         NewsReadFilter::All, // news_filter_read_status
         None,                // news_filter_arch_rect
         None,                // news_filter_advisory_rect
         None,                // news_filter_installed_rect
         None,                // news_filter_updates_rect
+        None,                // news_filter_aur_updates_rect
         None,                // news_filter_aur_comments_rect
         None,                // news_filter_read_rect
         Some(30),

@@ -355,6 +355,11 @@ pub fn save_news_filter_show_pkg_updates(value: bool) {
     save_boolean_key("news_filter_show_pkg_updates", value);
 }
 
+/// Persist whether to show AUR package updates in the News view.
+pub fn save_news_filter_show_aur_updates(value: bool) {
+    save_boolean_key("news_filter_show_aur_updates", value);
+}
+
 /// Persist whether to show AUR comments in the News view.
 pub fn save_news_filter_show_aur_comments(value: bool) {
     save_boolean_key("news_filter_show_aur_comments", value);

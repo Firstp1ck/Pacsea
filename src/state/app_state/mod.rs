@@ -151,6 +151,8 @@ pub struct AppState {
     pub news_filter_show_advisories: bool,
     /// Whether to show installed package update items.
     pub news_filter_show_pkg_updates: bool,
+    /// Whether to show AUR package update items.
+    pub news_filter_show_aur_updates: bool,
     /// Whether to show AUR comment items.
     pub news_filter_show_aur_comments: bool,
     /// Whether to restrict advisories to installed packages.
@@ -165,6 +167,8 @@ pub struct AppState {
     pub news_filter_installed_rect: Option<(u16, u16, u16, u16)>,
     /// Clickable rectangle for installed update filter chip in news title.
     pub news_filter_updates_rect: Option<(u16, u16, u16, u16)>,
+    /// Clickable rectangle for AUR update filter chip in news title.
+    pub news_filter_aur_updates_rect: Option<(u16, u16, u16, u16)>,
     /// Clickable rectangle for AUR comment filter chip in news title.
     pub news_filter_aur_comments_rect: Option<(u16, u16, u16, u16)>,
     /// Clickable rectangle for read/unread filter chip in news title.
@@ -894,9 +898,11 @@ impl AppState {
                 crate::state::types::NewsFeedSource::SecurityAdvisory => {
                     self.news_filter_show_advisories
                 }
-                crate::state::types::NewsFeedSource::InstalledPackageUpdate
-                | crate::state::types::NewsFeedSource::AurPackageUpdate => {
+                crate::state::types::NewsFeedSource::InstalledPackageUpdate => {
                     self.news_filter_show_pkg_updates
+                }
+                crate::state::types::NewsFeedSource::AurPackageUpdate => {
+                    self.news_filter_show_aur_updates
                 }
                 crate::state::types::NewsFeedSource::AurComment => {
                     self.news_filter_show_aur_comments
@@ -905,6 +911,10 @@ impl AppState {
             .cloned()
             .collect();
 
+        // Apply installed-only filter for advisories when enabled.
+        // When "[Advisories All]" is active (news_filter_show_advisories = true,
+        // news_filter_installed_only = false), this block does not run, allowing
+        // all advisories to be shown regardless of installed status.
         if self.news_filter_installed_only {
             let installed: std::collections::HashSet<String> =
                 crate::index::explicit_names().into_iter().collect();
@@ -1118,6 +1128,7 @@ mod tests {
         app.news_filter_show_arch_news = false;
         app.news_filter_show_advisories = false;
         app.news_filter_show_pkg_updates = false;
+        app.news_filter_show_aur_updates = false;
         app.news_filter_show_aur_comments = true;
         app.news_filter_installed_only = false;
         app.news_max_age_days = None;
@@ -1203,6 +1214,106 @@ mod tests {
         app.news_filter_read_status = NewsReadFilter::All;
         app.refresh_news_results();
         assert_eq!(app.news_results.len(), 2);
+
+        unsafe {
+            if let Some(v) = orig_home {
+                std::env::set_var("HOME", v);
+            } else {
+                std::env::remove_var("HOME");
+            }
+        }
+    }
+
+    #[test]
+    #[allow(clippy::field_reassign_with_default)]
+    /// What: Ensure "[Advisories All]" filter shows all advisories regardless of installed status.
+    ///
+    /// Inputs:
+    /// - Advisories for both installed and non-installed packages.
+    /// - `news_filter_show_advisories = true` and `news_filter_installed_only = false`.
+    ///
+    /// Output:
+    /// - All advisories are shown in `news_results`.
+    ///
+    /// Details:
+    /// - Verifies that "[Advisories All]" behaves as if [Installed only] filter was off
+    ///   and [Advisories] filter was on.
+    /// - When `news_filter_installed_only = false`, the installed-only filtering block
+    ///   (lines 914-923) should not run, allowing all advisories to pass through.
+    /// - Uses HOME shim to avoid collisions with persisted paths.
+    fn refresh_news_results_advisories_all_shows_all() {
+        let _guard = crate::state::test_mutex()
+            .lock()
+            .expect("Test mutex poisoned");
+        let orig_home = std::env::var_os("HOME");
+        let dir = std::env::temp_dir().join(format!(
+            "pacsea_test_advisories_all_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("System time is before UNIX epoch")
+                .as_nanos()
+        ));
+        let _ = std::fs::create_dir_all(&dir);
+        unsafe { std::env::set_var("HOME", dir.display().to_string()) };
+
+        let mut app = AppState::default();
+
+        app.news_items = vec![
+            NewsFeedItem {
+                id: "adv-1".into(),
+                date: "2025-01-01".into(),
+                title: "Advisory 1".into(),
+                summary: None,
+                url: None,
+                source: NewsFeedSource::SecurityAdvisory,
+                severity: Some(AdvisorySeverity::High),
+                packages: vec!["package1".into()],
+            },
+            NewsFeedItem {
+                id: "adv-2".into(),
+                date: "2025-01-02".into(),
+                title: "Advisory 2".into(),
+                summary: None,
+                url: None,
+                source: NewsFeedSource::SecurityAdvisory,
+                severity: Some(AdvisorySeverity::Medium),
+                packages: vec!["package2".into()],
+            },
+            NewsFeedItem {
+                id: "adv-3".into(),
+                date: "2025-01-03".into(),
+                title: "Advisory 3".into(),
+                summary: None,
+                url: None,
+                source: NewsFeedSource::SecurityAdvisory,
+                severity: Some(AdvisorySeverity::Critical),
+                packages: vec!["package3".into(), "package4".into()],
+            },
+        ];
+
+        // Set up "[Advisories All]" state: advisories on, installed_only off
+        // This should show all advisories regardless of whether packages are installed
+        app.news_filter_show_advisories = true;
+        app.news_filter_installed_only = false;
+        app.news_filter_show_arch_news = false;
+        app.news_filter_show_pkg_updates = false;
+        app.news_filter_show_aur_updates = false;
+        app.news_filter_show_aur_comments = false;
+        app.news_max_age_days = None;
+
+        app.refresh_news_results();
+
+        // All advisories should be shown when [Advisories All] is active
+        // (news_filter_show_advisories = true, news_filter_installed_only = false)
+        assert_eq!(
+            app.news_results.len(),
+            3,
+            "All advisories should be shown when [Advisories All] is active (advisories on, installed_only off)"
+        );
+        assert!(app.news_results.iter().any(|it| it.id == "adv-1"));
+        assert!(app.news_results.iter().any(|it| it.id == "adv-2"));
+        assert!(app.news_results.iter().any(|it| it.id == "adv-3"));
 
         unsafe {
             if let Some(v) = orig_home {

@@ -5,6 +5,7 @@ use std::hash::BuildHasher;
 use std::path::PathBuf;
 
 use chrono::{DateTime, Utc};
+use serde_json::Value;
 
 use crate::state::types::AurComment;
 use crate::state::types::{NewsFeedItem, NewsFeedSource, NewsSortMode};
@@ -356,11 +357,13 @@ where
                 && allow
                 && (force_emit_all || last_seen.as_ref() != Some(&remote_version));
             if should_emit {
+                let pkg_date = fetch_official_package_date(&pkg).await;
                 items.push(build_official_update_item(
                     &pkg,
                     last_seen.as_ref(),
                     old_version_opt,
                     &remote_version,
+                    pkg_date,
                 ));
                 remaining = remaining.saturating_sub(1);
             } else {
@@ -521,15 +524,16 @@ struct AurVersionInfo {
 /// - `NewsFeedItem` representing the update.
 ///
 /// Details:
-/// - Uses today's date as the feed date.
+/// - Prefers package metadata date (last update/build); falls back to today when unavailable.
 /// - Includes repo/arch link when available.
 fn build_official_update_item(
     pkg: &crate::state::PackageItem,
     last_seen: Option<&String>,
     old_version: Option<&str>,
     remote_version: &str,
+    pkg_date: Option<String>,
 ) -> NewsFeedItem {
-    let date = Utc::now().date_naive().to_string();
+    let date = pkg_date.unwrap_or_else(|| Utc::now().date_naive().to_string());
     let url = if let crate::state::Source::Official { repo, arch } = &pkg.source {
         let repo_lc = repo.to_lowercase();
         let arch_slug = if arch.is_empty() {
@@ -611,6 +615,104 @@ fn build_aur_update_item(
 /// - Uses UTC date component only.
 fn ts_to_date_string(ts: i64) -> Option<String> {
     DateTime::<Utc>::from_timestamp(ts, 0).map(|dt| dt.date_naive().to_string())
+}
+
+/// What: Fetch and normalize the last update/build date for an official package.
+///
+/// Inputs:
+/// - `pkg`: Package item expected to originate from an official repository.
+///
+/// Output:
+/// - `Some(YYYY-MM-DD)` when metadata is available; `None` when unavailable or on fetch error.
+///
+/// Details:
+/// - Queries the Arch package JSON endpoint, preferring `last_update` then `build_date`.
+/// - Falls back silently when network or parse errors occur.
+async fn fetch_official_package_date(pkg: &crate::state::PackageItem) -> Option<String> {
+    let crate::state::Source::Official { repo, arch } = &pkg.source else {
+        return None;
+    };
+    let repo_slug = repo.to_lowercase();
+    let arch_slug = if arch.is_empty() {
+        std::env::consts::ARCH
+    } else {
+        arch.as_str()
+    };
+    let url = format!(
+        "https://archlinux.org/packages/{repo_slug}/{arch_slug}/{name}/json/",
+        name = pkg.name
+    );
+    match tokio::task::spawn_blocking({
+        let url = url.clone();
+        move || crate::util::curl::curl_json(&url)
+    })
+    .await
+    {
+        Ok(Ok(json)) => {
+            let obj = json.get("pkg").unwrap_or(&json);
+            extract_date_from_pkg_json(obj)
+        }
+        Ok(Err(e)) => {
+            warn!(error = %e, package = %pkg.name, "failed to fetch official package date");
+            None
+        }
+        Err(e) => {
+            warn!(error = ?e, package = %pkg.name, "failed to join package date task");
+            None
+        }
+    }
+}
+
+/// What: Extract a normalized date from Arch package JSON metadata.
+///
+/// Inputs:
+/// - `obj`: JSON value from the package endpoint (`pkg` object or root).
+///
+/// Output:
+/// - `Some(YYYY-MM-DD)` when `last_update` or `build_date` can be parsed; `None` otherwise.
+///
+/// Details:
+/// - Prefers `last_update`; falls back to `build_date`.
+fn extract_date_from_pkg_json(obj: &Value) -> Option<String> {
+    obj.get("last_update")
+        .and_then(Value::as_str)
+        .and_then(normalize_pkg_date)
+        .or_else(|| {
+            obj.get("build_date")
+                .and_then(Value::as_str)
+                .and_then(normalize_pkg_date)
+        })
+}
+
+/// What: Normalize a package timestamp string to `YYYY-MM-DD`.
+///
+/// Inputs:
+/// - `raw`: Date/time string (RFC3339 or `YYYY-MM-DD HH:MM UTC` formats).
+///
+/// Output:
+/// - `Some(YYYY-MM-DD)` when parsing succeeds; `None` on invalid inputs.
+///
+/// Details:
+/// - Handles Arch JSON date formats (`2025-12-07T11:09:38Z`) and page metadata (`2025-12-07 11:09 UTC`).
+fn normalize_pkg_date(raw: &str) -> Option<String> {
+    let trimmed = raw.trim();
+    if let Ok(dt) = DateTime::parse_from_rfc3339(trimmed) {
+        return Some(dt.date_naive().to_string());
+    }
+    if let Ok(dt) = DateTime::parse_from_str(trimmed, "%Y-%m-%d %H:%M %Z") {
+        return Some(dt.date_naive().to_string());
+    }
+    let prefix = trimmed.chars().take(10).collect::<String>();
+    if prefix.len() == 10
+        && prefix.as_bytes()[4] == b'-'
+        && prefix.as_bytes()[7] == b'-'
+        && prefix[..4].chars().all(|c| c.is_ascii_digit())
+        && prefix[5..7].chars().all(|c| c.is_ascii_digit())
+        && prefix[8..10].chars().all(|c| c.is_ascii_digit())
+    {
+        return Some(prefix);
+    }
+    None
 }
 
 /// What: Fetch version info for a list of AUR packages via RPC v5.
@@ -851,5 +953,51 @@ mod tests {
         assert_eq!(emitted.len(), 1);
         assert_eq!(emitted[0].id, "aur-comment:foo:c2");
         assert_eq!(seen.get("foo"), Some(&"c2".to_string()));
+    }
+
+    #[test]
+    fn normalize_pkg_date_handles_rfc3339_and_utc_formats() {
+        assert_eq!(
+            normalize_pkg_date("2025-12-07T11:09:38Z"),
+            Some("2025-12-07".to_string())
+        );
+        assert_eq!(
+            normalize_pkg_date("2025-12-07 11:09 UTC"),
+            Some("2025-12-07".to_string())
+        );
+    }
+
+    #[test]
+    fn extract_date_from_pkg_json_prefers_last_update() {
+        let val = serde_json::json!({
+            "pkg": {
+                "last_update": "2025-12-07T11:09:38Z",
+                "build_date": "2024-01-01T00:00:00Z"
+            }
+        });
+        let Some(pkg) = val.get("pkg") else {
+            panic!("pkg key missing");
+        };
+        let date = extract_date_from_pkg_json(pkg);
+        assert_eq!(date, Some("2025-12-07".to_string()));
+    }
+
+    #[test]
+    fn build_official_update_item_uses_metadata_date_when_available() {
+        let pkg = crate::state::PackageItem {
+            name: "xterm".into(),
+            version: "1".into(),
+            description: "term".into(),
+            source: crate::state::Source::Official {
+                repo: "extra".into(),
+                arch: "x86_64".into(),
+            },
+            popularity: None,
+            out_of_date: None,
+            orphaned: false,
+        };
+        let item =
+            build_official_update_item(&pkg, None, Some("1"), "2", Some("2025-12-07".into()));
+        assert_eq!(item.date, "2025-12-07");
     }
 }

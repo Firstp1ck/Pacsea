@@ -253,16 +253,32 @@ pub(super) fn handle_filters_mouse(mx: u16, my: u16, app: &mut AppState) -> Opti
             app.news_filter_show_arch_news = !app.news_filter_show_arch_news;
             handled = true;
         } else if is_point_in_rect(mx, my, app.news_filter_advisory_rect) {
-            app.news_filter_show_advisories = !app.news_filter_show_advisories;
+            match (
+                app.news_filter_show_advisories,
+                app.news_filter_installed_only,
+            ) {
+                (true, false) => {
+                    app.news_filter_show_advisories = true;
+                    app.news_filter_installed_only = true;
+                }
+                (true, true) => {
+                    app.news_filter_show_advisories = false;
+                    app.news_filter_installed_only = false;
+                }
+                (false, _) => {
+                    app.news_filter_show_advisories = true;
+                    app.news_filter_installed_only = false;
+                }
+            }
             handled = true;
         } else if is_point_in_rect(mx, my, app.news_filter_updates_rect) {
             app.news_filter_show_pkg_updates = !app.news_filter_show_pkg_updates;
             handled = true;
+        } else if is_point_in_rect(mx, my, app.news_filter_aur_updates_rect) {
+            app.news_filter_show_aur_updates = !app.news_filter_show_aur_updates;
+            handled = true;
         } else if is_point_in_rect(mx, my, app.news_filter_aur_comments_rect) {
             app.news_filter_show_aur_comments = !app.news_filter_show_aur_comments;
-            handled = true;
-        } else if is_point_in_rect(mx, my, app.news_filter_installed_rect) {
-            app.news_filter_installed_only = !app.news_filter_installed_only;
             handled = true;
         } else if is_point_in_rect(mx, my, app.news_filter_read_rect) {
             app.news_filter_read_status = match app.news_filter_read_status {
@@ -282,6 +298,7 @@ pub(super) fn handle_filters_mouse(mx: u16, my: u16, app: &mut AppState) -> Opti
             crate::theme::save_news_filter_show_arch_news(app.news_filter_show_arch_news);
             crate::theme::save_news_filter_show_advisories(app.news_filter_show_advisories);
             crate::theme::save_news_filter_show_pkg_updates(app.news_filter_show_pkg_updates);
+            crate::theme::save_news_filter_show_aur_updates(app.news_filter_show_aur_updates);
             crate::theme::save_news_filter_show_aur_comments(app.news_filter_show_aur_comments);
             crate::theme::save_news_filter_installed_only(app.news_filter_installed_only);
             app.refresh_news_results();
