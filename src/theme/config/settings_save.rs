@@ -376,6 +376,42 @@ pub fn save_news_max_age_days(value: Option<u32>) {
     save_string_key("news_max_age_days", &v);
 }
 
+/// Persist whether startup news popup setup has been completed.
+pub fn save_startup_news_configured(value: bool) {
+    save_boolean_key("startup_news_configured", value);
+}
+
+/// Persist whether to show Arch news in startup news popup.
+pub fn save_startup_news_show_arch_news(value: bool) {
+    save_boolean_key("startup_news_show_arch_news", value);
+}
+
+/// Persist whether to show security advisories in startup news popup.
+pub fn save_startup_news_show_advisories(value: bool) {
+    save_boolean_key("startup_news_show_advisories", value);
+}
+
+/// Persist whether to show AUR updates in startup news popup.
+pub fn save_startup_news_show_aur_updates(value: bool) {
+    save_boolean_key("startup_news_show_aur_updates", value);
+}
+
+/// Persist whether to show AUR comments in startup news popup.
+pub fn save_startup_news_show_aur_comments(value: bool) {
+    save_boolean_key("startup_news_show_aur_comments", value);
+}
+
+/// Persist whether to show official package updates in startup news popup.
+pub fn save_startup_news_show_pkg_updates(value: bool) {
+    save_boolean_key("startup_news_show_pkg_updates", value);
+}
+
+/// Persist the maximum age of news items for startup news popup (None = all).
+pub fn save_startup_news_max_age_days(value: Option<u32>) {
+    let v = value.map_or_else(|| "all".to_string(), |d| d.to_string());
+    save_string_key("startup_news_max_age_days", &v);
+}
+
 /// What: Persist the `VirusTotal` API key used for scanning packages.
 ///
 /// Inputs:

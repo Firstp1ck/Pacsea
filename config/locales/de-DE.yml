@@ -462,6 +462,18 @@ de-DE:
         heading: "Arch Linux Neuigkeiten"
         none: "Keine Neuigkeiten verfügbar."
         footer_hint: "Hoch/Runter: auswählen  •  Enter: öffnen  • {}: als gelesen markieren  • {}: alle als gelesen markieren  •  Esc: schließen"
+        keybinds_hint: "Hoch/Runter/K/J: navigieren  •  Enter: öffnen  • {}: als gelesen markieren  • {}: alle als gelesen markieren  •  Esc/Q: schließen"
+      loading:
+        news: "Neuigkeiten werden geladen..."
+      news_setup:
+        title: "News-Popup-Einrichtung"
+        arch_news: "Arch News"
+        advisories: "Advisories - Offizielle Sicherheitsnachrichten"
+        aur_updates: "AUR Updates"
+        aur_comments: "AUR Kommentare"
+        pkg_updates: "Offizielle Paket-Updates"
+        date_selection: "Maximales Alter"
+        footer_hint: "Hoch/Runter: auswählen  •  Leertaste: umschalten  •  Enter: speichern  •  Esc: abbrechen"
       announcement:
         footer_hint: "r: Als gelesen markieren | Enter/Esc: Schließen (erneut anzeigen)"
       updates_window:

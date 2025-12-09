@@ -283,6 +283,16 @@ fn render_news_results(f: &mut Frame, app: &mut AppState, area: Rect) {
                     .severity
                     .as_ref()
                     .map_or_else(String::new, |s| format!("{s:?}"));
+                // Apply keyword highlighting to title for Arch News
+                let highlight_style = ratatui::style::Style::default()
+                    .fg(th.yellow)
+                    .add_modifier(Modifier::BOLD);
+                let title_spans = if matches!(item.source, NewsFeedSource::ArchNews) {
+                    render_aur_comment_keywords(&item.title, &th, highlight_style)
+                } else {
+                    vec![ratatui::text::Span::raw(item.title.clone())]
+                };
+
                 let mut spans = vec![
                     ratatui::text::Span::styled(
                         format!("{read_symbol} "),
@@ -295,8 +305,8 @@ fn render_news_results(f: &mut Frame, app: &mut AppState, area: Rect) {
                     ratatui::text::Span::raw(" "),
                     ratatui::text::Span::raw(item.date.clone()),
                     ratatui::text::Span::raw(" "),
-                    ratatui::text::Span::raw(item.title.clone()),
                 ];
+                spans.extend(title_spans);
                 if !sev.is_empty() {
                     spans.push(ratatui::text::Span::raw(" "));
                     spans.push(ratatui::text::Span::styled(
@@ -499,7 +509,7 @@ fn render_news_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     f.render_stateful_widget(list, area, &mut app.news_list_state);
 }
 
-/// What: Render summary spans with source-aware highlighting (updates vs AUR comments).
+/// What: Render summary spans with source-aware highlighting (updates vs AUR comments vs Arch News).
 fn render_summary_spans(
     summary: &str,
     th: &crate::theme::Theme,
@@ -524,13 +534,18 @@ fn render_summary_spans(
         return render_aur_comment_keywords(summary, th, highlight_style);
     }
 
+    // Apply keyword highlighting to Arch News (same as AUR comments)
+    if matches!(source, NewsFeedSource::ArchNews) {
+        return render_aur_comment_keywords(summary, th, highlight_style);
+    }
+
     vec![ratatui::text::Span::styled(
         summary.to_string(),
         normal.add_modifier(Modifier::BOLD),
     )]
 }
 
-/// What: Highlight AUR comment summaries with red/green keywords and normal text.
+/// What: Highlight AUR comment summaries and Arch News with red/green keywords and normal text.
 fn render_aur_comment_keywords(
     summary: &str,
     th: &crate::theme::Theme,
@@ -569,6 +584,9 @@ fn render_aur_comment_keywords(
         "unstable",
         "error",
         "errors",
+        "require manual intervention",
+        "requires manual intervention",
+        "corrupting",
     ];
     let positive_words = [
         "fix",

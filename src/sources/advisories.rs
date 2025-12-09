@@ -9,6 +9,7 @@ type Result<T> = super::Result<T>;
 ///
 /// Inputs:
 /// - `limit`: Maximum number of advisories to return (best-effort).
+/// - `cutoff_date`: Optional date string (YYYY-MM-DD) for early filtering.
 ///
 /// Output:
 /// - `Ok(Vec<NewsFeedItem>)` on success; `Err` on network/parse failure.
@@ -16,11 +17,15 @@ type Result<T> = super::Result<T>;
 /// Details:
 /// - Uses the public JSON advisory feed.
 /// - Normalizes severity strings and packages; skips entries without an ID.
+/// - If `cutoff_date` is provided, stops fetching when items exceed the date limit.
 ///
 /// # Errors
 /// - Network fetch failures
 /// - JSON parsing failures
-pub async fn fetch_security_advisories(limit: usize) -> Result<Vec<NewsFeedItem>> {
+pub async fn fetch_security_advisories(
+    limit: usize,
+    cutoff_date: Option<&str>,
+) -> Result<Vec<NewsFeedItem>> {
     // Official advisory Atom feed
     let url = "https://security.archlinux.org/advisory/feed.atom";
     let resp = reqwest::get(url).await?;
@@ -57,6 +62,12 @@ pub async fn fetch_security_advisories(limit: usize) -> Result<Vec<NewsFeedItem>
             .or_else(|| extract_between(chunk, "<published>", "</published>"))
             .unwrap_or_default();
         let date = strip_time(&raw_date);
+        // Early date filtering: stop if item is older than cutoff_date
+        if let Some(cutoff) = cutoff_date
+            && date.as_str() < cutoff
+        {
+            break;
+        }
         let summary = extract_between(chunk, "<summary>", "</summary>");
         let id = if !link.is_empty() {
             link.clone()

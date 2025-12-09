@@ -56,7 +56,7 @@ pub fn handle_news(unread: bool, read: bool, all_news: bool) -> ! {
             .enable_all()
             .build();
         let res = match rt {
-            Ok(rt) => rt.block_on(pacsea::sources::fetch_arch_news(100)),
+            Ok(rt) => rt.block_on(pacsea::sources::fetch_arch_news(100, None)),
             Err(e) => Err::<Vec<pacsea::state::NewsItem>, _>(format!("rt: {e}").into()),
         };
         let _ = tx.send(res);

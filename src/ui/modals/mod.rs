@@ -131,12 +131,18 @@ mod tests {
 
         // News
         app.modal = crate::state::Modal::News {
-            items: vec![crate::state::NewsItem {
+            items: vec![crate::state::types::NewsFeedItem {
+                id: "test".to_string(),
                 date: "2025-10-11".into(),
                 title: "Test".into(),
-                url: String::new(),
+                summary: None,
+                url: Some(String::new()),
+                source: crate::state::types::NewsFeedSource::ArchNews,
+                severity: None,
+                packages: Vec::new(),
             }],
             selected: 0,
+            scroll: 0,
         };
         term.draw(|f| {
             let area = f.area();

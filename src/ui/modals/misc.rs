@@ -161,6 +161,130 @@ pub fn render_scan_config(
     render_simple_list_modal(f, area, "Scan Configuration", lines);
 }
 
+/// What: Render the news setup modal for configuring startup news popup.
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `area`: Full screen area used to center the modal
+/// - `app`: Application state for i18n
+/// - `show_arch_news`…`show_pkg_updates`: Flags indicating which news sources are enabled
+/// - `max_age_days`: Selected maximum age (7, 30, or 90)
+/// - `cursor`: Index of the row currently focused (0-4 for toggles, 5-7 for date buttons)
+///
+/// Output:
+/// - Draws the configuration list, highlighting the focused entry and indicating current toggles.
+///
+/// Details:
+/// - Presents 5 news source toggles with checkboxes, then date selection buttons (7/30/90 days).
+/// - Respects theme emphasis for the cursor and summarizes available shortcuts at the bottom.
+#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
+pub fn render_news_setup(
+    f: &mut Frame,
+    area: Rect,
+    app: &AppState,
+    show_arch_news: bool,
+    show_advisories: bool,
+    show_aur_updates: bool,
+    show_aur_comments: bool,
+    show_pkg_updates: bool,
+    max_age_days: Option<u32>,
+    cursor: usize,
+) {
+    let th = theme();
+    let mut lines: Vec<Line<'static>> = Vec::new();
+
+    // News source toggles (cursor 0-4)
+    let items: [(&str, bool); 5] = [
+        (
+            &crate::i18n::t(app, "app.modals.news_setup.arch_news"),
+            show_arch_news,
+        ),
+        (
+            &crate::i18n::t(app, "app.modals.news_setup.advisories"),
+            show_advisories,
+        ),
+        (
+            &crate::i18n::t(app, "app.modals.news_setup.aur_updates"),
+            show_aur_updates,
+        ),
+        (
+            &crate::i18n::t(app, "app.modals.news_setup.aur_comments"),
+            show_aur_comments,
+        ),
+        (
+            &crate::i18n::t(app, "app.modals.news_setup.pkg_updates"),
+            show_pkg_updates,
+        ),
+    ];
+
+    for (i, (label, checked)) in items.iter().enumerate() {
+        let mark = if *checked { "[x]" } else { "[ ]" };
+        let mut spans: Vec<Span> = Vec::new();
+        spans.push(Span::styled(
+            format!("{mark} "),
+            Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+        ));
+        let style = if i == cursor {
+            Style::default()
+                .fg(th.text)
+                .add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
+        } else {
+            Style::default().fg(th.subtext1)
+        };
+        spans.push(Span::styled((*label).to_string(), style));
+        lines.push(Line::from(spans));
+    }
+
+    // Date selection row (cursor 5-7)
+    lines.push(Line::from(""));
+    let date_label = crate::i18n::t(app, "app.modals.news_setup.date_selection");
+    lines.push(Line::from(Span::styled(
+        format!("{date_label}:"),
+        Style::default().fg(th.subtext1),
+    )));
+
+    let date_options = [7, 30, 90];
+    let mut date_spans: Vec<Span> = Vec::new();
+    for (i, &days) in date_options.iter().enumerate() {
+        let date_cursor = 5 + i; // cursor 5, 6, 7
+        let is_selected = max_age_days == Some(days);
+        let is_cursor = cursor == date_cursor;
+        let button_text = if is_selected {
+            format!("[{days} days]")
+        } else {
+            format!(" {days} days ")
+        };
+        let style = if is_cursor {
+            Style::default()
+                .fg(th.text)
+                .add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
+        } else if is_selected {
+            Style::default().fg(th.mauve).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(th.subtext1)
+        };
+        date_spans.push(Span::styled(button_text.clone(), style));
+        if i < date_options.len() - 1 {
+            date_spans.push(Span::raw("  "));
+        }
+    }
+    lines.push(Line::from(date_spans));
+
+    lines.push(Line::from(Span::raw("")));
+    let footer_hint = crate::i18n::t(app, "app.modals.news_setup.footer_hint");
+    lines.push(Line::from(Span::styled(
+        footer_hint,
+        Style::default().fg(th.overlay1),
+    )));
+
+    render_simple_list_modal(
+        f,
+        area,
+        &crate::i18n::t(app, "app.modals.news_setup.title"),
+        lines,
+    );
+}
+
 /// What: Render the prompt encouraging installation of GNOME Terminal in GNOME environments.
 ///
 /// Inputs:

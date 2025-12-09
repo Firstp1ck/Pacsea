@@ -224,9 +224,11 @@ fn handle_updates_list(app: &mut AppState, count: usize, list: Vec<String>) {
 ///
 /// Inputs:
 /// - `app`: Application state containing news feed data and filter flags.
-/// - `items`: New feed items to store.
+/// - `payload`: News feed payload containing items and metadata.
+///
+/// Details:
+/// - Does not clear `news_loading` flag here - it will be cleared when news modal is shown.
 fn handle_news_feed_items(app: &mut AppState, payload: NewsFeedPayload) {
-    app.news_loading = false;
     app.news_items = payload.items;
     app.news_seen_pkg_versions = payload.seen_pkg_versions;
     app.news_seen_pkg_versions_dirty = true;
@@ -250,6 +252,11 @@ fn handle_news_feed_items(app: &mut AppState, payload: NewsFeedPayload) {
         advisories_on = app.news_filter_show_advisories,
         "news feed updated"
     );
+    // Check for network errors and show a small toast
+    if crate::sources::take_network_error() {
+        app.toast_message = Some("Network error: some news sources unreachable".to_string());
+        app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
+    }
 }
 
 /// What: Handle news article content response.
@@ -396,8 +403,18 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
             );
             false
         }
-        Some(todays) = channels.news_rx.recv() => {
-            handle_news(app, &todays);
+        Some(items) = channels.news_rx.recv() => {
+            tracing::info!(
+                items_count = items.len(),
+                news_loading_before = app.news_loading,
+                "received news items from channel"
+            );
+            handle_news(app, &items);
+            tracing::info!(
+                news_loading_after = app.news_loading,
+                modal = ?app.modal,
+                "handle_news completed"
+            );
             false
         }
         Some(announcement) = channels.announcement_rx.recv() => {
@@ -645,6 +662,172 @@ fn handle_executor_output(app: &mut AppState, output: crate::install::ExecutorOu
     }
 }
 
+/// What: Trigger startup news fetch using current startup news settings.
+///
+/// Inputs:
+/// - `channels`: Communication channels for background workers
+/// - `app`: Application state for read sets
+///
+/// Output: None
+///
+/// Details:
+/// - Fetches news feed using startup news settings and sends to `news_tx` channel
+/// - Called when `trigger_startup_news_fetch` flag is set after `NewsSetup` completion
+/// - Sets `news_loading` flag to show loading modal
+fn trigger_startup_news_fetch(channels: &Channels, app: &mut AppState) {
+    use crate::sources;
+    use crate::state::types::NewsSortMode;
+    use std::collections::HashSet;
+
+    let prefs = crate::theme::settings();
+    if !prefs.startup_news_configured {
+        return;
+    }
+
+    // Set loading flag to show loading modal
+    app.news_loading = true;
+    tracing::info!("news_loading set to true, triggering startup news fetch");
+
+    let news_tx = channels.news_tx.clone();
+    let read_urls = app.news_read_urls.clone();
+    let read_ids = app.news_read_ids.clone();
+    let installed: HashSet<String> = crate::index::explicit_names().into_iter().collect();
+    // Create mutable copies for the fetch (won't be persisted, but needed for API)
+    let mut seen_versions = app.news_seen_pkg_versions.clone();
+    let mut seen_aur_comments = app.news_seen_aur_comments.clone();
+
+    tokio::spawn(async move {
+        tracing::info!("on-demand startup news fetch task started");
+        let mut installed_set = installed;
+        if installed_set.is_empty() {
+            crate::index::refresh_installed_cache().await;
+            crate::index::refresh_explicit_cache(crate::state::InstalledPackagesMode::AllExplicit)
+                .await;
+            let refreshed: HashSet<String> = crate::index::explicit_names().into_iter().collect();
+            if !refreshed.is_empty() {
+                installed_set = refreshed;
+            }
+        }
+        let include_pkg_updates =
+            prefs.startup_news_show_pkg_updates || prefs.startup_news_show_aur_updates;
+        // Use lower limit for startup popup (20) vs main feed (50)
+        // If both official and AUR updates are requested, double the limit so both types can be included
+        #[allow(clippy::items_after_statements)]
+        const STARTUP_NEWS_LIMIT: usize = 20;
+        let updates_limit =
+            if prefs.startup_news_show_pkg_updates && prefs.startup_news_show_aur_updates {
+                STARTUP_NEWS_LIMIT * 2
+            } else {
+                STARTUP_NEWS_LIMIT
+            };
+        let ctx = sources::NewsFeedContext {
+            force_emit_all: true,
+            updates_list_path: Some(crate::theme::lists_dir().join("available_updates.txt")),
+            limit: updates_limit,
+            include_arch_news: prefs.startup_news_show_arch_news,
+            include_advisories: prefs.startup_news_show_advisories,
+            include_pkg_updates,
+            include_aur_comments: prefs.startup_news_show_aur_comments,
+            installed_filter: Some(&installed_set),
+            installed_only: false,
+            sort_mode: NewsSortMode::DateDesc,
+            seen_pkg_versions: &mut seen_versions,
+            seen_aur_comments: &mut seen_aur_comments,
+            max_age_days: prefs.startup_news_max_age_days,
+        };
+        tracing::info!(
+            limit = updates_limit,
+            include_arch_news = prefs.startup_news_show_arch_news,
+            include_advisories = prefs.startup_news_show_advisories,
+            include_pkg_updates,
+            include_aur_comments = prefs.startup_news_show_aur_comments,
+            max_age_days = ?prefs.startup_news_max_age_days,
+            installed_count = installed_set.len(),
+            "starting on-demand startup news fetch"
+        );
+        match sources::fetch_news_feed(ctx).await {
+            Ok(feed) => {
+                tracing::info!(
+                    total_items = feed.len(),
+                    "on-demand startup news fetch completed successfully"
+                );
+                // Filter by source type for package updates (AUR vs official are mixed in fetch_installed_updates)
+                let source_filtered: Vec<crate::state::types::NewsFeedItem> = feed
+                    .into_iter()
+                    .filter(|item| match item.source {
+                        crate::state::types::NewsFeedSource::ArchNews => {
+                            prefs.startup_news_show_arch_news
+                        }
+                        crate::state::types::NewsFeedSource::SecurityAdvisory => {
+                            prefs.startup_news_show_advisories
+                        }
+                        crate::state::types::NewsFeedSource::InstalledPackageUpdate => {
+                            prefs.startup_news_show_pkg_updates
+                        }
+                        crate::state::types::NewsFeedSource::AurPackageUpdate => {
+                            prefs.startup_news_show_aur_updates
+                        }
+                        crate::state::types::NewsFeedSource::AurComment => {
+                            prefs.startup_news_show_aur_comments
+                        }
+                    })
+                    .collect();
+                // Filter by max age days
+                let filtered: Vec<crate::state::types::NewsFeedItem> =
+                    if let Some(max_days) = prefs.startup_news_max_age_days {
+                        let cutoff_date = chrono::Utc::now()
+                            .checked_sub_signed(chrono::Duration::days(i64::from(max_days)))
+                            .map(|dt| dt.format("%Y-%m-%d").to_string());
+                        #[allow(clippy::unnecessary_map_or)]
+                        let filtered_items = source_filtered
+                            .into_iter()
+                            .filter(|item| {
+                                cutoff_date
+                                    .as_ref()
+                                    .map_or(true, |cutoff| &item.date >= cutoff)
+                            })
+                            .collect();
+                        filtered_items
+                    } else {
+                        source_filtered
+                    };
+                // Filter out already-read items
+                #[allow(clippy::unnecessary_map_or)]
+                let unread: Vec<crate::state::types::NewsFeedItem> = filtered
+                    .into_iter()
+                    .filter(|item| {
+                        !read_ids.contains(&item.id)
+                            && item
+                                .url
+                                .as_ref()
+                                .map_or(true, |url| !read_urls.contains(url))
+                    })
+                    .collect();
+                tracing::info!(
+                    unread_count = unread.len(),
+                    "sending on-demand startup news items to channel"
+                );
+                match news_tx.send(unread) {
+                    Ok(()) => {
+                        tracing::info!("on-demand startup news items sent to channel successfully");
+                    }
+                    Err(e) => {
+                        tracing::error!(
+                            error = %e,
+                            "failed to send on-demand startup news items to channel (receiver dropped?)"
+                        );
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "on-demand startup news fetch failed");
+                tracing::info!("sending empty array to clear loading flag after fetch error");
+                let _ = news_tx.send(Vec::new());
+            }
+        }
+    });
+}
+
 /// What: Run the main event loop, processing all channel messages and rendering the UI.
 ///
 /// Inputs:
@@ -658,12 +841,19 @@ fn handle_executor_output(app: &mut AppState, output: crate::install::ExecutorOu
 /// - Renders UI frames and handles all channel messages (events, search results, details,
 ///   preflight data, PKGBUILD, news, status, etc.)
 /// - Exits when event handler returns true (e.g., quit command)
+/// - Checks for `trigger_startup_news_fetch` flag and triggers fetch if set
 pub async fn run_event_loop(
     terminal: &mut Option<Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>>,
     app: &mut AppState,
     channels: &mut Channels,
 ) {
     loop {
+        // Check if we need to trigger startup news fetch
+        if app.trigger_startup_news_fetch {
+            app.trigger_startup_news_fetch = false;
+            trigger_startup_news_fetch(channels, &mut *app);
+        }
+
         if let Some(t) = terminal.as_mut() {
             let _ = t.draw(|f| ui(f, app));
         }

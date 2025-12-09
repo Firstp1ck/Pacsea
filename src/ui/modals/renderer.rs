@@ -238,10 +238,12 @@ struct ConfirmBatchUpdateContext {
 ///
 /// Details: Reduces individual field extractions and uses, lowering data flow complexity.
 struct NewsContext {
-    /// News items to display.
-    items: Vec<crate::state::NewsItem>,
+    /// News feed items to display.
+    items: Vec<crate::state::types::NewsFeedItem>,
     /// Currently selected news item index.
     selected: usize,
+    /// Scroll offset (lines) for the news list.
+    scroll: u16,
 }
 
 /// What: Context struct grouping Announcement modal fields to reduce data flow complexity.
@@ -303,6 +305,31 @@ struct VirusTotalSetupContext {
     /// API key input buffer.
     input: String,
     /// Cursor position within the input buffer.
+    cursor: usize,
+}
+
+/// What: Context struct grouping `NewsSetup` modal fields to reduce data flow complexity.
+///
+/// Inputs: None (constructed from Modal variant).
+///
+/// Output: Groups related fields together for passing to render functions.
+///
+/// Details: Reduces individual field extractions and uses, lowering data flow complexity.
+#[allow(clippy::struct_excessive_bools)]
+struct NewsSetupContext {
+    /// Whether to show Arch news.
+    show_arch_news: bool,
+    /// Whether to show security advisories.
+    show_advisories: bool,
+    /// Whether to show AUR updates.
+    show_aur_updates: bool,
+    /// Whether to show AUR comments.
+    show_aur_comments: bool,
+    /// Whether to show official package updates.
+    show_pkg_updates: bool,
+    /// Maximum age of news items in days (7, 30, or 90).
+    max_age_days: Option<u32>,
+    /// Current cursor position (0-4 for toggles, 5-7 for date buttons).
     cursor: usize,
 }
 
@@ -458,8 +485,16 @@ impl ModalRenderer for Modal {
                 render_system_update_modal(f, app, area, ctx)
             }
             Self::Help => render_help_modal(f, app, area),
-            Self::News { items, selected } => {
-                let ctx = NewsContext { items, selected };
+            Self::News {
+                items,
+                selected,
+                scroll,
+            } => {
+                let ctx = NewsContext {
+                    items,
+                    selected,
+                    scroll,
+                };
                 render_news_modal(f, app, area, ctx)
             }
             Self::Announcement {
@@ -520,6 +555,26 @@ impl ModalRenderer for Modal {
                 render_virustotal_setup_modal(f, app, area, ctx)
             }
             Self::ImportHelp => render_import_help_modal(f, app, area),
+            Self::NewsSetup {
+                show_arch_news,
+                show_advisories,
+                show_aur_updates,
+                show_aur_comments,
+                show_pkg_updates,
+                max_age_days,
+                cursor,
+            } => {
+                let ctx = NewsSetupContext {
+                    show_arch_news,
+                    show_advisories,
+                    show_aur_updates,
+                    show_aur_comments,
+                    show_pkg_updates,
+                    max_age_days,
+                    cursor,
+                };
+                render_news_setup_modal(f, app, area, ctx)
+            }
             Self::PasswordPrompt {
                 purpose,
                 items,
@@ -536,7 +591,14 @@ impl ModalRenderer for Modal {
                 };
                 render_password_prompt_modal(f, app, area, ctx)
             }
-            Self::None => Self::None,
+            Self::None => {
+                // Show loading modal if news is loading and no other modal is displayed
+                if app.news_loading {
+                    let message = crate::i18n::t(app, "app.modals.loading.news");
+                    misc::render_loading(f, area, &message);
+                }
+                Self::None
+            }
         }
     }
 }
@@ -778,10 +840,11 @@ fn render_help_modal(f: &mut Frame, app: &mut AppState, area: Rect) -> Modal {
 /// - Uses context struct to reduce data flow complexity by grouping related fields.
 /// - Takes context by value to avoid cloning when reconstructing the Modal.
 fn render_news_modal(f: &mut Frame, app: &mut AppState, area: Rect, ctx: NewsContext) -> Modal {
-    news::render_news(f, app, area, &ctx.items, ctx.selected);
+    news::render_news(f, app, area, &ctx.items, ctx.selected, ctx.scroll);
     Modal::News {
         items: ctx.items,
         selected: ctx.selected,
+        scroll: ctx.scroll,
     }
 }
 
@@ -944,6 +1007,59 @@ fn render_virustotal_setup_modal(
 fn render_import_help_modal(f: &mut Frame, app: &AppState, area: Rect) -> Modal {
     misc::render_import_help(f, area, app);
     Modal::ImportHelp
+}
+
+/// What: Render `NewsSetup` modal and return reconstructed state.
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `app`: Mutable application state
+/// - `area`: Full available area
+/// - `ctx`: Context struct containing all `NewsSetup` fields (taken by value)
+///
+/// Output:
+/// - Returns the reconstructed Modal
+///
+/// Details:
+/// - Uses context struct to reduce data flow complexity by grouping related fields.
+/// - Takes context by value to avoid cloning when reconstructing the Modal.
+#[allow(clippy::needless_pass_by_value)]
+fn render_news_setup_modal(
+    f: &mut Frame,
+    app: &AppState,
+    area: Rect,
+    ctx: NewsSetupContext,
+) -> Modal {
+    let NewsSetupContext {
+        show_arch_news,
+        show_advisories,
+        show_aur_updates,
+        show_aur_comments,
+        show_pkg_updates,
+        max_age_days,
+        cursor,
+    } = ctx;
+    misc::render_news_setup(
+        f,
+        area,
+        app,
+        show_arch_news,
+        show_advisories,
+        show_aur_updates,
+        show_aur_comments,
+        show_pkg_updates,
+        max_age_days,
+        cursor,
+    );
+    Modal::NewsSetup {
+        show_arch_news,
+        show_advisories,
+        show_aur_updates,
+        show_aur_comments,
+        show_pkg_updates,
+        max_age_days,
+        cursor,
+    }
 }
 
 /// What: Render `PasswordPrompt` modal and return reconstructed state.

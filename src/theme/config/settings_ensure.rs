@@ -69,6 +69,16 @@ fn get_setting_value(key: &str, skeleton_value: String, prefs: &Settings) -> Str
         "news_max_age_days" => prefs
             .news_max_age_days
             .map_or_else(|| "all".to_string(), |v| v.to_string()),
+        "startup_news_configured" => prefs.startup_news_configured.to_string(),
+        "startup_news_show_arch_news" => prefs.startup_news_show_arch_news.to_string(),
+        "startup_news_show_advisories" => prefs.startup_news_show_advisories.to_string(),
+        "startup_news_show_aur_updates" => prefs.startup_news_show_aur_updates.to_string(),
+        "startup_news_show_aur_comments" => prefs.startup_news_show_aur_comments.to_string(),
+        "startup_news_show_pkg_updates" => prefs.startup_news_show_pkg_updates.to_string(),
+        "startup_news_max_age_days" => prefs
+            .startup_news_max_age_days
+            .map_or_else(|| "all".to_string(), |v| v.to_string()),
+        "news_cache_ttl_days" => prefs.news_cache_ttl_days.to_string(),
         "preferred_terminal" => prefs.preferred_terminal.clone(),
         "package_marker" => match prefs.package_marker {
             crate::theme::types::PackageMarker::FullLine => "full_line",

@@ -533,18 +533,32 @@ fn system_update_toggle_works() {
 fn news_esc_closes_modal() {
     let mut app = new_app();
     let items = vec![
-        crate::state::NewsItem {
+        crate::state::types::NewsFeedItem {
+            id: "https://example.com/news1".to_string(),
             date: "2025-01-01".to_string(),
             title: "Test News 1".to_string(),
-            url: "https://example.com/news1".to_string(),
+            summary: None,
+            url: Some("https://example.com/news1".to_string()),
+            source: crate::state::types::NewsFeedSource::ArchNews,
+            severity: None,
+            packages: Vec::new(),
         },
-        crate::state::NewsItem {
+        crate::state::types::NewsFeedItem {
+            id: "https://example.com/news2".to_string(),
             date: "2025-01-02".to_string(),
             title: "Test News 2".to_string(),
-            url: "https://example.com/news2".to_string(),
+            summary: None,
+            url: Some("https://example.com/news2".to_string()),
+            source: crate::state::types::NewsFeedSource::ArchNews,
+            severity: None,
+            packages: Vec::new(),
         },
     ];
-    app.modal = crate::state::Modal::News { items, selected: 0 };
+    app.modal = crate::state::Modal::News {
+        items,
+        selected: 0,
+        scroll: 0,
+    };
 
     let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
     let ke = key_event(KeyCode::Esc, KeyModifiers::empty());
@@ -569,23 +583,42 @@ fn news_esc_closes_modal() {
 fn news_navigation_preserves_modal() {
     let mut app = new_app();
     let items = vec![
-        crate::state::NewsItem {
+        crate::state::types::NewsFeedItem {
+            id: "https://example.com/news1".to_string(),
             date: "2025-01-01".to_string(),
             title: "Test News 1".to_string(),
-            url: "https://example.com/news1".to_string(),
+            summary: None,
+            url: Some("https://example.com/news1".to_string()),
+            source: crate::state::types::NewsFeedSource::ArchNews,
+            severity: None,
+            packages: Vec::new(),
         },
-        crate::state::NewsItem {
+        crate::state::types::NewsFeedItem {
+            id: "https://example.com/news2".to_string(),
             date: "2025-01-02".to_string(),
             title: "Test News 2".to_string(),
-            url: "https://example.com/news2".to_string(),
+            summary: None,
+            url: Some("https://example.com/news2".to_string()),
+            source: crate::state::types::NewsFeedSource::ArchNews,
+            severity: None,
+            packages: Vec::new(),
         },
-        crate::state::NewsItem {
+        crate::state::types::NewsFeedItem {
+            id: "https://example.com/news3".to_string(),
             date: "2025-01-03".to_string(),
             title: "Test News 3".to_string(),
-            url: "https://example.com/news3".to_string(),
+            summary: None,
+            url: Some("https://example.com/news3".to_string()),
+            source: crate::state::types::NewsFeedSource::ArchNews,
+            severity: None,
+            packages: Vec::new(),
         },
     ];
-    app.modal = crate::state::Modal::News { items, selected: 0 };
+    app.modal = crate::state::Modal::News {
+        items,
+        selected: 0,
+        scroll: 0,
+    };
 
     let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
 
@@ -650,12 +683,21 @@ fn news_navigation_preserves_modal() {
 fn news_enter_preserves_modal() {
     let mut app = new_app();
     let test_url = "https://example.com/news";
-    let items = vec![crate::state::NewsItem {
+    let items = vec![crate::state::types::NewsFeedItem {
+        id: test_url.to_string(),
         date: "2025-01-01".to_string(),
         title: "Test News".to_string(),
-        url: test_url.to_string(),
+        summary: None,
+        url: Some(test_url.to_string()),
+        source: crate::state::types::NewsFeedSource::ArchNews,
+        severity: None,
+        packages: Vec::new(),
     }];
-    app.modal = crate::state::Modal::News { items, selected: 0 };
+    app.modal = crate::state::Modal::News {
+        items,
+        selected: 0,
+        scroll: 0,
+    };
 
     let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
 
@@ -688,12 +730,21 @@ fn news_enter_preserves_modal() {
 /// - Ensures unhandled keys don't cause issues
 fn news_unhandled_key_preserves_modal() {
     let mut app = new_app();
-    let items = vec![crate::state::NewsItem {
+    let items = vec![crate::state::types::NewsFeedItem {
+        id: "https://example.com/news".to_string(),
         date: "2025-01-01".to_string(),
         title: "Test News".to_string(),
-        url: "https://example.com/news".to_string(),
+        summary: None,
+        url: Some("https://example.com/news".to_string()),
+        source: crate::state::types::NewsFeedSource::ArchNews,
+        severity: None,
+        packages: Vec::new(),
     }];
-    app.modal = crate::state::Modal::News { items, selected: 0 };
+    app.modal = crate::state::Modal::News {
+        items,
+        selected: 0,
+        scroll: 0,
+    };
 
     let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
     let ke = key_event(KeyCode::Char('x'), KeyModifiers::empty());
@@ -727,23 +778,42 @@ fn news_unhandled_key_preserves_modal() {
 fn news_ctrl_r_mark_all_read_not_config_reload() {
     let mut app = new_app();
     let items = vec![
-        crate::state::NewsItem {
+        crate::state::types::NewsFeedItem {
+            id: "https://example.com/news1".to_string(),
             date: "2025-01-01".to_string(),
             title: "Test News 1".to_string(),
-            url: "https://example.com/news1".to_string(),
+            summary: None,
+            url: Some("https://example.com/news1".to_string()),
+            source: crate::state::types::NewsFeedSource::ArchNews,
+            severity: None,
+            packages: Vec::new(),
         },
-        crate::state::NewsItem {
+        crate::state::types::NewsFeedItem {
+            id: "https://example.com/news2".to_string(),
             date: "2025-01-02".to_string(),
             title: "Test News 2".to_string(),
-            url: "https://example.com/news2".to_string(),
+            summary: None,
+            url: Some("https://example.com/news2".to_string()),
+            source: crate::state::types::NewsFeedSource::ArchNews,
+            severity: None,
+            packages: Vec::new(),
         },
-        crate::state::NewsItem {
+        crate::state::types::NewsFeedItem {
+            id: "https://example.com/news3".to_string(),
             date: "2025-01-03".to_string(),
             title: "Test News 3".to_string(),
-            url: "https://example.com/news3".to_string(),
+            summary: None,
+            url: Some("https://example.com/news3".to_string()),
+            source: crate::state::types::NewsFeedSource::ArchNews,
+            severity: None,
+            packages: Vec::new(),
         },
     ];
-    app.modal = crate::state::Modal::News { items, selected: 0 };
+    app.modal = crate::state::Modal::News {
+        items,
+        selected: 0,
+        scroll: 0,
+    };
 
     let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
     let ke = key_event(KeyCode::Char('r'), KeyModifiers::CONTROL);
@@ -1210,12 +1280,18 @@ fn create_test_modals() -> Vec<(crate::state::Modal, &'static str)> {
         ),
         (
             crate::state::Modal::News {
-                items: vec![crate::state::NewsItem {
+                items: vec![crate::state::types::NewsFeedItem {
+                    id: "https://example.com".to_string(),
                     date: "2025-01-01".to_string(),
                     title: "Test".to_string(),
-                    url: "https://example.com".to_string(),
+                    summary: None,
+                    url: Some("https://example.com".to_string()),
+                    source: crate::state::types::NewsFeedSource::ArchNews,
+                    severity: None,
+                    packages: Vec::new(),
                 }],
                 selected: 0,
+                scroll: 0,
             },
             "News",
         ),
@@ -1494,18 +1570,32 @@ fn global_keybinds_work_when_no_modal_open() {
 fn modal_keybinds_priority_over_global_ctrl_r_in_news() {
     let mut app = new_app();
     let items = vec![
-        crate::state::NewsItem {
+        crate::state::types::NewsFeedItem {
+            id: "https://example.com/1".to_string(),
             date: "2025-01-01".to_string(),
             title: "News 1".to_string(),
-            url: "https://example.com/1".to_string(),
+            summary: None,
+            url: Some("https://example.com/1".to_string()),
+            source: crate::state::types::NewsFeedSource::ArchNews,
+            severity: None,
+            packages: Vec::new(),
         },
-        crate::state::NewsItem {
+        crate::state::types::NewsFeedItem {
+            id: "https://example.com/2".to_string(),
             date: "2025-01-02".to_string(),
             title: "News 2".to_string(),
-            url: "https://example.com/2".to_string(),
+            summary: None,
+            url: Some("https://example.com/2".to_string()),
+            source: crate::state::types::NewsFeedSource::ArchNews,
+            severity: None,
+            packages: Vec::new(),
         },
     ];
-    app.modal = crate::state::Modal::News { items, selected: 0 };
+    app.modal = crate::state::Modal::News {
+        items,
+        selected: 0,
+        scroll: 0,
+    };
 
     // Verify initial state
     assert!(app.news_read_urls.is_empty());
@@ -1553,18 +1643,32 @@ fn modal_keybinds_priority_over_global_ctrl_r_in_news() {
 fn news_modal_lowercase_r_marks_single_read() {
     let mut app = new_app();
     let items = vec![
-        crate::state::NewsItem {
+        crate::state::types::NewsFeedItem {
+            id: "https://example.com/1".to_string(),
             date: "2025-01-01".to_string(),
             title: "News 1".to_string(),
-            url: "https://example.com/1".to_string(),
+            summary: None,
+            url: Some("https://example.com/1".to_string()),
+            source: crate::state::types::NewsFeedSource::ArchNews,
+            severity: None,
+            packages: Vec::new(),
         },
-        crate::state::NewsItem {
+        crate::state::types::NewsFeedItem {
+            id: "https://example.com/2".to_string(),
             date: "2025-01-02".to_string(),
             title: "News 2".to_string(),
-            url: "https://example.com/2".to_string(),
+            summary: None,
+            url: Some("https://example.com/2".to_string()),
+            source: crate::state::types::NewsFeedSource::ArchNews,
+            severity: None,
+            packages: Vec::new(),
         },
     ];
-    app.modal = crate::state::Modal::News { items, selected: 0 };
+    app.modal = crate::state::Modal::News {
+        items,
+        selected: 0,
+        scroll: 0,
+    };
 
     let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
     let ke = key_event(KeyCode::Char('r'), KeyModifiers::empty());

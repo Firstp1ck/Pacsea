@@ -51,6 +51,22 @@ impl Default for AppState {
                 .ok()
                 .and_then(|s| serde_json::from_str(&s).ok())
                 .unwrap_or_default();
+
+        // Load last startup timestamp and save current timestamp
+        let last_startup_path = crate::theme::lists_dir().join("last_startup.txt");
+        let last_startup_timestamp = std::fs::read_to_string(&last_startup_path)
+            .ok()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
+        // Save current timestamp for next startup
+        let current_timestamp = chrono::Local::now().format("%Y%m%d:%H%M%S").to_string();
+        let _ = std::fs::write(&last_startup_path, &current_timestamp);
+        tracing::info!(
+            previous = ?last_startup_timestamp,
+            current = %current_timestamp,
+            "startup timestamp tracking"
+        );
+
         let (
             results_filter_show_aur,
             results_filter_show_core,
@@ -272,6 +288,7 @@ impl Default for AppState {
             announcement_urls,
             pending_announcements,
             pending_news,
+            trigger_startup_news_fetch,
             updates_modal_rect,
             updates_modal_content_rect,
             help_scroll,
@@ -439,6 +456,8 @@ impl Default for AppState {
             announcements_read_ids,
             announcement_read_path,
             announcement_dirty,
+            last_startup_timestamp,
+            last_startup_path,
             install_list,
             install_state,
             remove_list,
@@ -527,6 +546,7 @@ impl Default for AppState {
             announcement_urls,
             pending_announcements,
             pending_news,
+            trigger_startup_news_fetch,
             updates_modal_rect,
             updates_modal_content_rect,
             help_scroll,

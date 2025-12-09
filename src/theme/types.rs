@@ -113,6 +113,23 @@ pub struct Settings {
     pub news_filter_installed_only: bool,
     /// Maximum age of news items in days (None = unlimited).
     pub news_max_age_days: Option<u32>,
+    /// Whether startup news popup setup has been completed.
+    pub startup_news_configured: bool,
+    /// Whether to show Arch news in startup news popup.
+    pub startup_news_show_arch_news: bool,
+    /// Whether to show security advisories in startup news popup.
+    pub startup_news_show_advisories: bool,
+    /// Whether to show AUR updates in startup news popup.
+    pub startup_news_show_aur_updates: bool,
+    /// Whether to show AUR comments in startup news popup.
+    pub startup_news_show_aur_comments: bool,
+    /// Whether to show official package updates in startup news popup.
+    pub startup_news_show_pkg_updates: bool,
+    /// Maximum age of news items in days for startup news popup (None = unlimited).
+    pub startup_news_max_age_days: Option<u32>,
+    /// How many days to keep Arch news and advisories cached on disk.
+    /// Default is 7 days. Helps reduce network requests on startup.
+    pub news_cache_ttl_days: u32,
     /// Visual marker style for packages added to Install/Remove/Downgrade lists.
     pub package_marker: PackageMarker,
     /// Symbol used to mark a news item as read in the News modal.
@@ -192,6 +209,14 @@ impl Default for Settings {
             news_filter_show_aur_comments: true,
             news_filter_installed_only: false,
             news_max_age_days: Some(30),
+            startup_news_configured: false,
+            startup_news_show_arch_news: true,
+            startup_news_show_advisories: true,
+            startup_news_show_aur_updates: true,
+            startup_news_show_aur_comments: true,
+            startup_news_show_pkg_updates: true,
+            startup_news_max_age_days: Some(7),
+            news_cache_ttl_days: 7,
             package_marker: PackageMarker::Front,
             news_read_symbol: "✓".to_string(),
             news_unread_symbol: "∘".to_string(),

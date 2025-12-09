@@ -8,9 +8,12 @@ use tracing::{info, warn};
 /// Result type alias for Arch Linux news fetching operations.
 type Result<T> = super::Result<T>;
 
-/// What: Fetch recent Arch Linux news items.
+/// What: Fetch recent Arch Linux news items with optional early date filtering.
 ///
-/// Input: `limit` maximum number of items to return (best-effort)
+/// Input:
+/// - `limit`: Maximum number of items to return (best-effort)
+/// - `cutoff_date`: Optional date string (YYYY-MM-DD) for early filtering
+///
 /// Output: `Ok(Vec<NewsItem>)` with date/title/url; `Err` on network or parse failures
 ///
 /// # Errors
@@ -20,8 +23,9 @@ type Result<T> = super::Result<T>;
 ///
 /// Details: Downloads the Arch Linux news RSS feed and iteratively parses `<item>` blocks,
 /// extracting `<title>`, `<link>`, and `<pubDate>`. The `pubDate` value is normalized to a
-/// date-only form via `strip_time_and_tz`.
-pub async fn fetch_arch_news(limit: usize) -> Result<Vec<NewsItem>> {
+/// date-only form via `strip_time_and_tz`. If `cutoff_date` is provided, stops fetching when
+/// items exceed the date limit.
+pub async fn fetch_arch_news(limit: usize, cutoff_date: Option<&str>) -> Result<Vec<NewsItem>> {
     let url = "https://archlinux.org/feeds/news/";
     let body = tokio::task::spawn_blocking(move || crate::util::curl::curl_text(url))
         .await?
@@ -43,6 +47,12 @@ pub async fn fetch_arch_news(limit: usize) -> Result<Vec<NewsItem>> {
                 .map(|d| d.trim().to_string())
                 .unwrap_or_default();
             let date = strip_time_and_tz(&raw_date);
+            // Early date filtering: stop if item is older than cutoff_date
+            if let Some(cutoff) = cutoff_date
+                && date.as_str() < cutoff
+            {
+                break;
+            }
             items.push(NewsItem {
                 date,
                 title,

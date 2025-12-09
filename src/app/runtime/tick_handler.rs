@@ -5,7 +5,7 @@ use tokio::sync::mpsc;
 use tokio::time::Duration;
 
 use crate::logic::send_query;
-use crate::state::{AppState, ArchStatusColor, Modal, NewsItem, PackageItem, QueryInput};
+use crate::state::{AppState, ArchStatusColor, Modal, PackageItem, QueryInput};
 
 use super::super::persist::{
     maybe_flush_announcement_read, maybe_flush_cache, maybe_flush_deps_cache,
@@ -698,27 +698,57 @@ pub fn handle_tick(
 ///
 /// Inputs:
 /// - `app`: Application state
-/// - `todays`: List of news items
+/// - `items`: List of news feed items
 ///
 /// Details:
 /// - Shows toast if no new news
 /// - Opens news modal if there are unread items
-pub fn handle_news(app: &mut AppState, todays: &[NewsItem]) {
-    if todays.is_empty() {
+/// - Clears `news_loading` flag only when news modal is actually shown
+pub fn handle_news(app: &mut AppState, items: &[crate::state::types::NewsFeedItem]) {
+    tracing::info!(
+        items_count = items.len(),
+        current_modal = ?app.modal,
+        news_loading = app.news_loading,
+        "handle_news called"
+    );
+    if items.is_empty() {
+        // Clear loading flag even if no news (toast will be shown)
+        tracing::info!("no news items, clearing loading flag and showing toast");
+        app.news_loading = false;
         app.toast_message = Some(crate::i18n::t(app, "app.toasts.no_new_news"));
         app.toast_expires_at = Some(Instant::now() + Duration::from_secs(10));
     } else {
         // Queue news to show after all announcements are dismissed
         // Only show immediately if no modal is currently displayed
         if matches!(app.modal, Modal::None) {
+            // Clear loading flag when news modal is actually shown
+            tracing::info!("no other modal active, showing news modal immediately");
+            app.news_loading = false;
             app.modal = Modal::News {
-                items: todays.to_vec(),
+                items: items.to_vec(),
                 selected: 0,
+                scroll: 0,
             };
-            tracing::info!("showing news modal immediately (no other modals)");
+            tracing::info!("news modal set, loading flag cleared");
         } else {
-            // Queue news to show after announcements
-            app.pending_news = Some(todays.to_vec());
+            // Keep loading flag true until news modal can be shown
+            // News will be queued and shown after current modal is dismissed
+            tracing::info!(
+                current_modal = ?app.modal,
+                "other modal active, queueing news and keeping loading flag true"
+            );
+            // Convert NewsFeedItem to NewsItem for pending_news (legacy format)
+            let legacy_items: Vec<crate::state::NewsItem> = items
+                .iter()
+                .filter_map(|item| {
+                    item.url.as_ref().map(|url| crate::state::NewsItem {
+                        date: item.date.clone(),
+                        title: item.title.clone(),
+                        url: url.clone(),
+                    })
+                })
+                .collect();
+            app.pending_news = Some(legacy_items);
             tracing::debug!("queued news (modal already open, will show after announcements)");
         }
     }
@@ -958,7 +988,7 @@ mod tests {
     /// - Tests that empty news list shows appropriate message
     fn handle_news_shows_toast_when_empty() {
         let mut app = new_app();
-        let news: Vec<NewsItem> = vec![];
+        let news: Vec<crate::state::types::NewsFeedItem> = vec![];
 
         handle_news(&mut app, &news);
 
@@ -982,16 +1012,26 @@ mod tests {
     /// - Tests that news modal is properly opened
     fn handle_news_opens_modal_when_available() {
         let mut app = new_app();
-        let news = vec![NewsItem {
-            title: "Test News".to_string(),
-            url: "https://example.com/news".to_string(),
+        let news = vec![crate::state::types::NewsFeedItem {
+            id: "https://example.com/news".to_string(),
             date: String::new(),
+            title: "Test News".to_string(),
+            summary: None,
+            url: Some("https://example.com/news".to_string()),
+            source: crate::state::types::NewsFeedSource::ArchNews,
+            severity: None,
+            packages: Vec::new(),
         }];
 
         handle_news(&mut app, &news);
 
         // Modal should be opened
-        if let crate::state::Modal::News { items, selected } = &app.modal {
+        if let crate::state::Modal::News {
+            items,
+            selected,
+            scroll: _,
+        } = &app.modal
+        {
             assert_eq!(items.len(), 1);
             assert_eq!(selected, &0);
         } else {

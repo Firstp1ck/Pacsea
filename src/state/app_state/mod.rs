@@ -219,6 +219,13 @@ pub struct AppState {
     /// Dirty flag indicating `announcements_read_ids` needs to be saved.
     pub announcement_dirty: bool,
 
+    // Last startup tracking (for incremental updates)
+    /// Timestamp of the previous TUI startup (format: `YYYYMMDD:HHMMSS`).
+    /// Used to determine what news/updates need fresh fetching vs cached data.
+    pub last_startup_timestamp: Option<String>,
+    /// Path where the last startup timestamp is persisted.
+    pub last_startup_path: PathBuf,
+
     // Install list pane
     /// Packages selected for installation.
     pub install_list: Vec<PackageItem>,
@@ -446,6 +453,8 @@ pub struct AppState {
     pub pending_announcements: Vec<crate::announcements::RemoteAnnouncement>,
     /// Pending news to show after all announcements are dismissed.
     pub pending_news: Option<Vec<crate::state::NewsItem>>,
+    /// Flag to trigger startup news fetch after `NewsSetup` is completed.
+    pub trigger_startup_news_fetch: bool,
 
     // Updates modal mouse hit-testing
     /// Outer rectangle of the Updates modal (including borders) when visible.

@@ -1,6 +1,6 @@
 //! Modal dialog state for the UI.
 
-use crate::state::types::{NewsItem, OptionalDepRow, PackageItem, Source};
+use crate::state::types::{OptionalDepRow, PackageItem, Source};
 use std::collections::HashSet;
 
 /// What: Enumerates the high-level operations represented in the preflight
@@ -613,10 +613,12 @@ pub enum Modal {
     },
     /// Arch Linux News: list of recent items with selection.
     News {
-        /// Latest news items (date, title, link).
-        items: Vec<NewsItem>,
+        /// Latest news feed items (Arch news, advisories, updates, comments).
+        items: Vec<crate::state::types::NewsFeedItem>,
         /// Selected row index.
         selected: usize,
+        /// Scroll offset (lines) for the news list.
+        scroll: u16,
     },
     /// Application announcement: markdown content displayed at startup.
     Announcement {
@@ -675,6 +677,23 @@ pub enum Modal {
     },
     /// Information dialog explaining the Import file format.
     ImportHelp,
+    /// Setup dialog for startup news popup configuration.
+    NewsSetup {
+        /// Whether to show Arch news.
+        show_arch_news: bool,
+        /// Whether to show security advisories.
+        show_advisories: bool,
+        /// Whether to show AUR updates.
+        show_aur_updates: bool,
+        /// Whether to show AUR comments.
+        show_aur_comments: bool,
+        /// Whether to show official package updates.
+        show_pkg_updates: bool,
+        /// Maximum age of news items in days (7, 30, or 90).
+        max_age_days: Option<u32>,
+        /// Current cursor position (0-5 for toggles, 6-8 for date buttons).
+        cursor: usize,
+    },
     /// Password prompt for sudo authentication.
     PasswordPrompt {
         /// Purpose of the password prompt.
@@ -731,6 +750,7 @@ mod tests {
         let _ = super::Modal::News {
             items: Vec::new(),
             selected: 0,
+            scroll: 0,
         };
         let _ = super::Modal::OptionalDeps {
             rows: Vec::new(),

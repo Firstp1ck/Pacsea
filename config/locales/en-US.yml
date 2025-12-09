@@ -462,6 +462,18 @@ en-US:
         heading: "Arch Linux News"
         none: "No news items available."
         footer_hint: "Up/Down: select  •  Enter: open  • {}: mark read  • {}: mark all read  •  Esc: close"
+        keybinds_hint: "Up/Down/K/J: navigate  •  Enter: open  • {}: mark read  • {}: mark all read  •  Esc/Q: close"
+      loading:
+        news: "Loading news..."
+      news_setup:
+        title: "News Popup Setup"
+        arch_news: "Arch News"
+        advisories: "Advisories - Official Security News"
+        aur_updates: "AUR Updates"
+        aur_comments: "AUR Comments"
+        pkg_updates: "Official Package Updates"
+        date_selection: "Maximum age"
+        footer_hint: "Up/Down: select  •  Space: toggle  •  Enter: save  •  Esc: cancel"
       announcement:
         footer_hint: "r: Mark as read | Enter/Esc: Dismiss (show again)"
       updates_window:

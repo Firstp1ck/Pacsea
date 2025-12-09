@@ -97,6 +97,7 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
         updates_refresh_interval,
         app.installed_packages_mode,
         crate::theme::settings().get_announcement,
+        app.last_startup_timestamp.as_deref(),
     );
 
     // Spawn event reading thread

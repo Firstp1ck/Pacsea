@@ -15,9 +15,6 @@
 - [x] ui (visual/interaction changes)
 - [ ] breaking change (incompatible behavior)
 
-## Related issues
-Closes #N/A
-
 ## How to test
 ```bash
 cargo fmt --all
@@ -30,9 +27,6 @@ cargo test complexity -- --nocapture --test-threads=1
 - Run a news search, confirm the history pane records queries, and restart to ensure history/bookmarks persist.
 - Open a news item to fetch content, scroll, and ensure subsequent openings use the cached body.
 - Load a news bookmark that has no cached HTML/content and confirm the details pane clears stale content, resets `news_content_loading`, and allows a fresh content request.
-
-## Screenshots / recordings (if UI changes)
-N/A
 
 ## Checklist
 
@@ -51,8 +45,8 @@ N/A
 - [x] Tests are meaningful and cover the functionality
 
 **Documentation:**
-- [ ] Updated README if behavior, options, or keybinds changed (keep high-level, reference wiki)
-- [ ] Updated relevant wiki pages if needed:
+- [x] Updated README if behavior, options, or keybinds changed (keep high-level, reference wiki)
+- [x] Updated relevant wiki pages if needed:
   - [How to use Pacsea](https://github.com/Firstp1ck/Pacsea/wiki/How-to-use-Pacsea)
   - [Configuration](https://github.com/Firstp1ck/Pacsea/wiki/Configuration)
   - [Keyboard Shortcuts](https://github.com/Firstp1ck/Pacsea/wiki/Keyboard-Shortcuts)

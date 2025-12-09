@@ -610,6 +610,26 @@ pub fn initialize_app_state(app: &mut AppState, dry_run_flag: bool, headless: bo
 
     check_gnome_terminal(app, headless);
 
+    // Show NewsSetup modal on first launch if not configured
+    if !headless && !prefs.startup_news_configured {
+        // Only show if no other modal is already set (e.g., GnomeTerminalPrompt)
+        if matches!(app.modal, crate::state::Modal::None) {
+            app.modal = crate::state::Modal::NewsSetup {
+                show_arch_news: prefs.startup_news_show_arch_news,
+                show_advisories: prefs.startup_news_show_advisories,
+                show_aur_updates: prefs.startup_news_show_aur_updates,
+                show_aur_comments: prefs.startup_news_show_aur_comments,
+                show_pkg_updates: prefs.startup_news_show_pkg_updates,
+                max_age_days: prefs.startup_news_max_age_days,
+                cursor: 0,
+            };
+        }
+    } else if !headless && prefs.startup_news_configured {
+        // If setup is already done, set loading flag so loading modal appears
+        // while news is being fetched at startup
+        app.news_loading = true;
+    }
+
     // Check faillock status at startup
     if !headless {
         let username = std::env::var("USER").unwrap_or_else(|_| "user".to_string());

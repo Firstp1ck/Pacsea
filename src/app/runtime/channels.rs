@@ -5,9 +5,7 @@ use crossterm::event::Event as CEvent;
 use tokio::sync::mpsc;
 
 use crate::state::types::NewsFeedPayload;
-use crate::state::{
-    ArchStatusColor, NewsItem, PackageDetails, PackageItem, QueryInput, SearchResults,
-};
+use crate::state::{ArchStatusColor, PackageDetails, PackageItem, QueryInput, SearchResults};
 
 /// What: Channel definitions for runtime communication.
 ///
@@ -70,10 +68,10 @@ pub struct Channels {
     pub status_tx: mpsc::UnboundedSender<(String, ArchStatusColor)>,
     /// Receiver for Arch Linux status updates in the main event loop.
     pub status_rx: mpsc::UnboundedReceiver<(String, ArchStatusColor)>,
-    /// Sender for Arch Linux news items.
-    pub news_tx: mpsc::UnboundedSender<Vec<NewsItem>>,
-    /// Receiver for Arch Linux news items in the main event loop.
-    pub news_rx: mpsc::UnboundedReceiver<Vec<NewsItem>>,
+    /// Sender for startup news popup items.
+    pub news_tx: mpsc::UnboundedSender<Vec<crate::state::types::NewsFeedItem>>,
+    /// Receiver for startup news popup items in the main event loop.
+    pub news_rx: mpsc::UnboundedReceiver<Vec<crate::state::types::NewsFeedItem>>,
     /// Sender for news feed items plus last-seen state.
     pub news_feed_tx: mpsc::UnboundedSender<NewsFeedPayload>,
     /// Receiver for news feed payloads in the main event loop.
@@ -261,10 +259,10 @@ struct UtilityChannels {
     status_tx: mpsc::UnboundedSender<(String, ArchStatusColor)>,
     /// Receiver for Arch Linux status updates.
     status_rx: mpsc::UnboundedReceiver<(String, ArchStatusColor)>,
-    /// Sender for Arch Linux news items.
-    news_tx: mpsc::UnboundedSender<Vec<NewsItem>>,
-    /// Receiver for Arch Linux news items.
-    news_rx: mpsc::UnboundedReceiver<Vec<NewsItem>>,
+    /// Sender for startup news popup items.
+    news_tx: mpsc::UnboundedSender<Vec<crate::state::types::NewsFeedItem>>,
+    /// Receiver for startup news popup items.
+    news_rx: mpsc::UnboundedReceiver<Vec<crate::state::types::NewsFeedItem>>,
     /// Sender for news feed payloads.
     news_feed_tx: mpsc::UnboundedSender<NewsFeedPayload>,
     /// Receiver for news feed payloads.
@@ -407,7 +405,7 @@ fn create_utility_channels() -> UtilityChannels {
     let (comments_res_tx, comments_res_rx) =
         mpsc::unbounded_channel::<(String, Result<Vec<crate::state::types::AurComment>, String>)>();
     let (status_tx, status_rx) = mpsc::unbounded_channel::<(String, ArchStatusColor)>();
-    let (news_tx, news_rx) = mpsc::unbounded_channel::<Vec<NewsItem>>();
+    let (news_tx, news_rx) = mpsc::unbounded_channel::<Vec<crate::state::types::NewsFeedItem>>();
     let (news_feed_tx, news_feed_rx) = mpsc::unbounded_channel::<NewsFeedPayload>();
     let (news_content_req_tx, news_content_req_rx) = mpsc::unbounded_channel::<String>();
     let (news_content_res_tx, news_content_res_rx) = mpsc::unbounded_channel::<(String, String)>();

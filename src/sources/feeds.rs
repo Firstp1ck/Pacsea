@@ -3,8 +3,11 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::hash::BuildHasher;
 use std::path::PathBuf;
+use std::sync::{LazyLock, Mutex};
+use std::time::{Duration, Instant};
 
 use chrono::{DateTime, Utc};
+use futures::stream::{self, StreamExt};
 use serde_json::Value;
 
 use crate::state::types::AurComment;
@@ -12,8 +15,255 @@ use crate::state::types::{NewsFeedItem, NewsFeedSource, NewsSortMode};
 use crate::util::parse_update_entry;
 use tracing::{debug, info, warn};
 
+/// Cache entry with data and timestamp (in-memory).
+struct CacheEntry {
+    /// Cached news feed items.
+    data: Vec<NewsFeedItem>,
+    /// Timestamp when the cache entry was created.
+    timestamp: Instant,
+}
+
+/// Disk cache entry with data and Unix timestamp (for serialization).
+#[derive(serde::Serialize, serde::Deserialize)]
+struct DiskCacheEntry {
+    /// Cached news feed items.
+    data: Vec<NewsFeedItem>,
+    /// Unix timestamp (seconds since epoch) when the cache was saved.
+    saved_at: i64,
+}
+
+/// Simple in-memory cache for Arch news and advisories.
+/// Key: source type (`"arch_news"` or `"advisories"`)
+/// TTL: 5 minutes
+static NEWS_CACHE: LazyLock<Mutex<HashMap<String, CacheEntry>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+/// Cache TTL in seconds (5 minutes).
+const CACHE_TTL_SECONDS: u64 = 300;
+
+/// What: Get the disk cache TTL in seconds from settings.
+///
+/// Inputs: None
+///
+/// Output: TTL in seconds (defaults to 7 days = 604800 seconds).
+///
+/// Details:
+/// - Reads `news_cache_ttl_days` from settings and converts to seconds.
+/// - Minimum is 1 day to prevent excessive network requests.
+fn disk_cache_ttl_seconds() -> i64 {
+    let days = crate::theme::settings().news_cache_ttl_days.max(1);
+    i64::from(days) * 86400 // days to seconds
+}
+
+/// What: Get the path to a disk cache file for a specific source.
+///
+/// Inputs:
+/// - `source`: Cache source identifier (`"arch_news"` or `"advisories"`).
+///
+/// Output:
+/// - `PathBuf` to the cache file.
+fn disk_cache_path(source: &str) -> std::path::PathBuf {
+    crate::theme::lists_dir().join(format!("{source}_cache.json"))
+}
+
+/// What: Load cached data from disk if available and not expired.
+///
+/// Inputs:
+/// - `source`: Cache source identifier.
+///
+/// Output:
+/// - `Some(Vec<NewsFeedItem>)` if valid cache exists, `None` otherwise.
+///
+/// Details:
+/// - Returns `None` if file doesn't exist, is corrupted, or cache is older than configured TTL.
+fn load_from_disk_cache(source: &str) -> Option<Vec<NewsFeedItem>> {
+    let path = disk_cache_path(source);
+    let content = std::fs::read_to_string(&path).ok()?;
+    let entry: DiskCacheEntry = serde_json::from_str(&content).ok()?;
+    let now = chrono::Utc::now().timestamp();
+    let age = now - entry.saved_at;
+    let ttl = disk_cache_ttl_seconds();
+    if age < ttl {
+        info!(
+            source,
+            items = entry.data.len(),
+            age_hours = age / 3600,
+            ttl_days = ttl / 86400,
+            "loaded from disk cache"
+        );
+        Some(entry.data)
+    } else {
+        debug!(
+            source,
+            age_hours = age / 3600,
+            ttl_days = ttl / 86400,
+            "disk cache expired"
+        );
+        None
+    }
+}
+
+/// What: Save data to disk cache with current timestamp.
+///
+/// Inputs:
+/// - `source`: Cache source identifier.
+/// - `data`: News feed items to cache.
+///
+/// Details:
+/// - Writes to disk asynchronously to avoid blocking.
+/// - Logs errors but does not propagate them.
+fn save_to_disk_cache(source: &str, data: &[NewsFeedItem]) {
+    let entry = DiskCacheEntry {
+        data: data.to_vec(),
+        saved_at: chrono::Utc::now().timestamp(),
+    };
+    let path = disk_cache_path(source);
+    match serde_json::to_string_pretty(&entry) {
+        Ok(json) => {
+            if let Err(e) = std::fs::write(&path, json) {
+                warn!(error = %e, source, "failed to write disk cache");
+            } else {
+                debug!(source, items = data.len(), "saved to disk cache");
+            }
+        }
+        Err(e) => warn!(error = %e, source, "failed to serialize disk cache"),
+    }
+}
+
+/// Rate limiter for news feed network requests.
+/// Tracks the last request time to enforce minimum delay between requests.
+static RATE_LIMITER: LazyLock<Mutex<Instant>> = LazyLock::new(|| Mutex::new(Instant::now()));
+/// Minimum delay between news feed network requests (100ms).
+const RATE_LIMIT_DELAY_MS: u64 = 100;
+
+/// Flag indicating a network error occurred during the last news fetch.
+/// This can be checked by the UI to show a toast message.
+static NETWORK_ERROR_FLAG: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+/// What: Check and clear the network error flag.
+///
+/// Inputs: None
+///
+/// Output: `true` if a network error occurred since the last check, `false` otherwise.
+///
+/// Details:
+/// - Atomically loads and clears the flag.
+/// - Used by the UI to show a toast when news fetch had network issues.
+#[must_use]
+pub fn take_network_error() -> bool {
+    NETWORK_ERROR_FLAG.swap(false, std::sync::atomic::Ordering::SeqCst)
+}
+
+/// What: Set the network error flag.
+///
+/// Inputs: None
+///
+/// Output: None
+///
+/// Details:
+/// - Called when a network error occurs during news fetching.
+fn set_network_error() {
+    NETWORK_ERROR_FLAG.store(true, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// What: Apply rate limiting before making a network request.
+///
+/// Inputs: None
+///
+/// Output: None (async sleep if needed)
+///
+/// Details:
+/// - Ensures minimum delay between network requests to avoid overwhelming servers.
+/// - Thread-safe via mutex guarding the last request timestamp.
+async fn rate_limit() {
+    let delay_needed = {
+        let mut last_request = match RATE_LIMITER.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        let elapsed = last_request.elapsed();
+        let min_delay = Duration::from_millis(RATE_LIMIT_DELAY_MS);
+        let delay = if elapsed < min_delay {
+            min_delay - elapsed
+        } else {
+            Duration::ZERO
+        };
+        *last_request = Instant::now();
+        delay
+    };
+    if !delay_needed.is_zero() {
+        tokio::time::sleep(delay_needed).await;
+    }
+}
+
 /// Result type alias for news feed fetching operations.
 type Result<T> = super::Result<T>;
+
+/// What: Calculate optimal `max_age_days` based on last startup timestamp.
+///
+/// Inputs:
+/// - `last_startup`: Optional timestamp in `YYYYMMDD:HHMMSS` format.
+/// - `default_max_age`: Default max age in days if no optimization applies.
+///
+/// Output:
+/// - Optimized `max_age_days` value, or `None` to fetch all.
+///
+/// Details:
+/// - If last startup was within 1 hour: use 1 day (recent data likely cached)
+/// - If last startup was within 24 hours: use 2 days
+/// - If last startup was within 7 days: use configured `max_age` or 7 days
+/// - Otherwise: use configured `max_age`
+/// - This reduces unnecessary fetching when the app was recently used.
+/// - NOTE: This only affects Arch news and advisories date filtering.
+///   Package updates are ALWAYS fetched fresh to detect new packages and version changes.
+#[must_use]
+pub fn optimize_max_age_for_startup(
+    last_startup: Option<&str>,
+    default_max_age: Option<u32>,
+) -> Option<u32> {
+    let Some(ts) = last_startup else {
+        // No previous startup recorded, use default
+        return default_max_age;
+    };
+
+    // Parse timestamp: YYYYMMDD:HHMMSS
+    let parsed = chrono::NaiveDateTime::parse_from_str(ts, "%Y%m%d:%H%M%S").ok();
+    let Some(last_dt) = parsed else {
+        debug!(timestamp = %ts, "failed to parse last startup timestamp");
+        return default_max_age;
+    };
+
+    let now = chrono::Local::now().naive_local();
+    let elapsed = now.signed_duration_since(last_dt);
+
+    if elapsed.num_hours() < 1 {
+        // Very recent startup (< 1 hour): minimal fresh fetch needed
+        info!(
+            hours_since_last = elapsed.num_hours(),
+            "recent startup detected, using minimal fetch window"
+        );
+        Some(1)
+    } else if elapsed.num_hours() < 24 {
+        // Within last day: use 2 days to be safe
+        info!(
+            hours_since_last = elapsed.num_hours(),
+            "startup within 24h, using 2-day fetch window"
+        );
+        Some(2)
+    } else if elapsed.num_days() < 7 {
+        // Within last week: use configured or 7 days
+        let optimized = default_max_age.map_or(7, |d| d.min(7));
+        info!(
+            days_since_last = elapsed.num_days(),
+            optimized_max_age = optimized,
+            "startup within 7 days, using optimized fetch window"
+        );
+        Some(optimized)
+    } else {
+        // More than a week: use configured max_age
+        default_max_age
+    }
+}
 
 /// What: Input context for fetching a combined news feed.
 ///
@@ -25,12 +275,14 @@ type Result<T> = super::Result<T>;
 /// - `sort_mode`: Sort order.
 /// - `seen_pkg_versions`: Last-seen map for package updates.
 /// - `seen_aur_comments`: Last-seen map for AUR comments.
+/// - `max_age_days`: Optional maximum age in days for filtering items (enables early filtering).
 ///
 /// Output:
 /// - Mutable references updated in place alongside returned feed items.
 ///
 /// Details:
 /// - Hashers are generic to remain compatible with caller-supplied maps.
+/// - `max_age_days` enables early date filtering during fetch to improve performance.
 #[allow(clippy::struct_excessive_bools)]
 pub struct NewsFeedContext<'a, HS, HV, HC>
 where
@@ -62,67 +314,174 @@ where
     pub seen_pkg_versions: &'a mut HashMap<String, String, HV>,
     /// Last-seen AUR comments map (updated in place).
     pub seen_aur_comments: &'a mut HashMap<String, String, HC>,
+    /// Optional maximum age in days for early date filtering during fetch.
+    pub max_age_days: Option<u32>,
 }
 
-/// What: Append Arch news items when enabled.
+/// What: Fetch Arch news items with optional early date filtering and caching.
 ///
 /// Inputs:
-/// - `include_arch_news`: Toggle to include Arch news.
 /// - `limit`: Maximum items to fetch.
-/// - `items`: Accumulator to extend.
+/// - `cutoff_date`: Optional date string (YYYY-MM-DD) for early filtering.
 ///
-/// Output: Result indicating success/failure of fetch; always extends items when successful.
-async fn append_arch_news(
-    include_arch_news: bool,
-    limit: usize,
-    items: &mut Vec<NewsFeedItem>,
-) -> Result<()> {
-    if !include_arch_news {
-        return Ok(());
+/// Output: Vector of `NewsFeedItem` representing Arch news.
+///
+/// Details:
+/// - If `cutoff_date` is provided, stops fetching when items exceed the date limit.
+/// - Uses in-memory cache with 5-minute TTL to avoid redundant fetches.
+/// - Falls back to disk cache (24-hour TTL) if in-memory cache misses.
+/// - Saves fetched data to both in-memory and disk caches.
+async fn append_arch_news(limit: usize, cutoff_date: Option<&str>) -> Result<Vec<NewsFeedItem>> {
+    const SOURCE: &str = "arch_news";
+
+    // 1. Check in-memory cache first (fastest, 5-minute TTL)
+    if cutoff_date.is_none()
+        && let Ok(cache) = NEWS_CACHE.lock()
+        && let Some(entry) = cache.get(SOURCE)
+        && entry.timestamp.elapsed().as_secs() < CACHE_TTL_SECONDS
+    {
+        info!("using in-memory cached arch news");
+        return Ok(entry.data.clone());
     }
-    match super::fetch_arch_news(limit).await {
-        Ok(news) => items.extend(news.into_iter().map(|n| NewsFeedItem {
-            id: n.url.clone(),
-            date: n.date,
-            title: n.title,
-            summary: None,
-            url: Some(n.url),
-            source: NewsFeedSource::ArchNews,
-            severity: None,
-            packages: Vec::new(),
-        })),
+
+    // 2. Check disk cache (24-hour TTL) - useful after app restart
+    if cutoff_date.is_none()
+        && let Some(disk_data) = load_from_disk_cache(SOURCE)
+    {
+        // Populate in-memory cache from disk
+        if let Ok(mut cache) = NEWS_CACHE.lock() {
+            cache.insert(
+                SOURCE.to_string(),
+                CacheEntry {
+                    data: disk_data.clone(),
+                    timestamp: Instant::now(),
+                },
+            );
+        }
+        return Ok(disk_data);
+    }
+
+    // 3. Fetch from network
+    rate_limit().await;
+    match super::fetch_arch_news(limit, cutoff_date).await {
+        Ok(news) => {
+            let items: Vec<NewsFeedItem> = news
+                .into_iter()
+                .map(|n| NewsFeedItem {
+                    id: n.url.clone(),
+                    date: n.date,
+                    title: n.title,
+                    summary: None,
+                    url: Some(n.url),
+                    source: NewsFeedSource::ArchNews,
+                    severity: None,
+                    packages: Vec::new(),
+                })
+                .collect();
+            // Cache the result (only if no cutoff_date)
+            if cutoff_date.is_none() {
+                // Save to in-memory cache
+                if let Ok(mut cache) = NEWS_CACHE.lock() {
+                    cache.insert(
+                        SOURCE.to_string(),
+                        CacheEntry {
+                            data: items.clone(),
+                            timestamp: Instant::now(),
+                        },
+                    );
+                }
+                // Save to disk cache for persistence across restarts
+                save_to_disk_cache(SOURCE, &items);
+            }
+            Ok(items)
+        }
         Err(e) => {
-            warn!(error = %e, "arch news fetch failed; continuing without Arch news");
+            warn!(error = %e, "arch news fetch failed");
+            set_network_error();
+            // Graceful degradation: try in-memory cache first
+            if let Ok(cache) = NEWS_CACHE.lock()
+                && let Some(entry) = cache.get(SOURCE)
+            {
+                info!(
+                    cached_items = entry.data.len(),
+                    age_secs = entry.timestamp.elapsed().as_secs(),
+                    "using stale in-memory cached arch news due to fetch failure"
+                );
+                return Ok(entry.data.clone());
+            }
+            // Then try disk cache (ignores TTL for fallback)
+            if let Some(disk_data) = load_from_disk_cache(SOURCE) {
+                info!(
+                    cached_items = disk_data.len(),
+                    "using disk cached arch news due to fetch failure"
+                );
+                return Ok(disk_data);
+            }
+            Err(e)
         }
     }
-    Ok(())
 }
 
-/// What: Append security advisories when enabled, respecting installed-only filter.
+/// What: Fetch security advisories with optional early date filtering and caching.
 ///
 /// Inputs:
-/// - `include_advisories`: Toggle to include advisories.
 /// - `limit`: Maximum items to fetch.
 /// - `installed_filter`: Optional installed set for filtering.
 /// - `installed_only`: Whether to drop advisories unrelated to installed packages.
-/// - `items`: Accumulator to extend.
+/// - `cutoff_date`: Optional date string (YYYY-MM-DD) for early filtering.
 ///
-/// Output: Result indicating success/failure of fetch; always extends items when successful.
+/// Output: Vector of `NewsFeedItem` representing security advisories.
+///
+/// Details:
+/// - If `cutoff_date` is provided, stops fetching when items exceed the date limit.
+/// - Uses in-memory cache with 5-minute TTL to avoid redundant fetches.
+/// - Falls back to disk cache (24-hour TTL) if in-memory cache misses.
+/// - Note: Cache key includes `installed_only` flag to handle different filtering needs.
 async fn append_advisories<S>(
-    include_advisories: bool,
     limit: usize,
     installed_filter: Option<&HashSet<String, S>>,
     installed_only: bool,
-    items: &mut Vec<NewsFeedItem>,
-) -> Result<()>
+    cutoff_date: Option<&str>,
+) -> Result<Vec<NewsFeedItem>>
 where
     S: BuildHasher + Send + Sync + 'static,
 {
-    if !include_advisories {
-        return Ok(());
+    const SOURCE: &str = "advisories";
+
+    // 1. Check in-memory cache first (fastest, 5-minute TTL)
+    if cutoff_date.is_none()
+        && !installed_only
+        && let Ok(cache) = NEWS_CACHE.lock()
+        && let Some(entry) = cache.get(SOURCE)
+        && entry.timestamp.elapsed().as_secs() < CACHE_TTL_SECONDS
+    {
+        info!("using in-memory cached advisories");
+        return Ok(entry.data.clone());
     }
-    match super::fetch_security_advisories(limit).await {
+
+    // 2. Check disk cache (24-hour TTL) - useful after app restart
+    if cutoff_date.is_none()
+        && !installed_only
+        && let Some(disk_data) = load_from_disk_cache(SOURCE)
+    {
+        // Populate in-memory cache from disk
+        if let Ok(mut cache) = NEWS_CACHE.lock() {
+            cache.insert(
+                SOURCE.to_string(),
+                CacheEntry {
+                    data: disk_data.clone(),
+                    timestamp: Instant::now(),
+                },
+            );
+        }
+        return Ok(disk_data);
+    }
+
+    // 3. Fetch from network
+    rate_limit().await;
+    match super::fetch_security_advisories(limit, cutoff_date).await {
         Ok(advisories) => {
+            let mut filtered = Vec::new();
             for adv in advisories {
                 if installed_only
                     && let Some(set) = installed_filter
@@ -130,17 +489,54 @@ where
                 {
                     continue;
                 }
-                items.push(adv);
+                filtered.push(adv);
             }
+            // Cache the result (only if no cutoff_date and not installed_only)
+            if cutoff_date.is_none() && !installed_only {
+                // Save to in-memory cache
+                if let Ok(mut cache) = NEWS_CACHE.lock() {
+                    cache.insert(
+                        SOURCE.to_string(),
+                        CacheEntry {
+                            data: filtered.clone(),
+                            timestamp: Instant::now(),
+                        },
+                    );
+                }
+                // Save to disk cache for persistence across restarts
+                save_to_disk_cache(SOURCE, &filtered);
+            }
+            Ok(filtered)
         }
         Err(e) => {
-            warn!(error = %e, "security advisories fetch failed; continuing without advisories");
+            warn!(error = %e, "security advisories fetch failed");
+            set_network_error();
+            // Graceful degradation: try in-memory cache first
+            if let Ok(cache) = NEWS_CACHE.lock()
+                && let Some(entry) = cache.get(SOURCE)
+            {
+                info!(
+                    cached_items = entry.data.len(),
+                    age_secs = entry.timestamp.elapsed().as_secs(),
+                    "using stale in-memory cached advisories due to fetch failure"
+                );
+                return Ok(entry.data.clone());
+            }
+            // Then try disk cache (ignores TTL for fallback)
+            if let Some(disk_data) = load_from_disk_cache(SOURCE) {
+                info!(
+                    cached_items = disk_data.len(),
+                    "using disk cached advisories due to fetch failure"
+                );
+                return Ok(disk_data);
+            }
+            Err(e)
         }
     }
-    Ok(())
 }
 
 /// What: Fetch combined news feed (Arch news, advisories, installed updates, AUR comments) and sort.
+#[allow(clippy::too_many_lines)]
 ///
 /// Inputs:
 /// - `limit`: Maximum items per source (best-effort).
@@ -187,6 +583,7 @@ where
         seen_aur_comments,
         force_emit_all,
         updates_list_path,
+        max_age_days,
     } = ctx;
     info!(
         limit,
@@ -197,68 +594,171 @@ where
         installed_only,
         installed_filter = installed_filter.is_some(),
         sort_mode = ?sort_mode,
+        max_age_days,
         "fetch_news_feed start"
     );
-    let mut items: Vec<NewsFeedItem> = Vec::new();
-    append_arch_news(include_arch_news, limit, &mut items).await?;
-    append_advisories(
-        include_advisories,
-        limit,
-        installed_filter,
-        installed_only,
-        &mut items,
-    )
-    .await?;
+    // Calculate cutoff date for early filtering if max_age_days is set
+    let cutoff_date = max_age_days.and_then(|days| {
+        chrono::Utc::now()
+            .checked_sub_signed(chrono::Duration::days(i64::from(days)))
+            .map(|dt| dt.format("%Y-%m-%d").to_string())
+    });
+
     let updates_versions = if force_emit_all {
         load_update_versions(updates_list_path.as_ref())
     } else {
         None
     };
 
-    if include_pkg_updates {
-        if let Some(installed) = installed_filter {
-            if installed.is_empty() {
-                warn!("include_pkg_updates set but installed set is empty; skipping updates");
+    // Fetch all sources in parallel
+    info!(
+        "starting parallel fetch: arch_news={include_arch_news}, advisories={include_advisories}, pkg_updates={include_pkg_updates}, aur_comments={include_aur_comments}"
+    );
+    let (arch_result, advisories_result, updates_result, comments_result) = tokio::join!(
+        async {
+            if include_arch_news {
+                info!("fetching arch news...");
+                let result = append_arch_news(limit, cutoff_date.as_deref()).await;
+                info!(
+                    "arch news fetch completed: items={}",
+                    result.as_ref().map(Vec::len).unwrap_or(0)
+                );
+                result
             } else {
-                match fetch_installed_updates(
-                    installed,
+                Ok::<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>(Vec::new())
+            }
+        },
+        async {
+            if include_advisories {
+                info!("fetching advisories...");
+                let result = append_advisories(
                     limit,
-                    seen_pkg_versions,
-                    force_emit_all,
-                    updates_versions.as_ref(),
+                    installed_filter,
+                    installed_only,
+                    cutoff_date.as_deref(),
                 )
-                .await
-                {
-                    Ok(updates) => {
-                        items.extend(updates);
+                .await;
+                info!(
+                    "advisories fetch completed: items={}",
+                    result.as_ref().map(Vec::len).unwrap_or(0)
+                );
+                result
+            } else {
+                Ok::<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>(Vec::new())
+            }
+        },
+        async {
+            if include_pkg_updates {
+                if let Some(installed) = installed_filter {
+                    if installed.is_empty() {
+                        warn!(
+                            "include_pkg_updates set but installed set is empty; skipping updates"
+                        );
+                        Ok::<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>(Vec::new())
+                    } else {
+                        info!(
+                            "fetching package updates: installed_count={}, limit={}",
+                            installed.len(),
+                            limit
+                        );
+                        let result = fetch_installed_updates(
+                            installed,
+                            limit,
+                            seen_pkg_versions,
+                            force_emit_all,
+                            updates_versions.as_ref(),
+                        )
+                        .await;
+                        match &result {
+                            Ok(updates) => {
+                                info!("package updates fetch completed: items={}", updates.len());
+                            }
+                            Err(e) => {
+                                warn!(error = %e, "installed package updates fetch failed");
+                            }
+                        }
+                        match result {
+                            Ok(updates) => Ok(updates),
+                            Err(_e) => Ok::<
+                                Vec<NewsFeedItem>,
+                                Box<dyn std::error::Error + Send + Sync>,
+                            >(Vec::new()),
+                        }
                     }
-                    Err(e) => warn!(error = %e, "installed package updates fetch failed"),
+                } else {
+                    warn!("include_pkg_updates set but installed_filter missing; skipping updates");
+                    Ok::<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>(Vec::new())
                 }
-            }
-        } else {
-            warn!("include_pkg_updates set but installed_filter missing; skipping updates");
-        }
-    }
-    if include_aur_comments {
-        if let Some(installed) = installed_filter {
-            if installed.is_empty() {
-                warn!("include_aur_comments set but installed set is empty; skipping comments");
             } else {
-                match fetch_installed_aur_comments(
-                    installed,
-                    limit,
-                    seen_aur_comments,
-                    force_emit_all,
-                )
-                .await
-                {
-                    Ok(comments) => items.extend(comments),
-                    Err(e) => warn!(error = %e, "installed AUR comments fetch failed"),
-                }
+                Ok::<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>(Vec::new())
             }
-        } else {
-            warn!("include_aur_comments set but installed_filter missing; skipping comments");
+        },
+        async {
+            if include_aur_comments {
+                if let Some(installed) = installed_filter {
+                    if installed.is_empty() {
+                        warn!(
+                            "include_aur_comments set but installed set is empty; skipping comments"
+                        );
+                        Ok::<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>(Vec::new())
+                    } else {
+                        info!(
+                            "fetching AUR comments: installed_count={}, limit={}",
+                            installed.len(),
+                            limit
+                        );
+                        let result = fetch_installed_aur_comments(
+                            installed,
+                            limit,
+                            seen_aur_comments,
+                            force_emit_all,
+                        )
+                        .await;
+                        match &result {
+                            Ok(comments) => {
+                                info!("AUR comments fetch completed: items={}", comments.len());
+                            }
+                            Err(e) => {
+                                warn!(error = %e, "installed AUR comments fetch failed");
+                            }
+                        }
+                        match result {
+                            Ok(comments) => Ok(comments),
+                            Err(_e) => Ok::<
+                                Vec<NewsFeedItem>,
+                                Box<dyn std::error::Error + Send + Sync>,
+                            >(Vec::new()),
+                        }
+                    }
+                } else {
+                    warn!(
+                        "include_aur_comments set but installed_filter missing; skipping comments"
+                    );
+                    Ok::<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>(Vec::new())
+                }
+            } else {
+                Ok::<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>(Vec::new())
+            }
         }
+    );
+    info!("parallel fetch completed, combining results...");
+
+    let mut items: Vec<NewsFeedItem> = Vec::new();
+    match arch_result {
+        Ok(mut arch_items) => items.append(&mut arch_items),
+        Err(e) => warn!(error = %e, "arch news fetch failed; continuing without Arch news"),
+    }
+    match advisories_result {
+        Ok(mut adv_items) => items.append(&mut adv_items),
+        Err(e) => warn!(error = %e, "advisories fetch failed; continuing without advisories"),
+    }
+    match updates_result {
+        Ok(mut upd_items) => items.append(&mut upd_items),
+        Err(e) => warn!(error = %e, "updates fetch failed; continuing without updates"),
+    }
+    match comments_result {
+        Ok(mut cmt_items) => items.append(&mut cmt_items),
+        Err(e) => warn!(error = %e, "comments fetch failed; continuing without comments"),
     }
     sort_news_items(&mut items, sort_mode);
     info!(
@@ -325,6 +825,8 @@ fn sort_news_items(items: &mut [NewsFeedItem], mode: NewsSortMode) {
 ///
 /// Details:
 /// - Emits when last-seen is missing or differs; updates maps for persistence.
+/// - New packages (not previously tracked) are always emitted regardless of optimization settings.
+#[allow(clippy::too_many_lines)]
 async fn fetch_installed_updates<HS, HV>(
     installed: &HashSet<String, HS>,
     limit: usize,
@@ -336,13 +838,42 @@ where
     HS: BuildHasher + Send + Sync + 'static,
     HV: BuildHasher + Send + Sync + 'static,
 {
+    #[derive(Clone)]
+    /// Helper container for official package update processing with bounded concurrency.
+    struct OfficialCandidate {
+        /// Original order in the installed list to keep stable rendering.
+        order: usize,
+        /// Package metadata from the official index.
+        pkg: crate::state::PackageItem,
+        /// Previously seen version (if any).
+        last_seen: Option<String>,
+        /// Old version string captured from updates list (if available).
+        old_version: Option<String>,
+        /// Current remote version.
+        remote_version: String,
+    }
+
+    debug!(
+        "fetch_installed_updates: starting, installed_count={}, limit={}, force_emit_all={}",
+        installed.len(),
+        limit,
+        force_emit_all
+    );
     let mut items = Vec::new();
     let mut remaining = limit;
     let mut aur_candidates: Vec<String> = Vec::new();
     let mut installed_sorted: Vec<String> = installed.iter().cloned().collect();
     installed_sorted.sort();
     let mut baseline_only = 0usize;
+    let mut official_candidates: Vec<OfficialCandidate> = Vec::new();
 
+    debug!(
+        "fetch_installed_updates: processing {} installed packages",
+        installed_sorted.len()
+    );
+    // Track new packages (not previously seen) vs updated packages
+    let mut new_packages = 0usize;
+    let mut updated_packages = 0usize;
     for name in installed_sorted {
         if let Some(pkg) = crate::index::find_package_by_name(&name) {
             let (old_version_opt, remote_version) = updates_versions
@@ -352,19 +883,25 @@ where
                 });
             let remote_version = remote_version.to_string();
             let last_seen = seen_pkg_versions.insert(pkg.name.clone(), remote_version.clone());
+            let is_new_package = last_seen.is_none();
+            let has_version_change = last_seen.as_ref() != Some(&remote_version);
             let allow = updates_versions.is_none_or(|m| m.contains_key(&pkg.name));
-            let should_emit = remaining > 0
-                && allow
-                && (force_emit_all || last_seen.as_ref() != Some(&remote_version));
+            // Always emit new packages (not previously tracked) and version changes
+            let should_emit = remaining > 0 && allow && (force_emit_all || has_version_change);
             if should_emit {
-                let pkg_date = fetch_official_package_date(&pkg).await;
-                items.push(build_official_update_item(
-                    &pkg,
-                    last_seen.as_ref(),
-                    old_version_opt,
-                    &remote_version,
-                    pkg_date,
-                ));
+                if is_new_package {
+                    new_packages = new_packages.saturating_add(1);
+                } else if has_version_change {
+                    updated_packages = updated_packages.saturating_add(1);
+                }
+                let order = official_candidates.len();
+                official_candidates.push(OfficialCandidate {
+                    order,
+                    pkg: pkg.clone(),
+                    last_seen,
+                    old_version: old_version_opt.map(str::to_string),
+                    remote_version,
+                });
                 remaining = remaining.saturating_sub(1);
             } else {
                 baseline_only = baseline_only.saturating_add(1);
@@ -373,12 +910,67 @@ where
             aur_candidates.push(name);
         }
     }
+    info!(
+        "fetch_installed_updates: official scan complete, new_packages={}, updated_packages={}, baseline_only={}",
+        new_packages, updated_packages, baseline_only
+    );
+
+    // Fetch official package dates with bounded concurrency to avoid long sequential waits.
+    if !official_candidates.is_empty() {
+        debug!(
+            "fetch_installed_updates: fetching dates for {} official packages with bounded concurrency",
+            official_candidates.len()
+        );
+        let mut official_items = stream::iter(official_candidates)
+            .map(|candidate| async move {
+                let date = fetch_official_package_date(&candidate.pkg).await;
+                (
+                    candidate.order,
+                    build_official_update_item(
+                        &candidate.pkg,
+                        candidate.last_seen.as_ref(),
+                        candidate.old_version.as_deref(),
+                        &candidate.remote_version,
+                        date,
+                    ),
+                )
+            })
+            .buffer_unordered(5)
+            .collect::<Vec<_>>()
+            .await;
+        official_items.sort_by_key(|(order, _)| *order);
+        for (_, item) in official_items {
+            items.push(item);
+        }
+        debug!(
+            "fetch_installed_updates: official packages processed, items={}, aur_candidates={}, remaining={}",
+            items.len(),
+            aur_candidates.len(),
+            remaining
+        );
+    }
 
     if remaining == 0 || aur_candidates.is_empty() {
+        debug!(
+            "fetch_installed_updates: returning early, remaining={}, aur_candidates_empty={}",
+            remaining,
+            aur_candidates.is_empty()
+        );
         return Ok(items);
     }
 
+    debug!(
+        "fetch_installed_updates: fetching AUR versions for {} candidates",
+        aur_candidates.len()
+    );
     let aur_info = fetch_aur_versions(&aur_candidates).await?;
+    debug!(
+        "fetch_installed_updates: fetched {} AUR package versions",
+        aur_info.len()
+    );
+    // Track new AUR packages vs updated ones
+    let mut aur_new_packages = 0usize;
+    let mut aur_updated_packages = 0usize;
     for pkg in aur_info {
         if remaining == 0 {
             break;
@@ -390,11 +982,17 @@ where
             });
         let remote_version = remote_version.to_string();
         let last_seen = seen_pkg_versions.insert(pkg.name.clone(), remote_version.clone());
+        let is_new_package = last_seen.is_none();
+        let has_version_change = last_seen.as_ref() != Some(&remote_version);
         let allow = updates_versions.is_none_or(|m| m.contains_key(&pkg.name));
-        let should_emit = remaining > 0
-            && allow
-            && (force_emit_all || last_seen.as_ref() != Some(&remote_version));
+        // Always emit new packages (not previously tracked) and version changes
+        let should_emit = remaining > 0 && allow && (force_emit_all || has_version_change);
         if should_emit {
+            if is_new_package {
+                aur_new_packages = aur_new_packages.saturating_add(1);
+            } else if has_version_change {
+                aur_updated_packages = aur_updated_packages.saturating_add(1);
+            }
             items.push(build_aur_update_item(
                 &pkg,
                 last_seen.as_ref(),
@@ -407,8 +1005,12 @@ where
         }
     }
 
-    debug!(
+    info!(
         emitted = items.len(),
+        new_packages,
+        updated_packages,
+        aur_new_packages,
+        aur_updated_packages,
         baseline_only,
         installed_total = installed.len(),
         aur_candidates = aur_candidates.len(),
@@ -642,22 +1244,30 @@ async fn fetch_official_package_date(pkg: &crate::state::PackageItem) -> Option<
         "https://archlinux.org/packages/{repo_slug}/{arch_slug}/{name}/json/",
         name = pkg.name
     );
-    match tokio::task::spawn_blocking({
-        let url = url.clone();
-        move || crate::util::curl::curl_json(&url)
-    })
+    // Add a short timeout to prevent hanging on slow/unresponsive requests
+    match tokio::time::timeout(
+        tokio::time::Duration::from_millis(1000),
+        tokio::task::spawn_blocking({
+            let url = url.clone();
+            move || crate::util::curl::curl_json(&url)
+        }),
+    )
     .await
     {
-        Ok(Ok(json)) => {
+        Ok(Ok(Ok(json))) => {
             let obj = json.get("pkg").unwrap_or(&json);
             extract_date_from_pkg_json(obj)
         }
-        Ok(Err(e)) => {
+        Ok(Ok(Err(e))) => {
             warn!(error = %e, package = %pkg.name, "failed to fetch official package date");
             None
         }
-        Err(e) => {
+        Ok(Err(e)) => {
             warn!(error = ?e, package = %pkg.name, "failed to join package date task");
+            None
+        }
+        Err(_) => {
+            debug!(package = %pkg.name, "timeout fetching official package date");
             None
         }
     }
@@ -736,6 +1346,8 @@ async fn fetch_aur_versions(pkgnames: &[String]) -> Result<Vec<AurVersionInfo>> 
         .collect::<Vec<String>>()
         .join("&");
     let url = format!("https://aur.archlinux.org/rpc/v5/info?{args}");
+    // Apply rate limiting before network request
+    rate_limit().await;
     let resp = tokio::task::spawn_blocking(move || crate::util::curl::curl_json(&url)).await??;
     let results = resp
         .get("results")

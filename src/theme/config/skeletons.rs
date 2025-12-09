@@ -331,6 +331,23 @@ news_filter_installed_only = false\n\
 # Allowed values: number of days | all\n\
 news_max_age_days = 30\n\
 \n\
+# Startup News Popup Configuration\n\
+# Whether startup news popup setup has been completed\n\
+startup_news_configured = false\n\
+# News sources to show in startup popup\n\
+startup_news_show_arch_news = true\n\
+startup_news_show_advisories = true\n\
+startup_news_show_aur_updates = true\n\
+startup_news_show_aur_comments = true\n\
+startup_news_show_pkg_updates = true\n\
+# Maximum age of news items in days for startup popup (7, 30, or 90)\n\
+startup_news_max_age_days = 7\n\
+\n\
+# News Cache\n\
+# How many days to keep Arch news and advisories cached on disk.\n\
+# Reduces network requests on startup. Default is 7 days.\n\
+news_cache_ttl_days = 7\n\
+\n\
 # VirusTotal\n\
 # API key used for VirusTotal scans (optional)\n\
 virustotal_api_key = \n\

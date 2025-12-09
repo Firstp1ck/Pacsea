@@ -467,6 +467,18 @@ hu-HU:
           updates: " Elérhető frissítések megnyitása"
       news:
         title: " Hírek "
+        keybinds_hint: "TODO: translate to hungarian - Up/Down/K/J: navigate  •  Enter: open  • {}: mark read  • {}: mark all read  •  Esc/Q: close"
+      loading:
+        news: "TODO: translate to hungarian - Loading news..."
+      news_setup:
+        title: "TODO: translate to hungarian - News Popup Setup"
+        arch_news: "TODO: translate to hungarian - Arch News"
+        advisories: "TODO: translate to hungarian - Advisories - Official Security News"
+        aur_updates: "TODO: translate to hungarian - AUR Updates"
+        aur_comments: "TODO: translate to hungarian - AUR Comments"
+        pkg_updates: "TODO: translate to hungarian - Official Package Updates"
+        date_selection: "TODO: translate to hungarian - Maximum age"
+        footer_hint: "TODO: translate to hungarian - Up/Down: select  •  Space: toggle  •  Enter: save  •  Esc: cancel"
         heading: "Arch Linux hírek"
         none: "Nincsenek elérhető hírek."
         footer_hint: "Fel/Le: kiválasztás • Enter: megnyitás • {}: megjelölés olvasottként • {}: összes megjelölése olvasottként • Esc: bezárás"

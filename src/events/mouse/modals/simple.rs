@@ -3,6 +3,44 @@
 use crate::state::AppState;
 use crossterm::event::{MouseEvent, MouseEventKind};
 
+/// What: Calculate scroll offset to keep the selected item in the middle of the viewport.
+///
+/// Inputs:
+/// - `selected`: Currently selected item index
+/// - `total_items`: Total number of items in the list
+/// - `visible_height`: Height of the visible content area (in lines)
+///
+/// Output:
+/// - Scroll offset (lines) that centers the selected item
+///
+/// Details:
+/// - Calculates scroll so selected item is in the middle of visible area
+/// - Ensures scroll doesn't go negative or past the end
+fn calculate_news_scroll_for_selection(
+    selected: usize,
+    total_items: usize,
+    visible_height: u16,
+) -> u16 {
+    if total_items == 0 || visible_height == 0 {
+        return 0;
+    }
+
+    let selected_line = u16::try_from(selected).unwrap_or(u16::MAX);
+    let total_lines = u16::try_from(total_items).unwrap_or(u16::MAX);
+
+    // Calculate middle position: we want selected item to be at visible_height / 2
+    let middle_offset = visible_height / 2;
+
+    // Calculate desired scroll to center the selection
+    let desired_scroll = selected_line.saturating_sub(middle_offset);
+
+    // Calculate maximum scroll (when last item is at the bottom)
+    let max_scroll = total_lines.saturating_sub(visible_height);
+
+    // Clamp scroll to valid range
+    desired_scroll.min(max_scroll)
+}
+
 /// Handle mouse events for the Help modal.
 ///
 /// What: Process mouse interactions within the Help modal dialog.
@@ -202,7 +240,12 @@ pub(super) fn handle_news_modal(
     is_left_down: bool,
     app: &mut AppState,
 ) -> Option<bool> {
-    if let crate::state::Modal::News { items, selected } = &mut app.modal {
+    if let crate::state::Modal::News {
+        items,
+        selected,
+        scroll,
+    } = &mut app.modal
+    {
         // Left click: select/open or close on outside
         if is_left_down {
             if let Some((x, y, w, h)) = app.news_list_rect
@@ -211,12 +254,18 @@ pub(super) fn handle_news_modal(
                 && my >= y
                 && my < y + h
             {
-                let row = my.saturating_sub(y) as usize;
+                // Calculate clicked row accounting for scroll offset
+                let relative_y = my.saturating_sub(y);
+                let clicked_row = (relative_y as usize).saturating_add(*scroll as usize);
                 // Only open if clicking on an actual news item line (not empty space)
-                if row < items.len() {
-                    *selected = row;
-                    if let Some(it) = items.get(*selected) {
-                        crate::util::open_url(&it.url);
+                if clicked_row < items.len() {
+                    *selected = clicked_row;
+                    // Update scroll to keep selection centered
+                    *scroll = calculate_news_scroll_for_selection(*selected, items.len(), h);
+                    if let Some(it) = items.get(*selected)
+                        && let Some(url) = &it.url
+                    {
+                        crate::util::open_url(url);
                     }
                 }
             } else if let Some((x, y, w, h)) = app.news_rect
@@ -232,12 +281,22 @@ pub(super) fn handle_news_modal(
             MouseEventKind::ScrollUp => {
                 if *selected > 0 {
                     *selected -= 1;
+                    // Update scroll to keep selection centered
+                    if let Some((_, _, _, visible_h)) = app.news_list_rect {
+                        *scroll =
+                            calculate_news_scroll_for_selection(*selected, items.len(), visible_h);
+                    }
                 }
                 return Some(false);
             }
             MouseEventKind::ScrollDown => {
                 if *selected + 1 < items.len() {
                     *selected += 1;
+                    // Update scroll to keep selection centered
+                    if let Some((_, _, _, visible_h)) = app.news_list_rect {
+                        *scroll =
+                            calculate_news_scroll_for_selection(*selected, items.len(), visible_h);
+                    }
                 }
                 return Some(false);
             }
