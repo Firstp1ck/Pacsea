@@ -27,12 +27,18 @@ type Result<T> = super::Result<T>;
 /// items exceed the date limit.
 pub async fn fetch_arch_news(limit: usize, cutoff_date: Option<&str>) -> Result<Vec<NewsItem>> {
     let url = "https://archlinux.org/feeds/news/";
-    let body = tokio::task::spawn_blocking(move || crate::util::curl::curl_text(url))
-        .await?
-        .map_err(|e| {
-            warn!(error = %e, "failed to fetch arch news feed");
-            e
-        })?;
+    // Use shorter timeout (10s connect, 15s max) to avoid blocking on slow/unreachable servers
+    let body = tokio::task::spawn_blocking(move || {
+        crate::util::curl::curl_text_with_args(
+            url,
+            &["--connect-timeout", "10", "--max-time", "15"],
+        )
+    })
+    .await?
+    .map_err(|e| {
+        warn!(error = %e, "failed to fetch arch news feed");
+        e
+    })?;
     info!(bytes = body.len(), "fetched arch news feed");
     let mut items: Vec<NewsItem> = Vec::new();
     let mut pos = 0;
@@ -131,12 +137,18 @@ pub async fn fetch_news_content(url: &str) -> Result<String> {
 
     let url_owned = url.to_string();
     let url_for_log = url_owned.clone();
-    let body = tokio::task::spawn_blocking(move || crate::util::curl::curl_text(&url_owned))
-        .await?
-        .map_err(|e| {
-            warn!(error = %e, url = %url_for_log, "failed to fetch news content");
-            e
-        })?;
+    // Use shorter timeout (10s connect, 15s max) to avoid blocking on slow/unreachable servers
+    let body = tokio::task::spawn_blocking(move || {
+        crate::util::curl::curl_text_with_args(
+            &url_owned,
+            &["--connect-timeout", "10", "--max-time", "15"],
+        )
+    })
+    .await?
+    .map_err(|e| {
+        warn!(error = %e, url = %url_for_log, "failed to fetch news content");
+        e
+    })?;
     info!(url, bytes = body.len(), "fetched news page");
 
     // Extract article content from HTML
