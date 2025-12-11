@@ -370,6 +370,11 @@ pub fn save_news_filter_installed_only(value: bool) {
     save_boolean_key("news_filter_installed_only", value);
 }
 
+/// Persist whether news filters are collapsed behind the Filters button.
+pub fn save_news_filters_collapsed(value: bool) {
+    save_boolean_key("news_filters_collapsed", value);
+}
+
 /// Persist the maximum age of news items (None = all).
 pub fn save_news_max_age_days(value: Option<u32>) {
     let v = value.map_or_else(|| "all".to_string(), |d| d.to_string());

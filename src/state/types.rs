@@ -76,6 +76,29 @@ pub enum AdvisorySeverity {
     Critical,
 }
 
+/// What: Map advisory severity to a numeric rank for sorting (higher is worse).
+///
+/// Inputs:
+/// - `severity`: Optional advisory severity value.
+///
+/// Output:
+/// - Numeric rank where larger numbers indicate higher severity (Critical highest).
+///
+/// Details:
+/// - Returns `0` when severity is missing to ensure advisories without severity fall last.
+/// - Keeps ordering stable across both news feed sorting and advisory-specific listings.
+#[must_use]
+pub const fn severity_rank(severity: Option<AdvisorySeverity>) -> u8 {
+    match severity {
+        Some(AdvisorySeverity::Critical) => 5,
+        Some(AdvisorySeverity::High) => 4,
+        Some(AdvisorySeverity::Medium) => 3,
+        Some(AdvisorySeverity::Low) => 2,
+        Some(AdvisorySeverity::Unknown) => 1,
+        None => 0,
+    }
+}
+
 /// What: Sort options for news feed results.
 ///
 /// Inputs: None (enum variants)
@@ -94,6 +117,10 @@ pub enum NewsSortMode {
     Title,
     /// Group by source then title.
     SourceThenTitle,
+    /// Severity first (Critical..Unknown), then date (newest first).
+    SeverityThenDate,
+    /// Unread items first, then date (newest first).
+    UnreadThenDate,
 }
 
 /// What: Read filter applied to news feed items.

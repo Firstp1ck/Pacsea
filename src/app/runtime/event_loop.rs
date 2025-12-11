@@ -283,6 +283,9 @@ fn handle_news_content(app: &mut AppState, url: &str, content: String) {
         } else {
             Some(content)
         };
+    } else {
+        // Clear loading flag even if selection changed; a new request will be issued on next tick.
+        app.news_content_loading = false;
     }
 }
 
@@ -983,7 +986,7 @@ mod tests {
 
         handle_news_content(&mut app, "https://example.com/a", "old".to_string());
 
-        assert!(app.news_content_loading);
+        assert!(!app.news_content_loading);
         assert!(app.news_content.is_none());
         assert!(app.news_content_cache.contains_key("https://example.com/a"));
     }

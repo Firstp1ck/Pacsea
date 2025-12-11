@@ -335,6 +335,7 @@ fn render_news_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     let age_label = app
         .news_max_age_days
         .map_or_else(|| "All".to_string(), |d| format!("{d} Days"));
+    let sort_label = format!("{} v", i18n::t(app, "app.results.buttons.sort"));
     let date_label = format!("Date: {age_label}");
     let options_label = format!("{} v", i18n::t(app, "app.results.buttons.options"));
     let panels_label = format!("{} v", i18n::t(app, "app.results.buttons.panels"));
@@ -427,6 +428,7 @@ fn render_news_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     let aur_comments_width = u16::try_from(aur_comments_filter_label.width()).unwrap_or(u16::MAX);
     let read_width = u16::try_from(read_filter_label.width()).unwrap_or(u16::MAX);
     let date_width = u16::try_from(date_label.width()).unwrap_or(u16::MAX);
+    let sort_width = u16::try_from(sort_label.width()).unwrap_or(u16::MAX);
     let options_width = u16::try_from(options_label.width()).unwrap_or(u16::MAX);
     let panels_width = u16::try_from(panels_label.width()).unwrap_or(u16::MAX);
     let config_width = u16::try_from(config_label.width()).unwrap_or(u16::MAX);
@@ -440,6 +442,11 @@ fn render_news_results(f: &mut Frame, app: &mut AppState, area: Rect) {
         .saturating_add(1)
         .saturating_add(title_width)
         .saturating_add(2);
+
+    app.sort_button_rect = Some((x_cursor, area.y, sort_width, 1));
+    let sort_button_spans = render_button(&sort_label, app.sort_menu_open);
+    title_spans.extend(sort_button_spans);
+    x_cursor = x_cursor.saturating_add(sort_width).saturating_add(2);
 
     app.news_filter_arch_rect = Some((x_cursor, area.y, arch_width, 1));
     title_spans.push(arch_filter_span);
@@ -489,7 +496,7 @@ fn render_news_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     title_spans.push(Span::raw(" "));
     title_spans.extend(options_button_spans);
 
-    app.sort_button_rect = Some((date_x, area.y, date_width, 1));
+    app.news_age_button_rect = Some((date_x, area.y, date_width, 1));
     app.config_button_rect = Some((config_x, area.y, config_width, 1));
     app.panels_button_rect = Some((panels_x, area.y, panels_width, 1));
     app.options_button_rect = Some((options_x, area.y, options_width, 1));
@@ -507,6 +514,8 @@ fn render_news_results(f: &mut Frame, app: &mut AppState, area: Rect) {
         .highlight_symbol("> ");
     app.results_rect = Some((area.x, area.y, area.width, area.height));
     f.render_stateful_widget(list, area, &mut app.news_list_state);
+    let btn_x = app.sort_button_rect.map_or(area.x, |(x, _, _, _)| x);
+    sort_menu::render_sort_menu(f, app, area, btn_x);
 }
 
 /// What: Render summary spans with source-aware highlighting (updates vs AUR comments vs Arch News).

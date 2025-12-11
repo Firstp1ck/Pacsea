@@ -21,14 +21,14 @@ pub use config::{
     save_fuzzy_search, save_mirror_count, save_news_filter_installed_only,
     save_news_filter_show_advisories, save_news_filter_show_arch_news,
     save_news_filter_show_aur_comments, save_news_filter_show_aur_updates,
-    save_news_filter_show_pkg_updates, save_news_max_age_days, save_scan_do_clamav,
-    save_scan_do_custom, save_scan_do_semgrep, save_scan_do_shellcheck, save_scan_do_sleuth,
-    save_scan_do_trivy, save_scan_do_virustotal, save_selected_countries, save_show_install_pane,
-    save_show_keybinds_footer, save_show_recent_pane, save_sort_mode, save_startup_news_configured,
-    save_startup_news_max_age_days, save_startup_news_show_advisories,
-    save_startup_news_show_arch_news, save_startup_news_show_aur_comments,
-    save_startup_news_show_aur_updates, save_startup_news_show_pkg_updates,
-    save_virustotal_api_key,
+    save_news_filter_show_pkg_updates, save_news_filters_collapsed, save_news_max_age_days,
+    save_scan_do_clamav, save_scan_do_custom, save_scan_do_semgrep, save_scan_do_shellcheck,
+    save_scan_do_sleuth, save_scan_do_trivy, save_scan_do_virustotal, save_selected_countries,
+    save_show_install_pane, save_show_keybinds_footer, save_show_recent_pane, save_sort_mode,
+    save_startup_news_configured, save_startup_news_max_age_days,
+    save_startup_news_show_advisories, save_startup_news_show_arch_news,
+    save_startup_news_show_aur_comments, save_startup_news_show_aur_updates,
+    save_startup_news_show_pkg_updates, save_virustotal_api_key,
 };
 pub use paths::{config_dir, lists_dir, logs_dir};
 pub use settings::settings;

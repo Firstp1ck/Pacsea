@@ -155,16 +155,12 @@ fn handle_arch_status() -> bool {
 /// Output:
 /// - `false` if handled
 fn handle_sort_button(app: &mut AppState) -> bool {
-    if matches!(app.app_mode, crate::state::types::AppMode::News) {
-        handle_news_age_toggle(app);
+    app.sort_menu_open = !app.sort_menu_open;
+    if app.sort_menu_open {
+        app.sort_menu_auto_close_at =
+            Some(std::time::Instant::now() + std::time::Duration::from_secs(2));
     } else {
-        app.sort_menu_open = !app.sort_menu_open;
-        if app.sort_menu_open {
-            app.sort_menu_auto_close_at =
-                Some(std::time::Instant::now() + std::time::Duration::from_secs(2));
-        } else {
-            app.sort_menu_auto_close_at = None;
-        }
+        app.sort_menu_auto_close_at = None;
     }
     false
 }
@@ -275,6 +271,8 @@ fn handle_sort_menu_click(
                 1 => app.news_sort_mode = crate::state::types::NewsSortMode::DateAsc,
                 2 => app.news_sort_mode = crate::state::types::NewsSortMode::Title,
                 3 => app.news_sort_mode = crate::state::types::NewsSortMode::SourceThenTitle,
+                4 => app.news_sort_mode = crate::state::types::NewsSortMode::SeverityThenDate,
+                5 => app.news_sort_mode = crate::state::types::NewsSortMode::UnreadThenDate,
                 _ => return None,
             }
             app.refresh_news_results();
@@ -782,6 +780,10 @@ pub(super) fn handle_menus_mouse(
     }
     if point_in_rect(mx, my, app.arch_status_rect) {
         return Some(handle_arch_status());
+    }
+    if point_in_rect(mx, my, app.news_age_button_rect) {
+        handle_news_age_toggle(app);
+        return Some(false);
     }
     if point_in_rect(mx, my, app.sort_button_rect) {
         return Some(handle_sort_button(app));

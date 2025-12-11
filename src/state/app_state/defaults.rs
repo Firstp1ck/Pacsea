@@ -350,6 +350,7 @@ pub(super) type DefaultSortingMenusState = (
     bool,
     Option<(u16, u16, u16, u16)>,
     Option<(u16, u16, u16, u16)>,
+    Option<(u16, u16, u16, u16)>,
     Option<Instant>,
     bool,
     Option<(u16, u16, u16, u16)>,
@@ -760,7 +761,7 @@ pub(super) const fn default_modal_rects_state() -> DefaultModalRectsState {
 /// Inputs: None.
 ///
 /// Output:
-/// - Tuple of sorting/menu fields: `sort_mode`, `sort_menu_open`, `sort_button_rect`, `sort_menu_rect`, `sort_menu_auto_close_at`, `options_menu_open`, `options_button_rect`, `options_menu_rect`, `panels_menu_open`, `panels_button_rect`, `panels_menu_rect`, `config_menu_open`, `artix_filter_menu_open`, `artix_filter_menu_rect`, `config_button_rect`, `config_menu_rect`, `collapsed_menu_open`, `collapsed_menu_button_rect`, `collapsed_menu_rect`, `sort_cache_repo_name`, `sort_cache_aur_popularity`, `sort_cache_signature`.
+/// - Tuple of sorting/menu fields: `sort_mode`, `sort_menu_open`, `sort_button_rect`, `news_age_button_rect`, `sort_menu_rect`, `sort_menu_auto_close_at`, `options_menu_open`, `options_button_rect`, `options_menu_rect`, `panels_menu_open`, `panels_button_rect`, `panels_menu_rect`, `config_menu_open`, `artix_filter_menu_open`, `artix_filter_menu_rect`, `config_button_rect`, `config_menu_rect`, `collapsed_menu_open`, `collapsed_menu_button_rect`, `collapsed_menu_rect`, `sort_cache_repo_name`, `sort_cache_aur_popularity`, `sort_cache_signature`.
 ///
 /// Details:
 /// - All menus are closed by default, sort mode is `SortMode::RepoThenName`.
@@ -769,6 +770,7 @@ pub(super) const fn default_sorting_menus_state() -> DefaultSortingMenusState {
     (
         SortMode::RepoThenName,
         false,
+        None,
         None,
         None,
         None,

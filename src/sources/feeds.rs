@@ -11,7 +11,7 @@ use futures::stream::{self, StreamExt};
 use serde_json::Value;
 
 use crate::state::types::AurComment;
-use crate::state::types::{NewsFeedItem, NewsFeedSource, NewsSortMode};
+use crate::state::types::{NewsFeedItem, NewsFeedSource, NewsSortMode, severity_rank};
 use crate::util::parse_update_entry;
 use tracing::{debug, info, warn};
 
@@ -810,6 +810,17 @@ fn sort_news_items(items: &mut [NewsFeedItem], mode: NewsSortMode) {
                 .cmp(&b.source)
                 .then(a.title.to_lowercase().cmp(&b.title.to_lowercase()))
         }),
+        NewsSortMode::SeverityThenDate => items.sort_by(|a, b| {
+            let sa = severity_rank(a.severity);
+            let sb = severity_rank(b.severity);
+            sb.cmp(&sa)
+                .then(b.date.cmp(&a.date))
+                .then(a.title.to_lowercase().cmp(&b.title.to_lowercase()))
+        }),
+        NewsSortMode::UnreadThenDate => {
+            // Fetch pipeline lacks read-state context; fall back to newest-first.
+            items.sort_by(|a, b| b.date.cmp(&a.date));
+        }
     }
 }
 
@@ -1489,7 +1500,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::types::NewsFeedSource;
+    use crate::state::types::{AdvisorySeverity, NewsFeedSource};
     use std::collections::HashMap;
 
     #[test]
@@ -1518,6 +1529,96 @@ mod tests {
         ];
         sort_news_items(&mut items, NewsSortMode::DateDesc);
         assert_eq!(items.first().map(|i| &i.id), Some(&"2".to_string()));
+    }
+
+    #[test]
+    /// What: Ensure severity-first sorting prioritises higher severities, then recency.
+    ///
+    /// Inputs:
+    /// - Mixed severities across advisories with overlapping dates.
+    ///
+    /// Output:
+    /// - Items ordered Critical > High > Medium > Low/Unknown/None, with date descending inside ties.
+    ///
+    /// Details:
+    /// - Uses titles as a final tiebreaker to keep ordering deterministic.
+    fn sort_news_items_orders_by_severity_then_date() {
+        let mut items = vec![
+            NewsFeedItem {
+                id: "c-critical".into(),
+                date: "2024-01-02".into(),
+                title: "crit".into(),
+                summary: None,
+                url: None,
+                source: NewsFeedSource::SecurityAdvisory,
+                severity: Some(AdvisorySeverity::Critical),
+                packages: vec![],
+            },
+            NewsFeedItem {
+                id: "d-medium".into(),
+                date: "2024-01-04".into(),
+                title: "med".into(),
+                summary: None,
+                url: None,
+                source: NewsFeedSource::SecurityAdvisory,
+                severity: Some(AdvisorySeverity::Medium),
+                packages: vec![],
+            },
+            NewsFeedItem {
+                id: "b-high-older".into(),
+                date: "2023-12-31".into(),
+                title: "high-old".into(),
+                summary: None,
+                url: None,
+                source: NewsFeedSource::SecurityAdvisory,
+                severity: Some(AdvisorySeverity::High),
+                packages: vec![],
+            },
+            NewsFeedItem {
+                id: "a-high-newer".into(),
+                date: "2024-01-03".into(),
+                title: "high-new".into(),
+                summary: None,
+                url: None,
+                source: NewsFeedSource::SecurityAdvisory,
+                severity: Some(AdvisorySeverity::High),
+                packages: vec![],
+            },
+            NewsFeedItem {
+                id: "e-unknown".into(),
+                date: "2024-01-05".into(),
+                title: "unknown".into(),
+                summary: None,
+                url: None,
+                source: NewsFeedSource::SecurityAdvisory,
+                severity: Some(AdvisorySeverity::Unknown),
+                packages: vec![],
+            },
+            NewsFeedItem {
+                id: "f-none".into(),
+                date: "2024-01-06".into(),
+                title: "none".into(),
+                summary: None,
+                url: None,
+                source: NewsFeedSource::ArchNews,
+                severity: None,
+                packages: vec![],
+            },
+        ];
+
+        sort_news_items(&mut items, NewsSortMode::SeverityThenDate);
+        let ids: Vec<String> = items.into_iter().map(|i| i.id).collect();
+        assert_eq!(
+            ids,
+            vec![
+                "c-critical",
+                "a-high-newer",
+                "b-high-older",
+                "d-medium",
+                "e-unknown",
+                "f-none"
+            ]
+        );
     }
 
     #[test]

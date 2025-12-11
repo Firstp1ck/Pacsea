@@ -10,6 +10,7 @@ use crate::state::modal::{CascadeMode, Modal, PreflightAction, ServiceImpact};
 use crate::state::types::{
     AppMode, ArchStatusColor, Focus, InstalledPackagesMode, NewsBookmark, NewsFeedItem,
     NewsReadFilter, NewsSortMode, PackageDetails, PackageItem, RightPaneFocus, SortMode,
+    severity_rank,
 };
 use crate::theme::KeyMap;
 use chrono::{NaiveDate, Utc};
@@ -483,6 +484,8 @@ pub struct AppState {
     pub sort_menu_open: bool,
     /// Clickable rectangle for the sort button in the Results title (x, y, w, h).
     pub sort_button_rect: Option<(u16, u16, u16, u16)>,
+    /// Clickable rectangle for the news age toggle button (x, y, w, h).
+    pub news_age_button_rect: Option<(u16, u16, u16, u16)>,
     /// Inner content rectangle of the sort dropdown menu when visible (x, y, w, h).
     pub sort_menu_rect: Option<(u16, u16, u16, u16)>,
     /// Deadline after which the sort dropdown auto-closes.
@@ -970,6 +973,14 @@ impl AppState {
             });
         }
 
+        let is_read = |it: &NewsFeedItem| {
+            self.news_read_ids.contains(&it.id)
+                || it
+                    .url
+                    .as_ref()
+                    .is_some_and(|u| self.news_read_urls.contains(u))
+        };
+
         match self.news_sort_mode {
             NewsSortMode::DateDesc => filtered.sort_by(|a, b| b.date.cmp(&a.date)),
             NewsSortMode::DateAsc => filtered.sort_by(|a, b| a.date.cmp(&b.date)),
@@ -979,6 +990,20 @@ impl AppState {
             NewsSortMode::SourceThenTitle => filtered.sort_by(|a, b| {
                 a.source
                     .cmp(&b.source)
+                    .then(a.title.to_lowercase().cmp(&b.title.to_lowercase()))
+            }),
+            NewsSortMode::SeverityThenDate => filtered.sort_by(|a, b| {
+                let sa = severity_rank(a.severity);
+                let sb = severity_rank(b.severity);
+                sb.cmp(&sa)
+                    .then(b.date.cmp(&a.date))
+                    .then(a.title.to_lowercase().cmp(&b.title.to_lowercase()))
+            }),
+            NewsSortMode::UnreadThenDate => filtered.sort_by(|a, b| {
+                let ra = is_read(a);
+                let rb = is_read(b);
+                ra.cmp(&rb)
+                    .then(b.date.cmp(&a.date))
                     .then(a.title.to_lowercase().cmp(&b.title.to_lowercase()))
             }),
         }
@@ -999,7 +1024,9 @@ impl AppState {
 #[cfg(test)]
 mod tests {
     use super::AppState;
-    use crate::state::types::{AdvisorySeverity, NewsFeedItem, NewsFeedSource, NewsReadFilter};
+    use crate::state::types::{
+        AdvisorySeverity, NewsFeedItem, NewsFeedSource, NewsReadFilter, NewsSortMode,
+    };
 
     #[test]
     /// What: Verify `AppState::default` initialises UI flags and filesystem paths under the configured lists directory.
@@ -1323,6 +1350,202 @@ mod tests {
         assert!(app.news_results.iter().any(|it| it.id == "adv-1"));
         assert!(app.news_results.iter().any(|it| it.id == "adv-2"));
         assert!(app.news_results.iter().any(|it| it.id == "adv-3"));
+
+        unsafe {
+            if let Some(v) = orig_home {
+                std::env::set_var("HOME", v);
+            } else {
+                std::env::remove_var("HOME");
+            }
+        }
+    }
+
+    #[test]
+    #[allow(clippy::field_reassign_with_default)]
+    /// What: Verify severity-first news sort orders higher severities before date and title tiebreaks.
+    ///
+    /// Inputs:
+    /// - Mixed advisory severities with overlapping dates.
+    ///
+    /// Output:
+    /// - `news_results` starts with Critical, then High (newest first), then Medium/Unknown.
+    ///
+    /// Details:
+    /// - Uses HOME shim to avoid touching real persisted files.
+    fn refresh_news_results_sorts_by_severity_then_date() {
+        let _guard = crate::state::test_mutex()
+            .lock()
+            .expect("Test mutex poisoned");
+        let orig_home = std::env::var_os("HOME");
+        let dir = std::env::temp_dir().join(format!(
+            "pacsea_test_news_sort_severity_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("System time is before UNIX epoch")
+                .as_nanos()
+        ));
+        let _ = std::fs::create_dir_all(&dir);
+        unsafe { std::env::set_var("HOME", dir.display().to_string()) };
+
+        let mut app = AppState::default();
+        app.news_items = vec![
+            NewsFeedItem {
+                id: "crit".into(),
+                date: "2025-01-01".into(),
+                title: "critical".into(),
+                summary: None,
+                url: None,
+                source: NewsFeedSource::SecurityAdvisory,
+                severity: Some(AdvisorySeverity::Critical),
+                packages: vec![],
+            },
+            NewsFeedItem {
+                id: "high-new".into(),
+                date: "2025-01-03".into(),
+                title: "high-new".into(),
+                summary: None,
+                url: None,
+                source: NewsFeedSource::SecurityAdvisory,
+                severity: Some(AdvisorySeverity::High),
+                packages: vec![],
+            },
+            NewsFeedItem {
+                id: "high-old".into(),
+                date: "2025-01-02".into(),
+                title: "high-old".into(),
+                summary: None,
+                url: None,
+                source: NewsFeedSource::SecurityAdvisory,
+                severity: Some(AdvisorySeverity::High),
+                packages: vec![],
+            },
+            NewsFeedItem {
+                id: "unknown".into(),
+                date: "2025-01-04".into(),
+                title: "unknown".into(),
+                summary: None,
+                url: None,
+                source: NewsFeedSource::SecurityAdvisory,
+                severity: Some(AdvisorySeverity::Unknown),
+                packages: vec![],
+            },
+        ];
+        app.news_filter_show_advisories = true;
+        app.news_filter_installed_only = false;
+        app.news_filter_show_arch_news = false;
+        app.news_filter_show_pkg_updates = false;
+        app.news_filter_show_aur_updates = false;
+        app.news_filter_show_aur_comments = false;
+        app.news_max_age_days = None;
+        app.news_sort_mode = NewsSortMode::SeverityThenDate;
+        app.refresh_news_results();
+        let ids: Vec<String> = app.news_results.iter().map(|it| it.id.clone()).collect();
+        assert_eq!(ids, vec!["crit", "high-new", "high-old", "unknown"]);
+
+        unsafe {
+            if let Some(v) = orig_home {
+                std::env::set_var("HOME", v);
+            } else {
+                std::env::remove_var("HOME");
+            }
+        }
+    }
+
+    #[test]
+    #[allow(clippy::field_reassign_with_default)]
+    /// What: Verify unread-first sorting promotes unread items ahead of read ones, then newest-first.
+    ///
+    /// Inputs:
+    /// - Mixed read/unread items with different dates.
+    ///
+    /// Output:
+    /// - Unread entries appear before read entries; newest unread first.
+    ///
+    /// Details:
+    /// - Uses URL-based read markers to ensure both id/url markers are honoured.
+    fn refresh_news_results_sorts_unread_first_then_date() {
+        let _guard = crate::state::test_mutex()
+            .lock()
+            .expect("Test mutex poisoned");
+        let orig_home = std::env::var_os("HOME");
+        let dir = std::env::temp_dir().join(format!(
+            "pacsea_test_news_sort_unread_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("System time is before UNIX epoch")
+                .as_nanos()
+        ));
+        let _ = std::fs::create_dir_all(&dir);
+        unsafe { std::env::set_var("HOME", dir.display().to_string()) };
+
+        let mut app = AppState::default();
+        app.news_items = vec![
+            NewsFeedItem {
+                id: "read-old".into(),
+                date: "2025-01-01".into(),
+                title: "read-old".into(),
+                summary: None,
+                url: Some("https://example.com/read-old".into()),
+                source: NewsFeedSource::ArchNews,
+                severity: None,
+                packages: vec![],
+            },
+            NewsFeedItem {
+                id: "read-new".into(),
+                date: "2025-01-04".into(),
+                title: "read-new".into(),
+                summary: None,
+                url: Some("https://example.com/read-new".into()),
+                source: NewsFeedSource::ArchNews,
+                severity: None,
+                packages: vec![],
+            },
+            NewsFeedItem {
+                id: "unread-old".into(),
+                date: "2025-01-02".into(),
+                title: "unread-old".into(),
+                summary: None,
+                url: Some("https://example.com/unread-old".into()),
+                source: NewsFeedSource::ArchNews,
+                severity: None,
+                packages: vec![],
+            },
+            NewsFeedItem {
+                id: "unread-new".into(),
+                date: "2025-01-05".into(),
+                title: "unread-new".into(),
+                summary: None,
+                url: Some("https://example.com/unread-new".into()),
+                source: NewsFeedSource::ArchNews,
+                severity: None,
+                packages: vec![],
+            },
+        ];
+        app.news_filter_show_arch_news = true;
+        app.news_filter_show_advisories = false;
+        app.news_filter_show_pkg_updates = false;
+        app.news_filter_show_aur_updates = false;
+        app.news_filter_show_aur_comments = false;
+        app.news_filter_installed_only = false;
+        app.news_max_age_days = None;
+        app.news_read_urls
+            .insert("https://example.com/read-old".into());
+        app.news_read_ids.insert("read-new".into());
+        app.news_sort_mode = NewsSortMode::UnreadThenDate;
+
+        app.refresh_news_results();
+        let ids: Vec<String> = app.news_results.iter().map(|it| it.id.clone()).collect();
+        assert_eq!(
+            ids,
+            vec![
+                "unread-new".to_string(),
+                "unread-old".to_string(),
+                "read-new".to_string(),
+                "read-old".to_string()
+            ]
+        );
 
         unsafe {
             if let Some(v) = orig_home {

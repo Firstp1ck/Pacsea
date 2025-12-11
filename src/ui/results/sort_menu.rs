@@ -48,6 +48,14 @@ pub fn render_sort_menu(f: &mut Frame, app: &mut AppState, area: Rect, btn_x: u1
                     "Source".to_string(),
                     app.news_sort_mode == NewsSortMode::SourceThenTitle,
                 ),
+                (
+                    "Severity (critical first)".to_string(),
+                    app.news_sort_mode == NewsSortMode::SeverityThenDate,
+                ),
+                (
+                    "Unread first".to_string(),
+                    app.news_sort_mode == NewsSortMode::UnreadThenDate,
+                ),
             ]
         } else {
             vec![
