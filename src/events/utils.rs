@@ -2,6 +2,7 @@ use crossterm::event::KeyEvent;
 use tokio::sync::mpsc;
 
 use crate::state::{AppState, PackageItem};
+use std::time::Instant;
 
 /// What: Check if a key event matches any chord in a list, handling Shift+char edge cases.
 ///
@@ -240,9 +241,14 @@ pub fn maybe_request_news_content(
 ) {
     // Only request if in news mode with a selected item that has a URL
     if !matches!(app.app_mode, crate::state::types::AppMode::News) {
+        tracing::trace!("news_content: skip request, not in news mode");
         return;
     }
     if app.news_content_loading {
+        tracing::debug!(
+            selected = app.news_selected,
+            "news_content: skip request, already loading"
+        );
         return;
     }
     if let Some(item) = app.news_results.get(app.news_selected)
@@ -251,8 +257,44 @@ pub fn maybe_request_news_content(
         && !app.news_content_cache.contains_key(url)
     {
         app.news_content_loading = true;
-        let _ = news_content_req_tx.send(url.clone());
-        tracing::debug!(url = %url, "requesting news content");
+        app.news_content_loading_since = Some(Instant::now());
+        tracing::debug!(
+            selected = app.news_selected,
+            title = item.title,
+            url,
+            "news_content: requesting article content"
+        );
+        if let Err(e) = news_content_req_tx.send(url.clone()) {
+            tracing::warn!(
+                error = %e,
+                selected = app.news_selected,
+                title = item.title,
+                url,
+                "news_content: failed to enqueue content request"
+            );
+            app.news_content_loading = false;
+            app.news_content_loading_since = None;
+            app.news_content = Some(format!("Failed to load content: {e}"));
+            app.toast_message = Some("News content request failed".to_string());
+            app.toast_expires_at = Some(Instant::now() + std::time::Duration::from_secs(3));
+        }
+    } else {
+        tracing::trace!(
+            selected = app.news_selected,
+            has_item = app.news_results.get(app.news_selected).is_some(),
+            has_url = app
+                .news_results
+                .get(app.news_selected)
+                .and_then(|it| it.url.as_ref())
+                .is_some(),
+            content_cached = app
+                .news_results
+                .get(app.news_selected)
+                .and_then(|it| it.url.as_ref())
+                .is_some_and(|u| app.news_content_cache.contains_key(u)),
+            has_content = app.news_content.is_some(),
+            "news_content: skip request (cached/absent URL/already loaded)"
+        );
     }
 }
 

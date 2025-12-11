@@ -194,6 +194,8 @@ pub struct AppState {
     pub news_content: Option<String>,
     /// Whether news content is currently being fetched.
     pub news_content_loading: bool,
+    /// When the current news content load started (for timeout/logging).
+    pub news_content_loading_since: Option<std::time::Instant>,
     /// Scroll offset for news content details.
     pub news_content_scroll: u16,
     /// Path where the cached news feed is persisted.

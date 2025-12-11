@@ -277,6 +277,12 @@ fn handle_news_content(app: &mut AppState, url: &str, content: String) {
         .and_then(|selected| selected.url.as_deref())
         && selected_url == url
     {
+        tracing::debug!(
+            url,
+            len = content.len(),
+            selected = app.news_selected,
+            "news_content: response matches selection"
+        );
         app.news_content_loading = false;
         app.news_content = if content.is_empty() {
             None
@@ -285,8 +291,19 @@ fn handle_news_content(app: &mut AppState, url: &str, content: String) {
         };
     } else {
         // Clear loading flag even if selection changed; a new request will be issued on next tick.
+        tracing::debug!(
+            url,
+            len = content.len(),
+            selected = app.news_selected,
+            selected_url = ?app
+                .news_results
+                .get(app.news_selected)
+                .and_then(|selected| selected.url.as_deref()),
+            "news_content: response does not match current selection"
+        );
         app.news_content_loading = false;
     }
+    app.news_content_loading_since = None;
 }
 
 /// What: Process one iteration of channel message handling.

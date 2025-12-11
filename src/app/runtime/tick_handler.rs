@@ -593,6 +593,38 @@ pub fn handle_tick(
         app.faillock_remaining_minutes = remaining_minutes;
     }
 
+    // Timeout guard for news content fetches to avoid stuck "Loading content..."
+    if app.news_content_loading {
+        if let Some(started) = app.news_content_loading_since {
+            if started.elapsed() > std::time::Duration::from_secs(6) {
+                let url = app
+                    .news_results
+                    .get(app.news_selected)
+                    .and_then(|it| it.url.clone());
+                tracing::warn!(
+                    selected = app.news_selected,
+                    url = ?url,
+                    elapsed_ms = started.elapsed().as_millis(),
+                    "news_content: timed out waiting for response"
+                );
+                app.news_content_loading = false;
+                app.news_content_loading_since = None;
+                app.news_content = Some("Failed to load content: timed out after 6s".to_string());
+                app.toast_message = Some("News content timed out".to_string());
+                app.toast_expires_at = Some(Instant::now() + std::time::Duration::from_secs(3));
+            } else {
+                tracing::trace!(
+                    selected = app.news_selected,
+                    elapsed_ms = started.elapsed().as_millis(),
+                    "news_content: still loading"
+                );
+            }
+        } else {
+            // Ensure we set a start time if missing for safety
+            app.news_content_loading_since = Some(Instant::now());
+        }
+    }
+
     // Refresh updates list if flag is set (manual refresh via button click)
     if app.refresh_updates {
         app.refresh_updates = false;

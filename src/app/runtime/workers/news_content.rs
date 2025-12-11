@@ -1,5 +1,6 @@
 //! Background worker for fetching news article content.
 
+use std::time::Instant;
 use tokio::sync::mpsc;
 
 use crate::sources;
@@ -25,12 +26,25 @@ pub fn spawn_news_content_worker(
     tokio::spawn(async move {
         while let Some(url) = news_content_req_rx.recv().await {
             let url_clone = url.clone();
+            let started = Instant::now();
+            tracing::info!(url = %url_clone, "news_content_worker: fetch start");
             match sources::fetch_news_content(&url).await {
                 Ok(content) => {
+                    tracing::debug!(
+                        url = %url_clone,
+                        elapsed_ms = started.elapsed().as_millis(),
+                        len = content.len(),
+                        "news_content_worker: fetch success"
+                    );
                     let _ = news_content_res_tx.send((url_clone, content));
                 }
                 Err(e) => {
-                    tracing::warn!(error = %e, url = %url_clone, "Failed to fetch news content");
+                    tracing::warn!(
+                        error = %e,
+                        url = %url_clone,
+                        elapsed_ms = started.elapsed().as_millis(),
+                        "news_content_worker: fetch failed"
+                    );
                     let _ = news_content_res_tx
                         .send((url_clone, format!("Failed to load content: {e}")));
                 }

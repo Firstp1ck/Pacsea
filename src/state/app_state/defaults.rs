@@ -133,6 +133,7 @@ pub(super) type DefaultNewsFeedState = (
     std::collections::HashMap<String, String>, // news_content_cache
     Option<String>,                            // news_content
     bool,                                      // news_content_loading
+    Option<Instant>,                           // news_content_loading_since
     u16,                                       // news_content_scroll
     Option<String>,                            // news_history_pending
     Option<Instant>,                           // news_history_pending_at
@@ -235,6 +236,7 @@ pub(super) fn default_news_feed_state(
         std::collections::HashMap::new(), // news_content_cache
         None,                             // news_content
         false,                            // news_content_loading
+        None,                             // news_content_loading_since
         0,                                // news_content_scroll
         None,                             // news_history_pending
         None,                             // news_history_pending_at
