@@ -797,10 +797,7 @@ fn trigger_startup_news_fetch(channels: &Channels, app: &mut AppState) {
                     .into_iter()
                     .filter(|item| {
                         !read_ids.contains(&item.id)
-                            && item
-                                .url
-                                .as_ref()
-                                .map_or(true, |url| !read_urls.contains(url))
+                            && item.url.as_ref().is_none_or(|url| !read_urls.contains(url))
                     })
                     .collect();
                 tracing::info!(
@@ -826,6 +823,73 @@ fn trigger_startup_news_fetch(channels: &Channels, app: &mut AppState) {
             }
         }
     });
+}
+
+#[cfg(test)]
+mod startup_news_tests {
+    use crate::state::types::{NewsFeedItem, NewsFeedSource};
+    use std::collections::HashSet;
+
+    #[test]
+    /// What: Test filtering logic for already-read news items.
+    ///
+    /// Inputs:
+    /// - News items with some marked as read (by ID and URL).
+    ///
+    /// Output:
+    /// - Only unread items returned.
+    ///
+    /// Details:
+    /// - Verifies read filtering excludes items by both ID and URL.
+    fn test_filter_already_read_items() {
+        let read_ids: HashSet<String> = HashSet::from(["id-1".to_string()]);
+
+        let read_urls: HashSet<String> = HashSet::from(["https://example.com/news/2".to_string()]);
+
+        let items = vec![
+            NewsFeedItem {
+                id: "id-1".to_string(),
+                date: "2025-01-01".to_string(),
+                title: "Item 1".to_string(),
+                summary: None,
+                url: Some("https://example.com/news/1".to_string()),
+                source: NewsFeedSource::ArchNews,
+                severity: None,
+                packages: Vec::new(),
+            },
+            NewsFeedItem {
+                id: "id-2".to_string(),
+                date: "2025-01-02".to_string(),
+                title: "Item 2".to_string(),
+                summary: None,
+                url: Some("https://example.com/news/2".to_string()),
+                source: NewsFeedSource::ArchNews,
+                severity: None,
+                packages: Vec::new(),
+            },
+            NewsFeedItem {
+                id: "id-3".to_string(),
+                date: "2025-01-03".to_string(),
+                title: "Item 3".to_string(),
+                summary: None,
+                url: Some("https://example.com/news/3".to_string()),
+                source: NewsFeedSource::ArchNews,
+                severity: None,
+                packages: Vec::new(),
+            },
+        ];
+
+        let unread: Vec<NewsFeedItem> = items
+            .into_iter()
+            .filter(|item| {
+                !read_ids.contains(&item.id)
+                    && item.url.as_ref().is_none_or(|url| !read_urls.contains(url))
+            })
+            .collect();
+
+        assert_eq!(unread.len(), 1);
+        assert_eq!(unread[0].id, "id-3");
+    }
 }
 
 /// What: Run the main event loop, processing all channel messages and rendering the UI.

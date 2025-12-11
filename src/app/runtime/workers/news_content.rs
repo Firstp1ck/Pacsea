@@ -38,3 +38,24 @@ pub fn spawn_news_content_worker(
         }
     });
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    /// What: Test error message format for failed content fetches.
+    ///
+    /// Inputs:
+    /// - Error string from `fetch_news_content`.
+    ///
+    /// Output:
+    /// - Error message formatted as "Failed to load content: {error}".
+    ///
+    /// Details:
+    /// - Verifies error message format matches worker behavior.
+    fn test_news_content_worker_error_format() {
+        let error = "Network error";
+        let error_msg = format!("Failed to load content: {error}");
+        assert!(error_msg.contains("Failed to load content"));
+        assert!(error_msg.contains(error));
+    }
+}

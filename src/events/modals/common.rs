@@ -344,6 +344,7 @@ pub(super) fn handle_help(ke: KeyEvent, app: &mut AppState) -> bool {
 /// Details:
 /// - Calculates scroll so selected item is in the middle of visible area
 /// - Ensures scroll doesn't go negative or past the end
+#[cfg_attr(test, allow(dead_code))]
 fn calculate_news_scroll_for_selection(
     selected: usize,
     total_items: usize,
@@ -367,6 +368,197 @@ fn calculate_news_scroll_for_selection(
 
     // Clamp scroll to valid range
     desired_scroll.min(max_scroll)
+}
+
+#[cfg(test)]
+mod news_tests {
+    use super::*;
+    use crate::state::{AppState, types::NewsFeedItem, types::NewsFeedSource};
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+    #[test]
+    /// What: Test `calculate_news_scroll_for_selection` centers selected item.
+    ///
+    /// Inputs:
+    /// - Selected index, total items, visible height.
+    ///
+    /// Output:
+    /// - Scroll offset that centers selection within viewport bounds.
+    ///
+    /// Details:
+    /// - Verifies scroll calculation clamps to valid range.
+    fn test_calculate_news_scroll_for_selection() {
+        // Test: center item in middle of list
+        let scroll = calculate_news_scroll_for_selection(5, 10, 5);
+        assert!(scroll <= 5, "Scroll should not exceed max");
+
+        // Test: first item (should scroll to 0)
+        let scroll = calculate_news_scroll_for_selection(0, 10, 5);
+        assert_eq!(scroll, 0, "First item should have scroll 0");
+
+        // Test: empty list
+        let scroll = calculate_news_scroll_for_selection(0, 0, 5);
+        assert_eq!(scroll, 0, "Empty list should return 0");
+
+        // Test: zero height
+        let scroll = calculate_news_scroll_for_selection(5, 10, 0);
+        assert_eq!(scroll, 0, "Zero height should return 0");
+    }
+
+    #[test]
+    /// What: Test `handle_news` marks item as read when keymap chord is pressed.
+    ///
+    /// Inputs:
+    /// - News modal with items, keymap chord for mark-read.
+    ///
+    /// Output:
+    /// - Selected item added to `news_read_ids` and `news_read_urls`, dirty flags set.
+    ///
+    /// Details:
+    /// - Verifies read-state mutation and dirty flag handling.
+    fn test_handle_news_mark_read() {
+        let mut app = AppState::default();
+        app.keymap.news_mark_read = [crate::theme::KeyChord {
+            code: KeyCode::Char('r'),
+            mods: KeyModifiers::empty(),
+        }]
+        .into();
+
+        let items = vec![NewsFeedItem {
+            id: "test-id-1".to_string(),
+            date: "2025-01-01".to_string(),
+            title: "Test News".to_string(),
+            summary: None,
+            url: Some("https://example.com/news/1".to_string()),
+            source: NewsFeedSource::ArchNews,
+            severity: None,
+            packages: Vec::new(),
+        }];
+
+        let mut selected = 0;
+        let mut scroll = 0;
+        let mut ke = KeyEvent::new(KeyCode::Char('r'), KeyModifiers::empty());
+        ke.kind = crossterm::event::KeyEventKind::Press;
+
+        let _ = handle_news(ke, &mut app, &items, &mut selected, &mut scroll);
+
+        assert!(app.news_read_ids.contains("test-id-1"));
+        assert!(app.news_read_urls.contains("https://example.com/news/1"));
+        assert!(app.news_read_ids_dirty);
+        assert!(app.news_read_dirty);
+    }
+
+    #[test]
+    /// What: Test `handle_news` marks all items as read when mark-all-read chord is pressed.
+    ///
+    /// Inputs:
+    /// - News modal with multiple items, keymap chord for mark-all-read.
+    ///
+    /// Output:
+    /// - All items added to read sets, dirty flags set.
+    ///
+    /// Details:
+    /// - Verifies bulk read-state mutation.
+    fn test_handle_news_mark_all_read() {
+        let mut app = AppState::default();
+        app.keymap.news_mark_all_read = [crate::theme::KeyChord {
+            code: KeyCode::Char('r'),
+            mods: KeyModifiers::CONTROL,
+        }]
+        .into();
+
+        let items = vec![
+            NewsFeedItem {
+                id: "test-id-1".to_string(),
+                date: "2025-01-01".to_string(),
+                title: "Test News 1".to_string(),
+                summary: None,
+                url: Some("https://example.com/news/1".to_string()),
+                source: NewsFeedSource::ArchNews,
+                severity: None,
+                packages: Vec::new(),
+            },
+            NewsFeedItem {
+                id: "test-id-2".to_string(),
+                date: "2025-01-02".to_string(),
+                title: "Test News 2".to_string(),
+                summary: None,
+                url: Some("https://example.com/news/2".to_string()),
+                source: NewsFeedSource::ArchNews,
+                severity: None,
+                packages: Vec::new(),
+            },
+        ];
+
+        let mut selected = 0;
+        let mut scroll = 0;
+        let mut ke = KeyEvent::new(KeyCode::Char('r'), KeyModifiers::CONTROL);
+        ke.kind = crossterm::event::KeyEventKind::Press;
+
+        let _ = handle_news(ke, &mut app, &items, &mut selected, &mut scroll);
+
+        assert!(app.news_read_ids.contains("test-id-1"));
+        assert!(app.news_read_ids.contains("test-id-2"));
+        assert!(app.news_read_urls.contains("https://example.com/news/1"));
+        assert!(app.news_read_urls.contains("https://example.com/news/2"));
+        assert!(app.news_read_ids_dirty);
+        assert!(app.news_read_dirty);
+    }
+
+    #[test]
+    /// What: Test `handle_news` navigation updates selection and scroll.
+    ///
+    /// Inputs:
+    /// - News modal with items, navigation keys (Up/Down).
+    ///
+    /// Output:
+    /// - Selection index updated, scroll recalculated.
+    ///
+    /// Details:
+    /// - Verifies navigation updates selection and scroll centering.
+    #[allow(clippy::field_reassign_with_default)] // Field assignment in tests is acceptable for test setup
+    fn test_handle_news_navigation() {
+        let mut app = AppState::default();
+        app.news_list_rect = Some((0, 0, 50, 10)); // visible height = 10
+
+        let items = vec![
+            NewsFeedItem {
+                id: "test-id-1".to_string(),
+                date: "2025-01-01".to_string(),
+                title: "Test News 1".to_string(),
+                summary: None,
+                url: None,
+                source: NewsFeedSource::ArchNews,
+                severity: None,
+                packages: Vec::new(),
+            },
+            NewsFeedItem {
+                id: "test-id-2".to_string(),
+                date: "2025-01-02".to_string(),
+                title: "Test News 2".to_string(),
+                summary: None,
+                url: None,
+                source: NewsFeedSource::ArchNews,
+                severity: None,
+                packages: Vec::new(),
+            },
+        ];
+
+        let mut selected = 0;
+        let mut scroll = 0;
+
+        // Test Down key
+        let mut ke = KeyEvent::new(KeyCode::Down, KeyModifiers::empty());
+        ke.kind = crossterm::event::KeyEventKind::Press;
+        let _ = handle_news(ke, &mut app, &items, &mut selected, &mut scroll);
+        assert_eq!(selected, 1, "Down should increment selection");
+
+        // Test Up key
+        let mut ke = KeyEvent::new(KeyCode::Up, KeyModifiers::empty());
+        ke.kind = crossterm::event::KeyEventKind::Press;
+        let _ = handle_news(ke, &mut app, &items, &mut selected, &mut scroll);
+        assert_eq!(selected, 0, "Up should decrement selection");
+    }
 }
 
 /// What: Handle key events for News modal.

@@ -1041,4 +1041,161 @@ mod tests {
         assert!(body.contains("advisory:123"));
         let _ = std::fs::remove_file(&app.news_read_ids_path);
     }
+
+    #[test]
+    /// What: Test `maybe_flush_news_read` is no-op when not dirty.
+    ///
+    /// Inputs:
+    /// - `AppState` with `news_read_dirty = false`.
+    ///
+    /// Output:
+    /// - Function returns early without writing or clearing flag.
+    ///
+    /// Details:
+    /// - Verifies dirty flag check prevents unnecessary I/O.
+    fn flush_news_read_noop_when_not_dirty() {
+        let mut app = new_app();
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "pacsea_newsread_{}_{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("System time is before UNIX epoch")
+                .as_nanos()
+        ));
+        app.news_read_path = path.clone();
+        app.news_read_urls.insert("https://example.com".into());
+        app.news_read_dirty = false; // Not dirty
+
+        // File should not exist before
+        assert!(!app.news_read_path.exists());
+
+        maybe_flush_news_read(&mut app);
+
+        // File should still not exist (no-op)
+        assert!(!app.news_read_path.exists());
+        assert!(!app.news_read_dirty);
+    }
+
+    #[test]
+    /// What: Test `maybe_flush_news_read_ids` is no-op when not dirty.
+    ///
+    /// Inputs:
+    /// - `AppState` with `news_read_ids_dirty = false`.
+    ///
+    /// Output:
+    /// - Function returns early without writing or clearing flag.
+    ///
+    /// Details:
+    /// - Verifies dirty flag check prevents unnecessary I/O.
+    fn flush_news_read_ids_noop_when_not_dirty() {
+        let mut app = new_app();
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "pacsea_newsread_ids_{}_{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("System time is before UNIX epoch")
+                .as_nanos()
+        ));
+        app.news_read_ids_path = path.clone();
+        app.news_read_ids.insert("test-id".into());
+        app.news_read_ids_dirty = false; // Not dirty
+
+        // File should not exist before
+        assert!(!app.news_read_ids_path.exists());
+
+        maybe_flush_news_read_ids(&mut app);
+
+        // File should still not exist (no-op)
+        assert!(!app.news_read_ids_path.exists());
+        assert!(!app.news_read_ids_dirty);
+    }
+
+    #[test]
+    /// What: Test `maybe_flush_news_read` writes valid JSON.
+    ///
+    /// Inputs:
+    /// - `AppState` with multiple URLs in `news_read_urls`.
+    ///
+    /// Output:
+    /// - Written file contains valid JSON array.
+    ///
+    /// Details:
+    /// - Verifies JSON serialization produces parseable output.
+    fn flush_news_read_writes_valid_json() {
+        // Field assignments in tests are acceptable for test setup
+        let mut app = new_app();
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "pacsea_newsread_{}_{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("System time is before UNIX epoch")
+                .as_nanos()
+        ));
+        app.news_read_path = path.clone();
+        app.news_read_urls
+            .insert("https://example.com/news/1".into());
+        app.news_read_urls
+            .insert("https://example.com/news/2".into());
+        app.news_read_dirty = true;
+
+        maybe_flush_news_read(&mut app);
+
+        let body = std::fs::read_to_string(&app.news_read_path)
+            .expect("Failed to read test news read file");
+        // Verify it's valid JSON
+        let parsed: std::collections::HashSet<String> =
+            serde_json::from_str(&body).expect("Failed to parse JSON");
+        assert_eq!(parsed.len(), 2);
+        assert!(parsed.contains("https://example.com/news/1"));
+        assert!(parsed.contains("https://example.com/news/2"));
+
+        let _ = std::fs::remove_file(&app.news_read_path);
+    }
+
+    #[test]
+    /// What: Test `maybe_flush_news_read_ids` writes valid JSON.
+    ///
+    /// Inputs:
+    /// - `AppState` with multiple IDs in `news_read_ids`.
+    ///
+    /// Output:
+    /// - Written file contains valid JSON array.
+    ///
+    /// Details:
+    /// - Verifies JSON serialization produces parseable output.
+    fn flush_news_read_ids_writes_valid_json() {
+        let mut app = new_app();
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "pacsea_newsread_ids_{}_{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("System time is before UNIX epoch")
+                .as_nanos()
+        ));
+        app.news_read_ids_path = path.clone();
+        app.news_read_ids.insert("id-1".into());
+        app.news_read_ids.insert("id-2".into());
+        app.news_read_ids_dirty = true;
+
+        maybe_flush_news_read_ids(&mut app);
+
+        let body = std::fs::read_to_string(&app.news_read_ids_path)
+            .expect("Failed to read test news read ids file");
+        // Verify it's valid JSON
+        let parsed: std::collections::HashSet<String> =
+            serde_json::from_str(&body).expect("Failed to parse JSON");
+        assert_eq!(parsed.len(), 2);
+        assert!(parsed.contains("id-1"));
+        assert!(parsed.contains("id-2"));
+
+        let _ = std::fs::remove_file(&app.news_read_ids_path);
+    }
 }
