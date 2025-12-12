@@ -901,6 +901,171 @@ fn sort_news_items(items: &mut [NewsFeedItem], mode: NewsSortMode) {
     }
 }
 
+/// What: Helper container for official package update processing with bounded concurrency.
+#[derive(Clone)]
+struct OfficialCandidate {
+    /// Original order in the installed list to keep stable rendering.
+    order: usize,
+    /// Package metadata from the official index.
+    pkg: crate::state::PackageItem,
+    /// Previously seen version (if any).
+    last_seen: Option<String>,
+    /// Old version string captured from updates list (if available).
+    old_version: Option<String>,
+    /// Current remote version.
+    remote_version: String,
+}
+
+/// What: Process official packages and build candidates for update items.
+///
+/// Inputs:
+/// - `installed_sorted`: Sorted list of installed package names.
+/// - `seen_pkg_versions`: Last-seen versions map (mutated).
+/// - `updates_versions`: Optional map of update versions.
+/// - `force_emit_all`: Whether to emit all packages regardless of version changes.
+/// - `remaining`: Remaining slots for updates.
+///
+/// Output:
+/// - Tuple of (`official_candidates`, `aur_candidates`, `new_packages_count`, `updated_packages_count`, `baseline_only_count`, `remaining`)
+fn process_official_packages<HV>(
+    installed_sorted: &[String],
+    seen_pkg_versions: &mut HashMap<String, String, HV>,
+    updates_versions: Option<&HashMap<String, (String, String)>>,
+    force_emit_all: bool,
+    mut remaining: usize,
+) -> (
+    Vec<OfficialCandidate>,
+    Vec<String>,
+    usize,
+    usize,
+    usize,
+    usize,
+)
+where
+    HV: BuildHasher,
+{
+    let mut aur_candidates: Vec<String> = Vec::new();
+    let mut official_candidates: Vec<OfficialCandidate> = Vec::new();
+    let mut baseline_only = 0usize;
+    let mut new_packages = 0usize;
+    let mut updated_packages = 0usize;
+
+    for name in installed_sorted {
+        if let Some(pkg) = crate::index::find_package_by_name(name) {
+            let (old_version_opt, remote_version) = updates_versions
+                .and_then(|m| m.get(&pkg.name))
+                .map_or((None, pkg.version.as_str()), |(old_v, new_v)| {
+                    (Some(old_v.as_str()), new_v.as_str())
+                });
+            let remote_version = remote_version.to_string();
+            let last_seen = seen_pkg_versions.insert(pkg.name.clone(), remote_version.clone());
+            let is_new_package = last_seen.is_none();
+            let has_version_change = last_seen.as_ref() != Some(&remote_version);
+            let allow = updates_versions.is_none_or(|m| m.contains_key(&pkg.name));
+            // Always emit new packages (not previously tracked) and version changes
+            let should_emit = remaining > 0 && allow && (force_emit_all || has_version_change);
+            if should_emit {
+                if is_new_package {
+                    new_packages = new_packages.saturating_add(1);
+                } else if has_version_change {
+                    updated_packages = updated_packages.saturating_add(1);
+                }
+                let order = official_candidates.len();
+                official_candidates.push(OfficialCandidate {
+                    order,
+                    pkg: pkg.clone(),
+                    last_seen,
+                    old_version: old_version_opt.map(str::to_string),
+                    remote_version,
+                });
+                remaining = remaining.saturating_sub(1);
+            } else {
+                baseline_only = baseline_only.saturating_add(1);
+            }
+        } else {
+            aur_candidates.push(name.clone());
+        }
+    }
+
+    (
+        official_candidates,
+        aur_candidates,
+        new_packages,
+        updated_packages,
+        baseline_only,
+        remaining,
+    )
+}
+
+/// What: Process AUR packages and build update items.
+///
+/// Inputs:
+/// - `aur_info`: AUR package information.
+/// - `seen_pkg_versions`: Last-seen versions map (mutated).
+/// - `updates_versions`: Optional map of update versions.
+/// - `force_emit_all`: Whether to emit all packages regardless of version changes.
+/// - `remaining`: Remaining slots for updates.
+///
+/// Output:
+/// - Tuple of (`items`, `new_packages_count`, `updated_packages_count`, `baseline_only_count`, `remaining`)
+fn process_aur_packages<HV>(
+    aur_info: Vec<AurVersionInfo>,
+    seen_pkg_versions: &mut HashMap<String, String, HV>,
+    updates_versions: Option<&HashMap<String, (String, String)>>,
+    force_emit_all: bool,
+    mut remaining: usize,
+) -> (Vec<NewsFeedItem>, usize, usize, usize, usize)
+where
+    HV: BuildHasher,
+{
+    let mut items = Vec::new();
+    let mut aur_new_packages = 0usize;
+    let mut aur_updated_packages = 0usize;
+    let mut baseline_only = 0usize;
+
+    for pkg in aur_info {
+        if remaining == 0 {
+            break;
+        }
+        let (old_version_opt, remote_version) = updates_versions
+            .and_then(|m| m.get(&pkg.name))
+            .map_or((None, pkg.version.as_str()), |(old_v, new_v)| {
+                (Some(old_v.as_str()), new_v.as_str())
+            });
+        let remote_version = remote_version.to_string();
+        let last_seen = seen_pkg_versions.insert(pkg.name.clone(), remote_version.clone());
+        let is_new_package = last_seen.is_none();
+        let has_version_change = last_seen.as_ref() != Some(&remote_version);
+        let allow = updates_versions.is_none_or(|m| m.contains_key(&pkg.name));
+        // Always emit new packages (not previously tracked) and version changes
+        let should_emit = remaining > 0 && allow && (force_emit_all || has_version_change);
+        if should_emit {
+            if is_new_package {
+                aur_new_packages = aur_new_packages.saturating_add(1);
+            } else if has_version_change {
+                aur_updated_packages = aur_updated_packages.saturating_add(1);
+            }
+            items.push(build_aur_update_item(
+                &pkg,
+                last_seen.as_ref(),
+                old_version_opt,
+                &remote_version,
+            ));
+            remaining = remaining.saturating_sub(1);
+        } else {
+            baseline_only = baseline_only.saturating_add(1);
+        }
+    }
+
+    (
+        items,
+        aur_new_packages,
+        aur_updated_packages,
+        baseline_only,
+        remaining,
+    )
+}
+
 /// What: Fetch installed package updates (official and AUR) using cached indexes and AUR RPC.
 ///
 /// Inputs:
@@ -939,21 +1104,6 @@ where
         return Ok(cached_items.clone());
     }
 
-    #[derive(Clone)]
-    /// Helper container for official package update processing with bounded concurrency.
-    struct OfficialCandidate {
-        /// Original order in the installed list to keep stable rendering.
-        order: usize,
-        /// Package metadata from the official index.
-        pkg: crate::state::PackageItem,
-        /// Previously seen version (if any).
-        last_seen: Option<String>,
-        /// Old version string captured from updates list (if available).
-        old_version: Option<String>,
-        /// Current remote version.
-        remote_version: String,
-    }
-
     debug!(
         "fetch_installed_updates: starting, installed_count={}, limit={}, force_emit_all={}",
         installed.len(),
@@ -961,56 +1111,28 @@ where
         force_emit_all
     );
     let mut items = Vec::new();
-    let mut remaining = limit;
-    let mut aur_candidates: Vec<String> = Vec::new();
     let mut installed_sorted: Vec<String> = installed.iter().cloned().collect();
     installed_sorted.sort();
-    let mut baseline_only = 0usize;
-    let mut official_candidates: Vec<OfficialCandidate> = Vec::new();
 
     debug!(
         "fetch_installed_updates: processing {} installed packages",
         installed_sorted.len()
     );
-    // Track new packages (not previously seen) vs updated packages
-    let mut new_packages = 0usize;
-    let mut updated_packages = 0usize;
-    for name in installed_sorted {
-        if let Some(pkg) = crate::index::find_package_by_name(&name) {
-            let (old_version_opt, remote_version) = updates_versions
-                .and_then(|m| m.get(&pkg.name))
-                .map_or((None, pkg.version.as_str()), |(old_v, new_v)| {
-                    (Some(old_v.as_str()), new_v.as_str())
-                });
-            let remote_version = remote_version.to_string();
-            let last_seen = seen_pkg_versions.insert(pkg.name.clone(), remote_version.clone());
-            let is_new_package = last_seen.is_none();
-            let has_version_change = last_seen.as_ref() != Some(&remote_version);
-            let allow = updates_versions.is_none_or(|m| m.contains_key(&pkg.name));
-            // Always emit new packages (not previously tracked) and version changes
-            let should_emit = remaining > 0 && allow && (force_emit_all || has_version_change);
-            if should_emit {
-                if is_new_package {
-                    new_packages = new_packages.saturating_add(1);
-                } else if has_version_change {
-                    updated_packages = updated_packages.saturating_add(1);
-                }
-                let order = official_candidates.len();
-                official_candidates.push(OfficialCandidate {
-                    order,
-                    pkg: pkg.clone(),
-                    last_seen,
-                    old_version: old_version_opt.map(str::to_string),
-                    remote_version,
-                });
-                remaining = remaining.saturating_sub(1);
-            } else {
-                baseline_only = baseline_only.saturating_add(1);
-            }
-        } else {
-            aur_candidates.push(name);
-        }
-    }
+    // Process official packages
+    let (
+        official_candidates,
+        aur_candidates,
+        new_packages,
+        updated_packages,
+        baseline_only,
+        remaining,
+    ) = process_official_packages(
+        &installed_sorted,
+        seen_pkg_versions,
+        updates_versions,
+        force_emit_all,
+        limit,
+    );
     info!(
         "fetch_installed_updates: official scan complete, new_packages={}, updated_packages={}, baseline_only={}",
         new_packages, updated_packages, baseline_only
@@ -1069,42 +1191,17 @@ where
         "fetch_installed_updates: fetched {} AUR package versions",
         aur_info.len()
     );
-    // Track new AUR packages vs updated ones
-    let mut aur_new_packages = 0usize;
-    let mut aur_updated_packages = 0usize;
-    for pkg in aur_info {
-        if remaining == 0 {
-            break;
-        }
-        let (old_version_opt, remote_version) = updates_versions
-            .and_then(|m| m.get(&pkg.name))
-            .map_or((None, pkg.version.as_str()), |(old_v, new_v)| {
-                (Some(old_v.as_str()), new_v.as_str())
-            });
-        let remote_version = remote_version.to_string();
-        let last_seen = seen_pkg_versions.insert(pkg.name.clone(), remote_version.clone());
-        let is_new_package = last_seen.is_none();
-        let has_version_change = last_seen.as_ref() != Some(&remote_version);
-        let allow = updates_versions.is_none_or(|m| m.contains_key(&pkg.name));
-        // Always emit new packages (not previously tracked) and version changes
-        let should_emit = remaining > 0 && allow && (force_emit_all || has_version_change);
-        if should_emit {
-            if is_new_package {
-                aur_new_packages = aur_new_packages.saturating_add(1);
-            } else if has_version_change {
-                aur_updated_packages = aur_updated_packages.saturating_add(1);
-            }
-            items.push(build_aur_update_item(
-                &pkg,
-                last_seen.as_ref(),
-                old_version_opt,
-                &remote_version,
-            ));
-            remaining = remaining.saturating_sub(1);
-        } else {
-            baseline_only = baseline_only.saturating_add(1);
-        }
-    }
+    // Process AUR packages
+    let (mut aur_items, aur_new_packages, aur_updated_packages, aur_baseline_only, _remaining) =
+        process_aur_packages(
+            aur_info,
+            seen_pkg_versions,
+            updates_versions,
+            force_emit_all,
+            remaining,
+        );
+    items.append(&mut aur_items);
+    let baseline_only = baseline_only.saturating_add(aur_baseline_only);
 
     info!(
         emitted = items.len(),

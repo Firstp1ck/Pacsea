@@ -525,6 +525,9 @@ fn handle_installed_cache_polling(
 /// - Polls installed/explicit caches if needed
 /// - Handles ring prefetch, sort menu auto-close, and toast expiration
 #[allow(clippy::too_many_arguments)]
+// Function is 151 lines, just 1 line over the threshold. Refactoring would require
+// significant restructuring of the tick handling logic which would reduce readability.
+#[allow(clippy::too_many_lines)]
 pub fn handle_tick(
     app: &mut AppState,
     query_tx: &mpsc::UnboundedSender<QueryInput>,
@@ -1023,7 +1026,7 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify that `handle_news` sets news_ready and stores news for button click.
+    /// What: Verify that `handle_news` sets `news_ready` and stores news for button click.
     ///
     /// Inputs:
     /// - `AppState`

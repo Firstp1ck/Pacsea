@@ -302,10 +302,13 @@ mod tests {
         assert!(!translated.is_empty());
         // The main bug fix: should not contain the format specifier literal {:.1}
         // This was the bug where {:.1}% was showing up instead of the actual percentage
+        // We need to check for the literal string "{:.1}" which clippy flags as a format specifier,
+        // but this is intentional - we're testing that translations don't contain this literal.
+        #[allow(clippy::literal_string_with_formatting_args)]
+        let format_spec = "{:.1}";
         assert!(
-            !translated.contains("{:.1}"),
-            "Translation should not contain format specifier {{:.1}}, got: {}",
-            translated
+            !translated.contains(format_spec),
+            "Translation should not contain format specifier {format_spec}, got: {translated}"
         );
     }
 }
