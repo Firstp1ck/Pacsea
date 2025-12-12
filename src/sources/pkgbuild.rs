@@ -61,7 +61,11 @@ pub async fn fetch_pkgbuild_fast(item: &PackageItem) -> Result<String> {
         if let Some(last) = *last_request {
             let elapsed = last.elapsed();
             if elapsed < Duration::from_millis(PKGBUILD_MIN_INTERVAL_MS) {
-                let delay = Duration::from_millis(PKGBUILD_MIN_INTERVAL_MS) - elapsed;
+                // Safe to unwrap because we checked elapsed < PKGBUILD_MIN_INTERVAL_MS above
+                #[allow(clippy::unwrap_used)]
+                let delay = Duration::from_millis(PKGBUILD_MIN_INTERVAL_MS)
+                    .checked_sub(elapsed)
+                    .unwrap();
                 tracing::debug!(
                     "Rate limiting PKGBUILD request for {}: waiting {:?}",
                     name,

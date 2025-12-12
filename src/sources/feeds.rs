@@ -184,7 +184,9 @@ async fn rate_limit() {
         let elapsed = last_request.elapsed();
         let min_delay = Duration::from_millis(RATE_LIMIT_DELAY_MS);
         let delay = if elapsed < min_delay {
-            min_delay - elapsed
+            // Safe to unwrap because we checked elapsed < min_delay above
+            #[allow(clippy::unwrap_used)]
+            min_delay.checked_sub(elapsed).unwrap()
         } else {
             Duration::ZERO
         };
