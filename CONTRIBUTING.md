@@ -4,6 +4,8 @@ Thanks for your interest in contributing! Pacsea is a fast, keyboard-first TUI f
 
 By participating, you agree to follow our [Code of Conduct](CODE_OF_CONDUCT.md).
 
+For newcomers looking to contribute, we recommend starting with issues labeled "Good First Issue" in our [issue tracker](https://github.com/Firstp1ck/Pacsea/issues).
+
 ## Ways to contribute
 - Bug reports and fixes
 - Feature requests and implementations
