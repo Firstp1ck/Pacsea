@@ -15,22 +15,49 @@ use crate::ui::helpers::ChangeLogger;
 use std::fmt::Write;
 use std::sync::{Mutex, OnceLock};
 
+/// What: Bit flags for tracking incomplete preflight data.
+///
+/// Inputs: None (default constructed).
+///
+/// Output: Bit flags indicating which preflight data is incomplete.
+///
+/// Details: Uses a u16 to store multiple boolean flags efficiently.
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
 struct IncompleteFlags(u16);
 
 impl IncompleteFlags {
+    /// Flag indicating preflight dependencies are incomplete.
     const PREFLIGHT_DEPS: u16 = 1 << 0;
+    /// Flag indicating dependencies are incomplete.
     const DEPS: u16 = 1 << 1;
+    /// Flag indicating computed dependencies are incomplete.
     const COMPUTED_DEPS: u16 = 1 << 2;
+    /// Flag indicating preflight files are incomplete.
     const PREFLIGHT_FILES: u16 = 1 << 3;
+    /// Flag indicating files are incomplete.
     const FILES: u16 = 1 << 4;
+    /// Flag indicating preflight sandbox data is incomplete.
     const PREFLIGHT_SANDBOX: u16 = 1 << 5;
+    /// Flag indicating sandbox data is incomplete.
     const SANDBOX: u16 = 1 << 6;
+    /// Flag indicating dependencies are incomplete (alternative flag).
     const DEPS_INCOMPLETE: u16 = 1 << 7;
+    /// Flag to show dependencies indicator.
     const SHOW_DEPS_INDICATOR: u16 = 1 << 8;
+    /// Flag to show files indicator.
     const SHOW_FILES_INDICATOR: u16 = 1 << 9;
+    /// Flag to show sandbox indicator.
     const SHOW_SANDBOX_INDICATOR: u16 = 1 << 10;
 
+    /// What: Set or clear a flag bit.
+    ///
+    /// Inputs:
+    /// - `bit`: The bit flag to set or clear.
+    /// - `enabled`: Whether to set (true) or clear (false) the bit.
+    ///
+    /// Output: Modifies the flags in place.
+    ///
+    /// Details: Uses bitwise operations to set or clear the specified bit.
     const fn set(&mut self, bit: u16, enabled: bool) {
         if enabled {
             self.0 |= bit;
@@ -39,16 +66,35 @@ impl IncompleteFlags {
         }
     }
 
+    /// What: Check if a flag bit is set.
+    ///
+    /// Inputs:
+    /// - `bit`: The bit flag to check.
+    ///
+    /// Output: Returns true if the bit is set, false otherwise.
+    ///
+    /// Details: Uses bitwise AND to check if the specified bit is set.
     const fn is_set(self, bit: u16) -> bool {
         self.0 & bit != 0
     }
 }
 
+/// What: State tracking for incomplete preflight data logging.
+///
+/// Inputs: None (constructed from current state).
+///
+/// Output: Captures current incomplete state for logging.
+///
+/// Details: Used to track and log which preflight data is incomplete.
 #[derive(Clone, PartialEq, Eq)]
 struct IncompleteLogState {
+    /// Incomplete flags indicating what data is missing.
     flags: IncompleteFlags,
+    /// Total number of items.
     item_count: usize,
+    /// Number of packages with dependencies.
     packages_with_deps_count: usize,
+    /// Number of dependency info entries.
     dependency_info_count: usize,
 }
 
@@ -572,7 +618,7 @@ fn render_install_dependencies(
     lines
 }
 
-// Constants for removal action rendering
+/// Maximum number of cascade preview items to display.
 const CASCADE_PREVIEW_MAX: usize = 8;
 
 /// What: Context data for cascade rendering operations.
@@ -587,7 +633,9 @@ const CASCADE_PREVIEW_MAX: usize = 8;
 /// Details:
 /// - Groups related data to reduce parameter passing and variable scope.
 struct CascadeRenderingContext {
+    /// Set of package names to be removed (lowercase).
     removal_targets: std::collections::HashSet<String>,
+    /// Whether the cascade mode allows dependents.
     allows_dependents: bool,
 }
 
@@ -646,9 +694,13 @@ impl CascadeRenderingContext {
 /// Details:
 /// - Groups all display-related data for a dependency.
 struct DependencyDisplayInfo {
+    /// Bullet character for display.
     bullet: &'static str,
+    /// Color for the package name.
     name_color: ratatui::style::Color,
+    /// Detail text to display.
     detail: String,
+    /// Root packages text.
     roots: String,
 }
 

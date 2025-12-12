@@ -7,6 +7,13 @@ use pacsea::{app, theme, util};
 use std::sync::OnceLock;
 use std::{fmt, str::FromStr, time::SystemTime};
 
+/// What: Custom time formatter for tracing logs.
+///
+/// Inputs: None (implements `FormatTime` trait).
+///
+/// Output: Formats timestamps as "YYYY-MM-DD-T HH:MM:SS".
+///
+/// Details: Custom time formatter that converts Unix timestamps to readable date-time strings.
 struct PacseaTimer;
 
 impl tracing_subscriber::fmt::time::FormatTime for PacseaTimer {
@@ -21,8 +28,19 @@ impl tracing_subscriber::fmt::time::FormatTime for PacseaTimer {
     }
 }
 
+/// Global log guard singleton for non-blocking file logging.
+///
+/// Details: Holds the worker guard to ensure log buffers are flushed before program exit.
 static LOG_GUARD: OnceLock<tracing_appender::non_blocking::WorkerGuard> = OnceLock::new();
 
+/// What: Build environment filter for tracing subscriber.
+///
+/// Inputs:
+/// - `log_level`: Default log level string (e.g., "info", "debug").
+///
+/// Output: Configured `EnvFilter` for tracing.
+///
+/// Details: Creates an environment filter that respects `RUST_LOG` environment variable or uses the provided default level.
 fn build_env_filter(log_level: &str) -> tracing_subscriber::EnvFilter {
     let mut filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(log_level));

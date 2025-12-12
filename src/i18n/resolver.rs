@@ -250,8 +250,11 @@ fn load_default_locale(config_path: &PathBuf) -> String {
 
 /// Locale resolver that caches configuration.
 pub struct LocaleResolver {
+    /// Map of locale to fallback locale.
     fallbacks: HashMap<String, String>,
+    /// Default locale to use when no match is found.
     default_locale: String,
+    /// Set of available locales.
     available_locales: std::collections::HashSet<String>,
 }
 

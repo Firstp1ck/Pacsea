@@ -26,6 +26,7 @@ use crate::logic::send_query;
 /// Details:
 /// - Handles typing, backspace, navigation, space to add items, and Enter to open preflight.
 /// - Typing updates the input, caret position, and triggers debounced search queries.
+#[allow(clippy::cognitive_complexity)]
 pub fn handle_insert_mode(
     ke: KeyEvent,
     app: &mut AppState,
@@ -40,20 +41,24 @@ pub fn handle_insert_mode(
     match (ke.code, ke.modifiers) {
         (KeyCode::Char('c'), KeyModifiers::CONTROL) => return true,
         (c, m) if matches_any(&ke, &km.pane_next) && (c, m) == (ke.code, ke.modifiers) => {
-            // Desired cycle: Recent -> Search -> Downgrade -> Remove -> Recent
-            if app.installed_only_mode {
-                app.right_pane_focus = crate::state::RightPaneFocus::Downgrade;
-                if app.downgrade_state.selected().is_none() && !app.downgrade_list.is_empty() {
-                    app.downgrade_state.select(Some(0));
-                }
+            if matches!(app.app_mode, crate::state::types::AppMode::News) {
                 app.focus = crate::state::Focus::Install;
-                crate::events::utils::refresh_downgrade_details(app, details_tx);
             } else {
-                if app.install_state.selected().is_none() && !app.install_list.is_empty() {
-                    app.install_state.select(Some(0));
+                // Desired cycle: Recent -> Search -> Downgrade -> Remove -> Recent
+                if app.installed_only_mode {
+                    app.right_pane_focus = crate::state::RightPaneFocus::Downgrade;
+                    if app.downgrade_state.selected().is_none() && !app.downgrade_list.is_empty() {
+                        app.downgrade_state.select(Some(0));
+                    }
+                    app.focus = crate::state::Focus::Install;
+                    crate::events::utils::refresh_downgrade_details(app, details_tx);
+                } else {
+                    if app.install_state.selected().is_none() && !app.install_list.is_empty() {
+                        app.install_state.select(Some(0));
+                    }
+                    app.focus = crate::state::Focus::Install;
+                    refresh_install_details(app, details_tx);
                 }
-                app.focus = crate::state::Focus::Install;
-                refresh_install_details(app, details_tx);
             }
         }
         (KeyCode::Right, _) => {
@@ -82,13 +87,26 @@ pub fn handle_insert_mode(
             }
         }
         (KeyCode::Backspace, _) => {
-            app.input.pop();
-            app.last_input_change = std::time::Instant::now();
-            app.last_saved_value = None;
-            // Move caret to end and clear selection in insert mode
-            app.search_caret = char_count(&app.input);
-            app.search_select_anchor = None;
-            send_query(app, query_tx);
+            if matches!(app.app_mode, crate::state::types::AppMode::News) {
+                app.news_search_input.pop();
+                app.input = app.news_search_input.clone();
+                app.last_input_change = std::time::Instant::now();
+                app.last_saved_value = None;
+                let caret = char_count(&app.news_search_input);
+                app.news_search_caret = caret;
+                app.news_search_select_anchor = None;
+                app.search_caret = caret;
+                app.search_select_anchor = None;
+                app.refresh_news_results();
+            } else {
+                app.input.pop();
+                app.last_input_change = std::time::Instant::now();
+                app.last_saved_value = None;
+                // Move caret to end and clear selection in insert mode
+                app.search_caret = char_count(&app.input);
+                app.search_select_anchor = None;
+                send_query(app, query_tx);
+            }
         }
         // Handle Enter - but NOT if it's actually Ctrl+M (which some terminals send as Enter)
         (KeyCode::Char('\n') | KeyCode::Enter, m) => {
@@ -109,24 +127,53 @@ pub fn handle_insert_mode(
         }
         // Only handle character input if no modifiers are present (to allow global keybinds with modifiers)
         (KeyCode::Char(ch), m) if m.is_empty() => {
-            app.input.push(ch);
-            app.last_input_change = std::time::Instant::now();
-            app.last_saved_value = None;
-            app.search_caret = char_count(&app.input);
-            app.search_select_anchor = None;
-            send_query(app, query_tx);
+            if matches!(app.app_mode, crate::state::types::AppMode::News) {
+                app.news_search_input.push(ch);
+                app.input = app.news_search_input.clone();
+                app.last_input_change = std::time::Instant::now();
+                app.last_saved_value = None;
+                let caret = char_count(&app.news_search_input);
+                app.news_search_caret = caret;
+                app.news_search_select_anchor = None;
+                app.search_caret = caret;
+                app.search_select_anchor = None;
+                app.refresh_news_results();
+            } else {
+                app.input.push(ch);
+                app.last_input_change = std::time::Instant::now();
+                app.last_saved_value = None;
+                app.search_caret = char_count(&app.input);
+                app.search_select_anchor = None;
+                send_query(app, query_tx);
+            }
         }
         _ if matches_any(&ke, &km.search_move_up) => {
-            move_sel_cached(app, -1, details_tx, comments_tx);
+            if matches!(app.app_mode, crate::state::types::AppMode::News) {
+                crate::events::utils::move_news_selection(app, -1);
+            } else {
+                move_sel_cached(app, -1, details_tx, comments_tx);
+            }
         }
         _ if matches_any(&ke, &km.search_move_down) => {
-            move_sel_cached(app, 1, details_tx, comments_tx);
+            if matches!(app.app_mode, crate::state::types::AppMode::News) {
+                crate::events::utils::move_news_selection(app, 1);
+            } else {
+                move_sel_cached(app, 1, details_tx, comments_tx);
+            }
         }
         _ if matches_any(&ke, &km.search_page_up) => {
-            move_sel_cached(app, -10, details_tx, comments_tx);
+            if matches!(app.app_mode, crate::state::types::AppMode::News) {
+                crate::events::utils::move_news_selection(app, -10);
+            } else {
+                move_sel_cached(app, -10, details_tx, comments_tx);
+            }
         }
         _ if matches_any(&ke, &km.search_page_down) => {
-            move_sel_cached(app, 10, details_tx, comments_tx);
+            if matches!(app.app_mode, crate::state::types::AppMode::News) {
+                crate::events::utils::move_news_selection(app, 10);
+            } else {
+                move_sel_cached(app, 10, details_tx, comments_tx);
+            }
         }
         _ if matches_any(&ke, &km.search_insert_clear) => {
             // Clear entire search input

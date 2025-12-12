@@ -19,25 +19,45 @@ use super::{FilterStates, MenuStates, OptionalRepos, RenderContext};
 ///
 /// Details: Reduces data flow complexity by pre-computing all i18n strings upfront.
 struct TitleI18nStrings {
+    /// Translated "Results" title text.
     results_title: String,
+    /// Translated sort button text.
     sort_button: String,
+    /// Translated options button text.
     options_button: String,
+    /// Translated panels button text.
     panels_button: String,
+    /// Translated config button text.
     config_button: String,
+    /// Translated menu button text.
     menu_button: String,
+    /// Translated AUR filter text.
     filter_aur: String,
+    /// Translated core repository filter text.
     filter_core: String,
+    /// Translated extra repository filter text.
     filter_extra: String,
+    /// Translated multilib repository filter text.
     filter_multilib: String,
+    /// Translated `EndeavourOS` repository filter text.
     filter_eos: String,
+    /// Translated `CachyOS` repository filter text.
     filter_cachyos: String,
+    /// Translated Artix repository filter text.
     filter_artix: String,
+    /// Translated Artix Omniverse repository filter text.
     filter_artix_omniverse: String,
+    /// Translated Artix Universe repository filter text.
     filter_artix_universe: String,
+    /// Translated Artix Lib32 repository filter text.
     filter_artix_lib32: String,
+    /// Translated Artix Galaxy repository filter text.
     filter_artix_galaxy: String,
+    /// Translated Artix World repository filter text.
     filter_artix_world: String,
+    /// Translated Artix System repository filter text.
     filter_artix_system: String,
+    /// Translated Manjaro repository filter text.
     filter_manjaro: String,
 }
 
@@ -133,15 +153,25 @@ fn calculate_optional_repos_width(repos: &OptionalRepos, labels: &OptionalReposL
 ///
 /// Details: Used to pass multiple label strings as a single parameter.
 struct OptionalReposLabels {
+    /// `EndeavourOS` repository label.
     eos: String,
+    /// `CachyOS` repository label.
     cachyos: String,
+    /// Artix repository label.
     artix: String,
+    /// Artix Omniverse repository label.
     artix_omniverse: String,
+    /// Artix Universe repository label.
     artix_universe: String,
+    /// Artix Lib32 repository label.
     artix_lib32: String,
+    /// Artix Galaxy repository label.
     artix_galaxy: String,
+    /// Artix World repository label.
     artix_world: String,
+    /// Artix System repository label.
     artix_system: String,
+    /// Manjaro repository label.
     manjaro: String,
 }
 
@@ -185,9 +215,13 @@ fn calculate_base_consumed_space(
 ///
 /// Details: Used to pass core filter labels as a single parameter.
 struct CoreFilterLabels {
+    /// AUR filter label.
     aur: String,
+    /// Core repository filter label.
     core: String,
+    /// Extra repository filter label.
     extra: String,
+    /// Multilib repository filter label.
     multilib: String,
 }
 
@@ -676,18 +710,31 @@ fn build_title_spans_from_values(
 ///
 /// Details: Used to share layout calculations between rendering and rect recording functions.
 struct TitleLayoutInfo {
+    /// Title text with result count.
     results_title_text: String,
+    /// Sort button label.
     sort_button_label: String,
+    /// Options button label.
     options_button_label: String,
+    /// Panels button label.
     panels_button_label: String,
+    /// Config/Lists button label.
     config_button_label: String,
+    /// Menu button label.
     menu_button_label: String,
+    /// Core filter labels (AUR/core/extra/multilib).
     core_labels: CoreFilterLabels,
+    /// Optional repository filter labels.
     optional_labels: OptionalReposLabels,
+    /// Available inner width for rendering.
     inner_width: u16,
+    /// Whether to show Artix-specific repositories.
     show_artix_specific_repos: bool,
+    /// Padding between elements.
     pad: u16,
+    /// Whether collapsed menu is used.
     use_collapsed_menu: bool,
+    /// Padding reserved for menu button area.
     menu_pad: u16,
 }
 
@@ -699,7 +746,9 @@ struct TitleLayoutInfo {
 ///
 /// Details: Encapsulates layout state to avoid manual `x_cursor` tracking.
 struct LayoutState {
+    /// Current x cursor position.
     x: u16,
+    /// Y position for all elements.
     y: u16,
 }
 
@@ -854,10 +903,15 @@ fn determine_initial_artix_visibility(
 ///
 /// Details: Reduces function argument count by grouping related parameters.
 struct ArtixVisibilityContext {
+    /// Left space consumed so far.
     consumed_left: u16,
+    /// Final left space consumed.
     final_consumed_left: u16,
+    /// Inner width available.
     inner_width: u16,
+    /// Menu width.
     menu_w: u16,
+    /// Base consumed space.
     base_consumed: u16,
 }
 

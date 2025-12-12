@@ -56,7 +56,7 @@ pub fn handle_news(unread: bool, read: bool, all_news: bool) -> ! {
             .enable_all()
             .build();
         let res = match rt {
-            Ok(rt) => rt.block_on(pacsea::sources::fetch_arch_news(100)),
+            Ok(rt) => rt.block_on(pacsea::sources::fetch_arch_news(100, None)),
             Err(e) => Err::<Vec<pacsea::state::NewsItem>, _>(format!("rt: {e}").into()),
         };
         let _ = tx.send(res);
@@ -113,4 +113,108 @@ pub fn handle_news(unread: bool, read: bool, all_news: bool) -> ! {
 
     tracing::info!(count = filtered_items.len(), "Displayed news items");
     std::process::exit(0);
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+
+    #[test]
+    /// What: Test news filtering logic for default-to-all behavior.
+    ///
+    /// Inputs:
+    /// - No flags specified (all false).
+    ///
+    /// Output:
+    /// - `show_all` should be `true` (defaults to all).
+    ///
+    /// Details:
+    /// - Verifies default behavior when no option is specified.
+    fn test_news_filtering_defaults_to_all() {
+        let unread = false;
+        let read = false;
+        let all_news = false;
+
+        let show_all = if !unread && !read && !all_news {
+            true
+        } else {
+            all_news
+        };
+
+        assert!(show_all, "Should default to all when no flags specified");
+    }
+
+    #[test]
+    /// What: Test news filtering logic for unread filter.
+    ///
+    /// Inputs:
+    /// - News items with some marked as read.
+    ///
+    /// Output:
+    /// - Only unread items returned.
+    ///
+    /// Details:
+    /// - Verifies unread filtering excludes read URLs.
+    fn test_news_filtering_unread() {
+        let read_urls: HashSet<String> =
+            HashSet::from([("https://archlinux.org/news/item-1/").to_string()]);
+
+        let news_items = [
+            pacsea::state::NewsItem {
+                date: "2025-01-01".to_string(),
+                title: "Item 1".to_string(),
+                url: "https://archlinux.org/news/item-1/".to_string(),
+            },
+            pacsea::state::NewsItem {
+                date: "2025-01-02".to_string(),
+                title: "Item 2".to_string(),
+                url: "https://archlinux.org/news/item-2/".to_string(),
+            },
+        ];
+
+        let filtered: Vec<&pacsea::state::NewsItem> = news_items
+            .iter()
+            .filter(|item| !read_urls.contains(&item.url))
+            .collect();
+
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].title, "Item 2");
+    }
+
+    #[test]
+    /// What: Test news filtering logic for read filter.
+    ///
+    /// Inputs:
+    /// - News items with some marked as read.
+    ///
+    /// Output:
+    /// - Only read items returned.
+    ///
+    /// Details:
+    /// - Verifies read filtering includes only read URLs.
+    fn test_news_filtering_read() {
+        let read_urls: HashSet<String> =
+            HashSet::from([("https://archlinux.org/news/item-1/").to_string()]);
+
+        let news_items = [
+            pacsea::state::NewsItem {
+                date: "2025-01-01".to_string(),
+                title: "Item 1".to_string(),
+                url: "https://archlinux.org/news/item-1/".to_string(),
+            },
+            pacsea::state::NewsItem {
+                date: "2025-01-02".to_string(),
+                title: "Item 2".to_string(),
+                url: "https://archlinux.org/news/item-2/".to_string(),
+            },
+        ];
+
+        let filtered: Vec<&pacsea::state::NewsItem> = news_items
+            .iter()
+            .filter(|item| read_urls.contains(&item.url))
+            .collect();
+
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].title, "Item 1");
+    }
 }

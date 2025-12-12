@@ -39,12 +39,19 @@ type SandboxDisplayItem = (
 ///
 /// Details: Reduces individual field extractions and uses, lowering data flow complexity.
 pub struct SandboxTabContext<'a> {
+    /// Package items for the operation.
     pub items: &'a [PackageItem],
+    /// Sandbox information for packages.
     pub sandbox_info: &'a [crate::logic::sandbox::SandboxInfo],
+    /// Set of expanded package names in the tree view.
     pub sandbox_tree_expanded: &'a HashSet<String>,
+    /// Whether sandbox data has been loaded.
     pub sandbox_loaded: bool,
+    /// Optional error message if sandbox loading failed.
     pub sandbox_error: Option<&'a String>,
+    /// Selected optional dependencies by package name.
     pub selected_optdepends: &'a HashMap<String, HashSet<String>>,
+    /// Content area rectangle for rendering.
     pub content_rect: Rect,
 }
 
@@ -58,21 +65,40 @@ pub struct SandboxTabContext<'a> {
 /// - Used to determine what should be rendered (error, loading, analyzing, etc.).
 /// - Reduces data flow complexity by centralizing state checking logic.
 enum SandboxRenderState {
+    /// Error state with error message.
     Error(String),
+    /// Loading sandbox data.
     Loading,
+    /// Analyzing sandbox information.
     Analyzing,
+    /// No AUR packages to analyze.
     NoAurPackages,
+    /// Ready to display sandbox information.
     Ready,
 }
 
+/// What: State tracking for sandbox tab logging.
+///
+/// Inputs: None (constructed from current state).
+///
+/// Output: Captures current sandbox state for logging.
+///
+/// Details: Used to track and log sandbox tab state changes.
 #[derive(Clone, PartialEq, Eq)]
 struct SandboxLogState {
+    /// Number of package items.
     items_len: usize,
+    /// Number of sandbox info entries.
     sandbox_info_len: usize,
+    /// Whether sandbox data has been loaded.
     sandbox_loaded: bool,
+    /// Currently selected sandbox item index.
     sandbox_selected: usize,
+    /// Number of expanded items in the tree.
     expanded_len: usize,
+    /// Bitmask for tracking which items are being resolved.
     resolving_mask: u8,
+    /// Whether there is an error state.
     has_error: bool,
 }
 
@@ -108,9 +134,13 @@ fn log_sandbox_state(state: &SandboxLogState) {
 /// - Groups derived values that are computed once and reused.
 /// - Reduces intermediate variable assignments in the main function.
 struct SandboxRenderData {
+    /// Display items for rendering.
     display_items: Vec<SandboxDisplayItem>,
+    /// Viewport (`start_index`, `end_index`).
     viewport: (usize, usize),
+    /// Available height for rendering.
     available_height: usize,
+    /// Total number of items.
     total_items: usize,
 }
 

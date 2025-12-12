@@ -56,7 +56,14 @@ pub fn spawn_search_worker(
             }
             let elapsed = last_sent.elapsed();
             if elapsed < Duration::from_millis(MIN_INTERVAL_MS) {
-                sleep(Duration::from_millis(MIN_INTERVAL_MS) - elapsed).await;
+                // Safe to unwrap because we checked elapsed < MIN_INTERVAL_MS above
+                #[allow(clippy::unwrap_used)]
+                sleep(
+                    Duration::from_millis(MIN_INTERVAL_MS)
+                        .checked_sub(elapsed)
+                        .unwrap(),
+                )
+                .await;
             }
             last_sent = Instant::now();
 

@@ -12,32 +12,56 @@ use crate::ui::helpers::ChangeLogger;
 use crate::ui::modals::preflight::helpers::format_count_with_indicator;
 use std::sync::{Mutex, OnceLock};
 
+/// Type alias for file display item tuple.
+///
+/// Tuple structure:
+/// - Field 0 (bool): Whether the package entry is expanded to show files.
+/// - Field 1 (String): Package name.
+/// - Field 2 (Option<(`FileChangeType`, String, bool, bool, bool)>): Optional file information.
+///   When Some, contains: (`change_type`, `file_path`, `is_new`, `is_changed`, `is_removed`).
 type FileDisplayItem = (
     bool,
     String,
     Option<(FileChangeType, String, bool, bool, bool)>,
 );
 
+/// Summary of file changes for a single package.
 #[derive(Clone, PartialEq, Eq)]
 struct FilePackageSummary {
+    /// Package name.
     name: String,
+    /// Total number of file changes.
     total: usize,
+    /// Number of new files.
     new_count: usize,
+    /// Number of changed files.
     changed_count: usize,
+    /// Number of removed files.
     removed_count: usize,
+    /// Number of configuration files.
     config_count: usize,
+    /// Total number of file entries.
     file_entries: usize,
 }
 
+/// State tracking for files tab logging.
 #[derive(Clone, PartialEq, Eq)]
 struct FilesLogState {
+    /// Number of package items.
     items_len: usize,
+    /// Number of file info entries.
     file_info_len: usize,
+    /// Currently selected file index.
     file_selected: usize,
+    /// Number of expanded tree nodes.
     expanded_len: usize,
+    /// Whether preflight file resolution is in progress.
     preflight_resolving: bool,
+    /// Whether global file resolution is in progress.
     global_resolving: bool,
+    /// Whether an error occurred.
     has_error: bool,
+    /// Package summaries for file changes.
     package_summaries: Vec<FilePackageSummary>,
 }
 
@@ -430,12 +454,19 @@ fn render_package_header(
 /// Details:
 /// - Contains sums of all file counts from package file information.
 struct FileTotals {
+    /// Total number of files.
     files: usize,
+    /// Number of new files.
     new: usize,
+    /// Number of changed files.
     changed: usize,
+    /// Number of removed files.
     removed: usize,
+    /// Number of config files.
     config: usize,
+    /// Number of .pacnew files.
     pacnew: usize,
+    /// Number of .pacsave files.
     pacsave: usize,
 }
 
@@ -715,10 +746,15 @@ fn render_display_items(
 /// Details:
 /// - Groups related parameters to reduce function signature complexity.
 struct FileListContext<'a> {
+    /// Package file information.
     file_info: &'a [PackageFileInfo],
+    /// Package items.
     items: &'a [PackageItem],
+    /// Display items for rendering.
     display_items: &'a [FileDisplayItem],
+    /// Set of expanded package names in the tree view.
     file_tree_expanded: &'a std::collections::HashSet<String>,
+    /// Optional sync information tuple: (`download_size`, `package_name`, `risk_level`).
     sync_info: &'a Option<(u64, String, u8)>,
 }
 

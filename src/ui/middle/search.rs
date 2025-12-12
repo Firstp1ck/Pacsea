@@ -8,6 +8,7 @@ use ratatui::{
 
 use crate::i18n;
 use crate::state::AppState;
+use crate::state::types::AppMode;
 use crate::theme::theme;
 
 /// What: Build input line spans with optional selection highlighting.
@@ -119,7 +120,9 @@ fn build_title_line<'a>(
     search_focused: bool,
     th: &'a crate::theme::Theme,
 ) -> (Line<'a>, usize, String) {
-    let search_title_base = if search_focused {
+    let search_title_base = if matches!(app.app_mode, AppMode::News) {
+        "News search".to_string()
+    } else if search_focused {
         i18n::t(app, "app.titles.search_focused")
     } else {
         i18n::t(app, "app.titles.search")

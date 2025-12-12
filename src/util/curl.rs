@@ -11,6 +11,13 @@ use super::curl_args;
 use serde_json::Value;
 use std::sync::OnceLock;
 
+/// What: Result type alias for curl utility errors.
+///
+/// Inputs: None (type alias).
+///
+/// Output: Result type with boxed error trait object.
+///
+/// Details: Standard error type for curl operations.
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 /// Cached curl binary path for performance (computed once at first use).

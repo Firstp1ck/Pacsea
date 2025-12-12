@@ -20,6 +20,16 @@ use tokio::task;
 use super::{OfficialPkg, idx, save_to_disk};
 use crate::util::curl;
 
+/// What: Convenience result type for mirror helpers.
+///
+/// Inputs:
+/// - `T`: Success value type for the mirror operation.
+///
+/// Output:
+/// - `Result<T, Box<dyn std::error::Error + Send + Sync>>` shared across this module.
+///
+/// Details:
+/// - Keeps function signatures concise while preserving sendable error semantics.
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 /// What: Download Arch mirror metadata and render a concise `mirrorlist.txt`.

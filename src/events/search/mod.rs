@@ -16,9 +16,13 @@ use tokio::sync::mpsc;
 
 use crate::state::{AppState, PackageItem, QueryInput};
 
+/// Helper functions for search event handling.
 mod helpers;
+/// Insert mode search event handling.
 mod insert_mode;
+/// Normal mode search event handling.
 mod normal_mode;
+/// Preflight modal helper functions for search.
 mod preflight_helpers;
 
 // Re-export preflight modal opener for use in other modules

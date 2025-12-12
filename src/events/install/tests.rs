@@ -1,6 +1,7 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use tokio::sync::mpsc;
 
+use crate::state::types::{AppMode, NewsBookmark, NewsFeedItem, NewsFeedSource};
 use crate::state::{AppState, PackageItem, Source};
 
 use super::handle_install_key;
@@ -236,6 +237,54 @@ fn install_enter_bypasses_preflight_with_skip_flag() {
         }
     }
     let _ = std::fs::remove_dir_all(&base);
+}
+
+#[test]
+/// What: Ensure loading a bookmark without cached content resets loading state and clears stale content.
+///
+/// Inputs:
+/// - Bookmark with no cached content or HTML path, stale content pre-set, and loading flag true.
+///
+/// Output:
+/// - `news_content_loading` becomes false and `news_content` is cleared.
+///
+/// Details:
+/// - Prevents a stuck loading flag that would block future fetch requests.
+fn load_news_bookmark_without_cached_content_clears_loading_flag() {
+    let mut app = new_app();
+    app.app_mode = AppMode::News;
+    app.news_content_loading = true;
+    app.news_content = Some("stale".into());
+    app.news_bookmarks.clear();
+    app.news_results.clear();
+    app.news_content_cache.clear();
+
+    let bookmark = NewsBookmark {
+        item: NewsFeedItem {
+            id: "id-1".into(),
+            date: "2024-01-01".into(),
+            title: "Example".into(),
+            summary: None,
+            url: Some("https://example.com/news".into()),
+            source: NewsFeedSource::ArchNews,
+            severity: None,
+            packages: Vec::new(),
+        },
+        content: None,
+        html_path: None,
+    };
+    app.news_bookmarks.push(bookmark);
+    let last_idx = app.news_bookmarks.len().saturating_sub(1);
+    app.install_state.select(Some(last_idx));
+
+    super::load_news_bookmark(&mut app);
+
+    assert!(!app.news_content_loading, "loading flag should reset");
+    assert!(
+        app.news_content.is_none(),
+        "stale content should be cleared when bookmark has no cache, got {:?}",
+        app.news_content
+    );
 }
 
 #[test]

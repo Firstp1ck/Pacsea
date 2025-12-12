@@ -155,4 +155,4 @@ pub fn handle_mouse_event(
 }
 
 // Re-export for use in keyboard handlers
-pub use menus::handle_updates_button;
+pub use menus::{handle_news_button, handle_updates_button};

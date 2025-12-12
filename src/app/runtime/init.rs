@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-use std::time::Instant;
+use std::{collections::HashMap, fs, path::Path, time::Instant};
 
 use crate::index as pkgindex;
 use crate::state::{AppState, PackageDetails, PackageItem};
@@ -138,9 +137,13 @@ pub fn initialize_locale_system(
 /// - Checks for GNOME terminal if on GNOME desktop
 #[allow(clippy::struct_excessive_bools)]
 pub struct InitFlags {
+    /// Whether dependency resolution is needed (cache missing or invalid).
     pub needs_deps_resolution: bool,
+    /// Whether file analysis is needed (cache missing or invalid).
     pub needs_files_resolution: bool,
+    /// Whether service analysis is needed (cache missing or invalid).
     pub needs_services_resolution: bool,
+    /// Whether sandbox analysis is needed (cache missing or invalid).
     pub needs_sandbox_resolution: bool,
 }
 
@@ -183,6 +186,79 @@ fn load_cache_with_signature<T>(
     )
 }
 
+/// What: Ensure cache directories exist before writing placeholder files.
+///
+/// Inputs:
+/// - `path`: Target cache file path whose parent directory should exist.
+///
+/// Output:
+/// - Parent directory is created if missing; logs a warning on failure.
+///
+/// Details:
+/// - No-op when the path has no parent.
+fn ensure_cache_parent_dir(path: &Path) {
+    if let Some(parent) = path.parent()
+        && let Err(error) = fs::create_dir_all(parent)
+    {
+        tracing::warn!(
+            path = %parent.display(),
+            %error,
+            "[Init] Failed to create cache directory"
+        );
+    }
+}
+
+/// What: Create empty cache files at startup so they always exist on disk.
+///
+/// Inputs:
+/// - `app`: Application state providing cache paths.
+///
+/// Output:
+/// - Writes empty dependency, file, service, and sandbox caches if the files are missing.
+///
+/// Details:
+/// - Uses empty signatures and payloads; leaves existing files untouched.
+/// - Ensures parent directories exist before writing.
+fn initialize_cache_files(app: &AppState) {
+    let empty_signature: Vec<String> = Vec::new();
+
+    if !app.deps_cache_path.exists() {
+        ensure_cache_parent_dir(&app.deps_cache_path);
+        deps_cache::save_cache(&app.deps_cache_path, &empty_signature, &[]);
+        tracing::debug!(
+            path = %app.deps_cache_path.display(),
+            "[Init] Created empty dependency cache"
+        );
+    }
+
+    if !app.files_cache_path.exists() {
+        ensure_cache_parent_dir(&app.files_cache_path);
+        files_cache::save_cache(&app.files_cache_path, &empty_signature, &[]);
+        tracing::debug!(
+            path = %app.files_cache_path.display(),
+            "[Init] Created empty file cache"
+        );
+    }
+
+    if !app.services_cache_path.exists() {
+        ensure_cache_parent_dir(&app.services_cache_path);
+        services_cache::save_cache(&app.services_cache_path, &empty_signature, &[]);
+        tracing::debug!(
+            path = %app.services_cache_path.display(),
+            "[Init] Created empty service cache"
+        );
+    }
+
+    if !app.sandbox_cache_path.exists() {
+        ensure_cache_parent_dir(&app.sandbox_cache_path);
+        sandbox_cache::save_cache(&app.sandbox_cache_path, &empty_signature, &[]);
+        tracing::debug!(
+            path = %app.sandbox_cache_path.display(),
+            "[Init] Created empty sandbox cache"
+        );
+    }
+}
+
 /// What: Apply settings from configuration to application state.
 ///
 /// Inputs:
@@ -206,6 +282,20 @@ pub fn apply_settings_to_app_state(app: &mut AppState, prefs: &crate::theme::Set
     app.search_normal_mode = prefs.search_startup_mode;
     app.fuzzy_search_enabled = prefs.fuzzy_search;
     app.installed_packages_mode = prefs.installed_packages_mode;
+    app.app_mode = if prefs.start_in_news {
+        crate::state::types::AppMode::News
+    } else {
+        crate::state::types::AppMode::Package
+    };
+    app.news_filter_show_arch_news = prefs.news_filter_show_arch_news;
+    app.news_filter_show_advisories = prefs.news_filter_show_advisories;
+    app.news_filter_show_pkg_updates = prefs.news_filter_show_pkg_updates;
+    app.news_filter_show_aur_updates = prefs.news_filter_show_aur_updates;
+    app.news_filter_show_aur_comments = prefs.news_filter_show_aur_comments;
+    app.news_filter_installed_only = prefs.news_filter_installed_only;
+    app.news_max_age_days = prefs.news_max_age_days;
+    // Recompute news results with loaded filters/age
+    app.refresh_news_results();
 }
 
 /// What: Check if GNOME terminal is needed and set modal if required.
@@ -334,6 +424,39 @@ fn load_news_read_urls(app: &mut AppState) {
     }
 }
 
+/// What: Load news read IDs from disk (feed-level tracking).
+///
+/// Inputs:
+/// - `app`: Application state to update
+///
+/// Output: None (modifies app state in place)
+///
+/// Details:
+/// - Attempts to deserialize news read IDs set from JSON file.
+/// - If no IDs file is found, falls back to populated `news_read_urls` for migration.
+fn load_news_read_ids(app: &mut AppState) {
+    if let Ok(s) = std::fs::read_to_string(&app.news_read_ids_path)
+        && let Ok(set) = serde_json::from_str::<std::collections::HashSet<String>>(&s)
+    {
+        app.news_read_ids = set;
+        tracing::info!(
+            path = %app.news_read_ids_path.display(),
+            count = app.news_read_ids.len(),
+            "loaded read news ids"
+        );
+        return;
+    }
+
+    if app.news_read_ids.is_empty() && !app.news_read_urls.is_empty() {
+        app.news_read_ids.extend(app.news_read_urls.iter().cloned());
+        tracing::info!(
+            copied = app.news_read_ids.len(),
+            "seeded news read ids from legacy URL set"
+        );
+        app.news_read_ids_dirty = true;
+    }
+}
+
 /// What: Load announcement read IDs from disk.
 ///
 /// Inputs:
@@ -346,8 +469,16 @@ fn load_news_read_urls(app: &mut AppState) {
 /// - Handles both old format (single hash) and new format (set of IDs) for migration
 fn load_announcement_state(app: &mut AppState) {
     // Try old format for migration ({ "hash": "..." })
+    /// What: Legacy announcement read state structure.
+    ///
+    /// Inputs: Deserialized from old announcement read file.
+    ///
+    /// Output: Old state structure for migration.
+    ///
+    /// Details: Used for migrating from old announcement read state format.
     #[derive(serde::Deserialize)]
     struct OldAnnouncementReadState {
+        /// Announcement hash if read.
         hash: Option<String>,
     }
     if let Ok(s) = std::fs::read_to_string(&app.announcement_read_path) {
@@ -430,6 +561,23 @@ fn check_version_announcement(app: &mut AppState) {
     // and will be shown when embedded is dismissed via show_next_pending_announcement()
 }
 
+/// What: Initialize application state by loading settings, caches, and persisted data.
+///
+/// Inputs:
+/// - `app`: Mutable application state to initialize
+/// - `dry_run_flag`: Whether to enable dry-run mode for this session
+/// - `headless`: Whether running in headless/test mode
+///
+/// Output:
+/// - Returns `InitFlags` indicating which caches need background resolution
+///
+/// Details:
+/// - Loads and migrates configuration files
+/// - Initializes locale system and translations
+/// - Loads persisted data: recent searches, install list, details cache, dependency/file/service/sandbox caches
+/// - Loads news read URLs and announcement state
+/// - Loads official package index from disk
+/// - Checks for version-embedded announcements
 pub fn initialize_app_state(app: &mut AppState, dry_run_flag: bool, headless: bool) -> InitFlags {
     app.dry_run = if dry_run_flag {
         true
@@ -445,6 +593,7 @@ pub fn initialize_app_state(app: &mut AppState, dry_run_flag: bool, headless: bo
         details_cache = %app.cache_path.display(),
         index = %app.official_index_path.display(),
         news_read = %app.news_read_path.display(),
+        news_read_ids = %app.news_read_ids_path.display(),
         announcement_read = %app.announcement_read_path.display(),
         "resolved state file paths"
     );
@@ -461,6 +610,28 @@ pub fn initialize_app_state(app: &mut AppState, dry_run_flag: bool, headless: bo
 
     check_gnome_terminal(app, headless);
 
+    // Show NewsSetup modal on first launch if not configured
+    if !headless && !prefs.startup_news_configured {
+        // Only show if no other modal is already set (e.g., GnomeTerminalPrompt)
+        if matches!(app.modal, crate::state::Modal::None) {
+            app.modal = crate::state::Modal::NewsSetup {
+                show_arch_news: prefs.startup_news_show_arch_news,
+                show_advisories: prefs.startup_news_show_advisories,
+                show_aur_updates: prefs.startup_news_show_aur_updates,
+                show_aur_comments: prefs.startup_news_show_aur_comments,
+                show_pkg_updates: prefs.startup_news_show_pkg_updates,
+                max_age_days: prefs.startup_news_max_age_days,
+                cursor: 0,
+            };
+        }
+    } else if !headless && prefs.startup_news_configured {
+        // Always fetch fresh news in background (using last startup timestamp for incremental updates)
+        // Show loading toast while fetching, but cached items will be displayed immediately
+        app.news_loading = true;
+        app.toast_message = Some(crate::i18n::t(app, "app.news_button.loading"));
+        app.toast_expires_at = None; // No expiration - toast stays until news loading completes
+    }
+
     // Check faillock status at startup
     if !headless {
         let username = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
@@ -474,6 +645,7 @@ pub fn initialize_app_state(app: &mut AppState, dry_run_flag: bool, headless: bo
     load_details_cache(app);
     load_recent_searches(app);
     load_install_list(app);
+    initialize_cache_files(app);
 
     // Load dependency cache after install list is loaded (but before channels are created)
     let (deps_cache, needs_deps_resolution) = load_cache_with_signature(
@@ -544,6 +716,7 @@ pub fn initialize_app_state(app: &mut AppState, dry_run_flag: bool, headless: bo
     }
 
     load_news_read_urls(app);
+    load_news_read_ids(app);
     load_announcement_state(app);
 
     pkgindex::load_from_disk(&app.official_index_path);
@@ -717,6 +890,82 @@ mod tests {
         // Keymap should be initialized (it's a struct, not a string)
         // Just verify it's not the default empty state by checking a field
         // (KeyMap has many fields, we just verify it's been set)
+    }
+
+    #[test]
+    /// What: Verify that `initialize_cache_files` creates placeholder cache files when missing.
+    ///
+    /// Inputs:
+    /// - `AppState` with cache paths pointed to temporary locations that do not yet exist.
+    ///
+    /// Output:
+    /// - Empty dependency, file, service, and sandbox cache files are created.
+    ///
+    /// Details:
+    /// - Validates that startup eagerly materializes cache files instead of delaying until first use.
+    fn initialize_cache_files_creates_empty_placeholders() {
+        let mut app = new_app();
+        let mut deps_path = std::env::temp_dir();
+        deps_path.push(format!(
+            "pacsea_init_deps_cache_{}_{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("System time is before UNIX epoch")
+                .as_nanos()
+        ));
+        let mut files_path = deps_path.clone();
+        files_path.set_file_name("pacsea_init_files_cache.json");
+        let mut services_path = deps_path.clone();
+        services_path.set_file_name("pacsea_init_services_cache.json");
+        let mut sandbox_path = deps_path.clone();
+        sandbox_path.set_file_name("pacsea_init_sandbox_cache.json");
+
+        app.deps_cache_path = deps_path.clone();
+        app.files_cache_path = files_path.clone();
+        app.services_cache_path = services_path.clone();
+        app.sandbox_cache_path = sandbox_path.clone();
+
+        // Ensure paths are clean
+        let _ = std::fs::remove_file(&app.deps_cache_path);
+        let _ = std::fs::remove_file(&app.files_cache_path);
+        let _ = std::fs::remove_file(&app.services_cache_path);
+        let _ = std::fs::remove_file(&app.sandbox_cache_path);
+
+        initialize_cache_files(&app);
+
+        let deps_body = std::fs::read_to_string(&app.deps_cache_path)
+            .expect("Dependency cache file should exist");
+        let deps_cache: crate::app::deps_cache::DependencyCache =
+            serde_json::from_str(&deps_body).expect("Dependency cache should parse");
+        assert!(deps_cache.install_list_signature.is_empty());
+        assert!(deps_cache.dependencies.is_empty());
+
+        let files_body =
+            std::fs::read_to_string(&app.files_cache_path).expect("File cache file should exist");
+        let files_cache: crate::app::files_cache::FileCache =
+            serde_json::from_str(&files_body).expect("File cache should parse");
+        assert!(files_cache.install_list_signature.is_empty());
+        assert!(files_cache.files.is_empty());
+
+        let services_body = std::fs::read_to_string(&app.services_cache_path)
+            .expect("Service cache file should exist");
+        let services_cache: crate::app::services_cache::ServiceCache =
+            serde_json::from_str(&services_body).expect("Service cache should parse");
+        assert!(services_cache.install_list_signature.is_empty());
+        assert!(services_cache.services.is_empty());
+
+        let sandbox_body = std::fs::read_to_string(&app.sandbox_cache_path)
+            .expect("Sandbox cache file should exist");
+        let sandbox_cache: crate::app::sandbox_cache::SandboxCache =
+            serde_json::from_str(&sandbox_body).expect("Sandbox cache should parse");
+        assert!(sandbox_cache.install_list_signature.is_empty());
+        assert!(sandbox_cache.sandbox_info.is_empty());
+
+        let _ = std::fs::remove_file(&app.deps_cache_path);
+        let _ = std::fs::remove_file(&app.files_cache_path);
+        let _ = std::fs::remove_file(&app.services_cache_path);
+        let _ = std::fs::remove_file(&app.sandbox_cache_path);
     }
 
     #[tokio::test]

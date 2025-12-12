@@ -525,9 +525,18 @@ pub fn curl_args(url: &str, extra_args: &[&str]) -> Vec<String> {
         args.push("-k".to_string());
     }
 
+    // Add default timeouts to prevent indefinite hangs:
+    // --connect-timeout 30: fail if connection not established within 30 seconds
+    // --max-time 60: fail if entire operation exceeds 60 seconds
+    // Note: Some feeds (e.g., archlinux.org/feeds/news/) can be slow to connect
+    args.push("--connect-timeout".to_string());
+    args.push("30".to_string());
+    args.push("--max-time".to_string());
+    args.push("60".to_string());
+
     // Add User-Agent header to avoid being blocked by APIs
     args.push("-H".to_string());
-    args.push("User-Agent: Pacsea/1.0".to_string());
+    args.push("User-Agent: Pacsea/1.0 (+https://github.com/Firstp1ck/Pacsea)".to_string());
 
     // Add any extra arguments
     for arg in extra_args {

@@ -11,14 +11,21 @@ use crate::state::PackageItem;
 /// - Supplies boolean outcome, counts, and auxiliary labels for post-transaction display.
 ///
 /// Details:
+/// - Contains information about what changed during the package operation.
 /// - Designed to be serializable/clonable so the UI can render snapshots outside the logic module.
 #[derive(Debug, Clone)]
 pub struct PostSummaryData {
+    /// Whether the operation succeeded.
     pub success: bool,
+    /// Number of files that were changed.
     pub changed_files: usize,
+    /// Number of .pacnew files created.
     pub pacnew_count: usize,
+    /// Number of .pacsave files created.
     pub pacsave_count: usize,
+    /// List of service names that need to be restarted.
     pub services_pending: Vec<String>,
+    /// Optional snapshot label if a snapshot was created.
     pub snapshot_label: Option<String>,
 }
 

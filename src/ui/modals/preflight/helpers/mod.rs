@@ -8,11 +8,17 @@ use crate::state::AppState;
 use crate::state::modal::PreflightHeaderChips;
 use crate::theme::theme;
 
+/// Field extraction helpers for preflight modal.
 pub mod extract;
+/// Layout calculation helpers for preflight modal.
 pub mod layout;
+/// Scroll handling helpers for preflight modal.
 pub mod scroll;
+/// Sync information helpers for preflight modal.
 pub mod sync;
+/// Tab rendering helpers for preflight modal.
 pub mod tabs;
+/// Widget building helpers for preflight modal.
 pub mod widget;
 
 // Re-export byte formatting functions from helpers

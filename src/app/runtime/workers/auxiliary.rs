@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::sync::OnceLock;
 use std::sync::atomic::AtomicBool;
@@ -10,7 +11,8 @@ use tokio::{
 
 use crate::index as pkgindex;
 use crate::sources;
-use crate::state::{ArchStatusColor, NewsItem};
+use crate::state::ArchStatusColor;
+use crate::state::types::{NewsFeedSource, NewsSortMode};
 
 /// What: Spawn background workers for status, news, announcements, and tick events.
 ///
@@ -18,6 +20,7 @@ use crate::state::{ArchStatusColor, NewsItem};
 /// - `headless`: When `true`, skip terminal-dependent operations
 /// - `status_tx`: Channel sender for Arch status updates
 /// - `news_tx`: Channel sender for Arch news updates
+/// - `news_feed_tx`: Channel sender for aggregated news feed (Arch news + advisories)
 /// - `announcement_tx`: Channel sender for remote announcement updates
 /// - `tick_tx`: Channel sender for tick events
 /// - `news_read_urls`: Set of already-read news URLs
@@ -28,6 +31,7 @@ use crate::state::{ArchStatusColor, NewsItem};
 /// - `updates_refresh_interval`: Refresh interval in seconds for pacman -Qu and AUR helper checks
 /// - `installed_packages_mode`: Filter mode for installed packages (leaf only vs all explicit)
 /// - `get_announcement`: Whether to fetch remote announcements from GitHub Gist
+/// - `last_startup_timestamp`: Previous TUI startup time (`YYYYMMDD:HHMMSS`) for incremental updates
 ///
 /// Details:
 /// - Fetches Arch status text once at startup and periodically every 120 seconds
@@ -37,14 +41,17 @@ use crate::state::{ArchStatusColor, NewsItem};
 /// - Refreshes pacman caches (installed, explicit) using the configured installed packages mode
 /// - Spawns tick worker that sends events every 200ms
 /// - Checks for available package updates once at startup and periodically at configured interval
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 pub fn spawn_auxiliary_workers(
     headless: bool,
     status_tx: &mpsc::UnboundedSender<(String, ArchStatusColor)>,
-    news_tx: &mpsc::UnboundedSender<Vec<NewsItem>>,
+    news_tx: &mpsc::UnboundedSender<Vec<crate::state::types::NewsFeedItem>>,
+    news_feed_tx: &mpsc::UnboundedSender<crate::state::types::NewsFeedPayload>,
     announcement_tx: &mpsc::UnboundedSender<crate::announcements::RemoteAnnouncement>,
     tick_tx: &mpsc::UnboundedSender<()>,
     news_read_urls: &std::collections::HashSet<String>,
+    news_seen_pkg_versions: &std::collections::HashMap<String, String>,
+    news_seen_aur_comments: &std::collections::HashMap<String, String>,
     official_index_path: &std::path::Path,
     net_err_tx: &mpsc::UnboundedSender<String>,
     index_notify_tx: &mpsc::UnboundedSender<()>,
@@ -52,7 +59,15 @@ pub fn spawn_auxiliary_workers(
     updates_refresh_interval: u64,
     installed_packages_mode: crate::state::InstalledPackagesMode,
     get_announcement: bool,
+    last_startup_timestamp: Option<&str>,
 ) {
+    tracing::info!(
+        headless,
+        get_announcement,
+        updates_refresh_interval,
+        "auxiliary workers starting"
+    );
+
     // Fetch Arch status text once at startup (skip in headless mode to avoid network delays)
     if !headless {
         let status_tx_once = status_tx.clone();
@@ -74,17 +89,281 @@ pub fn spawn_auxiliary_workers(
         });
     }
 
-    // Fetch Arch news once at startup; show unread items (by URL) if any (skip in headless mode)
-    if !headless {
-        let news_tx_once = news_tx.clone();
-        let read_set = news_read_urls.clone();
+    if headless {
+        tracing::info!("headless mode: skipping news/advisory fetch and announcements");
+        // In headless mode, send empty array to news channel to ensure event loop doesn't hang
+        // waiting for news items that will never arrive
+        let news_tx_headless = news_tx.clone();
         tokio::spawn(async move {
-            if let Ok(list) = sources::fetch_arch_news(10).await {
-                let unread: Vec<NewsItem> = list
-                    .into_iter()
-                    .filter(|it| !read_set.contains(&it.url))
-                    .collect();
-                let _ = news_tx_once.send(unread);
+            tracing::debug!("headless mode: sending empty news array to clear any pending waits");
+            let _ = news_tx_headless.send(Vec::new());
+        });
+    } else {
+        // Fetch startup news popup items using startup news settings
+        let prefs = crate::theme::settings();
+        // Only fetch if startup news is configured (setup has been completed)
+        if prefs.startup_news_configured {
+            // Note: news_loading flag will be set in the event loop when items are received
+            // For now, we rely on the event loop to show loading modal when news_loading is true
+            let news_tx_once = news_tx.clone();
+            let read_urls = news_read_urls.clone();
+            // Note: read_ids would need to be passed in, but for now we'll use a simplified approach
+            // The actual read_ids check will happen in the event loop when items are received
+            let installed: HashSet<String> = pkgindex::explicit_names().into_iter().collect();
+            let mut seen_versions = news_seen_pkg_versions.clone();
+            let mut seen_aur_comments = news_seen_aur_comments.clone();
+            let last_startup = last_startup_timestamp.map(str::to_owned);
+            tracing::info!(
+                    read_urls = read_urls.len(),
+                    last_startup = ?last_startup,
+                    "queueing startup news fetch (startup)"
+            );
+            tokio::spawn(async move {
+                // Add random delay (0-2 seconds) before first fetch to avoid burst requests on startup
+                // Use system time hash to generate a pseudo-random delay without external dependencies
+                let now_nanos = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_nanos())
+                    .unwrap_or(0);
+                let stagger_ms = (now_nanos % 2001) as u64; // 0-2000ms
+                if stagger_ms > 0 {
+                    tracing::info!(stagger_ms, "staggering startup news fetch");
+                    tokio::time::sleep(Duration::from_millis(stagger_ms)).await;
+                }
+                tracing::info!("startup news fetch task started");
+                // Optimize max_age_days based on last startup (fetch less if recently used)
+                let optimized_max_age = sources::optimize_max_age_for_startup(
+                    last_startup.as_deref(),
+                    prefs.startup_news_max_age_days,
+                );
+                let mut installed_set = installed;
+                if installed_set.is_empty() {
+                    crate::index::refresh_installed_cache().await;
+                    crate::index::refresh_explicit_cache(
+                        crate::state::InstalledPackagesMode::AllExplicit,
+                    )
+                    .await;
+                    let refreshed: HashSet<String> =
+                        pkgindex::explicit_names().into_iter().collect();
+                    if !refreshed.is_empty() {
+                        installed_set = refreshed;
+                    }
+                }
+                // Include pkg_updates if either official or AUR updates are enabled
+                let include_pkg_updates =
+                    prefs.startup_news_show_pkg_updates || prefs.startup_news_show_aur_updates;
+                // Use lower limit for startup popup (20) vs main feed (50)
+                // If both official and AUR updates are requested, double the limit so both types can be included
+                #[allow(clippy::items_after_statements)]
+                const STARTUP_NEWS_LIMIT: usize = 20;
+                let updates_limit =
+                    if prefs.startup_news_show_pkg_updates && prefs.startup_news_show_aur_updates {
+                        STARTUP_NEWS_LIMIT * 2
+                    } else {
+                        STARTUP_NEWS_LIMIT
+                    };
+                let ctx = sources::NewsFeedContext {
+                    force_emit_all: true,
+                    updates_list_path: Some(
+                        crate::theme::lists_dir().join("available_updates.txt"),
+                    ),
+                    limit: updates_limit,
+                    include_arch_news: prefs.startup_news_show_arch_news,
+                    include_advisories: prefs.startup_news_show_advisories,
+                    include_pkg_updates,
+                    include_aur_comments: prefs.startup_news_show_aur_comments,
+                    installed_filter: Some(&installed_set),
+                    installed_only: false,
+                    sort_mode: NewsSortMode::DateDesc,
+                    seen_pkg_versions: &mut seen_versions,
+                    seen_aur_comments: &mut seen_aur_comments,
+                    max_age_days: optimized_max_age,
+                };
+                tracing::info!(
+                    limit = updates_limit,
+                    include_arch_news = prefs.startup_news_show_arch_news,
+                    include_advisories = prefs.startup_news_show_advisories,
+                    include_pkg_updates,
+                    include_aur_comments = prefs.startup_news_show_aur_comments,
+                    configured_max_age = ?prefs.startup_news_max_age_days,
+                    optimized_max_age = ?optimized_max_age,
+                    installed_count = installed_set.len(),
+                    "starting startup news fetch"
+                );
+                match sources::fetch_news_feed(ctx).await {
+                    Ok(feed) => {
+                        tracing::info!(
+                            total_items = feed.len(),
+                            "startup news fetch completed successfully"
+                        );
+                        // Filter by source type for package updates (AUR vs official are mixed in fetch_installed_updates)
+                        let source_filtered: Vec<crate::state::types::NewsFeedItem> = feed
+                            .into_iter()
+                            .filter(|item| match item.source {
+                                crate::state::types::NewsFeedSource::ArchNews => {
+                                    prefs.startup_news_show_arch_news
+                                }
+                                crate::state::types::NewsFeedSource::SecurityAdvisory => {
+                                    prefs.startup_news_show_advisories
+                                }
+                                crate::state::types::NewsFeedSource::InstalledPackageUpdate => {
+                                    prefs.startup_news_show_pkg_updates
+                                }
+                                crate::state::types::NewsFeedSource::AurPackageUpdate => {
+                                    prefs.startup_news_show_aur_updates
+                                }
+                                crate::state::types::NewsFeedSource::AurComment => {
+                                    prefs.startup_news_show_aur_comments
+                                }
+                            })
+                            .collect();
+                        // Filter by max age days
+                        let filtered: Vec<crate::state::types::NewsFeedItem> =
+                            if let Some(max_days) = prefs.startup_news_max_age_days {
+                                let cutoff_date = chrono::Utc::now()
+                                    .checked_sub_signed(chrono::Duration::days(i64::from(max_days)))
+                                    .map(|dt| dt.format("%Y-%m-%d").to_string());
+                                #[allow(clippy::unnecessary_map_or)]
+                                let filtered_items = source_filtered
+                                    .into_iter()
+                                    .filter(|item| {
+                                        cutoff_date
+                                            .as_ref()
+                                            .map_or(true, |cutoff| &item.date >= cutoff)
+                                    })
+                                    .collect();
+                                filtered_items
+                            } else {
+                                source_filtered
+                            };
+                        // Filter out already-read items (by URL - id check happens later)
+                        #[allow(clippy::unnecessary_map_or)]
+                        let unread: Vec<crate::state::types::NewsFeedItem> = filtered
+                            .into_iter()
+                            .filter(|item| {
+                                item.url
+                                    .as_ref()
+                                    .map_or(true, |url| !read_urls.contains(url))
+                            })
+                            .collect();
+                        tracing::info!(
+                            unread_count = unread.len(),
+                            "sending startup news items to channel"
+                        );
+                        match news_tx_once.send(unread) {
+                            Ok(()) => {
+                                tracing::info!("startup news items sent to channel successfully");
+                            }
+                            Err(e) => {
+                                tracing::error!(
+                                    error = %e,
+                                    "failed to send startup news items to channel (receiver dropped?)"
+                                );
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!(error = %e, "startup news fetch failed");
+                        tracing::info!(
+                            "sending empty array to clear loading flag after fetch error"
+                        );
+                        let _ = news_tx_once.send(Vec::new());
+                    }
+                }
+            });
+        }
+
+        // Fetch aggregated news feed (Arch news + security advisories)
+        let news_feed_tx_once = news_feed_tx.clone();
+        let installed: HashSet<String> = pkgindex::explicit_names().into_iter().collect();
+        let mut seen_versions = news_seen_pkg_versions.clone();
+        let mut seen_aur_comments = news_seen_aur_comments.clone();
+        tracing::info!(
+            installed_names = installed.len(),
+            "queueing combined news feed fetch (startup)"
+        );
+        tokio::spawn(async move {
+            // Add random delay (0-2 seconds) before first fetch to avoid burst requests on startup
+            // Use system time hash to generate a pseudo-random delay without external dependencies
+            let now_nanos = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0);
+            let stagger_ms = ((now_nanos + 1000) % 2001) as u64; // Offset by 1000 to stagger differently from startup popup
+            if stagger_ms > 0 {
+                tracing::info!(stagger_ms, "staggering aggregated news feed fetch");
+                tokio::time::sleep(Duration::from_millis(stagger_ms)).await;
+            }
+            let mut installed_set = installed;
+            if installed_set.is_empty() {
+                tracing::info!(
+                    "installed set empty at news fetch startup; refreshing caches before fetch"
+                );
+                crate::index::refresh_installed_cache().await;
+                crate::index::refresh_explicit_cache(
+                    crate::state::InstalledPackagesMode::AllExplicit,
+                )
+                .await;
+                // Re-load after refresh
+                let refreshed: HashSet<String> = pkgindex::explicit_names().into_iter().collect();
+                if refreshed.is_empty() {
+                    tracing::warn!(
+                        "installed set still empty after refresh; skipping updates/comments this cycle"
+                    );
+                } else {
+                    installed_set = refreshed;
+                }
+            }
+            let ctx = sources::NewsFeedContext {
+                force_emit_all: true,
+                updates_list_path: Some(crate::theme::lists_dir().join("available_updates.txt")),
+                limit: 50,
+                include_arch_news: true,
+                include_advisories: true,
+                include_pkg_updates: true,
+                include_aur_comments: true,
+                installed_filter: Some(&installed_set),
+                installed_only: false,
+                sort_mode: NewsSortMode::DateDesc,
+                seen_pkg_versions: &mut seen_versions,
+                seen_aur_comments: &mut seen_aur_comments,
+                max_age_days: None, // Main feed doesn't use date filtering
+            };
+            match sources::fetch_news_feed(ctx).await {
+                Ok(feed) => {
+                    let arch_ct = feed
+                        .iter()
+                        .filter(|i| matches!(i.source, NewsFeedSource::ArchNews))
+                        .count();
+                    let adv_ct = feed
+                        .iter()
+                        .filter(|i| matches!(i.source, NewsFeedSource::SecurityAdvisory))
+                        .count();
+                    tracing::info!(
+                        total = feed.len(),
+                        arch = arch_ct,
+                        advisories = adv_ct,
+                        installed_names = installed_set.len(),
+                        "news feed fetched"
+                    );
+                    if feed.is_empty() {
+                        tracing::warn!(
+                            installed_names = installed_set.len(),
+                            "news feed is empty after fetch"
+                        );
+                    }
+                    let payload = crate::state::types::NewsFeedPayload {
+                        items: feed,
+                        seen_pkg_versions: seen_versions,
+                        seen_aur_comments,
+                    };
+                    if let Err(e) = news_feed_tx_once.send(payload) {
+                        tracing::warn!(error = ?e, "failed to send news feed to channel");
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, "failed to fetch news feed");
+                }
             }
         });
     }

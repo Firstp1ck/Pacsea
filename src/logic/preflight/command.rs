@@ -73,19 +73,29 @@ impl CommandRunner for SystemCommandRunner {
 /// Output: Implements `Display`/`Error` for ergonomic propagation.
 ///
 /// Details:
+/// - Represents various failure modes when executing system commands.
 /// - Wraps I/O errors, UTF-8 conversion failures, parsing issues, and
 ///   non-success exit statuses.
 #[derive(Debug)]
 pub enum CommandError {
+    /// I/O error occurred.
     Io(std::io::Error),
+    /// UTF-8 decoding error occurred.
     Utf8(std::string::FromUtf8Error),
+    /// Command execution failed.
     Failed {
+        /// Program name that failed.
         program: String,
+        /// Command arguments.
         args: Vec<String>,
+        /// Exit status of the failed command.
         status: std::process::ExitStatus,
     },
+    /// Parse error when processing command output.
     Parse {
+        /// Program name that produced invalid output.
         program: String,
+        /// Field name that failed to parse.
         field: String,
     },
 }

@@ -4,6 +4,7 @@ use crossterm::{
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 
+/// Result type alias for terminal operations.
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 /// What: Enter raw mode and switch to the alternate screen with mouse capture enabled.

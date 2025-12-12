@@ -17,13 +17,25 @@ use std::sync::{Mutex, OnceLock};
 #[cfg(test)]
 use std::thread::ThreadId;
 
+/// Maximum number of PKGBUILD entries to cache.
 const CACHE_CAPACITY: usize = 200;
+/// Environment variable name for custom PKGBUILD cache path.
 const CACHE_PATH_ENV: &str = "PACSEA_PKGBUILD_CACHE_PATH";
 
+/// What: Source kind for PKGBUILD files.
+///
+/// Inputs: Determined from package source.
+///
+/// Output: Enum indicating where the PKGBUILD came from.
+///
+/// Details: Used to categorize PKGBUILD files by their origin (AUR, Official, or Unknown).
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum PkgbuildSourceKind {
+    /// PKGBUILD came from AUR.
     Aur,
+    /// PKGBUILD came from official repositories.
     Official,
+    /// Source could not be determined.
     Unknown,
 }
 
@@ -36,29 +48,68 @@ impl From<&Source> for PkgbuildSourceKind {
     }
 }
 
+/// What: Cached PKGBUILD parse entry.
+///
+/// Inputs: Parsed from PKGBUILD file.
+///
+/// Output: Structured PKGBUILD metadata.
+///
+/// Details: Stores parsed PKGBUILD information for caching purposes.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PkgbuildParseEntry {
+    /// Package name.
     pub name: String,
+    /// Package version.
     pub version: String,
+    /// Source kind (AUR, Official, or Unknown).
     pub source: PkgbuildSourceKind,
+    /// PKGBUILD file signature hash.
     pub pkgbuild_signature: u64,
+    /// List of backup files specified in the PKGBUILD.
     pub backup_files: Vec<String>,
+    /// List of install paths specified in the PKGBUILD.
     pub install_paths: Vec<String>,
 }
 
+/// What: On-disk cache structure for PKGBUILD entries.
+///
+/// Inputs: Loaded from disk cache file.
+///
+/// Output: Serialized cache data.
+///
+/// Details: Used for persisting PKGBUILD cache to disk.
 #[derive(Debug, Serialize, Deserialize)]
 struct PkgbuildCacheDisk {
+    /// Cached PKGBUILD parse entries.
     entries: Vec<PkgbuildParseEntry>,
 }
 
+/// What: In-memory cache state for PKGBUILD entries.
+///
+/// Inputs: Initialized with cache path.
+///
+/// Output: Manages LRU cache and dirty flag.
+///
+/// Details: Tracks cache state including LRU cache, file path, and whether changes need to be persisted.
 #[derive(Debug)]
 struct PkgbuildCacheState {
+    /// LRU cache of PKGBUILD entries.
     lru: LruCache<String, PkgbuildParseEntry>,
+    /// Path to the cache file on disk.
     path: PathBuf,
+    /// Whether the cache has been modified and needs to be saved.
     dirty: bool,
 }
 
 impl PkgbuildCacheState {
+    /// What: Create a new PKGBUILD cache state.
+    ///
+    /// Inputs:
+    /// - `path`: Path to the cache file on disk.
+    ///
+    /// Output: New cache state with empty LRU cache.
+    ///
+    /// Details: Initializes a new cache state with the specified path and an empty LRU cache.
     fn new(path: PathBuf) -> Self {
         Self {
             lru: LruCache::new(
@@ -70,6 +121,13 @@ impl PkgbuildCacheState {
         }
     }
 
+    /// What: Load cache entries from disk.
+    ///
+    /// Inputs: None (uses self.path).
+    ///
+    /// Output: Populates the LRU cache with entries from disk.
+    ///
+    /// Details: Reads the cache file from disk and populates the in-memory cache. Silently handles missing files.
     fn load_from_disk(&mut self) {
         let raw = match fs::read_to_string(&self.path) {
             Ok(raw) => raw,
@@ -109,6 +167,13 @@ impl PkgbuildCacheState {
         );
     }
 
+    /// What: Write cache to disk if it has been modified.
+    ///
+    /// Inputs: None (uses self state).
+    ///
+    /// Output: Writes cache to disk if dirty flag is set.
+    ///
+    /// Details: Serializes the cache entries and writes them to disk, then clears the dirty flag.
     fn flush_if_dirty(&mut self) {
         if !self.dirty {
             return;
@@ -154,6 +219,13 @@ impl PkgbuildCacheState {
     }
 }
 
+/// What: Get the path to the PKGBUILD cache file.
+///
+/// Inputs: None.
+///
+/// Output: Path to the cache file.
+///
+/// Details: Checks environment variable first, otherwise uses default path in lists directory.
 fn cache_path() -> PathBuf {
     if let Ok(path) = std::env::var(CACHE_PATH_ENV) {
         return PathBuf::from(path);
@@ -161,6 +233,13 @@ fn cache_path() -> PathBuf {
     crate::theme::lists_dir().join("pkgbuild_parse_cache.json")
 }
 
+/// What: Get the global cache state singleton.
+///
+/// Inputs: None.
+///
+/// Output: Reference to the global cache state mutex.
+///
+/// Details: Initializes the cache state on first access, loading from disk if available.
 fn cache_state() -> &'static Mutex<PkgbuildCacheState> {
     static STATE: OnceLock<Mutex<PkgbuildCacheState>> = OnceLock::new();
     STATE.get_or_init(|| {
@@ -171,12 +250,30 @@ fn cache_state() -> &'static Mutex<PkgbuildCacheState> {
     })
 }
 
+/// What: Compute a hash signature for PKGBUILD contents.
+///
+/// Inputs:
+/// - `contents`: PKGBUILD file contents.
+///
+/// Output: 64-bit hash signature.
+///
+/// Details: Uses `DefaultHasher` to compute a hash of the PKGBUILD contents for cache invalidation.
 fn compute_signature(contents: &str) -> u64 {
     let mut hasher = DefaultHasher::new();
     contents.hash(&mut hasher);
     hasher.finish()
 }
 
+/// What: Generate a cache key for a PKGBUILD entry.
+///
+/// Inputs:
+/// - `name`: Package name.
+/// - `version`: Package version.
+/// - `source`: Source kind.
+///
+/// Output: Cache key string.
+///
+/// Details: Creates a unique cache key by combining package name, version, and source kind.
 fn cache_key(name: &str, version: &str, source: PkgbuildSourceKind) -> String {
     format!("{name}::{version}::{source:?}")
 }

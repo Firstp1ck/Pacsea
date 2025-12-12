@@ -5,9 +5,14 @@ use std::process::Command;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-// Rate limiter for PKGBUILD requests to avoid overwhelming AUR servers
+/// Rate limiter for PKGBUILD requests to avoid overwhelming AUR servers.
+///
+/// Tracks the timestamp of the last PKGBUILD request to enforce minimum intervals.
 static PKGBUILD_RATE_LIMITER: Mutex<Option<Instant>> = Mutex::new(None);
-const PKGBUILD_MIN_INTERVAL_MS: u64 = 500; // Minimum 500ms between requests
+/// Minimum interval between PKGBUILD requests in milliseconds.
+///
+/// Prevents overwhelming AUR servers with too many rapid requests.
+const PKGBUILD_MIN_INTERVAL_MS: u64 = 500;
 
 /// What: Try to find PKGBUILD in a directory structure.
 ///
@@ -266,7 +271,11 @@ pub fn fetch_pkgbuild_sync(name: &str) -> Result<String, String> {
         if let Some(last) = *last_request {
             let elapsed = last.elapsed();
             if elapsed < Duration::from_millis(PKGBUILD_MIN_INTERVAL_MS) {
-                let delay = Duration::from_millis(PKGBUILD_MIN_INTERVAL_MS) - elapsed;
+                // Safe to unwrap because we checked elapsed < PKGBUILD_MIN_INTERVAL_MS above
+                #[allow(clippy::unwrap_used)]
+                let delay = Duration::from_millis(PKGBUILD_MIN_INTERVAL_MS)
+                    .checked_sub(elapsed)
+                    .unwrap();
                 tracing::debug!(
                     "Rate limiting PKGBUILD request for {}: waiting {:?}",
                     name,

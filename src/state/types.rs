@@ -11,6 +11,206 @@ pub struct NewsItem {
     pub url: String,
 }
 
+/// What: High-level application mode.
+///
+/// Inputs: None (enum variants)
+///
+/// Output: Represents whether the UI is in package management or news view.
+///
+/// Details:
+/// - `Package` preserves the existing package management experience.
+/// - `News` switches panes to the news feed experience.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AppMode {
+    /// Package management/search mode (existing UI).
+    Package,
+    /// News feed mode (new UI).
+    News,
+}
+
+/// What: News/advisory source type.
+///
+/// Inputs: None (enum variants)
+///
+/// Output: Identifies where a news feed item originates.
+///
+/// Details:
+/// - Distinguishes Arch news RSS posts from security advisories.
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+pub enum NewsFeedSource {
+    /// Official Arch Linux news RSS item.
+    ArchNews,
+    /// security.archlinux.org advisory.
+    SecurityAdvisory,
+    /// Installed official package received a version update.
+    InstalledPackageUpdate,
+    /// Installed AUR package received a version update.
+    AurPackageUpdate,
+    /// New AUR comment on an installed package.
+    AurComment,
+}
+
+/// What: Severity levels for security advisories.
+///
+/// Inputs: None (enum variants)
+///
+/// Output: Normalized advisory severity.
+///
+/// Details:
+/// - Ordered from lowest to highest severity for sorting.
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+pub enum AdvisorySeverity {
+    /// Unknown or not provided.
+    Unknown,
+    /// Low severity.
+    Low,
+    /// Medium severity.
+    Medium,
+    /// High severity.
+    High,
+    /// Critical severity.
+    Critical,
+}
+
+/// What: Map advisory severity to a numeric rank for sorting (higher is worse).
+///
+/// Inputs:
+/// - `severity`: Optional advisory severity value.
+///
+/// Output:
+/// - Numeric rank where larger numbers indicate higher severity (Critical highest).
+///
+/// Details:
+/// - Returns `0` when severity is missing to ensure advisories without severity fall last.
+/// - Keeps ordering stable across both news feed sorting and advisory-specific listings.
+#[must_use]
+pub const fn severity_rank(severity: Option<AdvisorySeverity>) -> u8 {
+    match severity {
+        Some(AdvisorySeverity::Critical) => 5,
+        Some(AdvisorySeverity::High) => 4,
+        Some(AdvisorySeverity::Medium) => 3,
+        Some(AdvisorySeverity::Low) => 2,
+        Some(AdvisorySeverity::Unknown) => 1,
+        None => 0,
+    }
+}
+
+/// What: Sort options for news feed results.
+///
+/// Inputs: None (enum variants)
+///
+/// Output: Selected sort mode for news items.
+///
+/// Details:
+/// - `DateDesc` is newest-first default.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NewsSortMode {
+    /// Newest first by date.
+    DateDesc,
+    /// Oldest first by date.
+    DateAsc,
+    /// Alphabetical by title.
+    Title,
+    /// Group by source then title.
+    SourceThenTitle,
+    /// Severity first (Critical..Unknown), then date (newest first).
+    SeverityThenDate,
+    /// Unread items first, then date (newest first).
+    UnreadThenDate,
+}
+
+/// What: Read filter applied to news feed items.
+///
+/// Inputs: None (enum variants)
+///
+/// Output:
+/// - Indicates whether to show all, only read, or only unread items.
+///
+/// Details:
+/// - Used by the News Feed list and toolbar filter chip.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NewsReadFilter {
+    /// Show all items regardless of read status.
+    All,
+    /// Show only items marked as read.
+    Read,
+    /// Show only items not marked as read.
+    Unread,
+}
+
+/// What: Unified news/advisory feed item for the news view.
+///
+/// Inputs:
+/// - Fields describing the item (title, summary, url, source, severity, packages, date)
+///
+/// Output:
+/// - Data ready for list and details rendering in news mode.
+///
+/// Details:
+/// - `id` is a stable identifier (URL for news, advisory ID for security).
+/// - `packages` holds affected package names for advisories.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct NewsFeedItem {
+    /// Stable identifier (URL or advisory ID).
+    pub id: String,
+    /// Publication or update date (YYYY-MM-DD).
+    pub date: String,
+    /// Human-readable title/headline.
+    pub title: String,
+    /// Optional summary/description.
+    pub summary: Option<String>,
+    /// Optional link URL for details.
+    pub url: Option<String>,
+    /// Source type (Arch news vs security advisory).
+    pub source: NewsFeedSource,
+    /// Optional advisory severity.
+    pub severity: Option<AdvisorySeverity>,
+    /// Affected packages (advisories only).
+    pub packages: Vec<String>,
+}
+
+/// What: Bundle of news feed items and associated last-seen state updates.
+///
+/// Inputs:
+/// - `items`: Aggregated news feed entries ready for rendering.
+/// - `seen_pkg_versions`: Updated map of installed package names to last-seen versions.
+/// - `seen_aur_comments`: Updated map of AUR packages to last-seen comment identifiers.
+///
+/// Output:
+/// - Carries feed payload plus dedupe state for persistence.
+///
+/// Details:
+/// - Used as the payload between background fetchers and UI to keep last-seen maps in sync.
+#[derive(Clone, Debug)]
+pub struct NewsFeedPayload {
+    /// Aggregated and sorted feed items.
+    pub items: Vec<NewsFeedItem>,
+    /// Last-seen versions for installed packages.
+    pub seen_pkg_versions: std::collections::HashMap<String, String>,
+    /// Last-seen comment identifiers for installed AUR packages.
+    pub seen_aur_comments: std::collections::HashMap<String, String>,
+}
+
+/// What: Persisted bookmark entry for news items, including cached content and optional local HTML path.
+///
+/// Inputs:
+/// - `item`: The news feed item metadata.
+/// - `content`: Parsed article content stored locally for offline display.
+/// - `html_path`: Optional filesystem path to the saved HTML file (if downloaded).
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct NewsBookmark {
+    /// News feed metadata for the bookmark.
+    pub item: NewsFeedItem,
+    /// Parsed content cached locally.
+    pub content: Option<String>,
+    /// Path to the saved HTML file on disk (if downloaded).
+    pub html_path: Option<String>,
+}
+
 /// Package source origin.
 ///
 /// Indicates whether a package originates from the official repositories or
@@ -19,7 +219,12 @@ pub struct NewsItem {
 pub enum Source {
     /// Official repository package and its associated repository and target
     /// architecture.
-    Official { repo: String, arch: String },
+    Official {
+        /// Repository name (e.g., "core", "extra", "community").
+        repo: String,
+        /// Target architecture (e.g., `x86_64`).
+        arch: String,
+    },
     /// AUR package.
     Aur,
 }
@@ -427,6 +632,9 @@ pub struct OptionalDepRow {
 /// - Includes optional timestamp for reliable chronological sorting.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct AurComment {
+    /// Stable comment identifier parsed from DOM when available.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
     /// Comment author username.
     pub author: String,
     /// Human-readable date string.

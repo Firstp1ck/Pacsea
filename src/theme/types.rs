@@ -81,14 +81,55 @@ pub struct Settings {
     pub selected_countries: String,
     /// Number of mirrors to fetch/rank when updating.
     pub mirror_count: u16,
+    /// `VirusTotal` API key for security scanning.
     pub virustotal_api_key: String,
+    /// Whether to run `ClamAV` scan on AUR packages.
     pub scan_do_clamav: bool,
+    /// Whether to run `Trivy` scan on AUR packages.
     pub scan_do_trivy: bool,
+    /// Whether to run `Semgrep` scan on AUR packages.
     pub scan_do_semgrep: bool,
+    /// Whether to run `ShellCheck` scan on AUR packages.
     pub scan_do_shellcheck: bool,
+    /// Whether to run `VirusTotal` scan on AUR packages.
     pub scan_do_virustotal: bool,
+    /// Whether to run custom scan on AUR packages.
     pub scan_do_custom: bool,
+    /// Whether to run Sleuth scan on AUR packages.
     pub scan_do_sleuth: bool,
+    /// Whether to start the app in News mode (true) or Package mode (false).
+    pub start_in_news: bool,
+    /// Whether to show Arch news items in the News view.
+    pub news_filter_show_arch_news: bool,
+    /// Whether to show security advisories in the News view.
+    pub news_filter_show_advisories: bool,
+    /// Whether to show installed package update items in the News view.
+    pub news_filter_show_pkg_updates: bool,
+    /// Whether to show AUR package update items in the News view.
+    pub news_filter_show_aur_updates: bool,
+    /// Whether to show installed AUR comment items in the News view.
+    pub news_filter_show_aur_comments: bool,
+    /// Whether to restrict advisories to installed packages in the News view.
+    pub news_filter_installed_only: bool,
+    /// Maximum age of news items in days (None = unlimited).
+    pub news_max_age_days: Option<u32>,
+    /// Whether startup news popup setup has been completed.
+    pub startup_news_configured: bool,
+    /// Whether to show Arch news in startup news popup.
+    pub startup_news_show_arch_news: bool,
+    /// Whether to show security advisories in startup news popup.
+    pub startup_news_show_advisories: bool,
+    /// Whether to show AUR updates in startup news popup.
+    pub startup_news_show_aur_updates: bool,
+    /// Whether to show AUR comments in startup news popup.
+    pub startup_news_show_aur_comments: bool,
+    /// Whether to show official package updates in startup news popup.
+    pub startup_news_show_pkg_updates: bool,
+    /// Maximum age of news items in days for startup news popup (None = unlimited).
+    pub startup_news_max_age_days: Option<u32>,
+    /// How many days to keep Arch news and advisories cached on disk.
+    /// Default is 7 days. Helps reduce network requests on startup.
+    pub news_cache_ttl_days: u32,
     /// Visual marker style for packages added to Install/Remove/Downgrade lists.
     pub package_marker: PackageMarker,
     /// Symbol used to mark a news item as read in the News modal.
@@ -160,6 +201,22 @@ impl Default for Settings {
             scan_do_virustotal: true,
             scan_do_custom: true,
             scan_do_sleuth: true,
+            start_in_news: false,
+            news_filter_show_arch_news: true,
+            news_filter_show_advisories: true,
+            news_filter_show_pkg_updates: true,
+            news_filter_show_aur_updates: true,
+            news_filter_show_aur_comments: true,
+            news_filter_installed_only: false,
+            news_max_age_days: Some(30),
+            startup_news_configured: false,
+            startup_news_show_arch_news: true,
+            startup_news_show_advisories: true,
+            startup_news_show_aur_updates: true,
+            startup_news_show_aur_comments: true,
+            startup_news_show_pkg_updates: true,
+            startup_news_max_age_days: Some(7),
+            news_cache_ttl_days: 7,
             package_marker: PackageMarker::Front,
             news_read_symbol: "✓".to_string(),
             news_unread_symbol: "∘".to_string(),
@@ -178,7 +235,9 @@ impl Default for Settings {
 /// A single keyboard chord (modifiers + key).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct KeyChord {
+    /// The key code (e.g., Char('a'), Enter, Esc).
     pub code: KeyCode,
+    /// The modifier keys (e.g., Ctrl, Shift, Alt).
     pub mods: KeyModifiers,
 }
 
@@ -294,8 +353,11 @@ mod tests {
 #[derive(Clone, Debug)]
 pub struct KeyMap {
     // Global
+    /// Key chords to show help overlay.
     pub help_overlay: Vec<KeyChord>,
+    /// Key chords to reload configuration.
     pub reload_config: Vec<KeyChord>,
+    /// Key chords to exit the application.
     pub exit: Vec<KeyChord>,
     /// Global: Show/Hide PKGBUILD viewer
     pub show_pkgbuild: Vec<KeyChord>,
@@ -303,8 +365,11 @@ pub struct KeyMap {
     pub comments_toggle: Vec<KeyChord>,
     /// Global: Change results sorting mode
     pub change_sort: Vec<KeyChord>,
+    /// Key chords to move to next pane.
     pub pane_next: Vec<KeyChord>,
+    /// Key chords to move focus left.
     pub pane_left: Vec<KeyChord>,
+    /// Key chords to move focus right.
     pub pane_right: Vec<KeyChord>,
     /// Global: Toggle Config/Lists dropdown
     pub config_menu_toggle: Vec<KeyChord>,
@@ -314,14 +379,23 @@ pub struct KeyMap {
     pub panels_menu_toggle: Vec<KeyChord>,
 
     // Search
+    /// Key chords to move selection up in search results.
     pub search_move_up: Vec<KeyChord>,
+    /// Key chords to move selection down in search results.
     pub search_move_down: Vec<KeyChord>,
+    /// Key chords to page up in search results.
     pub search_page_up: Vec<KeyChord>,
+    /// Key chords to page down in search results.
     pub search_page_down: Vec<KeyChord>,
+    /// Key chords to add package to install list.
     pub search_add: Vec<KeyChord>,
+    /// Key chords to install selected package.
     pub search_install: Vec<KeyChord>,
+    /// Key chords to move focus left from search pane.
     pub search_focus_left: Vec<KeyChord>,
+    /// Key chords to move focus right from search pane.
     pub search_focus_right: Vec<KeyChord>,
+    /// Key chords for backspace in search input.
     pub search_backspace: Vec<KeyChord>,
     /// Insert mode: clear entire search input (default: Shift+Del)
     pub search_insert_clear: Vec<KeyChord>,
@@ -351,12 +425,19 @@ pub struct KeyMap {
     pub toggle_fuzzy: Vec<KeyChord>,
 
     // Recent
+    /// Key chords to move selection up in recent queries.
     pub recent_move_up: Vec<KeyChord>,
+    /// Key chords to move selection down in recent queries.
     pub recent_move_down: Vec<KeyChord>,
+    /// Key chords to find/search in recent queries.
     pub recent_find: Vec<KeyChord>,
+    /// Key chords to use selected recent query.
     pub recent_use: Vec<KeyChord>,
+    /// Key chords to add package from recent to install list.
     pub recent_add: Vec<KeyChord>,
+    /// Key chords to move focus from recent to search pane.
     pub recent_to_search: Vec<KeyChord>,
+    /// Key chords to move focus right from recent pane.
     pub recent_focus_right: Vec<KeyChord>,
     /// Remove one entry from Recent
     pub recent_remove: Vec<KeyChord>,
@@ -364,13 +445,21 @@ pub struct KeyMap {
     pub recent_clear: Vec<KeyChord>,
 
     // Install
+    /// Key chords to move selection up in install list.
     pub install_move_up: Vec<KeyChord>,
+    /// Key chords to move selection down in install list.
     pub install_move_down: Vec<KeyChord>,
+    /// Key chords to confirm and execute install/remove operation.
     pub install_confirm: Vec<KeyChord>,
+    /// Key chords to remove item from install list.
     pub install_remove: Vec<KeyChord>,
+    /// Key chords to clear install list.
     pub install_clear: Vec<KeyChord>,
+    /// Key chords to find/search in install list.
     pub install_find: Vec<KeyChord>,
+    /// Key chords to move focus from install to search pane.
     pub install_to_search: Vec<KeyChord>,
+    /// Key chords to move focus left from install pane.
     pub install_focus_left: Vec<KeyChord>,
 
     // News modal
@@ -378,6 +467,12 @@ pub struct KeyMap {
     pub news_mark_read: Vec<KeyChord>,
     /// Mark all listed News items as read
     pub news_mark_all_read: Vec<KeyChord>,
+    /// Mark selected News Feed item as read.
+    pub news_mark_read_feed: Vec<KeyChord>,
+    /// Mark selected News Feed item as unread.
+    pub news_mark_unread_feed: Vec<KeyChord>,
+    /// Toggle read/unread for selected News Feed item.
+    pub news_toggle_read_feed: Vec<KeyChord>,
 }
 
 /// Type alias for global key bindings tuple.
@@ -819,6 +914,34 @@ fn default_news_keys(none: KeyModifiers, ctrl: KeyModifiers) -> (Vec<KeyChord>, 
     )
 }
 
+/// What: Create default News Feed key bindings.
+///
+/// Inputs:
+/// - `none`: Empty key modifiers
+///
+/// Output:
+/// - Tuple of news feed key binding vectors
+///
+/// Details:
+/// - Returns `news_mark_read_feed`, `news_mark_unread_feed`, and `news_toggle_read_feed`.
+fn default_news_feed_keys(none: KeyModifiers) -> (Vec<KeyChord>, Vec<KeyChord>, Vec<KeyChord>) {
+    use KeyCode::Char;
+    (
+        vec![KeyChord {
+            code: Char('r'),
+            mods: none,
+        }],
+        vec![KeyChord {
+            code: Char('u'),
+            mods: none,
+        }],
+        vec![KeyChord {
+            code: Char('t'),
+            mods: none,
+        }],
+    )
+}
+
 /// What: Build the default `KeyMap` by constructing it from helper functions.
 ///
 /// Inputs:
@@ -842,6 +965,7 @@ fn build_default_keymap() -> KeyMap {
     let recent = default_recent_keys(none, shift);
     let install = default_install_keys(none, shift);
     let news = default_news_keys(none, ctrl);
+    let news_feed = default_news_feed_keys(none);
 
     KeyMap {
         help_overlay: global.0,
@@ -899,6 +1023,9 @@ fn build_default_keymap() -> KeyMap {
         install_focus_left: install.7,
         news_mark_read: news.0,
         news_mark_all_read: news.1,
+        news_mark_read_feed: news_feed.0,
+        news_mark_unread_feed: news_feed.1,
+        news_toggle_read_feed: news_feed.2,
     }
 }
 

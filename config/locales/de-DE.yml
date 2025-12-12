@@ -61,6 +61,8 @@ de-DE:
       search_focused: "Suche (fokussiert)"
       recent: "Suchverlauf:"
       recent_focused: "Suchverlauf (fokussiert)"
+      news_recent: "News-Suchverlauf:"
+      news_recent_focused: "News-Suchverlauf (fokussiert)"
       install_list: "Installationsliste"
       install_list_focused: "Installationsliste (fokussiert)"
       downgrade_list: "Herabstufungs-Liste"
@@ -93,10 +95,10 @@ de-DE:
       aur_maintenance_ongoing: "AUR-Wartung läuft"
       aur_issues_detected: "AUR-Probleme erkannt (Status ansehen)"
       aur_degraded: "AUR beeinträchtigt (Status ansehen)"
-      service_outage: "{} Ausfall (Status ansehen) — {} heute: {:.1}%"
-      service_degraded: "{} beeinträchtigt (Status ansehen) — {} heute: {:.1}%"
-      service_issues_detected: "{} Probleme erkannt (Status ansehen) — {} heute: {:.1}%"
-      systems_nominal_with_service: "Arch-Systeme normal — {} heute: {:.1}%"
+      service_outage: "{} Ausfall (Status ansehen) — {} heute: {}%"
+      service_degraded: "{} beeinträchtigt (Status ansehen) — {} heute: {}%"
+      service_issues_detected: "{} Probleme erkannt (Status ansehen) — {} heute: {}%"
+      systems_nominal_with_service: "Arch-Systeme normal — {} heute: {}%"
       aur_today_suffix: " — AUR heute: {}%"
 
     labels:
@@ -145,6 +147,10 @@ de-DE:
       loading: "Prüfe Updates..."
       locked: "🔒 Gesperrt"
       locked_with_time: "🔒 Gesperrt: {} Min"
+    news_button:
+      ready: "News bereit"
+      none: "Keine News verfügbar"
+      loading: "Lade News..."
 
     actions:
       exit: "Beenden"
@@ -225,6 +231,7 @@ de-DE:
       show_pkgbuild: "PKGBUILD anzeigen"
       hide_pkgbuild: "PKGBUILD verbergen"
       url_label: "URL:"
+      open_url_label: "[Im Browser öffnen]"
       loading_pkgb: "PKGBUILD wird geladen…"
       copy_pkgbuild: "PKGBUILD kopieren"
       reload_pkgbuild: "PKGBUILD neu laden"
@@ -300,12 +307,25 @@ de-DE:
         hide_install_list: "Installationsliste verbergen"
         show_keybinds: "Tastenkombinationen anzeigen"
         hide_keybinds: "Tastenkombinationen verbergen"
+        show_history: "History (TODO: translate to german)"
+        hide_history: "History (TODO: translate to german)"
+        show_bookmarks: "Bookmarks (TODO: translate to german)"
+        hide_bookmarks: "Bookmarks (TODO: translate to german)"
       options_menu:
         list_all_packages: "Alle Pakete auflisten"
         list_installed_packages: "Installierte Pakete auflisten"
         update_system: "System aktualisieren"
         news: "Neuigkeiten"
+        news_management: "News-Verwaltung"
+        package_mode: "Paketmodus"
+        news_age_days: "News-Alter: {} Tage"
+        news_age_all: "News-Alter: unbegrenzt"
         tui_optional_deps: "TUI Optionale Abhängigkeiten"
+    news:
+      filters:
+        arch: "Arch"
+        advisories: "Advisories"
+        installed_only: "Installed only"
 
     modals:
       common:
@@ -446,6 +466,18 @@ de-DE:
         heading: "Arch Linux Neuigkeiten"
         none: "Keine Neuigkeiten verfügbar."
         footer_hint: "Hoch/Runter: auswählen  •  Enter: öffnen  • {}: als gelesen markieren  • {}: alle als gelesen markieren  •  Esc: schließen"
+        keybinds_hint: "Hoch/Runter/K/J: navigieren  •  Enter: öffnen  • {}: als gelesen markieren  • {}: alle als gelesen markieren  •  Esc/Q: schließen"
+      loading:
+        news: "Neuigkeiten werden geladen..."
+      news_setup:
+        title: "News-Popup-Einrichtung"
+        arch_news: "Arch News"
+        advisories: "Advisories - Offizielle Sicherheitsnachrichten"
+        aur_updates: "AUR Updates"
+        aur_comments: "AUR Kommentare"
+        pkg_updates: "Offizielle Paket-Updates"
+        date_selection: "Maximales Alter"
+        footer_hint: "Hoch/Runter: auswählen  •  Leertaste: umschalten  •  Enter: speichern  •  Esc: abbrechen"
       announcement:
         footer_hint: "r: Als gelesen markieren | Enter/Esc: Schließen (erneut anzeigen)"
       updates_window:

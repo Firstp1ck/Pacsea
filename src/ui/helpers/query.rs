@@ -64,7 +64,9 @@ pub fn trigger_recent_preview(
     app: &AppState,
     preview_tx: &tokio::sync::mpsc::UnboundedSender<crate::state::PackageItem>,
 ) {
-    if !matches!(app.focus, crate::state::Focus::Recent) {
+    if !matches!(app.focus, crate::state::Focus::Recent)
+        || matches!(app.app_mode, crate::state::types::AppMode::News)
+    {
         return;
     }
     let Some(idx) = app.history_state.selected() else {

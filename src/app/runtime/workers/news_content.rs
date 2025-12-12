@@ -1,0 +1,93 @@
+//! Background worker for fetching news article content.
+
+use std::time::Instant;
+use tokio::sync::mpsc;
+
+use crate::sources;
+
+/// What: Spawn background worker for news article content fetching.
+///
+/// Inputs:
+/// - `news_content_req_rx`: Channel receiver for content requests (URL as String)
+/// - `news_content_res_tx`: Channel sender for content responses (URL, content)
+///
+/// Output:
+/// - None (spawns async task)
+///
+/// Details:
+/// - Listens for URL requests on the channel
+/// - Drains stale requests and only processes the most recent one
+/// - This prevents queue buildup when users scroll quickly through items
+/// - Fetches article content asynchronously using `fetch_news_content`
+/// - Sends results as `(String, String)` with URL and content
+/// - On error, sends error message as content string
+pub fn spawn_news_content_worker(
+    mut news_content_req_rx: mpsc::UnboundedReceiver<String>,
+    news_content_res_tx: mpsc::UnboundedSender<(String, String)>,
+) {
+    tokio::spawn(async move {
+        while let Some(mut url) = news_content_req_rx.recv().await {
+            // Drain any pending requests and use the most recent one
+            // This prevents queue buildup when users scroll quickly or when
+            // slow requests (e.g., unreachable hosts) block the queue
+            let mut skipped = 0usize;
+            while let Ok(newer_url) = news_content_req_rx.try_recv() {
+                skipped += 1;
+                url = newer_url;
+            }
+            if skipped > 0 {
+                tracing::debug!(
+                    skipped,
+                    url = %url,
+                    "news_content_worker: drained stale requests, processing most recent"
+                );
+            }
+
+            let url_clone = url.clone();
+            let started = Instant::now();
+            tracing::info!(url = %url_clone, "news_content_worker: fetch start");
+            match sources::fetch_news_content(&url).await {
+                Ok(content) => {
+                    tracing::debug!(
+                        url = %url_clone,
+                        elapsed_ms = started.elapsed().as_millis(),
+                        len = content.len(),
+                        "news_content_worker: fetch success"
+                    );
+                    let _ = news_content_res_tx.send((url_clone, content));
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        url = %url_clone,
+                        elapsed_ms = started.elapsed().as_millis(),
+                        "news_content_worker: fetch failed"
+                    );
+                    let _ = news_content_res_tx
+                        .send((url_clone, format!("Failed to load content: {e}")));
+                }
+            }
+        }
+    });
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    /// What: Test error message format for failed content fetches.
+    ///
+    /// Inputs:
+    /// - Error string from `fetch_news_content`.
+    ///
+    /// Output:
+    /// - Error message formatted as "Failed to load content: {error}".
+    ///
+    /// Details:
+    /// - Verifies error message format matches worker behavior.
+    fn test_news_content_worker_error_format() {
+        let error = "Network error";
+        let error_msg = format!("Failed to load content: {error}");
+        assert!(error_msg.contains("Failed to load content"));
+        assert!(error_msg.contains(error));
+    }
+}

@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use crate::state::types::AurComment;
 
+/// Result type alias for AUR comments fetching operations.
 type Result<T> = super::Result<T>;
 
 /// Context for extracting comment data from HTML elements.
@@ -48,9 +49,10 @@ struct CommentExtractionContext<'a> {
 pub async fn fetch_aur_comments(pkgname: String) -> Result<Vec<AurComment>> {
     let url = format!("https://aur.archlinux.org/packages/{pkgname}");
 
-    // Create HTTP client with timeout
+    // Create HTTP client with short timeout (500ms) to fail fast on slow connections
+    // This prioritizes responsiveness over completeness - missed comments will be caught next fetch
     let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(10))
+        .timeout(Duration::from_millis(500))
         .build()
         .map_err(|e| format!("Failed to create HTTP client: {e}"))?;
 
@@ -216,7 +218,9 @@ fn extract_comment_from_header(
     // Determine if this comment is pinned
     let is_pinned = determine_pinned_status(comment_id, index, context);
 
+    let stable_id = comment_id.map(str::to_string).or_else(|| date_url.clone());
     Some(AurComment {
+        id: stable_id,
         author,
         date: local_date,
         date_timestamp,

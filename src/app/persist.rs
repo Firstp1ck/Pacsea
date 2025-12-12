@@ -80,6 +80,113 @@ pub fn maybe_flush_recent(app: &mut AppState) {
     }
 }
 
+/// What: Persist the news search history to disk if marked dirty.
+///
+/// Inputs:
+/// - `app`: Application state containing `news_recent` and `news_recent_path`
+pub fn maybe_flush_news_recent(app: &mut AppState) {
+    if !app.news_recent_dirty {
+        return;
+    }
+    let values: Vec<String> = app.news_recent.iter().map(|(_, v)| v.clone()).collect();
+    if let Ok(s) = serde_json::to_string(&values) {
+        tracing::debug!(
+            path = %app.news_recent_path.display(),
+            bytes = s.len(),
+            "[Persist] Writing news recent searches to disk"
+        );
+        match fs::write(&app.news_recent_path, &s) {
+            Ok(()) => {
+                tracing::debug!(
+                    path = %app.news_recent_path.display(),
+                    "[Persist] News recent searches persisted"
+                );
+            }
+            Err(e) => {
+                tracing::warn!(
+                    path = %app.news_recent_path.display(),
+                    error = %e,
+                    "[Persist] Failed to write news recent searches"
+                );
+            }
+        }
+        app.news_recent_dirty = false;
+    }
+}
+
+/// What: Persist news bookmarks to disk if marked dirty.
+///
+/// Inputs:
+/// - `app`: Application state containing `news_bookmarks` and `news_bookmarks_path`
+pub fn maybe_flush_news_bookmarks(app: &mut AppState) {
+    if !app.news_bookmarks_dirty {
+        return;
+    }
+    if let Ok(s) = serde_json::to_string(&app.news_bookmarks) {
+        tracing::debug!(
+            path = %app.news_bookmarks_path.display(),
+            bytes = s.len(),
+            "[Persist] Writing news bookmarks to disk"
+        );
+        match fs::write(&app.news_bookmarks_path, &s) {
+            Ok(()) => {
+                tracing::debug!(
+                    path = %app.news_bookmarks_path.display(),
+                    "[Persist] News bookmarks persisted"
+                );
+            }
+            Err(e) => {
+                tracing::warn!(
+                    path = %app.news_bookmarks_path.display(),
+                    error = %e,
+                    "[Persist] Failed to write news bookmarks"
+                );
+            }
+        }
+        app.news_bookmarks_dirty = false;
+    }
+}
+
+/// What: Persist the news article content cache to disk if marked dirty.
+///
+/// Inputs:
+/// - `app`: Application state containing `news_content_cache` and `news_content_cache_path`
+///
+/// Output:
+/// - Writes `news_content_cache` JSON to `news_content_cache_path` and clears the dirty flag on success.
+///
+/// Details:
+/// - Caches article content (URL -> content string) to avoid re-fetching on restart.
+pub fn maybe_flush_news_content_cache(app: &mut AppState) {
+    if !app.news_content_cache_dirty {
+        return;
+    }
+    if let Ok(s) = serde_json::to_string(&app.news_content_cache) {
+        tracing::debug!(
+            path = %app.news_content_cache_path.display(),
+            bytes = s.len(),
+            entries = app.news_content_cache.len(),
+            "[Persist] Writing news content cache to disk"
+        );
+        match fs::write(&app.news_content_cache_path, &s) {
+            Ok(()) => {
+                tracing::debug!(
+                    path = %app.news_content_cache_path.display(),
+                    "[Persist] News content cache persisted"
+                );
+            }
+            Err(e) => {
+                tracing::warn!(
+                    path = %app.news_content_cache_path.display(),
+                    error = %e,
+                    "[Persist] Failed to write news content cache"
+                );
+            }
+        }
+        app.news_content_cache_dirty = false;
+    }
+}
+
 /// What: Persist the set of read Arch news URLs to disk if marked dirty.
 ///
 /// Inputs:
@@ -113,6 +220,120 @@ pub fn maybe_flush_news_read(app: &mut AppState) {
             }
         }
         app.news_read_dirty = false;
+    }
+}
+
+/// What: Persist the set of read news IDs to disk if marked dirty.
+///
+/// Inputs:
+/// - `app`: Application state containing `news_read_ids` and `news_read_ids_path`
+///
+/// Output:
+/// - Writes `news_read_ids` JSON to `news_read_ids_path` and clears the dirty flag on success.
+pub fn maybe_flush_news_read_ids(app: &mut AppState) {
+    if !app.news_read_ids_dirty {
+        return;
+    }
+    if let Ok(s) = serde_json::to_string(&app.news_read_ids) {
+        tracing::debug!(
+            path = %app.news_read_ids_path.display(),
+            bytes = s.len(),
+            "[Persist] Writing news read IDs to disk"
+        );
+        match fs::write(&app.news_read_ids_path, &s) {
+            Ok(()) => {
+                tracing::debug!(
+                    path = %app.news_read_ids_path.display(),
+                    "[Persist] News read IDs persisted"
+                );
+            }
+            Err(e) => {
+                tracing::warn!(
+                    path = %app.news_read_ids_path.display(),
+                    error = %e,
+                    "[Persist] Failed to write news read IDs"
+                );
+            }
+        }
+        app.news_read_ids_dirty = false;
+    }
+}
+
+/// What: Persist last-seen package versions for news updates if marked dirty.
+///
+/// Inputs:
+/// - `app`: Application state containing `news_seen_pkg_versions` and its path.
+///
+/// Output:
+/// - Writes JSON file when dirty, clears the dirty flag on success.
+///
+/// Details:
+/// - No-op when dirty flag is false; logs success/failure.
+pub fn maybe_flush_news_seen_versions(app: &mut AppState) {
+    if !app.news_seen_pkg_versions_dirty {
+        return;
+    }
+    if let Ok(s) = serde_json::to_string(&app.news_seen_pkg_versions) {
+        tracing::debug!(
+            path = %app.news_seen_pkg_versions_path.display(),
+            bytes = s.len(),
+            "[Persist] Writing news seen package versions to disk"
+        );
+        match fs::write(&app.news_seen_pkg_versions_path, &s) {
+            Ok(()) => {
+                tracing::debug!(
+                    path = %app.news_seen_pkg_versions_path.display(),
+                    "[Persist] News seen package versions persisted"
+                );
+            }
+            Err(e) => {
+                tracing::warn!(
+                    path = %app.news_seen_pkg_versions_path.display(),
+                    error = %e,
+                    "[Persist] Failed to write news seen package versions"
+                );
+            }
+        }
+        app.news_seen_pkg_versions_dirty = false;
+    }
+}
+
+/// What: Persist last-seen AUR comments if marked dirty.
+///
+/// Inputs:
+/// - `app`: Application state containing `news_seen_aur_comments` and its path.
+///
+/// Output:
+/// - Writes JSON file when dirty, clears the dirty flag on success.
+///
+/// Details:
+/// - No-op when dirty flag is false; logs success/failure.
+pub fn maybe_flush_news_seen_aur_comments(app: &mut AppState) {
+    if !app.news_seen_aur_comments_dirty {
+        return;
+    }
+    if let Ok(s) = serde_json::to_string(&app.news_seen_aur_comments) {
+        tracing::debug!(
+            path = %app.news_seen_aur_comments_path.display(),
+            bytes = s.len(),
+            "[Persist] Writing news seen AUR comments to disk"
+        );
+        match fs::write(&app.news_seen_aur_comments_path, &s) {
+            Ok(()) => {
+                tracing::debug!(
+                    path = %app.news_seen_aur_comments_path.display(),
+                    "[Persist] News seen AUR comments persisted"
+                );
+            }
+            Err(e) => {
+                tracing::warn!(
+                    path = %app.news_seen_aur_comments_path.display(),
+                    error = %e,
+                    "[Persist] Failed to write news seen AUR comments"
+                );
+            }
+        }
+        app.news_seen_aur_comments_dirty = false;
     }
 }
 
@@ -162,21 +383,17 @@ pub fn maybe_flush_announcement_read(app: &mut AppState) {
 ///
 /// Output:
 /// - Writes dependency cache JSON to `deps_cache_path` and clears dirty flag on success.
-/// - If install list is empty, removes the cache file.
+/// - If install list is empty, ensures an empty cache file exists instead of deleting it.
 pub fn maybe_flush_deps_cache(app: &mut AppState) {
     if app.install_list.is_empty() {
-        // Clear cache file if install list is empty
-        if let Err(e) = fs::remove_file(&app.deps_cache_path) {
+        // Write an empty cache file when nothing is queued to keep the path present.
+        if app.deps_cache_dirty || !app.deps_cache_path.exists() {
+            let empty_signature: Vec<String> = Vec::new();
             tracing::debug!(
                 path = %app.deps_cache_path.display(),
-                error = %e,
-                "[Persist] Failed to remove dependency cache (may not exist)"
+                "[Persist] Writing empty dependency cache because install list is empty"
             );
-        } else {
-            tracing::debug!(
-                path = %app.deps_cache_path.display(),
-                "[Persist] Removed dependency cache because install list is empty"
-            );
+            deps_cache::save_cache(&app.deps_cache_path, &empty_signature, &[]);
         }
         app.deps_cache_dirty = false;
         return;
@@ -207,21 +424,17 @@ pub fn maybe_flush_deps_cache(app: &mut AppState) {
 ///
 /// Output:
 /// - Writes file cache JSON to `files_cache_path` and clears dirty flag on success.
-/// - If install list is empty, removes the cache file.
+/// - If install list is empty, ensures an empty cache file exists instead of deleting it.
 pub fn maybe_flush_files_cache(app: &mut AppState) {
     if app.install_list.is_empty() {
-        // Clear cache file if install list is empty
-        if let Err(e) = fs::remove_file(&app.files_cache_path) {
+        // Write an empty cache file when nothing is queued to keep the path present.
+        if app.files_cache_dirty || !app.files_cache_path.exists() {
+            let empty_signature: Vec<String> = Vec::new();
             tracing::debug!(
                 path = %app.files_cache_path.display(),
-                error = %e,
-                "[Persist] Failed to remove file cache (may not exist)"
+                "[Persist] Writing empty file cache because install list is empty"
             );
-        } else {
-            tracing::debug!(
-                path = %app.files_cache_path.display(),
-                "[Persist] Removed file cache because install list is empty"
-            );
+            files_cache::save_cache(&app.files_cache_path, &empty_signature, &[]);
         }
         app.files_cache_dirty = false;
         return;
@@ -254,21 +467,17 @@ pub fn maybe_flush_files_cache(app: &mut AppState) {
 ///
 /// Output:
 /// - Writes service cache JSON to `services_cache_path` and clears dirty flag on success.
-/// - If install list is empty, removes the cache file.
+/// - If install list is empty, ensures an empty cache file exists instead of deleting it.
 pub fn maybe_flush_services_cache(app: &mut AppState) {
     if app.install_list.is_empty() {
-        // Clear cache file if install list is empty
-        if let Err(e) = fs::remove_file(&app.services_cache_path) {
+        // Write an empty cache file when nothing is queued to keep the path present.
+        if app.services_cache_dirty || !app.services_cache_path.exists() {
+            let empty_signature: Vec<String> = Vec::new();
             tracing::debug!(
                 path = %app.services_cache_path.display(),
-                error = %e,
-                "[Persist] Failed to remove service cache (may not exist)"
+                "[Persist] Writing empty service cache because install list is empty"
             );
-        } else {
-            tracing::debug!(
-                path = %app.services_cache_path.display(),
-                "[Persist] Removed service cache because install list is empty"
-            );
+            services_cache::save_cache(&app.services_cache_path, &empty_signature, &[]);
         }
         app.services_cache_dirty = false;
         return;
@@ -303,21 +512,17 @@ pub fn maybe_flush_services_cache(app: &mut AppState) {
 ///
 /// Output:
 /// - Writes sandbox cache JSON to `sandbox_cache_path` and clears dirty flag on success.
-/// - If install list is empty, removes the cache file.
+/// - If install list is empty, ensures an empty cache file exists instead of deleting it.
 pub fn maybe_flush_sandbox_cache(app: &mut AppState) {
     if app.install_list.is_empty() {
-        // Clear cache file if install list is empty
-        if let Err(e) = fs::remove_file(&app.sandbox_cache_path) {
+        // Write an empty cache file when nothing is queued to keep the path present.
+        if app.sandbox_cache_dirty || !app.sandbox_cache_path.exists() {
+            let empty_signature: Vec<String> = Vec::new();
             tracing::debug!(
                 path = %app.sandbox_cache_path.display(),
-                error = %e,
-                "[Persist] Failed to remove sandbox cache (may not exist)"
+                "[Persist] Writing empty sandbox cache because install list is empty"
             );
-        } else {
-            tracing::debug!(
-                path = %app.sandbox_cache_path.display(),
-                "[Persist] Removed sandbox cache because install list is empty"
-            );
+            sandbox_cache::save_cache(&app.sandbox_cache_path, &empty_signature, &[]);
         }
         app.sandbox_cache_dirty = false;
         return;
@@ -592,17 +797,17 @@ mod tests {
     }
 
     #[test]
-    /// What: Ensure `maybe_flush_deps_cache` deletes the cache file when the install list is empty.
+    /// What: Ensure `maybe_flush_deps_cache` writes an empty cache file when the install list is empty.
     ///
     /// Inputs:
     /// - `AppState` with an empty install list, existing cache file, and `deps_cache_dirty = true`.
     ///
     /// Output:
-    /// - Cache file is removed and the dirty flag is cleared.
+    /// - Cache file is replaced with an empty payload and the dirty flag is cleared.
     ///
     /// Details:
     /// - Simulates clearing the install list so persistence helper should clean up stale cache content.
-    fn flush_deps_cache_removes_when_install_list_empty() {
+    fn flush_deps_cache_writes_empty_when_install_list_empty() {
         let mut app = new_app();
         let mut path = std::env::temp_dir();
         path.push(format!(
@@ -622,7 +827,13 @@ mod tests {
         maybe_flush_deps_cache(&mut app);
 
         assert!(!app.deps_cache_dirty);
-        assert!(std::fs::metadata(&app.deps_cache_path).is_err());
+        let body = std::fs::read_to_string(&app.deps_cache_path)
+            .expect("Failed to read test deps cache file");
+        let cache: crate::app::deps_cache::DependencyCache =
+            serde_json::from_str(&body).expect("Failed to parse dependency cache");
+        assert!(cache.install_list_signature.is_empty());
+        assert!(cache.dependencies.is_empty());
+        let _ = std::fs::remove_file(&app.deps_cache_path);
     }
 
     #[test]
@@ -685,17 +896,17 @@ mod tests {
     }
 
     #[test]
-    /// What: Ensure `maybe_flush_files_cache` deletes the cache file when the install list is empty.
+    /// What: Ensure `maybe_flush_files_cache` writes an empty cache file when the install list is empty.
     ///
     /// Inputs:
     /// - `AppState` with an empty install list, an on-disk cache file, and `files_cache_dirty = true`.
     ///
     /// Output:
-    /// - Cache file is removed and the dirty flag resets.
+    /// - Cache file is replaced with an empty payload and the dirty flag resets.
     ///
     /// Details:
     /// - Mirrors the behaviour when the user clears the install list to keep disk cache in sync.
-    fn flush_files_cache_removes_when_install_list_empty() {
+    fn flush_files_cache_writes_empty_when_install_list_empty() {
         let mut app = new_app();
         let mut path = std::env::temp_dir();
         path.push(format!(
@@ -715,7 +926,93 @@ mod tests {
         maybe_flush_files_cache(&mut app);
 
         assert!(!app.files_cache_dirty);
-        assert!(std::fs::metadata(&app.files_cache_path).is_err());
+        let body = std::fs::read_to_string(&app.files_cache_path)
+            .expect("Failed to read test files cache file");
+        let cache: crate::app::files_cache::FileCache =
+            serde_json::from_str(&body).expect("Failed to parse file cache");
+        assert!(cache.install_list_signature.is_empty());
+        assert!(cache.files.is_empty());
+        let _ = std::fs::remove_file(&app.files_cache_path);
+    }
+
+    #[test]
+    /// What: Ensure `maybe_flush_services_cache` writes an empty cache file when the install list is empty.
+    ///
+    /// Inputs:
+    /// - `AppState` with an empty install list, an on-disk cache file, and `services_cache_dirty = true`.
+    ///
+    /// Output:
+    /// - Cache file is replaced with an empty payload and the dirty flag resets.
+    ///
+    /// Details:
+    /// - Keeps the cache path present on disk instead of deleting it.
+    fn flush_services_cache_writes_empty_when_install_list_empty() {
+        let mut app = new_app();
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "pacsea_services_cache_remove_{}_{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("System time is before UNIX epoch")
+                .as_nanos()
+        ));
+        app.services_cache_path = path.clone();
+        std::fs::write(&app.services_cache_path, "stale")
+            .expect("Failed to write test services cache file");
+        app.services_cache_dirty = true;
+        app.install_list.clear();
+
+        maybe_flush_services_cache(&mut app);
+
+        assert!(!app.services_cache_dirty);
+        let body = std::fs::read_to_string(&app.services_cache_path)
+            .expect("Failed to read test services cache file");
+        let cache: crate::app::services_cache::ServiceCache =
+            serde_json::from_str(&body).expect("Failed to parse service cache");
+        assert!(cache.install_list_signature.is_empty());
+        assert!(cache.services.is_empty());
+        let _ = std::fs::remove_file(&app.services_cache_path);
+    }
+
+    #[test]
+    /// What: Ensure `maybe_flush_sandbox_cache` writes an empty cache file when the install list is empty.
+    ///
+    /// Inputs:
+    /// - `AppState` with an empty install list, an on-disk cache file, and `sandbox_cache_dirty = true`.
+    ///
+    /// Output:
+    /// - Cache file is replaced with an empty payload and the dirty flag resets.
+    ///
+    /// Details:
+    /// - Keeps the cache path present on disk instead of deleting it.
+    fn flush_sandbox_cache_writes_empty_when_install_list_empty() {
+        let mut app = new_app();
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "pacsea_sandbox_cache_remove_{}_{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("System time is before UNIX epoch")
+                .as_nanos()
+        ));
+        app.sandbox_cache_path = path.clone();
+        std::fs::write(&app.sandbox_cache_path, "stale")
+            .expect("Failed to write test sandbox cache file");
+        app.sandbox_cache_dirty = true;
+        app.install_list.clear();
+
+        maybe_flush_sandbox_cache(&mut app);
+
+        assert!(!app.sandbox_cache_dirty);
+        let body = std::fs::read_to_string(&app.sandbox_cache_path)
+            .expect("Failed to read test sandbox cache file");
+        let cache: crate::app::sandbox_cache::SandboxCache =
+            serde_json::from_str(&body).expect("Failed to parse sandbox cache");
+        assert!(cache.install_list_signature.is_empty());
+        assert!(cache.sandbox_info.is_empty());
+        let _ = std::fs::remove_file(&app.sandbox_cache_path);
     }
 
     #[test]
@@ -750,5 +1047,195 @@ mod tests {
             .expect("Failed to read test news read file");
         assert!(body.contains("archlinux.org/news"));
         let _ = std::fs::remove_file(&app.news_read_path);
+    }
+
+    #[test]
+    /// What: Ensure `maybe_flush_news_read_ids` persists read IDs and clears the dirty flag.
+    ///
+    /// Inputs:
+    /// - `AppState` providing a temp `news_read_ids_path`, an ID in the set, and `news_read_ids_dirty = true`.
+    ///
+    /// Output:
+    /// - File contains the expected ID and `news_read_ids_dirty` flips to `false`.
+    ///
+    /// Details:
+    /// - Removes the temp artifact to keep tests idempotent across runs.
+    fn flush_news_read_ids_writes_and_clears_flag() {
+        let mut app = new_app();
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "pacsea_newsread_ids_{}_{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("System time is before UNIX epoch")
+                .as_nanos()
+        ));
+        app.news_read_ids_path = path.clone();
+        app.news_read_ids.insert("advisory:123".into());
+        app.news_read_ids_dirty = true;
+        maybe_flush_news_read_ids(&mut app);
+        assert!(!app.news_read_ids_dirty);
+        let body = std::fs::read_to_string(&app.news_read_ids_path)
+            .expect("Failed to read test news read ids file");
+        assert!(body.contains("advisory:123"));
+        let _ = std::fs::remove_file(&app.news_read_ids_path);
+    }
+
+    #[test]
+    /// What: Test `maybe_flush_news_read` is no-op when not dirty.
+    ///
+    /// Inputs:
+    /// - `AppState` with `news_read_dirty = false`.
+    ///
+    /// Output:
+    /// - Function returns early without writing or clearing flag.
+    ///
+    /// Details:
+    /// - Verifies dirty flag check prevents unnecessary I/O.
+    fn flush_news_read_noop_when_not_dirty() {
+        let mut app = new_app();
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "pacsea_newsread_{}_{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("System time is before UNIX epoch")
+                .as_nanos()
+        ));
+        app.news_read_path = path.clone();
+        app.news_read_urls.insert("https://example.com".into());
+        app.news_read_dirty = false; // Not dirty
+
+        // File should not exist before
+        assert!(!app.news_read_path.exists());
+
+        maybe_flush_news_read(&mut app);
+
+        // File should still not exist (no-op)
+        assert!(!app.news_read_path.exists());
+        assert!(!app.news_read_dirty);
+    }
+
+    #[test]
+    /// What: Test `maybe_flush_news_read_ids` is no-op when not dirty.
+    ///
+    /// Inputs:
+    /// - `AppState` with `news_read_ids_dirty = false`.
+    ///
+    /// Output:
+    /// - Function returns early without writing or clearing flag.
+    ///
+    /// Details:
+    /// - Verifies dirty flag check prevents unnecessary I/O.
+    fn flush_news_read_ids_noop_when_not_dirty() {
+        let mut app = new_app();
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "pacsea_newsread_ids_{}_{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("System time is before UNIX epoch")
+                .as_nanos()
+        ));
+        app.news_read_ids_path = path.clone();
+        app.news_read_ids.insert("test-id".into());
+        app.news_read_ids_dirty = false; // Not dirty
+
+        // File should not exist before
+        assert!(!app.news_read_ids_path.exists());
+
+        maybe_flush_news_read_ids(&mut app);
+
+        // File should still not exist (no-op)
+        assert!(!app.news_read_ids_path.exists());
+        assert!(!app.news_read_ids_dirty);
+    }
+
+    #[test]
+    /// What: Test `maybe_flush_news_read` writes valid JSON.
+    ///
+    /// Inputs:
+    /// - `AppState` with multiple URLs in `news_read_urls`.
+    ///
+    /// Output:
+    /// - Written file contains valid JSON array.
+    ///
+    /// Details:
+    /// - Verifies JSON serialization produces parseable output.
+    fn flush_news_read_writes_valid_json() {
+        // Field assignments in tests are acceptable for test setup
+        let mut app = new_app();
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "pacsea_newsread_{}_{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("System time is before UNIX epoch")
+                .as_nanos()
+        ));
+        app.news_read_path = path.clone();
+        app.news_read_urls
+            .insert("https://example.com/news/1".into());
+        app.news_read_urls
+            .insert("https://example.com/news/2".into());
+        app.news_read_dirty = true;
+
+        maybe_flush_news_read(&mut app);
+
+        let body = std::fs::read_to_string(&app.news_read_path)
+            .expect("Failed to read test news read file");
+        // Verify it's valid JSON
+        let parsed: std::collections::HashSet<String> =
+            serde_json::from_str(&body).expect("Failed to parse JSON");
+        assert_eq!(parsed.len(), 2);
+        assert!(parsed.contains("https://example.com/news/1"));
+        assert!(parsed.contains("https://example.com/news/2"));
+
+        let _ = std::fs::remove_file(&app.news_read_path);
+    }
+
+    #[test]
+    /// What: Test `maybe_flush_news_read_ids` writes valid JSON.
+    ///
+    /// Inputs:
+    /// - `AppState` with multiple IDs in `news_read_ids`.
+    ///
+    /// Output:
+    /// - Written file contains valid JSON array.
+    ///
+    /// Details:
+    /// - Verifies JSON serialization produces parseable output.
+    fn flush_news_read_ids_writes_valid_json() {
+        let mut app = new_app();
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "pacsea_newsread_ids_{}_{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("System time is before UNIX epoch")
+                .as_nanos()
+        ));
+        app.news_read_ids_path = path.clone();
+        app.news_read_ids.insert("id-1".into());
+        app.news_read_ids.insert("id-2".into());
+        app.news_read_ids_dirty = true;
+
+        maybe_flush_news_read_ids(&mut app);
+
+        let body = std::fs::read_to_string(&app.news_read_ids_path)
+            .expect("Failed to read test news read ids file");
+        // Verify it's valid JSON
+        let parsed: std::collections::HashSet<String> =
+            serde_json::from_str(&body).expect("Failed to parse JSON");
+        assert_eq!(parsed.len(), 2);
+        assert!(parsed.contains("id-1"));
+        assert!(parsed.contains("id-2"));
+
+        let _ = std::fs::remove_file(&app.news_read_ids_path);
     }
 }

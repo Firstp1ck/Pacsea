@@ -53,6 +53,32 @@ fn get_setting_value(key: &str, skeleton_value: String, prefs: &Settings) -> Str
         "virustotal_api_key" => prefs.virustotal_api_key.clone(),
         "news_read_symbol" => prefs.news_read_symbol.clone(),
         "news_unread_symbol" => prefs.news_unread_symbol.clone(),
+        "app_start_mode" => {
+            if prefs.start_in_news {
+                "news".to_string()
+            } else {
+                "package".to_string()
+            }
+        }
+        "news_filter_show_arch_news" => prefs.news_filter_show_arch_news.to_string(),
+        "news_filter_show_advisories" => prefs.news_filter_show_advisories.to_string(),
+        "news_filter_show_pkg_updates" => prefs.news_filter_show_pkg_updates.to_string(),
+        "news_filter_show_aur_updates" => prefs.news_filter_show_aur_updates.to_string(),
+        "news_filter_show_aur_comments" => prefs.news_filter_show_aur_comments.to_string(),
+        "news_filter_installed_only" => prefs.news_filter_installed_only.to_string(),
+        "news_max_age_days" => prefs
+            .news_max_age_days
+            .map_or_else(|| "all".to_string(), |v| v.to_string()),
+        "startup_news_configured" => prefs.startup_news_configured.to_string(),
+        "startup_news_show_arch_news" => prefs.startup_news_show_arch_news.to_string(),
+        "startup_news_show_advisories" => prefs.startup_news_show_advisories.to_string(),
+        "startup_news_show_aur_updates" => prefs.startup_news_show_aur_updates.to_string(),
+        "startup_news_show_aur_comments" => prefs.startup_news_show_aur_comments.to_string(),
+        "startup_news_show_pkg_updates" => prefs.startup_news_show_pkg_updates.to_string(),
+        "startup_news_max_age_days" => prefs
+            .startup_news_max_age_days
+            .map_or_else(|| "all".to_string(), |v| v.to_string()),
+        "news_cache_ttl_days" => prefs.news_cache_ttl_days.to_string(),
         "preferred_terminal" => prefs.preferred_terminal.clone(),
         "package_marker" => match prefs.package_marker {
             crate::theme::types::PackageMarker::FullLine => "full_line",
@@ -256,10 +282,7 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
 
     // Ensure keybinds file exists with skeleton if missing (best-effort)
     // Try to use the same path resolution as reading, but fall back to config_dir if file doesn't exist yet
-    let kb = resolve_keybinds_config_path().map_or_else(
-        || config_dir().join("keybinds.conf"),
-        |existing_path| existing_path,
-    );
+    let kb = resolve_keybinds_config_path().unwrap_or_else(|| config_dir().join("keybinds.conf"));
     if kb.exists() {
         // Append missing keybinds to existing file
         ensure_keybinds_present(&kb);

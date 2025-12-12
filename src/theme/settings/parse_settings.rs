@@ -198,6 +198,79 @@ fn parse_news_settings(key: &str, val: &str, settings: &mut Settings) -> bool {
             settings.news_unread_symbol = val.to_string();
             true
         }
+        "news_filter_show_arch_news" | "news_filter_arch" => {
+            settings.news_filter_show_arch_news = parse_bool(val);
+            true
+        }
+        "news_filter_show_advisories" | "news_filter_advisories" => {
+            settings.news_filter_show_advisories = parse_bool(val);
+            true
+        }
+        "news_filter_show_pkg_updates" | "news_filter_pkg_updates" | "news_filter_updates" => {
+            settings.news_filter_show_pkg_updates = parse_bool(val);
+            true
+        }
+        "news_filter_show_aur_updates"
+        | "news_filter_aur_updates"
+        | "news_filter_aur_upd"
+        | "news_filter_aur_upd_updates" => {
+            settings.news_filter_show_aur_updates = parse_bool(val);
+            true
+        }
+        "news_filter_show_aur_comments" | "news_filter_aur_comments" | "news_filter_comments" => {
+            settings.news_filter_show_aur_comments = parse_bool(val);
+            true
+        }
+        "news_filter_installed_only" | "news_filter_installed" | "news_installed_only" => {
+            settings.news_filter_installed_only = parse_bool(val);
+            true
+        }
+        "news_max_age_days" | "news_age_days" | "news_age" => {
+            let lv = val.trim().to_ascii_lowercase();
+            settings.news_max_age_days = match lv.as_str() {
+                "" | "all" | "none" | "unlimited" => None,
+                _ => val.parse::<u32>().ok(),
+            };
+            true
+        }
+        "startup_news_configured" => {
+            settings.startup_news_configured = parse_bool(val);
+            true
+        }
+        "startup_news_show_arch_news" => {
+            settings.startup_news_show_arch_news = parse_bool(val);
+            true
+        }
+        "startup_news_show_advisories" => {
+            settings.startup_news_show_advisories = parse_bool(val);
+            true
+        }
+        "startup_news_show_aur_updates" => {
+            settings.startup_news_show_aur_updates = parse_bool(val);
+            true
+        }
+        "startup_news_show_aur_comments" => {
+            settings.startup_news_show_aur_comments = parse_bool(val);
+            true
+        }
+        "startup_news_show_pkg_updates" => {
+            settings.startup_news_show_pkg_updates = parse_bool(val);
+            true
+        }
+        "startup_news_max_age_days" => {
+            let lv = val.trim().to_ascii_lowercase();
+            settings.startup_news_max_age_days = match lv.as_str() {
+                "" | "all" | "none" | "unlimited" => None,
+                _ => val.parse::<u32>().ok(),
+            };
+            true
+        }
+        "news_cache_ttl_days" => {
+            if let Ok(days) = val.parse::<u32>() {
+                settings.news_cache_ttl_days = days.max(1); // Minimum 1 day
+            }
+            true
+        }
         _ => false,
     }
 }
@@ -245,6 +318,11 @@ fn parse_misc_settings(key: &str, val: &str, settings: &mut Settings) -> bool {
     match key {
         "preferred_terminal" | "terminal_preferred" | "terminal" => {
             settings.preferred_terminal = val.to_string();
+            true
+        }
+        "app_start_mode" | "start_mode" | "start_in_news" => {
+            let lv = val.trim().to_ascii_lowercase();
+            settings.start_in_news = matches!(lv.as_str(), "news" | "true" | "1" | "on" | "yes");
             true
         }
         "locale" | "language" => {

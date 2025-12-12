@@ -167,6 +167,7 @@ mod tests {
         let modal = Modal::News {
             items: vec![],
             selected: 0,
+            scroll: 0,
         };
         let excluded = [KeyCode::Esc];
 
@@ -264,6 +265,7 @@ mod tests {
         let modal = Modal::News {
             items: vec![],
             selected: 0,
+            scroll: 0,
         };
 
         restore_if_not_closed_with_esc(&mut app, &ke, modal);
@@ -299,6 +301,7 @@ mod tests {
         let modal = Modal::News {
             items: vec![],
             selected: 0,
+            scroll: 0,
         };
 
         let result = restore_if_not_closed_with_bool_result(&mut app, false, modal);

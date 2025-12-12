@@ -10,6 +10,7 @@
 
 pub mod filter;
 pub mod format;
+/// Logging utilities for change tracking and debugging.
 pub mod logging;
 pub mod preflight;
 pub mod query;

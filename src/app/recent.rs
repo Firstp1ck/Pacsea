@@ -31,6 +31,48 @@ pub fn maybe_save_recent(app: &mut AppState) {
     app.recent_dirty = true;
 }
 
+/// What: Debounced persistence of the current news search input into the news Recent list.
+///
+/// Inputs:
+/// - `app`: Mutable application state providing news search text and timing markers
+///
+/// Output:
+/// - Updates `news_recent` (deduped, clamped to capacity), sets `news_recent_dirty`, and records
+///   last-saved value when conditions are met (non-empty, past debounce window, changed since last save).
+pub fn maybe_save_news_recent(app: &mut AppState) {
+    if !matches!(app.app_mode, crate::state::types::AppMode::News) {
+        return;
+    }
+    let now = Instant::now();
+    let query = app.news_search_input.trim();
+    if query.is_empty() {
+        app.news_history_pending = None;
+        app.news_history_pending_at = None;
+        return;
+    }
+
+    // Track pending value and debounce start
+    app.news_history_pending = Some(query.to_string());
+    app.news_history_pending_at = Some(now);
+
+    // Enforce 2s debounce from the last input change
+    if now.duration_since(app.last_input_change) < Duration::from_secs(2) {
+        return;
+    }
+
+    // Avoid duplicate save of the same value
+    if app.news_history_last_saved.as_deref() == Some(query) {
+        return;
+    }
+
+    let value = query.to_string();
+    let key = value.to_ascii_lowercase();
+    app.news_recent.resize(recent_capacity());
+    app.news_recent.put(key, value.clone());
+    app.news_history_last_saved = Some(value);
+    app.news_recent_dirty = true;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -141,5 +183,29 @@ mod tests {
                 .iter()
                 .all(|entry| entry != "pkg0" && entry != "pkg1")
         );
+    }
+
+    #[test]
+    /// What: Ensure news recent save is debounced and uses news search input.
+    fn news_recent_respects_debounce_and_changes() {
+        let mut app = new_app();
+        app.app_mode = crate::state::types::AppMode::News;
+        app.news_recent.clear();
+
+        // Under debounce: should not save
+        app.news_search_input = "arch".into();
+        app.last_input_change = Instant::now();
+        maybe_save_news_recent(&mut app);
+        assert!(app.news_recent.is_empty());
+
+        // Beyond debounce: should save
+        app.last_input_change = Instant::now()
+            .checked_sub(Duration::from_secs(3))
+            .unwrap_or_else(Instant::now);
+        maybe_save_news_recent(&mut app);
+        let recents: Vec<String> = app.news_recent.iter().map(|(_, v)| v.clone()).collect();
+        assert_eq!(recents.first().map(String::as_str), Some("arch"));
+        assert_eq!(app.news_history_last_saved.as_deref(), Some("arch"));
+        assert!(app.news_recent_dirty);
     }
 }

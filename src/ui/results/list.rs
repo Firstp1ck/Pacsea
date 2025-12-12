@@ -19,8 +19,11 @@ use crate::theme::{PackageMarker, Theme};
 /// Details:
 /// - Performs case-insensitive name matching against all three lists.
 pub struct PackageListStatus {
+    /// Whether the package is in the install list.
     pub in_install: bool,
+    /// Whether the package is in the remove list.
     pub in_remove: bool,
+    /// Whether the package is in the downgrade list.
     pub in_downgrade: bool,
 }
 

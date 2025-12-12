@@ -14,11 +14,17 @@ use crate::theme::theme;
 ///
 /// Details: Provides a fluent interface for building Paragraph widgets with consistent styling.
 pub struct ParagraphBuilder {
+    /// Lines of text to display.
     lines: Vec<Line<'static>>,
+    /// Optional title for the paragraph.
     title: Option<String>,
+    /// Scroll offset (x, y).
     scroll_offset: (u16, u16),
+    /// Text color.
     text_color: ratatui::style::Color,
+    /// Background color.
     bg_color: ratatui::style::Color,
+    /// Border color.
     border_color: ratatui::style::Color,
 }
 

@@ -3,15 +3,20 @@
 use crate::state::ArchStatusColor;
 use std::fmt::Write;
 
+/// Status API parsing (`Statuspage` and `UptimeRobot` APIs).
 mod api;
+/// HTML parsing for status page.
 mod html;
+/// Translation utilities for status messages.
 pub mod translate;
+/// Utility functions for status parsing.
 mod utils;
 
 use api::{parse_status_api_summary, parse_uptimerobot_api};
 use html::{is_aur_down_in_monitors, parse_arch_status_from_html};
 use utils::{extract_aur_today_percent, extract_aur_today_rect_color, severity_max};
 
+/// Result type alias for Arch Linux status fetching operations.
 type Result<T> = super::Result<T>;
 
 /// Fetch a short status text and color indicator from status.archlinux.org.

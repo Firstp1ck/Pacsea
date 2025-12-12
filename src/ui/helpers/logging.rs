@@ -11,6 +11,7 @@
 ///   the provided state differs from the previous one.
 /// - `clear` resets the cached state, forcing the next call to log.
 pub struct ChangeLogger<T> {
+    /// Last logged state value.
     last: Option<T>,
 }
 
