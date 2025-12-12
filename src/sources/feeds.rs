@@ -40,6 +40,20 @@ static NEWS_CACHE: LazyLock<Mutex<HashMap<String, CacheEntry>>> =
 /// Cache TTL in seconds (5 minutes).
 const CACHE_TTL_SECONDS: u64 = 300;
 
+/// Type alias for skip cache entry (results + timestamp).
+type SkipCacheEntry = Option<(Vec<NewsFeedItem>, Instant)>;
+
+/// Cache for package updates results (time-based skip).
+/// Stores last fetch results and timestamp to avoid re-fetching within 5 minutes.
+static UPDATES_CACHE: LazyLock<Mutex<SkipCacheEntry>> = LazyLock::new(|| Mutex::new(None));
+
+/// Cache for AUR comments results (time-based skip).
+/// Stores last fetch results and timestamp to avoid re-fetching within 5 minutes.
+static AUR_COMMENTS_CACHE: LazyLock<Mutex<SkipCacheEntry>> = LazyLock::new(|| Mutex::new(None));
+
+/// Skip cache TTL in seconds (5 minutes) - if last fetch was within this time, use cached results.
+const SKIP_CACHE_TTL_SECONDS: u64 = 300;
+
 /// What: Get the disk cache TTL in seconds from settings.
 ///
 /// Inputs: None
@@ -132,8 +146,8 @@ fn save_to_disk_cache(source: &str, data: &[NewsFeedItem]) {
 /// Rate limiter for news feed network requests.
 /// Tracks the last request time to enforce minimum delay between requests.
 static RATE_LIMITER: LazyLock<Mutex<Instant>> = LazyLock::new(|| Mutex::new(Instant::now()));
-/// Minimum delay between news feed network requests (100ms).
-const RATE_LIMIT_DELAY_MS: u64 = 100;
+/// Minimum delay between news feed network requests (500ms).
+const RATE_LIMIT_DELAY_MS: u64 = 500;
 
 /// Flag indicating a network error occurred during the last news fetch.
 /// This can be checked by the UI to show a toast message.
@@ -164,6 +178,48 @@ pub fn take_network_error() -> bool {
 /// - Called when a network error occurs during news fetching.
 fn set_network_error() {
     NETWORK_ERROR_FLAG.store(true, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// What: Retry a network operation with exponential backoff on failure.
+///
+/// Inputs:
+/// - `operation`: Async closure that returns a Result
+/// - `max_retries`: Maximum number of retry attempts
+///
+/// Output:
+/// - Result from the operation, or error if all retries fail
+///
+/// Details:
+/// - On failure, waits with exponential backoff: 1s, 2s, 4s...
+/// - Stops retrying after `max_retries` attempts
+async fn retry_with_backoff<T, E, F, Fut>(
+    mut operation: F,
+    max_retries: usize,
+) -> std::result::Result<T, E>
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = std::result::Result<T, E>>,
+{
+    let mut attempt = 0;
+    loop {
+        match operation().await {
+            Ok(result) => return Ok(result),
+            Err(e) => {
+                if attempt >= max_retries {
+                    return Err(e);
+                }
+                attempt += 1;
+                let backoff_secs = 1u64 << (attempt - 1); // Exponential: 1, 2, 4, 8...
+                warn!(
+                    attempt,
+                    max_retries,
+                    backoff_secs,
+                    "network request failed, retrying with exponential backoff"
+                );
+                tokio::time::sleep(Duration::from_secs(backoff_secs)).await;
+            }
+        }
+    }
 }
 
 /// What: Apply rate limiting before making a network request.
@@ -363,9 +419,17 @@ async fn append_arch_news(limit: usize, cutoff_date: Option<&str>) -> Result<Vec
         return Ok(disk_data);
     }
 
-    // 3. Fetch from network
+    // 3. Fetch from network with retry and exponential backoff
     rate_limit().await;
-    match super::fetch_arch_news(limit, cutoff_date).await {
+    let fetch_result = retry_with_backoff(
+        || async {
+            rate_limit().await;
+            super::fetch_arch_news(limit, cutoff_date).await
+        },
+        2, // Max 2 retries (3 total attempts)
+    )
+    .await;
+    match fetch_result {
         Ok(news) => {
             let items: Vec<NewsFeedItem> = news
                 .into_iter()
@@ -479,9 +543,17 @@ where
         return Ok(disk_data);
     }
 
-    // 3. Fetch from network
+    // 3. Fetch from network with retry and exponential backoff
     rate_limit().await;
-    match super::fetch_security_advisories(limit, cutoff_date).await {
+    let fetch_result = retry_with_backoff(
+        || async {
+            rate_limit().await;
+            super::fetch_security_advisories(limit, cutoff_date).await
+        },
+        2, // Max 2 retries (3 total attempts)
+    )
+    .await;
+    match fetch_result {
         Ok(advisories) => {
             let mut filtered = Vec::new();
             for adv in advisories {
@@ -612,43 +684,46 @@ where
         None
     };
 
-    // Fetch all sources in parallel
+    // Fetch archlinux.org sources sequentially to avoid overwhelming the server
+    // (arch_news and advisories both hit archlinux.org)
+    // Other sources (updates, AUR comments) can be fetched in parallel
     info!(
-        "starting parallel fetch: arch_news={include_arch_news}, advisories={include_advisories}, pkg_updates={include_pkg_updates}, aur_comments={include_aur_comments}"
+        "starting fetch: arch_news={include_arch_news}, advisories={include_advisories}, pkg_updates={include_pkg_updates}, aur_comments={include_aur_comments}"
     );
-    let (arch_result, advisories_result, updates_result, comments_result) = tokio::join!(
-        async {
-            if include_arch_news {
-                info!("fetching arch news...");
-                let result = append_arch_news(limit, cutoff_date.as_deref()).await;
-                info!(
-                    "arch news fetch completed: items={}",
-                    result.as_ref().map(Vec::len).unwrap_or(0)
-                );
-                result
-            } else {
-                Ok::<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>(Vec::new())
-            }
-        },
-        async {
-            if include_advisories {
-                info!("fetching advisories...");
-                let result = append_advisories(
-                    limit,
-                    installed_filter,
-                    installed_only,
-                    cutoff_date.as_deref(),
-                )
-                .await;
-                info!(
-                    "advisories fetch completed: items={}",
-                    result.as_ref().map(Vec::len).unwrap_or(0)
-                );
-                result
-            } else {
-                Ok::<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>(Vec::new())
-            }
-        },
+
+    // Fetch archlinux.org sources sequentially
+    let arch_result = if include_arch_news {
+        info!("fetching arch news...");
+        let result = append_arch_news(limit, cutoff_date.as_deref()).await;
+        info!(
+            "arch news fetch completed: items={}",
+            result.as_ref().map(Vec::len).unwrap_or(0)
+        );
+        result
+    } else {
+        Ok::<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>(Vec::new())
+    };
+
+    let advisories_result = if include_advisories {
+        info!("fetching advisories...");
+        let result = append_advisories(
+            limit,
+            installed_filter,
+            installed_only,
+            cutoff_date.as_deref(),
+        )
+        .await;
+        info!(
+            "advisories fetch completed: items={}",
+            result.as_ref().map(Vec::len).unwrap_or(0)
+        );
+        result
+    } else {
+        Ok::<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>(Vec::new())
+    };
+
+    // Fetch non-archlinux.org sources in parallel
+    let (updates_result, comments_result) = tokio::join!(
         async {
             if include_pkg_updates {
                 if let Some(installed) = installed_filter {
@@ -743,7 +818,7 @@ where
             }
         }
     );
-    info!("parallel fetch completed, combining results...");
+    info!("fetch completed, combining results...");
 
     let mut items: Vec<NewsFeedItem> = Vec::new();
     match arch_result {
@@ -851,6 +926,19 @@ where
     HS: BuildHasher + Send + Sync + 'static,
     HV: BuildHasher + Send + Sync + 'static,
 {
+    // Check if we can use cached results (skip if last fetch was < 5 minutes ago)
+    if let Ok(cache_guard) = UPDATES_CACHE.lock()
+        && let Some((cached_items, last_fetch)) = cache_guard.as_ref()
+        && last_fetch.elapsed().as_secs() < SKIP_CACHE_TTL_SECONDS
+    {
+        info!(
+            "fetch_installed_updates: using cached results (age={}s, items={})",
+            last_fetch.elapsed().as_secs(),
+            cached_items.len()
+        );
+        return Ok(cached_items.clone());
+    }
+
     #[derive(Clone)]
     /// Helper container for official package update processing with bounded concurrency.
     struct OfficialCandidate {
@@ -1029,6 +1117,12 @@ where
         aur_candidates = aur_candidates.len(),
         "installed update feed built"
     );
+
+    // Cache results for 5-minute skip
+    if let Ok(mut cache_guard) = UPDATES_CACHE.lock() {
+        *cache_guard = Some((items.clone(), Instant::now()));
+    }
+
     Ok(items)
 }
 
@@ -1055,6 +1149,19 @@ where
     HS: BuildHasher + Send + Sync + 'static,
     HC: BuildHasher + Send + Sync + 'static,
 {
+    // Check if we can use cached results (skip if last fetch was < 5 minutes ago)
+    if let Ok(cache_guard) = AUR_COMMENTS_CACHE.lock()
+        && let Some((cached_items, last_fetch)) = cache_guard.as_ref()
+        && last_fetch.elapsed().as_secs() < SKIP_CACHE_TTL_SECONDS
+    {
+        info!(
+            "fetch_installed_aur_comments: using cached results (age={}s, items={})",
+            last_fetch.elapsed().as_secs(),
+            cached_items.len()
+        );
+        return Ok(cached_items.clone());
+    }
+
     let mut items = Vec::new();
     if limit == 0 {
         return Ok(items);
@@ -1103,6 +1210,12 @@ where
         baseline_only,
         "installed AUR comments feed built"
     );
+
+    // Cache results for 5-minute skip
+    if let Ok(mut cache_guard) = AUR_COMMENTS_CACHE.lock() {
+        *cache_guard = Some((items.clone(), Instant::now()));
+    }
+
     Ok(items)
 }
 
@@ -1257,9 +1370,10 @@ async fn fetch_official_package_date(pkg: &crate::state::PackageItem) -> Option<
         "https://archlinux.org/packages/{repo_slug}/{arch_slug}/{name}/json/",
         name = pkg.name
     );
-    // Add a short timeout to prevent hanging on slow/unresponsive requests
+    // Add a short timeout (500ms) to fail fast on slow connections
+    // This prioritizes responsiveness over completeness - missed dates will use "unknown"
     match tokio::time::timeout(
-        tokio::time::Duration::from_millis(1000),
+        tokio::time::Duration::from_millis(500),
         tokio::task::spawn_blocking({
             let url = url.clone();
             move || crate::util::curl::curl_json(&url)

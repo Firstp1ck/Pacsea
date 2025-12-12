@@ -536,7 +536,7 @@ pub fn curl_args(url: &str, extra_args: &[&str]) -> Vec<String> {
 
     // Add User-Agent header to avoid being blocked by APIs
     args.push("-H".to_string());
-    args.push("User-Agent: Pacsea/1.0".to_string());
+    args.push("User-Agent: Pacsea/1.0 (+https://github.com/Firstp1ck/Pacsea)".to_string());
 
     // Add any extra arguments
     for arg in extra_args {

@@ -625,9 +625,11 @@ pub fn initialize_app_state(app: &mut AppState, dry_run_flag: bool, headless: bo
             };
         }
     } else if !headless && prefs.startup_news_configured {
-        // If setup is already done, set loading flag so loading modal appears
-        // while news is being fetched at startup
+        // Always fetch fresh news in background (using last startup timestamp for incremental updates)
+        // Show loading toast while fetching, but cached items will be displayed immediately
         app.news_loading = true;
+        app.toast_message = Some(crate::i18n::t(app, "app.news_button.loading"));
+        app.toast_expires_at = None; // No expiration - toast stays until news loading completes
     }
 
     // Check faillock status at startup

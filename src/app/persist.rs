@@ -147,6 +147,46 @@ pub fn maybe_flush_news_bookmarks(app: &mut AppState) {
     }
 }
 
+/// What: Persist the news article content cache to disk if marked dirty.
+///
+/// Inputs:
+/// - `app`: Application state containing `news_content_cache` and `news_content_cache_path`
+///
+/// Output:
+/// - Writes `news_content_cache` JSON to `news_content_cache_path` and clears the dirty flag on success.
+///
+/// Details:
+/// - Caches article content (URL -> content string) to avoid re-fetching on restart.
+pub fn maybe_flush_news_content_cache(app: &mut AppState) {
+    if !app.news_content_cache_dirty {
+        return;
+    }
+    if let Ok(s) = serde_json::to_string(&app.news_content_cache) {
+        tracing::debug!(
+            path = %app.news_content_cache_path.display(),
+            bytes = s.len(),
+            entries = app.news_content_cache.len(),
+            "[Persist] Writing news content cache to disk"
+        );
+        match fs::write(&app.news_content_cache_path, &s) {
+            Ok(()) => {
+                tracing::debug!(
+                    path = %app.news_content_cache_path.display(),
+                    "[Persist] News content cache persisted"
+                );
+            }
+            Err(e) => {
+                tracing::warn!(
+                    path = %app.news_content_cache_path.display(),
+                    error = %e,
+                    "[Persist] Failed to write news content cache"
+                );
+            }
+        }
+        app.news_content_cache_dirty = false;
+    }
+}
+
 /// What: Persist the set of read Arch news URLs to disk if marked dirty.
 ///
 /// Inputs:

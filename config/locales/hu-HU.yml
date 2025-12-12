@@ -99,10 +99,10 @@ hu-HU:
       aur_maintenance_ongoing: "Az AUR karbantartása folyamatban van"
       aur_issues_detected: "AUR-problémák felismerve (tekintse meg az állapotot)"
       aur_degraded: "Az AUR teljesítménye csökkent (tekintse meg az állapotot)"
-      service_outage: "{} üzemzavar (tekintse meg az állapotot) — {} ma: {:.1}%"
-      service_degraded: "A(z) {} teljesítménye csökkent (tekintse meg az állapotot) — {} ma: {:.1}%"
-      service_issues_detected: "{} problémák felismerve (tekintse meg az állapotot) — {} ma: {:.1}%"
-      systems_nominal_with_service: "Az Arch rendszereinek állapota megfelelő — {} ma: {:.1}%"
+      service_outage: "{} üzemzavar (tekintse meg az állapotot) — {} ma: {}%"
+      service_degraded: "A(z) {} teljesítménye csökkent (tekintse meg az állapotot) — {} ma: {}%"
+      service_issues_detected: "{} problémák felismerve (tekintse meg az állapotot) — {} ma: {}%"
+      systems_nominal_with_service: "Az Arch rendszereinek állapota megfelelő — {} ma: {}%"
       aur_today_suffix: " — AUR ma: {}%"
       
     labels:
@@ -151,6 +151,10 @@ hu-HU:
       loading: "Frissítések ellenőrzése…"
       locked: "🔒 Zárolt"
       locked_with_time: "🔒 Zárolás {} perc múlva"
+    news_button:
+      ready: "News Ready" # TODO: translate to hungarian
+      none: "No News available" # TODO: translate to hungarian
+      loading: "Loading news..." # TODO: translate to hungarian
       
     actions:
       exit: "Kilépés"
@@ -467,21 +471,24 @@ hu-HU:
           updates: " Elérhető frissítések megnyitása"
       news:
         title: " Hírek "
-        keybinds_hint: "TODO: translate to hungarian - Up/Down/K/J: navigate  •  Enter: open  • {}: mark read  • {}: mark all read  •  Esc/Q: close"
-      loading:
-        news: "TODO: translate to hungarian - Loading news..."
-      news_setup:
-        title: "TODO: translate to hungarian - News Popup Setup"
-        arch_news: "TODO: translate to hungarian - Arch News"
-        advisories: "TODO: translate to hungarian - Advisories - Official Security News"
-        aur_updates: "TODO: translate to hungarian - AUR Updates"
-        aur_comments: "TODO: translate to hungarian - AUR Comments"
-        pkg_updates: "TODO: translate to hungarian - Official Package Updates"
-        date_selection: "TODO: translate to hungarian - Maximum age"
-        footer_hint: "TODO: translate to hungarian - Up/Down: select  •  Space: toggle  •  Enter: save  •  Esc: cancel"
-        heading: "Arch Linux hírek"
-        none: "Nincsenek elérhető hírek."
+        # TODO: translate to hungarian
+        heading: "Arch Linux News"
+        none: "No news items available."
+        # TODO: translate to hungarian
+        keybinds_hint: "Up/Down/K/J: navigate  •  Enter: open  • {}: mark read  • {}: mark all read  •  Esc/Q: close"
         footer_hint: "Fel/Le: kiválasztás • Enter: megnyitás • {}: megjelölés olvasottként • {}: összes megjelölése olvasottként • Esc: bezárás"
+      loading:
+        # TODO: translate to hungarian
+        news: "Loading news..."
+      news_setup:
+        title: "News Popup Setup"
+        arch_news: "Arch News"
+        advisories: "Advisories - Official Security News"
+        aur_updates: "AUR Updates"
+        aur_comments: "AUR Comments"
+        pkg_updates: "Official Package Updates"
+        date_selection: "Maximum age"
+        footer_hint: "Up/Down: select  •  Space: toggle  •  Enter: save  •  Esc: cancel"
       announcement:
         footer_hint: "r: Megjelölés olvasottként | Enter/Esc: Eltüntetés (megjelenítés újra)"
       updates_window:

@@ -266,9 +266,19 @@ fn handle_news_feed_items(app: &mut AppState, payload: NewsFeedPayload) {
 /// - `url`: The URL that was fetched
 /// - `content`: The article content
 fn handle_news_content(app: &mut AppState, url: &str, content: String) {
-    // Cache the content
-    app.news_content_cache
-        .insert(url.to_string(), content.clone());
+    // Only cache successful content, not error messages
+    // Error messages start with "Failed to load content:" and should not be persisted
+    let is_error = content.starts_with("Failed to load content:");
+    if !is_error {
+        app.news_content_cache
+            .insert(url.to_string(), content.clone());
+        app.news_content_cache_dirty = true;
+    } else {
+        tracing::debug!(
+            url,
+            "news_content: not caching error response to allow retry"
+        );
+    }
 
     // Update displayed content if this is for the currently selected item
     if let Some(selected_url) = app

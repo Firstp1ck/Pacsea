@@ -37,6 +37,7 @@ impl Default for AppState {
             news_bookmarks_path,
         ) = defaults::default_paths();
         let news_feed_path = crate::theme::lists_dir().join("news_feed.json");
+        let news_content_cache_path = crate::theme::lists_dir().join("news_content_cache.json");
         let news_seen_pkg_versions_path =
             crate::theme::lists_dir().join("news_seen_pkg_updates.json");
         let news_seen_aur_comments_path =
@@ -126,6 +127,7 @@ impl Default for AppState {
             news_items,
             news_results,
             news_loading,
+            news_ready,
             news_selected,
             news_list_state,
             news_search_input,
@@ -156,6 +158,8 @@ impl Default for AppState {
             news_bookmarks_path,
             news_bookmarks_dirty,
             news_content_cache,
+            news_content_cache_path,
+            news_content_cache_dirty,
             news_content,
             news_content_loading,
             news_content_loading_since,
@@ -167,6 +171,7 @@ impl Default for AppState {
             news_recent_path,
             news_bookmarks_path,
             &news_feed_path,
+            news_content_cache_path,
         );
 
         let (recent, history_state, recent_path, recent_dirty) =
@@ -222,6 +227,7 @@ impl Default for AppState {
             updates_count,
             updates_list,
             updates_button_rect,
+            news_button_rect,
             updates_loading,
             refresh_updates,
             pending_updates_modal,
@@ -412,6 +418,7 @@ impl Default for AppState {
             news_items,
             news_results,
             news_loading,
+            news_ready,
             news_selected,
             news_list_state,
             news_search_input,
@@ -442,6 +449,8 @@ impl Default for AppState {
             news_bookmarks_path,
             news_bookmarks_dirty,
             news_content_cache,
+            news_content_cache_path,
+            news_content_cache_dirty,
             news_content,
             news_content_loading,
             news_content_loading_since,
@@ -497,6 +506,7 @@ impl Default for AppState {
             updates_count,
             updates_list,
             updates_button_rect,
+            news_button_rect,
             updates_loading,
             refresh_updates,
             pending_updates_modal,

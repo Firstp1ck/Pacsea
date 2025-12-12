@@ -124,6 +124,8 @@ pub struct AppState {
     pub news_results: Vec<NewsFeedItem>,
     /// Whether the news feed is currently loading.
     pub news_loading: bool,
+    /// Whether news are ready to be viewed (loading complete and news available).
+    pub news_ready: bool,
     /// Selected index within news results.
     pub news_selected: usize,
     /// List state for news results pane.
@@ -190,6 +192,10 @@ pub struct AppState {
     pub news_bookmarks_dirty: bool,
     /// Cache of fetched news article content (URL -> content).
     pub news_content_cache: std::collections::HashMap<String, String>,
+    /// Path where the news content cache is persisted.
+    pub news_content_cache_path: PathBuf,
+    /// Dirty flag indicating `news_content_cache` needs to be saved.
+    pub news_content_cache_dirty: bool,
     /// Currently displayed news content (for the selected item).
     pub news_content: Option<String>,
     /// Whether news content is currently being fetched.
@@ -331,6 +337,8 @@ pub struct AppState {
     pub updates_list: Vec<String>,
     /// Clickable rectangle for the updates button (x, y, w, h).
     pub updates_button_rect: Option<(u16, u16, u16, u16)>,
+    /// Clickable rectangle for the news button in News mode (x, y, w, h).
+    pub news_button_rect: Option<(u16, u16, u16, u16)>,
     /// Whether updates check is currently in progress.
     pub updates_loading: bool,
     /// Flag to trigger refresh of updates list after package installation/update.

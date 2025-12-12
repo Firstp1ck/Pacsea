@@ -72,6 +72,61 @@ pub fn handle_updates_button(app: &mut AppState) -> bool {
     false
 }
 
+/// Handle click on News button.
+///
+/// What: Opens the News modal with available news items.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+///
+/// Output:
+/// - `false` if handled
+///
+/// Details:
+/// - Opens News modal if news are ready
+/// - Shows "No News available" message if no news exist
+/// - Converts `pending_news` (legacy format) to `NewsFeedItem` format for modal
+pub fn handle_news_button(app: &mut AppState) -> bool {
+    if app.news_ready {
+        // Convert NewsItem to NewsFeedItem for the modal
+        if let Some(news_items) = app.pending_news.take() {
+            let feed_items: Vec<crate::state::types::NewsFeedItem> = news_items
+                .into_iter()
+                .map(|item| crate::state::types::NewsFeedItem {
+                    id: item.url.clone(),
+                    date: item.date,
+                    title: item.title,
+                    summary: None,
+                    url: Some(item.url),
+                    source: crate::state::types::NewsFeedSource::ArchNews,
+                    severity: None,
+                    packages: Vec::new(),
+                })
+                .collect();
+            app.modal = crate::state::Modal::News {
+                items: feed_items,
+                selected: 0,
+                scroll: 0,
+            };
+        } else {
+            // No news available - show empty modal
+            app.modal = crate::state::Modal::News {
+                items: Vec::new(),
+                selected: 0,
+                scroll: 0,
+            };
+        }
+    } else {
+        // No news available - show empty modal
+        app.modal = crate::state::Modal::News {
+            items: Vec::new(),
+            selected: 0,
+            scroll: 0,
+        };
+    }
+    false
+}
+
 /// Handle click on Export button.
 ///
 /// What: Exports install list to timestamped file in export directory.
@@ -769,7 +824,12 @@ pub(super) fn handle_menus_mouse(
     details_tx: &mpsc::UnboundedSender<PackageItem>,
 ) -> Option<bool> {
     // Check button clicks first
-    if point_in_rect(mx, my, app.updates_button_rect) {
+    // In News mode, check news button first; otherwise check updates button
+    if matches!(app.app_mode, crate::state::types::AppMode::News) {
+        if point_in_rect(mx, my, app.news_button_rect) {
+            return Some(handle_news_button(app));
+        }
+    } else if point_in_rect(mx, my, app.updates_button_rect) {
         return Some(handle_updates_button(app));
     }
     if point_in_rect(mx, my, app.install_import_rect) {

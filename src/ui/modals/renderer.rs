@@ -591,14 +591,7 @@ impl ModalRenderer for Modal {
                 };
                 render_password_prompt_modal(f, app, area, ctx)
             }
-            Self::None => {
-                // Show loading modal if news is loading and no other modal is displayed
-                if app.news_loading {
-                    let message = crate::i18n::t(app, "app.modals.loading.news");
-                    misc::render_loading(f, area, &message);
-                }
-                Self::None
-            }
+            Self::None => Self::None,
         }
     }
 }

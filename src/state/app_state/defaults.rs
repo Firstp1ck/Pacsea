@@ -100,7 +100,8 @@ pub(super) type DefaultSearchState = (
 pub(super) type DefaultNewsFeedState = (
     Vec<NewsFeedItem>,
     Vec<NewsFeedItem>,
-    bool,
+    bool, // news_loading
+    bool, // news_ready
     usize,
     ListState,
     String,
@@ -131,6 +132,8 @@ pub(super) type DefaultNewsFeedState = (
     PathBuf,                                   // bookmarks path
     bool,                                      // bookmarks dirty
     std::collections::HashMap<String, String>, // news_content_cache
+    PathBuf,                                   // news_content_cache_path
+    bool,                                      // news_content_cache_dirty
     Option<String>,                            // news_content
     bool,                                      // news_content_loading
     Option<Instant>,                           // news_content_loading_since
@@ -155,6 +158,8 @@ pub(super) const fn default_app_mode() -> AppMode {
 /// Inputs:
 /// - `news_recent_path`: Path to persist news recent searches
 /// - `news_bookmarks_path`: Path to persist news bookmarks
+/// - `news_feed_path`: Path to persist news feed items
+/// - `news_content_cache_path`: Path to persist news article content cache
 ///
 /// Output:
 /// - Tuple containing news feed data, UI state, and persistence flags.
@@ -162,6 +167,7 @@ pub(super) fn default_news_feed_state(
     news_recent_path: PathBuf,
     news_bookmarks_path: PathBuf,
     news_feed_path: &PathBuf,
+    news_content_cache_path: PathBuf,
 ) -> DefaultNewsFeedState {
     let recent_capacity = super::recent_capacity();
     let mut news_recent = LruCache::unbounded();
@@ -199,11 +205,35 @@ pub(super) fn default_news_feed_state(
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())
         .unwrap_or_default();
+    // Load news content cache from disk (URL -> article content)
+    // Filter out any error messages that may have been persisted in older versions
+    let news_content_cache: std::collections::HashMap<String, String> =
+        fs::read_to_string(&news_content_cache_path)
+            .ok()
+            .and_then(|s| {
+                serde_json::from_str::<std::collections::HashMap<String, String>>(&s).ok()
+            })
+            .map(|cache| {
+                cache
+                    .into_iter()
+                    .filter(|(_, v)| !v.starts_with("Failed to load content:"))
+                    .collect()
+            })
+            .unwrap_or_default();
+    if !news_content_cache.is_empty() {
+        tracing::info!(
+            path = %news_content_cache_path.display(),
+            entries = news_content_cache.len(),
+            "loaded news content cache from disk"
+        );
+    }
     let news_loading = cached_items.is_empty();
+    let news_ready = !cached_items.is_empty(); // News are ready if cached items exist
     (
         cached_items.clone(), // news_items
         cached_items,         // news_results (filtered later)
         news_loading,         // news_loading
+        news_ready,           // news_ready
         0,                    // news_selected
         ListState::default(), // news_list_state
         String::new(),        // news_search_input
@@ -232,15 +262,17 @@ pub(super) fn default_news_feed_state(
         NewsSortMode::DateDesc,
         news_bookmarks, // news_bookmarks
         news_bookmarks_path,
-        false,                            // news_bookmarks_dirty
-        std::collections::HashMap::new(), // news_content_cache
-        None,                             // news_content
-        false,                            // news_content_loading
-        None,                             // news_content_loading_since
-        0,                                // news_content_scroll
-        None,                             // news_history_pending
-        None,                             // news_history_pending_at
-        None,                             // news_history_last_saved
+        false,                   // news_bookmarks_dirty
+        news_content_cache,      // news_content_cache (loaded from disk)
+        news_content_cache_path, // news_content_cache_path
+        false,                   // news_content_cache_dirty
+        None,                    // news_content
+        false,                   // news_content_loading
+        None,                    // news_content_loading_since
+        0,                       // news_content_scroll
+        None,                    // news_history_pending
+        None,                    // news_history_pending_at
+        None,                    // news_history_last_saved
     )
 }
 
@@ -272,6 +304,7 @@ pub(super) type DefaultClickableRectsState = (
     ArchStatusColor,
     Option<usize>,
     Vec<String>,
+    Option<(u16, u16, u16, u16)>,
     Option<(u16, u16, u16, u16)>,
     bool,
     bool,
@@ -611,7 +644,7 @@ pub(super) const fn default_scroll_prefetch_state() -> (u32, Option<Instant>, bo
 /// Inputs: None.
 ///
 /// Output:
-/// - Tuple of clickable rectangle fields: `url_button_rect`, `vt_url_rect`, `install_import_rect`, `install_export_rect`, `arch_status_text`, `arch_status_rect`, `arch_status_color`, `updates_count`, `updates_list`, `updates_button_rect`, `updates_loading`, `refresh_updates`, `pending_updates_modal`, `faillock_locked`, `faillock_lockout_until`, `faillock_remaining_minutes`.
+/// - Tuple of clickable rectangle fields: `url_button_rect`, `vt_url_rect`, `install_import_rect`, `install_export_rect`, `arch_status_text`, `arch_status_rect`, `arch_status_color`, `updates_count`, `updates_list`, `updates_button_rect`, `news_button_rect`, `updates_loading`, `refresh_updates`, `pending_updates_modal`, `faillock_locked`, `faillock_lockout_until`, `faillock_remaining_minutes`.
 ///
 /// Details:
 /// - All rectangles start as None, updates check is loading by default.
@@ -627,6 +660,7 @@ pub(super) fn default_clickable_rects_state() -> DefaultClickableRectsState {
         ArchStatusColor::None,
         None,
         Vec::new(),
+        None,
         None,
         true,
         false,

@@ -16,15 +16,33 @@ use crate::sources;
 ///
 /// Details:
 /// - Listens for URL requests on the channel
+/// - Drains stale requests and only processes the most recent one
+/// - This prevents queue buildup when users scroll quickly through items
 /// - Fetches article content asynchronously using `fetch_news_content`
 /// - Sends results as `(String, String)` with URL and content
-/// - On error, sends empty content string
+/// - On error, sends error message as content string
 pub fn spawn_news_content_worker(
     mut news_content_req_rx: mpsc::UnboundedReceiver<String>,
     news_content_res_tx: mpsc::UnboundedSender<(String, String)>,
 ) {
     tokio::spawn(async move {
-        while let Some(url) = news_content_req_rx.recv().await {
+        while let Some(mut url) = news_content_req_rx.recv().await {
+            // Drain any pending requests and use the most recent one
+            // This prevents queue buildup when users scroll quickly or when
+            // slow requests (e.g., unreachable hosts) block the queue
+            let mut skipped = 0usize;
+            while let Ok(newer_url) = news_content_req_rx.try_recv() {
+                skipped += 1;
+                url = newer_url;
+            }
+            if skipped > 0 {
+                tracing::debug!(
+                    skipped,
+                    url = %url,
+                    "news_content_worker: drained stale requests, processing most recent"
+                );
+            }
+
             let url_clone = url.clone();
             let started = Instant::now();
             tracing::info!(url = %url_clone, "news_content_worker: fetch start");

@@ -481,9 +481,11 @@ fn extract_aur_pkg_from_url(url: &str) -> Option<String> {
     let needle = "aur.archlinux.org/packages/";
     let pos = lower.find(needle)?;
     let after = &url[pos + needle.len()..];
+    // Stop at path separator, query string, or URL fragment (e.g., #comment-123)
     let end = after
         .find('/')
         .or_else(|| after.find('?'))
+        .or_else(|| after.find('#'))
         .unwrap_or(after.len());
     let pkg = &after[..end];
     if pkg.is_empty() {
@@ -1180,6 +1182,17 @@ Line 3
         );
         assert_eq!(
             super::extract_aur_pkg_from_url("https://aur.archlinux.org/packages/foo?query=bar"),
+            Some("foo".to_string())
+        );
+        // URL fragments (e.g., #comment-123) should be stripped from package name
+        assert_eq!(
+            super::extract_aur_pkg_from_url(
+                "https://aur.archlinux.org/packages/discord-canary#comment-1050019"
+            ),
+            Some("discord-canary".to_string())
+        );
+        assert_eq!(
+            super::extract_aur_pkg_from_url("https://aur.archlinux.org/packages/foo#section"),
             Some("foo".to_string())
         );
         assert_eq!(

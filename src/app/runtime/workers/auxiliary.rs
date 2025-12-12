@@ -119,6 +119,17 @@ pub fn spawn_auxiliary_workers(
                     "queueing startup news fetch (startup)"
             );
             tokio::spawn(async move {
+                // Add random delay (0-2 seconds) before first fetch to avoid burst requests on startup
+                // Use system time hash to generate a pseudo-random delay without external dependencies
+                let now_nanos = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_nanos())
+                    .unwrap_or(0);
+                let stagger_ms = (now_nanos % 2001) as u64; // 0-2000ms
+                if stagger_ms > 0 {
+                    tracing::info!(stagger_ms, "staggering startup news fetch");
+                    tokio::time::sleep(Duration::from_millis(stagger_ms)).await;
+                }
                 tracing::info!("startup news fetch task started");
                 // Optimize max_age_days based on last startup (fetch less if recently used)
                 let optimized_max_age = sources::optimize_max_age_for_startup(
@@ -272,6 +283,17 @@ pub fn spawn_auxiliary_workers(
             "queueing combined news feed fetch (startup)"
         );
         tokio::spawn(async move {
+            // Add random delay (0-2 seconds) before first fetch to avoid burst requests on startup
+            // Use system time hash to generate a pseudo-random delay without external dependencies
+            let now_nanos = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0);
+            let stagger_ms = ((now_nanos + 1000) % 2001) as u64; // Offset by 1000 to stagger differently from startup popup
+            if stagger_ms > 0 {
+                tracing::info!(stagger_ms, "staggering aggregated news feed fetch");
+                tokio::time::sleep(Duration::from_millis(stagger_ms)).await;
+            }
             let mut installed_set = installed;
             if installed_set.is_empty() {
                 tracing::info!(

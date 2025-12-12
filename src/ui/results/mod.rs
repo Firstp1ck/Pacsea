@@ -247,13 +247,17 @@ pub use dropdowns::render_dropdowns;
 fn render_news_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     let th = theme();
     let prefs = crate::theme::settings();
-    let items: Vec<ListItem> = if app.news_loading {
+    // Show cached items immediately even when loading (if they exist)
+    // This provides better UX - user sees cached news while fresh news are fetched
+    let items: Vec<ListItem> = if app.news_loading && app.news_results.is_empty() {
+        // Only show "Loading..." if no cached items exist
         app.news_list_state.select(None);
         vec![ListItem::new(Line::from(ratatui::text::Span::styled(
             "Loading news feed...",
             Style::default().fg(th.overlay1),
         )))]
     } else {
+        // Show cached items immediately (even while loading fresh news)
         app.news_results
             .iter()
             .map(|item| {

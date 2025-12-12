@@ -95,10 +95,10 @@ de-DE:
       aur_maintenance_ongoing: "AUR-Wartung läuft"
       aur_issues_detected: "AUR-Probleme erkannt (Status ansehen)"
       aur_degraded: "AUR beeinträchtigt (Status ansehen)"
-      service_outage: "{} Ausfall (Status ansehen) — {} heute: {:.1}%"
-      service_degraded: "{} beeinträchtigt (Status ansehen) — {} heute: {:.1}%"
-      service_issues_detected: "{} Probleme erkannt (Status ansehen) — {} heute: {:.1}%"
-      systems_nominal_with_service: "Arch-Systeme normal — {} heute: {:.1}%"
+      service_outage: "{} Ausfall (Status ansehen) — {} heute: {}%"
+      service_degraded: "{} beeinträchtigt (Status ansehen) — {} heute: {}%"
+      service_issues_detected: "{} Probleme erkannt (Status ansehen) — {} heute: {}%"
+      systems_nominal_with_service: "Arch-Systeme normal — {} heute: {}%"
       aur_today_suffix: " — AUR heute: {}%"
 
     labels:
@@ -147,6 +147,10 @@ de-DE:
       loading: "Prüfe Updates..."
       locked: "🔒 Gesperrt"
       locked_with_time: "🔒 Gesperrt: {} Min"
+    news_button:
+      ready: "News bereit"
+      none: "Keine News verfügbar"
+      loading: "Lade News..."
 
     actions:
       exit: "Beenden"

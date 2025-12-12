@@ -688,7 +688,12 @@ pub fn handle_normal_mode(
     }
 
     if matches_any(&ke, &app.keymap.search_normal_updates) {
-        crate::events::mouse::handle_updates_button(app);
+        // In News mode, open News modal; otherwise open Updates modal
+        if matches!(app.app_mode, crate::state::types::AppMode::News) {
+            crate::events::mouse::handle_news_button(app);
+        } else {
+            crate::events::mouse::handle_updates_button(app);
+        }
         return false;
     }
 
