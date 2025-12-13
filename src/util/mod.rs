@@ -50,6 +50,19 @@ pub fn ensure_mouse_capture() {
 /// - Space is encoded as `%20` (not `+`).
 /// - All other bytes are encoded as two uppercase hexadecimal digits prefixed by `%`.
 /// - Operates on raw bytes from the input string; any non-ASCII bytes are hex-escaped.
+/// # Examples
+/// ```
+/// use pacsea::util::percent_encode;
+///
+/// // Encoding a package name for a URL, like in API calls to the AUR
+/// assert_eq!(percent_encode("linux-zen"), "linux-zen");
+///
+/// // Encoding a search query with spaces for the package database
+/// assert_eq!(percent_encode("terminal emulator"), "terminal%20emulator");
+///
+/// // Encoding a maintainer name with special characters
+/// assert_eq!(percent_encode("John Doe <john@example.com>"), "John%20Doe%20%3Cjohn%40example.com%3E");
+/// ```
 #[must_use]
 pub fn percent_encode(input: &str) -> String {
     let mut out = String::with_capacity(input.len());
@@ -79,6 +92,30 @@ pub fn percent_encode(input: &str) -> String {
 ///
 /// Details:
 /// - Returns `""` if the key is missing or the value is not a string type.
+/// # Examples
+/// ```
+/// use pacsea::util::s;
+/// use serde_json::json;
+///
+/// // Simulating a real AUR RPC API response for a package like 'yay'
+/// let aur_pkg_info = json!({
+///     "Name": "yay",
+///     "Version": "12.3.4-1",
+///     "Description": "Yet another Yogurt - An AUR Helper written in Go"
+/// });
+/// assert_eq!(s(&aur_pkg_info, "Name"), "yay");
+/// assert_eq!(s(&aur_pkg_info, "Description"), "Yet another Yogurt - An AUR Helper written in Go");
+/// assert_eq!(s(&aur_pkg_info, "Maintainer"), ""); // Returns empty string for missing keys
+///
+/// // Simulating a package search result from the official repository API
+/// let repo_pkg_info = json!({
+///     "pkgname": "firefox",
+///     "pkgver": "128.0-1",
+///     "repo": "extra"
+/// });
+/// assert_eq!(s(&repo_pkg_info, "pkgname"), "firefox");
+/// assert_eq!(s(&repo_pkg_info, "repo"), "extra");
+/// ```
 #[must_use]
 pub fn s(v: &Value, key: &str) -> String {
     v.get(key)
@@ -98,6 +135,30 @@ pub fn s(v: &Value, key: &str) -> String {
 /// Details:
 /// - Tries keys in the order provided and returns the first match.
 /// - Returns `None` if no key maps to a string value.
+/// # Examples
+/// ```
+/// use pacsea::util::ss;
+/// use serde_json::json;
+///
+/// // Trying multiple possible version keys from different AUR API responses
+/// let pkg_info = json!({
+///     "Version": "1.2.3",
+///     "pkgver": "1.2.3",
+///     "ver": "1.2.3"
+/// });
+/// // Returns the first matching key: "Version"
+/// assert_eq!(ss(&pkg_info, &["pkgver", "Version", "ver"]), Some("1.2.3".to_string()));
+///
+/// // Trying to get a maintainer, falling back to a packager field
+/// let maintainer_info = json!({
+///     "Maintainer": "",
+///     "Packager": "Arch Linux PACsea Team <pacsea@example.org>"
+/// });
+/// assert_eq!(ss(&maintainer_info, &["Maintainer", "Packager"]), Some("Arch Linux PACsea Team <pacsea@example.org>".to_string()));
+///
+/// // Returns None if no key matches
+/// assert_eq!(ss(&pkg_info, &["License", "URL"]), None);
+/// ```
 #[must_use]
 pub fn ss(v: &Value, keys: &[&str]) -> Option<String> {
     for k in keys {
@@ -121,6 +182,30 @@ pub fn ss(v: &Value, keys: &[&str]) -> Option<String> {
 /// - Tries keys in the order provided and returns the first array found.
 /// - Filters out non-string elements from the array.
 /// - Returns an empty vector if no key maps to an array or if all elements are non-string.
+/// # Examples
+/// ```
+/// use pacsea::util::arrs;
+/// use serde_json::json;
+///
+/// // Getting the list of dependencies from a package's metadata
+/// let pkg_metadata = json!({
+///     "Depends": ["glibc", "gcc-libs", "bash"],
+///     "MakeDepends": ["git", "pkgconf"]
+/// });
+/// // Tries "Depends" first, returns those dependencies
+/// assert_eq!(arrs(&pkg_metadata, &["Depends", "MakeDepends"]), vec!["glibc", "gcc-libs", "bash"]);
+///
+/// // Getting the list of provides or alternate package names
+/// let provides_info = json!({
+///     "Provides": ["python-cryptography", "python-crypto"],
+///     "Conflicts": ["python-crypto-legacy"]
+/// });
+/// assert_eq!(arrs(&provides_info, &["Provides", "Replaces"]), vec!["python-cryptography", "python-crypto"]);
+///
+/// // Returns empty vector if no array of strings is found
+/// let simple_json = json!({"Name": "firefox"});
+/// assert_eq!(arrs(&simple_json, &["Depends", "OptDepends"]), Vec::<String>::new());
+/// ```
 #[must_use]
 pub fn arrs(v: &Value, keys: &[&str]) -> Vec<String> {
     for k in keys {
@@ -149,6 +234,30 @@ pub fn arrs(v: &Value, keys: &[&str]) -> Vec<String> {
 ///   - String that parses as `u64`
 /// - Tries keys in the order provided and returns the first match.
 /// - Returns `None` if no key maps to a convertible value.
+/// # Examples
+/// ```
+/// use pacsea::util::u64_of;
+/// use serde_json::json;
+///
+/// // Extracting the vote count from an AUR package info (can be a number or a string)
+/// let aur_vote_data = json!({
+///     "NumVotes": 123,
+///     "Popularity": "45.67"
+/// });
+/// assert_eq!(u64_of(&aur_vote_data, &["NumVotes", "Votes"]), Some(123));
+///
+/// // Extracting the first seen timestamp (often a string in JSON APIs)
+/// let timestamp_data = json!({
+///     "FirstSubmitted": "1672531200",
+///     "LastModified": 1672617600
+/// });
+/// assert_eq!(u64_of(&timestamp_data, &["FirstSubmitted", "Submitted"]), Some(1672531200));
+/// assert_eq!(u64_of(&timestamp_data, &["LastModified", "Modified"]), Some(1672617600));
+///
+/// // Returns None for negative numbers or if no convertible value is found
+/// let negative_data = json!({"OutOfDate": -1});
+/// assert_eq!(u64_of(&negative_data, &["OutOfDate"]), None);
+/// ```
 #[must_use]
 pub fn u64_of(v: &Value, keys: &[&str]) -> Option<u64> {
     for k in keys {
@@ -218,6 +327,31 @@ pub fn fuzzy_match_rank_with_matcher(
 /// - Returns `None` when the query doesn't match at all
 /// - For performance-critical code that calls this function multiple times with the same query,
 ///   consider using `fuzzy_match_rank_with_matcher` instead to reuse the matcher instance
+/// # Examples
+/// ```
+/// use pacsea::util::fuzzy_match_rank;
+///
+/// // Fuzzy matching a package name during search (e.g., user types "rg" for "ripgrep")
+/// let score = fuzzy_match_rank("ripgrep", "rg");
+/// assert!(score.is_some()); // Should match and return a score
+/// assert!(score.unwrap() > 0); // Higher score means better match
+///
+/// // Another common search: "fs" matching "fzf" (a command-line fuzzy finder)
+/// let fzf_score = fuzzy_match_rank("fzf", "fs");
+/// assert!(fzf_score.is_some());
+///
+/// // Exact match should have the highest score
+/// let exact_score = fuzzy_match_rank("pacman", "pacman");
+/// let partial_score = fuzzy_match_rank("pacman", "pac");
+/// assert!(exact_score.unwrap() > partial_score.unwrap());
+///
+/// // No match returns None (e.g., searching "xyz" for "linux")
+/// assert_eq!(fuzzy_match_rank("linux", "xyz"), None);
+///
+/// // Empty or whitespace-only query returns None
+/// assert_eq!(fuzzy_match_rank("vim", ""), None);
+/// assert_eq!(fuzzy_match_rank("neovim", "   "), None);
+/// ```
 #[must_use]
 pub fn fuzzy_match_rank(name: &str, query: &str) -> Option<i64> {
     use fuzzy_matcher::skim::SkimMatcherV2;
@@ -295,6 +429,21 @@ pub fn match_rank(name: &str, query_lower: &str) -> u8 {
 /// - Negative timestamps are returned as their numeric string representation.
 /// - Output format: `YYYY-MM-DD HH:MM:SS` (UTC).
 /// - This implementation performs a simple conversion using loops and does not account for leap seconds.
+/// # Examples
+/// ```
+/// use pacsea::util::ts_to_date;
+///
+/// // Converting the timestamp for the release of a significant Arch Linux package update
+/// // Example: A major 'glibc' or 'linux' package release
+/// assert_eq!(ts_to_date(Some(1680307200)), "2023-04-01 00:00:00");
+///
+/// // Converting the 'LastModified' timestamp from an AUR package's metadata
+/// // This is commonly used to show when a package was last updated in the AUR
+/// assert_eq!(ts_to_date(Some(1704067200)), "2023-12-31 00:00:00");
+///
+/// // Handling the case where no timestamp is available (e.g., a package with no build date)
+/// assert_eq!(ts_to_date(None), "");
+/// ```
 #[must_use]
 pub fn ts_to_date(ts: Option<i64>) -> String {
     let Some(t) = ts else {
@@ -385,6 +534,22 @@ const fn is_leap(y: i32) -> bool {
 /// - On Windows, uses `PowerShell`'s `Invoke-Item` to open files with the default application, with fallback to `cmd start`.
 /// - On Unix-like systems (Linux/macOS), uses `xdg-open` (Linux) or `open` (macOS).
 /// - Spawns the command in a background thread and ignores errors.
+/// # Examples
+/// ```
+/// use pacsea::util::open_file;
+/// use std::path::Path;
+///
+/// // Opening a downloaded package's PKGBUILD for inspection
+/// let pkgbuild_path = Path::new("/tmp/linux-zen/PKGBUILD");
+/// open_file(pkgbuild_path); // Launches the default text editor
+///
+/// // Opening the local Pacsea configuration file for editing
+/// let config_path = Path::new("~/.config/pacsea/settings.conf");
+/// open_file(config_path); // Opens in the configured editor
+///
+/// // Note: This function runs asynchronously and does not block.
+/// // It's safe to call even if the file doesn't exist (the OS will show an error).
+/// ```
 pub fn open_file(path: &std::path::Path) {
     std::thread::spawn({
         let path = path.to_path_buf();
@@ -448,6 +613,22 @@ pub fn open_file(path: &std::path::Path) {
 /// - On Unix-like systems (Linux/macOS), uses `xdg-open` (Linux) or `open` (macOS).
 /// - Spawns the command in a background thread and ignores errors.
 /// - During tests, this is a no-op to avoid opening real browser windows.
+/// # Examples
+/// ```
+/// use pacsea::util::open_url;
+///
+/// // Opening the AUR page of a package for manual review
+/// open_url("https://aur.archlinux.org/packages/linux-zen");
+///
+/// // Opening the Arch Linux package search in a browser
+/// open_url("https://archlinux.org/packages/?q=neovim");
+///
+/// // Opening the Pacsea project's GitHub page for issue reporting
+/// open_url("https://github.com/Firstp1ck/Pacsea");
+///
+/// // Note: This function runs asynchronously and does not block.
+/// // During tests (`cargo test`), it's a no-op to prevent opening browsers.
+/// ```
 #[cfg_attr(test, allow(unused_variables))]
 #[allow(clippy::missing_const_for_fn)]
 pub fn open_url(url: &str) {
@@ -515,6 +696,29 @@ pub fn open_url(url: &str) {
 /// - Windows: Adds `-k` to skip SSL verification
 /// - Adds User-Agent header to avoid being blocked by APIs
 /// - Appends `extra_args` and `url` at the end
+/// # Examples
+/// ```
+/// use pacsea::util::curl_args;
+///
+/// // Building arguments to fetch package info from the AUR RPC API
+/// let aur_args = curl_args("https://aur.archlinux.org/rpc/?v=5&type=info&arg=linux-zen", &["--max-time", "10"]);
+/// // On Windows, includes -k flag; always includes -sSLf and User-Agent
+/// assert!(aur_args.contains(&"-sSLf".to_string()));
+/// assert!(aur_args.contains(&"-H".to_string()));
+/// assert!(aur_args.contains(&"User-Agent: Pacsea/1.0".to_string()));
+/// assert!(aur_args.contains(&"--max-time".to_string()));
+/// assert!(aur_args.contains(&"10".to_string()));
+/// assert!(aur_args.last().unwrap().starts_with("https://aur.archlinux.org"));
+///
+/// // Building arguments to fetch the core repository database
+/// let repo_args = curl_args("https://archlinux.org/packages/core/x86_64/pacman/", &["--compressed"]);
+/// assert!(repo_args.contains(&"--compressed".to_string()));
+/// assert!(repo_args.last().unwrap().contains("archlinux.org"));
+///
+/// // Building arguments with no extra options
+/// let simple_args = curl_args("https://example.com/feed", &[]);
+/// assert_eq!(simple_args.last().unwrap(), "https://example.com/feed");
+/// ```
 #[must_use]
 pub fn curl_args(url: &str, extra_args: &[&str]) -> Vec<String> {
     let mut args = vec!["-sSLf".to_string()];
@@ -561,6 +765,24 @@ pub fn curl_args(url: &str, extra_args: &[&str]) -> Vec<String> {
 /// - Parses format: "name - `old_version` -> name - `new_version`"
 /// - Returns `None` for empty lines or invalid formats
 /// - Uses `rfind` to find the last occurrence of " - " to handle package names that may contain dashes
+/// # Examples
+/// ```
+/// use pacsea::util::parse_update_entry;
+///
+/// // Parsing a standard package update line from `pacman -Spu` or similar output
+/// let update_line = "linux - 6.10.1.arch1-1 -> linux - 6.10.2.arch1-1";
+/// let parsed = parse_update_entry(update_line);
+/// assert_eq!(parsed, Some(("linux".to_string(), "6.10.1.arch1-1".to_string(), "6.10.2.arch1-1".to_string())));
+///
+/// // Parsing an update for a package with a hyphen in its name (common in AUR)
+/// let aur_update_line = "python-requests - 2.31.0-1 -> python-requests - 2.32.0-1";
+/// let aur_parsed = parse_update_entry(aur_update_line);
+/// assert_eq!(aur_parsed, Some(("python-requests".to_string(), "2.31.0-1".to_string(), "2.32.0-1".to_string())));
+///
+/// // Handling a malformed or empty line (returns None)
+/// assert_eq!(parse_update_entry(""), None);
+/// assert_eq!(parse_update_entry("invalid line"), None);
+/// ```
 #[must_use]
 pub fn parse_update_entry(line: &str) -> Option<(String, String, String)> {
     let trimmed = line.trim();
