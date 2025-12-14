@@ -154,7 +154,7 @@ pub fn s(v: &Value, key: &str) -> String {
 ///     "Maintainer": "",
 ///     "Packager": "Arch Linux PACsea Team <pacsea@example.org>"
 /// });
-/// assert_eq!(ss(&maintainer_info, &["Maintainer", "Packager"]), Some("Arch Linux PACsea Team <pacsea@example.org>".to_string()));
+/// assert_eq!(ss(&maintainer_info, &["Packager", "Maintainer"]), Some("Arch Linux PACsea Team <pacsea@example.org>".to_string()));
 ///
 /// // Returns None if no key matches
 /// assert_eq!(ss(&pkg_info, &["License", "URL"]), None);
@@ -336,8 +336,8 @@ pub fn fuzzy_match_rank_with_matcher(
 /// assert!(score.is_some()); // Should match and return a score
 /// assert!(score.unwrap() > 0); // Higher score means better match
 ///
-/// // Another common search: "fs" matching "fzf" (a command-line fuzzy finder)
-/// let fzf_score = fuzzy_match_rank("fzf", "fs");
+/// // Another common search: "fz" matching "fzf" (a command-line fuzzy finder)
+/// let fzf_score = fuzzy_match_rank("fzf", "fz");
 /// assert!(fzf_score.is_some());
 ///
 /// // Exact match should have the highest score
@@ -439,7 +439,7 @@ pub fn match_rank(name: &str, query_lower: &str) -> u8 {
 ///
 /// // Converting the 'LastModified' timestamp from an AUR package's metadata
 /// // This is commonly used to show when a package was last updated in the AUR
-/// assert_eq!(ts_to_date(Some(1704067200)), "2023-12-31 00:00:00");
+/// assert_eq!(ts_to_date(Some(1704067200)), "2024-01-01 00:00:00");
 ///
 /// // Handling the case where no timestamp is available (e.g., a package with no build date)
 /// assert_eq!(ts_to_date(None), "");
