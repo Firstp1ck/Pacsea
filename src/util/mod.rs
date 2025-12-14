@@ -146,15 +146,15 @@ pub fn s(v: &Value, key: &str) -> String {
 ///     "pkgver": "1.2.3",
 ///     "ver": "1.2.3"
 /// });
-/// // Returns the first matching key: "Version"
+/// // Returns the first matching key: "pkgver"
 /// assert_eq!(ss(&pkg_info, &["pkgver", "Version", "ver"]), Some("1.2.3".to_string()));
 ///
 /// // Trying to get a maintainer, falling back to a packager field
 /// let maintainer_info = json!({
-///     "Maintainer": "",
-///     "Packager": "Arch Linux PACsea Team <pacsea@example.org>"
+///     "Packager": "Arch Linux Pacsea Team <pacsea@example.org>"
+///     // "Maintainer" key is missing to demonstrate fallback
 /// });
-/// assert_eq!(ss(&maintainer_info, &["Packager", "Maintainer"]), Some("Arch Linux PACsea Team <pacsea@example.org>".to_string()));
+/// assert_eq!(ss(&maintainer_info, &["Maintainer", "Packager"]), Some("Arch Linux Pacsea Team <pacsea@example.org>".to_string()));
 ///
 /// // Returns None if no key matches
 /// assert_eq!(ss(&pkg_info, &["License", "URL"]), None);
@@ -544,7 +544,7 @@ const fn is_leap(y: i32) -> bool {
 /// open_file(pkgbuild_path); // Launches the default text editor
 ///
 /// // Opening the local Pacsea configuration file for editing
-/// let config_path = Path::new("~/.config/pacsea/settings.conf");
+/// let config_path = Path::new("/home/alice/.config/pacsea/settings.conf");
 /// open_file(config_path); // Opens in the configured editor
 ///
 /// // Note: This function runs asynchronously and does not block.
