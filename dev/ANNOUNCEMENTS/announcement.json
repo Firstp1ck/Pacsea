@@ -1,7 +1,7 @@
 {
-  "id": "2025-12-06-community-poll-ux-vs-features",
-  "title": "Community Poll: UX Refinements or New Features?",
-  "content": "I want your input for the next milestone. Should I focus on UX refinements or on shipping more features (see the README for the list)?\n\nVote in the poll here: https://github.com/Firstp1ck/Pacsea/discussions/83",
+  "id": "2025-12-14-yay-paru-libalpm-compatibility",
+  "title": "Critical: yay/paru Compatibility Issue with libalpm v16",
+  "content": "IMPORTANT: A recent pacman update upgraded libalpm from version 15 to 16, which can cause yay and paru AUR helpers to fail until they are updated.\n\n**Impact:**\n- Package updates and installations via yay/paru may fail\n- This affects all Arch Linux users relying on these AUR helpers\n\n**Resolution:**\n- Update yay: The latest yay release is compatible. Update via: `pacman -Syu` then rebuild from AUR if needed\n- Update paru: Ensure you're running the latest version compatible with libalpm v16\n\n**Why this matters for Pacsea users:**\nSince Pacsea integrates with AUR helpers, this compatibility issue directly affects package management functionality. Make sure your AUR helpers are up-to-date to avoid update failures.\n\n**Source:** https://www.reddit.com/r/archlinux/comments/1plnucq/psa_yay_paru_updates_may_fail/\n\n**Note:** Avoid workarounds like linking older libalpm versions, as these are not proper solutions and may cause further issues.",
   "min_version": "0.6.0",
   "max_version": null,
   "expires": null
