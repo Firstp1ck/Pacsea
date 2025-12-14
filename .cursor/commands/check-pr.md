@@ -1,0 +1,2 @@
+check the last commits made by the following author for the PR I am reviewing and explain them extensively to me.
+If there are any critical logic errors in the commits, explain them to me and suggest fixes.
