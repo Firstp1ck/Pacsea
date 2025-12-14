@@ -705,7 +705,7 @@ pub fn open_url(url: &str) {
 /// // On Windows, includes -k flag; always includes -sSLf and User-Agent
 /// assert!(aur_args.contains(&"-sSLf".to_string()));
 /// assert!(aur_args.contains(&"-H".to_string()));
-/// assert!(aur_args.contains(&"User-Agent: Pacsea/1.0".to_string()));
+/// assert!(aur_args.contains(&"User-Agent: Pacsea/1.0 (+https://github.com/Firstp1ck/Pacsea)".to_string()));
 /// assert!(aur_args.contains(&"--max-time".to_string()));
 /// assert!(aur_args.contains(&"10".to_string()));
 /// assert!(aur_args.last().unwrap().starts_with("https://aur.archlinux.org"));
