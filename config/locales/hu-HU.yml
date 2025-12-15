@@ -358,6 +358,14 @@ hu-HU:
         none: "Nincs újratelepítendő csomag"
         confirm_hint: "Nyomja meg az Entert az újratelepítés megerősítéséhez vagy az Esc gombot a megszakításhoz"
         and_more: "… és további {}"
+      confirm_aur_update:
+        # TODO: translate to hungarian
+        title: "  - Continue AUR Update? "
+        pacman_failed: "Pacman update failed (exit code: {})."
+        command_failed: "{} update failed (exit code: {})."
+        continue_prompt: "Do you want to continue with AUR update anyway?"
+        warning: "This may fail if AUR packages require newer official packages."
+        hint: "Press Enter/Y to continue, Esc/Q/N to cancel"
       system_update:
         title: " Rendszerfrissítés "
         heading: "Rendszerfrissítés"
@@ -704,14 +712,19 @@ hu-HU:
         pacman_success: "✓ A csomagok sikeresen frissítve lettek a pacman paranccsal"
         pacman_failed: "✗ Nem sikerült frissíteni a csomagokat a pacman paranccsal"
         pacman_exec_failed: "✗ Nem sikerült végrehajtani a csomagok frissítését a pacman paranccsal"
-        aur_starting: "AUR-csomagok frissítése ({} -Syu)…"
+        aur_starting: "AUR-csomagok frissítése ({} -Sua)…"
         aur_success: "✓ Az AUR-csomagok sikeresen frissítve lettek a(z) {} paranccsal"
         aur_failed: "✗ Az AUR-csomagokat nem sikerült frissíteni a(z) {} paranccsal"
         aur_exec_failed: "✗ Nem sikerült végrehajtani az AUR-csomagok frissítését a(z) {} paranccsal"
         no_aur_helper: "Nem található AUR-segéd (paru/yay), az AUR-csomagok frissítésének kihagyása"
+        # TODO: translate to hungarian
+        aur_skipped_pacman_failed: "AUR update skipped (pacman update failed)"
         separator: "============================================================"
         all_success: "✓ A rendszerfrissítés sikeresen befejeződött"
         completed_with_errors: "✗ A rendszerfrissítés hibákkal fejeződött be"
+        # TODO: translate to hungarian
+        failure_summary: "Failure Summary:"
+        failed_commands: "Failed commands:"
         failed_packages: "Sikertelenül telepített csomagok:"
         failed_packages_log: "Sikertelenül telepített csomagok: {}"
         log_file: "Naplófájl: {}"

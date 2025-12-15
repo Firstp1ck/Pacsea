@@ -228,9 +228,14 @@ fn integration_remove_executor_output_handling() {
     let output2 = ExecutorOutput::Finished {
         success: true,
         exit_code: Some(0),
+        failed_command: None,
     };
     match output2 {
-        ExecutorOutput::Finished { success, exit_code } => {
+        ExecutorOutput::Finished {
+            success,
+            exit_code,
+            failed_command: _,
+        } => {
             assert!(success);
             assert_eq!(exit_code, Some(0));
         }

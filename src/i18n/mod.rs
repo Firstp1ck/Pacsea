@@ -194,3 +194,22 @@ pub fn t_fmt(app: &crate::state::AppState, key: &str, args: &[&dyn std::fmt::Dis
 pub fn t_fmt1<T: std::fmt::Display>(app: &crate::state::AppState, key: &str, arg: T) -> String {
     t_fmt(app, key, &[&arg])
 }
+
+/// What: Format translated string with two format arguments.
+///
+/// Inputs:
+/// - `app`: Application state (for locale access)
+/// - `key`: Translation key
+/// - `arg1`: First format argument
+/// - `arg2`: Second format argument
+///
+/// Output:
+/// - Formatted translated string
+pub fn t_fmt2<T1: std::fmt::Display, T2: std::fmt::Display>(
+    app: &crate::state::AppState,
+    key: &str,
+    arg1: T1,
+    arg2: T2,
+) -> String {
+    t_fmt(app, key, &[&arg1, &arg2])
+}
