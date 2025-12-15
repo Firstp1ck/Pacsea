@@ -2,6 +2,15 @@
 name = "pacsea"
 version = "0.6.2"
 edition = "2024"
+authors = ["Firstpick <firstpick@users.noreply.github.com>"]
+description = "A fast, friendly TUI for browsing and installing Arch and AUR packages with built-in news and security scanning"
+license = "MIT"
+readme = "README.md"
+homepage = "https://github.com/Firstp1ck/Pacsea"
+repository = "https://github.com/Firstp1ck/Pacsea"
+documentation = "https://github.com/Firstp1ck/Pacsea/wiki"
+keywords = ["tui", "archlinux", "aur", "package-manager", "terminal"]
+categories = ["command-line-utilities", "command-line-interface"]
 
 [dependencies]
 clap = { version = "4.5.53", features = ["derive"] }
