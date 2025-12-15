@@ -596,21 +596,28 @@ function phase4_build_release
                 log_error "Failed to create GitHub release"
                 return 1
             end
+        end
+    end
+
+    # Step 4.7: Publish to crates.io
+    log_step "Publishing to crates.io"
+
+    if test "$DRY_RUN" = true
+        log_info "[DRY-RUN] Would run 'cargo publish' to publish to crates.io"
+    else
+        cd "$PACSEA_DIR"
+        dry_run_cmd "cargo publish"
+
+        if test $status -eq 0
+            log_success "Published to crates.io"
         else
-            log_warn "Release notes file not found, creating release without notes..."
-            if test -n "$prerelease_flag"
-                gh release create "$tag" \
-                    --title "v$new_ver" \
-                    --prerelease \
-                    --generate-notes
-            else
-                gh release create "$tag" \
-                    --title "v$new_ver" \
-                    --generate-notes
+            log_error "Failed to publish to crates.io"
+            if not confirm_continue "Continue anyway?"
+                return 1
             end
         end
     end
-    
+
     return 0
 end
 
