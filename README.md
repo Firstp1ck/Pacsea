@@ -47,6 +47,11 @@ paru -S pacsea-bin   # or: yay -S pacsea-bin
 paru -S pacsea-git   # or: yay -S pacsea-git
 ```
 
+- **Install via Cargo**:
+```bash
+cargo install pacsea
+```
+
 - **Run**:
 ```bash
 pacsea
