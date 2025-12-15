@@ -614,8 +614,9 @@ exit 0
 
     // Test combined command with exit code capture
     // This simulates: command1; PACMAN_EXIT=$?; command2; AUR_EXIT=$?
+    // Note: AUR helper uses -Sua (AUR only) after pacman -Syu has already run
     let combined_cmd = format!(
-        "{} -Syu --noconfirm; PACMAN_EXIT=$?; echo 'PACMAN_EXIT='$PACMAN_EXIT; {} -Syu --noconfirm; AUR_EXIT=$?; echo 'AUR_EXIT='$AUR_EXIT; exit $((PACMAN_EXIT | AUR_EXIT))",
+        "{} -Syu --noconfirm; PACMAN_EXIT=$?; echo 'PACMAN_EXIT='$PACMAN_EXIT; {} -Sua --noconfirm; AUR_EXIT=$?; echo 'AUR_EXIT='$AUR_EXIT; exit $((PACMAN_EXIT | AUR_EXIT))",
         mock_pacman_path.display(),
         mock_aur_path.display()
     );

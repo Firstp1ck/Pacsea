@@ -816,7 +816,7 @@ fn refresh_sudo_timestamp(password: Option<&str>, write_log: &(dyn Fn(&str) + Se
 ///
 /// Details:
 /// - Detects available AUR helper (paru/yay, prefers paru).
-/// - Runs `{helper} -Syu --noconfirm` to update AUR packages.
+/// - Runs `{helper} -Sua --noconfirm` to update only AUR packages (official packages already updated by pacman).
 /// - Updates state with success/failure status and failed packages.
 /// - If no AUR helper is available, logs a warning and skips the update.
 /// - Extracts failed package names from command output on failure.
@@ -837,11 +837,11 @@ fn run_aur_update(
                 no_color
             )
         );
-        write_log(&format!("Starting AUR update: {helper} -Syu --noconfirm"));
+        write_log(&format!("Starting AUR update: {helper} -Sua --noconfirm"));
 
         let aur_result = run_command_with_logging(
             helper,
-            &["-Syu", "--noconfirm"],
+            &["-Sua", "--noconfirm"],
             log_file_path,
             None, // AUR helpers handle sudo internally, no password needed
         );
@@ -857,7 +857,7 @@ fn run_aur_update(
                         )
                     );
                     write_log(&format!(
-                        "SUCCESS: {helper} -Syu --noconfirm completed successfully"
+                        "SUCCESS: {helper} -Sua --noconfirm completed successfully"
                     ));
                     state.aur_succeeded = Some(true);
                 } else {
@@ -866,7 +866,7 @@ fn run_aur_update(
                         error_color(&i18n::t_fmt1("app.cli.update.aur_failed", helper), no_color)
                     );
                     write_log(&format!(
-                        "FAILED: {} -Syu --noconfirm failed with exit code {:?}",
+                        "FAILED: {} -Sua --noconfirm failed with exit code {:?}",
                         helper,
                         status.code()
                     ));
@@ -875,7 +875,7 @@ fn run_aur_update(
                     state.all_succeeded = false;
                     state
                         .failed_commands
-                        .push(format!("{helper} -Syu --noconfirm"));
+                        .push(format!("{helper} -Sua --noconfirm"));
                     state.aur_succeeded = Some(false);
                 }
             }
@@ -892,12 +892,12 @@ fn run_aur_update(
                     error_color(&i18n::t_fmt1("app.cli.update.error_prefix", &e), no_color)
                 );
                 write_log(&format!(
-                    "FAILED: Could not execute {helper} -Syu --noconfirm: {e}"
+                    "FAILED: Could not execute {helper} -Sua --noconfirm: {e}"
                 ));
                 state.all_succeeded = false;
                 state
                     .failed_commands
-                    .push(format!("{helper} -Syu --noconfirm"));
+                    .push(format!("{helper} -Sua --noconfirm"));
                 state.aur_succeeded = Some(false);
             }
         }
@@ -982,10 +982,53 @@ fn display_update_summary(
             "\n{}",
             error_color(&i18n::t("app.cli.update.completed_with_errors"), no_color)
         );
-        write_log(&format!(
-            "SUMMARY: Update failed. Failed commands: {:?}",
-            state.failed_commands
-        ));
+
+        // Clear failure summary
+        println!(
+            "\n{}",
+            info_color(&i18n::t("app.cli.update.failure_summary"), no_color)
+        );
+
+        // Show what failed
+        if state.pacman_succeeded == Some(false) {
+            println!(
+                "  {} {}",
+                error_color("✗", no_color),
+                error_color(&i18n::t("app.cli.update.pacman_failed"), no_color)
+            );
+        }
+
+        if let Some(helper) = &state.aur_helper_name {
+            if state.aur_succeeded == Some(false) {
+                println!(
+                    "  {} {}",
+                    error_color("✗", no_color),
+                    error_color(&i18n::t_fmt1("app.cli.update.aur_failed", helper), no_color)
+                );
+            } else if state.pacman_succeeded == Some(false) {
+                println!(
+                    "  {} {}",
+                    warning_color("⊘", no_color),
+                    warning_color(
+                        &i18n::t("app.cli.update.aur_skipped_pacman_failed"),
+                        no_color
+                    )
+                );
+            }
+        }
+
+        // Show failed commands
+        if !state.failed_commands.is_empty() {
+            println!(
+                "\n{}",
+                warning_color(&i18n::t("app.cli.update.failed_commands"), no_color)
+            );
+            for cmd in &state.failed_commands {
+                println!("  - {}", error_color(cmd, no_color));
+            }
+        }
+
+        // Show failed packages
         if !state.failed_packages.is_empty() {
             println!(
                 "\n{}",
@@ -999,6 +1042,11 @@ fn display_update_summary(
                 format!("{:?}", state.failed_packages),
             ));
         }
+
+        write_log(&format!(
+            "SUMMARY: Update failed. Failed commands: {:?}",
+            state.failed_commands
+        ));
     }
     let log_file_format = i18n::t("app.cli.update.log_file");
     let clickable_path = format_clickable_path(log_file_path);
@@ -1021,7 +1069,8 @@ fn display_update_summary(
 ///
 /// Details:
 /// - Runs `sudo pacman -Syu --noconfirm` first to update official packages.
-/// - Then runs `yay -Syu --noconfirm` or `paru -Syu --noconfirm` (prefers paru) if available.
+/// - Then runs `yay -Sua --noconfirm` or `paru -Sua --noconfirm` (prefers paru) if available.
+/// - AUR update is skipped if pacman update failed.
 /// - Displays update progress output in real-time to the terminal.
 /// - Logs all command output and status messages to `update.log` in the config logs directory.
 /// - Informs user of final status and log file path.
@@ -1055,8 +1104,19 @@ pub fn handle_update(no_color: bool) -> ! {
     // Refresh sudo timestamp after pacman command so AUR helper can use it
     refresh_sudo_timestamp(password.as_deref(), &*write_log);
 
-    // Step 2: Update AUR packages (yay/paru -Syu --noconfirm)
-    run_aur_update(&mut state, &log_file_path, no_color, &*write_log);
+    // Step 2: Update AUR packages (yay/paru -Sua --noconfirm) only if pacman succeeded
+    if state.pacman_succeeded == Some(true) {
+        run_aur_update(&mut state, &log_file_path, no_color, &*write_log);
+    } else {
+        println!(
+            "\n{}",
+            warning_color(
+                &i18n::t("app.cli.update.aur_skipped_pacman_failed"),
+                no_color
+            )
+        );
+        write_log("SKIPPED: AUR update skipped because pacman update failed");
+    }
 
     // Display final summary
     display_update_summary(&state, &log_file_path, no_color, &*write_log);

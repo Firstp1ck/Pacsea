@@ -324,6 +324,154 @@ fn system_update_force_sync_uses_syyu() {
 }
 
 #[test]
+/// What: Verify AUR update uses `-Sua` when pacman is also selected.
+///
+/// Inputs:
+/// - `SystemUpdate` modal with both `do_pacman` and `do_aur` enabled, Enter key event.
+///
+/// Output:
+/// - AUR command uses `-Sua` flag (AUR only, since official packages are updated by pacman).
+///
+/// Details:
+/// - Tests that when both pacman and AUR updates are selected, AUR uses `-Sua` to avoid redundant official package updates.
+fn system_update_aur_uses_sua_when_pacman_selected() {
+    let mut app = AppState {
+        modal: crate::state::Modal::SystemUpdate {
+            do_mirrors: false,
+            do_pacman: true,
+            force_sync: false,
+            do_aur: true,
+            do_cache: false,
+            country_idx: 0,
+            countries: vec!["Worldwide".to_string()],
+            mirror_count: 10,
+            cursor: 0,
+        },
+        ..Default::default()
+    };
+
+    let mut do_mirrors = false;
+    let mut do_pacman = true;
+    let mut force_sync = false;
+    let mut do_aur = true;
+    let mut do_cache = false;
+    let mut country_idx = 0;
+    let countries = vec!["Worldwide".to_string()];
+    let mut mirror_count = 10;
+    let mut cursor = 0;
+
+    let ke = KeyEvent::new(KeyCode::Enter, KeyModifiers::empty());
+    let _ = handle_system_update(
+        ke,
+        &mut app,
+        &mut do_mirrors,
+        &mut do_pacman,
+        &mut force_sync,
+        &mut do_aur,
+        &mut do_cache,
+        &mut country_idx,
+        &countries,
+        &mut mirror_count,
+        &mut cursor,
+    );
+
+    // Verify the commands include pacman -Syu
+    let commands = app
+        .pending_update_commands
+        .as_ref()
+        .expect("pending_update_commands should be set");
+    assert!(
+        commands.iter().any(|c| c.contains("pacman -Syu")),
+        "Commands should include pacman -Syu"
+    );
+    // Verify AUR command uses -Sua (not -Syu) when pacman is also selected
+    assert!(
+        commands
+            .iter()
+            .any(|c| c.contains("paru -Sua") || c.contains("yay -Sua")),
+        "AUR command should use -Sua when pacman is also selected"
+    );
+    assert!(
+        !commands
+            .iter()
+            .any(|c| (c.contains("paru -Syu") || c.contains("yay -Syu")) && !c.contains("-Sua")),
+        "AUR command should not use -Syu when pacman is also selected"
+    );
+}
+
+#[test]
+/// What: Verify AUR update uses `-Sua` when only AUR is selected (no pacman).
+///
+/// Inputs:
+/// - `SystemUpdate` modal with only `do_aur` enabled (no pacman), Enter key event.
+///
+/// Output:
+/// - AUR command uses `-Sua` flag (updates only AUR packages).
+///
+/// Details:
+/// - Tests that when only AUR update is selected, AUR uses `-Sua` to update only AUR packages.
+/// - AUR helpers will handle dependency resolution and report if newer official packages are needed.
+fn system_update_aur_uses_sua_when_only_aur_selected() {
+    let mut app = AppState {
+        modal: crate::state::Modal::SystemUpdate {
+            do_mirrors: false,
+            do_pacman: false,
+            force_sync: false,
+            do_aur: true,
+            do_cache: false,
+            country_idx: 0,
+            countries: vec!["Worldwide".to_string()],
+            mirror_count: 10,
+            cursor: 0,
+        },
+        ..Default::default()
+    };
+
+    let mut do_mirrors = false;
+    let mut do_pacman = false;
+    let mut force_sync = false;
+    let mut do_aur = true;
+    let mut do_cache = false;
+    let mut country_idx = 0;
+    let countries = vec!["Worldwide".to_string()];
+    let mut mirror_count = 10;
+    let mut cursor = 0;
+
+    let ke = KeyEvent::new(KeyCode::Enter, KeyModifiers::empty());
+    let _ = handle_system_update(
+        ke,
+        &mut app,
+        &mut do_mirrors,
+        &mut do_pacman,
+        &mut force_sync,
+        &mut do_aur,
+        &mut do_cache,
+        &mut country_idx,
+        &countries,
+        &mut mirror_count,
+        &mut cursor,
+    );
+
+    // Verify AUR command uses -Sua (not -Syu) when only AUR is selected
+    let commands = app
+        .pending_update_commands
+        .as_ref()
+        .expect("pending_update_commands should be set");
+    assert!(
+        commands
+            .iter()
+            .any(|c| c.contains("paru -Sua") || c.contains("yay -Sua")),
+        "AUR command should use -Sua when only AUR is selected"
+    );
+    assert!(
+        !commands
+            .iter()
+            .any(|c| (c.contains("paru -Syu") || c.contains("yay -Syu")) && !c.contains("-Sua")),
+        "AUR command should not use -Syu when only AUR is selected"
+    );
+}
+
+#[test]
 /// What: Verify left/right/tab keys toggle `force_sync` on pacman row.
 ///
 /// Inputs:

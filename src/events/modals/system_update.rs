@@ -190,8 +190,12 @@ fn handle_system_update_enter(
         cmds.push(format!("sudo pacman {sync_flag} --noconfirm"));
     }
     if do_aur {
-        // Use -Syyu (force sync) or -Syu (normal sync) based on user selection
-        let sync_flag = if force_sync { "-Syyu" } else { "-Syu" };
+        // Always use -Sua (AUR only) to update only AUR packages
+        // AUR helpers (paru/yay) will automatically handle dependency resolution:
+        // - If AUR packages require newer official packages, the helper will report this
+        // - Users can then also select pacman update if dependency issues occur
+        // - This follows Arch Linux best practices: update official packages first, then AUR
+        let sync_flag = "-Sua";
         cmds.push(format!(
             "if command -v paru >/dev/null 2>&1; then \
                 paru {sync_flag} --noconfirm; \
