@@ -11,6 +11,14 @@ repository = "https://github.com/Firstp1ck/Pacsea"
 documentation = "https://github.com/Firstp1ck/Pacsea/wiki"
 keywords = ["tui", "archlinux", "aur", "package-manager", "terminal"]
 categories = ["command-line-utilities", "command-line-interface"]
+exclude = [
+    "Images/",
+    "tests/",
+    ".cursor/",
+    ".github/",
+    "AGENTS.md",
+    "dev/",
+]
 
 [dependencies]
 clap = { version = "4.5.53", features = ["derive"] }
