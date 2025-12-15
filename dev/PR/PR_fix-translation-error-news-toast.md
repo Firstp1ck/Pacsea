@@ -1,32 +1,15 @@
-<!-- Thank you for contributing to Pacsea! 
-
-**Important references:**
-- [CONTRIBUTING.md](../CONTRIBUTING.md) — Full contribution guidelines and PR process
-- [PR_DESCRIPTION.md](../Documents/PR_DESCRIPTION.md) — Detailed PR description template
-- [Development Wiki](https://github.com/Firstp1ck/Pacsea/wiki/Development) — Development tools and debugging
-
-Please ensure you've reviewed these before submitting your PR.
--->
-
 ## Summary
 - Fixed toast title detection for news messages in non-English locales
 - Changed from English keyword matching (`msg.contains("news")`) to language-agnostic message comparison
 - News toast now correctly displays "Hírek" (News) title in Hungarian instead of incorrectly showing "Vágólap" (Clipboard)
-- Solution compares the toast message against the translated "app.toasts.no_new_news" message, making it work for all languages
+- Solution checks the toast message against a list of all known news-related translation keys, making it robust and extensible
+- Future news-related toasts can be easily added to the list without code changes elsewhere
 
 ## Type of change
 - [x] fix (bug fix)
-- [ ] feat (new feature)
-- [ ] docs (documentation only)
-- [ ] refactor (no functional change)
-- [ ] perf (performance)
-- [ ] test (add/update tests)
-- [ ] chore (build/infra/CI)
-- [ ] ui (visual/interaction changes)
-- [ ] breaking change (incompatible behavior)
 
 ## Related issues
-Closes #
+Closes #103
 
 ## How to test
 List exact steps and commands to verify the change. Include flags like `--dry-run` when appropriate.
@@ -50,10 +33,6 @@ LANG=hu-HU.UTF-8 cargo run
 #    - Message: "Másolva a vágólapra" or similar
 ```
 
-## Screenshots / recordings (if UI changes)
-**Before:** Hungarian news toast incorrectly showed "Vágólap" (Clipboard) as title  
-**After:** Hungarian news toast correctly shows "Hírek" (News) as title
-
 ## Checklist
 
 **Code Quality:**
@@ -70,15 +49,6 @@ LANG=hu-HU.UTF-8 cargo run
 - [x] For bug fixes: created failing tests first, then fixed the issue
 - [x] Tests are meaningful and cover the functionality
 
-**Documentation:**
-- [ ] Updated README if behavior, options, or keybinds changed (keep high-level, reference wiki)
-- [ ] Updated relevant wiki pages if needed:
-  - [How to use Pacsea](https://github.com/Firstp1ck/Pacsea/wiki/How-to-use-Pacsea)
-  - [Configuration](https://github.com/Firstp1ck/Pacsea/wiki/Configuration)
-  - [Keyboard Shortcuts](https://github.com/Firstp1ck/Pacsea/wiki/Keyboard-Shortcuts)
-- [ ] Updated config examples in `config/` directory if config keys changed
-- [ ] For UI changes: included screenshots and updated `Images/` if applicable
-
 **Compatibility:**
 - [x] Changes respect `--dry-run` flag
 - [x] Code degrades gracefully if `pacman`/`paru`/`yay` are unavailable
@@ -89,9 +59,10 @@ LANG=hu-HU.UTF-8 cargo run
 
 ## Notes for reviewers
 - The fix replaces language-specific keyword matching with a language-agnostic approach
-- Instead of checking if the message contains "news" (English), we now compare the toast message directly against the translated "app.toasts.no_new_news" message
+- Instead of checking if the message contains "news" (English), we now check the toast message against a list of all known news-related translation keys
 - This ensures the toast title detection works correctly for all locales, not just English
-- The solution is robust because it uses the same translation system that generates the toast message itself
+- The solution is robust and extensible: new news-related toasts can be added by simply adding their translation key to the `news_keys` array
+- The approach is language-agnostic because it compares the actual translated text, not hardcoded keywords
 - No changes to AppState structure were needed - the fix is purely in the rendering logic
 
 ## Breaking changes
@@ -100,11 +71,14 @@ None. This is a bug fix that improves internationalization support.
 ## Additional context
 **Problem:** The toast title detection logic in `render_toast()` used `msg.to_lowercase().contains("news")` to determine if a toast was a news toast. This worked for English but failed for other languages like Hungarian, where "Ma nincsenek új hírek" (No new news today) doesn't contain the English word "news".
 
-**Solution:** Changed the logic to compare the toast message directly against the translated "app.toasts.no_new_news" message. This is language-agnostic because:
-1. The toast message is already translated via `i18n::t(app, "app.toasts.no_new_news")`
-2. We compare the displayed message against the same translation key
-3. This works for any language without hardcoded keywords
+**Solution:** Changed the logic to check the toast message against a list of all known news-related translation keys. This is language-agnostic and extensible because:
+1. We maintain a list of news-related translation keys (currently `["app.toasts.no_new_news"]`)
+2. We iterate through the list and compare the toast message against each translated key
+3. If any match is found, the toast is identified as a news toast
+4. New news-related toasts can be added by simply adding their key to the array
+5. This works for any language without hardcoded keywords
 
-**Files changed:**
-- `src/ui.rs` (lines 276-283): Updated `render_toast()` function to use message comparison instead of keyword matching
-
+**Implementation details:**
+- Uses `news_keys.iter().any()` to check if the message matches any news-related translation
+- Each key is translated using `i18n::t()` and compared against the actual toast message
+- This approach is robust against future additions of news-related toasts
