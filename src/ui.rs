@@ -273,7 +273,10 @@ fn render_toast(f: &mut Frame, app: &AppState, area: ratatui::prelude::Rect) {
         height: h,
     };
 
-    let title_text = if msg.to_lowercase().contains("news") {
+    // Determine toast type by comparing with the translated news message
+    // This is language-agnostic as it compares the actual translated text
+    let news_message = i18n::t(app, "app.toasts.no_new_news");
+    let title_text = if msg == &news_message {
         i18n::t(app, "app.toasts.title_news")
     } else {
         i18n::t(app, "app.toasts.title_clipboard")
