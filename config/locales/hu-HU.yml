@@ -362,6 +362,7 @@ hu-HU:
         # TODO: translate to hungarian
         title: "  - Continue AUR Update? "
         pacman_failed: "Pacman update failed (exit code: {})."
+        command_failed: "{} update failed (exit code: {})."
         continue_prompt: "Do you want to continue with AUR update anyway?"
         warning: "This may fail if AUR packages require newer official packages."
         hint: "Press Enter/Y to continue, Esc/Q/N to cancel"

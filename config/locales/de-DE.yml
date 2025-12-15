@@ -358,6 +358,7 @@ de-DE:
       confirm_aur_update:
         title: " AUR-Update fortsetzen? "
         pacman_failed: "Pacman-Update fehlgeschlagen (Exit-Code: {})."
+        command_failed: "{}-Update fehlgeschlagen (Exit-Code: {})."
         continue_prompt: "Möchten Sie trotzdem mit dem AUR-Update fortfahren?"
         warning: "Dies kann fehlschlagen, wenn AUR-Pakete neuere offizielle Pakete benötigen."
         hint: "Enter/Y zum Fortfahren drücken, Esc/Q/N zum Abbrechen"

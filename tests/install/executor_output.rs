@@ -97,10 +97,15 @@ fn integration_executor_output_finished_success() {
     let output = ExecutorOutput::Finished {
         success: true,
         exit_code: Some(0),
+        failed_command: None,
     };
 
     match output {
-        ExecutorOutput::Finished { success, exit_code } => {
+        ExecutorOutput::Finished {
+            success,
+            exit_code,
+            failed_command: _,
+        } => {
             assert!(success);
             assert_eq!(exit_code, Some(0));
         }
@@ -123,10 +128,15 @@ fn integration_executor_output_finished_failure() {
     let output = ExecutorOutput::Finished {
         success: false,
         exit_code: Some(1),
+        failed_command: None,
     };
 
     match output {
-        ExecutorOutput::Finished { success, exit_code } => {
+        ExecutorOutput::Finished {
+            success,
+            exit_code,
+            failed_command: _,
+        } => {
             assert!(!success);
             assert_eq!(exit_code, Some(1));
         }
@@ -149,10 +159,15 @@ fn integration_executor_output_finished_no_exit_code() {
     let output = ExecutorOutput::Finished {
         success: false,
         exit_code: None,
+        failed_command: None,
     };
 
     match output {
-        ExecutorOutput::Finished { success, exit_code } => {
+        ExecutorOutput::Finished {
+            success,
+            exit_code,
+            failed_command: _,
+        } => {
             assert!(!success);
             assert!(exit_code.is_none());
         }

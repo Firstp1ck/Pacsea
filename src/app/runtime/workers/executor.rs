@@ -587,7 +587,11 @@ fn send_finish_message(
         exit_code,
         lines_sent
     );
-    let _ = res_tx.send(ExecutorOutput::Finished { success, exit_code });
+    let _ = res_tx.send(ExecutorOutput::Finished {
+        success,
+        exit_code,
+        failed_command: None,
+    });
 }
 
 /// What: Execute command in PTY and stream output.

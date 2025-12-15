@@ -104,6 +104,8 @@ pub enum ExecutorOutput {
         success: bool,
         /// Exit code if available.
         exit_code: Option<i32>,
+        /// Name of the failed command (if execution failed and this is an update operation).
+        failed_command: Option<String>,
     },
     /// Error occurred during execution.
     Error(String),

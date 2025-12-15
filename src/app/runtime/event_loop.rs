@@ -502,6 +502,7 @@ fn handle_downgrade_success(app: &mut AppState, items: &[crate::state::PackageIt
 /// - Processes `Line`, `ReplaceLastLine`, `Finished`, and `Error` outputs
 /// - Handles success/failure cases for Install, Remove, and Downgrade actions
 /// - Shows confirmation popup for AUR update when pacman fails
+#[allow(clippy::too_many_lines)] // Function handles multiple executor output types and modal transitions
 fn handle_executor_output(app: &mut AppState, output: crate::install::ExecutorOutput) {
     // Log what we received (at trace level to avoid spam)
     match &output {
@@ -517,7 +518,11 @@ fn handle_executor_output(app: &mut AppState, output: crate::install::ExecutorOu
                 &line[..line.len().min(50)]
             );
         }
-        crate::install::ExecutorOutput::Finished { success, exit_code } => {
+        crate::install::ExecutorOutput::Finished {
+            success,
+            exit_code,
+            failed_command: _,
+        } => {
             tracing::debug!(
                 "[EventLoop] Received executor Finished: success={}, exit_code={:?}",
                 success,
@@ -562,6 +567,7 @@ fn handle_executor_output(app: &mut AppState, output: crate::install::ExecutorOu
             crate::install::ExecutorOutput::Finished {
                 success: exec_success,
                 exit_code,
+                failed_command: _,
             } => {
                 tracing::info!(
                     "Received Finished: success={exec_success}, exit_code={exit_code:?}"
@@ -616,15 +622,46 @@ fn handle_executor_output(app: &mut AppState, output: crate::install::ExecutorOu
                         // Preserve password and header_chips for AUR update if user confirms
                         // (they're already stored in app state, so we just need to show the modal)
 
+                        // Determine which command failed by checking the command list
+                        let failed_command_name = app
+                            .pending_update_commands
+                            .as_ref()
+                            .and_then(|cmds| {
+                                // Extract command name from the first command (since commands are chained with &&,
+                                // the first command that fails stops execution)
+                                cmds.first().map(|cmd| {
+                                    // Extract command name: "sudo pacman -Syu" -> "pacman", "paru -Sua" -> "paru"
+                                    if cmd.contains("pacman") {
+                                        "pacman"
+                                    } else if cmd.contains("paru") {
+                                        "paru"
+                                    } else if cmd.contains("yay") {
+                                        "yay"
+                                    } else if cmd.contains("reflector") {
+                                        "reflector"
+                                    } else if cmd.contains("pacman-mirrors") {
+                                        "pacman-mirrors"
+                                    } else if cmd.contains("eos-rankmirrors") {
+                                        "eos-rankmirrors"
+                                    } else if cmd.contains("cachyos-rate-mirrors") {
+                                        "cachyos-rate-mirrors"
+                                    } else {
+                                        "update command"
+                                    }
+                                })
+                            })
+                            .unwrap_or("update command");
+
                         // Close PreflightExec and show confirmation modal
-                        let exit_code_str = exit_code
-                            .map_or_else(|| "unknown".to_string(), |c| c.to_string());
+                        let exit_code_str =
+                            exit_code.map_or_else(|| "unknown".to_string(), |c| c.to_string());
                         app.modal = crate::state::Modal::ConfirmAurUpdate {
                             message: format!(
                                 "{}\n\n{}\n{}\n\n{}",
-                                i18n::t_fmt1(
+                                i18n::t_fmt2(
                                     app,
-                                    "app.modals.confirm_aur_update.pacman_failed",
+                                    "app.modals.confirm_aur_update.command_failed",
+                                    failed_command_name,
                                     &exit_code_str
                                 ),
                                 i18n::t(app, "app.modals.confirm_aur_update.continue_prompt"),

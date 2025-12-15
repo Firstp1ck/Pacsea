@@ -471,10 +471,10 @@ fn system_update_aur_uses_sua_when_only_aur_selected() {
         "AUR command should use -Sua when only AUR is selected"
     );
     assert!(
-        !commands
+        commands
             .iter()
-            .any(|c| (c.contains("paru -Syu") || c.contains("yay -Syu")) && !c.contains("-Sua")),
-        "AUR command should not use -Syu when only AUR is selected"
+            .all(|c| !c.contains("-Syu") || c.contains("-Sua")),
+        "AUR command should not use -Syu when only AUR is selected (must use -Sua if -Syu is present)"
     );
 }
 
