@@ -188,8 +188,8 @@ hu-HU:
       hide_recent: "Legutóbbi elrejtése"
       show_install_list: "Telepítési lista megjelenítése"
       hide_install_list: "Telepítési lista elrejtése"
-      show_keybinds: "Billentyűkötések megjelenítése"
-      hide_keybinds: "Billentyűkötések elrejtése"
+      show_keybinds: "Billentyűparancsok megjelenítése"
+      hide_keybinds: "Billentyűparancsok elrejtése"
       list_all_packages: "Összes csomag listázása"
       list_installed_packages: "Telepített csomagok listázása"
       update_system: "Rendszer frissítése"
@@ -200,7 +200,7 @@ hu-HU:
       focus_right: "Fókuszálás jobbra"
       open_arch_status: "Arch Linux állapotának megnyitása"
       install_list: "Telepítési lista:"
-      toggle: "be-/kikapcsolás"
+      toggle: "be/ki"
       insert: "beszúrás"
       page: "lapozás"
       
@@ -295,14 +295,14 @@ hu-HU:
         options:
           settings: "Beállítások → settings.conf"
           theme: "Téma → theme.conf"
-          keybindings: "Billentyűkötések → keybinds.conf"
+          keybindings: "Billentyűparancsok → keybinds.conf"
       panels_menu:
         show_recent: "Legutóbbi megjelenítése"
         hide_recent: "Legutóbbi elrejtése"
         show_install_list: "Telepítési lista megjelenítése"
         hide_install_list: "Telepítési lista elrejtése"
-        show_keybinds: "Billentyűkötések megjelenítése"
-        hide_keybinds: "Billentyűkötések elrejtése"
+        show_keybinds: "Billentyűparancsok megjelenítése"
+        hide_keybinds: "Billentyűparancsok elrejtése"
       options_menu:
         list_all_packages: "Összes csomag listázása"
         list_installed_packages: "Telepített csomagok listázása"
@@ -372,7 +372,7 @@ hu-HU:
         country_label: "Ország (Tükrök): "
         count_label: "Darabszám: {}"
         worldwide: "Világszerte"
-        footer_hint: "Szóköz: be-/kikapcsolás • Balra/Jobbra: országváltás • -/+ darabszám • Enter: futtatás • Esc: megszakítás"
+        footer_hint: "Szóköz: be/ki • Balra/Jobbra: országváltás • -/+ darabszám • Enter: futtatás • Esc: megszakítás"
       help:
         title: " Súgó "
         heading: "PacSea súgó"
@@ -386,15 +386,15 @@ hu-HU:
           news_dialog: "Hírek párbeszédablak:"
         mouse_lines:
           - "  • Listák (találatok/legutóbbi/telepítés) és PKGBUILD görgetése egérgörgővel"
-          - "  • PKGBUILD be-/kikapcsolása: kattintson a „PKGBUILD megjelenítése” gombra a részleteknél"
+          - "  • PKGBUILD be/ki: kattintson a „PKGBUILD megjelenítése” gombra a részleteknél"
           - "  • Másolás „PKGBUILD másolása”: kattintson a címgombra a PKGBUILD nézetben"
           - "  • Részletek webcímének megnyitása: Ctrl+Shift+Bal kattintás a webcímre"
           - "  • Találati címsor: kattintson a Rendezés/Beállítások/Panelek/Konfiguráció gombra a menük megnyitásához"
-          - "  • Szűrők be-/kikapcsolása (AUR/core/extra/multilib/EOS/cachyos): kattintson a címkéjükre"
+          - "  • Szűrők be/ki (AUR/core/extra/multilib/EOS/cachyos): kattintson a címkéjükre"
           - "  • Arch Linux állapot (jobb felső): kattintson a status.archlinux.org megnyitásához"
         system_update_lines:
           - "  • Megnyitás: Beállítások → Rendszer frissítése"
-          - "  • Fel/Le: mozgás • Szóköz: be-/kikapcsolás • Balra/Jobbra: országváltás • Enter: futtatás • Esc: bezárás"
+          - "  • Fel/Le: mozgás • Szóköz: be/ki • Balra/Jobbra: országváltás • Enter: futtatás • Esc: bezárás"
         news_lines:
           - "  • Megnyitás: Beállítások → Hírek • Fel/Le: kiválasztás a hírek között • Enter: megnyitás • Esc: bezárás"
         close_hint: "Nyomja meg az Entert vagy az Esc gombot a bezáráshoz"
@@ -634,12 +634,12 @@ hu-HU:
           package_label: "Csomag: {} ({})"
           no_packages: "Nincsenek csomagok ebben a tranzakcióban."
         footer_hints:
-          deps_with_aur: "Balra/Jobbra: fülek • Fel/Le: navigálás • Enter/Szóköz: be-/kikapcsolás • a: összes kibontása/összecsukása • r: újra • ?: súgó • s: AUR-ellenőrzés • d: próbafuttatás • p: folytatás • q: bezárás"
-          deps_without_aur: "Balra/Jobbra: fülek • Fel/Le: navigálás • Enter/Szóköz: be-/kikapcsolás • a: összes kibontása/összecsukása • r: újra • ?: súgó • d: próbafuttatás • p: folytatás • q: bezárás"
-          files_with_aur: "Balra/Jobbra: fülek • Fel/Le: navigálás • Enter/Szóköz: be-/kikapcsolás • a: összes kibontása/összecsukása • r: újra • f: fájl-adatbázis szinkronizálása • s: AUR-ellenőrzés • d: próbafuttatás • p: folytatás • q: bezárás"
-          files_without_aur: "Balra/Jobbra: fülek • Fel/Le: navigálás • Enter/Szóköz: be-/kikapcsolás • a: összes kibontása/összecsukása • r: újra • f: fájl-adatbázis szinkronizálása • d: próbafuttatás • p: folytatás • q: bezárás"
-          services_with_aur: "Balra/Jobbra: fülek • Fel/Le: navigálás • Szóköz: újraindítás be-/kikapcsolás • R: újraindítás • Shift+D: elhalasztás • r: újra • s: AUR-ellenőrzés • d: próbafuttatás • p: folytatás • q: bezárás"
-          services_without_aur: "Balra/Jobbra: fülek • Fel/Le: navigálás • Szóköz: újraindítás be-/kikapcsolás • R: újraindítás • Shift+D: elhalasztás • r: újra • d: próbafuttatás • p: folytatás • q: bezárás"
+          deps_with_aur: "Balra/Jobbra: fülek • Fel/Le: navigálás • Enter/Szóköz: be/ki • a: összes kibontása/összecsukása • r: újra • ?: súgó • s: AUR-ellenőrzés • d: próbafuttatás • p: folytatás • q: bezárás"
+          deps_without_aur: "Balra/Jobbra: fülek • Fel/Le: navigálás • Enter/Szóköz: be/ki • a: összes kibontása/összecsukása • r: újra • ?: súgó • d: próbafuttatás • p: folytatás • q: bezárás"
+          files_with_aur: "Balra/Jobbra: fülek • Fel/Le: navigálás • Enter/Szóköz: be/ki • a: összes kibontása/összecsukása • r: újra • f: fájl-adatbázis szinkronizálása • s: AUR-ellenőrzés • d: próbafuttatás • p: folytatás • q: bezárás"
+          files_without_aur: "Balra/Jobbra: fülek • Fel/Le: navigálás • Enter/Szóköz: be/ki • a: összes kibontása/összecsukása • r: újra • f: fájl-adatbázis szinkronizálása • d: próbafuttatás • p: folytatás • q: bezárás"
+          services_with_aur: "Balra/Jobbra: fülek • Fel/Le: navigálás • Szóköz: újraindítás be/ki • R: újraindítás • Shift+D: elhalasztás • r: újra • s: AUR-ellenőrzés • d: próbafuttatás • p: folytatás • q: bezárás"
+          services_without_aur: "Balra/Jobbra: fülek • Fel/Le: navigálás • Szóköz: újraindítás be/ki • R: újraindítás • Shift+D: elhalasztás • r: újra • d: próbafuttatás • p: folytatás • q: bezárás"
           default_with_aur: "Balra/Jobbra: fülek • s: AUR-ellenőrzés • d: próbafuttatás • p: folytatás • q: bezárás"
           default_without_aur: "Balra/Jobbra: fülek • d: próbafuttatás • p: folytatás • q: bezárás"
           cascade_mode: "  •  m: lépcsőzetes mód"
@@ -672,14 +672,14 @@ hu-HU:
                           - f - Pacman fájl-adatbázisának szinkronizálása (pacman -Fy)\n\
                           - r - Fájlok feloldásának újrapróbálása (hiba esetén)\n\
                         • Szolgáltatások fül:\n\
-                          - Szóköz - Újraindítás/elhalasztás be-/kikapcsolása a kiválasztott szolgáltatásnál\n\
+                          - Szóköz - Újraindítás/elhalasztás be/ki a kiválasztott szolgáltatásnál\n\
                           - R - Kiválasztott szolgáltatás megjelölése újraindításra\n\
                           - Shift+D - Kiválasztott szolgáltatás megjelölése elhalasztásra\n\
                           - r - Szolgáltatások feloldásának újrapróbálása (hiba esetén)\n\n\
                         Globális műveletek:\n\
                         • s - AUR-csomagok ellenőrzése (ha vannak kiválasztva AUR-csomagok)\n\
-                        • d - Próbafuttatási mód be-/kikapcsolása\n\
-                        • m - Lépcsőzetes eltávolítási mód be-/kikapcsolása (csak az eltávolítási műveletnél)\n\
+                        • d - Próbafuttatási mód be/ki\n\
+                        • m - Lépcsőzetes eltávolítási mód be/ki (csak az eltávolítási műveletnél)\n\
                         • p - Folytatás a telepítéssel/eltávolítással\n\
                         • c - Pillanatkép létrehozása (helyőrző)\n\n\
                         Fülek:\n\
