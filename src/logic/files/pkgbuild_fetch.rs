@@ -266,7 +266,9 @@ pub fn fetch_pkgbuild_sync(name: &str) -> Result<String, String> {
         if let Some(last) = *last_request {
             let elapsed = last.elapsed();
             if elapsed < Duration::from_millis(PKGBUILD_MIN_INTERVAL_MS) {
-                let delay = Duration::from_millis(PKGBUILD_MIN_INTERVAL_MS) - elapsed;
+                let delay = Duration::from_millis(PKGBUILD_MIN_INTERVAL_MS)
+                    .checked_sub(elapsed)
+                    .expect("elapsed should be less than PKGBUILD_MIN_INTERVAL_MS");
                 tracing::debug!(
                     "Rate limiting PKGBUILD request for {}: waiting {:?}",
                     name,

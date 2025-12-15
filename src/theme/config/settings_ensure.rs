@@ -256,10 +256,7 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
 
     // Ensure keybinds file exists with skeleton if missing (best-effort)
     // Try to use the same path resolution as reading, but fall back to config_dir if file doesn't exist yet
-    let kb = resolve_keybinds_config_path().map_or_else(
-        || config_dir().join("keybinds.conf"),
-        |existing_path| existing_path,
-    );
+    let kb = resolve_keybinds_config_path().unwrap_or_else(|| config_dir().join("keybinds.conf"));
     if kb.exists() {
         // Append missing keybinds to existing file
         ensure_keybinds_present(&kb);

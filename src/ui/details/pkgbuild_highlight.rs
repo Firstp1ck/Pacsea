@@ -225,7 +225,7 @@ pub fn highlight_pkgbuild(text: &str, th: &Theme) -> Vec<Line<'static>> {
                     highlighted_lines.push(to_ratatui_line(&highlighted_line, th, line));
                 }
             }
-            Err(_) => highlighted_lines.push(Line::from(line.to_string())),
+            Err(_) => highlighted_lines.push(Line::from(line.clone())),
         }
     }
 
@@ -235,7 +235,7 @@ pub fn highlight_pkgbuild(text: &str, th: &Theme) -> Vec<Line<'static>> {
             Ok(highlighted_line) => {
                 highlighted_lines.push(to_ratatui_line(&highlighted_line, th, line));
             }
-            Err(_) => highlighted_lines.push(Line::from(line.to_string())),
+            Err(_) => highlighted_lines.push(Line::from(line.clone())),
         }
     }
 

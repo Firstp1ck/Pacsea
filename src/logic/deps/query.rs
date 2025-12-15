@@ -143,14 +143,8 @@ fn check_if_provided<S: BuildHasher + Default>(
         Ok(output) if output.status.success() => {
             let text = String::from_utf8_lossy(&output.stdout);
             let providing_pkg = text.lines().next().map(|s| s.trim().to_string());
-            if providing_pkg.is_some() {
-                tracing::debug!(
-                    "{} is provided by {}",
-                    name,
-                    providing_pkg
-                        .as_ref()
-                        .expect("providing_pkg should be Some after is_some() check")
-                );
+            if let Some(ref pkg) = providing_pkg {
+                tracing::debug!("{} is provided by {}", name, pkg);
             }
             providing_pkg
         }

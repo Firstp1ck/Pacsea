@@ -56,7 +56,12 @@ pub fn spawn_search_worker(
             }
             let elapsed = last_sent.elapsed();
             if elapsed < Duration::from_millis(MIN_INTERVAL_MS) {
-                sleep(Duration::from_millis(MIN_INTERVAL_MS) - elapsed).await;
+                sleep(
+                    Duration::from_millis(MIN_INTERVAL_MS)
+                        .checked_sub(elapsed)
+                        .expect("elapsed should be less than MIN_INTERVAL_MS"),
+                )
+                .await;
             }
             last_sent = Instant::now();
 
