@@ -189,14 +189,16 @@ fn handle_system_update_enter(
         let sync_flag = if force_sync { "-Syyu" } else { "-Syu" };
         cmds.push(format!("sudo pacman {sync_flag} --noconfirm"));
     }
-    if do_aur {
+
+    // Build AUR command separately - will be executed conditionally if pacman fails
+    let aur_command = if do_aur {
         // Always use -Sua (AUR only) to update only AUR packages
         // AUR helpers (paru/yay) will automatically handle dependency resolution:
         // - If AUR packages require newer official packages, the helper will report this
         // - Users can then also select pacman update if dependency issues occur
         // - This follows Arch Linux best practices: update official packages first, then AUR
         let sync_flag = "-Sua";
-        cmds.push(format!(
+        Some(format!(
             "if command -v paru >/dev/null 2>&1; then \
                 paru {sync_flag} --noconfirm; \
             elif command -v yay >/dev/null 2>&1; then \
@@ -204,7 +206,21 @@ fn handle_system_update_enter(
             else \
                 echo 'No AUR helper (paru/yay) found.'; \
             fi"
-        ));
+        ))
+    } else {
+        None
+    };
+
+    // If both pacman and AUR are selected, store AUR command separately for conditional execution
+    // If only AUR is selected, add it to the main command list
+    if let Some(aur_cmd) = aur_command {
+        if do_pacman {
+            // Store AUR command separately - will be executed after pacman if user confirms
+            app.pending_aur_update_command = Some(aur_cmd);
+        } else {
+            // Only AUR selected, add to main command list
+            cmds.push(aur_cmd);
+        }
     }
     if do_cache {
         cmds.push("sudo pacman -Sc --noconfirm".to_string());

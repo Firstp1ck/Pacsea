@@ -283,6 +283,67 @@ pub(super) fn handle_confirm_batch_update_modal(
     false
 }
 
+/// What: Handle key events for `ConfirmAurUpdate` modal.
+///
+/// Inputs:
+/// - `ke`: Key event
+/// - `app`: Mutable application state
+/// - `modal`: `ConfirmAurUpdate` modal variant
+///
+/// Output:
+/// - `true` if modal was closed/transitioned, `false` otherwise
+///
+/// Details:
+/// - Enter (Y) continues with AUR update
+/// - Esc/q (N) cancels and closes modal
+pub(super) fn handle_confirm_aur_update_modal(
+    ke: KeyEvent,
+    app: &mut AppState,
+    modal: &Modal,
+) -> bool {
+    if let Modal::ConfirmAurUpdate { .. } = modal {
+        match ke.code {
+            KeyCode::Esc | KeyCode::Char('q' | 'Q' | 'n' | 'N') => {
+                // Cancel AUR update
+                app.pending_aur_update_command = None;
+                app.modal = crate::state::Modal::None;
+                return true;
+            }
+            KeyCode::Enter | KeyCode::Char('y' | 'Y') => {
+                // Continue with AUR update
+                if let Some(aur_command) = app.pending_aur_update_command.take() {
+                    let password = app.pending_executor_password.clone();
+                    let dry_run = app.dry_run;
+
+                    // Transition back to PreflightExec for AUR update
+                    app.modal = Modal::PreflightExec {
+                        items: Vec::new(),
+                        action: crate::state::PreflightAction::Install,
+                        tab: crate::state::PreflightTab::Summary,
+                        verbose: false,
+                        log_lines: Vec::new(),
+                        abortable: true,
+                        header_chips: app.pending_exec_header_chips.take().unwrap_or_default(),
+                        success: None,
+                    };
+
+                    // Execute AUR update command
+                    app.pending_executor_request = Some(ExecutorRequest::Update {
+                        commands: vec![aur_command],
+                        password,
+                        dry_run,
+                    });
+                } else {
+                    app.modal = crate::state::Modal::None;
+                }
+                return true;
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
 /// What: Handle key events for `ConfirmReinstall` modal.
 ///
 /// Inputs:

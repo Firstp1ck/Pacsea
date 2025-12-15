@@ -384,18 +384,25 @@ fn system_update_aur_uses_sua_when_pacman_selected() {
         commands.iter().any(|c| c.contains("pacman -Syu")),
         "Commands should include pacman -Syu"
     );
-    // Verify AUR command uses -Sua (not -Syu) when pacman is also selected
+    // Verify AUR command is stored separately and uses -Sua (not -Syu) when pacman is also selected
+    let aur_command = app
+        .pending_aur_update_command
+        .as_ref()
+        .expect("pending_aur_update_command should be set when both pacman and AUR are selected");
     assert!(
-        commands
-            .iter()
-            .any(|c| c.contains("paru -Sua") || c.contains("yay -Sua")),
+        aur_command.contains("paru -Sua") || aur_command.contains("yay -Sua"),
         "AUR command should use -Sua when pacman is also selected"
     );
     assert!(
+        !aur_command.contains("paru -Syu") && !aur_command.contains("yay -Syu"),
+        "AUR command should not use -Syu when pacman is also selected"
+    );
+    // Verify AUR command is NOT in the main command list
+    assert!(
         !commands
             .iter()
-            .any(|c| (c.contains("paru -Syu") || c.contains("yay -Syu")) && !c.contains("-Sua")),
-        "AUR command should not use -Syu when pacman is also selected"
+            .any(|c| c.contains("paru") || c.contains("yay")),
+        "AUR command should not be in pending_update_commands when pacman is also selected"
     );
 }
 

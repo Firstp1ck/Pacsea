@@ -355,6 +355,12 @@ en-US:
         none: "No packages to reinstall"
         confirm_hint: "Press Enter to confirm reinstall, Esc to cancel"
         and_more: "... and {} more"
+      confirm_aur_update:
+        title: " Continue AUR Update? "
+        pacman_failed: "Pacman update failed (exit code: {})."
+        continue_prompt: "Do you want to continue with AUR update anyway?"
+        warning: "This may fail if AUR packages require newer official packages."
+        hint: "Press Enter/Y to continue, Esc/Q/N to cancel"
       system_update:
         title: " Update System "
         heading: "System Update"

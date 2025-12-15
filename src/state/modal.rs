@@ -434,6 +434,11 @@ pub enum Modal {
         items: Vec<PackageItem>,
         dry_run: bool,
     },
+    /// Confirmation dialog for continuing AUR update after pacman failed.
+    ConfirmAurUpdate {
+        /// Message explaining the situation.
+        message: String,
+    },
     /// Preflight summary before executing any action.
     Preflight {
         items: Vec<PackageItem>,

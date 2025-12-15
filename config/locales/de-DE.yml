@@ -355,6 +355,12 @@ de-DE:
         none: "Keine Pakete zum Neuinstallieren"
         confirm_hint: "Enter zum Bestätigen der Neuinstallation drücken, Esc zum Abbrechen"
         and_more: "... und {} weitere"
+      confirm_aur_update:
+        title: " AUR-Update fortsetzen? "
+        pacman_failed: "Pacman-Update fehlgeschlagen (Exit-Code: {})."
+        continue_prompt: "Möchten Sie trotzdem mit dem AUR-Update fortfahren?"
+        warning: "Dies kann fehlschlagen, wenn AUR-Pakete neuere offizielle Pakete benötigen."
+        hint: "Enter/Y zum Fortfahren drücken, Esc/Q/N zum Abbrechen"
       system_update:
         title: " System aktualisieren "
         heading: "System-Update"

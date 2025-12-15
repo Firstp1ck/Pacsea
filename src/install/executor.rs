@@ -384,12 +384,31 @@ pub fn build_update_command_for_executor(
     }
 
     let processed_commands: Vec<String> = if dry_run {
+        // Check if we should simulate failure for testing (first command only, if it's pacman)
+        let simulate_failure = std::env::var("PACSEA_TEST_SIMULATE_PACMAN_FAILURE").is_ok()
+            && !commands.is_empty()
+            && commands[0].contains("pacman");
+
+        if simulate_failure {
+            tracing::info!(
+                "[DRY-RUN] Simulating pacman failure for testing - first command will fail with exit code 1"
+            );
+        }
+
         commands
             .iter()
-            .map(|c| {
+            .enumerate()
+            .map(|(idx, c)| {
                 // Properly quote the command to avoid syntax errors with complex shell constructs
                 let quoted = shell_single_quote(c);
-                format!("echo DRY RUN: {quoted}")
+                if simulate_failure && idx == 0 {
+                    // Simulate pacman failure for testing confirmation popup
+                    // Use false to ensure the command fails with exit code 1
+                    // The && will prevent subsequent commands from running
+                    format!("echo DRY RUN: {quoted} && false")
+                } else {
+                    format!("echo DRY RUN: {quoted}")
+                }
             })
             .collect()
     } else {

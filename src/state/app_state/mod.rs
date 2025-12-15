@@ -592,6 +592,8 @@ pub struct AppState {
     pub pending_custom_command: Option<String>,
     /// Update commands to execute after password prompt (for system update).
     pub pending_update_commands: Option<Vec<String>>,
+    /// AUR update command to execute conditionally if pacman fails (for system update).
+    pub pending_aur_update_command: Option<String>,
     /// Password obtained from password prompt, stored temporarily for reinstall confirmation flow.
     pub pending_executor_password: Option<String>,
     /// File database sync result from background thread (checked in tick handler).
