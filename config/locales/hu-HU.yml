@@ -359,13 +359,12 @@ hu-HU:
         confirm_hint: "Nyomja meg az Entert az újratelepítés megerősítéséhez vagy az Esc gombot a megszakításhoz"
         and_more: "… és további {}"
       confirm_aur_update:
-        # TODO: translate to hungarian
-        title: "  - Continue AUR Update? "
-        pacman_failed: "Pacman update failed (exit code: {})."
-        command_failed: "{} update failed (exit code: {})."
-        continue_prompt: "Do you want to continue with AUR update anyway?"
-        warning: "This may fail if AUR packages require newer official packages."
-        hint: "Press Enter/Y to continue, Esc/Q/N to cancel"
+        title: "  - Folytatja az AUR-frissítést? "
+        pacman_failed: "Nem sikerült frissíteni a csomagokat a pacman paranccsal (kilépési kód: {})."
+        command_failed: "Nem sikerül frissíteni a csomagokat a(z) {} paranccsal (kilépési kód: {})."
+        continue_prompt: "Továbbra is folytatni szeretné az AUR-frissítéssel?"
+        warning: "Ez sikertelen lehet, ha az AUR-csomagok újabb hivatalos csomagokat igényelnek."
+        hint: "Nyomja meg az Enter/Y gombot a folytatáshoz vagy az Esc/Q/N gombot a megszakításhoz"
       system_update:
         title: " Rendszerfrissítés "
         heading: "Rendszerfrissítés"
@@ -717,14 +716,12 @@ hu-HU:
         aur_failed: "✗ Az AUR-csomagokat nem sikerült frissíteni a(z) {} paranccsal"
         aur_exec_failed: "✗ Nem sikerült végrehajtani az AUR-csomagok frissítését a(z) {} paranccsal"
         no_aur_helper: "Nem található AUR-segéd (paru/yay), az AUR-csomagok frissítésének kihagyása"
-        # TODO: translate to hungarian
-        aur_skipped_pacman_failed: "AUR update skipped (pacman update failed)"
+        aur_skipped_pacman_failed: "AUR-frissítés kihagyva (nem sikerült frissíteni a csomagokat a pacman paranccsal)"
         separator: "============================================================"
         all_success: "✓ A rendszerfrissítés sikeresen befejeződött"
         completed_with_errors: "✗ A rendszerfrissítés hibákkal fejeződött be"
-        # TODO: translate to hungarian
-        failure_summary: "Failure Summary:"
-        failed_commands: "Failed commands:"
+        failure_summary: "Hiba összefoglalása:"
+        failed_commands: "Sikertelenül végrehajtott parancsok:"
         failed_packages: "Sikertelenül telepített csomagok:"
         failed_packages_log: "Sikertelenül telepített csomagok: {}"
         log_file: "Naplófájl: {}"
@@ -753,7 +750,7 @@ hu-HU:
         config_dirs_found: "Megjegyzés: A konfigurációs könyvtárak a /home könyvtárában találhatók:"
         config_dirs_note: "Ha már nincs szüksége ezekre a könyvtárakra, akkor érdemes lehet őket kézzel eltávolítania."
         failed: "✗ Nem sikerült eltávolítani a csomagokat"
-        exec_failed: "✗ Nem sikerült végrehajtani a pacman-parancsot: {}"
+        exec_failed: "✗ Nem sikerült végrehajtani a pacman parancsot: {}"
         error_prefix: "Hiba: {}"
       install:
         file_open_error: "Hiba: Nem sikerült megnyitni a fájlt:  „{}”: {}"
@@ -770,7 +767,7 @@ hu-HU:
         no_packages_specified: "Hiba: Nincs megadva telepítendő csomag."
         neither_helper_available: "Hiba: Sem a paru, sem a yay nem érhető el. Telepítse valamelyiket az AUR-csomagok telepítéséhez."
         official_failed: "Nem sikerült telepíteni a hivatalos csomagokat"
-        pacman_exec_failed: "Nem sikerült végrehajtani a pacman-parancsot: {}"
+        pacman_exec_failed: "Nem sikerült végrehajtani a pacman parancsot: {}"
         aur_failed: "Nem sikerült telepíteni az AUR-csomagokat"
         aur_helper_exec_failed: "Nem sikerült végrehajtani a következőt: {}: {}"
         error_prefix: "Hiba: {}"
@@ -793,7 +790,7 @@ hu-HU:
         error_prefix: "Hiba: {}"
       list:
         query_failed: "Hiba: Nem sikerült lekérdezni a telepített csomagokat"
-        pacman_exec_failed: "Nem sikerült végrehajtani a pacman-parancsot {}"
+        pacman_exec_failed: "Nem sikerült végrehajtani a pacman parancsot {}"
         query_explicit_failed: "Hiba: Nem sikerült lekérdezni a kifejezetten telepített csomagokat"
         error_prefix: "Hiba: {}"
       search:
