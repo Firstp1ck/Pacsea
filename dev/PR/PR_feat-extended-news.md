@@ -1,23 +1,9 @@
 ## Summary
-- Added News mode with Arch news, security advisories, installed updates, and AUR comments plus filters/sorting, read/unread tracking, bookmarks, and optional `app_start_mode = news` startup setting (alias: `start_in_news`).
-- Added a dedicated `[AUR Upd]` news filter toggle so AUR update items can be shown/hidden independently of official package updates; defaults on and persists in settings.
-- Added cached news feed and last-seen update/comment maps (`news_feed.json`, `news_seen_pkg_updates.json`, `news_seen_aur_comments.json`) with loading state and filter chips for updates/comments.
-- Added news content caching mechanism with persistence (`news_content_cache.json`) to improve loading performance; cached article bodies are reused on subsequent views.
-- Added news content loading timeout (10-second limit) with enhanced logging for requests/responses to prevent indefinite loading states.
-- Added startup news popup configuration modal allowing users to configure which news types to display (Arch news, advisories, AUR updates, AUR comments, package updates) on first launch.
-- Added timeout settings for news fetching (10s connect, 15s max) to prevent blocking on slow or unreachable servers.
-- Added severity-based sorting (`SeverityThenDate`) and unread-based sorting (`UnreadThenDate`) options for prioritizing critical advisories and unread items.
-- Added stale content clearing for bookmarks: when loading a bookmark without cached content, stale content is cleared and loading state is reset.
-- Updated UI panes/menus/modals and localization to render news summaries, highlight AUR comment keywords/links, and extend news history/bookmark panes and workers for the richer feed.
-- Added loading toast message for news button in UI to provide user feedback during news fetching.
-- Added Shift+char keybind support across all panes and modes (menus, import, export, updates, status) for consistent keyboard navigation.
-- Improved footer layout and styling: split keybinds into multiple lines, added background color to key style, removed border, and reorganized sections (Global, Nav/Menus, News) for better readability.
-- Fixed update detection to use `checkupdates` fallback when temp database sync fails due to Landlock restrictions, ensuring all available official package updates are detected.
-- Updated PKGBUILD files to clarify pacman-contrib's role as a fallback for update checking.
-- Cache clearing functionality to include additional cache files (PKGBUILD parse, news feed, advisories, and news article caches).
-- Enhanced AUR comments filtering: excludes comments with None timestamps (unparseable dates) and future dates from "Recent (last 7 days)" section; fallback label changed to "Latest comment" when showing non-recent comments.
-- Improved news fetching performance with rate limiting and caching: increased cache TTLs (in-memory: 5min→15min, disk: 7d→14d), added per-domain rate limiter for archlinux.org with 2s base delay and exponential backoff (2s→4s→8s→16s, max 60s), HTTP 429 detection with extended 60s backoff, 0.5s debounce for news content requests, and reduced retry attempts from 3 to 2.
-- Added bookmarks localization for news section in multiple languages (English, German, Hungarian).
+- **News Mode**: Added comprehensive news feed with Arch news, security advisories, package updates, and AUR comments. Includes filters, sorting (by severity/unread status), read/unread tracking, bookmarks, and optional startup mode (`app_start_mode = news`).
+- **Performance & Reliability**: Implemented circuit breaker pattern, rate limiting with exponential backoff, conditional HTTP requests (ETag/Last-Modified), and connection pooling to improve reliability and reduce bandwidth usage when fetching from archlinux.org.
+- **Caching**: Multi-layer caching system with persistent storage for news feeds, article content, and last-seen updates/comments. Increased cache TTLs (15min in-memory, 14d disk) to reduce network requests.
+- **UI Improvements**: Enhanced footer layout with multi-line keybinds, added loading indicators, improved filter chips, and extended Shift+char keybind support across all panes and modes.
+- **Fixes**: Fixed update detection fallback (checkupdates) for Landlock-restricted environments, improved AUR comment date filtering, and enhanced error handling for HTTP requests.
 
 ## Type of change
 - [x] feat (new feature)
@@ -36,22 +22,16 @@ cargo fmt --all
 cargo clippy --all-targets --all-features -- -D warnings
 cargo check
 cargo test -- --test-threads=1
-cargo test complexity -- --nocapture --test-threads=1
 ```
-- Launch Pacsea, switch to News mode (or set `app_start_mode = news`), and verify Arch news + advisories load; toggle filter chips and mark items read/unread/bookmarked.
-- On first launch, verify the startup news popup configuration modal appears and allows configuring news display preferences.
-- Run a news search, confirm the history pane records queries, and restart to ensure history/bookmarks persist.
-- Open a news item to fetch content, scroll, and ensure subsequent openings use the cached body from `news_content_cache.json`.
-- Test news content timeout: open a news item from a slow/unreachable server and verify it times out after 10 seconds with appropriate error feedback.
-- Test sorting options: verify `SeverityThenDate` prioritizes critical advisories and `UnreadThenDate` shows unread items first.
-- Load a news bookmark that has no cached HTML/content and confirm the details pane clears stale content, resets `news_content_loading`, and allows a fresh content request.
-- Verify update detection shows all available official package updates even when temp database sync fails (checkupdates fallback should be used automatically).
-- Test Shift+char keybinds (Shift+C/O/P for menus, Shift+I for import, Shift+E for export, Shift+U for updates, Shift+S for status) work consistently across all panes (Search, Recent, Install) and modes (insert, normal).
-- Verify footer displays keybinds in multiple lines with improved styling and background colors for better readability.
-- Test cache clearing: run `pacsea --clear-cache` and verify all cache files (including PKGBUILD parse, news feed, advisories, and news article caches) are removed.
-- Test AUR comments filtering: verify comments with None timestamps and future dates are excluded from "Recent (last 7 days)" section, and "Latest comment" label appears when showing non-recent comments.
-- Test rate limiting: verify archlinux.org requests are rate-limited with exponential backoff on failures, and HTTP 429 responses trigger extended 60s backoff.
-- Verify bookmarks localization: check that bookmarks-related UI text appears in the configured language (English, German, Hungarian).
+
+**User-facing features:**
+- Launch Pacsea, switch to News mode (or set `app_start_mode = news`), verify news/advisories load, toggle filters, and mark items read/unread/bookmarked.
+- Verify startup configuration modal appears on first launch.
+- Test sorting options (severity/unread), bookmarks persistence, and Shift+char keybinds across all panes.
+
+**Technical validation:**
+- Verify caching works (subsequent views use cached content), rate limiting prevents excessive requests, and circuit breaker activates on repeated failures.
+- Test update detection fallback when database sync fails, and verify cache clearing removes all news-related cache files.
 
 ## Checklist
 
@@ -87,23 +67,21 @@ cargo test complexity -- --nocapture --test-threads=1
 - [x] Not a packaging change for AUR (otherwise propose in `pacsea-bin` or `pacsea-git` repos)
 
 ## Notes for reviewers
-- News mode persists `news_recent_searches.json`, `news_bookmarks.json`, `news_read_urls.json`, and `news_content_cache.json` (bookmarks loader keeps backward compatibility with old feed item format).
-- Settings gain `app_start_mode` (`package`/`news`, alias `start_in_news`), `news_filter_show_arch_news`, `news_filter_show_advisories`, `news_filter_show_pkg_updates`, `news_filter_show_aur_comments`, `news_filter_installed_only`, and `news_max_age_days`; defaults/locales updated to match.
-- News content worker caches article bodies in `news_content_cache.json` (error messages filtered out) and treats AUR package URLs as comment views; filter chips expose clickable rects for mouse-driven toggles.
-- News content loading includes a 10-second timeout with detailed logging; application state tracks `news_content_loading_since` for timeout management.
-- News fetching uses shorter timeouts (10s connect, 15s max) to prevent blocking on slow servers; curl calls include timeout arguments.
-- Startup news popup configuration modal appears on first launch to configure news display preferences; state tracks `news_startup_config_completed`.
-- News sorting includes `SeverityThenDate` (prioritizes critical advisories) and `UnreadThenDate` (prioritizes unread items) modes; severity ranking system implemented.
-- News feed cache and last-seen maps persist under `lists/` (`news_feed.json`, `news_seen_pkg_updates.json`, `news_seen_aur_comments.json`); feed reloads from cache until background refresh completes.
-- Update detection now uses `checkupdates` (from pacman-contrib) as fallback when fakeroot database sync fails due to Landlock restrictions; improved error logging shows stderr output for diagnosis.
-- News button shows loading toast message (`app.news_button.loading`) during news fetching; toast persists until loading completes or times out.
-- Shift+char keybinds (menus, import, export, updates, status) now work consistently across all panes (Search, Recent, Install) and modes (insert, normal) via `handle_shift_keybinds` function exported from search module.
-- Footer layout improved: keybinds split into multiple lines (Global, Nav/Menus, News), key style includes background color, border removed, and sections reorganized for cleaner appearance and better readability.
-- PKGBUILD files updated to clarify pacman-contrib's role as a fallback tool for update checking when temp database sync fails.
-- Cache clearing (`--clear-cache`) now removes additional cache files: `pkgbuild_parse_cache.json`, `arch_news_cache.json`, `advisories_cache.json`, and `news_article_cache.json` in addition to existing cache files.
-- AUR comments filtering: uses `is_some_and` with proper bounds checking (`ts >= cutoff && ts <= now`) to exclude invalid dates (None timestamps) and future dates from "Recent (last 7 days)" section; when no recent comments exist, shows "Latest comment" label instead of "Recent (last 7 days)" for the fallback comment.
-- News fetching performance optimized: in-memory cache TTL increased from 5min to 15min, disk cache TTL increased from 7d to 14d; per-domain rate limiter for archlinux.org with 2s base delay and exponential backoff (2s→4s→8s→16s, max 60s); HTTP 429 responses trigger extended 60s backoff; 0.5s debounce added for news content requests to prevent rapid-fire fetching when scrolling; retry attempts reduced from 3 to 2 for archlinux.org requests.
-- Bookmarks localization added: `news_bookmarks`, `news_bookmarks_focused`, `show_bookmarks`, and `hide_bookmarks` keys added to locale files (English, German, Hungarian).
+
+**Configuration & Persistence:**
+- New settings: `app_start_mode` (package/news), `news_filter_*` toggles, `news_max_age_days`. Persisted files: `news_feed.json`, `news_seen_pkg_updates.json`, `news_seen_aur_comments.json`, `news_content_cache.json`, `news_recent_searches.json`, `news_bookmarks.json`, `news_read_urls.json`.
+- Cache clearing now includes: `pkgbuild_parse_cache.json`, `arch_news_cache.json`, `advisories_cache.json`, `news_article_cache.json`.
+
+**Performance & Reliability:**
+- Circuit breaker per endpoint (opens on failures, closes after recovery), rate limiting with exponential backoff (2s→4s→8s→16s, max 60s), random jitter (0-500ms), HTTP 429 handling with 60s backoff.
+- Conditional requests: ETag/Last-Modified headers, Retry-After parsing, connection pooling, cache TTLs (15min in-memory, 14d disk).
+- Timeouts: 10s connect, 15s max for fetching; 10s timeout for content loading.
+
+**Technical Details:**
+- Update detection: `checkupdates` fallback when temp database sync fails (Landlock restrictions).
+- AUR comments: excludes invalid/future dates from "Recent" section, shows "Latest comment" fallback.
+- Code quality: migrated deprecated rand API, improved curl parser, refactored HTTP error handling, added test script (`dev/scripts/test_arch.sh`).
+- UI: Shift+char keybinds via `handle_shift_keybinds`, improved footer layout, loading toasts, filter chips with clickable rects.
 
 ## Breaking changes
 None.
