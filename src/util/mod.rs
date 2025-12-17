@@ -705,7 +705,10 @@ pub fn open_url(url: &str) {
 /// // On Windows, includes -k flag; always includes -sSLf and User-Agent
 /// assert!(aur_args.contains(&"-sSLf".to_string()));
 /// assert!(aur_args.contains(&"-H".to_string()));
-/// assert!(aur_args.contains(&"User-Agent: Pacsea/1.0 (+https://github.com/Firstp1ck/Pacsea)".to_string()));
+/// // User-Agent uses actual version from Cargo.toml (e.g., "Pacsea/0.6.2")
+/// let user_agent = aur_args.iter().find(|arg| arg.starts_with("User-Agent: Pacsea/")).unwrap();
+/// assert!(user_agent.starts_with("User-Agent: Pacsea/"));
+/// assert!(user_agent.contains("+https://github.com/Firstp1ck/Pacsea"));
 /// assert!(aur_args.contains(&"--max-time".to_string()));
 /// assert!(aur_args.contains(&"10".to_string()));
 /// assert!(aur_args.last().unwrap().starts_with("https://aur.archlinux.org"));
@@ -740,7 +743,10 @@ pub fn curl_args(url: &str, extra_args: &[&str]) -> Vec<String> {
 
     // Add User-Agent header to avoid being blocked by APIs
     args.push("-H".to_string());
-    args.push("User-Agent: Pacsea/1.0 (+https://github.com/Firstp1ck/Pacsea)".to_string());
+    args.push(format!(
+        "User-Agent: Pacsea/{} (+https://github.com/Firstp1ck/Pacsea)",
+        env!("CARGO_PKG_VERSION")
+    ));
 
     // Add any extra arguments
     for arg in extra_args {

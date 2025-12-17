@@ -3,10 +3,138 @@
 use crate::state::NewsItem;
 use ego_tree::NodeRef;
 use scraper::{ElementRef, Html, Node, Selector};
-use tracing::{info, warn};
+use std::collections::HashMap;
+use std::sync::{LazyLock, Mutex};
+use std::time::Instant;
+use tracing::{debug, info, warn};
 
 /// Result type alias for Arch Linux news fetching operations.
 type Result<T> = super::Result<T>;
+
+/// Cache entry for article content with timestamp.
+struct ArticleCacheEntry {
+    /// Cached article content.
+    content: String,
+    /// Timestamp when the cache entry was created.
+    timestamp: Instant,
+}
+
+/// Disk cache entry for article content with Unix timestamp (for serialization).
+#[derive(serde::Serialize, serde::Deserialize)]
+struct ArticleDiskCacheEntry {
+    /// Cached article content.
+    content: String,
+    /// Unix timestamp (seconds since epoch) when the cache was saved.
+    saved_at: i64,
+}
+
+/// In-memory cache for article content.
+/// Key: URL string
+/// TTL: 15 minutes (same as news feed)
+static ARTICLE_CACHE: LazyLock<Mutex<HashMap<String, ArticleCacheEntry>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+/// Cache TTL in seconds (15 minutes, same as news feed).
+const ARTICLE_CACHE_TTL_SECONDS: u64 = 900;
+
+/// What: Get the disk cache TTL in seconds from settings.
+///
+/// Inputs: None
+///
+/// Output: TTL in seconds (defaults to 14 days = 1209600 seconds).
+///
+/// Details:
+/// - Reads `news_cache_ttl_days` from settings and converts to seconds.
+/// - Minimum is 1 day to prevent excessive network requests.
+fn article_disk_cache_ttl_seconds() -> i64 {
+    let days = crate::theme::settings().news_cache_ttl_days.max(1);
+    i64::from(days) * 86400 // days to seconds
+}
+
+/// What: Get the path to the article content disk cache file.
+///
+/// Inputs: None
+///
+/// Output:
+/// - `PathBuf` to the cache file.
+fn article_disk_cache_path() -> std::path::PathBuf {
+    crate::theme::lists_dir().join("news_article_cache.json")
+}
+
+/// What: Load cached article content from disk if available and not expired.
+///
+/// Inputs:
+/// - `url`: URL of the article to load from cache.
+///
+/// Output:
+/// - `Some(String)` with cached content if valid cache exists, `None` otherwise.
+///
+/// Details:
+/// - Returns `None` if file doesn't exist, is corrupted, or cache is older than configured TTL.
+fn load_article_from_disk_cache(url: &str) -> Option<String> {
+    let path = article_disk_cache_path();
+    let content = std::fs::read_to_string(&path).ok()?;
+    let cache: HashMap<String, ArticleDiskCacheEntry> = serde_json::from_str(&content).ok()?;
+    let entry = cache.get(url)?;
+    let now = chrono::Utc::now().timestamp();
+    let age = now - entry.saved_at;
+    let ttl = article_disk_cache_ttl_seconds();
+    if age < ttl {
+        info!(
+            url,
+            age_hours = age / 3600,
+            ttl_days = ttl / 86400,
+            "loaded article from disk cache"
+        );
+        Some(entry.content.clone())
+    } else {
+        debug!(
+            url,
+            age_hours = age / 3600,
+            ttl_days = ttl / 86400,
+            "article disk cache expired"
+        );
+        None
+    }
+}
+
+/// What: Save article content to disk cache with current timestamp.
+///
+/// Inputs:
+/// - `url`: URL of the article.
+/// - `content`: Article content to cache.
+///
+/// Details:
+/// - Writes to disk asynchronously to avoid blocking.
+/// - Logs errors but does not propagate them.
+/// - Updates existing cache file, adding or updating the entry for this URL.
+fn save_article_to_disk_cache(url: &str, content: &str) {
+    let path = article_disk_cache_path();
+    // Load existing cache or create new
+    let mut cache: HashMap<String, ArticleDiskCacheEntry> = std::fs::read_to_string(&path)
+        .map_or_else(
+            |_| HashMap::new(),
+            |file_content| serde_json::from_str(&file_content).unwrap_or_default(),
+        );
+    // Update or insert entry
+    cache.insert(
+        url.to_string(),
+        ArticleDiskCacheEntry {
+            content: content.to_string(),
+            saved_at: chrono::Utc::now().timestamp(),
+        },
+    );
+    // Save back to disk
+    match serde_json::to_string_pretty(&cache) {
+        Ok(json) => {
+            if let Err(e) = std::fs::write(&path, json) {
+                warn!(error = %e, url, "failed to write article disk cache");
+            } else {
+                debug!(url, "saved article to disk cache");
+            }
+        }
+        Err(e) => warn!(error = %e, url, "failed to serialize article disk cache"),
+    }
+}
 
 /// What: Fetch recent Arch Linux news items with optional early date filtering.
 ///
@@ -113,6 +241,20 @@ fn strip_time_and_tz(s: &str) -> String {
     t.trim_end().to_string()
 }
 
+/// What: Check if a URL is from archlinux.org (including www subdomain).
+///
+/// Inputs:
+/// - `url`: URL string to check
+///
+/// Output:
+/// - `true` if URL is from archlinux.org or www.archlinux.org, `false` otherwise
+///
+/// Details:
+/// - Checks for both `https://archlinux.org/` and `https://www.archlinux.org/` prefixes.
+fn is_archlinux_url(url: &str) -> bool {
+    url.starts_with("https://archlinux.org/") || url.starts_with("https://www.archlinux.org/")
+}
+
 /// What: Fetch the full article content from an Arch news URL.
 ///
 /// Inputs:
@@ -126,8 +268,12 @@ fn strip_time_and_tz(s: &str) -> String {
 /// - HTML parsing failures
 ///
 /// Details:
+/// - For AUR package URLs, fetches and renders AUR comments instead.
+/// - For Arch news URLs, checks cache first (15-minute in-memory, 14-day disk TTL).
+/// - Applies rate limiting for archlinux.org URLs to prevent aggressive fetching.
 /// - Fetches the HTML page and extracts content from the article body.
 /// - Strips HTML tags and normalizes whitespace.
+/// - Caches successful fetches in both in-memory and disk caches.
 pub async fn fetch_news_content(url: &str) -> Result<String> {
     if let Some(pkg) = extract_aur_pkg_from_url(url) {
         let comments = crate::sources::fetch_aur_comments(pkg.clone()).await?;
@@ -135,6 +281,36 @@ pub async fn fetch_news_content(url: &str) -> Result<String> {
         return Ok(rendered);
     }
 
+    // 1. Check in-memory cache first (fastest, 15-minute TTL)
+    if let Ok(cache) = ARTICLE_CACHE.lock()
+        && let Some(entry) = cache.get(url)
+        && entry.timestamp.elapsed().as_secs() < ARTICLE_CACHE_TTL_SECONDS
+    {
+        info!(url, "using in-memory cached article content");
+        return Ok(entry.content.clone());
+    }
+
+    // 2. Check disk cache (14-day TTL) - useful after app restart
+    if let Some(cached_content) = load_article_from_disk_cache(url) {
+        // Populate in-memory cache from disk
+        if let Ok(mut cache) = ARTICLE_CACHE.lock() {
+            cache.insert(
+                url.to_string(),
+                ArticleCacheEntry {
+                    content: cached_content.clone(),
+                    timestamp: Instant::now(),
+                },
+            );
+        }
+        return Ok(cached_content);
+    }
+
+    // 3. Apply rate limiting for archlinux.org URLs
+    if is_archlinux_url(url) {
+        crate::sources::feeds::rate_limit_archlinux().await;
+    }
+
+    // 4. Fetch from network
     let url_owned = url.to_string();
     let url_for_log = url_owned.clone();
     // Use shorter timeout (10s connect, 15s max) to avoid blocking on slow/unreachable servers
@@ -159,6 +335,21 @@ pub async fn fetch_news_content(url: &str) -> Result<String> {
     } else {
         info!(url, parsed_len, "parsed news content");
     }
+
+    // 5. Cache the result
+    // Save to in-memory cache
+    if let Ok(mut cache) = ARTICLE_CACHE.lock() {
+        cache.insert(
+            url.to_string(),
+            ArticleCacheEntry {
+                content: content.clone(),
+                timestamp: Instant::now(),
+            },
+        );
+    }
+    // Save to disk cache for persistence across restarts
+    save_article_to_disk_cache(url, &content);
+
     Ok(content)
 }
 

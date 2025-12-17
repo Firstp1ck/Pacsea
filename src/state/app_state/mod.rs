@@ -202,6 +202,9 @@ pub struct AppState {
     pub news_content_loading: bool,
     /// When the current news content load started (for timeout/logging).
     pub news_content_loading_since: Option<std::time::Instant>,
+    /// Debounce timer for news content requests - tracks when user selected current item.
+    /// Only requests content after 0.5 seconds of staying on the same item.
+    pub news_content_debounce_timer: Option<std::time::Instant>,
     /// Scroll offset for news content details.
     pub news_content_scroll: u16,
     /// Path where the cached news feed is persisted.

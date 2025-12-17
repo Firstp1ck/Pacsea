@@ -284,13 +284,19 @@ pub fn curl_text(url: &str) -> Result<String> {
 /// - Returns `Err` when curl command execution fails (I/O error or curl not found)
 /// - Returns `Err` when curl exits with non-zero status (network errors, HTTP errors, timeouts)
 /// - Returns `Err` when response body cannot be decoded as UTF-8
+/// - Returns `Err` with message containing "429" when HTTP 429 (Too Many Requests) is received
 ///
 /// Details:
 /// - Executes curl with appropriate flags plus extra arguments.
 /// - On Windows, uses `-k` flag to skip SSL certificate verification.
+/// - Uses `-w "\n%{http_code}\n"` to detect HTTP status codes, especially 429.
 /// - Provides user-friendly error messages for common curl failure cases.
+/// - HTTP 429 errors are detected and returned with a specific error message for handling.
 pub fn curl_text_with_args(url: &str, extra_args: &[&str]) -> Result<String> {
-    let args = curl_args(url, extra_args);
+    let mut args = curl_args(url, extra_args);
+    // Append write-out format to get HTTP status code at the end for 429 detection
+    args.push("-w".to_string());
+    args.push("\n%{http_code}\n".to_string());
     let curl_bin = get_curl_path();
     let out = std::process::Command::new(curl_bin)
         .args(&args)
@@ -298,11 +304,36 @@ pub fn curl_text_with_args(url: &str, extra_args: &[&str]) -> Result<String> {
         .map_err(|e| {
             format!("curl command failed to execute: {e} (is curl installed and in PATH?)")
         })?;
+
+    let stdout = String::from_utf8(out.stdout)?;
+
+    // Parse status code from the end of output (last line should be the status code)
+    let status_code = stdout
+        .lines()
+        .last()
+        .and_then(|line| line.trim().parse::<u16>().ok());
+
+    // Remove status code line from body
+    let body = if status_code.is_some() {
+        stdout
+            .lines()
+            .take(stdout.lines().count().saturating_sub(1))
+            .collect::<Vec<_>>()
+            .join("\n")
+    } else {
+        stdout
+    };
+
     if !out.status.success() {
+        // Check if we got HTTP 429 (Too Many Requests)
+        if status_code == Some(429) {
+            return Err("HTTP 429 Too Many Requests - rate limited by server".into());
+        }
         let error_msg = map_curl_error(out.status.code(), out.status);
         return Err(error_msg.into());
     }
-    Ok(String::from_utf8(out.stdout)?)
+
+    Ok(body)
 }
 
 #[cfg(test)]

@@ -345,8 +345,8 @@ startup_news_max_age_days = 7\n\
 \n\
 # News Cache\n\
 # How many days to keep Arch news and advisories cached on disk.\n\
-# Reduces network requests on startup. Default is 7 days.\n\
-news_cache_ttl_days = 7\n\
+# Reduces network requests on startup. Default is 14 days.\n\
+news_cache_ttl_days = 14\n\
 \n\
 # VirusTotal\n\
 # API key used for VirusTotal scans (optional)\n\

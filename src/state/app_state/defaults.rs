@@ -137,6 +137,7 @@ pub(super) type DefaultNewsFeedState = (
     Option<String>,                            // news_content
     bool,                                      // news_content_loading
     Option<Instant>,                           // news_content_loading_since
+    Option<Instant>,                           // news_content_debounce_timer
     u16,                                       // news_content_scroll
     Option<String>,                            // news_history_pending
     Option<Instant>,                           // news_history_pending_at
@@ -269,6 +270,7 @@ pub(super) fn default_news_feed_state(
         None,                    // news_content
         false,                   // news_content_loading
         None,                    // news_content_loading_since
+        None,                    // news_content_debounce_timer
         0,                       // news_content_scroll
         None,                    // news_history_pending
         None,                    // news_history_pending_at

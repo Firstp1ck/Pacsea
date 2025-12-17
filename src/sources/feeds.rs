@@ -34,11 +34,11 @@ struct DiskCacheEntry {
 
 /// Simple in-memory cache for Arch news and advisories.
 /// Key: source type (`"arch_news"` or `"advisories"`)
-/// TTL: 5 minutes
+/// TTL: 15 minutes
 static NEWS_CACHE: LazyLock<Mutex<HashMap<String, CacheEntry>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
-/// Cache TTL in seconds (5 minutes).
-const CACHE_TTL_SECONDS: u64 = 300;
+/// Cache TTL in seconds (15 minutes).
+const CACHE_TTL_SECONDS: u64 = 900;
 
 /// Type alias for skip cache entry (results + timestamp).
 type SkipCacheEntry = Option<(Vec<NewsFeedItem>, Instant)>;
@@ -58,7 +58,7 @@ const SKIP_CACHE_TTL_SECONDS: u64 = 300;
 ///
 /// Inputs: None
 ///
-/// Output: TTL in seconds (defaults to 7 days = 604800 seconds).
+/// Output: TTL in seconds (defaults to 14 days = 1209600 seconds).
 ///
 /// Details:
 /// - Reads `news_cache_ttl_days` from settings and converts to seconds.
@@ -148,6 +148,30 @@ fn save_to_disk_cache(source: &str, data: &[NewsFeedItem]) {
 static RATE_LIMITER: LazyLock<Mutex<Instant>> = LazyLock::new(|| Mutex::new(Instant::now()));
 /// Minimum delay between news feed network requests (500ms).
 const RATE_LIMIT_DELAY_MS: u64 = 500;
+
+/// Rate limiter state for archlinux.org with exponential backoff.
+struct ArchLinuxRateLimiter {
+    /// Last request timestamp.
+    last_request: Instant,
+    /// Current backoff delay in milliseconds (starts at base delay, increases exponentially).
+    current_backoff_ms: u64,
+    /// Number of consecutive failures/rate limits.
+    consecutive_failures: u32,
+}
+
+/// Rate limiter for archlinux.org requests with exponential backoff.
+/// Tracks last request time and implements progressive delays on failures.
+static ARCHLINUX_RATE_LIMITER: LazyLock<Mutex<ArchLinuxRateLimiter>> = LazyLock::new(|| {
+    Mutex::new(ArchLinuxRateLimiter {
+        last_request: Instant::now(),
+        current_backoff_ms: 2000, // Start with 2 second base delay
+        consecutive_failures: 0,
+    })
+});
+/// Base delay for archlinux.org requests (2 seconds).
+const ARCHLINUX_BASE_DELAY_MS: u64 = 2000;
+/// Maximum backoff delay (60 seconds).
+const ARCHLINUX_MAX_BACKOFF_MS: u64 = 60000;
 
 /// Flag indicating a network error occurred during the last news fetch.
 /// This can be checked by the UI to show a toast message.
@@ -252,6 +276,94 @@ async fn rate_limit() {
     if !delay_needed.is_zero() {
         tokio::time::sleep(delay_needed).await;
     }
+}
+
+/// What: Apply rate limiting specifically for archlinux.org requests with exponential backoff.
+///
+/// Inputs: None
+///
+/// Output: None (async sleep if needed)
+///
+/// Details:
+/// - Uses longer base delay (2 seconds) for archlinux.org to reduce request frequency.
+/// - Implements exponential backoff: increases delay on consecutive failures (2s → 4s → 8s → 16s, max 60s).
+/// - Resets backoff after successful requests.
+/// - Thread-safe via mutex guarding the rate limiter state.
+pub async fn rate_limit_archlinux() {
+    let delay_needed = {
+        let mut limiter = match ARCHLINUX_RATE_LIMITER.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        let elapsed = limiter.last_request.elapsed();
+        let min_delay = Duration::from_millis(limiter.current_backoff_ms);
+        let delay = if elapsed < min_delay {
+            // Safe to unwrap because we checked elapsed < min_delay above
+            #[allow(clippy::unwrap_used)]
+            min_delay.checked_sub(elapsed).unwrap()
+        } else {
+            Duration::ZERO
+        };
+        limiter.last_request = Instant::now();
+        delay
+    };
+    if !delay_needed.is_zero() {
+        // Safe to unwrap: delay_ms will be small (max 60s = 60000ms, well within u64)
+        #[allow(clippy::cast_possible_truncation)]
+        let delay_ms = delay_needed.as_millis() as u64;
+        debug!(delay_ms, "rate limiting archlinux.org request");
+        tokio::time::sleep(delay_needed).await;
+    }
+}
+
+/// What: Increase backoff delay for archlinux.org after a failure or rate limit.
+///
+/// Inputs: None
+///
+/// Output: None
+///
+/// Details:
+/// - Doubles the current backoff delay (exponential backoff).
+/// - Caps at maximum delay (60 seconds).
+/// - Increments consecutive failure counter.
+fn increase_archlinux_backoff() {
+    let mut limiter = match ARCHLINUX_RATE_LIMITER.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    limiter.consecutive_failures += 1;
+    // Double the backoff delay, capped at maximum
+    limiter.current_backoff_ms = (limiter.current_backoff_ms * 2).min(ARCHLINUX_MAX_BACKOFF_MS);
+    warn!(
+        consecutive_failures = limiter.consecutive_failures,
+        backoff_ms = limiter.current_backoff_ms,
+        "increased archlinux.org backoff delay"
+    );
+}
+
+/// What: Reset backoff delay for archlinux.org after a successful request.
+///
+/// Inputs: None
+///
+/// Output: None
+///
+/// Details:
+/// - Resets backoff to base delay (2 seconds).
+/// - Resets consecutive failure counter.
+fn reset_archlinux_backoff() {
+    let mut limiter = match ARCHLINUX_RATE_LIMITER.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    if limiter.consecutive_failures > 0 {
+        debug!(
+            previous_failures = limiter.consecutive_failures,
+            previous_backoff_ms = limiter.current_backoff_ms,
+            "resetting archlinux.org backoff after successful request"
+        );
+    }
+    limiter.current_backoff_ms = ARCHLINUX_BASE_DELAY_MS;
+    limiter.consecutive_failures = 0;
 }
 
 /// Result type alias for news feed fetching operations.
@@ -386,13 +498,13 @@ where
 ///
 /// Details:
 /// - If `cutoff_date` is provided, stops fetching when items exceed the date limit.
-/// - Uses in-memory cache with 5-minute TTL to avoid redundant fetches.
-/// - Falls back to disk cache (24-hour TTL) if in-memory cache misses.
+/// - Uses in-memory cache with 15-minute TTL to avoid redundant fetches.
+/// - Falls back to disk cache (configurable TTL, default 14 days) if in-memory cache misses.
 /// - Saves fetched data to both in-memory and disk caches.
 async fn append_arch_news(limit: usize, cutoff_date: Option<&str>) -> Result<Vec<NewsFeedItem>> {
     const SOURCE: &str = "arch_news";
 
-    // 1. Check in-memory cache first (fastest, 5-minute TTL)
+    // 1. Check in-memory cache first (fastest, 15-minute TTL)
     if cutoff_date.is_none()
         && let Ok(cache) = NEWS_CACHE.lock()
         && let Some(entry) = cache.get(SOURCE)
@@ -420,17 +532,41 @@ async fn append_arch_news(limit: usize, cutoff_date: Option<&str>) -> Result<Vec
     }
 
     // 3. Fetch from network with retry and exponential backoff
-    rate_limit().await;
+    rate_limit_archlinux().await;
     let fetch_result = retry_with_backoff(
         || async {
-            rate_limit().await;
-            super::fetch_arch_news(limit, cutoff_date).await
+            rate_limit_archlinux().await;
+            let result = super::fetch_arch_news(limit, cutoff_date).await;
+            // Check for HTTP 429 and handle with extended backoff
+            if let Err(ref e) = result {
+                let error_str = e.to_string();
+                if error_str.contains("429") {
+                    warn!("HTTP 429 detected, applying extended backoff (60s)");
+                    // Set backoff to 60 seconds for 429 responses
+                    {
+                        let mut limiter = match ARCHLINUX_RATE_LIMITER.lock() {
+                            Ok(guard) => guard,
+                            Err(poisoned) => poisoned.into_inner(),
+                        };
+                        limiter.current_backoff_ms = ARCHLINUX_MAX_BACKOFF_MS;
+                        limiter.consecutive_failures += 1;
+                    } // Drop guard before await
+                    // Wait 60 seconds before retrying
+                    tokio::time::sleep(Duration::from_secs(60)).await;
+                } else {
+                    // For other errors, use normal exponential backoff
+                    increase_archlinux_backoff();
+                }
+            }
+            result
         },
-        2, // Max 2 retries (3 total attempts)
+        1, // Max 1 retry (2 total attempts) - reduced to be less aggressive
     )
     .await;
     match fetch_result {
         Ok(news) => {
+            // Reset backoff after successful request
+            reset_archlinux_backoff();
             let items: Vec<NewsFeedItem> = news
                 .into_iter()
                 .map(|n| NewsFeedItem {
@@ -464,6 +600,8 @@ async fn append_arch_news(limit: usize, cutoff_date: Option<&str>) -> Result<Vec
         Err(e) => {
             warn!(error = %e, "arch news fetch failed");
             set_network_error();
+            // Increase backoff after failure
+            increase_archlinux_backoff();
             // Graceful degradation: try in-memory cache first
             if let Ok(cache) = NEWS_CACHE.lock()
                 && let Some(entry) = cache.get(SOURCE)
@@ -500,8 +638,8 @@ async fn append_arch_news(limit: usize, cutoff_date: Option<&str>) -> Result<Vec
 ///
 /// Details:
 /// - If `cutoff_date` is provided, stops fetching when items exceed the date limit.
-/// - Uses in-memory cache with 5-minute TTL to avoid redundant fetches.
-/// - Falls back to disk cache (24-hour TTL) if in-memory cache misses.
+/// - Uses in-memory cache with 15-minute TTL to avoid redundant fetches.
+/// - Falls back to disk cache (configurable TTL, default 14 days) if in-memory cache misses.
 /// - Note: Cache key includes `installed_only` flag to handle different filtering needs.
 async fn append_advisories<S>(
     limit: usize,
@@ -514,7 +652,7 @@ where
 {
     const SOURCE: &str = "advisories";
 
-    // 1. Check in-memory cache first (fastest, 5-minute TTL)
+    // 1. Check in-memory cache first (fastest, 15-minute TTL)
     if cutoff_date.is_none()
         && !installed_only
         && let Ok(cache) = NEWS_CACHE.lock()

@@ -225,16 +225,22 @@ pub fn update_news_url(app: &mut AppState) {
         app.news_content = cached;
         if app.news_content.is_some() {
             tracing::debug!(url, "news content served from cache");
+        } else {
+            // Content not cached - set debounce timer to wait 0.5 seconds before fetching
+            app.news_content_debounce_timer = Some(std::time::Instant::now());
+            tracing::debug!(url, "news content not cached, setting debounce timer");
         }
         app.news_content_scroll = 0;
     } else {
         app.details.url.clear();
         app.news_content = None;
+        app.news_content_debounce_timer = None;
     }
     app.news_content_loading = false;
 }
 
 /// Request news content fetch if not cached or loading.
+/// Implements 0.5 second debounce - only requests after user stays on item for 0.5 seconds.
 pub fn maybe_request_news_content(
     app: &mut AppState,
     news_content_req_tx: &mpsc::UnboundedSender<String>,
@@ -256,13 +262,43 @@ pub fn maybe_request_news_content(
         && app.news_content.is_none()
         && !app.news_content_cache.contains_key(url)
     {
+        // Check debounce timer - only request after 0.5 seconds of staying on the item
+        const DEBOUNCE_DELAY_MS: u64 = 500;
+        if let Some(timer) = app.news_content_debounce_timer {
+            // Safe to unwrap: elapsed will be small (well within u64)
+            #[allow(clippy::cast_possible_truncation)]
+            let elapsed = timer.elapsed().as_millis() as u64;
+            if elapsed < DEBOUNCE_DELAY_MS {
+                // Debounce not expired yet - wait longer
+                tracing::trace!(
+                    selected = app.news_selected,
+                    url,
+                    elapsed_ms = elapsed,
+                    remaining_ms = DEBOUNCE_DELAY_MS - elapsed,
+                    "news_content: debounce timer not expired, waiting"
+                );
+                return;
+            }
+            // Debounce expired - clear timer and proceed with request
+            app.news_content_debounce_timer = None;
+        } else {
+            // No debounce timer set - this shouldn't happen, but set it now
+            app.news_content_debounce_timer = Some(std::time::Instant::now());
+            tracing::debug!(
+                selected = app.news_selected,
+                url,
+                "news_content: no debounce timer, setting one now"
+            );
+            return;
+        }
+
         app.news_content_loading = true;
         app.news_content_loading_since = Some(Instant::now());
         tracing::debug!(
             selected = app.news_selected,
             title = item.title,
             url,
-            "news_content: requesting article content"
+            "news_content: requesting article content (debounce expired)"
         );
         if let Err(e) = news_content_req_tx.send(url.clone()) {
             tracing::warn!(
