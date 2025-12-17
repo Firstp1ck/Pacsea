@@ -9,10 +9,11 @@
 - Added severity-based sorting (`SeverityThenDate`) and unread-based sorting (`UnreadThenDate`) options for prioritizing critical advisories and unread items.
 - Added stale content clearing for bookmarks: when loading a bookmark without cached content, stale content is cleared and loading state is reset.
 - Updated UI panes/menus/modals and localization to render news summaries, highlight AUR comment keywords/links, and extend news history/bookmark panes and workers for the richer feed.
+- Fixed update detection to use `checkupdates` fallback when temp database sync fails due to Landlock restrictions, ensuring all available official package updates are detected.
 
 ## Type of change
 - [x] feat (new feature)
-- [ ] fix (bug fix)
+- [x] fix (bug fix)
 - [ ] docs (documentation only)
 - [ ] refactor (no functional change)
 - [ ] perf (performance)
@@ -36,6 +37,7 @@ cargo test complexity -- --nocapture --test-threads=1
 - Test news content timeout: open a news item from a slow/unreachable server and verify it times out after 6 seconds with appropriate error feedback.
 - Test sorting options: verify `SeverityThenDate` prioritizes critical advisories and `UnreadThenDate` shows unread items first.
 - Load a news bookmark that has no cached HTML/content and confirm the details pane clears stale content, resets `news_content_loading`, and allows a fresh content request.
+- Verify update detection shows all available official package updates even when temp database sync fails (checkupdates fallback should be used automatically).
 
 ## Checklist
 
@@ -79,6 +81,7 @@ cargo test complexity -- --nocapture --test-threads=1
 - Startup news popup configuration modal appears on first launch to configure news display preferences; state tracks `news_startup_config_completed`.
 - News sorting includes `SeverityThenDate` (prioritizes critical advisories) and `UnreadThenDate` (prioritizes unread items) modes; severity ranking system implemented.
 - News feed cache and last-seen maps persist under `lists/` (`news_feed.json`, `news_seen_pkg_updates.json`, `news_seen_aur_comments.json`); feed reloads from cache until background refresh completes.
+- Update detection now uses `checkupdates` (from pacman-contrib) as fallback when fakeroot database sync fails due to Landlock restrictions; improved error logging shows stderr output for diagnosis.
 
 ## Breaking changes
 None.
