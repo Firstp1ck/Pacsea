@@ -27,6 +27,8 @@ mod preflight_helpers;
 
 // Re-export preflight modal opener for use in other modules
 pub use preflight_helpers::open_preflight_modal;
+// Re-export shift keybind handler for use in other modules
+pub use helpers::handle_shift_keybinds;
 
 #[cfg(test)]
 mod tests;

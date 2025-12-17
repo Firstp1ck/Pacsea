@@ -312,6 +312,11 @@ pub fn handle_install_key(
         return false;
     }
 
+    // Handle Shift+char keybinds (menus, import, export, updates, status) that work in all modes
+    if crate::events::search::handle_shift_keybinds(&ke, app) {
+        return false;
+    }
+
     let km = &app.keymap;
     // Match helper that treats Shift+<char> from config as equivalent to uppercase char without Shift from terminal
     let matches_any = |list: &Vec<crate::theme::KeyChord>| {

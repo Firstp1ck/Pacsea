@@ -5,7 +5,7 @@ use crate::logic::move_sel_cached;
 use crate::state::{AppState, PackageItem, QueryInput};
 
 use super::super::utils::matches_any;
-use super::helpers::navigate_pane;
+use super::helpers::{handle_shift_keybinds, navigate_pane};
 use super::preflight_helpers::open_preflight_modal;
 use crate::events::utils::{char_count, refresh_install_details};
 use crate::logic::send_query;
@@ -36,6 +36,11 @@ pub fn handle_insert_mode(
     preview_tx: &mpsc::UnboundedSender<PackageItem>,
     comments_tx: &mpsc::UnboundedSender<String>,
 ) -> bool {
+    // Handle Shift+char keybinds (menus, import, export, updates, status) that work in all modes
+    if handle_shift_keybinds(&ke, app) {
+        return false;
+    }
+
     let km = &app.keymap;
 
     match (ke.code, ke.modifiers) {

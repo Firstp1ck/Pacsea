@@ -66,7 +66,7 @@ fn handle_config_menu_numeric_selection(idx: usize, app: &mut AppState) -> bool 
 /// Details:
 /// - Toggles config, options, or panels menu.
 /// - Ensures only one menu is open at a time.
-fn handle_menu_toggles(ke: &KeyEvent, app: &mut AppState) -> bool {
+pub fn handle_menu_toggles(ke: &KeyEvent, app: &mut AppState) -> bool {
     let km = &app.keymap;
 
     if matches_any(ke, &km.config_menu_toggle) {
@@ -117,7 +117,7 @@ fn handle_menu_toggles(ke: &KeyEvent, app: &mut AppState) -> bool {
 /// - Exports current Install List package names to config export dir.
 /// - Creates files with format: `install_list_YYYYMMDD_serial.txt`
 /// - Shows toast messages for success or failure.
-fn handle_export(app: &mut AppState) {
+pub fn handle_export(app: &mut AppState) {
     if app.installed_only_mode {
         return;
     }

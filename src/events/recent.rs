@@ -334,6 +334,11 @@ pub fn handle_recent_key(
         return false; // Key was handled in find mode
     }
 
+    // Handle Shift+char keybinds (menus, import, export, updates, status) that work in all modes
+    if crate::events::search::handle_shift_keybinds(&ke, app) {
+        return false;
+    }
+
     let km = &app.keymap;
 
     match ke.code {
