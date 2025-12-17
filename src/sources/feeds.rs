@@ -355,7 +355,7 @@ pub async fn rate_limit_archlinux() {
     };
     if !delay_needed.is_zero() {
         // Add random jitter to prevent thundering herd when multiple clients retry simultaneously
-        let jitter_ms = rand::thread_rng().gen_range(0..=JITTER_MAX_MS);
+        let jitter_ms = rand::rng().random_range(0..=JITTER_MAX_MS);
         let delay_with_jitter = delay_needed + Duration::from_millis(jitter_ms);
         // Safe to unwrap: delay_ms will be small (max 60s = 60000ms, well within u64)
         #[allow(clippy::cast_possible_truncation)]
@@ -524,9 +524,7 @@ pub fn record_circuit_breaker_outcome(endpoint_pattern: &str, success: bool) {
         // Threshold is 0.5 (50%), so we check: failure_count * 2 >= total_count
         let total_count = breaker.recent_outcomes.len();
 
-        if failure_count * 2 >= total_count
-            && total_count >= CIRCUIT_BREAKER_HISTORY_SIZE
-        {
+        if failure_count * 2 >= total_count && total_count >= CIRCUIT_BREAKER_HISTORY_SIZE {
             // Open circuit
             breaker.state = CircuitState::Open {
                 opened_at: Instant::now(),
@@ -818,7 +816,11 @@ async fn append_arch_news(limit: usize, cutoff_date: Option<&str>) -> Result<Vec
                         warn!(
                             retry_after_seconds = retry_after,
                             "HTTP {} detected, using Retry-After header",
-                            if error_str.contains("429") { "429" } else { "503" }
+                            if error_str.contains("429") {
+                                "429"
+                            } else {
+                                "503"
+                            }
                         );
                         // Use Retry-After value for backoff
                         increase_archlinux_backoff(Some(retry_after));
@@ -827,7 +829,11 @@ async fn append_arch_news(limit: usize, cutoff_date: Option<&str>) -> Result<Vec
                     } else {
                         warn!(
                             "HTTP {} detected, applying extended backoff (60s)",
-                            if error_str.contains("429") { "429" } else { "503" }
+                            if error_str.contains("429") {
+                                "429"
+                            } else {
+                                "503"
+                            }
                         );
                         // Set backoff to 60 seconds if no Retry-After header
                         {

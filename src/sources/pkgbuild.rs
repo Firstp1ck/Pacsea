@@ -105,12 +105,12 @@ pub async fn fetch_pkgbuild_fast(item: &PackageItem) -> Result<String> {
                 "https://gitlab.archlinux.org/archlinux/packaging/packages/{}/-/raw/main/PKGBUILD",
                 percent_encode(&name)
             );
-            if let Ok(Ok(txt)) = tokio::task::spawn_blocking({
+            let main_result = tokio::task::spawn_blocking({
                 let u = url_main.clone();
                 move || crate::util::curl::curl_text_with_args(&u, &["--max-time", "10"])
             })
-            .await
-            {
+            .await;
+            if let Ok(Ok(txt)) = main_result {
                 return Ok(txt);
             }
             let url_master = format!(
@@ -210,10 +210,10 @@ mod tests {
         let mut curl = bin.clone();
         curl.push("curl");
         // Fail when URL contains '/-/raw/main/' and succeed when '/-/raw/master/'
-        // curl_args creates: ["-sSLf", "--max-time", "10", "url"]
-        // In sh/bash, $1="-sSLf", $2="--max-time", $3="10", $4=url
-        // Get the last argument using eval
-        let script = "#!/bin/sh\neval \"url=\\$$#\"\nif echo \"$url\" | grep -q '/-/raw/main/'; then exit 22; fi\necho 'pkgrel=2'\n";
+        // curl_args creates: ["-sSLf", "--connect-timeout", "30", "--max-time", "60", "-H", "User-Agent: ...", "--max-time", "10", "url"]
+        // Get the last argument by looping through all arguments
+        // Use printf instead of echo to avoid trailing newline that confuses the HTTP header parser
+        let script = "#!/bin/sh\nfor arg; do :; done\nurl=\"$arg\"\nif echo \"$url\" | grep -q '/-/raw/main/'; then exit 22; fi\nprintf 'pkgrel=2'\n";
         std::fs::write(&curl, script.as_bytes()).expect("Failed to write test curl script");
         #[cfg(unix)]
         {

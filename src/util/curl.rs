@@ -446,14 +446,24 @@ pub fn curl_text_with_args_headers(url: &str, extra_args: &[&str]) -> Result<Cur
     } else {
         // No headers found, treat entire output as body (minus status code)
         let body_end = lines.len().saturating_sub(1);
-        let body: Vec<&str> = if body_end > 0 { lines[..body_end].to_vec() } else { vec![] };
+        let body: Vec<&str> = if body_end > 0 {
+            lines[..body_end].to_vec()
+        } else {
+            vec![]
+        };
         (String::new(), body.join("\n"))
     };
 
     // Parse headers
-    let retry_after_seconds = (!headers_text.is_empty()).then(|| extract_retry_after(&headers_text)).flatten();
-    let etag = (!headers_text.is_empty()).then(|| extract_header_value(&headers_text, "ETag")).flatten();
-    let last_modified = (!headers_text.is_empty()).then(|| extract_header_value(&headers_text, "Last-Modified")).flatten();
+    let retry_after_seconds = (!headers_text.is_empty())
+        .then(|| extract_retry_after(&headers_text))
+        .flatten();
+    let etag = (!headers_text.is_empty())
+        .then(|| extract_header_value(&headers_text, "ETag"))
+        .flatten();
+    let last_modified = (!headers_text.is_empty())
+        .then(|| extract_header_value(&headers_text, "Last-Modified"))
+        .flatten();
 
     Ok(CurlResponse {
         body: body_lines,
@@ -504,13 +514,23 @@ pub fn curl_text_with_args(url: &str, extra_args: &[&str]) -> Result<String> {
     let stdout = String::from_utf8(out.stdout)?;
 
     // Parse status code from the end of output (last line should be the status code)
-    let status_code = stdout
-        .lines()
-        .last()
-        .and_then(|line| line.trim().parse::<u16>().ok());
+    // Check if last line is a numeric status code (3 digits)
+    let lines: Vec<&str> = stdout.lines().collect();
+    let (status_code, body_end) = lines.last().map_or((None, lines.len()), |last_line| {
+        let trimmed = last_line.trim();
+        // Check if last line looks like an HTTP status code (3 digits)
+        if trimmed.len() == 3 && trimmed.chars().all(|c| c.is_ascii_digit()) {
+            (
+                trimmed.parse::<u16>().ok(),
+                lines.len().saturating_sub(1), // Exclude status code line
+            )
+        } else {
+            // Last line is not a status code, include it in body
+            (None, lines.len())
+        }
+    });
 
     // Find the boundary between headers and body (empty line)
-    let lines: Vec<&str> = stdout.lines().collect();
     let mut header_end = 0;
     let mut found_empty_line = false;
     for (i, line) in lines.iter().enumerate() {
@@ -525,18 +545,38 @@ pub fn curl_text_with_args(url: &str, extra_args: &[&str]) -> Result<String> {
     // Extract headers and body
     let (headers_text, body_lines) = if found_empty_line {
         let headers: Vec<&str> = lines[..header_end].to_vec();
-        // Skip the empty line and status code line at the end
-        let body_end = lines.len().saturating_sub(1); // Exclude status code line
-        let body: Vec<&str> = if header_end + 1 < body_end {
-            lines[header_end + 1..body_end].to_vec()
+        // Check if headers section actually contains non-empty lines
+        // If not, treat as if there are no headers (empty line is just formatting)
+        let has_actual_headers = headers.iter().any(|h| !h.trim().is_empty());
+        if has_actual_headers {
+            // Skip the empty line and status code line at the end
+            let body: Vec<&str> = if header_end + 1 < body_end {
+                lines[header_end + 1..body_end].to_vec()
+            } else {
+                vec![]
+            };
+            (headers.join("\n"), body.join("\n"))
+        } else {
+            // No actual headers, treat entire output as body (up to body_end)
+            let body: Vec<&str> = if body_end > 0 {
+                // Include everything up to body_end, filtering out empty lines
+                lines[..body_end]
+                    .iter()
+                    .filter(|line| !line.trim().is_empty())
+                    .copied()
+                    .collect()
+            } else {
+                vec![]
+            };
+            (String::new(), body.join("\n"))
+        }
+    } else {
+        // No headers found, treat entire output as body (up to body_end)
+        let body: Vec<&str> = if body_end > 0 {
+            lines[..body_end].to_vec()
         } else {
             vec![]
         };
-        (headers.join("\n"), body.join("\n"))
-    } else {
-        // No headers found, treat entire output as body (minus status code)
-        let body_end = lines.len().saturating_sub(1);
-        let body: Vec<&str> = if body_end > 0 { lines[..body_end].to_vec() } else { vec![] };
         (String::new(), body.join("\n"))
     };
 

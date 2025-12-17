@@ -122,7 +122,6 @@ fn load_article_entry_from_disk_cache(url: &str) -> Option<ArticleDiskCacheEntry
     }
 }
 
-
 /// What: Save article content to disk cache with current timestamp.
 ///
 /// Inputs:
@@ -135,7 +134,12 @@ fn load_article_entry_from_disk_cache(url: &str) -> Option<ArticleDiskCacheEntry
 /// - Writes to disk asynchronously to avoid blocking.
 /// - Logs errors but does not propagate them.
 /// - Updates existing cache file, adding or updating the entry for this URL.
-fn save_article_to_disk_cache(url: &str, content: &str, etag: Option<String>, last_modified: Option<String>) {
+fn save_article_to_disk_cache(
+    url: &str,
+    content: &str,
+    etag: Option<String>,
+    last_modified: Option<String>,
+) {
     let path = article_disk_cache_path();
     // Load existing cache or create new
     let mut cache: HashMap<String, ArticleDiskCacheEntry> = std::fs::read_to_string(&path)
@@ -398,7 +402,10 @@ pub async fn fetch_news_content(url: &str) -> Result<String> {
 
     // Handle 304 Not Modified - return cached content
     if status_code == 304 {
-        info!(url, "server returned 304 Not Modified, using cached content");
+        info!(
+            url,
+            "server returned 304 Not Modified, using cached content"
+        );
         if let Some(cached) = cached_entry {
             return Ok(cached.content);
         }
@@ -423,37 +430,10 @@ pub async fn fetch_news_content(url: &str) -> Result<String> {
         .map(ToString::to_string);
 
     // Check for HTTP errors
-    if (status.is_client_error() || status.is_server_error())
-        && {
-            // Record failure in circuit breaker
-            crate::sources::feeds::record_circuit_breaker_outcome(&endpoint_pattern, false);
-            true
-        }
-    {
-        let error_msg = if status_code == 429 {
-            let mut msg = "HTTP 429 Too Many Requests - rate limited by server".to_string();
-            if let Some(retry_after) = http_response.headers().get("retry-after")
-                && let Ok(retry_str) = retry_after.to_str()
-            {
-                msg.push_str(" (Retry-After: ");
-                msg.push_str(retry_str);
-                msg.push(')');
-            }
-            msg
-        } else if status_code == 503 {
-            let mut msg = "HTTP 503 Service Unavailable".to_string();
-            if let Some(retry_after) = http_response.headers().get("retry-after")
-                && let Ok(retry_str) = retry_after.to_str()
-            {
-                msg.push_str(" (Retry-After: ");
-                msg.push_str(retry_str);
-                msg.push(')');
-            }
-            msg
-        } else {
-            format!("HTTP error: {status}")
-        };
-        return Err(error_msg.into());
+    if status.is_client_error() || status.is_server_error() {
+        // Record failure in circuit breaker
+        crate::sources::feeds::record_circuit_breaker_outcome(&endpoint_pattern, false);
+        return Err(handle_http_error(status, status_code, &http_response).into());
     }
 
     let body = http_response.text().await.map_err(|e| {
@@ -492,6 +472,49 @@ pub async fn fetch_news_content(url: &str) -> Result<String> {
     save_article_to_disk_cache(url, &content, etag, last_modified);
 
     Ok(content)
+}
+
+/// What: Handle HTTP error responses and format error messages.
+///
+/// Inputs:
+/// - `status`: HTTP status code object.
+/// - `status_code`: HTTP status code as u16.
+/// - `http_response`: HTTP response object to extract headers.
+///
+/// Output:
+/// - Formatted error message string.
+///
+/// Details:
+/// - Handles 429 (Too Many Requests) and 503 (Service Unavailable) with Retry-After headers.
+/// - Formats generic error messages for other HTTP errors.
+fn handle_http_error(
+    status: reqwest::StatusCode,
+    status_code: u16,
+    http_response: &reqwest::Response,
+) -> String {
+    if status_code == 429 {
+        let mut msg = "HTTP 429 Too Many Requests - rate limited by server".to_string();
+        if let Some(retry_after) = http_response.headers().get("retry-after")
+            && let Ok(retry_str) = retry_after.to_str()
+        {
+            msg.push_str(" (Retry-After: ");
+            msg.push_str(retry_str);
+            msg.push(')');
+        }
+        msg
+    } else if status_code == 503 {
+        let mut msg = "HTTP 503 Service Unavailable".to_string();
+        if let Some(retry_after) = http_response.headers().get("retry-after")
+            && let Ok(retry_str) = retry_after.to_str()
+        {
+            msg.push_str(" (Retry-After: ");
+            msg.push_str(retry_str);
+            msg.push(')');
+        }
+        msg
+    } else {
+        format!("HTTP error: {status}")
+    }
 }
 
 /// What: Parse Arch Linux news HTML and extract article text using `scraper`.
