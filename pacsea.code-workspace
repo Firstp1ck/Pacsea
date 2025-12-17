@@ -1,0 +1,126 @@
+{
+  // Workspace folders - defines which directories are included in this workspace
+  "folders": [
+    {
+      "path": "." // Current directory (Pacsea repository root)
+    }
+  ],
+  // Workspace-specific settings that apply when this workspace is opened
+  "settings": {
+    // Files and folders to hide from the file explorer (but still accessible via search)
+    "files.exclude": {
+      "**/target": true, // Rust build output directory
+      "**/debug": true, // Rust debug build directory
+      "**/*.rs.bk": true, // Rustfmt backup files
+      "**/*.pdb": true, // Windows debug symbols
+      ".claude": true, // Claude AI cache directory
+      ".cache": true, // Cache directories
+      "**/.cache": true, // All cache directories recursively
+      "**/__pycache__": true, // Python cache directories
+      "**/*.pyc": true, // Python compiled bytecode
+      "AUR_BUILD": true, // AUR build artifacts
+      "repository": true, // Repository cache directory
+      ".jj": true, // Jujutsu version control directory
+      "exported-assets": true, // Exported assets directory
+      "semgrep-bin": true, // Semgrep binary directory
+      "**/*.lnk": true, // Windows shortcut files
+      "**/details_cache.json": true, // Pacsea package details cache
+      "**/recent_searches.json": true, // Pacsea recent searches cache
+      "**/official_index.json": true, // Pacsea official package index cache
+      "**/install_list.json": true, // Pacsea install list cache
+      "**/install_log.txt": true, // Pacsea install log files
+    },
+    // Files and folders to exclude from search results
+    "search.exclude": {
+      "**/target": true, // Rust build output directory
+      "**/debug": true, // Rust debug build directory
+      "**/*.rs.bk": true, // Rustfmt backup files
+      ".claude": true, // Claude AI cache directory
+      ".cache": true, // Cache directories
+      "**/.cache": true, // All cache directories recursively
+      "**/__pycache__": true, // Python cache directories
+      "**/*.pyc": true, // Python compiled bytecode
+      "AUR_BUILD": true, // AUR build artifacts
+      "repository": true, // Repository cache directory
+      ".jj": true, // Jujutsu version control directory
+      "exported-assets": true, // Exported assets directory
+      "semgrep-bin": true, // Semgrep binary directory
+      "**/*.lnk": true, // Windows shortcut files
+      "**/details_cache.json": true, // Pacsea package details cache
+      "**/recent_searches.json": true, // Pacsea recent searches cache
+      "**/official_index.json": true, // Pacsea official package index cache
+      "**/install_list.json": true, // Pacsea install list cache
+      "**/install_log.txt": true, // Pacsea install log files
+    },
+    // Files and folders to exclude from file system watcher (improves performance)
+    "files.watcherExclude": {
+      "**/target/**": true, // Rust build output (recursive)
+      "**/debug/**": true, // Rust debug builds (recursive)
+      "**/.cache/**": true, // Cache directories (recursive)
+      "**/__pycache__/**": true, // Python cache (recursive)
+      "AUR_BUILD/**": true, // AUR build artifacts (recursive)
+      "repository/**": true, // Repository cache (recursive)
+      ".jj/**": true, // Jujutsu VCS (recursive)
+      "exported-assets/**": true // Exported assets (recursive)
+    },
+    // Automatically format code when saving files
+    "editor.formatOnSave": true,
+    // Show a vertical ruler at column 100 (matches rustfmt max_width)
+    "editor.rulers": [
+      100
+    ],
+    // Rust-specific editor settings
+    "[rust]": {
+      "editor.defaultFormatter": "rust-lang.rust-analyzer", // Use rust-analyzer for formatting
+      "editor.tabSize": 4, // Tab size matches rustfmt.toml
+      "editor.insertSpaces": true // Use spaces instead of tabs
+    },
+    // TOML-specific editor settings
+    "[toml]": {
+      "editor.defaultFormatter": "tamasfe.even-better-toml" // Use even-better-toml for TOML files
+    },
+    // YAML-specific editor settings
+    "[yaml]": {
+      "editor.defaultFormatter": "redhat.vscode-yaml" // Use YAML extension for YAML files
+    },
+    // Rust-analyzer: Use clippy instead of cargo check for diagnostics
+    "rust-analyzer.check.command": "clippy",
+    // Rust-analyzer: Check all targets (lib, bins, tests, examples, benches)
+    "rust-analyzer.check.allTargets": true,
+    // Rust-analyzer: Check with all features enabled
+    "rust-analyzer.check.features": "all",
+    // Rust-analyzer: Additional arguments passed to clippy (deny warnings)
+    "rust-analyzer.check.extraArgs": [
+      "--",
+      "-D",
+      "warnings"
+    ],
+    // Rust-analyzer: Enable all Cargo features for better code analysis
+    "rust-analyzer.cargo.allFeatures": true,
+    // Rust-analyzer: Show type hints inline (e.g., variable types)
+    "rust-analyzer.inlayHints.typeHints.enable": true,
+    // Rust-analyzer: Show parameter names in function calls
+    "rust-analyzer.inlayHints.parameterHints.enable": true,
+    // Rust-analyzer: Show hints for method chaining
+    "rust-analyzer.inlayHints.chainingHints.enable": true,
+    // Rust-analyzer: Show lifetime elision hints (skip trivial cases)
+    "rust-analyzer.inlayHints.lifetimeElisionHints.enable": "skip_trivial",
+    // Rust-analyzer: Automatically add imports when completing code
+    "rust-analyzer.completion.autoimport.enable": true,
+    // File type associations for syntax highlighting
+    "files.associations": {
+      "*.conf": "properties", // Treat .conf files as properties files
+      "*.yml": "yaml" // Treat .yml files as YAML
+    }
+  },
+  // Recommended VS Code extensions for this workspace
+  "extensions": {
+    "recommendations": [
+      "rust-lang.rust-analyzer", // Official Rust language server and formatter
+      "tamasfe.even-better-toml", // Enhanced TOML support for Cargo.toml and config files
+      "serayuzgur.crates", // Dependency management for Cargo.toml
+      "redhat.vscode-yaml", // YAML support for i18n locale files
+      "vadimcn.vscode-lldb" // LLDB debugger for Rust debugging
+    ]
+  }
+}
