@@ -67,6 +67,9 @@ hu-HU:
       # TODO: translate to hungarian
       news_recent: "News search history"
       news_recent_focused: "News search history (focused)"
+      # TODO: translate to hungarian
+      news_bookmarks: "Bookmarks"
+      news_bookmarks_focused: "Bookmarks (focused)"
       install_list: "Telepítési lista"
       install_list_focused: "Telepítési lista (fókuszált)"
       downgrade_list: "Visszafejlesztési lista"

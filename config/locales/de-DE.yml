@@ -63,6 +63,8 @@ de-DE:
       recent_focused: "Suchverlauf (fokussiert)"
       news_recent: "News-Suchverlauf:"
       news_recent_focused: "News-Suchverlauf (fokussiert)"
+      news_bookmarks: "Lesezeichen"
+      news_bookmarks_focused: "Lesezeichen (fokussiert)"
       install_list: "Installationsliste"
       install_list_focused: "Installationsliste (fokussiert)"
       downgrade_list: "Herabstufungs-Liste"

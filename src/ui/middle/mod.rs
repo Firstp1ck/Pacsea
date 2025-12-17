@@ -147,9 +147,9 @@ fn render_middle_news(f: &mut Frame, app: &mut AppState, area: Rect) {
             app.install_state.select(Some(0));
         }
         let title = if bookmarks_focused {
-            i18n::t(app, "app.titles.news_recent_focused")
+            i18n::t(app, "app.titles.news_bookmarks_focused")
         } else {
-            i18n::t(app, "app.titles.news_recent")
+            i18n::t(app, "app.titles.news_bookmarks")
         };
         let list = ratatui::widgets::List::new(items)
             .block(

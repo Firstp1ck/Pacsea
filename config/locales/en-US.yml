@@ -63,6 +63,8 @@ en-US:
       recent_focused: "Search history (focused)"
       news_recent: "News search history"
       news_recent_focused: "News search history (focused)"
+      news_bookmarks: "Bookmarks"
+      news_bookmarks_focused: "Bookmarks (focused)"
       install_list: "Install List"
       install_list_focused: "Install List (focused)"
       downgrade_list: "Downgrade List"
