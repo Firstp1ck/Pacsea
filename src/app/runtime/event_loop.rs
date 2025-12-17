@@ -1,8 +1,8 @@
 use ratatui::Terminal;
 use tokio::select;
 
-use crate::state::types::NewsFeedPayload;
 use crate::i18n;
+use crate::state::types::NewsFeedPayload;
 use crate::state::{AppState, PackageItem};
 use crate::ui::ui;
 use crate::util::parse_update_entry;

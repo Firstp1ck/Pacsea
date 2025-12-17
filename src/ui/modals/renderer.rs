@@ -263,6 +263,7 @@ struct ConfirmBatchUpdateContext {
 ///
 /// Details: Reduces individual field extractions and uses, lowering data flow complexity.
 struct ConfirmAurUpdateContext {
+    /// Confirmation message text to display to the user.
     message: String,
 }
 

@@ -698,7 +698,10 @@ pub fn render_footer(f: &mut Frame, app: &AppState, bottom_container: Rect, help
             height: h,
         };
 
-        let key_style = Style::default().fg(th.text).add_modifier(Modifier::BOLD);
+        let key_style = Style::default()
+            .fg(th.text)
+            .bg(th.surface2)
+            .add_modifier(Modifier::BOLD);
         let sep_style = Style::default().fg(th.overlay2);
 
         // Build all sections
@@ -774,29 +777,31 @@ fn build_news_footer_lines(app: &AppState, th: &Theme) -> Vec<Line<'static>> {
     let sep_style = Style::default().fg(th.overlay2);
 
     let mut lines: Vec<Line<'static>> = Vec::new();
-    let mut spans: Vec<Span<'static>> = Vec::new();
 
-    // Global/help
-    spans.extend(build_section_header("Global".to_string(), th.overlay1));
+    // Line 1: Global/help
+    let mut global_spans: Vec<Span<'static>> = Vec::new();
+    global_spans.extend(build_section_header("Global".to_string(), th.overlay1));
     add_keybind_entry(
-        &mut spans,
+        &mut global_spans,
         app.keymap.help_overlay.first(),
         key_style,
         "Help",
         sep_style,
     );
     add_keybind_entry(
-        &mut spans,
+        &mut global_spans,
         app.keymap.exit.first(),
         key_style,
         "Exit",
         sep_style,
     );
+    lines.push(Line::from(global_spans));
 
-    // Navigation
-    spans.extend(build_section_header("Nav".to_string(), th.overlay1));
+    // Line 2: Navigation and Menus
+    let mut nav_menus_spans: Vec<Span<'static>> = Vec::new();
+    nav_menus_spans.extend(build_section_header("Nav".to_string(), th.overlay1));
     add_dual_keybind_entry(
-        &mut spans,
+        &mut nav_menus_spans,
         app.keymap.search_move_up.first(),
         app.keymap.search_move_down.first(),
         key_style,
@@ -804,63 +809,62 @@ fn build_news_footer_lines(app: &AppState, th: &Theme) -> Vec<Line<'static>> {
         sep_style,
     );
     add_dual_keybind_entry(
-        &mut spans,
+        &mut nav_menus_spans,
         app.keymap.search_page_up.first(),
         app.keymap.search_page_down.first(),
         key_style,
         "Page",
         sep_style,
     );
-
-    // Menus
-    spans.extend(build_section_header("Menus".to_string(), th.overlay1));
+    nav_menus_spans.extend(build_section_header("Menus".to_string(), th.overlay1));
     add_keybind_entry(
-        &mut spans,
+        &mut nav_menus_spans,
         app.keymap.options_menu_toggle.first(),
         key_style,
         "Options",
         sep_style,
     );
     add_keybind_entry(
-        &mut spans,
+        &mut nav_menus_spans,
         app.keymap.panels_menu_toggle.first(),
         key_style,
         "Panels",
         sep_style,
     );
     add_keybind_entry(
-        &mut spans,
+        &mut nav_menus_spans,
         app.keymap.config_menu_toggle.first(),
         key_style,
         "Config/Lists",
         sep_style,
     );
+    lines.push(Line::from(nav_menus_spans));
 
-    // News actions
-    spans.extend(build_section_header("News".to_string(), th.overlay1));
+    // Line 3: News actions
+    let mut news_spans: Vec<Span<'static>> = Vec::new();
+    news_spans.extend(build_section_header("News".to_string(), th.overlay1));
     add_multi_keybind_entry(
-        &mut spans,
+        &mut news_spans,
         &app.keymap.news_mark_read_feed,
         key_style,
         "Mark read",
         sep_style,
     );
     add_multi_keybind_entry(
-        &mut spans,
+        &mut news_spans,
         &app.keymap.news_mark_unread_feed,
         key_style,
         "Mark unread",
         sep_style,
     );
     add_multi_keybind_entry(
-        &mut spans,
+        &mut news_spans,
         &app.keymap.news_toggle_read_feed,
         key_style,
         "Toggle read",
         sep_style,
     );
-
-    lines.push(Line::from(spans));
+    lines.push(Line::from(news_spans));
 
     // Normal mode specific help when search pane is focused
     if matches!(app.focus, Focus::Search) {
@@ -926,22 +930,26 @@ pub fn render_news_footer(f: &mut Frame, app: &AppState, area: Rect, footer_heig
     }
 
     let footer_rect = Rect {
-        x: area.x,
+        x: area.x + 1, // inside border
         y: area
             .y
             .saturating_add(area.height.saturating_sub(footer_height)),
-        width: area.width,
+        width: area.width.saturating_sub(2),
         height: footer_height,
     };
+    // Fill the whole reserved footer area with a uniform background
+    f.render_widget(
+        Block::default().style(Style::default().bg(th.base)),
+        Rect {
+            x: area.x,
+            y: footer_rect.y,
+            width: area.width,
+            height: footer_height,
+        },
+    );
     let paragraph = Paragraph::new(lines)
-        .wrap(Wrap { trim: true })
-        .block(
-            Block::default()
-                .borders(ratatui::widgets::Borders::ALL)
-                .border_style(Style::default().fg(th.overlay1))
-                .style(Style::default().bg(th.mantle)),
-        )
-        .style(Style::default().bg(th.mantle));
+        .style(Style::default().fg(th.subtext1))
+        .wrap(Wrap { trim: true });
     f.render_widget(paragraph, footer_rect);
 }
 
