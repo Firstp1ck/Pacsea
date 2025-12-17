@@ -516,7 +516,7 @@ fn handle_change_sort(app: &mut AppState, details_tx: &mpsc::UnboundedSender<Pac
 /// What: Handle numeric menu selection for options menu.
 ///
 /// Inputs:
-/// - `idx`: Selected menu index (mode-specific ordering)
+/// - `idx`: Selected menu index (0-based, where '1' key maps to idx 0)
 /// - `app`: Mutable application state
 /// - `details_tx`: Channel to request package details
 ///
@@ -524,9 +524,10 @@ fn handle_change_sort(app: &mut AppState, details_tx: &mpsc::UnboundedSender<Pac
 /// - `Some(false)` if selection was handled, `None` otherwise
 ///
 /// Details:
-/// - Package mode order: Installed-only, Update system, News management, TUI optional deps.
-/// - News mode order: Update system, Package mode, TUI optional deps, News age toggle.
+/// - Package mode display order: List installed (1), Update system (2), TUI Optional Deps (3), News management (4)
+/// - News mode display order: Update system (1), TUI Optional Deps (2), Package mode (3)
 /// - Closes the options menu when a selection is handled.
+/// - Note: News age toggle (idx 3 in News mode) is not displayed in menu but handler remains for compatibility.
 fn handle_options_menu_numeric(
     idx: usize,
     app: &mut AppState,
@@ -534,17 +535,18 @@ fn handle_options_menu_numeric(
 ) -> Option<bool> {
     let news_mode = matches!(app.app_mode, crate::state::types::AppMode::News);
     let handled = if news_mode {
+        // News mode display order: Update system (1), TUI Optional Deps (2), Package mode (3)
         match idx {
             0 => {
                 handle_options_system_update(app);
                 true
             }
             1 => {
-                handle_mode_toggle(app, details_tx);
+                handle_options_optional_deps(app);
                 true
             }
             2 => {
-                handle_options_optional_deps(app);
+                handle_mode_toggle(app, details_tx);
                 true
             }
             3 => {
@@ -554,6 +556,7 @@ fn handle_options_menu_numeric(
             _ => false,
         }
     } else {
+        // Package mode display order: List installed (1), Update system (2), TUI Optional Deps (3), News management (4)
         match idx {
             0 => {
                 handle_options_installed_only_toggle(app, details_tx);
@@ -564,11 +567,11 @@ fn handle_options_menu_numeric(
                 true
             }
             2 => {
-                handle_mode_toggle(app, details_tx);
+                handle_options_optional_deps(app);
                 true
             }
             3 => {
-                handle_options_optional_deps(app);
+                handle_mode_toggle(app, details_tx);
                 true
             }
             _ => false,
