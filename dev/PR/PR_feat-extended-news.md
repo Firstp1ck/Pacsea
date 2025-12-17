@@ -14,13 +14,17 @@
 - Improved footer layout and styling: split keybinds into multiple lines, added background color to key style, removed border, and reorganized sections (Global, Nav/Menus, News) for better readability.
 - Fixed update detection to use `checkupdates` fallback when temp database sync fails due to Landlock restrictions, ensuring all available official package updates are detected.
 - Updated PKGBUILD files to clarify pacman-contrib's role as a fallback for update checking.
+- Cache clearing functionality to include additional cache files (PKGBUILD parse, news feed, advisories, and news article caches).
+- Enhanced AUR comments filtering: excludes comments with None timestamps (unparseable dates) and future dates from "Recent (last 7 days)" section; fallback label changed to "Latest comment" when showing non-recent comments.
+- Improved news fetching performance with rate limiting and caching: increased cache TTLs (in-memory: 5min→15min, disk: 7d→14d), added per-domain rate limiter for archlinux.org with 2s base delay and exponential backoff (2s→4s→8s→16s, max 60s), HTTP 429 detection with extended 60s backoff, 0.5s debounce for news content requests, and reduced retry attempts from 3 to 2.
+- Added bookmarks localization for news section in multiple languages (English, German, Hungarian).
 
 ## Type of change
 - [x] feat (new feature)
 - [x] fix (bug fix)
 - [ ] docs (documentation only)
 - [x] refactor (no functional change)
-- [ ] perf (performance)
+- [x] perf (performance)
 - [x] test (add/update tests)
 - [ ] chore (build/infra/CI)
 - [x] ui (visual/interaction changes)
@@ -44,6 +48,10 @@ cargo test complexity -- --nocapture --test-threads=1
 - Verify update detection shows all available official package updates even when temp database sync fails (checkupdates fallback should be used automatically).
 - Test Shift+char keybinds (Shift+C/O/P for menus, Shift+I for import, Shift+E for export, Shift+U for updates, Shift+S for status) work consistently across all panes (Search, Recent, Install) and modes (insert, normal).
 - Verify footer displays keybinds in multiple lines with improved styling and background colors for better readability.
+- Test cache clearing: run `pacsea --clear-cache` and verify all cache files (including PKGBUILD parse, news feed, advisories, and news article caches) are removed.
+- Test AUR comments filtering: verify comments with None timestamps and future dates are excluded from "Recent (last 7 days)" section, and "Latest comment" label appears when showing non-recent comments.
+- Test rate limiting: verify archlinux.org requests are rate-limited with exponential backoff on failures, and HTTP 429 responses trigger extended 60s backoff.
+- Verify bookmarks localization: check that bookmarks-related UI text appears in the configured language (English, German, Hungarian).
 
 ## Checklist
 
@@ -92,6 +100,10 @@ cargo test complexity -- --nocapture --test-threads=1
 - Shift+char keybinds (menus, import, export, updates, status) now work consistently across all panes (Search, Recent, Install) and modes (insert, normal) via `handle_shift_keybinds` function exported from search module.
 - Footer layout improved: keybinds split into multiple lines (Global, Nav/Menus, News), key style includes background color, border removed, and sections reorganized for cleaner appearance and better readability.
 - PKGBUILD files updated to clarify pacman-contrib's role as a fallback tool for update checking when temp database sync fails.
+- Cache clearing (`--clear-cache`) now removes additional cache files: `pkgbuild_parse_cache.json`, `arch_news_cache.json`, `advisories_cache.json`, and `news_article_cache.json` in addition to existing cache files.
+- AUR comments filtering: uses `is_some_and` with proper bounds checking (`ts >= cutoff && ts <= now`) to exclude invalid dates (None timestamps) and future dates from "Recent (last 7 days)" section; when no recent comments exist, shows "Latest comment" label instead of "Recent (last 7 days)" for the fallback comment.
+- News fetching performance optimized: in-memory cache TTL increased from 5min to 15min, disk cache TTL increased from 7d to 14d; per-domain rate limiter for archlinux.org with 2s base delay and exponential backoff (2s→4s→8s→16s, max 60s); HTTP 429 responses trigger extended 60s backoff; 0.5s debounce added for news content requests to prevent rapid-fire fetching when scrolling; retry attempts reduced from 3 to 2 for archlinux.org requests.
+- Bookmarks localization added: `news_bookmarks`, `news_bookmarks_focused`, `show_bookmarks`, and `hide_bookmarks` keys added to locale files (English, German, Hungarian).
 
 ## Breaking changes
 None.
