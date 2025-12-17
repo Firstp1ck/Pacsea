@@ -9,13 +9,17 @@
 - Added severity-based sorting (`SeverityThenDate`) and unread-based sorting (`UnreadThenDate`) options for prioritizing critical advisories and unread items.
 - Added stale content clearing for bookmarks: when loading a bookmark without cached content, stale content is cleared and loading state is reset.
 - Updated UI panes/menus/modals and localization to render news summaries, highlight AUR comment keywords/links, and extend news history/bookmark panes and workers for the richer feed.
+- Added loading toast message for news button in UI to provide user feedback during news fetching.
+- Added Shift+char keybind support across all panes and modes (menus, import, export, updates, status) for consistent keyboard navigation.
+- Improved footer layout and styling: split keybinds into multiple lines, added background color to key style, removed border, and reorganized sections (Global, Nav/Menus, News) for better readability.
 - Fixed update detection to use `checkupdates` fallback when temp database sync fails due to Landlock restrictions, ensuring all available official package updates are detected.
+- Updated PKGBUILD files to clarify pacman-contrib's role as a fallback for update checking.
 
 ## Type of change
 - [x] feat (new feature)
 - [x] fix (bug fix)
 - [ ] docs (documentation only)
-- [ ] refactor (no functional change)
+- [x] refactor (no functional change)
 - [ ] perf (performance)
 - [x] test (add/update tests)
 - [ ] chore (build/infra/CI)
@@ -38,6 +42,8 @@ cargo test complexity -- --nocapture --test-threads=1
 - Test sorting options: verify `SeverityThenDate` prioritizes critical advisories and `UnreadThenDate` shows unread items first.
 - Load a news bookmark that has no cached HTML/content and confirm the details pane clears stale content, resets `news_content_loading`, and allows a fresh content request.
 - Verify update detection shows all available official package updates even when temp database sync fails (checkupdates fallback should be used automatically).
+- Test Shift+char keybinds (Shift+C/O/P for menus, Shift+I for import, Shift+E for export, Shift+U for updates, Shift+S for status) work consistently across all panes (Search, Recent, Install) and modes (insert, normal).
+- Verify footer displays keybinds in multiple lines with improved styling and background colors for better readability.
 
 ## Checklist
 
@@ -82,6 +88,10 @@ cargo test complexity -- --nocapture --test-threads=1
 - News sorting includes `SeverityThenDate` (prioritizes critical advisories) and `UnreadThenDate` (prioritizes unread items) modes; severity ranking system implemented.
 - News feed cache and last-seen maps persist under `lists/` (`news_feed.json`, `news_seen_pkg_updates.json`, `news_seen_aur_comments.json`); feed reloads from cache until background refresh completes.
 - Update detection now uses `checkupdates` (from pacman-contrib) as fallback when fakeroot database sync fails due to Landlock restrictions; improved error logging shows stderr output for diagnosis.
+- News button shows loading toast message (`app.news_button.loading`) during news fetching; toast persists until loading completes or times out.
+- Shift+char keybinds (menus, import, export, updates, status) now work consistently across all panes (Search, Recent, Install) and modes (insert, normal) via `handle_shift_keybinds` function exported from search module.
+- Footer layout improved: keybinds split into multiple lines (Global, Nav/Menus, News), key style includes background color, border removed, and sections reorganized for cleaner appearance and better readability.
+- PKGBUILD files updated to clarify pacman-contrib's role as a fallback tool for update checking when temp database sync fails.
 
 ## Breaking changes
 None.
