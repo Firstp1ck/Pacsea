@@ -539,6 +539,27 @@ fn has_fakeroot() -> bool {
         .is_ok()
 }
 
+/// What: Check if checkupdates is available on the system.
+///
+/// Output:
+/// - `true` if checkupdates is available, `false` otherwise
+///
+/// Details:
+/// - checkupdates (from pacman-contrib) can check for updates without root
+/// - It automatically syncs the database and doesn't require fakeroot
+#[cfg(not(target_os = "windows"))]
+fn has_checkupdates() -> bool {
+    use std::process::{Command, Stdio};
+
+    Command::new("checkupdates")
+        .args(["--version"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .output()
+        .is_ok()
+}
+
 /// What: Get the current user's UID by reading /proc/self/status.
 ///
 /// Output:
@@ -610,6 +631,7 @@ fn setup_temp_db() -> Option<std::path::PathBuf> {
 /// - Uses fakeroot to run `pacman -Sy` without root privileges
 /// - Syncs only the temporary database, not the system database
 /// - Uses `--logfile /dev/null` to prevent log file creation
+/// - Logs stderr on failure to help diagnose sync issues
 #[cfg(not(target_os = "windows"))]
 fn sync_temp_db(temp_db: &std::path::Path) -> bool {
     use std::process::{Command, Stdio};
@@ -619,11 +641,29 @@ fn sync_temp_db(temp_db: &std::path::Path) -> bool {
         .arg(temp_db)
         .args(["--logfile", "/dev/null"])
         .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .output();
 
-    matches!(output, Ok(o) if o.status.success())
+    match output {
+        Ok(o) if o.status.success() => true,
+        Ok(o) => {
+            // Log stderr to help diagnose sync failures
+            let stderr = String::from_utf8_lossy(&o.stderr);
+            if !stderr.trim().is_empty() {
+                tracing::warn!(
+                    "Temp database sync failed (exit code: {:?}): {}",
+                    o.status.code(),
+                    stderr.trim()
+                );
+            }
+            false
+        }
+        Err(e) => {
+            tracing::warn!("Failed to execute fakeroot pacman -Sy: {}", e);
+            false
+        }
+    }
 }
 
 /// What: Parse packages from pacman -Qu output.
@@ -663,6 +703,74 @@ fn parse_checkupdates(output: &[u8]) -> Vec<(String, String, String)> {
         .collect()
 }
 
+/// What: Parse packages from checkupdates output.
+///
+/// Inputs:
+/// - `output`: Raw command output bytes
+///
+/// Output:
+/// - Vector of (`package_name`, `new_version`) tuples
+///
+/// Details:
+/// - Parses "package-name version" format (checkupdates only shows new version)
+/// - Old version must be retrieved separately from installed packages
+fn parse_checkupdates_tool(output: &[u8]) -> Vec<(String, String)> {
+    String::from_utf8_lossy(output)
+        .lines()
+        .filter_map(|line| {
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                // Parse "package-name version" format
+                let parts: Vec<&str> = trimmed.split_whitespace().collect();
+                if parts.len() >= 2 {
+                    let name = parts[0].to_string();
+                    let new_version = parts[1..].join(" "); // In case version has spaces
+                    Some((name, new_version))
+                } else {
+                    None
+                }
+            }
+        })
+        .collect()
+}
+
+/// What: Get installed version of a package.
+///
+/// Inputs:
+/// - `package_name`: Name of the package
+///
+/// Output:
+/// - `Some(version)` if package is installed, `None` otherwise
+///
+/// Details:
+/// - Uses `pacman -Q` to get the installed version
+fn get_installed_version(package_name: &str) -> Option<String> {
+    use std::process::{Command, Stdio};
+
+    let output = Command::new("pacman")
+        .args(["-Q", package_name])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .output()
+        .ok()?;
+
+    if output.status.success() {
+        let text = String::from_utf8_lossy(&output.stdout);
+        // Format: "package-name version"
+        let parts: Vec<&str> = text.split_whitespace().collect();
+        if parts.len() >= 2 {
+            Some(parts[1..].join(" "))
+        } else {
+            None
+        }
+    } else {
+        None
+    }
+}
+
 /// What: Parse packages from -Qua output.
 ///
 /// Inputs:
@@ -700,14 +808,16 @@ fn parse_qua(output: &[u8]) -> Vec<(String, String, String)> {
         .collect()
 }
 
-/// What: Process pacman -Qu output and add packages to collections.
+/// What: Process pacman -Qu or checkupdates output and add packages to collections.
 ///
 /// Inputs:
 /// - `output`: Command output result
+/// - `is_checkupdates_tool`: `true` if output is from checkupdates tool, `false` if from pacman -Qu
 /// - `packages_map`: Mutable `HashMap` to store formatted package strings
 /// - `packages_set`: Mutable `HashSet` to track unique package names
 fn process_checkupdates_output(
     output: Result<std::process::Output, std::io::Error>,
+    is_checkupdates_tool: bool,
     packages_map: &mut std::collections::HashMap<String, String>,
     packages_set: &mut std::collections::HashSet<String>,
 ) {
@@ -715,34 +825,75 @@ fn process_checkupdates_output(
         Ok(output) => {
             let exit_code = output.status.code();
             if output.status.success() {
-                let packages = parse_checkupdates(&output.stdout);
-                let count = packages.len();
+                if is_checkupdates_tool {
+                    // Parse checkupdates output (package-name version format)
+                    let packages = parse_checkupdates_tool(&output.stdout);
+                    let count = packages.len();
 
-                // Parse pacman -Qu output which already contains old and new versions
-                for (name, old_version, new_version) in packages {
-                    // Format: "name - old_version -> name - new_version"
-                    let formatted = format!("{name} - {old_version} -> {name} - {new_version}");
-                    packages_map.insert(name.clone(), formatted);
-                    packages_set.insert(name);
+                    for (name, new_version) in packages {
+                        // Get old version from installed packages
+                        let old_version =
+                            get_installed_version(&name).unwrap_or_else(|| "unknown".to_string());
+                        // Format: "name - old_version -> name - new_version"
+                        let formatted = format!("{name} - {old_version} -> {name} - {new_version}");
+                        packages_map.insert(name.clone(), formatted);
+                        packages_set.insert(name);
+                    }
+
+                    tracing::debug!(
+                        "checkupdates completed successfully (exit code: {:?}): found {} packages from official repos",
+                        exit_code,
+                        count
+                    );
+                } else {
+                    // Parse pacman -Qu output (package-name old_version -> new_version format)
+                    let packages = parse_checkupdates(&output.stdout);
+                    let count = packages.len();
+
+                    for (name, old_version, new_version) in packages {
+                        // Format: "name - old_version -> name - new_version"
+                        let formatted = format!("{name} - {old_version} -> {name} - {new_version}");
+                        packages_map.insert(name.clone(), formatted);
+                        packages_set.insert(name);
+                    }
+
+                    tracing::debug!(
+                        "pacman -Qu completed successfully (exit code: {:?}): found {} packages from official repos",
+                        exit_code,
+                        count
+                    );
                 }
-
-                tracing::debug!(
-                    "pacman -Qu completed successfully (exit code: {:?}): found {} packages from official repos",
-                    exit_code,
-                    count
-                );
             } else if output.status.code() == Some(1) {
                 // Exit code 1 is normal (no updates)
-                tracing::debug!(
-                    "pacman -Qu returned exit code 1 (no updates available in official repos)"
-                );
+                if is_checkupdates_tool {
+                    tracing::debug!(
+                        "checkupdates returned exit code 1 (no updates available in official repos)"
+                    );
+                } else {
+                    tracing::debug!(
+                        "pacman -Qu returned exit code 1 (no updates available in official repos)"
+                    );
+                }
             } else {
                 // Other exit codes are errors
-                tracing::warn!("pacman -Qu command failed with exit code: {:?}", exit_code);
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                if is_checkupdates_tool {
+                    tracing::warn!(
+                        "checkupdates command failed with exit code: {:?}, stderr: {}",
+                        exit_code,
+                        stderr.trim()
+                    );
+                } else {
+                    tracing::warn!("pacman -Qu command failed with exit code: {:?}", exit_code);
+                }
             }
         }
         Err(e) => {
-            tracing::warn!("Failed to execute pacman -Qu: {}", e);
+            if is_checkupdates_tool {
+                tracing::warn!("Failed to execute checkupdates: {}", e);
+            } else {
+                tracing::warn!("Failed to execute pacman -Qu: {}", e);
+            }
         }
     }
 }
@@ -837,6 +988,7 @@ static UPDATE_CHECK_IN_PROGRESS: OnceLock<tokio::sync::Mutex<bool>> = OnceLock::
 /// - Saves list to `~/.config/pacsea/lists/available_updates.txt`
 /// - Sends `(count, sorted_list)` via channel
 /// - Uses synchronization to prevent concurrent update checks and file writes
+#[allow(clippy::too_many_lines)] // Complex function handling multiple update check methods
 pub fn spawn_updates_worker(updates_tx: mpsc::UnboundedSender<(usize, Vec<String>)>) {
     let updates_tx_once = updates_tx;
 
@@ -865,59 +1017,88 @@ pub fn spawn_updates_worker(updates_tx: mpsc::UnboundedSender<(usize, Vec<String
 
             // Try safe update check with temp database (non-Windows only)
             #[cfg(not(target_os = "windows"))]
-            let temp_db_path: Option<std::path::PathBuf> = if has_fakeroot() {
-                tracing::debug!("fakeroot is available, setting up temp database");
-                setup_temp_db().and_then(|temp_db| {
-                    tracing::debug!("Syncing temporary database at {:?}", temp_db);
-                    if sync_temp_db(&temp_db) {
-                        tracing::debug!("Temp database sync successful");
-                        Some(temp_db)
-                    } else {
-                        tracing::warn!("Temp database sync failed, falling back to pacman -Qu");
-                        None
-                    }
-                })
-            } else {
-                tracing::debug!("fakeroot not available, falling back to pacman -Qu");
-                None
+            let (temp_db_path, use_checkupdates_tool) = {
+                let db_result = if has_fakeroot() {
+                    tracing::debug!("fakeroot is available, setting up temp database");
+                    setup_temp_db().and_then(|temp_db| {
+                        tracing::debug!("Syncing temporary database at {:?}", temp_db);
+                        if sync_temp_db(&temp_db) {
+                            tracing::debug!("Temp database sync successful");
+                            Some(temp_db)
+                        } else {
+                            tracing::warn!("Temp database sync failed");
+                            None
+                        }
+                    })
+                } else {
+                    tracing::debug!("fakeroot not available");
+                    None
+                };
+
+                // If temp database sync failed, try checkupdates as fallback
+                if db_result.is_none() && has_checkupdates() {
+                    tracing::debug!("Temp database sync failed, trying checkupdates as fallback");
+                    (None, true)
+                } else if db_result.is_none() {
+                    tracing::warn!("Temp database sync failed and checkupdates not available, falling back to pacman -Qu (may show stale results)");
+                    (None, false)
+                } else {
+                    (db_result, false)
+                }
             };
 
-            // Execute pacman -Qu with appropriate --dbpath
+            // Execute update check command
             #[cfg(not(target_os = "windows"))]
-            let output_checkupdates = temp_db_path.as_ref().map_or_else(
-                || {
-                    tracing::debug!("Executing: pacman -Qu (using system database)");
-                    Command::new("pacman")
-                        .args(["-Qu"])
+            let (output_checkupdates, is_checkupdates_tool) = if use_checkupdates_tool {
+                tracing::debug!("Executing: checkupdates (automatically syncs database)");
+                (
+                    Command::new("checkupdates")
                         .stdin(Stdio::null())
                         .stdout(Stdio::piped())
-                        .stderr(Stdio::null())
-                        .output()
-                },
-                |db_path| {
-                    tracing::debug!(
-                        "Executing: pacman -Qu --dbpath {:?} (using synced temp database)",
-                        db_path
-                    );
+                        .stderr(Stdio::piped())
+                        .output(),
+                    true,
+                )
+            } else if let Some(db_path) = temp_db_path.as_ref() {
+                tracing::debug!(
+                    "Executing: pacman -Qu --dbpath {:?} (using synced temp database)",
+                    db_path
+                );
+                (
                     Command::new("pacman")
                         .args(["-Qu", "--dbpath"])
                         .arg(db_path)
                         .stdin(Stdio::null())
                         .stdout(Stdio::piped())
                         .stderr(Stdio::null())
-                        .output()
-                },
-            );
+                        .output(),
+                    false,
+                )
+            } else {
+                tracing::debug!("Executing: pacman -Qu (using system database - may be stale)");
+                (
+                    Command::new("pacman")
+                        .args(["-Qu"])
+                        .stdin(Stdio::null())
+                        .stdout(Stdio::piped())
+                        .stderr(Stdio::null())
+                        .output(),
+                    false,
+                )
+            };
 
             #[cfg(target_os = "windows")]
-            let output_checkupdates = {
+            let (output_checkupdates, is_checkupdates_tool) = {
                 tracing::debug!("Executing: pacman -Qu (Windows fallback)");
-                Command::new("pacman")
-                    .args(["-Qu"])
-                    .stdin(Stdio::null())
-                    .stdout(Stdio::piped())
-                    .stderr(Stdio::null())
-                    .output()
+                (
+                    Command::new("pacman")
+                        .args(["-Qu"])
+                        .stdin(Stdio::null())
+                        .stdout(Stdio::piped())
+                        .stderr(Stdio::null())
+                        .output(),
+                    false,
+                )
             };
 
             // Execute -Qua command (AUR) - only if helper is available
@@ -953,8 +1134,15 @@ pub fn spawn_updates_worker(updates_tx: mpsc::UnboundedSender<(usize, Vec<String
                 std::collections::HashMap::new();
             let mut packages_set = HashSet::new();
 
-            // Parse pacman -Qu output (official repos)
-            process_checkupdates_output(output_checkupdates, &mut packages_map, &mut packages_set);
+            // Parse pacman -Qu or checkupdates output (official repos)
+            #[cfg(target_os = "windows")]
+            let is_checkupdates_tool = false;
+            process_checkupdates_output(
+                output_checkupdates,
+                is_checkupdates_tool,
+                &mut packages_map,
+                &mut packages_set,
+            );
 
             // Parse -Qua output (AUR)
             process_qua_output(output_qua, helper, &mut packages_map, &mut packages_set);
