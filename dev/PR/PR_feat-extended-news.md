@@ -3,7 +3,7 @@
 - **Performance & Reliability**: Implemented circuit breaker pattern, rate limiting with exponential backoff, conditional HTTP requests (ETag/Last-Modified), and connection pooling to improve reliability and reduce bandwidth usage when fetching from archlinux.org.
 - **Caching**: Multi-layer caching system with persistent storage for news feeds, article content, and last-seen updates/comments. Increased cache TTLs (15min in-memory, 14d disk) to reduce network requests.
 - **UI Improvements**: Enhanced footer layout with multi-line keybinds, added loading indicators, improved filter chips, and extended Shift+char keybind support across all panes and modes.
-- **Fixes**: Fixed update detection fallback (checkupdates) for Landlock-restricted environments, improved AUR comment date filtering, enhanced error handling for HTTP requests, and fixed updates window alignment when text wraps.
+- **Fixes**: Fixed update detection fallback (checkupdates) for Landlock-restricted environments, improved AUR comment date filtering, enhanced error handling for HTTP requests, fixed updates window alignment when text wraps, and aligned options menu key bindings with display order in Package and News modes.
 
 ## Type of change
 - [x] feat (new feature)
@@ -84,6 +84,7 @@ cargo test -- --test-threads=1
 - Code quality: migrated deprecated rand API, improved curl parser, refactored HTTP error handling, added test script (`dev/scripts/test_arch.sh`).
 - UI: Shift+char keybinds via `handle_shift_keybinds`, improved footer layout, loading toasts, filter chips with clickable rects.
 - Updates window: fixed alignment issue when package names/versions wrap by pre-calculating wrapping and padding panes with empty lines to maintain row alignment across all three columns (left, center, right).
+- Options menu: reordered menu handlers to match displayed menu order in Package mode (List installed=1, Update system=2, TUI Optional Deps=3, News management=4) and News mode (Update system=1, TUI Optional Deps=2, Package mode=3), updated test cases to use correct key bindings.
 
 ## Breaking changes
 None.
