@@ -2,10 +2,11 @@
 
 use crate::state::NewsItem;
 use ego_tree::NodeRef;
+use reqwest;
 use scraper::{ElementRef, Html, Node, Selector};
 use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tracing::{debug, info, warn};
 
 /// Result type alias for Arch Linux news fetching operations.
@@ -17,15 +18,25 @@ struct ArticleCacheEntry {
     content: String,
     /// Timestamp when the cache entry was created.
     timestamp: Instant,
+    /// `ETag` from last response (for conditional requests).
+    etag: Option<String>,
+    /// `Last-Modified` date from last response (for conditional requests).
+    last_modified: Option<String>,
 }
 
 /// Disk cache entry for article content with Unix timestamp (for serialization).
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
 struct ArticleDiskCacheEntry {
     /// Cached article content.
     content: String,
     /// Unix timestamp (seconds since epoch) when the cache was saved.
     saved_at: i64,
+    /// `ETag` from last response (for conditional requests).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    etag: Option<String>,
+    /// `Last-Modified` date from last response (for conditional requests).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    last_modified: Option<String>,
 }
 
 /// In-memory cache for article content.
@@ -35,6 +46,20 @@ static ARTICLE_CACHE: LazyLock<Mutex<HashMap<String, ArticleCacheEntry>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 /// Cache TTL in seconds (15 minutes, same as news feed).
 const ARTICLE_CACHE_TTL_SECONDS: u64 = 900;
+
+/// Shared HTTP client with connection pooling for news content fetching.
+/// Connection pooling is enabled by default in `reqwest::Client`.
+static HTTP_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
+    reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(10))
+        .timeout(Duration::from_secs(15))
+        .user_agent(format!(
+            "Pacsea/{} (+https://github.com/Firstp1ck/Pacsea)",
+            env!("CARGO_PKG_VERSION")
+        ))
+        .build()
+        .expect("Failed to create HTTP client")
+});
 
 /// What: Get the disk cache TTL in seconds from settings.
 ///
@@ -60,21 +85,21 @@ fn article_disk_cache_path() -> std::path::PathBuf {
     crate::theme::lists_dir().join("news_article_cache.json")
 }
 
-/// What: Load cached article content from disk if available and not expired.
+/// What: Load cached article entry from disk if available and not expired.
 ///
 /// Inputs:
 /// - `url`: URL of the article to load from cache.
 ///
 /// Output:
-/// - `Some(String)` with cached content if valid cache exists, `None` otherwise.
+/// - `Some(ArticleDiskCacheEntry)` if valid cache exists, `None` otherwise.
 ///
 /// Details:
 /// - Returns `None` if file doesn't exist, is corrupted, or cache is older than configured TTL.
-fn load_article_from_disk_cache(url: &str) -> Option<String> {
+fn load_article_entry_from_disk_cache(url: &str) -> Option<ArticleDiskCacheEntry> {
     let path = article_disk_cache_path();
     let content = std::fs::read_to_string(&path).ok()?;
     let cache: HashMap<String, ArticleDiskCacheEntry> = serde_json::from_str(&content).ok()?;
-    let entry = cache.get(url)?;
+    let entry = cache.get(url)?.clone();
     let now = chrono::Utc::now().timestamp();
     let age = now - entry.saved_at;
     let ttl = article_disk_cache_ttl_seconds();
@@ -85,7 +110,7 @@ fn load_article_from_disk_cache(url: &str) -> Option<String> {
             ttl_days = ttl / 86400,
             "loaded article from disk cache"
         );
-        Some(entry.content.clone())
+        Some(entry)
     } else {
         debug!(
             url,
@@ -97,17 +122,20 @@ fn load_article_from_disk_cache(url: &str) -> Option<String> {
     }
 }
 
+
 /// What: Save article content to disk cache with current timestamp.
 ///
 /// Inputs:
 /// - `url`: URL of the article.
 /// - `content`: Article content to cache.
+/// - `etag`: Optional `ETag` from response.
+/// - `last_modified`: Optional `Last-Modified` date from response.
 ///
 /// Details:
 /// - Writes to disk asynchronously to avoid blocking.
 /// - Logs errors but does not propagate them.
 /// - Updates existing cache file, adding or updating the entry for this URL.
-fn save_article_to_disk_cache(url: &str, content: &str) {
+fn save_article_to_disk_cache(url: &str, content: &str, etag: Option<String>, last_modified: Option<String>) {
     let path = article_disk_cache_path();
     // Load existing cache or create new
     let mut cache: HashMap<String, ArticleDiskCacheEntry> = std::fs::read_to_string(&path)
@@ -121,6 +149,8 @@ fn save_article_to_disk_cache(url: &str, content: &str) {
         ArticleDiskCacheEntry {
             content: content.to_string(),
             saved_at: chrono::Utc::now().timestamp(),
+            etag,
+            last_modified,
         },
     );
     // Save back to disk
@@ -282,27 +312,32 @@ pub async fn fetch_news_content(url: &str) -> Result<String> {
     }
 
     // 1. Check in-memory cache first (fastest, 15-minute TTL)
-    if let Ok(cache) = ARTICLE_CACHE.lock()
+    let cached_entry: Option<ArticleCacheEntry> = if let Ok(cache) = ARTICLE_CACHE.lock()
         && let Some(entry) = cache.get(url)
         && entry.timestamp.elapsed().as_secs() < ARTICLE_CACHE_TTL_SECONDS
     {
         info!(url, "using in-memory cached article content");
         return Ok(entry.content.clone());
-    }
+    } else {
+        None
+    };
 
     // 2. Check disk cache (14-day TTL) - useful after app restart
-    if let Some(cached_content) = load_article_from_disk_cache(url) {
+    let disk_entry = load_article_entry_from_disk_cache(url);
+    if let Some(ref entry) = disk_entry {
         // Populate in-memory cache from disk
         if let Ok(mut cache) = ARTICLE_CACHE.lock() {
             cache.insert(
                 url.to_string(),
                 ArticleCacheEntry {
-                    content: cached_content.clone(),
+                    content: entry.content.clone(),
                     timestamp: Instant::now(),
+                    etag: entry.etag.clone(),
+                    last_modified: entry.last_modified.clone(),
                 },
             );
         }
-        return Ok(cached_content);
+        return Ok(entry.content.clone());
     }
 
     // 3. Apply rate limiting for archlinux.org URLs
@@ -310,22 +345,126 @@ pub async fn fetch_news_content(url: &str) -> Result<String> {
         crate::sources::feeds::rate_limit_archlinux().await;
     }
 
-    // 4. Fetch from network
+    // 4. Check circuit breaker before making request
+    let endpoint_pattern = crate::sources::feeds::extract_endpoint_pattern(url);
+    if let Err(e) = crate::sources::feeds::check_circuit_breaker(&endpoint_pattern) {
+        warn!(url, endpoint_pattern, error = %e, "circuit breaker blocking request");
+        // Try to return cached content if available
+        if let Some(cached) = cached_entry {
+            return Ok(cached.content);
+        }
+        if let Some(disk) = disk_entry {
+            return Ok(disk.content);
+        }
+        return Err(e);
+    }
+
+    // 5. Fetch from network with conditional requests
     let url_owned = url.to_string();
     let url_for_log = url_owned.clone();
-    // Use shorter timeout (10s connect, 15s max) to avoid blocking on slow/unreachable servers
-    let body = tokio::task::spawn_blocking(move || {
-        crate::util::curl::curl_text_with_args(
-            &url_owned,
-            &["--connect-timeout", "10", "--max-time", "15"],
-        )
-    })
-    .await?
-    .map_err(|e| {
+    // Get cached ETag/Last-Modified for conditional request
+    let cached_etag = cached_entry
+        .as_ref()
+        .and_then(|e: &ArticleCacheEntry| e.etag.as_ref())
+        .or_else(|| disk_entry.as_ref().and_then(|e| e.etag.as_ref()))
+        .cloned();
+    let cached_last_modified = cached_entry
+        .as_ref()
+        .and_then(|e: &ArticleCacheEntry| e.last_modified.as_ref())
+        .or_else(|| disk_entry.as_ref().and_then(|e| e.last_modified.as_ref()))
+        .cloned();
+
+    // Fetch from network with conditional requests using reqwest (connection pooling)
+    let client = HTTP_CLIENT.clone();
+    let mut request = client.get(&url_owned);
+
+    // Add conditional request headers if we have cached ETag/Last-Modified
+    if let Some(ref etag) = cached_etag {
+        request = request.header("If-None-Match", etag);
+    }
+    if let Some(ref last_mod) = cached_last_modified {
+        request = request.header("If-Modified-Since", last_mod);
+    }
+
+    let http_response = request.send().await.map_err(|e| {
         warn!(error = %e, url = %url_for_log, "failed to fetch news content");
-        e
+        // Record failure in circuit breaker
+        crate::sources::feeds::record_circuit_breaker_outcome(&endpoint_pattern, false);
+        Box::<dyn std::error::Error + Send + Sync>::from(format!("Network error: {e}"))
     })?;
+
+    let status = http_response.status();
+    let status_code = status.as_u16();
+
+    // Handle 304 Not Modified - return cached content
+    if status_code == 304 {
+        info!(url, "server returned 304 Not Modified, using cached content");
+        if let Some(cached) = cached_entry {
+            return Ok(cached.content);
+        }
+        if let Some(disk) = disk_entry {
+            return Ok(disk.content);
+        }
+        // Fallback: should not happen, but handle gracefully
+        warn!(url, "304 response but no cached content available");
+        return Err("304 Not Modified but no cache available".into());
+    }
+
+    // Extract ETag and Last-Modified from response headers before consuming body
+    let etag = http_response
+        .headers()
+        .get("etag")
+        .and_then(|h| h.to_str().ok())
+        .map(ToString::to_string);
+    let last_modified = http_response
+        .headers()
+        .get("last-modified")
+        .and_then(|h| h.to_str().ok())
+        .map(ToString::to_string);
+
+    // Check for HTTP errors
+    if (status.is_client_error() || status.is_server_error())
+        && {
+            // Record failure in circuit breaker
+            crate::sources::feeds::record_circuit_breaker_outcome(&endpoint_pattern, false);
+            true
+        }
+    {
+        let error_msg = if status_code == 429 {
+            let mut msg = "HTTP 429 Too Many Requests - rate limited by server".to_string();
+            if let Some(retry_after) = http_response.headers().get("retry-after")
+                && let Ok(retry_str) = retry_after.to_str()
+            {
+                msg.push_str(" (Retry-After: ");
+                msg.push_str(retry_str);
+                msg.push(')');
+            }
+            msg
+        } else if status_code == 503 {
+            let mut msg = "HTTP 503 Service Unavailable".to_string();
+            if let Some(retry_after) = http_response.headers().get("retry-after")
+                && let Ok(retry_str) = retry_after.to_str()
+            {
+                msg.push_str(" (Retry-After: ");
+                msg.push_str(retry_str);
+                msg.push(')');
+            }
+            msg
+        } else {
+            format!("HTTP error: {status}")
+        };
+        return Err(error_msg.into());
+    }
+
+    let body = http_response.text().await.map_err(|e| {
+        warn!(error = %e, url = %url_for_log, "failed to read response body");
+        Box::<dyn std::error::Error + Send + Sync>::from(format!("Failed to read response: {e}"))
+    })?;
+
     info!(url, bytes = body.len(), "fetched news page");
+
+    // Record success in circuit breaker
+    crate::sources::feeds::record_circuit_breaker_outcome(&endpoint_pattern, true);
 
     // Extract article content from HTML
     let content = parse_arch_news_html(&body, Some(url));
@@ -336,7 +475,7 @@ pub async fn fetch_news_content(url: &str) -> Result<String> {
         info!(url, parsed_len, "parsed news content");
     }
 
-    // 5. Cache the result
+    // 5. Cache the result with ETag/Last-Modified
     // Save to in-memory cache
     if let Ok(mut cache) = ARTICLE_CACHE.lock() {
         cache.insert(
@@ -344,11 +483,13 @@ pub async fn fetch_news_content(url: &str) -> Result<String> {
             ArticleCacheEntry {
                 content: content.clone(),
                 timestamp: Instant::now(),
+                etag: etag.clone(),
+                last_modified: last_modified.clone(),
             },
         );
     }
     // Save to disk cache for persistence across restarts
-    save_article_to_disk_cache(url, &content);
+    save_article_to_disk_cache(url, &content, etag, last_modified);
 
     Ok(content)
 }

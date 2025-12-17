@@ -8,6 +8,7 @@
 //! - Redacts URL query parameters in debug logs to prevent potential secret leakage
 
 use super::curl_args;
+use chrono;
 use serde_json::Value;
 use std::sync::OnceLock;
 
@@ -271,30 +272,135 @@ pub fn curl_text(url: &str) -> Result<String> {
     curl_text_with_args(url, &[])
 }
 
-/// What: Fetch plain text from a URL using curl with custom arguments.
+/// What: Parse Retry-After header value into seconds.
+///
+/// Inputs:
+/// - `retry_after`: Retry-After header value (can be seconds as number or HTTP-date)
+///
+/// Output:
+/// - `Some(seconds)` if parsing succeeds, `None` otherwise
+///
+/// Details:
+/// - Supports both numeric format (seconds) and HTTP-date format (RFC 7231).
+/// - For HTTP-date, calculates seconds until that date.
+fn parse_retry_after(retry_after: &str) -> Option<u64> {
+    let trimmed = retry_after.trim();
+    // Try parsing as number (seconds)
+    if let Ok(seconds) = trimmed.parse::<u64>() {
+        return Some(seconds);
+    }
+    // Try parsing as HTTP-date (RFC 7231)
+    // Common formats: "Wed, 21 Oct 2015 07:28:00 GMT", "Wed, 21 Oct 2015 07:28:00 +0000"
+    if let Ok(dt) = chrono::DateTime::parse_from_rfc2822(trimmed) {
+        let now = chrono::Utc::now();
+        let retry_time = dt.with_timezone(&chrono::Utc);
+        if retry_time > now {
+            let duration = retry_time - now;
+            let seconds = duration.num_seconds().max(0);
+            // Safe: seconds is non-negative, and u64::MAX is much larger than any reasonable retry time
+            #[allow(clippy::cast_sign_loss)]
+            return Some(seconds as u64);
+        }
+        return Some(0);
+    }
+    // Try RFC 3339 format
+    if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(trimmed) {
+        let now = chrono::Utc::now();
+        let retry_time = dt.with_timezone(&chrono::Utc);
+        if retry_time > now {
+            let duration = retry_time - now;
+            let seconds = duration.num_seconds().max(0);
+            // Safe: seconds is non-negative, and u64::MAX is much larger than any reasonable retry time
+            #[allow(clippy::cast_sign_loss)]
+            return Some(seconds as u64);
+        }
+        return Some(0);
+    }
+    None
+}
+
+/// What: Extract header value from HTTP response headers (case-insensitive).
+///
+/// Inputs:
+/// - `headers_text`: Raw HTTP headers text (from curl -i output)
+/// - `header_name`: Name of the header to extract (case-insensitive)
+///
+/// Output:
+/// - `Some(value)` if header found, `None` otherwise
+///
+/// Details:
+/// - Searches for header name (case-insensitive).
+/// - Returns trimmed value after the colon.
+fn extract_header_value(headers_text: &str, header_name: &str) -> Option<String> {
+    let header_lower = header_name.to_lowercase();
+    for line in headers_text.lines() {
+        let line_lower = line.trim_start().to_lowercase();
+        if line_lower.starts_with(&format!("{header_lower}:"))
+            && let Some(colon_pos) = line.find(':')
+        {
+            let value = line[colon_pos + 1..].trim().to_string();
+            return Some(value);
+        }
+    }
+    None
+}
+
+/// What: Extract Retry-After header value from HTTP response headers.
+///
+/// Inputs:
+/// - `headers_text`: Raw HTTP headers text (from curl -i output)
+///
+/// Output:
+/// - `Some(seconds)` if Retry-After header found and parsed, `None` otherwise
+///
+/// Details:
+/// - Searches for "Retry-After:" header (case-insensitive).
+/// - Parses the value using `parse_retry_after()`.
+fn extract_retry_after(headers_text: &str) -> Option<u64> {
+    extract_header_value(headers_text, "Retry-After")
+        .as_deref()
+        .and_then(parse_retry_after)
+}
+
+/// Response metadata including headers for parsing `Retry-After`, `ETag`, and `Last-Modified`.
+#[derive(Debug, Clone)]
+pub struct CurlResponse {
+    /// Response body.
+    pub body: String,
+    /// HTTP status code.
+    pub status_code: Option<u16>,
+    /// Retry-After header value in seconds, if present.
+    pub retry_after_seconds: Option<u64>,
+    /// `ETag` header value, if present.
+    pub etag: Option<String>,
+    /// Last-Modified header value, if present.
+    pub last_modified: Option<String>,
+}
+
+/// What: Fetch plain text from a URL using curl with custom arguments, including headers.
 ///
 /// Inputs:
 /// - `url`: URL to request
 /// - `extra_args`: Additional curl arguments (e.g., `["--max-time", "10"]`)
 ///
 /// Output:
-/// - `Ok(String)` with response body; `Err` if curl or UTF-8 decoding fails
+/// - `Ok(CurlResponse)` with response body, status code, and parsed headers; `Err` if curl or UTF-8 decoding fails
 ///
 /// # Errors
 /// - Returns `Err` when curl command execution fails (I/O error or curl not found)
 /// - Returns `Err` when curl exits with non-zero status (network errors, HTTP errors, timeouts)
 /// - Returns `Err` when response body cannot be decoded as UTF-8
-/// - Returns `Err` with message containing "429" when HTTP 429 (Too Many Requests) is received
 ///
 /// Details:
-/// - Executes curl with appropriate flags plus extra arguments.
-/// - On Windows, uses `-k` flag to skip SSL certificate verification.
-/// - Uses `-w "\n%{http_code}\n"` to detect HTTP status codes, especially 429.
-/// - Provides user-friendly error messages for common curl failure cases.
-/// - HTTP 429 errors are detected and returned with a specific error message for handling.
-pub fn curl_text_with_args(url: &str, extra_args: &[&str]) -> Result<String> {
+/// - Executes curl with `-i` flag to include headers in output.
+/// - Uses `-w "\n%{http_code}\n"` to get HTTP status code at the end.
+/// - Parses Retry-After header from response headers.
+/// - Separates headers from body in the response.
+pub fn curl_text_with_args_headers(url: &str, extra_args: &[&str]) -> Result<CurlResponse> {
     let mut args = curl_args(url, extra_args);
-    // Append write-out format to get HTTP status code at the end for 429 detection
+    // Include headers in output (-i flag)
+    args.push("-i".to_string());
+    // Append write-out format to get HTTP status code at the end
     args.push("-w".to_string());
     args.push("\n%{http_code}\n".to_string());
     let curl_bin = get_curl_path();
@@ -313,27 +419,166 @@ pub fn curl_text_with_args(url: &str, extra_args: &[&str]) -> Result<String> {
         .last()
         .and_then(|line| line.trim().parse::<u16>().ok());
 
-    // Remove status code line from body
-    let body = if status_code.is_some() {
-        stdout
-            .lines()
-            .take(stdout.lines().count().saturating_sub(1))
-            .collect::<Vec<_>>()
-            .join("\n")
+    // Find the boundary between headers and body (empty line)
+    let lines: Vec<&str> = stdout.lines().collect();
+    let mut header_end = 0;
+    let mut found_empty_line = false;
+    for (i, line) in lines.iter().enumerate() {
+        if line.trim().is_empty() && i > 0 {
+            // Found empty line separating headers from body
+            header_end = i;
+            found_empty_line = true;
+            break;
+        }
+    }
+
+    // Extract headers and body
+    let (headers_text, body_lines) = if found_empty_line {
+        let headers: Vec<&str> = lines[..header_end].to_vec();
+        // Skip the empty line and status code line at the end
+        let body_end = lines.len().saturating_sub(1); // Exclude status code line
+        let body: Vec<&str> = if header_end + 1 < body_end {
+            lines[header_end + 1..body_end].to_vec()
+        } else {
+            vec![]
+        };
+        (headers.join("\n"), body.join("\n"))
     } else {
-        stdout
+        // No headers found, treat entire output as body (minus status code)
+        let body_end = lines.len().saturating_sub(1);
+        let body: Vec<&str> = if body_end > 0 { lines[..body_end].to_vec() } else { vec![] };
+        (String::new(), body.join("\n"))
     };
 
-    if !out.status.success() {
-        // Check if we got HTTP 429 (Too Many Requests)
-        if status_code == Some(429) {
-            return Err("HTTP 429 Too Many Requests - rate limited by server".into());
+    // Parse headers
+    let retry_after_seconds = (!headers_text.is_empty()).then(|| extract_retry_after(&headers_text)).flatten();
+    let etag = (!headers_text.is_empty()).then(|| extract_header_value(&headers_text, "ETag")).flatten();
+    let last_modified = (!headers_text.is_empty()).then(|| extract_header_value(&headers_text, "Last-Modified")).flatten();
+
+    Ok(CurlResponse {
+        body: body_lines,
+        status_code,
+        retry_after_seconds,
+        etag,
+        last_modified,
+    })
+}
+
+/// What: Fetch plain text from a URL using curl with custom arguments.
+///
+/// Inputs:
+/// - `url`: URL to request
+/// - `extra_args`: Additional curl arguments (e.g., `["--max-time", "10"]`)
+///
+/// Output:
+/// - `Ok(String)` with response body; `Err` if curl or UTF-8 decoding fails
+///
+/// # Errors
+/// - Returns `Err` when curl command execution fails (I/O error or curl not found)
+/// - Returns `Err` when curl exits with non-zero status (network errors, HTTP errors, timeouts)
+/// - Returns `Err` when response body cannot be decoded as UTF-8
+/// - Returns `Err` with message containing "429" when HTTP 429 (Too Many Requests) is received
+///
+/// Details:
+/// - Executes curl with appropriate flags plus extra arguments.
+/// - On Windows, uses `-k` flag to skip SSL certificate verification.
+/// - Uses `-i` flag to include headers for Retry-After parsing.
+/// - Uses `-w "\n%{http_code}\n"` to detect HTTP status codes, especially 429.
+/// - Provides user-friendly error messages for common curl failure cases.
+/// - HTTP 429/503 errors include Retry-After information when available.
+pub fn curl_text_with_args(url: &str, extra_args: &[&str]) -> Result<String> {
+    let mut args = curl_args(url, extra_args);
+    // Include headers in output (-i flag) for Retry-After parsing
+    args.push("-i".to_string());
+    // Append write-out format to get HTTP status code at the end
+    args.push("-w".to_string());
+    args.push("\n%{http_code}\n".to_string());
+    let curl_bin = get_curl_path();
+    let out = std::process::Command::new(curl_bin)
+        .args(&args)
+        .output()
+        .map_err(|e| {
+            format!("curl command failed to execute: {e} (is curl installed and in PATH?)")
+        })?;
+
+    let stdout = String::from_utf8(out.stdout)?;
+
+    // Parse status code from the end of output (last line should be the status code)
+    let status_code = stdout
+        .lines()
+        .last()
+        .and_then(|line| line.trim().parse::<u16>().ok());
+
+    // Find the boundary between headers and body (empty line)
+    let lines: Vec<&str> = stdout.lines().collect();
+    let mut header_end = 0;
+    let mut found_empty_line = false;
+    for (i, line) in lines.iter().enumerate() {
+        if line.trim().is_empty() && i > 0 {
+            // Found empty line separating headers from body
+            header_end = i;
+            found_empty_line = true;
+            break;
         }
+    }
+
+    // Extract headers and body
+    let (headers_text, body_lines) = if found_empty_line {
+        let headers: Vec<&str> = lines[..header_end].to_vec();
+        // Skip the empty line and status code line at the end
+        let body_end = lines.len().saturating_sub(1); // Exclude status code line
+        let body: Vec<&str> = if header_end + 1 < body_end {
+            lines[header_end + 1..body_end].to_vec()
+        } else {
+            vec![]
+        };
+        (headers.join("\n"), body.join("\n"))
+    } else {
+        // No headers found, treat entire output as body (minus status code)
+        let body_end = lines.len().saturating_sub(1);
+        let body: Vec<&str> = if body_end > 0 { lines[..body_end].to_vec() } else { vec![] };
+        (String::new(), body.join("\n"))
+    };
+
+    // Parse headers
+    let retry_after_seconds = if headers_text.is_empty() {
+        None
+    } else {
+        extract_retry_after(&headers_text)
+    };
+
+    // Check for HTTP errors
+    if let Some(code) = status_code
+        && code >= 400
+    {
+        // Check if we got HTTP 429 (Too Many Requests)
+        if code == 429 {
+            let mut error_msg = "HTTP 429 Too Many Requests - rate limited by server".to_string();
+            if let Some(retry_after) = retry_after_seconds {
+                error_msg.push_str(" (Retry-After: ");
+                error_msg.push_str(&retry_after.to_string());
+                error_msg.push_str("s)");
+            }
+            return Err(error_msg.into());
+        }
+        if code == 503 {
+            let mut error_msg = "HTTP 503 Service Unavailable".to_string();
+            if let Some(retry_after) = retry_after_seconds {
+                error_msg.push_str(" (Retry-After: ");
+                error_msg.push_str(&retry_after.to_string());
+                error_msg.push_str("s)");
+            }
+            return Err(error_msg.into());
+        }
+    }
+
+    // Check curl exit status for other errors
+    if !out.status.success() {
         let error_msg = map_curl_error(out.status.code(), out.status);
         return Err(error_msg.into());
     }
 
-    Ok(body)
+    Ok(body_lines)
 }
 
 #[cfg(test)]
