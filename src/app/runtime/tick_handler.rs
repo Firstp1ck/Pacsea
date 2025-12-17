@@ -601,7 +601,7 @@ pub fn handle_tick(
     // Only check timeout if main news feed is not loading (to avoid showing timeout toast during initial load)
     if app.news_content_loading && !app.news_loading {
         if let Some(started) = app.news_content_loading_since {
-            if started.elapsed() > std::time::Duration::from_secs(6) {
+            if started.elapsed() > std::time::Duration::from_secs(10) {
                 let url = app
                     .news_results
                     .get(app.news_selected)
@@ -614,7 +614,7 @@ pub fn handle_tick(
                 );
                 app.news_content_loading = false;
                 app.news_content_loading_since = None;
-                app.news_content = Some("Failed to load content: timed out after 6s".to_string());
+                app.news_content = Some("Failed to load content: timed out after 10s".to_string());
                 app.toast_message = Some("News content timed out".to_string());
                 app.toast_expires_at = Some(Instant::now() + std::time::Duration::from_secs(3));
             } else {

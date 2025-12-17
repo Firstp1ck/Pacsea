@@ -3,7 +3,7 @@
 - Added a dedicated `[AUR Upd]` news filter toggle so AUR update items can be shown/hidden independently of official package updates; defaults on and persists in settings.
 - Added cached news feed and last-seen update/comment maps (`news_feed.json`, `news_seen_pkg_updates.json`, `news_seen_aur_comments.json`) with loading state and filter chips for updates/comments.
 - Added news content caching mechanism with persistence (`news_content_cache.json`) to improve loading performance; cached article bodies are reused on subsequent views.
-- Added news content loading timeout (6-second limit) with enhanced logging for requests/responses to prevent indefinite loading states.
+- Added news content loading timeout (10-second limit) with enhanced logging for requests/responses to prevent indefinite loading states.
 - Added startup news popup configuration modal allowing users to configure which news types to display (Arch news, advisories, AUR updates, AUR comments, package updates) on first launch.
 - Added timeout settings for news fetching (10s connect, 15s max) to prevent blocking on slow or unreachable servers.
 - Added severity-based sorting (`SeverityThenDate`) and unread-based sorting (`UnreadThenDate`) options for prioritizing critical advisories and unread items.
@@ -42,7 +42,7 @@ cargo test complexity -- --nocapture --test-threads=1
 - On first launch, verify the startup news popup configuration modal appears and allows configuring news display preferences.
 - Run a news search, confirm the history pane records queries, and restart to ensure history/bookmarks persist.
 - Open a news item to fetch content, scroll, and ensure subsequent openings use the cached body from `news_content_cache.json`.
-- Test news content timeout: open a news item from a slow/unreachable server and verify it times out after 6 seconds with appropriate error feedback.
+- Test news content timeout: open a news item from a slow/unreachable server and verify it times out after 10 seconds with appropriate error feedback.
 - Test sorting options: verify `SeverityThenDate` prioritizes critical advisories and `UnreadThenDate` shows unread items first.
 - Load a news bookmark that has no cached HTML/content and confirm the details pane clears stale content, resets `news_content_loading`, and allows a fresh content request.
 - Verify update detection shows all available official package updates even when temp database sync fails (checkupdates fallback should be used automatically).
@@ -90,7 +90,7 @@ cargo test complexity -- --nocapture --test-threads=1
 - News mode persists `news_recent_searches.json`, `news_bookmarks.json`, `news_read_urls.json`, and `news_content_cache.json` (bookmarks loader keeps backward compatibility with old feed item format).
 - Settings gain `app_start_mode` (`package`/`news`, alias `start_in_news`), `news_filter_show_arch_news`, `news_filter_show_advisories`, `news_filter_show_pkg_updates`, `news_filter_show_aur_comments`, `news_filter_installed_only`, and `news_max_age_days`; defaults/locales updated to match.
 - News content worker caches article bodies in `news_content_cache.json` (error messages filtered out) and treats AUR package URLs as comment views; filter chips expose clickable rects for mouse-driven toggles.
-- News content loading includes a 6-second timeout with detailed logging; application state tracks `news_content_loading_since` for timeout management.
+- News content loading includes a 10-second timeout with detailed logging; application state tracks `news_content_loading_since` for timeout management.
 - News fetching uses shorter timeouts (10s connect, 15s max) to prevent blocking on slow servers; curl calls include timeout arguments.
 - Startup news popup configuration modal appears on first launch to configure news display preferences; state tracks `news_startup_config_completed`.
 - News sorting includes `SeverityThenDate` (prioritizes critical advisories) and `UnreadThenDate` (prioritizes unread items) modes; severity ranking system implemented.
