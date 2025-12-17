@@ -1,20 +1,20 @@
-use crate::i18n;
 use crate::state::AppState;
-use crate::state::types::{AppMode, NewsFeedSource, NewsReadFilter};
+use crate::state::types::AppMode;
 use crate::theme::theme;
 use ratatui::{
     Frame,
     prelude::Rect,
-    style::{Modifier, Style},
-    text::{Line, Span},
+    style::Style,
+    text::Line,
     widgets::{Block, BorderType, Borders, List, ListItem},
 };
-use unicode_width::UnicodeWidthStr;
 
 /// Dropdown menu rendering module.
 mod dropdowns;
 /// Search results list rendering module.
 mod list;
+/// News feed rendering module.
+mod news;
 /// Sort menu rendering module.
 mod sort_menu;
 /// Status bar rendering module.
@@ -243,269 +243,38 @@ pub use dropdowns::render_dropdowns;
 /// Output: Renders news feed items as a list.
 ///
 /// Details: Renders news feed items from `app.news_results` as a list with source labels.
-#[allow(clippy::too_many_lines)]
 fn render_news_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     let th = theme();
-    let prefs = crate::theme::settings();
-    // Show cached items immediately even when loading (if they exist)
-    // This provides better UX - user sees cached news while fresh news are fetched
-    let items: Vec<ListItem> = if app.news_loading && app.news_results.is_empty() {
-        // Only show "Loading..." if no cached items exist
+    // Record results rect first (before any other mutations)
+    app.results_rect = Some((area.x, area.y, area.width, area.height));
+
+    // Extract all immutable data we need first (clone to avoid borrowing)
+    let news_loading = app.news_loading;
+    let news_results = app.news_results.clone();
+    let news_read_ids = app.news_read_ids.clone();
+    let news_read_urls = app.news_read_urls.clone();
+    let needs_select_none = news_loading && news_results.is_empty();
+
+    // Now do all mutable operations first
+    // Handle news_list_state mutation
+    if needs_select_none {
         app.news_list_state.select(None);
-        vec![ListItem::new(Line::from(ratatui::text::Span::styled(
-            "Loading news feed...",
-            Style::default().fg(th.overlay1),
-        )))]
-    } else {
-        // Show cached items immediately (even while loading fresh news)
-        app.news_results
-            .iter()
-            .map(|item| {
-                let is_read = app.news_read_ids.contains(&item.id)
-                    || item
-                        .url
-                        .as_ref()
-                        .is_some_and(|u| app.news_read_urls.contains(u));
-                let read_symbol = if is_read {
-                    &prefs.news_read_symbol
-                } else {
-                    &prefs.news_unread_symbol
-                };
-                let read_style = if is_read {
-                    Style::default().fg(th.overlay1)
-                } else {
-                    Style::default().fg(th.green)
-                };
-                let (source_label, source_color) = match item.source {
-                    NewsFeedSource::ArchNews => ("Arch", th.sapphire),
-                    NewsFeedSource::SecurityAdvisory => ("Advisory", th.yellow),
-                    NewsFeedSource::InstalledPackageUpdate => ("Update", th.green),
-                    NewsFeedSource::AurPackageUpdate => ("AUR Upd", th.mauve),
-                    NewsFeedSource::AurComment => ("AUR Cmt", th.yellow),
-                };
-                let sev = item
-                    .severity
-                    .as_ref()
-                    .map_or_else(String::new, |s| format!("{s:?}"));
-                // Apply keyword highlighting to title for Arch News
-                let highlight_style = ratatui::style::Style::default()
-                    .fg(th.yellow)
-                    .add_modifier(Modifier::BOLD);
-                let title_spans = if matches!(item.source, NewsFeedSource::ArchNews) {
-                    render_aur_comment_keywords(&item.title, &th, highlight_style)
-                } else {
-                    vec![ratatui::text::Span::raw(item.title.clone())]
-                };
+    }
 
-                let mut spans = vec![
-                    ratatui::text::Span::styled(
-                        format!("{read_symbol} "),
-                        read_style.add_modifier(Modifier::BOLD),
-                    ),
-                    ratatui::text::Span::styled(
-                        format!("[{source_label}]"),
-                        Style::default().fg(source_color),
-                    ),
-                    ratatui::text::Span::raw(" "),
-                    ratatui::text::Span::raw(item.date.clone()),
-                    ratatui::text::Span::raw(" "),
-                ];
-                spans.extend(title_spans);
-                if !sev.is_empty() {
-                    spans.push(ratatui::text::Span::raw(" "));
-                    spans.push(ratatui::text::Span::styled(
-                        format!("[{sev}]"),
-                        Style::default().fg(th.yellow),
-                    ));
-                }
-                if let Some(summary) = item.summary.as_ref() {
-                    spans.push(ratatui::text::Span::raw(" – "));
-                    spans.extend(render_summary_spans(summary, &th, item.source));
-                }
-                let item_style = if is_read {
-                    Style::default().fg(th.subtext1)
-                } else {
-                    Style::default().fg(th.text)
-                };
-                ListItem::new(Line::from(spans)).style(item_style)
-            })
-            .collect()
-    };
-    let title_text = if app.news_loading {
-        "News Feed (loading...)".to_string()
-    } else {
-        format!("News Feed ({})", app.news_results.len())
-    };
-    let age_label = app
-        .news_max_age_days
-        .map_or_else(|| "All".to_string(), |d| format!("{d} Days"));
-    let sort_label = format!("{} v", i18n::t(app, "app.results.buttons.sort"));
-    let date_label = format!("Date: {age_label}");
-    let options_label = format!("{} v", i18n::t(app, "app.results.buttons.options"));
-    let panels_label = format!("{} v", i18n::t(app, "app.results.buttons.panels"));
-    let config_label = format!("{} v", i18n::t(app, "app.results.buttons.config_lists"));
-    let arch_filter_label = format!("[{}]", i18n::t(app, "app.news.filters.arch"));
-    let advisory_filter_label = if !app.news_filter_show_advisories {
-        "[Advisories Off]".to_string()
-    } else if app.news_filter_installed_only {
-        "[Advisories Installed]".to_string()
-    } else {
-        "[Advisories All]".to_string()
-    };
-    let updates_filter_label = "[Updates]".to_string();
-    let aur_updates_filter_label = "[AUR Upd]".to_string();
-    let aur_comments_filter_label = "[AUR Comments]".to_string();
-    let read_filter_label = match app.news_filter_read_status {
-        NewsReadFilter::All => "[All]".to_string(),
-        NewsReadFilter::Read => "[Read]".to_string(),
-        NewsReadFilter::Unread => "[Unread]".to_string(),
-    };
+    // Build title spans and record rects (mutates app button/filter rects)
+    let title_spans = news::build_news_title_spans_and_record_rects(app, area);
 
-    let button_style = |is_open: bool| -> Style {
-        if is_open {
-            Style::default()
-                .fg(th.crust)
-                .bg(th.mauve)
-                .add_modifier(Modifier::BOLD)
-        } else {
-            Style::default()
-                .fg(th.mauve)
-                .bg(th.surface2)
-                .add_modifier(Modifier::BOLD)
-        }
-    };
-
-    let render_button = |label: &str, is_open: bool| -> Vec<Span<'static>> {
-        let style = button_style(is_open);
-        let mut spans = Vec::new();
-        if let Some(first) = label.chars().next() {
-            let rest = &label[first.len_utf8()..];
-            spans.push(Span::styled(
-                first.to_string(),
-                style.add_modifier(Modifier::UNDERLINED),
-            ));
-            spans.push(Span::styled(rest.to_string(), style));
-        } else {
-            spans.push(Span::styled(label.to_string(), style));
-        }
-        spans
-    };
-
-    let render_filter = |label: &str, active: bool| -> Span<'static> {
-        let (fg, bg) = if active {
-            (th.crust, th.green)
-        } else {
-            (th.mauve, th.surface2)
-        };
-        Span::styled(
-            label.to_string(),
-            Style::default().fg(fg).bg(bg).add_modifier(Modifier::BOLD),
+    // Build and render list inline to avoid storing items across mutable operations
+    f.render_stateful_widget(
+        List::new(
+            news::build_news_list_items(
+                news_loading,
+                &news_results,
+                &news_read_ids,
+                &news_read_urls,
+            )
+            .0,
         )
-    };
-
-    let date_button_spans = render_button(&date_label, false);
-    let options_button_spans = render_button(&options_label, app.options_menu_open);
-    let panels_button_spans = render_button(&panels_label, app.panels_menu_open);
-    let config_button_spans = render_button(&config_label, app.config_menu_open);
-    let arch_filter_span = render_filter(&arch_filter_label, app.news_filter_show_arch_news);
-    let advisory_filter_span =
-        render_filter(&advisory_filter_label, app.news_filter_show_advisories);
-    let updates_filter_span =
-        render_filter(&updates_filter_label, app.news_filter_show_pkg_updates);
-    let aur_updates_filter_span =
-        render_filter(&aur_updates_filter_label, app.news_filter_show_aur_updates);
-    let aur_comments_filter_span = render_filter(
-        &aur_comments_filter_label,
-        app.news_filter_show_aur_comments,
-    );
-    let read_filter_span = render_filter(
-        &read_filter_label,
-        !matches!(app.news_filter_read_status, NewsReadFilter::All),
-    );
-
-    let inner_width = area.width.saturating_sub(2);
-    let title_width = u16::try_from(title_text.width()).unwrap_or(u16::MAX);
-    let arch_width = u16::try_from(arch_filter_label.width()).unwrap_or(u16::MAX);
-    let advisory_width = u16::try_from(advisory_filter_label.width()).unwrap_or(u16::MAX);
-    let updates_width = u16::try_from(updates_filter_label.width()).unwrap_or(u16::MAX);
-    let aur_updates_width = u16::try_from(aur_updates_filter_label.width()).unwrap_or(u16::MAX);
-    let aur_comments_width = u16::try_from(aur_comments_filter_label.width()).unwrap_or(u16::MAX);
-    let read_width = u16::try_from(read_filter_label.width()).unwrap_or(u16::MAX);
-    let date_width = u16::try_from(date_label.width()).unwrap_or(u16::MAX);
-    let sort_width = u16::try_from(sort_label.width()).unwrap_or(u16::MAX);
-    let options_width = u16::try_from(options_label.width()).unwrap_or(u16::MAX);
-    let panels_width = u16::try_from(panels_label.width()).unwrap_or(u16::MAX);
-    let config_width = u16::try_from(config_label.width()).unwrap_or(u16::MAX);
-
-    let mut title_spans: Vec<Span<'static>> = Vec::new();
-    title_spans.push(Span::styled(title_text, Style::default().fg(th.overlay1)));
-    title_spans.push(Span::raw("  "));
-
-    let mut x_cursor = area
-        .x
-        .saturating_add(1)
-        .saturating_add(title_width)
-        .saturating_add(2);
-
-    app.sort_button_rect = Some((x_cursor, area.y, sort_width, 1));
-    let sort_button_spans = render_button(&sort_label, app.sort_menu_open);
-    title_spans.extend(sort_button_spans);
-    x_cursor = x_cursor.saturating_add(sort_width).saturating_add(2);
-
-    app.news_filter_arch_rect = Some((x_cursor, area.y, arch_width, 1));
-    title_spans.push(arch_filter_span);
-    x_cursor = x_cursor.saturating_add(arch_width).saturating_add(1);
-    title_spans.push(Span::raw(" "));
-
-    app.news_filter_advisory_rect = Some((x_cursor, area.y, advisory_width, 1));
-    title_spans.push(advisory_filter_span);
-    x_cursor = x_cursor.saturating_add(advisory_width).saturating_add(1);
-    title_spans.push(Span::raw(" "));
-
-    app.news_filter_updates_rect = Some((x_cursor, area.y, updates_width, 1));
-    title_spans.push(updates_filter_span);
-    x_cursor = x_cursor.saturating_add(updates_width).saturating_add(1);
-    title_spans.push(Span::raw(" "));
-
-    app.news_filter_aur_updates_rect = Some((x_cursor, area.y, aur_updates_width, 1));
-    title_spans.push(aur_updates_filter_span);
-    x_cursor = x_cursor.saturating_add(aur_updates_width).saturating_add(1);
-    title_spans.push(Span::raw(" "));
-
-    app.news_filter_aur_comments_rect = Some((x_cursor, area.y, aur_comments_width, 1));
-    title_spans.push(aur_comments_filter_span);
-    x_cursor = x_cursor.saturating_add(aur_comments_width);
-    title_spans.push(Span::raw("  "));
-    x_cursor = x_cursor.saturating_add(2);
-    app.news_filter_read_rect = Some((x_cursor, area.y, read_width, 1));
-    title_spans.push(read_filter_span);
-    x_cursor = x_cursor.saturating_add(read_width);
-    title_spans.push(Span::raw("  "));
-    x_cursor = x_cursor.saturating_add(2);
-
-    let options_x = area
-        .x
-        .saturating_add(1)
-        .saturating_add(inner_width.saturating_sub(options_width));
-    let panels_x = options_x.saturating_sub(1).saturating_sub(panels_width);
-    let config_x = panels_x.saturating_sub(1).saturating_sub(config_width);
-    let date_x = x_cursor;
-    let gap_after_date = config_x.saturating_sub(date_x.saturating_add(date_width));
-
-    title_spans.extend(date_button_spans);
-    title_spans.push(Span::raw(" ".repeat(gap_after_date as usize)));
-    title_spans.extend(config_button_spans);
-    title_spans.push(Span::raw(" "));
-    title_spans.extend(panels_button_spans);
-    title_spans.push(Span::raw(" "));
-    title_spans.extend(options_button_spans);
-
-    app.news_age_button_rect = Some((date_x, area.y, date_width, 1));
-    app.config_button_rect = Some((config_x, area.y, config_width, 1));
-    app.panels_button_rect = Some((panels_x, area.y, panels_width, 1));
-    app.options_button_rect = Some((options_x, area.y, options_width, 1));
-
-    let list = List::new(items)
         .style(Style::default().fg(th.text).bg(th.base))
         .block(
             Block::default()
@@ -515,130 +284,18 @@ fn render_news_results(f: &mut Frame, app: &mut AppState, area: Rect) {
                 .border_style(Style::default().fg(th.surface2)),
         )
         .highlight_style(Style::default().bg(th.surface1))
-        .highlight_symbol("> ");
-    app.results_rect = Some((area.x, area.y, area.width, area.height));
-    f.render_stateful_widget(list, area, &mut app.news_list_state);
+        .highlight_symbol("> "),
+        area,
+        &mut app.news_list_state,
+    );
     let btn_x = app.sort_button_rect.map_or(area.x, |(x, _, _, _)| x);
     sort_menu::render_sort_menu(f, app, area, btn_x);
-}
-
-/// What: Render summary spans with source-aware highlighting (updates vs AUR comments vs Arch News).
-fn render_summary_spans(
-    summary: &str,
-    th: &crate::theme::Theme,
-    source: NewsFeedSource,
-) -> Vec<ratatui::text::Span<'static>> {
-    let highlight_style = ratatui::style::Style::default()
-        .fg(th.yellow)
-        .add_modifier(Modifier::BOLD);
-    let normal = ratatui::style::Style::default().fg(th.subtext1);
-
-    if matches!(
-        source,
-        NewsFeedSource::InstalledPackageUpdate | NewsFeedSource::AurPackageUpdate
-    ) {
-        return vec![ratatui::text::Span::styled(
-            summary.to_string(),
-            highlight_style,
-        )];
-    }
-
-    if matches!(source, NewsFeedSource::AurComment) {
-        return render_aur_comment_keywords(summary, th, highlight_style);
-    }
-
-    // Apply keyword highlighting to Arch News (same as AUR comments)
-    if matches!(source, NewsFeedSource::ArchNews) {
-        return render_aur_comment_keywords(summary, th, highlight_style);
-    }
-
-    vec![ratatui::text::Span::styled(
-        summary.to_string(),
-        normal.add_modifier(Modifier::BOLD),
-    )]
-}
-
-/// What: Highlight AUR comment summaries and Arch News with red/green keywords and normal text.
-fn render_aur_comment_keywords(
-    summary: &str,
-    th: &crate::theme::Theme,
-    base: ratatui::style::Style,
-) -> Vec<ratatui::text::Span<'static>> {
-    let normal = base;
-    let neg = ratatui::style::Style::default()
-        .fg(th.red)
-        .add_modifier(Modifier::BOLD);
-    let pos = ratatui::style::Style::default()
-        .fg(th.green)
-        .add_modifier(Modifier::BOLD);
-
-    let negative_words = [
-        "crash",
-        "crashed",
-        "crashes",
-        "critical",
-        "bug",
-        "bugs",
-        "fail",
-        "fails",
-        "failed",
-        "failure",
-        "failures",
-        "issue",
-        "issues",
-        "trouble",
-        "troubles",
-        "panic",
-        "segfault",
-        "broken",
-        "regression",
-        "hang",
-        "freeze",
-        "unstable",
-        "error",
-        "errors",
-        "require manual intervention",
-        "requires manual intervention",
-        "corrupting",
-    ];
-    let positive_words = [
-        "fix",
-        "fixed",
-        "fixes",
-        "patch",
-        "patched",
-        "solve",
-        "solved",
-        "solves",
-        "solution",
-        "resolve",
-        "resolved",
-        "resolves",
-        "workaround",
-    ];
-    let neg_set: std::collections::HashSet<&str> = negative_words.into_iter().collect();
-    let pos_set: std::collections::HashSet<&str> = positive_words.into_iter().collect();
-
-    let mut spans = Vec::new();
-    for token in summary.split_inclusive(' ') {
-        let cleaned = token
-            .trim_matches(|c: char| !c.is_alphanumeric() && c != '-' && c != '_')
-            .to_ascii_lowercase();
-        let style = if pos_set.contains(cleaned.as_str()) {
-            pos
-        } else if neg_set.contains(cleaned.as_str()) {
-            neg
-        } else {
-            normal.add_modifier(Modifier::BOLD)
-        };
-        spans.push(ratatui::text::Span::styled(token.to_string(), style));
-    }
-    spans
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::state::types::NewsFeedSource;
 
     /// What: Ensure rendering results populates button rectangles and status overlays without panic.
     ///

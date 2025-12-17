@@ -607,6 +607,109 @@ fn toggle_news_feed_item(app: &mut AppState) -> bool {
     }
 }
 
+/// What: Handle news mode keybindings.
+///
+/// Inputs:
+/// - `ke`: Key event from terminal
+/// - `app`: Mutable application state
+///
+/// Output:
+/// - `true` if a news keybinding was handled, `false` otherwise
+///
+/// Details:
+/// - Handles mark read, mark unread, and toggle read keybindings in News mode.
+fn handle_news_mode_keybindings(ke: &KeyEvent, app: &mut AppState) -> bool {
+    if !matches!(app.app_mode, crate::state::types::AppMode::News) {
+        return false;
+    }
+
+    if matches_any(ke, &app.keymap.news_mark_read_feed) {
+        if mark_news_feed_item(app, true) {
+            return true;
+        }
+    } else if matches_any(ke, &app.keymap.news_mark_unread_feed) {
+        if mark_news_feed_item(app, false) {
+            return true;
+        }
+    } else if matches_any(ke, &app.keymap.news_toggle_read_feed) && toggle_news_feed_item(app) {
+        return true;
+    }
+
+    false
+}
+
+/// What: Handle keymap-based action keybindings.
+///
+/// Inputs:
+/// - `ke`: Key event from terminal
+/// - `app`: Mutable application state
+/// - `query_tx`: Channel to send debounced search queries
+///
+/// Output:
+/// - `true` if a keymap action was handled, `false` otherwise
+///
+/// Details:
+/// - Handles status, import, export, updates, insert mode, selection, delete, and clear actions.
+fn handle_keymap_actions(
+    ke: &KeyEvent,
+    app: &mut AppState,
+    query_tx: &mpsc::UnboundedSender<QueryInput>,
+) -> bool {
+    if matches_any(ke, &app.keymap.search_normal_open_status) {
+        crate::util::open_url("https://status.archlinux.org");
+        return true;
+    }
+
+    if matches_any(ke, &app.keymap.search_normal_import) {
+        if !app.installed_only_mode {
+            app.modal = crate::state::Modal::ImportHelp;
+        }
+        return true;
+    }
+
+    if matches_any(ke, &app.keymap.search_normal_export) {
+        handle_export(app);
+        return true;
+    }
+
+    if matches_any(ke, &app.keymap.search_normal_updates) {
+        if matches!(app.app_mode, crate::state::types::AppMode::News) {
+            crate::events::mouse::handle_news_button(app);
+        } else {
+            crate::events::mouse::handle_updates_button(app);
+        }
+        return true;
+    }
+
+    if matches_any(ke, &app.keymap.search_normal_insert) {
+        app.search_normal_mode = false;
+        app.search_select_anchor = None;
+        return true;
+    }
+
+    if matches_any(ke, &app.keymap.search_normal_select_left) {
+        handle_selection_move(app, -1);
+        return true;
+    }
+
+    if matches_any(ke, &app.keymap.search_normal_select_right) {
+        handle_selection_move(app, 1);
+        return true;
+    }
+
+    if matches_any(ke, &app.keymap.search_normal_delete) {
+        handle_selection_delete(app, query_tx);
+        return true;
+    }
+
+    if matches_any(ke, &app.keymap.search_normal_clear) {
+        handle_input_clear(app, query_tx);
+        return true;
+    }
+
+    false
+}
+
 /// What: Handle key events in Normal mode for the Search pane.
 ///
 /// Inputs:
@@ -643,19 +746,9 @@ pub fn handle_normal_mode(
         }
     }
 
-    if matches!(app.app_mode, crate::state::types::AppMode::News) {
-        if matches_any(&ke, &app.keymap.news_mark_read_feed) {
-            if mark_news_feed_item(app, true) {
-                return false;
-            }
-        } else if matches_any(&ke, &app.keymap.news_mark_unread_feed) {
-            if mark_news_feed_item(app, false) {
-                return false;
-            }
-        } else if matches_any(&ke, &app.keymap.news_toggle_read_feed) && toggle_news_feed_item(app)
-        {
-            return false;
-        }
+    // Handle news mode keybindings
+    if handle_news_mode_keybindings(&ke, app) {
+        return false;
     }
 
     // Handle menu toggles
@@ -669,57 +762,8 @@ pub fn handle_normal_mode(
         return false;
     }
 
-    // Handle keymap-based actions with early returns
-    if matches_any(&ke, &app.keymap.search_normal_open_status) {
-        crate::util::open_url("https://status.archlinux.org");
-        return false;
-    }
-
-    if matches_any(&ke, &app.keymap.search_normal_import) {
-        if !app.installed_only_mode {
-            app.modal = crate::state::Modal::ImportHelp;
-        }
-        return false;
-    }
-
-    if matches_any(&ke, &app.keymap.search_normal_export) {
-        handle_export(app);
-        return false;
-    }
-
-    if matches_any(&ke, &app.keymap.search_normal_updates) {
-        // In News mode, open News modal; otherwise open Updates modal
-        if matches!(app.app_mode, crate::state::types::AppMode::News) {
-            crate::events::mouse::handle_news_button(app);
-        } else {
-            crate::events::mouse::handle_updates_button(app);
-        }
-        return false;
-    }
-
-    if matches_any(&ke, &app.keymap.search_normal_insert) {
-        app.search_normal_mode = false;
-        app.search_select_anchor = None;
-        return false;
-    }
-
-    if matches_any(&ke, &app.keymap.search_normal_select_left) {
-        handle_selection_move(app, -1);
-        return false;
-    }
-
-    if matches_any(&ke, &app.keymap.search_normal_select_right) {
-        handle_selection_move(app, 1);
-        return false;
-    }
-
-    if matches_any(&ke, &app.keymap.search_normal_delete) {
-        handle_selection_delete(app, query_tx);
-        return false;
-    }
-
-    if matches_any(&ke, &app.keymap.search_normal_clear) {
-        handle_input_clear(app, query_tx);
+    // Handle keymap-based actions
+    if handle_keymap_actions(&ke, app, query_tx) {
         return false;
     }
 
