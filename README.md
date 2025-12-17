@@ -47,6 +47,11 @@ paru -S pacsea-bin   # or: yay -S pacsea-bin
 paru -S pacsea-git   # or: yay -S pacsea-git
 ```
 
+- **Install via Cargo**:
+```bash
+cargo install pacsea
+```
+
 - **Run**:
 ```bash
 pacsea
@@ -75,7 +80,7 @@ pacsea
 | **Package downgrade** | Downgrade installed packages to previous versions using the `downgrade` tool |
 | **Distro-aware updates** | Automatic detection and use of appropriate mirror tools for Manjaro, EndeavourOS, CachyOS, Artix, and standard Arch |
 | **Updates modal** | View available updates with Preflight integration for safe installation |
-| **Helpful tools** | System update dialog with Force Sync mode (-Syyu), distro-aware mirror management, and Arch News popup |
+| **Helpful tools** | System update dialog with Force Sync mode (-Syyu), AUR update confirmation when pacman fails, distro-aware mirror management, and Arch News popup |
 | **Announcements** | Version-specific and remote announcements shown at startup with clickable URLs and persistent read status |
 
 ## Security-first approach for AUR Packages

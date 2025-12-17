@@ -271,11 +271,9 @@ pub fn fetch_pkgbuild_sync(name: &str) -> Result<String, String> {
         if let Some(last) = *last_request {
             let elapsed = last.elapsed();
             if elapsed < Duration::from_millis(PKGBUILD_MIN_INTERVAL_MS) {
-                // Safe to unwrap because we checked elapsed < PKGBUILD_MIN_INTERVAL_MS above
-                #[allow(clippy::unwrap_used)]
                 let delay = Duration::from_millis(PKGBUILD_MIN_INTERVAL_MS)
                     .checked_sub(elapsed)
-                    .unwrap();
+                    .expect("elapsed should be less than PKGBUILD_MIN_INTERVAL_MS");
                 tracing::debug!(
                     "Rate limiting PKGBUILD request for {}: waiting {:?}",
                     name,

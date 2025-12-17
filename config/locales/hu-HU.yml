@@ -195,8 +195,8 @@ hu-HU:
       hide_recent: "Legutóbbi elrejtése"
       show_install_list: "Telepítési lista megjelenítése"
       hide_install_list: "Telepítési lista elrejtése"
-      show_keybinds: "Billentyűkötések megjelenítése"
-      hide_keybinds: "Billentyűkötések elrejtése"
+      show_keybinds: "Billentyűparancsok megjelenítése"
+      hide_keybinds: "Billentyűparancsok elrejtése"
       list_all_packages: "Összes csomag listázása"
       list_installed_packages: "Telepített csomagok listázása"
       update_system: "Rendszer frissítése"
@@ -207,7 +207,7 @@ hu-HU:
       focus_right: "Fókuszálás jobbra"
       open_arch_status: "Arch Linux állapotának megnyitása"
       install_list: "Telepítési lista:"
-      toggle: "be-/kikapcsolás"
+      toggle: "be/ki"
       insert: "beszúrás"
       page: "lapozás"
       
@@ -304,7 +304,7 @@ hu-HU:
         options:
           settings: "Beállítások → settings.conf"
           theme: "Téma → theme.conf"
-          keybindings: "Billentyűkötések → keybinds.conf"
+          keybindings: "Billentyűparancsok → keybinds.conf"
       panels_menu:
         show_recent: "Legutóbbi megjelenítése"
         hide_recent: "Legutóbbi elrejtése"
@@ -383,6 +383,13 @@ hu-HU:
         none: "Nincs újratelepítendő csomag"
         confirm_hint: "Nyomja meg az Entert az újratelepítés megerősítéséhez vagy az Esc gombot a megszakításhoz"
         and_more: "… és további {}"
+      confirm_aur_update:
+        title: "  - Folytatja az AUR-frissítést? "
+        pacman_failed: "Nem sikerült frissíteni a csomagokat a pacman paranccsal (kilépési kód: {})."
+        command_failed: "Nem sikerül frissíteni a csomagokat a(z) {} paranccsal (kilépési kód: {})."
+        continue_prompt: "Továbbra is folytatni szeretné az AUR-frissítéssel?"
+        warning: "Ez sikertelen lehet, ha az AUR-csomagok újabb hivatalos csomagokat igényelnek."
+        hint: "Nyomja meg az Enter/Y gombot a folytatáshoz vagy az Esc/Q/N gombot a megszakításhoz"
       system_update:
         title: " Rendszerfrissítés "
         heading: "Rendszerfrissítés"
@@ -397,7 +404,7 @@ hu-HU:
         country_label: "Ország (Tükrök): "
         count_label: "Darabszám: {}"
         worldwide: "Világszerte"
-        footer_hint: "Szóköz: be-/kikapcsolás • Balra/Jobbra: országváltás • -/+ darabszám • Enter: futtatás • Esc: megszakítás"
+        footer_hint: "Szóköz: be/ki • Balra/Jobbra: országváltás • -/+ darabszám • Enter: futtatás • Esc: megszakítás"
       help:
         title: " Súgó "
         heading: "PacSea súgó"
@@ -411,15 +418,15 @@ hu-HU:
           news_dialog: "Hírek párbeszédablak:"
         mouse_lines:
           - "  • Listák (találatok/legutóbbi/telepítés) és PKGBUILD görgetése egérgörgővel"
-          - "  • PKGBUILD be-/kikapcsolása: kattintson a „PKGBUILD megjelenítése” gombra a részleteknél"
+          - "  • PKGBUILD be/ki: kattintson a „PKGBUILD megjelenítése” gombra a részleteknél"
           - "  • Másolás „PKGBUILD másolása”: kattintson a címgombra a PKGBUILD nézetben"
           - "  • Részletek webcímének megnyitása: Ctrl+Shift+Bal kattintás a webcímre"
           - "  • Találati címsor: kattintson a Rendezés/Beállítások/Panelek/Konfiguráció gombra a menük megnyitásához"
-          - "  • Szűrők be-/kikapcsolása (AUR/core/extra/multilib/EOS/cachyos): kattintson a címkéjükre"
+          - "  • Szűrők be/ki (AUR/core/extra/multilib/EOS/cachyos): kattintson a címkéjükre"
           - "  • Arch Linux állapot (jobb felső): kattintson a status.archlinux.org megnyitásához"
         system_update_lines:
           - "  • Megnyitás: Beállítások → Rendszer frissítése"
-          - "  • Fel/Le: mozgás • Szóköz: be-/kikapcsolás • Balra/Jobbra: országváltás • Enter: futtatás • Esc: bezárás"
+          - "  • Fel/Le: mozgás • Szóköz: be/ki • Balra/Jobbra: országváltás • Enter: futtatás • Esc: bezárás"
         news_lines:
           - "  • Megnyitás: Beállítások → Hírek • Fel/Le: kiválasztás a hírek között • Enter: megnyitás • Esc: bezárás"
         close_hint: "Nyomja meg az Entert vagy az Esc gombot a bezáráshoz"
@@ -674,12 +681,12 @@ hu-HU:
           package_label: "Csomag: {} ({})"
           no_packages: "Nincsenek csomagok ebben a tranzakcióban."
         footer_hints:
-          deps_with_aur: "Balra/Jobbra: fülek • Fel/Le: navigálás • Enter/Szóköz: be-/kikapcsolás • a: összes kibontása/összecsukása • r: újra • ?: súgó • s: AUR-ellenőrzés • d: próbafuttatás • p: folytatás • q: bezárás"
-          deps_without_aur: "Balra/Jobbra: fülek • Fel/Le: navigálás • Enter/Szóköz: be-/kikapcsolás • a: összes kibontása/összecsukása • r: újra • ?: súgó • d: próbafuttatás • p: folytatás • q: bezárás"
-          files_with_aur: "Balra/Jobbra: fülek • Fel/Le: navigálás • Enter/Szóköz: be-/kikapcsolás • a: összes kibontása/összecsukása • r: újra • f: fájl-adatbázis szinkronizálása • s: AUR-ellenőrzés • d: próbafuttatás • p: folytatás • q: bezárás"
-          files_without_aur: "Balra/Jobbra: fülek • Fel/Le: navigálás • Enter/Szóköz: be-/kikapcsolás • a: összes kibontása/összecsukása • r: újra • f: fájl-adatbázis szinkronizálása • d: próbafuttatás • p: folytatás • q: bezárás"
-          services_with_aur: "Balra/Jobbra: fülek • Fel/Le: navigálás • Szóköz: újraindítás be-/kikapcsolás • R: újraindítás • Shift+D: elhalasztás • r: újra • s: AUR-ellenőrzés • d: próbafuttatás • p: folytatás • q: bezárás"
-          services_without_aur: "Balra/Jobbra: fülek • Fel/Le: navigálás • Szóköz: újraindítás be-/kikapcsolás • R: újraindítás • Shift+D: elhalasztás • r: újra • d: próbafuttatás • p: folytatás • q: bezárás"
+          deps_with_aur: "Balra/Jobbra: fülek • Fel/Le: navigálás • Enter/Szóköz: be/ki • a: összes kibontása/összecsukása • r: újra • ?: súgó • s: AUR-ellenőrzés • d: próbafuttatás • p: folytatás • q: bezárás"
+          deps_without_aur: "Balra/Jobbra: fülek • Fel/Le: navigálás • Enter/Szóköz: be/ki • a: összes kibontása/összecsukása • r: újra • ?: súgó • d: próbafuttatás • p: folytatás • q: bezárás"
+          files_with_aur: "Balra/Jobbra: fülek • Fel/Le: navigálás • Enter/Szóköz: be/ki • a: összes kibontása/összecsukása • r: újra • f: fájl-adatbázis szinkronizálása • s: AUR-ellenőrzés • d: próbafuttatás • p: folytatás • q: bezárás"
+          files_without_aur: "Balra/Jobbra: fülek • Fel/Le: navigálás • Enter/Szóköz: be/ki • a: összes kibontása/összecsukása • r: újra • f: fájl-adatbázis szinkronizálása • d: próbafuttatás • p: folytatás • q: bezárás"
+          services_with_aur: "Balra/Jobbra: fülek • Fel/Le: navigálás • Szóköz: újraindítás be/ki • R: újraindítás • Shift+D: elhalasztás • r: újra • s: AUR-ellenőrzés • d: próbafuttatás • p: folytatás • q: bezárás"
+          services_without_aur: "Balra/Jobbra: fülek • Fel/Le: navigálás • Szóköz: újraindítás be/ki • R: újraindítás • Shift+D: elhalasztás • r: újra • d: próbafuttatás • p: folytatás • q: bezárás"
           default_with_aur: "Balra/Jobbra: fülek • s: AUR-ellenőrzés • d: próbafuttatás • p: folytatás • q: bezárás"
           default_without_aur: "Balra/Jobbra: fülek • d: próbafuttatás • p: folytatás • q: bezárás"
           cascade_mode: "  •  m: lépcsőzetes mód"
@@ -712,14 +719,14 @@ hu-HU:
                           - f - Pacman fájl-adatbázisának szinkronizálása (pacman -Fy)\n\
                           - r - Fájlok feloldásának újrapróbálása (hiba esetén)\n\
                         • Szolgáltatások fül:\n\
-                          - Szóköz - Újraindítás/elhalasztás be-/kikapcsolása a kiválasztott szolgáltatásnál\n\
+                          - Szóköz - Újraindítás/elhalasztás be/ki a kiválasztott szolgáltatásnál\n\
                           - R - Kiválasztott szolgáltatás megjelölése újraindításra\n\
                           - Shift+D - Kiválasztott szolgáltatás megjelölése elhalasztásra\n\
                           - r - Szolgáltatások feloldásának újrapróbálása (hiba esetén)\n\n\
                         Globális műveletek:\n\
                         • s - AUR-csomagok ellenőrzése (ha vannak kiválasztva AUR-csomagok)\n\
-                        • d - Próbafuttatási mód be-/kikapcsolása\n\
-                        • m - Lépcsőzetes eltávolítási mód be-/kikapcsolása (csak az eltávolítási műveletnél)\n\
+                        • d - Próbafuttatási mód be/ki\n\
+                        • m - Lépcsőzetes eltávolítási mód be/ki (csak az eltávolítási műveletnél)\n\
                         • p - Folytatás a telepítéssel/eltávolítással\n\
                         • c - Pillanatkép létrehozása (helyőrző)\n\n\
                         Fülek:\n\
@@ -744,14 +751,17 @@ hu-HU:
         pacman_success: "✓ A csomagok sikeresen frissítve lettek a pacman paranccsal"
         pacman_failed: "✗ Nem sikerült frissíteni a csomagokat a pacman paranccsal"
         pacman_exec_failed: "✗ Nem sikerült végrehajtani a csomagok frissítését a pacman paranccsal"
-        aur_starting: "AUR-csomagok frissítése ({} -Syu)…"
+        aur_starting: "AUR-csomagok frissítése ({} -Sua)…"
         aur_success: "✓ Az AUR-csomagok sikeresen frissítve lettek a(z) {} paranccsal"
         aur_failed: "✗ Az AUR-csomagokat nem sikerült frissíteni a(z) {} paranccsal"
         aur_exec_failed: "✗ Nem sikerült végrehajtani az AUR-csomagok frissítését a(z) {} paranccsal"
         no_aur_helper: "Nem található AUR-segéd (paru/yay), az AUR-csomagok frissítésének kihagyása"
+        aur_skipped_pacman_failed: "AUR-frissítés kihagyva (nem sikerült frissíteni a csomagokat a pacman paranccsal)"
         separator: "============================================================"
         all_success: "✓ A rendszerfrissítés sikeresen befejeződött"
         completed_with_errors: "✗ A rendszerfrissítés hibákkal fejeződött be"
+        failure_summary: "Hiba összefoglalása:"
+        failed_commands: "Sikertelenül végrehajtott parancsok:"
         failed_packages: "Sikertelenül telepített csomagok:"
         failed_packages_log: "Sikertelenül telepített csomagok: {}"
         log_file: "Naplófájl: {}"
@@ -780,7 +790,7 @@ hu-HU:
         config_dirs_found: "Megjegyzés: A konfigurációs könyvtárak a /home könyvtárában találhatók:"
         config_dirs_note: "Ha már nincs szüksége ezekre a könyvtárakra, akkor érdemes lehet őket kézzel eltávolítania."
         failed: "✗ Nem sikerült eltávolítani a csomagokat"
-        exec_failed: "✗ Nem sikerült végrehajtani a pacman-parancsot: {}"
+        exec_failed: "✗ Nem sikerült végrehajtani a pacman parancsot: {}"
         error_prefix: "Hiba: {}"
       install:
         file_open_error: "Hiba: Nem sikerült megnyitni a fájlt:  „{}”: {}"
@@ -797,7 +807,7 @@ hu-HU:
         no_packages_specified: "Hiba: Nincs megadva telepítendő csomag."
         neither_helper_available: "Hiba: Sem a paru, sem a yay nem érhető el. Telepítse valamelyiket az AUR-csomagok telepítéséhez."
         official_failed: "Nem sikerült telepíteni a hivatalos csomagokat"
-        pacman_exec_failed: "Nem sikerült végrehajtani a pacman-parancsot: {}"
+        pacman_exec_failed: "Nem sikerült végrehajtani a pacman parancsot: {}"
         aur_failed: "Nem sikerült telepíteni az AUR-csomagokat"
         aur_helper_exec_failed: "Nem sikerült végrehajtani a következőt: {}: {}"
         error_prefix: "Hiba: {}"
@@ -820,7 +830,7 @@ hu-HU:
         error_prefix: "Hiba: {}"
       list:
         query_failed: "Hiba: Nem sikerült lekérdezni a telepített csomagokat"
-        pacman_exec_failed: "Nem sikerült végrehajtani a pacman-parancsot {}"
+        pacman_exec_failed: "Nem sikerült végrehajtani a pacman parancsot {}"
         query_explicit_failed: "Hiba: Nem sikerült lekérdezni a kifejezetten telepített csomagokat"
         error_prefix: "Hiba: {}"
       search:

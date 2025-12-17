@@ -60,6 +60,31 @@ fn render_confirm_batch_update_modal(
     }
 }
 
+/// What: Render `ConfirmAurUpdate` modal and return reconstructed state.
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `app`: Application state
+/// - `area`: Full screen area
+/// - `ctx`: Context struct containing all `ConfirmAurUpdate` fields (taken by value)
+///
+/// Output:
+/// - Returns reconstructed `Modal::ConfirmAurUpdate` variant
+///
+/// Details:
+/// - Delegates to `confirm::render_confirm_aur_update` and reconstructs the modal variant
+fn render_confirm_aur_update_modal(
+    f: &mut Frame,
+    app: &AppState,
+    area: Rect,
+    ctx: ConfirmAurUpdateContext,
+) -> Modal {
+    confirm::render_confirm_aur_update(f, app, area, &ctx.message);
+    Modal::ConfirmAurUpdate {
+        message: ctx.message,
+    }
+}
+
 /// What: Context struct grouping `PreflightExec` modal fields to reduce data flow complexity.
 ///
 /// Inputs: None (constructed from Modal variant).
@@ -228,6 +253,17 @@ struct ConfirmBatchUpdateContext {
     items: Vec<crate::state::PackageItem>,
     /// Whether this is a dry-run operation.
     dry_run: bool,
+}
+
+/// What: Context struct grouping `ConfirmAurUpdate` modal fields to reduce data flow complexity.
+///
+/// Inputs: None (constructed from Modal variant).
+///
+/// Output: Groups related fields together for passing to render functions.
+///
+/// Details: Reduces individual field extractions and uses, lowering data flow complexity.
+struct ConfirmAurUpdateContext {
+    message: String,
 }
 
 /// What: Context struct grouping News modal fields to reduce data flow complexity.
@@ -459,6 +495,10 @@ impl ModalRenderer for Modal {
             Self::ConfirmBatchUpdate { items, dry_run } => {
                 let ctx = ConfirmBatchUpdateContext { items, dry_run };
                 render_confirm_batch_update_modal(f, app, area, ctx)
+            }
+            Self::ConfirmAurUpdate { message } => {
+                let ctx = ConfirmAurUpdateContext { message };
+                render_confirm_aur_update_modal(f, app, area, ctx)
             }
             Self::SystemUpdate {
                 do_mirrors,

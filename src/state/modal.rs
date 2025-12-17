@@ -492,6 +492,11 @@ pub enum Modal {
         /// Whether this is a dry-run operation.
         dry_run: bool,
     },
+    /// Confirmation dialog for continuing AUR update after pacman failed.
+    ConfirmAurUpdate {
+        /// Message explaining the situation.
+        message: String,
+    },
     /// Preflight summary before executing any action.
     Preflight {
         /// Packages selected for the operation.

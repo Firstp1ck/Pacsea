@@ -56,12 +56,10 @@ pub fn spawn_search_worker(
             }
             let elapsed = last_sent.elapsed();
             if elapsed < Duration::from_millis(MIN_INTERVAL_MS) {
-                // Safe to unwrap because we checked elapsed < MIN_INTERVAL_MS above
-                #[allow(clippy::unwrap_used)]
                 sleep(
                     Duration::from_millis(MIN_INTERVAL_MS)
                         .checked_sub(elapsed)
-                        .unwrap(),
+                        .expect("elapsed should be less than MIN_INTERVAL_MS"),
                 )
                 .await;
             }

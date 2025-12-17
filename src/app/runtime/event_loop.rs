@@ -2,6 +2,7 @@ use ratatui::Terminal;
 use tokio::select;
 
 use crate::state::types::NewsFeedPayload;
+use crate::i18n;
 use crate::state::{AppState, PackageItem};
 use crate::ui::ui;
 use crate::util::parse_update_entry;
@@ -502,16 +503,124 @@ fn handle_post_summary_result(app: &mut AppState, data: crate::logic::summary::P
     }
 }
 
-/// What: Handle executor output messages.
+/// What: Handle successful executor completion for Install action.
 ///
 /// Inputs:
-/// - `app`: Application state
-/// - `output`: Executor output message
+/// - `app`: Mutable application state
+/// - `items`: Package items that were installed
+///
+/// Output:
+/// - None (modifies app state in place)
+///
+/// Details:
+/// - Tracks installed packages and triggers refresh of installed packages pane
+/// - Only tracks pending install names if items is non-empty (system updates use empty items)
+fn handle_install_success(app: &mut AppState, items: &[crate::state::PackageItem]) {
+    // Only track pending install names if items is non-empty.
+    // System updates use empty items, and setting pending_install_names
+    // to empty would cause install_list to be cleared in tick handler
+    // due to vacuously true check (all elements of empty set satisfy any predicate).
+    if !items.is_empty() {
+        let installed_names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
+        // Set pending install names to track installation completion
+        app.pending_install_names = Some(installed_names);
+    }
+
+    // Trigger refresh of installed packages
+    app.refresh_installed_until =
+        Some(std::time::Instant::now() + std::time::Duration::from_secs(8));
+
+    // Refresh updates count after installation completes
+    app.refresh_updates = true;
+
+    tracing::info!(
+        "Install operation completed: triggered refresh of installed packages and updates"
+    );
+}
+
+/// What: Handle successful executor completion for Remove action.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+/// - `items`: Package items that were removed
+///
+/// Output:
+/// - None (modifies app state in place)
+///
+/// Details:
+/// - Clears remove list and triggers refresh of installed packages pane
+fn handle_remove_success(app: &mut AppState, items: &[crate::state::PackageItem]) {
+    let removed_names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
+
+    // Clear remove list
+    app.remove_list.clear();
+    app.remove_list_names.clear();
+    app.remove_state.select(None);
+
+    // Set pending remove names to track removal completion
+    app.pending_remove_names = Some(removed_names);
+
+    // Trigger refresh of installed packages
+    app.refresh_installed_until =
+        Some(std::time::Instant::now() + std::time::Duration::from_secs(8));
+
+    // Refresh updates count after removal completes
+    app.refresh_updates = true;
+
+    // Keep PreflightExec modal open so user can see completion message
+    // User can close it with Esc/q, and refresh happens in background
+    tracing::info!("Remove operation completed: cleared remove list and triggered refresh");
+}
+
+/// What: Handle successful executor completion for Downgrade action.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+/// - `items`: Package items that were downgraded
+///
+/// Output:
+/// - None (modifies app state in place)
+///
+/// Details:
+/// - Clears downgrade list and triggers refresh of installed packages pane
+fn handle_downgrade_success(app: &mut AppState, items: &[crate::state::PackageItem]) {
+    let downgraded_names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
+
+    // Clear downgrade list
+    app.downgrade_list.clear();
+    app.downgrade_list_names.clear();
+    app.downgrade_state.select(None);
+
+    // Set pending downgrade names to track downgrade completion
+    app.pending_remove_names = Some(downgraded_names);
+
+    // Trigger refresh of installed packages
+    app.refresh_installed_until =
+        Some(std::time::Instant::now() + std::time::Duration::from_secs(8));
+
+    // Refresh updates count after downgrade completes
+    app.refresh_updates = true;
+
+    // Keep PreflightExec modal open so user can see completion message
+    // User can close it with Esc/q, and refresh happens in background
+    tracing::info!("Downgrade operation completed: cleared downgrade list and triggered refresh");
+}
+
+/// What: Handle executor output and update UI state accordingly.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+/// - `output`: Executor output to process
+///
+/// Output:
+/// - None (modifies app state in place)
 ///
 /// Details:
 /// - Updates `PreflightExec` modal with log lines or completion status
-/// - For successful install operations, tracks installed packages and refreshes installed packages pane
-/// - For successful remove operations, closes modal, clears remove list, and refreshes installed packages pane
+/// - Processes `Line`, `ReplaceLastLine`, `Finished`, and `Error` outputs
+/// - Handles success/failure cases for Install, Remove, and Downgrade actions
+/// - Shows confirmation popup for AUR update when pacman fails
+#[allow(clippy::too_many_lines)] // Function handles multiple executor output types and modal transitions
 fn handle_executor_output(app: &mut AppState, output: crate::install::ExecutorOutput) {
     // Log what we received (at trace level to avoid spam)
     match &output {
@@ -527,7 +636,11 @@ fn handle_executor_output(app: &mut AppState, output: crate::install::ExecutorOu
                 &line[..line.len().min(50)]
             );
         }
-        crate::install::ExecutorOutput::Finished { success, exit_code } => {
+        crate::install::ExecutorOutput::Finished {
+            success,
+            exit_code,
+            failed_command: _,
+        } => {
             tracing::debug!(
                 "[EventLoop] Received executor Finished: success={}, exit_code={:?}",
                 success,
@@ -572,6 +685,7 @@ fn handle_executor_output(app: &mut AppState, output: crate::install::ExecutorOu
             crate::install::ExecutorOutput::Finished {
                 success: exec_success,
                 exit_code,
+                failed_command: _,
             } => {
                 tracing::info!(
                     "Received Finished: success={exec_success}, exit_code={exit_code:?}"
@@ -598,85 +712,88 @@ fn handle_executor_output(app: &mut AppState, output: crate::install::ExecutorOu
                         log_lines.len()
                     );
 
+                    // Clone items to avoid borrow checker issues when calling handlers
+                    let items_clone = items.clone();
+                    let action_clone = *action;
+
                     // Handle successful operations: refresh installed packages and update UI
-                    match action {
+                    match action_clone {
                         crate::state::PreflightAction::Install => {
-                            // Only track pending install names if items is non-empty.
-                            // System updates use empty items, and setting pending_install_names
-                            // to empty would cause install_list to be cleared in tick handler
-                            // due to vacuously true check (all elements of empty set satisfy any predicate).
-                            if !items.is_empty() {
-                                let installed_names: Vec<String> =
-                                    items.iter().map(|p| p.name.clone()).collect();
-
-                                // Set pending install names to track installation completion
-                                app.pending_install_names = Some(installed_names);
-                            }
-
-                            // Trigger refresh of installed packages
-                            app.refresh_installed_until =
-                                Some(std::time::Instant::now() + std::time::Duration::from_secs(8));
-
-                            // Refresh updates count after installation completes
-                            app.refresh_updates = true;
-
-                            tracing::info!(
-                                "Install operation completed: triggered refresh of installed packages and updates"
-                            );
+                            handle_install_success(app, &items_clone);
                         }
                         crate::state::PreflightAction::Remove => {
-                            let removed_names: Vec<String> =
-                                items.iter().map(|p| p.name.clone()).collect();
-
-                            // Clear remove list
-                            app.remove_list.clear();
-                            app.remove_list_names.clear();
-                            app.remove_state.select(None);
-
-                            // Set pending remove names to track removal completion
-                            app.pending_remove_names = Some(removed_names);
-
-                            // Trigger refresh of installed packages
-                            app.refresh_installed_until =
-                                Some(std::time::Instant::now() + std::time::Duration::from_secs(8));
-
-                            // Refresh updates count after removal completes
-                            app.refresh_updates = true;
-
-                            // Keep PreflightExec modal open so user can see completion message
-                            // User can close it with Esc/q, and refresh happens in background
-                            tracing::info!(
-                                "Remove operation completed: cleared remove list and triggered refresh"
-                            );
+                            handle_remove_success(app, &items_clone);
                         }
                         crate::state::PreflightAction::Downgrade => {
-                            let downgraded_names: Vec<String> =
-                                items.iter().map(|p| p.name.clone()).collect();
-
-                            // Clear downgrade list
-                            app.downgrade_list.clear();
-                            app.downgrade_list_names.clear();
-                            app.downgrade_state.select(None);
-
-                            // Set pending downgrade names to track downgrade completion
-                            app.pending_remove_names = Some(downgraded_names);
-
-                            // Trigger refresh of installed packages
-                            app.refresh_installed_until =
-                                Some(std::time::Instant::now() + std::time::Duration::from_secs(8));
-
-                            // Refresh updates count after downgrade completes
-                            app.refresh_updates = true;
-
-                            // Keep PreflightExec modal open so user can see completion message
-                            // User can close it with Esc/q, and refresh happens in background
-                            tracing::info!(
-                                "Downgrade operation completed: cleared downgrade list and triggered refresh"
-                            );
+                            handle_downgrade_success(app, &items_clone);
                         }
                     }
                 } else {
                     log_lines.push(format!("Execution failed (exit code: {exit_code:?})"));
+
+                    // If this was a system update (empty items) and AUR update is pending, show confirmation
+                    if items.is_empty() && app.pending_aur_update_command.is_some() {
+                        tracing::info!(
+                            "[EventLoop] System update failed (exit_code: {:?}), AUR update pending - showing confirmation popup",
+                            exit_code
+                        );
+                        // Preserve password and header_chips for AUR update if user confirms
+                        // (they're already stored in app state, so we just need to show the modal)
+
+                        // Determine which command failed by checking the command list
+                        let failed_command_name = app
+                            .pending_update_commands
+                            .as_ref()
+                            .and_then(|cmds| {
+                                // Extract command name from the first command (since commands are chained with &&,
+                                // the first command that fails stops execution)
+                                cmds.first().map(|cmd| {
+                                    // Extract command name: "sudo pacman -Syu" -> "pacman", "paru -Sua" -> "paru"
+                                    if cmd.contains("pacman") {
+                                        "pacman"
+                                    } else if cmd.contains("paru") {
+                                        "paru"
+                                    } else if cmd.contains("yay") {
+                                        "yay"
+                                    } else if cmd.contains("reflector") {
+                                        "reflector"
+                                    } else if cmd.contains("pacman-mirrors") {
+                                        "pacman-mirrors"
+                                    } else if cmd.contains("eos-rankmirrors") {
+                                        "eos-rankmirrors"
+                                    } else if cmd.contains("cachyos-rate-mirrors") {
+                                        "cachyos-rate-mirrors"
+                                    } else {
+                                        "update command"
+                                    }
+                                })
+                            })
+                            .unwrap_or("update command");
+
+                        // Close PreflightExec and show confirmation modal
+                        let exit_code_str =
+                            exit_code.map_or_else(|| "unknown".to_string(), |c| c.to_string());
+                        app.modal = crate::state::Modal::ConfirmAurUpdate {
+                            message: format!(
+                                "{}\n\n{}\n{}\n\n{}",
+                                i18n::t_fmt2(
+                                    app,
+                                    "app.modals.confirm_aur_update.command_failed",
+                                    failed_command_name,
+                                    &exit_code_str
+                                ),
+                                i18n::t(app, "app.modals.confirm_aur_update.continue_prompt"),
+                                i18n::t(app, "app.modals.confirm_aur_update.warning"),
+                                i18n::t(app, "app.modals.confirm_aur_update.hint")
+                            ),
+                        };
+                    } else {
+                        tracing::debug!(
+                            "[EventLoop] System update failed but no confirmation popup - items.is_empty(): {}, pending_aur_update_command.is_some(): {}",
+                            items.is_empty(),
+                            app.pending_aur_update_command.is_some()
+                        );
+                    }
                 }
             }
             crate::install::ExecutorOutput::Error(err) => {

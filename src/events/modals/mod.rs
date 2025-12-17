@@ -53,6 +53,9 @@ pub(super) fn handle_modal_key(
         Modal::ConfirmBatchUpdate { .. } => {
             handlers::handle_confirm_batch_update_modal(ke, app, &modal)
         }
+        Modal::ConfirmAurUpdate { .. } => {
+            handlers::handle_confirm_aur_update_modal(ke, app, &modal)
+        }
         Modal::Help => handlers::handle_help_modal(ke, app, modal),
         Modal::News { .. } => handlers::handle_news_modal(ke, app, modal),
         Modal::Announcement { .. } => handlers::handle_announcement_modal(ke, app, modal),

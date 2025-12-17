@@ -269,6 +269,57 @@ pub fn render_confirm_batch_update(
     f.render_widget(boxw, rect);
 }
 
+/// What: Render the confirmation modal for continuing AUR update after pacman failed.
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `app`: Application state
+/// - `area`: Full screen area used to center the modal
+/// - `message`: Message explaining the situation
+///
+/// Output:
+/// - Draws the confirmation dialog asking if user wants to continue with AUR update
+///
+/// Details:
+/// - Shows a warning message about pacman failure
+/// - Prompts user to continue with AUR update or cancel
+/// - Uses similar styling to other confirmation modals
+#[allow(clippy::many_single_char_names)]
+pub fn render_confirm_aur_update(f: &mut Frame, app: &AppState, area: Rect, message: &str) {
+    let th = theme();
+    let w = area.width.saturating_sub(6).min(90);
+    let h = area.height.saturating_sub(6).min(20);
+    let x = area.x + (area.width.saturating_sub(w)) / 2;
+    let y = area.y + (area.height.saturating_sub(h)) / 2;
+    let rect = Rect {
+        x,
+        y,
+        width: w,
+        height: h,
+    };
+
+    f.render_widget(Clear, rect);
+
+    let lines: Vec<Line> = message
+        .lines()
+        .map(|l| Line::from(Span::styled(l, Style::default().fg(th.text))))
+        .collect();
+
+    let paragraph = Paragraph::new(lines).wrap(Wrap { trim: true }).block(
+        Block::default()
+            .title(Span::styled(
+                i18n::t(app, "app.modals.confirm_aur_update.title"),
+                Style::default().fg(th.yellow).add_modifier(Modifier::BOLD),
+            ))
+            .borders(Borders::ALL)
+            .border_type(BorderType::Double)
+            .border_style(Style::default().fg(th.yellow))
+            .style(Style::default().bg(th.mantle)),
+    );
+
+    f.render_widget(paragraph, rect);
+}
+
 /// What: Render the confirmation modal for reinstalling already installed packages.
 ///
 /// Inputs:
