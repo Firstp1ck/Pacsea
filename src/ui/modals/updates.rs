@@ -222,10 +222,7 @@ fn build_update_lines(
                 left_lines.push(Line::from(spans));
             } else if line_idx == 0 && !is_selected {
                 // First line gets spacing for alignment
-                left_lines.push(Line::from(Span::styled(
-                    format!("  {line}"),
-                    text_style,
-                )));
+                left_lines.push(Line::from(Span::styled(format!("  {line}"), text_style)));
             } else {
                 // Subsequent lines
                 left_lines.push(Line::from(Span::styled(line.clone(), text_style)));

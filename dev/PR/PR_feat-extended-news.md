@@ -3,7 +3,7 @@
 - **Performance & Reliability**: Implemented circuit breaker pattern, rate limiting with exponential backoff, conditional HTTP requests (ETag/Last-Modified), and connection pooling to improve reliability and reduce bandwidth usage when fetching from archlinux.org.
 - **Caching**: Multi-layer caching system with persistent storage for news feeds, article content, and last-seen updates/comments. Increased cache TTLs (15min in-memory, 14d disk) to reduce network requests.
 - **UI Improvements**: Enhanced footer layout with multi-line keybinds, added loading indicators, improved filter chips, and extended Shift+char keybind support across all panes and modes.
-- **Fixes**: Fixed update detection fallback (checkupdates) for Landlock-restricted environments, improved AUR comment date filtering, and enhanced error handling for HTTP requests.
+- **Fixes**: Fixed update detection fallback (checkupdates) for Landlock-restricted environments, improved AUR comment date filtering, enhanced error handling for HTTP requests, and fixed updates window alignment when text wraps.
 
 ## Type of change
 - [x] feat (new feature)
@@ -28,6 +28,7 @@ cargo test -- --test-threads=1
 - Launch Pacsea, switch to News mode (or set `app_start_mode = news`), verify news/advisories load, toggle filters, and mark items read/unread/bookmarked.
 - Verify startup configuration modal appears on first launch.
 - Test sorting options (severity/unread), bookmarks persistence, and Shift+char keybinds across all panes.
+- Verify updates window shows aligned rows when package names/versions wrap to multiple lines.
 
 **Technical validation:**
 - Verify caching works (subsequent views use cached content), rate limiting prevents excessive requests, and circuit breaker activates on repeated failures.
@@ -82,6 +83,7 @@ cargo test -- --test-threads=1
 - AUR comments: excludes invalid/future dates from "Recent" section, shows "Latest comment" fallback.
 - Code quality: migrated deprecated rand API, improved curl parser, refactored HTTP error handling, added test script (`dev/scripts/test_arch.sh`).
 - UI: Shift+char keybinds via `handle_shift_keybinds`, improved footer layout, loading toasts, filter chips with clickable rects.
+- Updates window: fixed alignment issue when package names/versions wrap by pre-calculating wrapping and padding panes with empty lines to maintain row alignment across all three columns (left, center, right).
 
 ## Breaking changes
 None.
