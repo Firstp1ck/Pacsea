@@ -97,8 +97,8 @@ fn handle_options_installed_only_toggle(
         crate::logic::apply_filters_and_sort_preserve_selection(app);
         utils::refresh_selected_details(app, details_tx);
         let path = crate::theme::config_dir().join("installed_packages.txt");
-        let mut names: Vec<String> = crate::index::explicit_names().into_iter().collect();
-        names.sort();
+        // Query pacman directly with current mode to ensure file reflects the setting
+        let names = crate::index::query_explicit_packages_sync(app.installed_packages_mode);
         let body = names.join("\n");
         let _ = std::fs::write(path, body);
     }
