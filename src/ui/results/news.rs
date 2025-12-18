@@ -13,6 +13,7 @@ use unicode_width::UnicodeWidthStr;
 /// What: Build list items for news feed results.
 ///
 /// Inputs:
+/// - `app`: Application state for i18n translations
 /// - `news_loading`: Whether news is currently loading
 /// - `news_results`: Reference to news results
 /// - `news_read_ids`: Set of read news IDs
@@ -26,6 +27,7 @@ use unicode_width::UnicodeWidthStr;
 /// - Otherwise builds items from `news_results` with read/unread indicators
 /// - Applies keyword highlighting to titles for Arch News items
 pub fn build_news_list_items<'a>(
+    app: &AppState,
     news_loading: bool,
     news_results: &'a [crate::state::types::NewsFeedItem],
     news_read_ids: &'a std::collections::HashSet<String>,
@@ -35,12 +37,24 @@ pub fn build_news_list_items<'a>(
     let prefs = crate::theme::settings();
 
     if news_loading && news_results.is_empty() {
-        // Only show "Loading..." if no cached items exist
+        // Only show "Loading..." if no cached items exist (first-time load)
+        // Show additional info that first load may take longer due to rate limiting
+        // and that it may affect package management operations
         (
-            vec![ListItem::new(Line::from(ratatui::text::Span::styled(
-                "Loading news feed...",
-                Style::default().fg(th.overlay1),
-            )))],
+            vec![
+                ListItem::new(Line::from(ratatui::text::Span::styled(
+                    i18n::t(app, "app.loading.news"),
+                    Style::default().fg(th.overlay1),
+                ))),
+                ListItem::new(Line::from(ratatui::text::Span::styled(
+                    i18n::t(app, "app.loading.news_first_load_hint"),
+                    Style::default().fg(th.subtext0),
+                ))),
+                ListItem::new(Line::from(ratatui::text::Span::styled(
+                    i18n::t(app, "app.loading.news_pkg_impact_hint"),
+                    Style::default().fg(th.yellow),
+                ))),
+            ],
             true, // needs to select None
         )
     } else {

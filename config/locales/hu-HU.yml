@@ -490,6 +490,8 @@ hu-HU:
       loading:
         # TODO: translate to hungarian
         news: "Loading news..."
+        news_first_load_hint: "(First load may take a few minutes due to rate limiting)"
+        news_pkg_impact_hint: "Package details from archlinux.org may be slower during loading."
       news_setup:
         title: "News Popup Setup"
         arch_news: "Arch News"

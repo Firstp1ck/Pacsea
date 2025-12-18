@@ -268,6 +268,7 @@ fn render_news_results(f: &mut Frame, app: &mut AppState, area: Rect) {
     f.render_stateful_widget(
         List::new(
             news::build_news_list_items(
+                app,
                 news_loading,
                 &news_results,
                 &news_read_ids,
