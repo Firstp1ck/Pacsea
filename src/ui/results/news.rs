@@ -483,7 +483,6 @@ fn build_title_spans(ctx: &NewsTitleContext) -> TitleSpans {
 /// - Builds title with loading indicator, filters, buttons, and right-aligned controls
 /// - Records hit-test rectangles for buttons and filters in `app`
 /// - Calculates layout positions for proper spacing
-#[allow(clippy::too_many_lines)]
 pub fn build_news_title_spans_and_record_rects(
     app: &mut AppState,
     area: Rect,

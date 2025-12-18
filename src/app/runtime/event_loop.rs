@@ -630,7 +630,7 @@ fn handle_downgrade_success(app: &mut AppState, items: &[crate::state::PackageIt
 /// - Processes `Line`, `ReplaceLastLine`, `Finished`, and `Error` outputs
 /// - Handles success/failure cases for Install, Remove, and Downgrade actions
 /// - Shows confirmation popup for AUR update when pacman fails
-#[allow(clippy::too_many_lines)] // Function handles multiple executor output types and modal transitions
+#[allow(clippy::too_many_lines)] // Function handles multiple executor output types and modal transitions (function has 187 lines)
 fn handle_executor_output(app: &mut AppState, output: crate::install::ExecutorOutput) {
     // Log what we received (at trace level to avoid spam)
     match &output {

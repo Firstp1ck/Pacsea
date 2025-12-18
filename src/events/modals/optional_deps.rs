@@ -73,7 +73,7 @@ pub(super) fn handle_optional_deps(
 /// - Handles setup for virustotal/aur-sleuth (keeps terminal spawn for interactive setup)
 /// - Shows reinstall confirmation for already installed dependencies
 /// - Installs optional dependencies using executor pattern
-#[allow(clippy::too_many_lines)] // Complex function handling multiple installation paths
+#[allow(clippy::too_many_lines)] // Complex function handling multiple installation paths (function has 227 lines)
 fn handle_optional_deps_enter(
     app: &mut AppState,
     row: &crate::state::types::OptionalDepRow,

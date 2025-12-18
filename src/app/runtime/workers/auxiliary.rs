@@ -1245,7 +1245,7 @@ static UPDATE_CHECK_IN_PROGRESS: OnceLock<tokio::sync::Mutex<bool>> = OnceLock::
 /// - Saves list to `~/.config/pacsea/lists/available_updates.txt`
 /// - Sends `(count, sorted_list)` via channel
 /// - Uses synchronization to prevent concurrent update checks and file writes
-#[allow(clippy::too_many_lines)] // Complex function handling multiple update check methods
+#[allow(clippy::too_many_lines)] // Complex function handling multiple update check methods (function has 204 lines)
 pub fn spawn_updates_worker(updates_tx: mpsc::UnboundedSender<(usize, Vec<String>)>) {
     let updates_tx_once = updates_tx;
 

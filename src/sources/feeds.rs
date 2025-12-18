@@ -1762,7 +1762,6 @@ where
 /// Details:
 /// - Emits when last-seen is missing or differs; updates maps for persistence.
 /// - New packages (not previously tracked) are always emitted regardless of optimization settings.
-#[allow(clippy::too_many_lines)]
 async fn fetch_installed_updates<HS, HV>(
     installed: &HashSet<String, HS>,
     limit: usize,

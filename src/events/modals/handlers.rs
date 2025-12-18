@@ -814,7 +814,7 @@ pub(super) fn handle_gnome_terminal_prompt_modal(
 /// Details:
 /// - Delegates to password handler and restores modal if needed
 /// - Returns `true` on Enter to indicate password should be submitted
-#[allow(clippy::too_many_lines)] // Complex password validation and execution flow requires many lines
+#[allow(clippy::too_many_lines)] // Complex password validation and execution flow requires many lines (function has 327 lines)
 pub(super) fn handle_password_prompt_modal(
     ke: KeyEvent,
     app: &mut AppState,

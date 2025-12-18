@@ -396,7 +396,7 @@ pub(super) fn handle_proceed_remove(
 ///
 /// Details:
 /// - Closes the modal if install/remove is triggered, but TUI remains open.
-#[allow(clippy::too_many_lines)] // Function handles complex preflight proceed logic
+#[allow(clippy::too_many_lines)] // Function handles complex preflight proceed logic (function has 208 lines)
 pub(super) fn handle_p_key(app: &mut AppState) -> bool {
     let new_summary: Option<Vec<crate::state::modal::ReverseRootSummary>> = None;
     let mut blocked_dep_count: Option<usize> = None;

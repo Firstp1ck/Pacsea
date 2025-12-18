@@ -419,7 +419,7 @@ trait ModalRenderer {
 }
 
 impl ModalRenderer for Modal {
-    #[allow(clippy::too_many_lines)] // Modal match with many variants
+    #[allow(clippy::too_many_lines)] // Modal match with many variants (function has 215 lines)
     fn render(self, f: &mut Frame, app: &mut AppState, area: Rect) -> Modal {
         match self {
             Self::Alert { message } => {

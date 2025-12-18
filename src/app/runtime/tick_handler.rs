@@ -527,7 +527,7 @@ fn handle_installed_cache_polling(
 #[allow(clippy::too_many_arguments)]
 // Function is 151 lines, just 1 line over the threshold. Refactoring would require
 // significant restructuring of the tick handling logic which would reduce readability.
-#[allow(clippy::too_many_lines)]
+#[allow(clippy::too_many_lines)] // Function has 205 lines - handles periodic tasks (cache flushing, faillock checks, news content timeouts, preflight resolution, executor requests) that require sequential processing
 pub fn handle_tick(
     app: &mut AppState,
     query_tx: &mpsc::UnboundedSender<QueryInput>,

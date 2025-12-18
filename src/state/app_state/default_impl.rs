@@ -20,7 +20,7 @@ impl Default for AppState {
     /// - Sets selection indices to zero, result buffers to empty, and UI flags to default visibility states.
     /// - All repository filters default to showing everything.
     /// - Initializes timers, scroll positions, and modal states to their default values.
-    #[allow(clippy::too_many_lines)]
+    #[allow(clippy::too_many_lines)] // Function has 652 lines - initializes large AppState struct with many fields, delegating to helper functions for logical grouping; refactoring would reduce readability
     fn default() -> Self {
         let (
             recent_path,
