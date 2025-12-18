@@ -751,10 +751,8 @@ pub fn handle_news(app: &mut AppState, items: &[crate::state::types::NewsFeedIte
         news_loading = app.news_loading,
         "handle_news called"
     );
-    // Clear loading flag and toast - news are ready
-    app.news_loading = false;
-    app.toast_message = None;
-    app.toast_expires_at = None;
+    // Don't clear news_loading or toast here - the main news feed pane may still be loading.
+    // The loading toast and flag will be cleared when handle_news_feed_items receives the aggregated feed.
 
     if items.is_empty() {
         // No news available - set ready flag to false

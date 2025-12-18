@@ -87,6 +87,7 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
         &channels.news_feed_tx,
         &channels.announcement_tx,
         &channels.tick_tx,
+        &app.news_read_ids,
         &app.news_read_urls,
         &app.news_seen_pkg_versions,
         &app.news_seen_aur_comments,

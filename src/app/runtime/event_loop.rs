@@ -230,6 +230,10 @@ fn handle_updates_list(app: &mut AppState, count: usize, list: Vec<String>) {
 /// Details:
 /// - Does not clear `news_loading` flag here - it will be cleared when news modal is shown.
 fn handle_news_feed_items(app: &mut AppState, payload: NewsFeedPayload) {
+    tracing::info!(
+        items_count = payload.items.len(),
+        "received aggregated news feed payload in event loop"
+    );
     app.news_items = payload.items;
     app.news_seen_pkg_versions = payload.seen_pkg_versions;
     app.news_seen_pkg_versions_dirty = true;
@@ -244,6 +248,12 @@ fn handle_news_feed_items(app: &mut AppState, payload: NewsFeedPayload) {
         Err(e) => tracing::warn!(error = %e, "failed to serialize news feed cache"),
     }
     app.refresh_news_results();
+
+    // News feed is now loaded - clear loading flag and toast
+    app.news_loading = false;
+    app.toast_message = None;
+    app.toast_expires_at = None;
+
     info!(
         fetched = app.news_items.len(),
         visible = app.news_results.len(),

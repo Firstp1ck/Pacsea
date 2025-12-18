@@ -137,27 +137,28 @@ fn filter_news_by_age(
     }
 }
 
-/// What: Filters out already-read news items by URL.
+/// What: Filters out already-read news items by ID and URL.
 ///
 /// Inputs:
 /// - `feed`: Vector of news feed items to filter
+/// - `read_ids`: Set of already-read news IDs
 /// - `read_urls`: Set of already-read news URLs
 ///
 /// Output:
 /// - Filtered vector containing only unread items
 ///
 /// Details:
-/// - Removes items whose URL is in the `read_urls` set
+/// - Removes items whose ID is in the `read_ids` set or whose URL is in the `read_urls` set
+/// - Package updates and AUR comments are tracked by ID, while Arch news items are tracked by URL
 fn filter_unread_news(
     feed: Vec<crate::state::types::NewsFeedItem>,
+    read_ids: &HashSet<String>,
     read_urls: &HashSet<String>,
 ) -> Vec<crate::state::types::NewsFeedItem> {
-    #[allow(clippy::unnecessary_map_or)]
     feed.into_iter()
         .filter(|item| {
-            item.url
-                .as_ref()
-                .map_or(true, |url| !read_urls.contains(url))
+            !read_ids.contains(&item.id)
+                && item.url.as_ref().is_none_or(|url| !read_urls.contains(url))
         })
         .collect()
 }
@@ -166,6 +167,7 @@ fn filter_unread_news(
 ///
 /// Inputs:
 /// - `news_tx`: Channel sender for startup news updates
+/// - `news_read_ids`: Set of already-read news IDs
 /// - `news_read_urls`: Set of already-read news URLs
 /// - `news_seen_pkg_versions`: Map of seen package versions
 /// - `news_seen_aur_comments`: Map of seen AUR comments
@@ -176,10 +178,11 @@ fn filter_unread_news(
 ///
 /// Details:
 /// - Fetches news items based on startup news preferences
-/// - Filters by source type, max age, and read status
+/// - Filters by source type, max age, and read status (by both ID and URL)
 /// - Sends filtered items to the news channel
 fn spawn_startup_news_worker(
     news_tx: &mpsc::UnboundedSender<Vec<crate::state::types::NewsFeedItem>>,
+    news_read_ids: &HashSet<String>,
     news_read_urls: &HashSet<String>,
     news_seen_pkg_versions: &std::collections::HashMap<String, String>,
     news_seen_aur_comments: &std::collections::HashMap<String, String>,
@@ -196,12 +199,14 @@ fn spawn_startup_news_worker(
     }
 
     let news_tx_once = news_tx.clone();
+    let read_ids = news_read_ids.clone();
     let read_urls = news_read_urls.clone();
     let installed: HashSet<String> = pkgindex::explicit_names().into_iter().collect();
     let mut seen_versions = news_seen_pkg_versions.clone();
     let mut seen_aur_comments = news_seen_aur_comments.clone();
     let last_startup = last_startup_timestamp.map(str::to_owned);
     tracing::info!(
+        read_ids = read_ids.len(),
         read_urls = read_urls.len(),
         last_startup = ?last_startup,
         "queueing startup news fetch (startup)"
@@ -264,7 +269,7 @@ fn spawn_startup_news_worker(
                 );
                 let source_filtered = filter_news_by_source(feed, &prefs);
                 let filtered = filter_news_by_age(source_filtered, prefs.startup_news_max_age_days);
-                let unread = filter_unread_news(filtered, &read_urls);
+                let unread = filter_unread_news(filtered, &read_ids, &read_urls);
                 tracing::info!(
                     unread_count = unread.len(),
                     "sending startup news items to channel"
@@ -390,12 +395,18 @@ fn spawn_aggregated_news_feed_worker(
                     );
                 }
                 let payload = crate::state::types::NewsFeedPayload {
-                    items: feed,
+                    items: feed.clone(),
                     seen_pkg_versions: seen_versions,
                     seen_aur_comments,
                 };
+                tracing::info!(
+                    items_count = feed.len(),
+                    "sending aggregated news feed payload to channel"
+                );
                 if let Err(e) = news_feed_tx_once.send(payload) {
                     tracing::warn!(error = ?e, "failed to send news feed to channel");
+                } else {
+                    tracing::info!("aggregated news feed payload sent successfully");
                 }
             }
             Err(e) => {
@@ -618,6 +629,7 @@ fn spawn_faillock_worker(tick_tx: &mpsc::UnboundedSender<()>) {
 /// - `news_feed_tx`: Channel sender for aggregated news feed (Arch news + advisories)
 /// - `announcement_tx`: Channel sender for remote announcement updates
 /// - `tick_tx`: Channel sender for tick events
+/// - `news_read_ids`: Set of already-read news IDs
 /// - `news_read_urls`: Set of already-read news URLs
 /// - `official_index_path`: Path to official package index
 /// - `net_err_tx`: Channel sender for network errors
@@ -644,6 +656,7 @@ pub fn spawn_auxiliary_workers(
     news_feed_tx: &mpsc::UnboundedSender<crate::state::types::NewsFeedPayload>,
     announcement_tx: &mpsc::UnboundedSender<crate::announcements::RemoteAnnouncement>,
     tick_tx: &mpsc::UnboundedSender<()>,
+    news_read_ids: &std::collections::HashSet<String>,
     news_read_urls: &std::collections::HashSet<String>,
     news_seen_pkg_versions: &std::collections::HashMap<String, String>,
     news_seen_aur_comments: &std::collections::HashMap<String, String>,
@@ -683,6 +696,7 @@ pub fn spawn_auxiliary_workers(
         let (completion_tx, completion_rx) = oneshot::channel();
         spawn_startup_news_worker(
             news_tx,
+            news_read_ids,
             news_read_urls,
             news_seen_pkg_versions,
             news_seen_aur_comments,

@@ -92,8 +92,14 @@ pub fn handle_news_button(app: &mut AppState) -> bool {
         // Convert NewsItem to NewsFeedItem for the modal
         // Use as_ref() instead of take() to preserve pending_news for subsequent opens
         if let Some(news_items) = app.pending_news.as_ref() {
+            // Filter out items that have been marked as read (by ID or URL)
             let feed_items: Vec<crate::state::types::NewsFeedItem> = news_items
                 .iter()
+                .filter(|item| {
+                    // Filter out items marked as read by ID (id == url for Arch news)
+                    !app.news_read_ids.contains(&item.url)
+                        && !app.news_read_urls.contains(&item.url)
+                })
                 .map(|item| crate::state::types::NewsFeedItem {
                     id: item.url.clone(),
                     date: item.date.clone(),
@@ -105,6 +111,14 @@ pub fn handle_news_button(app: &mut AppState) -> bool {
                     packages: Vec::new(),
                 })
                 .collect();
+            // Only show modal if there are unread items
+            if feed_items.is_empty() {
+                // All items have been read - show toast instead
+                app.toast_message = Some(crate::i18n::t(app, "app.toasts.no_new_news"));
+                app.toast_expires_at =
+                    Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
+                return true;
+            }
             app.modal = crate::state::Modal::News {
                 items: feed_items,
                 selected: 0,

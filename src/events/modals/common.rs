@@ -98,9 +98,13 @@ fn show_next_pending_announcement(app: &mut AppState) {
         );
         // Clear loading flag when news modal is actually shown
         app.news_loading = false;
-        // Convert NewsItem to NewsFeedItem for the modal
+        // Convert NewsItem to NewsFeedItem for the modal, filtering out read items
         let feed_items: Vec<crate::state::types::NewsFeedItem> = news_items
             .into_iter()
+            .filter(|item| {
+                // Filter out items marked as read by ID or URL
+                !app.news_read_ids.contains(&item.url) && !app.news_read_urls.contains(&item.url)
+            })
             .map(|item| crate::state::types::NewsFeedItem {
                 id: item.url.clone(),
                 date: item.date,
@@ -112,15 +116,20 @@ fn show_next_pending_announcement(app: &mut AppState) {
                 packages: Vec::new(),
             })
             .collect();
-        app.modal = crate::state::Modal::News {
-            items: feed_items,
-            selected: 0,
-            scroll: 0,
-        };
-        tracing::info!(
-            news_loading_after = app.news_loading,
-            "pending news modal set, loading flag cleared"
-        );
+        // Only show modal if there are unread items
+        if feed_items.is_empty() {
+            tracing::debug!("all pending news items have been read, not showing modal");
+        } else {
+            app.modal = crate::state::Modal::News {
+                items: feed_items,
+                selected: 0,
+                scroll: 0,
+            };
+            tracing::info!(
+                news_loading_after = app.news_loading,
+                "pending news modal set, loading flag cleared"
+            );
+        }
     } else if app.pending_news.is_some() {
         tracing::debug!("pending news exists but is empty, not showing");
     }

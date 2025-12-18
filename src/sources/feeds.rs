@@ -165,7 +165,7 @@ struct ArchLinuxRateLimiter {
 static ARCHLINUX_RATE_LIMITER: LazyLock<Mutex<ArchLinuxRateLimiter>> = LazyLock::new(|| {
     Mutex::new(ArchLinuxRateLimiter {
         last_request: Instant::now(),
-        current_backoff_ms: 2000, // Start with 2 second base delay
+        current_backoff_ms: 500, // Start with 500ms base delay (reduced from 2s for faster initial requests)
         consecutive_failures: 0,
     })
 });
@@ -178,7 +178,7 @@ static ARCHLINUX_REQUEST_SEMAPHORE: LazyLock<std::sync::Arc<tokio::sync::Semapho
     LazyLock::new(|| std::sync::Arc::new(tokio::sync::Semaphore::new(1)));
 
 /// Base delay for archlinux.org requests (2 seconds).
-const ARCHLINUX_BASE_DELAY_MS: u64 = 2000;
+const ARCHLINUX_BASE_DELAY_MS: u64 = 500; // Reduced from 2000ms for faster initial requests
 /// Maximum backoff delay (60 seconds).
 const ARCHLINUX_MAX_BACKOFF_MS: u64 = 60000;
 
@@ -825,63 +825,52 @@ async fn append_arch_news(limit: usize, cutoff_date: Option<&str>) -> Result<Vec
         return Ok(disk_data);
     }
 
-    // 3. Fetch from network with retry and exponential backoff
-    let fetch_result = retry_with_backoff(
-        || async {
-            // Acquire semaphore permit and hold it during the request
-            // This ensures only one archlinux.org request is in flight at a time
-            let _permit = rate_limit_archlinux().await;
-            let result = super::fetch_arch_news(limit, cutoff_date).await;
-            // Check for HTTP 429/503 and handle with Retry-After or extended backoff
-            if let Err(ref e) = result {
-                let error_str = e.to_string();
-                let retry_after_seconds = extract_retry_after_from_error(&error_str);
-                if error_str.contains("429") || error_str.contains("503") {
-                    if let Some(retry_after) = retry_after_seconds {
-                        warn!(
-                            retry_after_seconds = retry_after,
-                            "HTTP {} detected, using Retry-After header",
-                            if error_str.contains("429") {
-                                "429"
-                            } else {
-                                "503"
-                            }
-                        );
-                        // Use Retry-After value for backoff
-                        increase_archlinux_backoff(Some(retry_after));
-                        // Wait for the Retry-After duration
-                        tokio::time::sleep(Duration::from_secs(retry_after)).await;
-                    } else {
-                        warn!(
-                            "HTTP {} detected, applying extended backoff (60s)",
-                            if error_str.contains("429") {
-                                "429"
-                            } else {
-                                "503"
-                            }
-                        );
-                        // Set backoff to 60 seconds if no Retry-After header
-                        {
-                            let mut limiter = match ARCHLINUX_RATE_LIMITER.lock() {
-                                Ok(guard) => guard,
-                                Err(poisoned) => poisoned.into_inner(),
-                            };
-                            limiter.current_backoff_ms = ARCHLINUX_MAX_BACKOFF_MS;
-                            limiter.consecutive_failures += 1;
-                        } // Drop guard before await
-                        // Wait 60 seconds before retrying
-                        tokio::time::sleep(Duration::from_secs(60)).await;
-                    }
+    // 3. Fetch from network - NO retries for arch news to avoid long delays
+    // If archlinux.org is blocked/slow, we skip it rather than retrying
+    let fetch_result: std::result::Result<
+        Vec<crate::state::types::NewsItem>,
+        Box<dyn std::error::Error + Send + Sync>,
+    > = {
+        // Acquire semaphore permit and hold it during the request
+        // This ensures only one archlinux.org request is in flight at a time
+        let _permit = rate_limit_archlinux().await;
+        let result = super::fetch_arch_news(limit, cutoff_date).await;
+        // Check for HTTP 429/503 and update backoff for future requests
+        if let Err(ref e) = result {
+            let error_str = e.to_string();
+            let retry_after_seconds = extract_retry_after_from_error(&error_str);
+            if error_str.contains("429") || error_str.contains("503") {
+                if let Some(retry_after) = retry_after_seconds {
+                    warn!(
+                        retry_after_seconds = retry_after,
+                        "HTTP {} detected, noting Retry-After for future requests",
+                        if error_str.contains("429") {
+                            "429"
+                        } else {
+                            "503"
+                        }
+                    );
+                    // Use Retry-After value for backoff on future requests
+                    increase_archlinux_backoff(Some(retry_after));
                 } else {
-                    // For other errors, use normal exponential backoff
+                    warn!(
+                        "HTTP {} detected, increasing backoff for future requests",
+                        if error_str.contains("429") {
+                            "429"
+                        } else {
+                            "503"
+                        }
+                    );
+                    // Increase backoff for future requests
                     increase_archlinux_backoff(None);
                 }
+            } else {
+                // For other errors (timeout, network), only mild backoff increase
+                increase_archlinux_backoff(None);
             }
-            result
-        },
-        1, // Max 1 retry (2 total attempts) - reduced to be less aggressive
-    )
-    .await;
+        }
+        result
+    };
     match fetch_result {
         Ok(news) => {
             // Reset backoff after successful request
@@ -1093,6 +1082,7 @@ where
 /// # Errors
 /// - Network failures fetching sources
 /// - JSON parse errors from upstream feeds
+#[allow(clippy::cognitive_complexity)] // Complex function that orchestrates multiple async fetches
 pub async fn fetch_news_feed<HS, HV, HC>(
     ctx: NewsFeedContext<'_, HS, HV, HC>,
 ) -> Result<Vec<NewsFeedItem>>
@@ -1141,138 +1131,201 @@ where
         None
     };
 
-    // Fetch archlinux.org sources sequentially to avoid overwhelming the server
-    // (arch_news and advisories both hit archlinux.org)
-    // Other sources (updates, AUR comments) can be fetched in parallel
     info!(
         "starting fetch: arch_news={include_arch_news}, advisories={include_advisories}, pkg_updates={include_pkg_updates}, aur_comments={include_aur_comments}"
     );
 
-    // Fetch archlinux.org sources sequentially
-    let arch_result = if include_arch_news {
-        info!("fetching arch news...");
-        let result = append_arch_news(limit, cutoff_date.as_deref()).await;
-        info!(
-            "arch news fetch completed: items={}",
-            result.as_ref().map(Vec::len).unwrap_or(0)
-        );
-        result
-    } else {
-        Ok::<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>(Vec::new())
-    };
+    // Reset archlinux.org rate limiter backoff at start of each fetch
+    // This prevents slow cumulative backoff from previous failures affecting new fetches
+    reset_archlinux_backoff();
 
-    let advisories_result = if include_advisories {
-        info!("fetching advisories...");
-        let result = append_advisories(
-            limit,
-            installed_filter,
-            installed_only,
-            cutoff_date.as_deref(),
-        )
-        .await;
-        info!(
-            "advisories fetch completed: items={}",
-            result.as_ref().map(Vec::len).unwrap_or(0)
-        );
-        result
-    } else {
-        Ok::<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>(Vec::new())
-    };
-
-    // Fetch non-archlinux.org sources in parallel
-    let (updates_result, comments_result) = tokio::join!(
+    // Fetch ALL sources in parallel for best responsiveness:
+    // - Fast sources (AUR comments, package updates) run in parallel and complete quickly
+    // - Slow sources (arch news, advisories from archlinux.org) run sequentially with each other
+    //   but IN PARALLEL with the fast sources, so they don't block everything
+    // - Use 30-second timeout on slow sources to match HTTP client timeout
+    let ((updates_result, comments_result), (arch_result, advisories_result)) = tokio::join!(
+        // Fast sources: package updates and AUR comments (non-archlinux.org)
         async {
-            if include_pkg_updates {
-                if let Some(installed) = installed_filter {
-                    if installed.is_empty() {
-                        warn!(
-                            "include_pkg_updates set but installed set is empty; skipping updates"
-                        );
-                        Ok::<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>(Vec::new())
+            tokio::join!(
+                async {
+                    if include_pkg_updates {
+                        if let Some(installed) = installed_filter {
+                            if installed.is_empty() {
+                                warn!(
+                                    "include_pkg_updates set but installed set is empty; skipping updates"
+                                );
+                                Ok::<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>(
+                                    Vec::new(),
+                                )
+                            } else {
+                                info!(
+                                    "fetching package updates: installed_count={}, limit={}",
+                                    installed.len(),
+                                    limit
+                                );
+                                let result = fetch_installed_updates(
+                                    installed,
+                                    limit,
+                                    seen_pkg_versions,
+                                    force_emit_all,
+                                    updates_versions.as_ref(),
+                                )
+                                .await;
+                                match &result {
+                                    Ok(updates) => {
+                                        info!(
+                                            "package updates fetch completed: items={}",
+                                            updates.len()
+                                        );
+                                    }
+                                    Err(e) => {
+                                        warn!(error = %e, "installed package updates fetch failed");
+                                    }
+                                }
+                                match result {
+                                    Ok(updates) => Ok(updates),
+                                    Err(_e) => Ok::<
+                                        Vec<NewsFeedItem>,
+                                        Box<dyn std::error::Error + Send + Sync>,
+                                    >(Vec::new()),
+                                }
+                            }
+                        } else {
+                            warn!(
+                                "include_pkg_updates set but installed_filter missing; skipping updates"
+                            );
+                            Ok::<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>(
+                                Vec::new(),
+                            )
+                        }
                     } else {
-                        info!(
-                            "fetching package updates: installed_count={}, limit={}",
-                            installed.len(),
-                            limit
-                        );
-                        let result = fetch_installed_updates(
-                            installed,
-                            limit,
-                            seen_pkg_versions,
-                            force_emit_all,
-                            updates_versions.as_ref(),
-                        )
-                        .await;
-                        match &result {
-                            Ok(updates) => {
-                                info!("package updates fetch completed: items={}", updates.len());
-                            }
-                            Err(e) => {
-                                warn!(error = %e, "installed package updates fetch failed");
-                            }
-                        }
-                        match result {
-                            Ok(updates) => Ok(updates),
-                            Err(_e) => Ok::<
-                                Vec<NewsFeedItem>,
-                                Box<dyn std::error::Error + Send + Sync>,
-                            >(Vec::new()),
-                        }
+                        Ok::<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>(Vec::new())
                     }
-                } else {
-                    warn!("include_pkg_updates set but installed_filter missing; skipping updates");
-                    Ok::<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>(Vec::new())
+                },
+                async {
+                    if include_aur_comments {
+                        if let Some(installed) = installed_filter {
+                            if installed.is_empty() {
+                                warn!(
+                                    "include_aur_comments set but installed set is empty; skipping comments"
+                                );
+                                Ok::<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>(
+                                    Vec::new(),
+                                )
+                            } else {
+                                info!(
+                                    "fetching AUR comments: installed_count={}, limit={}",
+                                    installed.len(),
+                                    limit
+                                );
+                                let result = fetch_installed_aur_comments(
+                                    installed,
+                                    limit,
+                                    seen_aur_comments,
+                                    force_emit_all,
+                                )
+                                .await;
+                                match &result {
+                                    Ok(comments) => {
+                                        info!(
+                                            "AUR comments fetch completed: items={}",
+                                            comments.len()
+                                        );
+                                    }
+                                    Err(e) => {
+                                        warn!(error = %e, "installed AUR comments fetch failed");
+                                    }
+                                }
+                                match result {
+                                    Ok(comments) => Ok(comments),
+                                    Err(_e) => Ok::<
+                                        Vec<NewsFeedItem>,
+                                        Box<dyn std::error::Error + Send + Sync>,
+                                    >(Vec::new()),
+                                }
+                            }
+                        } else {
+                            warn!(
+                                "include_aur_comments set but installed_filter missing; skipping comments"
+                            );
+                            Ok::<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>(
+                                Vec::new(),
+                            )
+                        }
+                    } else {
+                        Ok::<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>(Vec::new())
+                    }
                 }
-            } else {
-                Ok::<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>(Vec::new())
-            }
+            )
         },
+        // Slow sources: arch news and advisories (archlinux.org - sequential with each other, parallel with fast)
+        // These can be slow or blocked, so they run in parallel with fast sources to not block everything
         async {
-            if include_aur_comments {
-                if let Some(installed) = installed_filter {
-                    if installed.is_empty() {
-                        warn!(
-                            "include_aur_comments set but installed set is empty; skipping comments"
-                        );
-                        Ok::<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>(Vec::new())
-                    } else {
+            // Use 30-second timeout to match HTTP client timeout
+            let arch_result: std::result::Result<
+                Vec<NewsFeedItem>,
+                Box<dyn std::error::Error + Send + Sync>,
+            > = if include_arch_news {
+                info!("fetching arch news...");
+                tokio::time::timeout(
+                    Duration::from_secs(30),
+                    append_arch_news(limit, cutoff_date.as_deref()),
+                )
+                .await
+                .map_or_else(
+                    |_| {
+                        warn!("arch news fetch timed out after 30s, continuing without arch news");
+                        Err("Arch news fetch timeout".into())
+                    },
+                    |result| {
                         info!(
-                            "fetching AUR comments: installed_count={}, limit={}",
-                            installed.len(),
-                            limit
+                            "arch news fetch completed: items={}",
+                            result.as_ref().map(Vec::len).unwrap_or(0)
                         );
-                        let result = fetch_installed_aur_comments(
-                            installed,
-                            limit,
-                            seen_aur_comments,
-                            force_emit_all,
-                        )
-                        .await;
-                        match &result {
-                            Ok(comments) => {
-                                info!("AUR comments fetch completed: items={}", comments.len());
-                            }
-                            Err(e) => {
-                                warn!(error = %e, "installed AUR comments fetch failed");
-                            }
-                        }
-                        match result {
-                            Ok(comments) => Ok(comments),
-                            Err(_e) => Ok::<
-                                Vec<NewsFeedItem>,
-                                Box<dyn std::error::Error + Send + Sync>,
-                            >(Vec::new()),
-                        }
-                    }
-                } else {
-                    warn!(
-                        "include_aur_comments set but installed_filter missing; skipping comments"
-                    );
-                    Ok::<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>(Vec::new())
-                }
+                        result
+                    },
+                )
             } else {
-                Ok::<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>(Vec::new())
-            }
+                Ok(Vec::new())
+            };
+
+            // Advisories also hit archlinux.org, so apply timeout here too
+            let advisories_result: std::result::Result<
+                Vec<NewsFeedItem>,
+                Box<dyn std::error::Error + Send + Sync>,
+            > = if include_advisories {
+                info!("fetching advisories...");
+                tokio::time::timeout(
+                    Duration::from_secs(30),
+                    append_advisories(
+                        limit,
+                        installed_filter,
+                        installed_only,
+                        cutoff_date.as_deref(),
+                    ),
+                )
+                .await
+                .map_or_else(
+                    |_| {
+                        warn!(
+                            "advisories fetch timed out after 30s, continuing without advisories"
+                        );
+                        Err("Advisories fetch timeout".into())
+                    },
+                    |result| {
+                        info!(
+                            "advisories fetch completed: items={}",
+                            result.as_ref().map(Vec::len).unwrap_or(0)
+                        );
+                        result
+                    },
+                )
+            } else {
+                Ok(Vec::new())
+            };
+
+            (arch_result, advisories_result)
         }
     );
     info!("fetch completed, combining results...");
