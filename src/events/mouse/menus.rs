@@ -86,18 +86,20 @@ pub fn handle_updates_button(app: &mut AppState) -> bool {
 /// - Opens News modal if news are ready
 /// - Shows "No News available" message if no news exist
 /// - Converts `pending_news` (legacy format) to `NewsFeedItem` format for modal
+/// - Preserves `pending_news` for subsequent opens by using `as_ref()` instead of `take()`
 pub fn handle_news_button(app: &mut AppState) -> bool {
     if app.news_ready {
         // Convert NewsItem to NewsFeedItem for the modal
-        if let Some(news_items) = app.pending_news.take() {
+        // Use as_ref() instead of take() to preserve pending_news for subsequent opens
+        if let Some(news_items) = app.pending_news.as_ref() {
             let feed_items: Vec<crate::state::types::NewsFeedItem> = news_items
-                .into_iter()
+                .iter()
                 .map(|item| crate::state::types::NewsFeedItem {
                     id: item.url.clone(),
-                    date: item.date,
-                    title: item.title,
+                    date: item.date.clone(),
+                    title: item.title.clone(),
                     summary: None,
-                    url: Some(item.url),
+                    url: Some(item.url.clone()),
                     source: crate::state::types::NewsFeedSource::ArchNews,
                     severity: None,
                     packages: Vec::new(),
@@ -974,4 +976,90 @@ mod tests {
     }
 
     // Removed: News options menu no longer includes a News age entry.
+
+    /// What: Test that `handle_news_button` preserves `pending_news` for multiple opens.
+    ///
+    /// Inputs:
+    /// - `AppState` with `news_ready` set to true and `pending_news` populated
+    ///
+    /// Output:
+    /// - Modal opens with news items on first call
+    /// - `pending_news` remains available after first call
+    /// - Modal opens with news items on second call
+    /// - `pending_news` remains available after second call
+    ///
+    /// Details:
+    /// - Tests the bug fix where `pending_news` was consumed on first open
+    /// - Verifies that news items are available for subsequent opens
+    #[test]
+    fn test_handle_news_button_preserves_pending_news() {
+        let mut app = crate::state::AppState::default();
+
+        // Set up news items
+        let news_items = vec![
+            crate::state::NewsItem {
+                date: "2025-01-01".to_string(),
+                title: "Test News 1".to_string(),
+                url: "https://example.com/news1".to_string(),
+            },
+            crate::state::NewsItem {
+                date: "2025-01-02".to_string(),
+                title: "Test News 2".to_string(),
+                url: "https://example.com/news2".to_string(),
+            },
+        ];
+
+        app.news_ready = true;
+        app.pending_news = Some(news_items);
+
+        // First call - should open modal with items
+        handle_news_button(&mut app);
+
+        // Verify modal was opened with items
+        if let crate::state::Modal::News { items, .. } = &app.modal {
+            assert_eq!(items.len(), 2, "Modal should have 2 items on first open");
+            assert_eq!(items[0].title, "Test News 1");
+            assert_eq!(items[1].title, "Test News 2");
+        } else {
+            panic!("Modal should be News variant after first call");
+        }
+
+        // Verify pending_news is still available (not consumed)
+        assert!(
+            app.pending_news.is_some(),
+            "pending_news should still be available after first open"
+        );
+        if let Some(pending) = &app.pending_news {
+            assert_eq!(pending.len(), 2, "pending_news should still have 2 items");
+            assert_eq!(pending[0].title, "Test News 1");
+        }
+
+        // Close modal
+        app.modal = crate::state::Modal::None;
+
+        // Second call - should still open modal with items
+        handle_news_button(&mut app);
+
+        // Verify modal was opened again with items
+        if let crate::state::Modal::News { items, .. } = &app.modal {
+            assert_eq!(items.len(), 2, "Modal should have 2 items on second open");
+            assert_eq!(items[0].title, "Test News 1");
+            assert_eq!(items[1].title, "Test News 2");
+        } else {
+            panic!("Modal should be News variant after second call");
+        }
+
+        // Verify pending_news is still available after second call
+        assert!(
+            app.pending_news.is_some(),
+            "pending_news should still be available after second open"
+        );
+        if let Some(pending) = &app.pending_news {
+            assert_eq!(
+                pending.len(),
+                2,
+                "pending_news should still have 2 items after second open"
+            );
+        }
+    }
 }

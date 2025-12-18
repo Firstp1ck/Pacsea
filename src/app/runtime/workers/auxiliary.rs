@@ -7,6 +7,7 @@ use crossterm::event::Event as CEvent;
 use rand::Rng;
 use tokio::{
     sync::mpsc,
+    sync::oneshot,
     time::{Duration, sleep},
 };
 
@@ -183,9 +184,14 @@ fn spawn_startup_news_worker(
     news_seen_pkg_versions: &std::collections::HashMap<String, String>,
     news_seen_aur_comments: &std::collections::HashMap<String, String>,
     last_startup_timestamp: Option<&str>,
+    completion_tx: Option<oneshot::Sender<()>>,
 ) {
     let prefs = crate::theme::settings();
     if !prefs.startup_news_configured {
+        // If startup news is not configured, signal completion immediately
+        if let Some(tx) = completion_tx {
+            let _ = tx.send(());
+        }
         return;
     }
 
@@ -281,6 +287,10 @@ fn spawn_startup_news_worker(
                 let _ = news_tx_once.send(Vec::new());
             }
         }
+        // Signal completion to allow aggregated feed fetch to proceed
+        if let Some(tx) = completion_tx {
+            let _ = tx.send(());
+        }
     });
 }
 
@@ -290,6 +300,7 @@ fn spawn_startup_news_worker(
 /// - `news_feed_tx`: Channel sender for aggregated news feed
 /// - `news_seen_pkg_versions`: Map of seen package versions
 /// - `news_seen_aur_comments`: Map of seen AUR comments
+/// - `completion_rx`: Optional oneshot receiver to wait for startup news fetch completion
 ///
 /// Output:
 /// - None (spawns async task)
@@ -297,10 +308,12 @@ fn spawn_startup_news_worker(
 /// Details:
 /// - Fetches aggregated news feed (Arch news + security advisories + package updates + AUR comments)
 /// - Sends feed payload to the news feed channel
+/// - Waits for startup news fetch to complete before starting to prevent concurrent archlinux.org requests
 fn spawn_aggregated_news_feed_worker(
     news_feed_tx: &mpsc::UnboundedSender<crate::state::types::NewsFeedPayload>,
     news_seen_pkg_versions: &std::collections::HashMap<String, String>,
     news_seen_aur_comments: &std::collections::HashMap<String, String>,
+    completion_rx: Option<oneshot::Receiver<()>>,
 ) {
     let news_feed_tx_once = news_feed_tx.clone();
     let installed: HashSet<String> = pkgindex::explicit_names().into_iter().collect();
@@ -311,14 +324,32 @@ fn spawn_aggregated_news_feed_worker(
         "queueing combined news feed fetch (startup)"
     );
     tokio::spawn(async move {
-        // Fixed 5-second delay + random jitter (0-500ms) for aggregated news feed
-        // This ensures it starts AFTER the startup news fetch completes (which has only 0-500ms jitter)
-        // The separation prevents concurrent requests to archlinux.org
-        let base_delay_ms = 5000_u64;
-        let jitter_ms = rand::rng().random_range(0..=500_u64);
-        let stagger_ms = base_delay_ms + jitter_ms;
-        tracing::info!(stagger_ms, "staggering aggregated news feed fetch");
-        tokio::time::sleep(Duration::from_millis(stagger_ms)).await;
+        // Wait for startup news fetch to complete before starting aggregated feed fetch
+        // This prevents concurrent requests to archlinux.org which can cause rate limiting/blocking
+        if let Some(rx) = completion_rx {
+            tracing::info!(
+                "waiting for startup news fetch to complete before starting aggregated feed fetch"
+            );
+            let _ = rx.await; // Wait for startup fetch completion signal
+            // Add a small additional delay after startup fetch completes to ensure clean separation
+            let additional_delay_ms = rand::rng().random_range(500..=1500_u64);
+            tracing::info!(
+                additional_delay_ms,
+                "additional delay after startup fetch completion"
+            );
+            tokio::time::sleep(Duration::from_millis(additional_delay_ms)).await;
+        } else {
+            // Fallback: use fixed delay if no completion signal is provided
+            // This should not happen in normal operation, but provides safety
+            let base_delay_ms = 10000_u64; // Increased to 10 seconds as fallback
+            let jitter_ms = rand::rng().random_range(0..=2000_u64);
+            let stagger_ms = base_delay_ms + jitter_ms;
+            tracing::warn!(
+                stagger_ms,
+                "no completion signal available, using fallback delay for aggregated feed fetch"
+            );
+            tokio::time::sleep(Duration::from_millis(stagger_ms)).await;
+        }
         let installed_set = ensure_installed_set(installed).await;
         let ctx = sources::NewsFeedContext {
             force_emit_all: true,
@@ -647,17 +678,22 @@ pub fn spawn_auxiliary_workers(
             let _ = news_tx_headless.send(Vec::new());
         });
     } else {
+        // Create a oneshot channel to coordinate startup and aggregated news fetches
+        // This prevents concurrent requests to archlinux.org which can cause rate limiting/blocking
+        let (completion_tx, completion_rx) = oneshot::channel();
         spawn_startup_news_worker(
             news_tx,
             news_read_urls,
             news_seen_pkg_versions,
             news_seen_aur_comments,
             last_startup_timestamp,
+            Some(completion_tx),
         );
         spawn_aggregated_news_feed_worker(
             news_feed_tx,
             news_seen_pkg_versions,
             news_seen_aur_comments,
+            Some(completion_rx),
         );
     }
 
