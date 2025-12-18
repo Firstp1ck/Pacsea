@@ -3,7 +3,7 @@
 - **Performance & Reliability**: Implemented circuit breaker pattern, rate limiting with exponential backoff, conditional HTTP requests (ETag/Last-Modified), and connection pooling to improve reliability and reduce bandwidth usage when fetching from archlinux.org.
 - **Caching**: Multi-layer caching system with persistent storage for news feeds, article content, and last-seen updates/comments. Increased cache TTLs (15min in-memory, 14d disk) to reduce network requests.
 - **UI Improvements**: Enhanced footer layout with multi-line keybinds, added loading indicators, improved filter chips, and extended Shift+char keybind support across all panes and modes.
-- **Fixes**: Fixed update detection fallback (checkupdates) for Landlock-restricted environments, improved AUR comment date filtering, enhanced error handling for HTTP requests, fixed updates window alignment when text wraps, aligned options menu key bindings with display order in Package and News modes, and fixed `installed_packages.txt` to respect `installed_packages_mode` setting.
+- **Fixes**: Fixed update detection fallback (checkupdates) for Landlock-restricted environments, improved AUR comment date filtering, enhanced error handling for HTTP requests, fixed updates window alignment when text wraps, aligned options menu key bindings with display order in Package and News modes, fixed `installed_packages.txt` to respect `installed_packages_mode` setting, and improved compatibility with archlinux.org DDoS protection (browser-like headers, Firefox-like User-Agent, increased timeouts).
 
 ## Type of change
 - [x] feat (new feature)
@@ -12,7 +12,7 @@
 - [x] refactor (no functional change)
 - [x] perf (performance)
 - [x] test (add/update tests)
-- [ ] chore (build/infra/CI)
+- [x] chore (build/infra/CI)
 - [x] ui (visual/interaction changes)
 - [ ] breaking change (incompatible behavior)
 
@@ -78,7 +78,7 @@ cargo test -- --test-threads=1
 - Semaphore-based request serialization for archlinux.org (only 1 concurrent request allowed) to prevent rate limiting/blocking.
 - Added staggering calculation for startup news fetches: startup popup uses 0-500ms jitter, aggregated feed uses 5s+ delay.
 - Conditional requests: ETag/Last-Modified headers, Retry-After parsing, connection pooling, cache TTLs (15min in-memory, 14d disk).
-- Timeouts: 10s connect, 15s max for fetching; 10s timeout for content loading.
+- Timeouts: 15s connect, 30s max for news fetching; 5s for AUR comments; 90s max-time for archlinux.org requests; 10s timeout for content loading.
 
 **Technical Details:**
 - Update detection: `checkupdates` fallback when temp database sync fails (Landlock restrictions).
@@ -89,6 +89,8 @@ cargo test -- --test-threads=1
 - Options menu: reordered menu handlers to match displayed menu order in Package mode (List installed=1, Update system=2, TUI Optional Deps=3, News management=4) and News mode (Update system=1, TUI Optional Deps=2, Package mode=3), updated test cases to use correct key bindings.
 - Installed packages export: added `query_explicit_packages_sync()` function to query pacman directly with mode setting, ensuring `installed_packages.txt` respects `installed_packages_mode` (LeafOnly/AllExplicit) when exported via global options menu or mouse menu.
 - Development: added `pacsea.code-workspace` file for VSCode and Fork IDE support.
+- CI/CD: added explicit CodeQL workflow (`.github/workflows/codeql.yml`) to fix timeout issues with auto-generated CodeQL analysis, using CodeQL Action v3 with 360-minute timeout.
+- Archlinux.org compatibility: added browser-like headers (Accept, Accept-Language) to HTTP requests, updated User-Agent to Firefox-like format with Pacsea identifier, increased timeouts for AUR comments (500ms→5s) and news fetching (connect: 10s→15s, total: 15s→30s), increased curl max-time to 90s for archlinux.org requests.
 
 ## Breaking changes
 None.
