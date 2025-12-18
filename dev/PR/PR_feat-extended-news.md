@@ -1,9 +1,17 @@
 ## Summary
-- **News Mode**: Added comprehensive news feed with Arch news, security advisories, package updates, and AUR comments. Includes filters, sorting (by severity/unread status), read/unread tracking, bookmarks, and optional startup mode (`app_start_mode = news`).
-- **Performance & Reliability**: Implemented circuit breaker pattern, rate limiting with exponential backoff, conditional HTTP requests (ETag/Last-Modified), and connection pooling to improve reliability and reduce bandwidth usage when fetching from archlinux.org.
-- **Caching**: Multi-layer caching system with persistent storage for news feeds, article content, and last-seen updates/comments. Increased cache TTLs (15min in-memory, 14d disk) to reduce network requests.
-- **UI Improvements**: Enhanced footer layout with multi-line keybinds, added loading indicators, improved filter chips, and extended Shift+char keybind support across all panes and modes.
-- **Fixes**: Fixed update detection fallback (checkupdates) for Landlock-restricted environments, improved AUR comment date filtering, enhanced error handling for HTTP requests, fixed updates window alignment when text wraps, aligned options menu key bindings with display order in Package and News modes, fixed `installed_packages.txt` to respect `installed_packages_mode` setting, and improved compatibility with archlinux.org DDoS protection (browser-like headers, Firefox-like User-Agent, increased timeouts).
+
+**What's New:**
+- **News Mode**: Complete news feed system with Arch Linux news, security advisories, package updates, and AUR comments. Users can filter, sort, bookmark, and track read/unread status. Optional startup mode available via `app_start_mode = news` setting.
+- **Improved Reliability**: Enhanced network request handling with rate limiting, circuit breakers, and better error recovery to prevent IP blocking from archlinux.org.
+- **Better Performance**: Multi-layer caching (15min memory, 14 days disk) reduces network requests and speeds up subsequent views.
+- **User Experience**: Internationalized loading messages, improved UI alignment, clearer menu organization, and better compatibility with archlinux.org's DDoS protection.
+
+**Bug Fixes:**
+- Fixed update detection for Landlock-restricted environments
+- Fixed updates window text alignment when package names wrap
+- Fixed options menu key bindings to match display order
+- Fixed `installed_packages.txt` export to respect `installed_packages_mode` setting
+- Improved AUR comment date filtering
 
 ## Type of change
 - [x] feat (new feature)
@@ -24,15 +32,22 @@ cargo check
 cargo test -- --test-threads=1
 ```
 
-**User-facing features:**
-- Launch Pacsea, switch to News mode (or set `app_start_mode = news`), verify news/advisories load, toggle filters, and mark items read/unread/bookmarked.
-- Verify startup configuration modal appears on first launch.
-- Test sorting options (severity/unread), bookmarks persistence, and Shift+char keybinds across all panes.
-- Verify updates window shows aligned rows when package names/versions wrap to multiple lines.
+**Testing News Mode:**
+1. Launch Pacsea and switch to News mode (or set `app_start_mode = news` in settings)
+2. Verify news items load (Arch news, advisories, package updates, AUR comments)
+3. Test filters, sorting, and read/unread tracking
+4. Verify bookmarks persist across sessions
+5. Check that loading messages appear on first launch with informative hints
 
-**Technical validation:**
-- Verify caching works (subsequent views use cached content), rate limiting prevents excessive requests, and circuit breaker activates on repeated failures.
-- Test update detection fallback when database sync fails, and verify cache clearing removes all news-related cache files.
+**Testing Reliability:**
+- Verify rate limiting prevents IP blocking (no 429 errors in logs)
+- Test that cached content loads faster on subsequent views
+- Verify circuit breaker activates on repeated failures and recovers
+
+**Testing Bug Fixes:**
+- Verify updates window alignment when package names wrap
+- Test options menu key bindings match display order
+- Verify `installed_packages.txt` respects `installed_packages_mode` setting
 
 ## Checklist
 
@@ -69,32 +84,42 @@ cargo test -- --test-threads=1
 
 ## Notes for reviewers
 
-**Configuration & Persistence:**
-- New settings: `app_start_mode` (package/news), `news_filter_*` toggles, `news_max_age_days`. Persisted files: `news_feed.json`, `news_seen_pkg_updates.json`, `news_seen_aur_comments.json`, `news_content_cache.json`, `news_recent_searches.json`, `news_bookmarks.json`, `news_read_urls.json`.
-- Cache clearing now includes: `pkgbuild_parse_cache.json`, `arch_news_cache.json`, `advisories_cache.json`, `news_article_cache.json`.
+**New Configuration Options:**
+- `app_start_mode`: Set to "news" to start in News mode (default: "package")
+- `news_filter_*`: Toggle filters for Arch news, advisories, package updates, AUR updates, and AUR comments
+- `news_max_age_days`: Maximum age filter for news items (default: unlimited)
 
-**Performance & Reliability:**
-- Circuit breaker per endpoint (opens on failures, closes after recovery), rate limiting with exponential backoff (2s→4s→8s→16s, max 60s), random jitter (0-500ms), HTTP 429 handling with 60s backoff.
-- Semaphore-based request serialization for archlinux.org (only 1 concurrent request allowed) to prevent rate limiting/blocking.
-- Added staggering calculation for startup news fetches: startup popup uses 0-500ms jitter, aggregated feed uses 5s+ delay.
-- Conditional requests: ETag/Last-Modified headers, Retry-After parsing, connection pooling, cache TTLs (15min in-memory, 14d disk).
-- Timeouts: 15s connect, 30s max for news fetching; 5s for AUR comments; 90s max-time for archlinux.org requests; 10s timeout for content loading.
+**New Persisted Files:**
+- `news_feed.json` - Cached news feed data
+- `news_content_cache.json` - Cached article content
+- `news_seen_pkg_updates.json` - Tracked package update versions
+- `news_seen_aur_comments.json` - Tracked AUR comment IDs
+- `news_recent_searches.json` - News search history
+- `news_bookmarks.json` - Bookmarked news items
+- `news_read_urls.json` - Read news URLs
 
-**Technical Details:**
-- Update detection: `checkupdates` fallback when temp database sync fails (Landlock restrictions).
-- AUR comments: excludes invalid/future dates from "Recent" section, shows "Latest comment" fallback.
-- Code quality: migrated deprecated rand API, improved curl parser, refactored HTTP error handling, added test script (`dev/scripts/test_arch.sh`).
-- UI: Shift+char keybinds via `handle_shift_keybinds`, improved footer layout, loading toasts, filter chips with clickable rects.
-- Updates window: fixed alignment issue when package names/versions wrap by pre-calculating wrapping and padding panes with empty lines to maintain row alignment across all three columns (left, center, right).
-- Options menu: reordered menu handlers to match displayed menu order in Package mode (List installed=1, Update system=2, TUI Optional Deps=3, News management=4) and News mode (Update system=1, TUI Optional Deps=2, Package mode=3), updated test cases to use correct key bindings.
-- Installed packages export: added `query_explicit_packages_sync()` function to query pacman directly with mode setting, ensuring `installed_packages.txt` respects `installed_packages_mode` (LeafOnly/AllExplicit) when exported via global options menu or mouse menu.
-- Development: added `pacsea.code-workspace` file for VSCode and Fork IDE support.
-- CI/CD: added explicit CodeQL workflow (`.github/workflows/codeql.yml`) to fix timeout issues with auto-generated CodeQL analysis, using CodeQL Action v3 with 360-minute timeout.
-- Archlinux.org compatibility: added browser-like headers (Accept, Accept-Language) to HTTP requests, updated User-Agent to Firefox-like format with Pacsea identifier, increased timeouts for AUR comments (500ms→5s) and news fetching (connect: 10s→15s, total: 15s→30s), increased curl max-time to 90s for archlinux.org requests.
+**Key Technical Improvements:**
+- **Rate Limiting**: All archlinux.org requests are serialized (1 at a time) with exponential backoff (2s→4s→8s→16s, max 60s) to prevent IP blocking
+- **Circuit Breaker**: Per-endpoint failure detection prevents cascading failures
+- **Caching**: 15min in-memory, 14 days disk cache reduces network requests
+- **Conditional Requests**: ETag/Last-Modified headers for efficient updates
+- **Compatibility**: Browser-like headers and increased timeouts for archlinux.org DDoS protection
+- **i18n**: Loading messages translated in en-US, de-DE, hu-HU with informative hints about first load duration
+
+**Implementation Details:**
+- Rate limiting applied to: news fetching, package date fetching, package index fetching
+- Timeouts: 15s connect, 30s total for news; 5s for AUR comments; 2s for package dates
+- Update detection fallback: Uses `checkupdates` when database sync fails (Landlock restrictions)
+- UI improvements: Multi-line keybinds, improved alignment, better menu organization
 
 ## Breaking changes
 None.
 
 ## Additional context
-News feed/event/ UI work touches many files; no breaking changes expected, but configs now include news defaults and new persisted news cache files under the lists directory.
+
+This PR introduces a complete news feed system to Pacsea. The implementation includes extensive rate limiting and reliability improvements to work well with archlinux.org's DDoS protection. All changes are backward compatible - existing users will continue to work as before, with News mode available as an optional feature.
+
+**Files changed:** 144 files, ~18k insertions, ~1.2k deletions
+**New files:** News feed UI, rate limiting infrastructure, i18n translations
+**Breaking changes:** None
 
