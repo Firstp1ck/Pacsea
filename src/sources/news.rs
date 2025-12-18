@@ -344,12 +344,7 @@ pub async fn fetch_news_content(url: &str) -> Result<String> {
         return Ok(entry.content.clone());
     }
 
-    // 3. Apply rate limiting for archlinux.org URLs
-    if is_archlinux_url(url) {
-        crate::sources::feeds::rate_limit_archlinux().await;
-    }
-
-    // 4. Check circuit breaker before making request
+    // 3. Check circuit breaker before making request (no network call)
     let endpoint_pattern = crate::sources::feeds::extract_endpoint_pattern(url);
     if let Err(e) = crate::sources::feeds::check_circuit_breaker(&endpoint_pattern) {
         warn!(url, endpoint_pattern, error = %e, "circuit breaker blocking request");
@@ -362,6 +357,14 @@ pub async fn fetch_news_content(url: &str) -> Result<String> {
         }
         return Err(e);
     }
+
+    // 4. Apply rate limiting and acquire semaphore for archlinux.org URLs
+    // The permit is held during the entire request to serialize access
+    let _permit = if is_archlinux_url(url) {
+        Some(crate::sources::feeds::rate_limit_archlinux().await)
+    } else {
+        None
+    };
 
     // 5. Fetch from network with conditional requests
     let url_owned = url.to_string();

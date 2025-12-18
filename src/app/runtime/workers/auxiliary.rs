@@ -4,6 +4,7 @@ use std::sync::OnceLock;
 use std::sync::atomic::AtomicBool;
 
 use crossterm::event::Event as CEvent;
+use rand::Rng;
 use tokio::{
     sync::mpsc,
     time::{Duration, sleep},
@@ -200,15 +201,12 @@ fn spawn_startup_news_worker(
         "queueing startup news fetch (startup)"
     );
     tokio::spawn(async move {
-        // Add random delay (0-2 seconds) before first fetch to avoid burst requests on startup
-        let now_nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let stagger_ms = (now_nanos % 2001) as u64; // 0-2000ms
-        if stagger_ms > 0 {
-            tracing::info!(stagger_ms, "staggering startup news fetch");
-            tokio::time::sleep(Duration::from_millis(stagger_ms)).await;
+        // Use random jitter (0-500ms) before startup news fetch
+        // Keep this short since the startup popup should appear quickly
+        let jitter_ms = rand::rng().random_range(0..=500_u64);
+        if jitter_ms > 0 {
+            tracing::info!(jitter_ms, "staggering startup news fetch");
+            tokio::time::sleep(Duration::from_millis(jitter_ms)).await;
         }
         tracing::info!("startup news fetch task started");
         let optimized_max_age = sources::optimize_max_age_for_startup(
@@ -313,16 +311,14 @@ fn spawn_aggregated_news_feed_worker(
         "queueing combined news feed fetch (startup)"
     );
     tokio::spawn(async move {
-        // Add random delay (0-2 seconds) before first fetch to avoid burst requests on startup
-        let now_nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let stagger_ms = ((now_nanos + 1000) % 2001) as u64; // Offset by 1000 to stagger differently from startup popup
-        if stagger_ms > 0 {
-            tracing::info!(stagger_ms, "staggering aggregated news feed fetch");
-            tokio::time::sleep(Duration::from_millis(stagger_ms)).await;
-        }
+        // Fixed 5-second delay + random jitter (0-500ms) for aggregated news feed
+        // This ensures it starts AFTER the startup news fetch completes (which has only 0-500ms jitter)
+        // The separation prevents concurrent requests to archlinux.org
+        let base_delay_ms = 5000_u64;
+        let jitter_ms = rand::rng().random_range(0..=500_u64);
+        let stagger_ms = base_delay_ms + jitter_ms;
+        tracing::info!(stagger_ms, "staggering aggregated news feed fetch");
+        tokio::time::sleep(Duration::from_millis(stagger_ms)).await;
         let installed_set = ensure_installed_set(installed).await;
         let ctx = sources::NewsFeedContext {
             force_emit_all: true,

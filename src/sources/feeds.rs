@@ -169,6 +169,14 @@ static ARCHLINUX_RATE_LIMITER: LazyLock<Mutex<ArchLinuxRateLimiter>> = LazyLock:
         consecutive_failures: 0,
     })
 });
+
+/// Semaphore to serialize archlinux.org requests (only 1 concurrent request allowed).
+/// This prevents multiple async tasks from overwhelming the server even when rate limiting
+/// is applied, because the rate limiter alone doesn't prevent concurrent requests that
+/// start at nearly the same time from all proceeding simultaneously.
+static ARCHLINUX_REQUEST_SEMAPHORE: LazyLock<std::sync::Arc<tokio::sync::Semaphore>> =
+    LazyLock::new(|| std::sync::Arc::new(tokio::sync::Semaphore::new(1)));
+
 /// Base delay for archlinux.org requests (2 seconds).
 const ARCHLINUX_BASE_DELAY_MS: u64 = 2000;
 /// Maximum backoff delay (60 seconds).
@@ -327,15 +335,27 @@ const JITTER_MAX_MS: u64 = 500;
 ///
 /// Inputs: None
 ///
-/// Output: None (async sleep if needed)
+/// Output: `OwnedSemaphorePermit` that the caller MUST hold during the request.
 ///
 /// Details:
+/// - Acquires a semaphore permit to serialize archlinux.org requests (only 1 at a time).
 /// - Uses longer base delay (2 seconds) for archlinux.org to reduce request frequency.
 /// - Implements exponential backoff: increases delay on consecutive failures (2s → 4s → 8s → 16s, max 60s).
 /// - Adds random jitter (0-500ms) to prevent thundering herd when multiple clients retry simultaneously.
 /// - Resets backoff after successful requests.
 /// - Thread-safe via mutex guarding the rate limiter state.
-pub async fn rate_limit_archlinux() {
+/// - The returned permit MUST be held until the HTTP request completes to ensure serialization.
+pub async fn rate_limit_archlinux() -> tokio::sync::OwnedSemaphorePermit {
+    // 1. Acquire semaphore to serialize requests (waits if another request is in progress)
+    // This is the key change - ensures only one archlinux.org request at a time
+    let permit = ARCHLINUX_REQUEST_SEMAPHORE
+        .clone()
+        .acquire_owned()
+        .await
+        // Semaphore is never closed, so this cannot fail in practice
+        .expect("archlinux.org request semaphore should never be closed");
+
+    // 2. Now that we have exclusive access, compute and apply the rate limiting delay
     let delay_needed = {
         let mut limiter = match ARCHLINUX_RATE_LIMITER.lock() {
             Ok(guard) => guard,
@@ -353,6 +373,7 @@ pub async fn rate_limit_archlinux() {
         limiter.last_request = Instant::now();
         delay
     };
+
     if !delay_needed.is_zero() {
         // Add random jitter to prevent thundering herd when multiple clients retry simultaneously
         let jitter_ms = rand::rng().random_range(0..=JITTER_MAX_MS);
@@ -368,6 +389,9 @@ pub async fn rate_limit_archlinux() {
         );
         tokio::time::sleep(delay_with_jitter).await;
     }
+
+    // 3. Return the permit - caller MUST hold it during the request
+    permit
 }
 
 /// What: Extract endpoint pattern from URL for circuit breaker tracking.
@@ -802,10 +826,11 @@ async fn append_arch_news(limit: usize, cutoff_date: Option<&str>) -> Result<Vec
     }
 
     // 3. Fetch from network with retry and exponential backoff
-    rate_limit_archlinux().await;
     let fetch_result = retry_with_backoff(
         || async {
-            rate_limit_archlinux().await;
+            // Acquire semaphore permit and hold it during the request
+            // This ensures only one archlinux.org request is in flight at a time
+            let _permit = rate_limit_archlinux().await;
             let result = super::fetch_arch_news(limit, cutoff_date).await;
             // Check for HTTP 429/503 and handle with Retry-After or extended backoff
             if let Err(ref e) = result {
