@@ -10,6 +10,134 @@ use super::preflight_helpers::open_preflight_modal;
 use crate::events::utils::{char_count, refresh_install_details};
 use crate::logic::send_query;
 
+/// What: Handle character input in insert mode.
+///
+/// Inputs:
+/// - `ch`: Character to add.
+/// - `app`: Mutable application state.
+/// - `query_tx`: Channel to send debounced search queries.
+///
+/// Output: None (modifies app state in place).
+///
+/// Details:
+/// - Handles both News mode and normal search mode.
+/// - Updates input, caret position, and triggers search queries.
+fn handle_character_input(
+    ch: char,
+    app: &mut AppState,
+    query_tx: &mpsc::UnboundedSender<QueryInput>,
+) {
+    if matches!(app.app_mode, crate::state::types::AppMode::News) {
+        app.news_search_input.push(ch);
+        app.input = app.news_search_input.clone();
+        app.last_input_change = std::time::Instant::now();
+        app.last_saved_value = None;
+        let caret = char_count(&app.news_search_input);
+        app.news_search_caret = caret;
+        app.news_search_select_anchor = None;
+        app.search_caret = caret;
+        app.search_select_anchor = None;
+        app.refresh_news_results();
+    } else {
+        app.input.push(ch);
+        app.last_input_change = std::time::Instant::now();
+        app.last_saved_value = None;
+        app.search_caret = char_count(&app.input);
+        app.search_select_anchor = None;
+        send_query(app, query_tx);
+    }
+}
+
+/// What: Handle backspace in insert mode.
+///
+/// Inputs:
+/// - `app`: Mutable application state.
+/// - `query_tx`: Channel to send debounced search queries.
+///
+/// Output: None (modifies app state in place).
+///
+/// Details:
+/// - Handles both News mode and normal search mode.
+/// - Removes last character and updates caret position.
+fn handle_backspace(app: &mut AppState, query_tx: &mpsc::UnboundedSender<QueryInput>) {
+    if matches!(app.app_mode, crate::state::types::AppMode::News) {
+        app.news_search_input.pop();
+        app.input = app.news_search_input.clone();
+        app.last_input_change = std::time::Instant::now();
+        app.last_saved_value = None;
+        let caret = char_count(&app.news_search_input);
+        app.news_search_caret = caret;
+        app.news_search_select_anchor = None;
+        app.search_caret = caret;
+        app.search_select_anchor = None;
+        app.refresh_news_results();
+    } else {
+        app.input.pop();
+        app.last_input_change = std::time::Instant::now();
+        app.last_saved_value = None;
+        app.search_caret = char_count(&app.input);
+        app.search_select_anchor = None;
+        send_query(app, query_tx);
+    }
+}
+
+/// What: Handle navigation keys (up, down, page up, page down).
+///
+/// Inputs:
+/// - `ke`: Key event.
+/// - `app`: Mutable application state.
+/// - `details_tx`: Channel to request details.
+/// - `comments_tx`: Channel to request comments.
+///
+/// Output: `true` if the key was handled, `false` otherwise.
+///
+/// Details:
+/// - Handles both News mode and normal search mode.
+/// - Moves selection and updates details/comments.
+fn handle_navigation_keys(
+    ke: &KeyEvent,
+    app: &mut AppState,
+    details_tx: &mpsc::UnboundedSender<PackageItem>,
+    comments_tx: &mpsc::UnboundedSender<String>,
+) -> bool {
+    let is_news = matches!(app.app_mode, crate::state::types::AppMode::News);
+    let km = &app.keymap;
+
+    if matches_any(ke, &km.search_move_up) {
+        if is_news {
+            crate::events::utils::move_news_selection(app, -1);
+        } else {
+            move_sel_cached(app, -1, details_tx, comments_tx);
+        }
+        return true;
+    }
+    if matches_any(ke, &km.search_move_down) {
+        if is_news {
+            crate::events::utils::move_news_selection(app, 1);
+        } else {
+            move_sel_cached(app, 1, details_tx, comments_tx);
+        }
+        return true;
+    }
+    if matches_any(ke, &km.search_page_up) {
+        if is_news {
+            crate::events::utils::move_news_selection(app, -10);
+        } else {
+            move_sel_cached(app, -10, details_tx, comments_tx);
+        }
+        return true;
+    }
+    if matches_any(ke, &km.search_page_down) {
+        if is_news {
+            crate::events::utils::move_news_selection(app, 10);
+        } else {
+            move_sel_cached(app, 10, details_tx, comments_tx);
+        }
+        return true;
+    }
+    false
+}
+
 /// What: Handle key events in Insert mode for the Search pane.
 ///
 /// Inputs:
@@ -26,7 +154,6 @@ use crate::logic::send_query;
 /// Details:
 /// - Handles typing, backspace, navigation, space to add items, and Enter to open preflight.
 /// - Typing updates the input, caret position, and triggers debounced search queries.
-#[allow(clippy::cognitive_complexity)]
 pub fn handle_insert_mode(
     ke: KeyEvent,
     app: &mut AppState,
@@ -41,11 +168,14 @@ pub fn handle_insert_mode(
         return false;
     }
 
-    let km = &app.keymap;
-
     match (ke.code, ke.modifiers) {
         (KeyCode::Char('c'), KeyModifiers::CONTROL) => return true,
-        (c, m) if matches_any(&ke, &km.pane_next) && (c, m) == (ke.code, ke.modifiers) => {
+        (c, m)
+            if {
+                let km = &app.keymap;
+                matches_any(&ke, &km.pane_next) && (c, m) == (ke.code, ke.modifiers)
+            } =>
+        {
             if matches!(app.app_mode, crate::state::types::AppMode::News) {
                 app.focus = crate::state::Focus::Install;
             } else {
@@ -92,26 +222,7 @@ pub fn handle_insert_mode(
             }
         }
         (KeyCode::Backspace, _) => {
-            if matches!(app.app_mode, crate::state::types::AppMode::News) {
-                app.news_search_input.pop();
-                app.input = app.news_search_input.clone();
-                app.last_input_change = std::time::Instant::now();
-                app.last_saved_value = None;
-                let caret = char_count(&app.news_search_input);
-                app.news_search_caret = caret;
-                app.news_search_select_anchor = None;
-                app.search_caret = caret;
-                app.search_select_anchor = None;
-                app.refresh_news_results();
-            } else {
-                app.input.pop();
-                app.last_input_change = std::time::Instant::now();
-                app.last_saved_value = None;
-                // Move caret to end and clear selection in insert mode
-                app.search_caret = char_count(&app.input);
-                app.search_select_anchor = None;
-                send_query(app, query_tx);
-            }
+            handle_backspace(app, query_tx);
         }
         // Handle Enter - but NOT if it's actually Ctrl+M (which some terminals send as Enter)
         (KeyCode::Char('\n') | KeyCode::Enter, m) => {
@@ -132,66 +243,26 @@ pub fn handle_insert_mode(
         }
         // Only handle character input if no modifiers are present (to allow global keybinds with modifiers)
         (KeyCode::Char(ch), m) if m.is_empty() => {
-            if matches!(app.app_mode, crate::state::types::AppMode::News) {
-                app.news_search_input.push(ch);
-                app.input = app.news_search_input.clone();
-                app.last_input_change = std::time::Instant::now();
-                app.last_saved_value = None;
-                let caret = char_count(&app.news_search_input);
-                app.news_search_caret = caret;
-                app.news_search_select_anchor = None;
-                app.search_caret = caret;
-                app.search_select_anchor = None;
-                app.refresh_news_results();
+            handle_character_input(ch, app, query_tx);
+        }
+        _ => {
+            if handle_navigation_keys(&ke, app, details_tx, comments_tx) {
+                // Navigation handled
             } else {
-                app.input.push(ch);
-                app.last_input_change = std::time::Instant::now();
-                app.last_saved_value = None;
-                app.search_caret = char_count(&app.input);
-                app.search_select_anchor = None;
-                send_query(app, query_tx);
+                let km = &app.keymap;
+                if matches_any(&ke, &km.search_insert_clear) {
+                    // Clear entire search input
+                    if !app.input.is_empty() {
+                        app.input.clear();
+                        app.search_caret = 0;
+                        app.search_select_anchor = None;
+                        app.last_input_change = std::time::Instant::now();
+                        app.last_saved_value = None;
+                        send_query(app, query_tx);
+                    }
+                }
             }
         }
-        _ if matches_any(&ke, &km.search_move_up) => {
-            if matches!(app.app_mode, crate::state::types::AppMode::News) {
-                crate::events::utils::move_news_selection(app, -1);
-            } else {
-                move_sel_cached(app, -1, details_tx, comments_tx);
-            }
-        }
-        _ if matches_any(&ke, &km.search_move_down) => {
-            if matches!(app.app_mode, crate::state::types::AppMode::News) {
-                crate::events::utils::move_news_selection(app, 1);
-            } else {
-                move_sel_cached(app, 1, details_tx, comments_tx);
-            }
-        }
-        _ if matches_any(&ke, &km.search_page_up) => {
-            if matches!(app.app_mode, crate::state::types::AppMode::News) {
-                crate::events::utils::move_news_selection(app, -10);
-            } else {
-                move_sel_cached(app, -10, details_tx, comments_tx);
-            }
-        }
-        _ if matches_any(&ke, &km.search_page_down) => {
-            if matches!(app.app_mode, crate::state::types::AppMode::News) {
-                crate::events::utils::move_news_selection(app, 10);
-            } else {
-                move_sel_cached(app, 10, details_tx, comments_tx);
-            }
-        }
-        _ if matches_any(&ke, &km.search_insert_clear) => {
-            // Clear entire search input
-            if !app.input.is_empty() {
-                app.input.clear();
-                app.search_caret = 0;
-                app.search_select_anchor = None;
-                app.last_input_change = std::time::Instant::now();
-                app.last_saved_value = None;
-                send_query(app, query_tx);
-            }
-        }
-        _ => {}
     }
     false
 }

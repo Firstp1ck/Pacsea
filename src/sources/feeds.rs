@@ -1064,7 +1064,6 @@ where
 }
 
 /// What: Fetch combined news feed (Arch news, advisories, installed updates, AUR comments) and sort.
-#[allow(clippy::too_many_lines)]
 ///
 /// Inputs:
 /// - `limit`: Maximum items per source (best-effort).
@@ -1087,13 +1086,314 @@ where
 /// - Update/comment items are emitted only when last-seen markers indicate new data; maps are
 ///   refreshed regardless to establish a baseline.
 ///
-/// # Errors
-/// - Network failures fetching sources
-/// - JSON parse errors from upstream feeds
-#[allow(clippy::cognitive_complexity)] // Complex function that orchestrates multiple async fetches
-pub async fn fetch_news_feed<HS, HV, HC>(
+/// Configuration for fetching fast sources.
+struct FastSourcesConfig<'a, HS, HV, HC> {
+    /// Whether to fetch package updates.
+    include_pkg_updates: bool,
+    /// Whether to fetch AUR comments.
+    include_aur_comments: bool,
+    /// Optional set of installed package names.
+    installed_filter: Option<&'a HashSet<String, HS>>,
+    /// Maximum items per source.
+    limit: usize,
+    /// Last-seen versions map (updated in place).
+    seen_pkg_versions: &'a mut HashMap<String, String, HV>,
+    /// Last-seen AUR comments map (updated in place).
+    seen_aur_comments: &'a mut HashMap<String, String, HC>,
+    /// Whether to emit all items regardless of last-seen.
+    force_emit_all: bool,
+    /// Optional pre-loaded update versions.
+    updates_versions: Option<&'a HashMap<String, (String, String)>>,
+}
+
+/// What: Fetch fast sources (package updates and AUR comments) in parallel.
+///
+/// Inputs:
+/// - `config`: Configuration struct containing all fetch parameters.
+///
+/// Output:
+/// - Tuple of (`updates_result`, `comments_result`).
+///
+/// Details:
+/// - Fetches both sources in parallel for better performance.
+/// - Returns empty vectors on errors (graceful degradation).
+async fn fetch_fast_sources<HS, HV, HC>(
+    config: FastSourcesConfig<'_, HS, HV, HC>,
+) -> (
+    std::result::Result<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>,
+    std::result::Result<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>,
+)
+where
+    HS: BuildHasher + Send + Sync + 'static,
+    HV: BuildHasher + Send + Sync + 'static,
+    HC: BuildHasher + Send + Sync + 'static,
+{
+    tokio::join!(
+        async {
+            if config.include_pkg_updates {
+                if let Some(installed) = config.installed_filter {
+                    if installed.is_empty() {
+                        warn!(
+                            "include_pkg_updates set but installed set is empty; skipping updates"
+                        );
+                        Ok::<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>(Vec::new())
+                    } else {
+                        info!(
+                            "fetching package updates: installed_count={}, limit={}",
+                            installed.len(),
+                            config.limit
+                        );
+                        let result = fetch_installed_updates(
+                            installed,
+                            config.limit,
+                            config.seen_pkg_versions,
+                            config.force_emit_all,
+                            config.updates_versions,
+                        )
+                        .await;
+                        match &result {
+                            Ok(updates) => {
+                                info!("package updates fetch completed: items={}", updates.len());
+                            }
+                            Err(e) => {
+                                warn!(error = %e, "installed package updates fetch failed");
+                            }
+                        }
+                        match result {
+                            Ok(updates) => Ok(updates),
+                            Err(_e) => Ok::<
+                                Vec<NewsFeedItem>,
+                                Box<dyn std::error::Error + Send + Sync>,
+                            >(Vec::new()),
+                        }
+                    }
+                } else {
+                    warn!("include_pkg_updates set but installed_filter missing; skipping updates");
+                    Ok::<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>(Vec::new())
+                }
+            } else {
+                Ok::<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>(Vec::new())
+            }
+        },
+        async {
+            if config.include_aur_comments {
+                if let Some(installed) = config.installed_filter {
+                    if installed.is_empty() {
+                        warn!(
+                            "include_aur_comments set but installed set is empty; skipping comments"
+                        );
+                        Ok::<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>(Vec::new())
+                    } else {
+                        info!(
+                            "fetching AUR comments: installed_count={}, limit={}",
+                            installed.len(),
+                            config.limit
+                        );
+                        let result = fetch_installed_aur_comments(
+                            installed,
+                            config.limit,
+                            config.seen_aur_comments,
+                            config.force_emit_all,
+                        )
+                        .await;
+                        match &result {
+                            Ok(comments) => {
+                                info!("AUR comments fetch completed: items={}", comments.len());
+                            }
+                            Err(e) => {
+                                warn!(error = %e, "installed AUR comments fetch failed");
+                            }
+                        }
+                        match result {
+                            Ok(comments) => Ok(comments),
+                            Err(_e) => Ok::<
+                                Vec<NewsFeedItem>,
+                                Box<dyn std::error::Error + Send + Sync>,
+                            >(Vec::new()),
+                        }
+                    }
+                } else {
+                    warn!(
+                        "include_aur_comments set but installed_filter missing; skipping comments"
+                    );
+                    Ok::<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>(Vec::new())
+                }
+            } else {
+                Ok::<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>(Vec::new())
+            }
+        }
+    )
+}
+
+/// What: Fetch slow sources (Arch news and advisories) in parallel with timeout.
+///
+/// Inputs:
+/// - `include_arch_news`: Whether to fetch Arch news.
+/// - `include_advisories`: Whether to fetch advisories.
+/// - `limit`: Maximum items per source.
+/// - `installed_filter`: Optional set of installed package names.
+/// - `installed_only`: Whether to restrict advisories to installed packages.
+/// - `cutoff_date`: Optional date cutoff for filtering.
+///
+/// Output:
+/// - Tuple of (`arch_result`, `advisories_result`).
+///
+/// Details:
+/// - Applies 30-second timeout to match HTTP client timeout.
+/// - Returns empty vectors on timeout or errors (graceful degradation).
+async fn fetch_slow_sources<HS>(
+    include_arch_news: bool,
+    include_advisories: bool,
+    limit: usize,
+    installed_filter: Option<&HashSet<String, HS>>,
+    installed_only: bool,
+    cutoff_date: Option<&str>,
+) -> (
+    std::result::Result<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>,
+    std::result::Result<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>,
+)
+where
+    HS: BuildHasher + Send + Sync + 'static,
+{
+    let arch_result: std::result::Result<
+        Vec<NewsFeedItem>,
+        Box<dyn std::error::Error + Send + Sync>,
+    > = if include_arch_news {
+        info!("fetching arch news...");
+        tokio::time::timeout(
+            Duration::from_secs(30),
+            append_arch_news(limit, cutoff_date),
+        )
+        .await
+        .map_or_else(
+            |_| {
+                warn!("arch news fetch timed out after 30s, continuing without arch news");
+                Err("Arch news fetch timeout".into())
+            },
+            |result| {
+                info!(
+                    "arch news fetch completed: items={}",
+                    result.as_ref().map(Vec::len).unwrap_or(0)
+                );
+                result
+            },
+        )
+    } else {
+        Ok(Vec::new())
+    };
+
+    let advisories_result: std::result::Result<
+        Vec<NewsFeedItem>,
+        Box<dyn std::error::Error + Send + Sync>,
+    > = if include_advisories {
+        info!("fetching advisories...");
+        tokio::time::timeout(
+            Duration::from_secs(30),
+            append_advisories(limit, installed_filter, installed_only, cutoff_date),
+        )
+        .await
+        .map_or_else(
+            |_| {
+                warn!("advisories fetch timed out after 30s, continuing without advisories");
+                Err("Advisories fetch timeout".into())
+            },
+            |result| {
+                info!(
+                    "advisories fetch completed: items={}",
+                    result.as_ref().map(Vec::len).unwrap_or(0)
+                );
+                result
+            },
+        )
+    } else {
+        Ok(Vec::new())
+    };
+
+    (arch_result, advisories_result)
+}
+
+/// What: Combine feed results from all sources into a single sorted vector.
+///
+/// Inputs:
+/// - `arch_result`: Arch news fetch result.
+/// - `advisories_result`: Advisories fetch result.
+/// - `updates_result`: Package updates fetch result.
+/// - `comments_result`: AUR comments fetch result.
+/// - `sort_mode`: Sort mode for the final result.
+///
+/// Output:
+/// - Combined and sorted vector of news feed items.
+///
+/// Details:
+/// - Gracefully handles errors by logging warnings and continuing.
+/// - Sorts items according to the specified sort mode.
+fn combine_feed_results(
+    arch_result: std::result::Result<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>,
+    advisories_result: std::result::Result<
+        Vec<NewsFeedItem>,
+        Box<dyn std::error::Error + Send + Sync>,
+    >,
+    updates_result: std::result::Result<
+        Vec<NewsFeedItem>,
+        Box<dyn std::error::Error + Send + Sync>,
+    >,
+    comments_result: std::result::Result<
+        Vec<NewsFeedItem>,
+        Box<dyn std::error::Error + Send + Sync>,
+    >,
+    sort_mode: NewsSortMode,
+) -> Vec<NewsFeedItem> {
+    let mut items: Vec<NewsFeedItem> = Vec::new();
+    match arch_result {
+        Ok(mut arch_items) => items.append(&mut arch_items),
+        Err(e) => warn!(error = %e, "arch news fetch failed; continuing without Arch news"),
+    }
+    match advisories_result {
+        Ok(mut adv_items) => items.append(&mut adv_items),
+        Err(e) => warn!(error = %e, "advisories fetch failed; continuing without advisories"),
+    }
+    match updates_result {
+        Ok(mut upd_items) => items.append(&mut upd_items),
+        Err(e) => warn!(error = %e, "updates fetch failed; continuing without updates"),
+    }
+    match comments_result {
+        Ok(mut cmt_items) => items.append(&mut cmt_items),
+        Err(e) => warn!(error = %e, "comments fetch failed; continuing without comments"),
+    }
+    sort_news_items(&mut items, sort_mode);
+    items
+}
+
+/// Return type for `prepare_fetch_context` function.
+type PrepareFetchContextReturn<'a, HS, HV, HC> = (
+    Option<String>,
+    Option<HashMap<String, (String, String)>>,
+    usize,
+    bool,
+    bool,
+    bool,
+    bool,
+    Option<&'a HashSet<String, HS>>,
+    bool,
+    NewsSortMode,
+    &'a mut HashMap<String, String, HV>,
+    &'a mut HashMap<String, String, HC>,
+    bool,
+);
+
+/// What: Prepare fetch context and calculate derived values.
+///
+/// Inputs:
+/// - `ctx`: News feed context.
+///
+/// Output:
+/// - Tuple of (`cutoff_date`, `updates_versions`, and extracted context fields).
+///
+/// Details:
+/// - Extracts context fields and calculates cutoff date and update versions.
+fn prepare_fetch_context<HS, HV, HC>(
     ctx: NewsFeedContext<'_, HS, HV, HC>,
-) -> Result<Vec<NewsFeedItem>>
+) -> PrepareFetchContextReturn<'_, HS, HV, HC>
 where
     HS: BuildHasher + Send + Sync + 'static,
     HV: BuildHasher + Send + Sync + 'static,
@@ -1114,6 +1414,7 @@ where
         updates_list_path,
         max_age_days,
     } = ctx;
+
     info!(
         limit,
         include_arch_news,
@@ -1126,236 +1427,100 @@ where
         max_age_days,
         "fetch_news_feed start"
     );
-    // Calculate cutoff date for early filtering if max_age_days is set
+
     let cutoff_date = max_age_days.and_then(|days| {
         chrono::Utc::now()
             .checked_sub_signed(chrono::Duration::days(i64::from(days)))
             .map(|dt| dt.format("%Y-%m-%d").to_string())
     });
-
     let updates_versions = if force_emit_all {
         load_update_versions(updates_list_path.as_ref())
     } else {
         None
     };
 
+    (
+        cutoff_date,
+        updates_versions,
+        limit,
+        include_arch_news,
+        include_advisories,
+        include_pkg_updates,
+        include_aur_comments,
+        installed_filter,
+        installed_only,
+        sort_mode,
+        seen_pkg_versions,
+        seen_aur_comments,
+        force_emit_all,
+    )
+}
+
+/// # Errors
+/// - Network failures fetching sources
+/// - JSON parse errors from upstream feeds
+pub async fn fetch_news_feed<HS, HV, HC>(
+    ctx: NewsFeedContext<'_, HS, HV, HC>,
+) -> Result<Vec<NewsFeedItem>>
+where
+    HS: BuildHasher + Send + Sync + 'static,
+    HV: BuildHasher + Send + Sync + 'static,
+    HC: BuildHasher + Send + Sync + 'static,
+{
+    let (
+        cutoff_date,
+        updates_versions,
+        limit,
+        include_arch_news,
+        include_advisories,
+        include_pkg_updates,
+        include_aur_comments,
+        installed_filter,
+        installed_only,
+        sort_mode,
+        seen_pkg_versions,
+        seen_aur_comments,
+        force_emit_all,
+    ) = prepare_fetch_context(ctx);
+
     info!(
         "starting fetch: arch_news={include_arch_news}, advisories={include_advisories}, pkg_updates={include_pkg_updates}, aur_comments={include_aur_comments}"
     );
-
-    // Reset archlinux.org rate limiter backoff at start of each fetch
-    // This prevents slow cumulative backoff from previous failures affecting new fetches
     reset_archlinux_backoff();
 
     // Fetch ALL sources in parallel for best responsiveness:
     // - Fast sources (AUR comments, package updates) run in parallel and complete quickly
     // - Slow sources (arch news, advisories from archlinux.org) run sequentially with each other
     //   but IN PARALLEL with the fast sources, so they don't block everything
-    // - Use 30-second timeout on slow sources to match HTTP client timeout
     let ((updates_result, comments_result), (arch_result, advisories_result)) = tokio::join!(
-        // Fast sources: package updates and AUR comments (non-archlinux.org)
-        async {
-            tokio::join!(
-                async {
-                    if include_pkg_updates {
-                        if let Some(installed) = installed_filter {
-                            if installed.is_empty() {
-                                warn!(
-                                    "include_pkg_updates set but installed set is empty; skipping updates"
-                                );
-                                Ok::<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>(
-                                    Vec::new(),
-                                )
-                            } else {
-                                info!(
-                                    "fetching package updates: installed_count={}, limit={}",
-                                    installed.len(),
-                                    limit
-                                );
-                                let result = fetch_installed_updates(
-                                    installed,
-                                    limit,
-                                    seen_pkg_versions,
-                                    force_emit_all,
-                                    updates_versions.as_ref(),
-                                )
-                                .await;
-                                match &result {
-                                    Ok(updates) => {
-                                        info!(
-                                            "package updates fetch completed: items={}",
-                                            updates.len()
-                                        );
-                                    }
-                                    Err(e) => {
-                                        warn!(error = %e, "installed package updates fetch failed");
-                                    }
-                                }
-                                match result {
-                                    Ok(updates) => Ok(updates),
-                                    Err(_e) => Ok::<
-                                        Vec<NewsFeedItem>,
-                                        Box<dyn std::error::Error + Send + Sync>,
-                                    >(Vec::new()),
-                                }
-                            }
-                        } else {
-                            warn!(
-                                "include_pkg_updates set but installed_filter missing; skipping updates"
-                            );
-                            Ok::<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>(
-                                Vec::new(),
-                            )
-                        }
-                    } else {
-                        Ok::<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>(Vec::new())
-                    }
-                },
-                async {
-                    if include_aur_comments {
-                        if let Some(installed) = installed_filter {
-                            if installed.is_empty() {
-                                warn!(
-                                    "include_aur_comments set but installed set is empty; skipping comments"
-                                );
-                                Ok::<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>(
-                                    Vec::new(),
-                                )
-                            } else {
-                                info!(
-                                    "fetching AUR comments: installed_count={}, limit={}",
-                                    installed.len(),
-                                    limit
-                                );
-                                let result = fetch_installed_aur_comments(
-                                    installed,
-                                    limit,
-                                    seen_aur_comments,
-                                    force_emit_all,
-                                )
-                                .await;
-                                match &result {
-                                    Ok(comments) => {
-                                        info!(
-                                            "AUR comments fetch completed: items={}",
-                                            comments.len()
-                                        );
-                                    }
-                                    Err(e) => {
-                                        warn!(error = %e, "installed AUR comments fetch failed");
-                                    }
-                                }
-                                match result {
-                                    Ok(comments) => Ok(comments),
-                                    Err(_e) => Ok::<
-                                        Vec<NewsFeedItem>,
-                                        Box<dyn std::error::Error + Send + Sync>,
-                                    >(Vec::new()),
-                                }
-                            }
-                        } else {
-                            warn!(
-                                "include_aur_comments set but installed_filter missing; skipping comments"
-                            );
-                            Ok::<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>(
-                                Vec::new(),
-                            )
-                        }
-                    } else {
-                        Ok::<Vec<NewsFeedItem>, Box<dyn std::error::Error + Send + Sync>>(Vec::new())
-                    }
-                }
-            )
-        },
-        // Slow sources: arch news and advisories (archlinux.org - sequential with each other, parallel with fast)
-        // These can be slow or blocked, so they run in parallel with fast sources to not block everything
-        async {
-            // Use 30-second timeout to match HTTP client timeout
-            let arch_result: std::result::Result<
-                Vec<NewsFeedItem>,
-                Box<dyn std::error::Error + Send + Sync>,
-            > = if include_arch_news {
-                info!("fetching arch news...");
-                tokio::time::timeout(
-                    Duration::from_secs(30),
-                    append_arch_news(limit, cutoff_date.as_deref()),
-                )
-                .await
-                .map_or_else(
-                    |_| {
-                        warn!("arch news fetch timed out after 30s, continuing without arch news");
-                        Err("Arch news fetch timeout".into())
-                    },
-                    |result| {
-                        info!(
-                            "arch news fetch completed: items={}",
-                            result.as_ref().map(Vec::len).unwrap_or(0)
-                        );
-                        result
-                    },
-                )
-            } else {
-                Ok(Vec::new())
-            };
-
-            // Advisories also hit archlinux.org, so apply timeout here too
-            let advisories_result: std::result::Result<
-                Vec<NewsFeedItem>,
-                Box<dyn std::error::Error + Send + Sync>,
-            > = if include_advisories {
-                info!("fetching advisories...");
-                tokio::time::timeout(
-                    Duration::from_secs(30),
-                    append_advisories(
-                        limit,
-                        installed_filter,
-                        installed_only,
-                        cutoff_date.as_deref(),
-                    ),
-                )
-                .await
-                .map_or_else(
-                    |_| {
-                        warn!(
-                            "advisories fetch timed out after 30s, continuing without advisories"
-                        );
-                        Err("Advisories fetch timeout".into())
-                    },
-                    |result| {
-                        info!(
-                            "advisories fetch completed: items={}",
-                            result.as_ref().map(Vec::len).unwrap_or(0)
-                        );
-                        result
-                    },
-                )
-            } else {
-                Ok(Vec::new())
-            };
-
-            (arch_result, advisories_result)
-        }
+        fetch_fast_sources(FastSourcesConfig {
+            include_pkg_updates,
+            include_aur_comments,
+            installed_filter,
+            limit,
+            seen_pkg_versions,
+            seen_aur_comments,
+            force_emit_all,
+            updates_versions: updates_versions.as_ref(),
+        }),
+        fetch_slow_sources(
+            include_arch_news,
+            include_advisories,
+            limit,
+            installed_filter,
+            installed_only,
+            cutoff_date.as_deref(),
+        )
     );
     info!("fetch completed, combining results...");
 
-    let mut items: Vec<NewsFeedItem> = Vec::new();
-    match arch_result {
-        Ok(mut arch_items) => items.append(&mut arch_items),
-        Err(e) => warn!(error = %e, "arch news fetch failed; continuing without Arch news"),
-    }
-    match advisories_result {
-        Ok(mut adv_items) => items.append(&mut adv_items),
-        Err(e) => warn!(error = %e, "advisories fetch failed; continuing without advisories"),
-    }
-    match updates_result {
-        Ok(mut upd_items) => items.append(&mut upd_items),
-        Err(e) => warn!(error = %e, "updates fetch failed; continuing without updates"),
-    }
-    match comments_result {
-        Ok(mut cmt_items) => items.append(&mut cmt_items),
-        Err(e) => warn!(error = %e, "comments fetch failed; continuing without comments"),
-    }
-    sort_news_items(&mut items, sort_mode);
+    let items = combine_feed_results(
+        arch_result,
+        advisories_result,
+        updates_result,
+        comments_result,
+        sort_mode,
+    );
     info!(
         total = items.len(),
         arch = items
