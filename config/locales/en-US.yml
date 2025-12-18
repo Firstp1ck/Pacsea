@@ -328,6 +328,10 @@ en-US:
         arch: "Arch"
         advisories: "Advisories"
         installed_only: "Installed only"
+    loading:
+      news: "Loading news..."
+      news_first_load_hint: "(First load may take a few minutes due to rate limiting)"
+      news_pkg_impact_hint: "Package details from archlinux.org may be slower during loading."
 
     modals:
       common:
@@ -476,10 +480,6 @@ en-US:
         none: "No news items available."
         footer_hint: "Up/Down: select  •  Enter: open  • {}: mark read  • {}: mark all read  •  Esc/Q: close"
         keybinds_hint: "Up/Down/K/J: navigate  •  Enter: open  • {}: mark read  • {}: mark all read  •  Esc/Q: close"
-      loading:
-        news: "Loading news..."
-        news_first_load_hint: "(First load may take a few minutes due to rate limiting)"
-        news_pkg_impact_hint: "Package details from archlinux.org may be slower during loading."
       news_setup:
         title: "News Popup Setup"
         arch_news: "Arch News"

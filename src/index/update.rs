@@ -67,7 +67,7 @@ pub async fn update_in_background(
                     let _ = notify_tx.send(());
                     tracing::info!(count = new_count, "official index updated (names changed)");
                 } else {
-                    tracing::debug!(
+                    tracing::info!(
                         count = new_count,
                         "official index up-to-date (no name changes)"
                     );

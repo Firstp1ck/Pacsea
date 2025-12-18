@@ -1294,7 +1294,7 @@ pub fn spawn_updates_worker(updates_tx: mpsc::UnboundedSender<(usize, Vec<String
 
                 // If temp database sync failed, try checkupdates as fallback
                 if db_result.is_none() && has_checkupdates() {
-                    tracing::debug!("Temp database sync failed, trying checkupdates as fallback");
+                    tracing::info!("Temp database sync failed, trying checkupdates as fallback");
                     (None, true)
                 } else if db_result.is_none() {
                     tracing::warn!("Temp database sync failed and checkupdates not available, falling back to pacman -Qu (may show stale results)");
@@ -1307,7 +1307,7 @@ pub fn spawn_updates_worker(updates_tx: mpsc::UnboundedSender<(usize, Vec<String
             // Execute update check command
             #[cfg(not(target_os = "windows"))]
             let (output_checkupdates, is_checkupdates_tool) = if use_checkupdates_tool {
-                tracing::debug!("Executing: checkupdates (automatically syncs database)");
+                tracing::info!("Executing: checkupdates (automatically syncs database)");
                 (
                     Command::new("checkupdates")
                         .stdin(Stdio::null())
@@ -1414,7 +1414,7 @@ pub fn spawn_updates_worker(updates_tx: mpsc::UnboundedSender<(usize, Vec<String
                 .collect();
 
             let count = packages.len();
-            tracing::debug!(
+            tracing::info!(
                 "Update check completed: found {} total available updates (after deduplication)",
                 count
             );
