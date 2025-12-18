@@ -1656,10 +1656,13 @@ where
         new_packages, updated_packages, baseline_only
     );
 
-    // Fetch official package dates with bounded concurrency to avoid long sequential waits.
+    // Fetch official package dates with rate-limited concurrency.
+    // Note: Although buffer_unordered(5) allows 5 tasks in flight, the archlinux.org
+    // rate limiter semaphore serializes actual HTTP requests to 1 at a time.
+    // This prevents IP blocking while still allowing task scheduling overhead.
     if !official_candidates.is_empty() {
         debug!(
-            "fetch_installed_updates: fetching dates for {} official packages with bounded concurrency",
+            "fetch_installed_updates: fetching dates for {} official packages (rate-limited)",
             official_candidates.len()
         );
         let mut official_items = stream::iter(official_candidates)
@@ -1971,6 +1974,8 @@ fn ts_to_date_string(ts: i64) -> Option<String> {
 /// Details:
 /// - Queries the Arch package JSON endpoint, preferring `last_update` then `build_date`.
 /// - Falls back silently when network or parse errors occur.
+/// - Uses rate limiting to prevent IP blocking by archlinux.org.
+/// - Applies circuit breaker pattern to avoid overwhelming the server during outages.
 async fn fetch_official_package_date(pkg: &crate::state::PackageItem) -> Option<String> {
     let crate::state::Source::Official { repo, arch } = &pkg.source else {
         return None;
@@ -1985,30 +1990,76 @@ async fn fetch_official_package_date(pkg: &crate::state::PackageItem) -> Option<
         "https://archlinux.org/packages/{repo_slug}/{arch_slug}/{name}/json/",
         name = pkg.name
     );
-    // Add a short timeout (500ms) to fail fast on slow connections
-    // This prioritizes responsiveness over completeness - missed dates will use "unknown"
-    match tokio::time::timeout(
-        tokio::time::Duration::from_millis(500),
+    let endpoint_pattern = "/packages/*/json/";
+
+    // Check circuit breaker before making request
+    if let Err(e) = check_circuit_breaker(endpoint_pattern) {
+        debug!(
+            package = %pkg.name,
+            error = %e,
+            "circuit breaker blocking package date fetch"
+        );
+        return None;
+    }
+
+    // Apply rate limiting before request to prevent IP blocking
+    let _permit = rate_limit_archlinux().await;
+
+    // Timeout increased from 500ms to 2000ms to accommodate rate limiting delays
+    // Still prioritizes responsiveness - missed dates will use "unknown"
+    let result = tokio::time::timeout(
+        tokio::time::Duration::from_millis(2000),
         tokio::task::spawn_blocking({
             let url = url.clone();
             move || crate::util::curl::curl_json(&url)
         }),
     )
-    .await
-    {
+    .await;
+
+    match result {
         Ok(Ok(Ok(json))) => {
+            // Success: reset backoff and record success
+            reset_archlinux_backoff();
+            record_circuit_breaker_outcome(endpoint_pattern, true);
             let obj = json.get("pkg").unwrap_or(&json);
             extract_date_from_pkg_json(obj)
         }
         Ok(Ok(Err(e))) => {
-            warn!(error = %e, package = %pkg.name, "failed to fetch official package date");
+            let error_str = e.to_string();
+            // Check for rate limiting errors
+            if error_str.contains("429") || error_str.contains("503") {
+                let retry_after = extract_retry_after_from_error(&error_str);
+                increase_archlinux_backoff(retry_after);
+                warn!(
+                    package = %pkg.name,
+                    error = %e,
+                    "rate limited fetching official package date"
+                );
+            } else {
+                increase_archlinux_backoff(None);
+                warn!(
+                    package = %pkg.name,
+                    error = %e,
+                    "failed to fetch official package date"
+                );
+            }
+            record_circuit_breaker_outcome(endpoint_pattern, false);
             None
         }
         Ok(Err(e)) => {
-            warn!(error = ?e, package = %pkg.name, "failed to join package date task");
+            increase_archlinux_backoff(None);
+            record_circuit_breaker_outcome(endpoint_pattern, false);
+            warn!(
+                error = ?e,
+                package = %pkg.name,
+                "failed to join package date task"
+            );
             None
         }
         Err(_) => {
+            // Timeout - mild backoff increase
+            increase_archlinux_backoff(None);
+            record_circuit_breaker_outcome(endpoint_pattern, false);
             debug!(package = %pkg.name, "timeout fetching official package date");
             None
         }
