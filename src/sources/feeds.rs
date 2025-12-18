@@ -337,6 +337,9 @@ const JITTER_MAX_MS: u64 = 500;
 ///
 /// Output: `OwnedSemaphorePermit` that the caller MUST hold during the request.
 ///
+/// # Panics
+/// - Panics if the archlinux.org request semaphore is closed (should never happen in practice).
+///
 /// Details:
 /// - Acquires a semaphore permit to serialize archlinux.org requests (only 1 at a time).
 /// - Uses longer base delay (2 seconds) for archlinux.org to reduce request frequency.
@@ -405,6 +408,7 @@ pub async fn rate_limit_archlinux() -> tokio::sync::OwnedSemaphorePermit {
 /// Details:
 /// - Normalizes URLs to endpoint patterns for grouping similar requests.
 /// - Replaces specific package names with "*" for JSON endpoints.
+#[must_use]
 pub fn extract_endpoint_pattern(url: &str) -> String {
     // Extract path from URL
     if let Some(path_start) = url.find("://")
@@ -444,6 +448,9 @@ pub fn extract_endpoint_pattern(url: &str) -> String {
 ///
 /// Output:
 /// - `Ok(())` if request should proceed, `Err` with cached error if circuit is open
+///
+/// # Errors
+/// - Returns `Err` if the circuit breaker is open and cooldown period has not expired.
 ///
 /// Details:
 /// - Returns error immediately if circuit is Open and cooldown not expired.
@@ -583,7 +590,8 @@ pub fn record_circuit_breaker_outcome(endpoint_pattern: &str, success: bool) {
 ///
 /// Details:
 /// - Parses format: "error message (Retry-After: Ns)" where N is seconds.
-fn extract_retry_after_from_error(error_msg: &str) -> Option<u64> {
+#[must_use]
+pub fn extract_retry_after_from_error(error_msg: &str) -> Option<u64> {
     if let Some(start) = error_msg.find("Retry-After: ") {
         let after_start = start + "Retry-After: ".len();
         let remaining = &error_msg[after_start..];
@@ -607,7 +615,7 @@ fn extract_retry_after_from_error(error_msg: &str) -> Option<u64> {
 /// - Otherwise, doubles the current backoff delay (exponential backoff).
 /// - Caps at maximum delay (60 seconds).
 /// - Increments consecutive failure counter.
-fn increase_archlinux_backoff(retry_after_seconds: Option<u64>) {
+pub fn increase_archlinux_backoff(retry_after_seconds: Option<u64>) {
     let mut limiter = match ARCHLINUX_RATE_LIMITER.lock() {
         Ok(guard) => guard,
         Err(poisoned) => poisoned.into_inner(),
@@ -644,7 +652,7 @@ fn increase_archlinux_backoff(retry_after_seconds: Option<u64>) {
 /// Details:
 /// - Resets backoff to base delay (2 seconds).
 /// - Resets consecutive failure counter.
-fn reset_archlinux_backoff() {
+pub fn reset_archlinux_backoff() {
     let mut limiter = match ARCHLINUX_RATE_LIMITER.lock() {
         Ok(guard) => guard,
         Err(poisoned) => poisoned.into_inner(),

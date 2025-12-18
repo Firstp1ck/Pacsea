@@ -30,7 +30,10 @@ pub use advisories::fetch_security_advisories;
 pub use comments::fetch_aur_comments;
 pub use details::fetch_details;
 pub use feeds::{
-    NewsFeedContext, fetch_news_feed, optimize_max_age_for_startup, take_network_error,
+    NewsFeedContext, check_circuit_breaker, extract_endpoint_pattern,
+    extract_retry_after_from_error, fetch_news_feed, increase_archlinux_backoff,
+    optimize_max_age_for_startup, rate_limit_archlinux, record_circuit_breaker_outcome,
+    reset_archlinux_backoff, take_network_error,
 };
 pub use news::{fetch_arch_news, fetch_news_content, parse_news_html};
 pub use pkgbuild::fetch_pkgbuild_fast;
