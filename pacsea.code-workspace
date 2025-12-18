@@ -2,7 +2,7 @@
   // Workspace folders - defines which directories are included in this workspace
   "folders": [
     {
-      "path": "." // Current directory (Pacsea repository root)
+      "path": "."
     }
   ],
   // Workspace-specific settings that apply when this workspace is opened
