@@ -49,14 +49,26 @@ const ARTICLE_CACHE_TTL_SECONDS: u64 = 900;
 
 /// Shared HTTP client with connection pooling for news content fetching.
 /// Connection pooling is enabled by default in `reqwest::Client`.
+/// Uses browser-like headers to work with archlinux.org's `DDoS` protection.
 static HTTP_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
+    use reqwest::header::{ACCEPT, ACCEPT_LANGUAGE, HeaderMap, HeaderValue};
+    let mut headers = HeaderMap::new();
+    // Browser-like Accept header
+    headers.insert(
+        ACCEPT,
+        HeaderValue::from_static("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"),
+    );
+    // Accept-Language header for completeness
+    headers.insert(ACCEPT_LANGUAGE, HeaderValue::from_static("en-US,en;q=0.5"));
     reqwest::Client::builder()
-        .connect_timeout(Duration::from_secs(10))
-        .timeout(Duration::from_secs(15))
+        .connect_timeout(Duration::from_secs(15))
+        .timeout(Duration::from_secs(30))
+        // Firefox-like User-Agent with Pacsea identifier for transparency
         .user_agent(format!(
-            "Pacsea/{} (+https://github.com/Firstp1ck/Pacsea)",
+            "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0 Pacsea/{}",
             env!("CARGO_PKG_VERSION")
         ))
+        .default_headers(headers)
         .build()
         .expect("Failed to create HTTP client")
 });

@@ -48,12 +48,25 @@ struct CommentExtractionContext<'a> {
 /// - Sorts comments by date descending (latest first)
 /// - Only works for AUR packages
 pub async fn fetch_aur_comments(pkgname: String) -> Result<Vec<AurComment>> {
+    use reqwest::header::{ACCEPT, ACCEPT_LANGUAGE, HeaderMap, HeaderValue};
+
     let url = format!("https://aur.archlinux.org/packages/{pkgname}");
 
-    // Create HTTP client with short timeout (500ms) to fail fast on slow connections
-    // This prioritizes responsiveness over completeness - missed comments will be caught next fetch
+    // Create HTTP client with browser-like headers and reasonable timeout.
+    // Increased from 500ms to 5s to handle archlinux.org's DDoS protection delays.
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        ACCEPT,
+        HeaderValue::from_static("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"),
+    );
+    headers.insert(ACCEPT_LANGUAGE, HeaderValue::from_static("en-US,en;q=0.5"));
     let client = reqwest::Client::builder()
-        .timeout(Duration::from_millis(500))
+        .timeout(Duration::from_secs(5))
+        .user_agent(format!(
+            "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0 Pacsea/{}",
+            env!("CARGO_PKG_VERSION")
+        ))
+        .default_headers(headers)
         .build()
         .map_err(|e| format!("Failed to create HTTP client: {e}"))?;
 

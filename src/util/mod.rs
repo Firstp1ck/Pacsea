@@ -705,10 +705,11 @@ pub fn open_url(url: &str) {
 /// // On Windows, includes -k flag; always includes -sSLf and User-Agent
 /// assert!(aur_args.contains(&"-sSLf".to_string()));
 /// assert!(aur_args.contains(&"-H".to_string()));
-/// // User-Agent uses actual version from Cargo.toml (e.g., "Pacsea/0.6.2")
-/// let user_agent = aur_args.iter().find(|arg| arg.starts_with("User-Agent: Pacsea/")).unwrap();
-/// assert!(user_agent.starts_with("User-Agent: Pacsea/"));
-/// assert!(user_agent.contains("+https://github.com/Firstp1ck/Pacsea"));
+/// // User-Agent is browser-like (Firefox) with Pacsea identifier
+/// let user_agent = aur_args.iter().find(|arg| arg.contains("Mozilla") && arg.contains("Pacsea/")).unwrap();
+/// assert!(user_agent.contains("Mozilla/5.0"));
+/// assert!(user_agent.contains("Firefox"));
+/// assert!(user_agent.contains("Pacsea/"));
 /// assert!(aur_args.contains(&"--max-time".to_string()));
 /// assert!(aur_args.contains(&"10".to_string()));
 /// assert!(aur_args.last().unwrap().starts_with("https://aur.archlinux.org"));
@@ -734,19 +735,29 @@ pub fn curl_args(url: &str, extra_args: &[&str]) -> Vec<String> {
 
     // Add default timeouts to prevent indefinite hangs:
     // --connect-timeout 30: fail if connection not established within 30 seconds
-    // --max-time 60: fail if entire operation exceeds 60 seconds
-    // Note: Some feeds (e.g., archlinux.org/feeds/news/) can be slow to connect
+    // --max-time 90: fail if entire operation exceeds 90 seconds
+    // Note: archlinux.org has DDoS protection that can make responses slower
     args.push("--connect-timeout".to_string());
     args.push("30".to_string());
     args.push("--max-time".to_string());
-    args.push("60".to_string());
+    args.push("90".to_string());
 
-    // Add User-Agent header to avoid being blocked by APIs
+    // Add browser-like headers to work with archlinux.org's DDoS protection.
+    // Using a Firefox-like User-Agent helps bypass bot detection while still
+    // identifying as Pacsea in the product token for transparency.
     args.push("-H".to_string());
     args.push(format!(
-        "User-Agent: Pacsea/{} (+https://github.com/Firstp1ck/Pacsea)",
+        "User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0 Pacsea/{}",
         env!("CARGO_PKG_VERSION")
     ));
+    // Add Accept header that browsers send
+    args.push("-H".to_string());
+    args.push(
+        "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8".to_string(),
+    );
+    // Add Accept-Language header for completeness
+    args.push("-H".to_string());
+    args.push("Accept-Language: en-US,en;q=0.5".to_string());
 
     // Add any extra arguments
     for arg in extra_args {
