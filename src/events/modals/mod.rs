@@ -81,3 +81,13 @@ pub(super) fn handle_modal_key(
         }
     }
 }
+
+#[cfg(test)]
+/// Test-only public wrapper for `handle_modal_key` to allow tests to access it
+pub fn handle_modal_key_test(
+    ke: KeyEvent,
+    app: &mut AppState,
+    add_tx: &mpsc::UnboundedSender<PackageItem>,
+) -> bool {
+    handle_modal_key(ke, app, add_tx)
+}

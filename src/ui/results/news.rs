@@ -509,6 +509,7 @@ pub fn build_news_title_spans_and_record_rects(
     // Add sort button
     title_spans.extend(spans.sort_button);
     x_cursor = x_cursor.saturating_add(widths.sort).saturating_add(2);
+    title_spans.push(Span::raw(" "));
 
     // Add filters with spacing
     title_spans.push(spans.arch_filter);

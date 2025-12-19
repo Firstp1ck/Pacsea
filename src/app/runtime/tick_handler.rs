@@ -634,7 +634,7 @@ pub fn handle_tick(
     if app.refresh_updates {
         app.refresh_updates = false;
         app.updates_loading = true;
-        crate::app::runtime::workers::auxiliary::spawn_updates_worker(updates_tx.clone());
+        crate::app::runtime::workers::updates::spawn_updates_worker(updates_tx.clone());
     }
 
     // Request news content if in news mode and content not cached
