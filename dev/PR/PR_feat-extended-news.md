@@ -7,6 +7,7 @@
 - **Code Quality**: Improved clippy allow comments, reduced function complexity, added CodeQL workflow.
 - **Refactoring**: Modularized large source files into organized submodules (sources/feeds, sources/news, events/modals/tests, ui/results/title, app_state, workers)
 - **Logging**: Promoted important operational messages from DEBUG to INFO level for better visibility
+- **i18n**: Made config directory alert detection language-agnostic using path patterns instead of hardcoded strings
 
 **Bug Fixes:**
 - Fixed update detection for Landlock-restricted environments
@@ -15,6 +16,7 @@
 - Fixed `installed_packages.txt` export to respect `installed_packages_mode` setting
 - Improved AUR comment date filtering
 - Added rate limiting to package date fetching to prevent IP blocking
+- Fixed alert title showing "Connection issue" instead of "Configuration Directories" for config directory messages after package removal
 
 ## Type of change
 - [x] feat (new feature)
@@ -51,6 +53,7 @@ cargo test -- --test-threads=1
 - Updates window alignment when package names wrap
 - Options menu key bindings match display order
 - `installed_packages.txt` respects `installed_packages_mode` setting
+- Alert title correctly shows "Configuration Directories" instead of "Connection issue" for config directory messages
 
 ## Checklist
 
@@ -81,8 +84,9 @@ cargo test -- --test-threads=1
 - **Fallback**: Uses `checkupdates` when database sync fails (Landlock restrictions)
 - **UI**: Multi-line keybinds, improved alignment, better menu organization
 - **Code Quality**: Enhanced clippy comments with line counts, reduced complexity via helper functions and type aliases, CodeQL workflow
-- **Refactoring**: Split large files (2981-line feeds.rs, 1731-line news.rs, 1689-line tests.rs, 1448-line title.rs) into modular subdirectories
+- **Refactoring**: Split large files (2981-line feeds.rs, 1731-line news.rs, 1689-line tests.rs, 1448-line title.rs) into modular subdirectories; extracted alert message type detection and formatting into helper functions
 - **Documentation**: Added comments explaining intentionally unused parameters
+- **i18n**: Added translation keys for config directory alerts (en-US, de-DE, hu-HU); made detection language-agnostic using path pattern matching
 
 ## Breaking changes
 None. All changes are backward compatible.
