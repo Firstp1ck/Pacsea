@@ -351,10 +351,14 @@ hu-HU:
         header_clipboard_copy: "Másolás a vágólapra"
         header_connection_issue: "Kapcsolati probléma"
         header_account_locked: "Zárolt fiók"
+        # TODO: translate to hungarian
+        header_config_directories: "Configuration Directories"
         title_configuration_error: " Konfigurációs hiba "
         title_clipboard_copy: " Másolás a vágólapra "
         title_connection_issue: " Kapcsolati probléma "
         title_account_locked: " Zárolt fiók "
+        # TODO: translate to hungarian
+        title_config_directories: " Configuration Directories "
         account_locked: "Fiókja jelenleg zárolva van. A zárolás feloldásához jelentkezzen be rendszergazdaként a „su” paranccsal, és futtassa a „faillock --user {} --reset” parancsot."
         account_locked_with_time: "Fiókja jelenleg zárolva van. A zárolás feloldásához jelentkezzen be rendszergazdaként a „su” paranccsal, és futtassa a „faillock --user {} --reset” parancsot. A fiók zárolásáig {} perc van hátra."
       password_prompt:

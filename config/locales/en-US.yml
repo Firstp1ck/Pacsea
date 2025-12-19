@@ -341,10 +341,12 @@ en-US:
         header_clipboard_copy: "Clipboard Copy"
         header_connection_issue: "Connection issue"
         header_account_locked: "Account Locked"
+        header_config_directories: "Configuration Directories"
         title_configuration_error: " Configuration Error "
         title_clipboard_copy: " Clipboard Copy "
         title_connection_issue: " Connection issue "
         title_account_locked: " Account Locked "
+        title_config_directories: " Configuration Directories "
         account_locked: "Your account is now locked. Please unlock by logging in as root with `su` and running `faillock --user {} --reset`."
         account_locked_with_time: "Your account is now locked. Please unlock by logging in as root with `su` and running `faillock --user {} --reset`. Lockout duration: {} minutes remaining."
       password_prompt:

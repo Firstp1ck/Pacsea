@@ -341,10 +341,12 @@ de-DE:
         header_clipboard_copy: "Zwischenablage kopieren"
         header_connection_issue: "Verbindungsproblem"
         header_account_locked: "Konto gesperrt"
+        header_config_directories: "Konfigurationsverzeichnisse"
         title_configuration_error: " Konfigurationsfehler "
         title_clipboard_copy: " Zwischenablage kopieren "
         title_connection_issue: " Verbindungsproblem "
         title_account_locked: " Konto gesperrt "
+        title_config_directories: " Konfigurationsverzeichnisse "
         account_locked: "Ihr Konto ist jetzt gesperrt. Bitte entsperren Sie es, indem Sie sich als root mit `su` anmelden und `faillock --user {} --reset` ausführen."
         account_locked_with_time: "Ihr Konto ist jetzt gesperrt. Bitte entsperren Sie es, indem Sie sich als root mit `su` anmelden und `faillock --user {} --reset` ausführen. Sperrdauer: {} Minuten verbleibend."
       password_prompt:
