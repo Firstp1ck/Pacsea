@@ -5,6 +5,8 @@
 - **Reliability**: Rate limiting, circuit breakers, and error recovery prevent IP blocking from archlinux.org.
 - **Performance**: Multi-layer caching (15min memory, 14 days disk) reduces network requests.
 - **Code Quality**: Improved clippy allow comments, reduced function complexity, added CodeQL workflow.
+- **Refactoring**: Modularized large source files into organized submodules (sources/feeds, sources/news, events/modals/tests, ui/results/title, app_state, workers)
+- **Logging**: Promoted important operational messages from DEBUG to INFO level for better visibility
 
 **Bug Fixes:**
 - Fixed update detection for Landlock-restricted environments
@@ -12,6 +14,7 @@
 - Fixed options menu key bindings to match display order
 - Fixed `installed_packages.txt` export to respect `installed_packages_mode` setting
 - Improved AUR comment date filtering
+- Added rate limiting to package date fetching to prevent IP blocking
 
 ## Type of change
 - [x] feat (new feature)
@@ -70,14 +73,16 @@ cargo test -- --test-threads=1
 - `news_feed.json`, `news_content_cache.json`, `news_seen_pkg_updates.json`, `news_seen_aur_comments.json`, `news_recent_searches.json`, `news_bookmarks.json`, `news_read_urls.json`
 
 **Technical Highlights:**
-- **Rate Limiting**: Serialized archlinux.org requests (1 at a time) with exponential backoff (2s→4s→8s→16s, max 60s)
+- **Rate Limiting**: Serialized archlinux.org requests (1 at a time) with exponential backoff (2s→4s→8s→16s, max 60s), including package date fetching
 - **Circuit Breaker**: Per-endpoint failure detection prevents cascading failures
 - **Caching**: 15min in-memory, 14 days disk cache
 - **Conditional Requests**: ETag/Last-Modified headers for efficient updates
 - **Timeouts**: 15s connect, 30s total for news; 5s for AUR comments; 2s for package dates
 - **Fallback**: Uses `checkupdates` when database sync fails (Landlock restrictions)
 - **UI**: Multi-line keybinds, improved alignment, better menu organization
-- **Code Quality**: Enhanced clippy comments, reduced complexity, CodeQL workflow
+- **Code Quality**: Enhanced clippy comments with line counts, reduced complexity via helper functions and type aliases, CodeQL workflow
+- **Refactoring**: Split large files (2981-line feeds.rs, 1731-line news.rs, 1689-line tests.rs, 1448-line title.rs) into modular subdirectories
+- **Documentation**: Added comments explaining intentionally unused parameters
 
 ## Breaking changes
 None. All changes are backward compatible.
