@@ -64,7 +64,7 @@ pacsea
 | Feature | Description |
 |---------|-------------|
 | **Integrated Process Execution** | All operations execute directly within the TUI with real-time output streaming, progress bars, and inline password prompts — no external terminals |
-| **News feed & advisories** | News mode shows Arch news and security advisories with filters (Arch/advisory/installed-only, age), search with history, read/unread tracking, bookmarks, and cached article content |
+| **News feed & advisories** | Extended News Mode with multiple sources: Arch news, security advisories, package updates with change detection, and AUR comments. Features include smart caching for offline access, background processing with automatic retries, streaming updates, AUR balance, filters (Arch/advisory/updates/comments/installed-only, age), search with history, read/unread tracking, bookmarks, and cached article content |
 | **Security Scan for AUR Packages** | Comprehensive security scanning workflow with multiple tools (ClamAV, Trivy, Semgrep, ShellCheck, VirusTotal, custom patterns, aur-sleuth) and detailed scan summaries |
 | **Fuzzy Search** | Toggle flexible fuzzy search mode to find packages even without exact names |
 | **Unified search** | Fast results across official repos and the AUR |
@@ -122,7 +122,7 @@ Pacsea provides a keyboard-first interface for searching, queueing, and installi
 - Review packages before installing with the Preflight modal
 - Run security scans for AUR packages
 - Manage installed packages, including removal and downgrade
-- Switch to News mode (Options → News) to browse Arch news and security advisories, filter by source/age/installed-only, search with history, and bookmark/read items with cached article content
+- Switch to News mode (Options → News) or start directly in News mode to browse Arch news, security advisories, package updates, and AUR comments. Filter by source/age/installed-only, search with history, bookmark/read items, and track package changes with automatic detection
 - All operations execute directly in the TUI with real-time output and progress indicators
 
 For a complete reference of all keyboard shortcuts, see the [Keyboard Shortcuts](https://github.com/Firstp1ck/Pacsea/wiki/Keyboard-Shortcuts) wiki page.
@@ -150,7 +150,7 @@ For complete configuration documentation, including all available settings, them
 
 Example configuration files are available in the [`config/`](config/) directory.
 
-News defaults to 30-day items and shows Arch news plus security advisories; adjust via `app_start_mode` (`package` or `news`), `news_filter_show_arch_news`, `news_filter_show_advisories`, `news_filter_installed_only`, and `news_max_age_days` in `settings.conf`.
+News mode supports multiple sources (Arch news, advisories, package updates, AUR comments) with smart caching and background processing. Configure via `app_start_mode` (`package` or `news` to start in News mode), `news_filter_*` toggles for each source type, `news_filter_installed_only`, and `news_max_age_days` (default: unlimited) in `settings.conf`.
 
 ![Settings overview (v0.4.1)](Images/Settings_v0.4.1.png "Settings overview (v0.4.1)")
 

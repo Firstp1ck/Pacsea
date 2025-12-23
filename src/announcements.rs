@@ -49,6 +49,11 @@ pub const VERSION_ANNOUNCEMENTS: &[VersionAnnouncement] = &[
         title: "Version 0.6.2",
         content: "## What's New\n\n### ⚡ Force Sync Option\n- Toggle between Normal (-Syu) and Force Sync (-Syyu) in System Update\n- Use ←/→ or Tab keys to switch sync mode\n\n### 🐛 Bug Fixes\n- Install list preserved: System update no longer clears queued packages\n- Faster exit: App closes immediately when exiting during preflight\n- Auto-refresh: Updates count refreshes after install/remove/downgrade\n\n### 🌍 Translations\n- Updated Hungarian translations\n",
     },
+    VersionAnnouncement {
+        version: "0.7.0",
+        title: "Version 0.7.0",
+        content: "## What's New\n\n- **Arch Linux News**: Latest announcements and updates from archlinux.org\n- **Security Advisories**: Security alerts with severity indicators and affecte...\n- **Package Updates**: Track version changes for your installed packages with c...\n- **AUR Comments**: Recent community discussions and feedback\n- **Change Detection**: Automatically detects package changes (version, maintai...\n\n",
+    },
 ];
 
 /// What: Remote announcement fetched from GitHub Gist.

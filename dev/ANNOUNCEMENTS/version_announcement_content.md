@@ -1,13 +1,8 @@
 ## What's New
 
-### ⚡ Force Sync Option
-- Toggle between Normal (-Syu) and Force Sync (-Syyu) in System Update
-- Use ←/→ or Tab keys to switch sync mode
+- **Arch Linux News**: Latest announcements and updates from archlinux.org
+- **Security Advisories**: Security alerts with severity indicators and affecte...
+- **Package Updates**: Track version changes for your installed packages with c...
+- **AUR Comments**: Recent community discussions and feedback
+- **Change Detection**: Automatically detects package changes (version, maintai...
 
-### 🐛 Bug Fixes
-- Install list preserved: System update no longer clears queued packages
-- Faster exit: App closes immediately when exiting during preflight
-- Auto-refresh: Updates count refreshes after install/remove/downgrade
-
-### 🌍 Translations
-- Updated Hungarian translations
