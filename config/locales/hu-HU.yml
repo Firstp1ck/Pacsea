@@ -497,6 +497,7 @@ hu-HU:
         keybinds_hint: "Up/Down/K/J: navigate  •  Enter: open  • {}: mark read  • {}: mark all read  •  Esc/Q: close"
         footer_hint: "Fel/Le: kiválasztás • Enter: megnyitás • {}: megjelölés olvasottként • {}: összes megjelölése olvasottként • Esc: bezárás"
       news_setup:
+        # TODO: translate to hungarian
         title: "News Popup Setup"
         arch_news: "Arch News"
         advisories: "Advisories - Official Security News"
