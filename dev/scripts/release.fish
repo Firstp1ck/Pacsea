@@ -668,18 +668,19 @@ function phase5_aur_update
         end
     end
     
-    # Step 5.2: Push to AUR
-    log_step "Pushing to AUR"
+    # Step 5.2: Push pacsea-bin to AUR
+    log_step "Pushing pacsea-bin to AUR"
     
     if test "$DRY_RUN" = true
-        log_info "[DRY-RUN] Would run aur-push"
+        log_info "[DRY-RUN] Would run aur-push in $AUR_BIN_DIR"
     else
-        log_info "Running aur-push..."
+        cd "$AUR_BIN_DIR"
+        log_info "Running aur-push in $AUR_BIN_DIR..."
         
         aur-push
         
         if test $status -eq 0
-            log_success "Pushed to AUR"
+            log_success "Pushed pacsea-bin to AUR"
         else
             log_warn "aur-push may have failed"
             if not confirm_continue "Continue anyway?"
@@ -688,7 +689,28 @@ function phase5_aur_update
         end
     end
     
-    # Step 5.3: Sync PKGBUILDs back to Pacsea repo
+    # Step 5.3: Push pacsea-git to AUR
+    log_step "Pushing pacsea-git to AUR"
+    
+    if test "$DRY_RUN" = true
+        log_info "[DRY-RUN] Would run aur-push in $AUR_GIT_DIR"
+    else
+        cd "$AUR_GIT_DIR"
+        log_info "Running aur-push in $AUR_GIT_DIR..."
+        
+        aur-push
+        
+        if test $status -eq 0
+            log_success "Pushed pacsea-git to AUR"
+        else
+            log_warn "aur-push may have failed"
+            if not confirm_continue "Continue anyway?"
+                return 1
+            end
+        end
+    end
+    
+    # Step 5.4: Sync PKGBUILDs back to Pacsea repo
     log_step "Syncing PKGBUILDs to Pacsea repo"
     
     if test "$DRY_RUN" = true
@@ -731,7 +753,7 @@ function phase5_aur_update
         end
     end
     
-    # Step 5.4: Push wiki changes
+    # Step 5.5: Push wiki changes
     log_step "Pushing Wiki Changes"
     
     if test "$DRY_RUN" = true
