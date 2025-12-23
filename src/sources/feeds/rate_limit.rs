@@ -212,6 +212,8 @@ const JITTER_MAX_MS: u64 = 500;
 /// - Resets backoff after successful requests.
 /// - Thread-safe via mutex guarding the rate limiter state.
 /// - The returned permit MUST be held until the HTTP request completes to ensure serialization.
+/// - If the permit is dropped before the HTTP request completes, another request may start concurrently,
+///   defeating the serialization and potentially causing race conditions or overwhelming the server.
 pub async fn rate_limit_archlinux() -> tokio::sync::OwnedSemaphorePermit {
     // 1. Acquire semaphore to serialize requests (waits if another request is in progress)
     // This is the key change - ensures only one archlinux.org request at a time

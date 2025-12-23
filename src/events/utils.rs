@@ -263,6 +263,8 @@ pub fn maybe_request_news_content(
         && !app.news_content_cache.contains_key(url)
     {
         // Check debounce timer - only request after 0.5 seconds of staying on the item
+        // 500ms balances user experience with server load: long enough to avoid excessive
+        // fetches during rapid navigation, short enough to feel responsive.
         const DEBOUNCE_DELAY_MS: u64 = 500;
         if let Some(timer) = app.news_content_debounce_timer {
             // Safe to unwrap: elapsed will be small (well within u64)

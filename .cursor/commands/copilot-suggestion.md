@@ -1,0 +1,1 @@
+Check the following Copilot suggestion if it is valid. Implement it if it is valid and give explanation if it is not valid and skip it.

@@ -10,6 +10,16 @@ use super::helpers::{
 use super::*;
 
 #[test]
+/// What: Ensure date-descending sorting orders news items by date with newest first.
+///
+/// Inputs:
+/// - News items with different dates.
+///
+/// Output:
+/// - Items ordered by date in descending order (newest first).
+///
+/// Details:
+/// - Verifies `sort_news_items` with `NewsSortMode::DateDesc` correctly sorts items.
 fn sort_news_items_orders_by_date_desc() {
     let mut items = vec![
         NewsFeedItem {

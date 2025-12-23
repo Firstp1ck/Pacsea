@@ -434,15 +434,12 @@ async fn fetch_repo_packages_with_rate_limit(
 
         // Apply rate limiting before each request
         let _permit = rate_limit_archlinux().await;
-        let url = format!(
-            "https://archlinux.org/packages/search/json/?repo={repo}&arch={arch}&limit={limit}&page={page}"
-        );
 
         // Fetch page in blocking task
         let fetch_result = task::spawn_blocking({
             let repo = repo.to_string();
             let arch = arch.to_string();
-            move || fetch_package_page_sync(&repo, &arch, page, limit, &url)
+            move || fetch_package_page_sync(&repo, &arch, page, limit)
         })
         .await;
 
@@ -531,20 +528,18 @@ async fn fetch_repo_packages_with_rate_limit(
 /// - `arch`: Architecture.
 /// - `page`: Page number.
 /// - `limit`: Results per page.
-/// - `_url`: Full URL for the request (unused, kept for API consistency).
 ///
 /// Output:
 /// - `Ok((results, has_more))` with the results array and whether more pages exist.
 ///
 /// Details:
 /// - Wrapper around `fetch_package_page` for use in spawn_blocking context.
-/// - The URL parameter is kept for consistency but not used (fetch_package_page constructs it).
+/// - The URL is constructed internally by `fetch_package_page`.
 fn fetch_package_page_sync(
     repo: &str,
     arch: &str,
     page: usize,
     limit: usize,
-    _url: &str,
 ) -> Result<(Vec<serde_json::Value>, bool)> {
     fetch_package_page(repo, arch, page, limit)
 }

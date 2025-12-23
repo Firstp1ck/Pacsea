@@ -425,7 +425,7 @@ pub(super) async fn fetch_official_package_date(
 ///
 /// Details:
 /// - Helper to reduce code duplication in error handling paths.
-fn cached_fallback_or_retry(cache_path: &std::path::PathBuf) -> FetchDateResult {
+fn cached_fallback_or_retry(cache_path: &std::path::Path) -> FetchDateResult {
     extract_date_from_cached_json(cache_path).map_or(FetchDateResult::NeedsRetry, |date| {
         FetchDateResult::CachedFallback(Some(date))
     })
@@ -441,7 +441,7 @@ fn cached_fallback_or_retry(cache_path: &std::path::PathBuf) -> FetchDateResult 
 ///
 /// Details:
 /// - Used as fallback when network requests fail.
-fn extract_date_from_cached_json(cache_path: &std::path::PathBuf) -> Option<String> {
+fn extract_date_from_cached_json(cache_path: &std::path::Path) -> Option<String> {
     let cached_json = crate::sources::feeds::updates::load_official_json_cache(cache_path)?;
     extract_date_from_pkg_json(&cached_json)
         .or_else(|| cached_json.get("pkg").and_then(extract_date_from_pkg_json))

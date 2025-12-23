@@ -25,8 +25,14 @@ fn calculate_news_scroll_for_selection(
         return 0;
     }
 
+    // Clamp values to u16::MAX to prevent overflow in calculations.
+    // Note: If selected or total_items exceeds u16::MAX, the scroll calculation will be
+    // performed for the clamped values, which may not match the actual selected item.
+    // This is acceptable since u16::MAX (65535) is far beyond practical UI list sizes.
     let selected_line = u16::try_from(selected).unwrap_or(u16::MAX);
     let total_lines = u16::try_from(total_items).unwrap_or(u16::MAX);
+    // Ensure selected doesn't exceed total after clamping to maintain valid calculations
+    let selected_line = selected_line.min(total_lines);
 
     // Calculate middle position: we want selected item to be at visible_height / 2
     let middle_offset = visible_height / 2;

@@ -765,7 +765,7 @@ pub fn official_json_cache_path(repo: &str, arch: &str, pkg_name: &str) -> PathB
 /// Details:
 /// - Returns `None` on file read errors or JSON parse errors.
 #[must_use]
-pub fn load_official_json_cache(cache_path: &PathBuf) -> Option<Value> {
+pub fn load_official_json_cache(cache_path: &std::path::Path) -> Option<Value> {
     let data = std::fs::read_to_string(cache_path).ok()?;
     serde_json::from_str::<Value>(&data).ok()
 }
