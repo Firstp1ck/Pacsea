@@ -94,6 +94,92 @@ pub fn render_recent(f: &mut Frame, app: &mut AppState, area: Rect) {
     ));
 }
 
+/// What: Render the News search history list in the left pane of the news middle row.
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `app`: Application state (news recent list, focus, pane find filter)
+/// - `area`: Target rectangle for the history pane
+///
+/// Output:
+/// - Draws the news search history and records inner rect for mouse hit-testing.
+///
+/// Details:
+/// - Uses the shared `history_state` for selection; hides when the pane is toggled off.
+pub fn render_news_recent(f: &mut Frame, app: &mut AppState, area: Rect) {
+    if !app.show_news_history_pane || area.width == 0 {
+        app.recent_rect = None;
+        if matches!(app.focus, crate::state::Focus::Recent) {
+            app.focus = crate::state::Focus::Search;
+        }
+        return;
+    }
+
+    let th = theme();
+    let recent_focused = matches!(app.focus, crate::state::Focus::Recent);
+    let recents = app.news_recent_values();
+    let rec_inds = crate::ui::helpers::filtered_recent_indices(app);
+    let rec_items: Vec<ListItem> = rec_inds
+        .iter()
+        .filter_map(|&i| recents.get(i))
+        .map(|s| {
+            ListItem::new(Span::styled(
+                s.clone(),
+                Style::default().fg(if recent_focused { th.text } else { th.subtext0 }),
+            ))
+        })
+        .collect();
+    let recent_title = if recent_focused {
+        i18n::t(app, "app.titles.news_recent_focused")
+    } else {
+        i18n::t(app, "app.titles.news_recent")
+    };
+    let mut recent_title_spans: Vec<Span> = vec![Span::styled(
+        recent_title,
+        Style::default().fg(if recent_focused {
+            th.mauve
+        } else {
+            th.overlay1
+        }),
+    )];
+    if recent_focused && let Some(pat) = &app.pane_find {
+        recent_title_spans.push(Span::raw("  "));
+        recent_title_spans.push(Span::styled(
+            "/",
+            Style::default()
+                .fg(th.sapphire)
+                .add_modifier(ratatui::style::Modifier::BOLD),
+        ));
+        recent_title_spans.push(Span::styled(pat.clone(), Style::default().fg(th.text)));
+    }
+    let rec_block = Block::default()
+        .title(Line::from(recent_title_spans))
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(if recent_focused {
+            th.mauve
+        } else {
+            th.surface1
+        }));
+    let rec_list = List::new(rec_items)
+        .style(
+            Style::default()
+                .fg(if recent_focused { th.text } else { th.subtext0 })
+                .bg(th.base),
+        )
+        .block(rec_block)
+        .highlight_style(Style::default().fg(th.text).bg(th.surface2))
+        .highlight_symbol("▶ ");
+    f.render_stateful_widget(rec_list, area, &mut app.history_state);
+    // Record inner rect for mouse hit-testing (inside borders)
+    app.recent_rect = Some((
+        area.x + 1,
+        area.y + 1,
+        area.width.saturating_sub(2),
+        area.height.saturating_sub(2),
+    ));
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

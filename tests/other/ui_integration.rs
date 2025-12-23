@@ -549,12 +549,18 @@ fn test_modal_news_renders() {
     let mut app = create_test_app_state();
 
     app.modal = Modal::News {
-        items: vec![pacsea::state::types::NewsItem {
+        items: vec![pacsea::state::types::NewsFeedItem {
+            id: "https://example.com/news".to_string(),
             date: "2024-01-01".to_string(),
             title: "Test News Item".to_string(),
-            url: "https://example.com/news".to_string(),
+            summary: None,
+            url: Some("https://example.com/news".to_string()),
+            source: pacsea::state::types::NewsFeedSource::ArchNews,
+            severity: None,
+            packages: Vec::new(),
         }],
         selected: 0,
+        scroll: 0,
     };
 
     let _terminal = render_ui_to_backend(backend, &mut app);

@@ -35,25 +35,26 @@ const CORE_CRITICAL_PACKAGES: &[&str] = &[
     "filesystem",
 ];
 
-/// What: Aggregated preflight summary payload plus header chip metrics.
+/// What: Outcome of preflight summary computation.
 ///
-/// Inputs: Produced by the summary computation helpers.
+/// Inputs: Produced by the summary computation helpers from package items and dependencies.
 ///
 /// Output:
 /// - `summary`: Structured data powering the Summary tab.
-/// - `header`: Condensed metrics displayed in the modal header and execution
-///   sidebar.
+/// - `header`: Condensed metrics displayed in the modal header and execution sidebar.
 /// - `reverse_deps_report`: Optional reverse dependency report for Remove actions,
 ///   cached to avoid redundant resolution when switching to the Deps tab.
 ///
 /// Details:
-/// - Bundled together so downstream code can reuse the derived chip data
-///   without recomputation.
+/// - Bundled together so downstream code can reuse the derived chip data without recomputation.
+/// - Contains the preflight summary data along with header metrics and optional reverse dependency information.
 /// - For Remove actions, the reverse dependency report is computed during summary
 ///   computation and cached here to avoid recomputation when the user switches tabs.
 #[derive(Debug, Clone)]
 pub struct PreflightSummaryOutcome {
+    /// Preflight summary data.
     pub summary: PreflightSummaryData,
+    /// Header chip metrics.
     pub header: PreflightHeaderChips,
     /// Cached reverse dependency report for Remove actions (None for Install actions).
     pub reverse_deps_report: Option<crate::logic::deps::ReverseDependencyReport>,
@@ -89,18 +90,35 @@ pub fn compute_preflight_summary(
 ///
 /// Details: Groups related mutable state to reduce parameter passing.
 struct ProcessingState {
+    /// Packages being processed for preflight.
     packages: Vec<PreflightPackageSummary>,
+    /// Count of AUR packages.
     aur_count: usize,
+    /// Total download size in bytes.
     total_download_bytes: u64,
+    /// Total install size delta in bytes (can be negative).
     total_install_delta_bytes: i64,
+    /// Packages with major version bumps.
     major_bump_packages: Vec<String>,
+    /// Core system packages being updated.
     core_system_updates: Vec<String>,
+    /// Whether any package has a major version bump.
     any_major_bump: bool,
+    /// Whether any core system package is being updated.
     any_core_update: bool,
+    /// Whether any AUR package is included.
     any_aur: bool,
 }
 
 impl ProcessingState {
+    /// What: Create a new processing state with specified capacity.
+    ///
+    /// Inputs:
+    /// - `capacity`: Initial capacity for the packages vector.
+    ///
+    /// Output: New `ProcessingState` with empty collections.
+    ///
+    /// Details: Initializes all fields to default/empty values with the specified capacity.
     fn new(capacity: usize) -> Self {
         Self {
             packages: Vec::with_capacity(capacity),

@@ -8,6 +8,192 @@ use crate::theme::config::skeletons::{
 use crate::theme::paths::{config_dir, resolve_keybinds_config_path, resolve_settings_config_path};
 use crate::theme::types::Settings;
 
+/// What: Convert a boolean value to a config string.
+///
+/// Inputs:
+/// - `value`: Boolean value to convert
+///
+/// Output:
+/// - "true" or "false" string
+fn bool_to_string(value: bool) -> String {
+    if value {
+        "true".to_string()
+    } else {
+        "false".to_string()
+    }
+}
+
+/// What: Convert an optional integer to a config string.
+///
+/// Inputs:
+/// - `value`: Optional integer value
+///
+/// Output:
+/// - String representation of the value, or "all" if None
+fn optional_int_to_string(value: Option<u32>) -> String {
+    value.map_or_else(|| "all".to_string(), |v| v.to_string())
+}
+
+/// What: Get layout-related setting values.
+///
+/// Inputs:
+/// - `key`: Normalized key name
+/// - `prefs`: Current in-memory settings
+///
+/// Output:
+/// - Some(String) if key was handled, None otherwise
+fn get_layout_value(key: &str, prefs: &Settings) -> Option<String> {
+    match key {
+        "layout_left_pct" => Some(prefs.layout_left_pct.to_string()),
+        "layout_center_pct" => Some(prefs.layout_center_pct.to_string()),
+        "layout_right_pct" => Some(prefs.layout_right_pct.to_string()),
+        _ => None,
+    }
+}
+
+/// What: Get app/UI-related setting values.
+///
+/// Inputs:
+/// - `key`: Normalized key name
+/// - `prefs`: Current in-memory settings
+///
+/// Output:
+/// - Some(String) if key was handled, None otherwise
+fn get_app_value(key: &str, prefs: &Settings) -> Option<String> {
+    match key {
+        "app_dry_run_default" => Some(bool_to_string(prefs.app_dry_run_default)),
+        "sort_mode" => Some(prefs.sort_mode.as_config_key().to_string()),
+        "clipboard_suffix" => Some(prefs.clipboard_suffix.clone()),
+        "show_recent_pane" | "show_search_history_pane" => {
+            Some(bool_to_string(prefs.show_recent_pane))
+        }
+        "show_install_pane" => Some(bool_to_string(prefs.show_install_pane)),
+        "show_keybinds_footer" => Some(bool_to_string(prefs.show_keybinds_footer)),
+        "package_marker" => {
+            let marker_str = match prefs.package_marker {
+                crate::theme::types::PackageMarker::FullLine => "full_line",
+                crate::theme::types::PackageMarker::Front => "front",
+                crate::theme::types::PackageMarker::End => "end",
+            };
+            Some(marker_str.to_string())
+        }
+        "app_start_mode" => {
+            let mode = if prefs.start_in_news {
+                "news"
+            } else {
+                "package"
+            };
+            Some(mode.to_string())
+        }
+        "skip_preflight" => Some(bool_to_string(prefs.skip_preflight)),
+        "search_startup_mode" => {
+            let mode = if prefs.search_startup_mode {
+                "normal_mode"
+            } else {
+                "insert_mode"
+            };
+            Some(mode.to_string())
+        }
+        "locale" => Some(prefs.locale.clone()),
+        "preferred_terminal" => Some(prefs.preferred_terminal.clone()),
+        _ => None,
+    }
+}
+
+/// What: Get mirror-related setting values.
+///
+/// Inputs:
+/// - `key`: Normalized key name
+/// - `prefs`: Current in-memory settings
+///
+/// Output:
+/// - Some(String) if key was handled, None otherwise
+fn get_mirror_value(key: &str, prefs: &Settings) -> Option<String> {
+    match key {
+        "selected_countries" => Some(prefs.selected_countries.clone()),
+        "mirror_count" => Some(prefs.mirror_count.to_string()),
+        "virustotal_api_key" => Some(prefs.virustotal_api_key.clone()),
+        _ => None,
+    }
+}
+
+/// What: Get news-related setting values.
+///
+/// Inputs:
+/// - `key`: Normalized key name
+/// - `prefs`: Current in-memory settings
+///
+/// Output:
+/// - Some(String) if key was handled, None otherwise
+fn get_news_value(key: &str, prefs: &Settings) -> Option<String> {
+    match key {
+        "news_read_symbol" => Some(prefs.news_read_symbol.clone()),
+        "news_unread_symbol" => Some(prefs.news_unread_symbol.clone()),
+        "news_filter_show_arch_news" => Some(bool_to_string(prefs.news_filter_show_arch_news)),
+        "news_filter_show_advisories" => Some(bool_to_string(prefs.news_filter_show_advisories)),
+        "news_filter_show_pkg_updates" => Some(bool_to_string(prefs.news_filter_show_pkg_updates)),
+        "news_filter_show_aur_updates" => Some(bool_to_string(prefs.news_filter_show_aur_updates)),
+        "news_filter_show_aur_comments" => {
+            Some(bool_to_string(prefs.news_filter_show_aur_comments))
+        }
+        "news_filter_installed_only" => Some(bool_to_string(prefs.news_filter_installed_only)),
+        "news_max_age_days" => Some(optional_int_to_string(prefs.news_max_age_days)),
+        "startup_news_configured" => Some(bool_to_string(prefs.startup_news_configured)),
+        "startup_news_show_arch_news" => Some(bool_to_string(prefs.startup_news_show_arch_news)),
+        "startup_news_show_advisories" => Some(bool_to_string(prefs.startup_news_show_advisories)),
+        "startup_news_show_aur_updates" => {
+            Some(bool_to_string(prefs.startup_news_show_aur_updates))
+        }
+        "startup_news_show_aur_comments" => {
+            Some(bool_to_string(prefs.startup_news_show_aur_comments))
+        }
+        "startup_news_show_pkg_updates" => {
+            Some(bool_to_string(prefs.startup_news_show_pkg_updates))
+        }
+        "startup_news_max_age_days" => {
+            Some(optional_int_to_string(prefs.startup_news_max_age_days))
+        }
+        "news_cache_ttl_days" => Some(prefs.news_cache_ttl_days.to_string()),
+        _ => None,
+    }
+}
+
+/// What: Get updates/refresh-related setting values.
+///
+/// Inputs:
+/// - `key`: Normalized key name
+/// - `prefs`: Current in-memory settings
+///
+/// Output:
+/// - Some(String) if key was handled, None otherwise
+fn get_updates_value(key: &str, prefs: &Settings) -> Option<String> {
+    match key {
+        "updates_refresh_interval" | "updates_interval" | "refresh_interval" => {
+            Some(prefs.updates_refresh_interval.to_string())
+        }
+        _ => None,
+    }
+}
+
+/// What: Get scan-related setting values.
+///
+/// Inputs:
+/// - `key`: Normalized key name
+/// - `prefs`: Current in-memory settings
+///
+/// Output:
+/// - Some(String) if key was handled, None otherwise
+fn get_scan_value(key: &str, _prefs: &Settings) -> Option<String> {
+    match key {
+        "scan_do_clamav" | "scan_do_trivy" | "scan_do_semgrep" | "scan_do_shellcheck"
+        | "scan_do_virustotal" | "scan_do_custom" | "scan_do_sleuth" => {
+            // Scan keys default to true
+            Some("true".to_string())
+        }
+        _ => None,
+    }
+}
+
 /// What: Get the value for a setting key, preferring prefs over skeleton default.
 ///
 /// Inputs:
@@ -17,72 +203,18 @@ use crate::theme::types::Settings;
 ///
 /// Output:
 /// - String value to use for the setting
+///
+/// Details:
+/// - Delegates to category-specific functions to reduce complexity.
+/// - Mirrors the parsing architecture for consistency.
 fn get_setting_value(key: &str, skeleton_value: String, prefs: &Settings) -> String {
-    match key {
-        "layout_left_pct" => prefs.layout_left_pct.to_string(),
-        "layout_center_pct" => prefs.layout_center_pct.to_string(),
-        "layout_right_pct" => prefs.layout_right_pct.to_string(),
-        "app_dry_run_default" => if prefs.app_dry_run_default {
-            "true"
-        } else {
-            "false"
-        }
-        .to_string(),
-        "sort_mode" => prefs.sort_mode.as_config_key().to_string(),
-        "clipboard_suffix" => prefs.clipboard_suffix.clone(),
-        "show_recent_pane" | "show_search_history_pane" => if prefs.show_recent_pane {
-            "true"
-        } else {
-            "false"
-        }
-        .to_string(),
-        "show_install_pane" => if prefs.show_install_pane {
-            "true"
-        } else {
-            "false"
-        }
-        .to_string(),
-        "show_keybinds_footer" => if prefs.show_keybinds_footer {
-            "true"
-        } else {
-            "false"
-        }
-        .to_string(),
-        "selected_countries" => prefs.selected_countries.clone(),
-        "mirror_count" => prefs.mirror_count.to_string(),
-        "virustotal_api_key" => prefs.virustotal_api_key.clone(),
-        "news_read_symbol" => prefs.news_read_symbol.clone(),
-        "news_unread_symbol" => prefs.news_unread_symbol.clone(),
-        "preferred_terminal" => prefs.preferred_terminal.clone(),
-        "package_marker" => match prefs.package_marker {
-            crate::theme::types::PackageMarker::FullLine => "full_line",
-            crate::theme::types::PackageMarker::Front => "front",
-            crate::theme::types::PackageMarker::End => "end",
-        }
-        .to_string(),
-        "locale" => prefs.locale.clone(),
-        "skip_preflight" => if prefs.skip_preflight {
-            "true"
-        } else {
-            "false"
-        }
-        .to_string(),
-        "search_startup_mode" => if prefs.search_startup_mode {
-            "normal_mode"
-        } else {
-            "insert_mode"
-        }
-        .to_string(),
-        "updates_refresh_interval" | "updates_interval" | "refresh_interval" => {
-            prefs.updates_refresh_interval.to_string()
-        }
-        "scan_do_clamav" | "scan_do_trivy" | "scan_do_semgrep" | "scan_do_shellcheck"
-        | "scan_do_virustotal" | "scan_do_custom" | "scan_do_sleuth" => {
-            // Scan keys default to true
-            "true".to_string()
-        }
-        _ => skeleton_value,
-    }
+    get_layout_value(key, prefs)
+        .or_else(|| get_app_value(key, prefs))
+        .or_else(|| get_mirror_value(key, prefs))
+        .or_else(|| get_news_value(key, prefs))
+        .or_else(|| get_updates_value(key, prefs))
+        .or_else(|| get_scan_value(key, prefs))
+        .unwrap_or(skeleton_value)
 }
 
 /// What: Parse skeleton and extract missing settings with comments.

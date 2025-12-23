@@ -1,0 +1,42 @@
+Demo:
+- Start app
+
+Install Process Demo:
+- Add packages to install list
+- go to install list and start preflight
+- go through each tab and explain
+- proceed with 'p' for Reinstall prompt
+- continue to sudo prompt
+- install process
+
+Removal Demo:
+- go to Installed packages
+- add not used package to removal list (add another one
+- Start removal process by opening preflight
+- Explain each tab
+- start removal process
+
+Scan Process
+- Add one AUR to install list
+- start preflight
+- start scan process with 's'
+- choose scan options
+- start scan process
+
+General usage:
+- Use filter
+- Use sorting
+- Use Fuzzy/Normal
+- Open Configs
+- Show/hide Panels
+- Open TUI Optional deps
+- Open News management
+
+System Update:
+- Open System update
+- Choose system update settings
+- choose countries
+- choose number of mirrors
+- Start System update
+
+

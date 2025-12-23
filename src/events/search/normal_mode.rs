@@ -3,6 +3,8 @@ use tokio::sync::mpsc;
 
 use crate::logic::{move_sel_cached, send_query};
 use crate::state::{AppState, PackageItem, QueryInput};
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 
 use super::super::utils::matches_any;
 use super::helpers::navigate_pane;
@@ -64,7 +66,7 @@ fn handle_config_menu_numeric_selection(idx: usize, app: &mut AppState) -> bool 
 /// Details:
 /// - Toggles config, options, or panels menu.
 /// - Ensures only one menu is open at a time.
-fn handle_menu_toggles(ke: &KeyEvent, app: &mut AppState) -> bool {
+pub fn handle_menu_toggles(ke: &KeyEvent, app: &mut AppState) -> bool {
     let km = &app.keymap;
 
     if matches_any(ke, &km.config_menu_toggle) {
@@ -115,7 +117,7 @@ fn handle_menu_toggles(ke: &KeyEvent, app: &mut AppState) -> bool {
 /// - Exports current Install List package names to config export dir.
 /// - Creates files with format: `install_list_YYYYMMDD_serial.txt`
 /// - Shows toast messages for success or failure.
-fn handle_export(app: &mut AppState) {
+pub fn handle_export(app: &mut AppState) {
     if app.installed_only_mode {
         return;
     }
@@ -259,30 +261,54 @@ fn handle_navigation(
 
     // Check keymap-based arrow keys first (works same in normal and insert mode)
     if matches_any(ke, &km.search_move_up) {
-        move_sel_cached(app, -1, details_tx, comments_tx);
+        if matches!(app.app_mode, crate::state::types::AppMode::News) {
+            crate::events::utils::move_news_selection(app, -1);
+        } else {
+            move_sel_cached(app, -1, details_tx, comments_tx);
+        }
         return true;
     }
     if matches_any(ke, &km.search_move_down) {
-        move_sel_cached(app, 1, details_tx, comments_tx);
+        if matches!(app.app_mode, crate::state::types::AppMode::News) {
+            crate::events::utils::move_news_selection(app, 1);
+        } else {
+            move_sel_cached(app, 1, details_tx, comments_tx);
+        }
         return true;
     }
     if matches_any(ke, &km.search_page_up) {
-        move_sel_cached(app, -10, details_tx, comments_tx);
+        if matches!(app.app_mode, crate::state::types::AppMode::News) {
+            crate::events::utils::move_news_selection(app, -10);
+        } else {
+            move_sel_cached(app, -10, details_tx, comments_tx);
+        }
         return true;
     }
     if matches_any(ke, &km.search_page_down) {
-        move_sel_cached(app, 10, details_tx, comments_tx);
+        if matches!(app.app_mode, crate::state::types::AppMode::News) {
+            crate::events::utils::move_news_selection(app, 10);
+        } else {
+            move_sel_cached(app, 10, details_tx, comments_tx);
+        }
         return true;
     }
 
     // Vim-like navigation (j/k, Ctrl+D/U)
     match (ke.code, ke.modifiers) {
         (KeyCode::Char('j'), _) => {
-            move_sel_cached(app, 1, details_tx, comments_tx);
+            if matches!(app.app_mode, crate::state::types::AppMode::News) {
+                crate::events::utils::move_news_selection(app, 1);
+            } else {
+                move_sel_cached(app, 1, details_tx, comments_tx);
+            }
             true
         }
         (KeyCode::Char('k'), _) => {
-            move_sel_cached(app, -1, details_tx, comments_tx);
+            if matches!(app.app_mode, crate::state::types::AppMode::News) {
+                crate::events::utils::move_news_selection(app, -1);
+            } else {
+                move_sel_cached(app, -1, details_tx, comments_tx);
+            }
             true
         }
         (KeyCode::Char('d'), KeyModifiers::CONTROL) => {
@@ -328,6 +354,46 @@ fn handle_space_key(
             true
         }
         (KeyCode::Char(' '), _) => {
+            if matches!(app.app_mode, crate::state::types::AppMode::News) {
+                if let Some(item) = app.news_results.get(app.news_selected).cloned() {
+                    let url_opt = item.url.clone();
+                    let mut content = app.news_content.clone().or_else(|| {
+                        url_opt
+                            .as_ref()
+                            .and_then(|u| app.news_content_cache.get(u).cloned())
+                    });
+                    let mut html_path = None;
+                    if let Some(url) = &url_opt
+                        && let Ok(html) = crate::util::curl::curl_text(url)
+                    {
+                        let dir = crate::theme::lists_dir().join("news_html");
+                        let _ = std::fs::create_dir_all(&dir);
+                        let mut hasher = DefaultHasher::new();
+                        item.id.hash(&mut hasher);
+                        let fname = format!("{:016x}.html", hasher.finish());
+                        let path = dir.join(fname);
+                        if std::fs::write(&path, &html).is_ok() {
+                            html_path = Some(path.to_string_lossy().to_string());
+                            if content.is_none() {
+                                content = Some(crate::sources::parse_news_html(&html));
+                            }
+                        }
+                    }
+                    let bookmark = crate::state::types::NewsBookmark {
+                        item,
+                        content,
+                        html_path,
+                    };
+                    app.add_news_bookmark(bookmark);
+                    app.toast_message = Some(crate::i18n::t(
+                        app,
+                        "app.results.options_menu.news_management",
+                    ));
+                    app.toast_expires_at =
+                        Some(std::time::Instant::now() + std::time::Duration::from_secs(2));
+                }
+                return true;
+            }
             if let Some(item) = app.results.get(app.selected).cloned() {
                 if app.installed_only_mode {
                     crate::logic::add_to_remove_list(app, item);
@@ -404,6 +470,10 @@ fn handle_pane_navigation(
             true
         }
         _ if matches_any(ke, &app.keymap.pane_next) => {
+            if matches!(app.app_mode, crate::state::types::AppMode::News) {
+                app.focus = crate::state::Focus::Install;
+                return true;
+            }
             if app.installed_only_mode {
                 app.right_pane_focus = crate::state::RightPaneFocus::Downgrade;
                 if app.downgrade_state.selected().is_none() && !app.downgrade_list.is_empty() {
@@ -436,7 +506,19 @@ fn handle_pane_navigation(
 /// Details:
 /// - Clears the entire search input and resets caret/selection.
 fn handle_input_clear(app: &mut AppState, query_tx: &mpsc::UnboundedSender<QueryInput>) {
-    if !app.input.is_empty() {
+    if matches!(app.app_mode, crate::state::types::AppMode::News) {
+        if !app.news_search_input.is_empty() {
+            app.news_search_input.clear();
+            app.input.clear();
+            app.news_search_caret = 0;
+            app.news_search_select_anchor = None;
+            app.search_caret = 0;
+            app.search_select_anchor = None;
+            app.last_input_change = std::time::Instant::now();
+            app.last_saved_value = None;
+            app.refresh_news_results();
+        }
+    } else if !app.input.is_empty() {
         app.input.clear();
         app.search_caret = 0;
         app.search_select_anchor = None;
@@ -444,6 +526,188 @@ fn handle_input_clear(app: &mut AppState, query_tx: &mpsc::UnboundedSender<Query
         app.last_saved_value = None;
         send_query(app, query_tx);
     }
+}
+
+/// What: Mark or unmark the selected News Feed item as read.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+/// - `mark_read`: Whether to mark as read (`true`) or unread (`false`)
+///
+/// Output:
+/// - `true` if state changed (set updated), `false` otherwise
+///
+/// Details:
+/// - Updates both the ID-based read set and the legacy URL set when available.
+/// - Refreshes news results to honor read/unread filtering.
+fn mark_news_feed_item(app: &mut AppState, mark_read: bool) -> bool {
+    let Some(item) = app.news_results.get(app.news_selected).cloned() else {
+        return false;
+    };
+
+    let is_read_before = app.news_read_ids.contains(&item.id)
+        || item
+            .url
+            .as_ref()
+            .is_some_and(|u| app.news_read_urls.contains(u));
+
+    let mut changed = false;
+
+    if mark_read {
+        if !is_read_before {
+            app.news_read_ids_dirty = true;
+            app.news_read_dirty = app.news_read_dirty || item.url.is_some();
+            changed = true;
+        }
+        app.news_read_ids.insert(item.id.clone());
+        if let Some(url) = item.url.as_ref() {
+            app.news_read_urls.insert(url.clone());
+        }
+    } else {
+        if is_read_before {
+            app.news_read_ids_dirty = true;
+            app.news_read_dirty = app.news_read_dirty || item.url.is_some();
+            changed = true;
+        }
+        app.news_read_ids.remove(&item.id);
+        if let Some(url) = item.url.as_ref() {
+            app.news_read_urls.remove(url);
+        }
+    }
+
+    if changed {
+        app.refresh_news_results();
+    }
+    changed
+}
+
+/// What: Toggle read/unread state for the selected News Feed item.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+///
+/// Output:
+/// - `true` if state changed (toggled), `false` otherwise
+///
+/// Details:
+/// - Considers both ID-based and legacy URL-based read state for determining current status.
+fn toggle_news_feed_item(app: &mut AppState) -> bool {
+    let Some(item) = app.news_results.get(app.news_selected).cloned() else {
+        return false;
+    };
+    let is_read = app.news_read_ids.contains(&item.id)
+        || item
+            .url
+            .as_ref()
+            .is_some_and(|u| app.news_read_urls.contains(u));
+    if is_read {
+        mark_news_feed_item(app, false)
+    } else {
+        mark_news_feed_item(app, true)
+    }
+}
+
+/// What: Handle news mode keybindings.
+///
+/// Inputs:
+/// - `ke`: Key event from terminal
+/// - `app`: Mutable application state
+///
+/// Output:
+/// - `true` if a news keybinding was handled, `false` otherwise
+///
+/// Details:
+/// - Handles mark read, mark unread, and toggle read keybindings in News mode.
+fn handle_news_mode_keybindings(ke: &KeyEvent, app: &mut AppState) -> bool {
+    if !matches!(app.app_mode, crate::state::types::AppMode::News) {
+        return false;
+    }
+
+    if matches_any(ke, &app.keymap.news_mark_read_feed) {
+        if mark_news_feed_item(app, true) {
+            return true;
+        }
+    } else if matches_any(ke, &app.keymap.news_mark_unread_feed) {
+        if mark_news_feed_item(app, false) {
+            return true;
+        }
+    } else if matches_any(ke, &app.keymap.news_toggle_read_feed) && toggle_news_feed_item(app) {
+        return true;
+    }
+
+    false
+}
+
+/// What: Handle keymap-based action keybindings.
+///
+/// Inputs:
+/// - `ke`: Key event from terminal
+/// - `app`: Mutable application state
+/// - `query_tx`: Channel to send debounced search queries
+///
+/// Output:
+/// - `true` if a keymap action was handled, `false` otherwise
+///
+/// Details:
+/// - Handles status, import, export, updates, insert mode, selection, delete, and clear actions.
+fn handle_keymap_actions(
+    ke: &KeyEvent,
+    app: &mut AppState,
+    query_tx: &mpsc::UnboundedSender<QueryInput>,
+) -> bool {
+    if matches_any(ke, &app.keymap.search_normal_open_status) {
+        crate::util::open_url("https://status.archlinux.org");
+        return true;
+    }
+
+    if matches_any(ke, &app.keymap.search_normal_import) {
+        if !app.installed_only_mode {
+            app.modal = crate::state::Modal::ImportHelp;
+        }
+        return true;
+    }
+
+    if matches_any(ke, &app.keymap.search_normal_export) {
+        handle_export(app);
+        return true;
+    }
+
+    if matches_any(ke, &app.keymap.search_normal_updates) {
+        if matches!(app.app_mode, crate::state::types::AppMode::News) {
+            crate::events::mouse::handle_news_button(app);
+        } else {
+            crate::events::mouse::handle_updates_button(app);
+        }
+        return true;
+    }
+
+    if matches_any(ke, &app.keymap.search_normal_insert) {
+        app.search_normal_mode = false;
+        app.search_select_anchor = None;
+        return true;
+    }
+
+    if matches_any(ke, &app.keymap.search_normal_select_left) {
+        handle_selection_move(app, -1);
+        return true;
+    }
+
+    if matches_any(ke, &app.keymap.search_normal_select_right) {
+        handle_selection_move(app, 1);
+        return true;
+    }
+
+    if matches_any(ke, &app.keymap.search_normal_delete) {
+        handle_selection_delete(app, query_tx);
+        return true;
+    }
+
+    if matches_any(ke, &app.keymap.search_normal_clear) {
+        handle_input_clear(app, query_tx);
+        return true;
+    }
+
+    false
 }
 
 /// What: Handle key events in Normal mode for the Search pane.
@@ -482,6 +746,11 @@ pub fn handle_normal_mode(
         }
     }
 
+    // Handle news mode keybindings
+    if handle_news_mode_keybindings(&ke, app) {
+        return false;
+    }
+
     // Handle menu toggles
     let menu_toggled = {
         let km = &app.keymap;
@@ -493,52 +762,8 @@ pub fn handle_normal_mode(
         return false;
     }
 
-    // Handle keymap-based actions with early returns
-    if matches_any(&ke, &app.keymap.search_normal_open_status) {
-        crate::util::open_url("https://status.archlinux.org");
-        return false;
-    }
-
-    if matches_any(&ke, &app.keymap.search_normal_import) {
-        if !app.installed_only_mode {
-            app.modal = crate::state::Modal::ImportHelp;
-        }
-        return false;
-    }
-
-    if matches_any(&ke, &app.keymap.search_normal_export) {
-        handle_export(app);
-        return false;
-    }
-
-    if matches_any(&ke, &app.keymap.search_normal_updates) {
-        crate::events::mouse::handle_updates_button(app);
-        return false;
-    }
-
-    if matches_any(&ke, &app.keymap.search_normal_insert) {
-        app.search_normal_mode = false;
-        app.search_select_anchor = None;
-        return false;
-    }
-
-    if matches_any(&ke, &app.keymap.search_normal_select_left) {
-        handle_selection_move(app, -1);
-        return false;
-    }
-
-    if matches_any(&ke, &app.keymap.search_normal_select_right) {
-        handle_selection_move(app, 1);
-        return false;
-    }
-
-    if matches_any(&ke, &app.keymap.search_normal_delete) {
-        handle_selection_delete(app, query_tx);
-        return false;
-    }
-
-    if matches_any(&ke, &app.keymap.search_normal_clear) {
-        handle_input_clear(app, query_tx);
+    // Handle keymap-based actions
+    if handle_keymap_actions(&ke, app, query_tx) {
         return false;
     }
 
@@ -563,4 +788,111 @@ pub fn handle_normal_mode(
     }
 
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::types::{AppMode, NewsFeedItem, NewsFeedSource};
+    use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers};
+    use tokio::sync::mpsc;
+
+    fn make_news_item(id: &str, url: &str) -> NewsFeedItem {
+        NewsFeedItem {
+            id: id.to_string(),
+            date: "2025-01-01".to_string(),
+            title: format!("Item {id}"),
+            summary: None,
+            url: Some(url.to_string()),
+            source: NewsFeedSource::ArchNews,
+            severity: None,
+            packages: vec![],
+        }
+    }
+
+    fn key(code: KeyCode) -> KeyEvent {
+        KeyEvent {
+            code,
+            modifiers: KeyModifiers::empty(),
+            kind: KeyEventKind::Press,
+            state: KeyEventState::empty(),
+        }
+    }
+
+    #[test]
+    fn mark_news_feed_item_sets_read_state() {
+        let item = make_news_item("one", "https://example.com/one");
+        let mut app = AppState {
+            app_mode: AppMode::News,
+            news_items: vec![item.clone()],
+            news_results: vec![item],
+            news_selected: 0,
+            news_max_age_days: None,
+            ..AppState::default()
+        };
+
+        let changed = mark_news_feed_item(&mut app, true);
+        assert!(changed);
+        assert!(app.news_read_ids.contains("one"));
+        assert!(app.news_read_ids_dirty);
+        assert!(app.news_read_urls.contains("https://example.com/one"));
+        assert!(app.news_read_dirty);
+
+        let changed_unread = mark_news_feed_item(&mut app, false);
+        assert!(changed_unread);
+        assert!(!app.news_read_ids.contains("one"));
+        assert!(app.news_read_ids_dirty);
+    }
+
+    #[test]
+    fn toggle_news_feed_item_respects_legacy_url_state() {
+        let item = make_news_item("two", "https://example.com/two");
+        let mut app = AppState {
+            app_mode: AppMode::News,
+            news_items: vec![item.clone()],
+            news_results: vec![item],
+            news_selected: 0,
+            news_max_age_days: None,
+            ..AppState::default()
+        };
+        app.news_read_urls.insert("https://example.com/two".into());
+        app.news_read_dirty = true;
+
+        let toggled = toggle_news_feed_item(&mut app);
+        assert!(toggled);
+        assert!(!app.news_read_ids.contains("two"));
+        assert!(!app.news_read_urls.contains("https://example.com/two"));
+        assert!(app.news_read_ids_dirty);
+        assert!(app.news_read_dirty);
+    }
+
+    #[test]
+    fn handle_normal_mode_marks_read_via_keybinding() {
+        let item = make_news_item("three", "https://example.com/three");
+        let mut app = AppState {
+            app_mode: AppMode::News,
+            news_items: vec![item.clone()],
+            news_results: vec![item],
+            news_selected: 0,
+            ..AppState::default()
+        };
+        let (query_tx, _query_rx) = mpsc::unbounded_channel();
+        let (details_tx, _details_rx) = mpsc::unbounded_channel();
+        let (add_tx, _add_rx) = mpsc::unbounded_channel();
+        let (preview_tx, _preview_rx) = mpsc::unbounded_channel();
+        let (comments_tx, _comments_rx) = mpsc::unbounded_channel();
+
+        let ke = key(KeyCode::Char('r'));
+        let handled = handle_normal_mode(
+            ke,
+            &mut app,
+            &query_tx,
+            &details_tx,
+            &add_tx,
+            &preview_tx,
+            &comments_tx,
+        );
+        assert!(!handled);
+        assert!(app.news_read_ids.contains("three"));
+    }
 }

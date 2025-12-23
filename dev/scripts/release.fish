@@ -599,14 +599,24 @@ function phase4_build_release
         end
     end
 
-    # Step 4.7: Publish to crates.io
+    # Step 4.7: Verify crates.io publish (dry-run)
+    log_step "Verifying crates.io publish (dry-run)"
+    
+    dry_run_cmd "cargo publish --dry-run"
+    if test $status -ne 0
+        log_error "cargo publish --dry-run failed"
+        return 1
+    end
+    log_success "crates.io publish verification passed"
+
+    # Step 4.8: Publish to crates.io
     log_step "Publishing to crates.io"
 
     if test "$DRY_RUN" = true
         log_info "[DRY-RUN] Would run 'cargo publish' to publish to crates.io"
     else
         cd "$PACSEA_DIR"
-        dry_run_cmd "cargo publish"
+        cargo publish
 
         if test $status -eq 0
             log_success "Published to crates.io"

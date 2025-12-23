@@ -1,6 +1,6 @@
 //! Modal dialog state for the UI.
 
-use crate::state::types::{NewsItem, OptionalDepRow, PackageItem, Source};
+use crate::state::types::{OptionalDepRow, PackageItem, Source};
 use std::collections::HashSet;
 
 /// What: Enumerates the high-level operations represented in the preflight
@@ -14,8 +14,11 @@ use std::collections::HashSet;
 ///   execution flows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PreflightAction {
+    /// Install packages action.
     Install,
+    /// Remove packages action.
     Remove,
+    /// Downgrade packages action.
     Downgrade,
 }
 
@@ -52,10 +55,15 @@ pub enum PasswordPurpose {
 ///   context between tabs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PreflightTab {
+    /// Summary tab showing overview of package operations.
     Summary,
+    /// Dependencies tab showing dependency analysis.
     Deps,
+    /// Files tab showing file change analysis.
     Files,
+    /// Services tab showing service impact analysis.
     Services,
+    /// Sandbox tab showing sandbox analysis.
     Sandbox,
 }
 
@@ -146,13 +154,24 @@ pub struct ReverseRootSummary {
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum DependencyStatus {
     /// Already installed and version matches requirement.
-    Installed { version: String },
+    Installed {
+        /// Installed version of the package.
+        version: String,
+    },
     /// Not installed, needs to be installed.
     ToInstall,
     /// Installed but outdated, needs upgrade.
-    ToUpgrade { current: String, required: String },
+    ToUpgrade {
+        /// Current installed version.
+        current: String,
+        /// Required version for upgrade.
+        required: String,
+    },
     /// Conflicts with existing packages.
-    Conflict { reason: String },
+    Conflict {
+        /// Reason for the conflict.
+        reason: String,
+    },
     /// Cannot be found in configured repositories or AUR.
     Missing,
 }
@@ -161,7 +180,10 @@ pub enum DependencyStatus {
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum DependencySource {
     /// Official repository package.
-    Official { repo: String },
+    Official {
+        /// Repository name (e.g., "core", "extra").
+        repo: String,
+    },
     /// AUR package.
     Aur,
     /// Local package (not in repos).
@@ -278,8 +300,11 @@ pub struct PackageFileInfo {
 /// - Defaults to `Low` so callers without computed risk can render a safe baseline.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum RiskLevel {
+    /// Low risk level.
     Low,
+    /// Medium risk level.
     Medium,
+    /// High risk level.
     High,
 }
 
@@ -309,11 +334,17 @@ impl Default for RiskLevel {
 /// - Stores signed install deltas so removals show negative values without additional conversion.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct PreflightHeaderChips {
+    /// Number of packages in the operation.
     pub package_count: usize,
+    /// Total download size in bytes.
     pub download_bytes: u64,
+    /// Net change in installed size in bytes (positive for installs, negative for removals).
     pub install_delta_bytes: i64,
+    /// Number of AUR packages in the operation.
     pub aur_count: usize,
+    /// Risk score (0-255) computed from various risk factors.
     pub risk_score: u8,
+    /// Risk level category (Low/Medium/High).
     pub risk_level: RiskLevel,
 }
 
@@ -350,16 +381,23 @@ impl Default for PreflightHeaderChips {
 /// - Notes array allows the planner to surface auxiliary hints (e.g., pacnew prediction or service impacts).
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct PreflightPackageSummary {
+    /// Package name.
     pub name: String,
+    /// Package source (official/AUR/local).
     pub source: Source,
+    /// Installed version, if present.
     pub installed_version: Option<String>,
+    /// Target version to be installed.
     pub target_version: String,
+    /// Whether the operation downgrades the package.
     pub is_downgrade: bool,
+    /// Whether the update is a major version bump.
     pub is_major_bump: bool,
     /// Download size contribution for this package when available.
     pub download_bytes: Option<u64>,
     /// Net installed size delta contributed by this package (signed).
     pub install_delta_bytes: Option<i64>,
+    /// Notes or warnings specific to this package.
     pub notes: Vec<String>,
 }
 
@@ -375,15 +413,21 @@ pub struct PreflightPackageSummary {
 /// - `summary_notes` aggregates high-impact bullet points (e.g., kernel updates, pacnew predictions).
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct PreflightSummaryData {
+    /// Per-package summaries for the operation.
     pub packages: Vec<PreflightPackageSummary>,
     /// Total number of packages represented in `packages`.
     pub package_count: usize,
     /// Number of AUR-sourced packages participating in the plan.
     pub aur_count: usize,
+    /// Total download size for the plan.
     pub download_bytes: u64,
+    /// Net install size delta for the plan (signed).
     pub install_delta_bytes: i64,
+    /// Aggregate risk score (0-255).
     pub risk_score: u8,
+    /// Aggregate risk level (Low/Medium/High).
     pub risk_level: RiskLevel,
+    /// Reasons contributing to the risk score.
     pub risk_reasons: Vec<String>,
     /// Packages classified as major version bumps (e.g., 1.x -> 2.0).
     pub major_bump_packages: Vec<String>,
@@ -399,6 +443,7 @@ pub struct PreflightSummaryData {
     pub service_restart_units: Vec<String>,
     /// Free-form warnings assembled by the summary planner to highlight notable risks.
     pub summary_warnings: Vec<String>,
+    /// Notes summarizing key items in the plan.
     pub summary_notes: Vec<String>,
 }
 
@@ -413,25 +458,38 @@ pub struct PreflightSummaryData {
 #[derive(Debug, Clone, Default)]
 #[allow(clippy::large_enum_variant)]
 pub enum Modal {
+    /// No modal is currently displayed.
     #[default]
     None,
     /// Informational alert with a non-interactive message.
-    Alert { message: String },
+    Alert {
+        /// Alert message text.
+        message: String,
+    },
     /// Loading indicator shown during background computation.
-    Loading { message: String },
+    Loading {
+        /// Loading message text.
+        message: String,
+    },
     /// Confirmation dialog for installing the given items.
-    ConfirmInstall { items: Vec<PackageItem> },
+    ConfirmInstall {
+        /// Package items to install.
+        items: Vec<PackageItem>,
+    },
     /// Confirmation dialog for reinstalling already installed packages.
     ConfirmReinstall {
         /// Packages that are already installed (shown in the confirmation dialog).
         items: Vec<PackageItem>,
         /// All packages to install (including both installed and not installed).
         all_items: Vec<PackageItem>,
+        /// Header chip metrics for the operation.
         header_chips: PreflightHeaderChips,
     },
     /// Confirmation dialog for batch updates that may cause dependency conflicts.
     ConfirmBatchUpdate {
+        /// Package items to update.
         items: Vec<PackageItem>,
+        /// Whether this is a dry-run operation.
         dry_run: bool,
     },
     /// Confirmation dialog for continuing AUR update after pacman failed.
@@ -441,8 +499,11 @@ pub enum Modal {
     },
     /// Preflight summary before executing any action.
     Preflight {
+        /// Packages selected for the operation.
         items: Vec<PackageItem>,
+        /// Action to perform (install/remove/downgrade).
         action: PreflightAction,
+        /// Currently active preflight tab.
         tab: PreflightTab,
         /// Aggregated summary information for versions, sizes, and risk cues.
         summary: Option<Box<PreflightSummaryData>>,
@@ -495,11 +556,17 @@ pub enum Modal {
     },
     /// Preflight execution screen with log and sticky sidebar.
     PreflightExec {
+        /// Packages being processed.
         items: Vec<PackageItem>,
+        /// Action being executed (install/remove/downgrade).
         action: PreflightAction,
+        /// Tab to display while executing.
         tab: PreflightTab,
+        /// Whether verbose logging is enabled.
         verbose: bool,
+        /// Execution log lines.
         log_lines: Vec<String>,
+        /// Whether the operation can be aborted.
         abortable: bool,
         /// Header chip metrics displayed in the sidebar.
         header_chips: PreflightHeaderChips,
@@ -508,17 +575,26 @@ pub enum Modal {
     },
     /// Post-transaction summary with results and follow-ups.
     PostSummary {
+        /// Whether the operation succeeded.
         success: bool,
+        /// Number of files changed.
         changed_files: usize,
+        /// Number of .pacnew files created.
         pacnew_count: usize,
+        /// Number of .pacsave files created.
         pacsave_count: usize,
+        /// Services pending restart.
         services_pending: Vec<String>,
+        /// Snapshot label if created.
         snapshot_label: Option<String>,
     },
     /// Help overlay with keybindings. Non-interactive; dismissed with Esc/Enter.
     Help,
     /// Confirmation dialog for removing the given items.
-    ConfirmRemove { items: Vec<PackageItem> },
+    ConfirmRemove {
+        /// Package items to remove.
+        items: Vec<PackageItem>,
+    },
     /// System update dialog with multi-select options and optional country.
     SystemUpdate {
         /// Whether to update Arch mirrors using reflector.
@@ -542,10 +618,12 @@ pub enum Modal {
     },
     /// Arch Linux News: list of recent items with selection.
     News {
-        /// Latest news items (date, title, link).
-        items: Vec<NewsItem>,
+        /// Latest news feed items (Arch news, advisories, updates, comments).
+        items: Vec<crate::state::types::NewsFeedItem>,
         /// Selected row index.
         selected: usize,
+        /// Scroll offset (lines) for the news list.
+        scroll: u16,
     },
     /// Application announcement: markdown content displayed at startup.
     Announcement {
@@ -604,6 +682,23 @@ pub enum Modal {
     },
     /// Information dialog explaining the Import file format.
     ImportHelp,
+    /// Setup dialog for startup news popup configuration.
+    NewsSetup {
+        /// Whether to show Arch news.
+        show_arch_news: bool,
+        /// Whether to show security advisories.
+        show_advisories: bool,
+        /// Whether to show AUR updates.
+        show_aur_updates: bool,
+        /// Whether to show AUR comments.
+        show_aur_comments: bool,
+        /// Whether to show official package updates.
+        show_pkg_updates: bool,
+        /// Maximum age of news items in days (7, 30, or 90).
+        max_age_days: Option<u32>,
+        /// Current cursor position (0-5 for toggles, 6-8 for date buttons).
+        cursor: usize,
+    },
     /// Password prompt for sudo authentication.
     PasswordPrompt {
         /// Purpose of the password prompt.
@@ -660,6 +755,7 @@ mod tests {
         let _ = super::Modal::News {
             items: Vec::new(),
             selected: 0,
+            scroll: 0,
         };
         let _ = super::Modal::OptionalDeps {
             rows: Vec::new(),

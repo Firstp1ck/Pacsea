@@ -37,8 +37,9 @@ optdepends=(
     'semgrep-bin: static analysis checks'
     'shellcheck: lint shell scripts'
     'downgrade: Downgrade of Packages'
-    'pacman-contrib: Update Check'
+    'pacman-contrib: Used as a fallback for update checking'
 )
+
 provides=("pacsea=${pkgver}")
 conflicts=('pacsea' 'pacsea-git')
 source=("Pacsea::https://github.com/Firstp1ck/Pacsea/releases/download/${_tag}/Pacsea"

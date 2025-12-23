@@ -81,13 +81,14 @@ fn translate_service_pattern(
     let pct_pos = after_today.find('%')?;
     let ratio_str = &after_today[..pct_pos];
     let ratio: f64 = ratio_str.parse().ok()?;
+    let ratio_formatted = format!("{ratio:.1}");
 
     let remaining = &after_today[pct_pos + 1..];
     let (aur_pct, aur_ratio) = extract_aur_suffix(remaining);
     let main_text = i18n::t_fmt(
         app,
         translation_key,
-        &[&service_name, &service_name, &ratio],
+        &[&service_name, &service_name, &ratio_formatted],
     );
     Some(format_with_aur_suffix(app, main_text, aur_pct, aur_ratio))
 }
@@ -142,13 +143,14 @@ fn translate_nominal_with_service(app: &AppState, text: &str) -> Option<String> 
     let pct_pos = after_today.find('%')?;
     let ratio_str = &after_today[..pct_pos];
     let ratio: f64 = ratio_str.parse().ok()?;
+    let ratio_formatted = format!("{ratio:.1}");
 
     let remaining = &after_today[pct_pos + 1..];
     let (aur_pct, aur_ratio) = extract_aur_suffix(remaining);
     let main_text = i18n::t_fmt(
         app,
         "app.arch_status.systems_nominal_with_service",
-        &[&service_part, &ratio],
+        &[&service_part, &ratio_formatted],
     );
     Some(format_with_aur_suffix(app, main_text, aur_pct, aur_ratio))
 }
@@ -278,5 +280,35 @@ mod tests {
         assert!(!translated.is_empty());
         // The translation should contain the percentage or be a valid translation
         assert!(translated.contains("97") || translated.contains("AUR") || translated.len() > 10);
+    }
+
+    #[test]
+    /// What: Test translation of service degraded pattern with percentage formatting.
+    ///
+    /// Inputs:
+    /// - English status text with service degraded pattern and percentage
+    /// - `AppState` with translations
+    ///
+    /// Output:
+    /// - Translated status text with properly formatted percentage
+    ///
+    /// Details:
+    /// - Verifies that percentage is formatted with .1 precision and not showing format specifier
+    fn test_translate_service_degraded_with_percentage() {
+        let app = AppState::default();
+        let text = "Website degraded (see status) — Website today: 91.275%";
+        let translated = translate_status_text(&app, text);
+        // Should return translation or fallback to English
+        assert!(!translated.is_empty());
+        // The main bug fix: should not contain the format specifier literal {:.1}
+        // This was the bug where {:.1}% was showing up instead of the actual percentage
+        // We need to check for the literal string "{:.1}" which clippy flags as a format specifier,
+        // but this is intentional - we're testing that translations don't contain this literal.
+        #[allow(clippy::literal_string_with_formatting_args)]
+        let format_spec = "{:.1}";
+        assert!(
+            !translated.contains(format_spec),
+            "Translation should not contain format specifier {format_spec}, got: {translated}"
+        );
     }
 }

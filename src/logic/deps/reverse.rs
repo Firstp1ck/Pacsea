@@ -34,9 +34,13 @@ pub struct ReverseDependencyReport {
 /// Details:
 /// - Encapsulates shared collections so helper methods can mutate state without leaking implementation details.
 struct ReverseResolverState {
+    /// Aggregated reverse dependency entries by package name.
     aggregated: HashMap<String, AggregatedEntry>,
+    /// Cache of package information by package name.
     cache: HashMap<String, PkgInfo>,
+    /// Set of missing package names.
     missing: HashSet<String>,
+    /// Set of target package names for reverse dependency resolution.
     target_names: HashSet<String>,
 }
 
@@ -156,11 +160,17 @@ impl ReverseResolverState {
 /// - Stores only the subset of fields necessary for summarising conflicts and dependencies.
 #[derive(Clone, Debug)]
 struct PkgInfo {
+    /// Package name.
     name: String,
+    /// Package version.
     version: String,
+    /// Repository name (None for AUR packages).
     repo: Option<String>,
+    /// Package groups.
     groups: Vec<String>,
+    /// Packages that require this package.
     required_by: Vec<String>,
+    /// Whether package was explicitly installed.
     explicit: bool,
 }
 
@@ -176,8 +186,11 @@ struct PkgInfo {
 /// - Maintains deduplicated parent sets for each root to explain conflict chains clearly.
 #[derive(Clone, Debug)]
 struct AggregatedEntry {
+    /// Package information.
     info: PkgInfo,
+    /// Relationship information per removal root.
     per_root: HashMap<String, RootRelation>,
+    /// Whether this package is selected for removal.
     selected_for_removal: bool,
 }
 
@@ -193,7 +206,9 @@ struct AggregatedEntry {
 /// - Used to distinguish direct versus transitive dependents in the final summary.
 #[derive(Clone, Debug)]
 struct RootRelation {
+    /// Set of parent package names that contribute to this dependency.
     parents: HashSet<String>,
+    /// Minimum depth from the removal root to this package.
     min_depth: usize,
 }
 

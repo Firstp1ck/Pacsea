@@ -4,9 +4,13 @@ use std::convert::AsRef;
 use crate::i18n;
 use crate::state::{AppState, PreflightAction};
 
+/// Footer rendering for preflight modal.
 mod footer;
+/// Header rendering for preflight modal.
 mod header;
+/// Helper utilities for preflight modal rendering.
 mod helpers;
+/// Tab rendering modules for preflight modal.
 mod tabs;
 
 use footer::render_footer;

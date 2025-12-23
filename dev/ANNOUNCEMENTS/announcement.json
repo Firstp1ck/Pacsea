@@ -1,7 +1,7 @@
 {
-  "id": "2025-12-06-community-poll-ux-vs-features",
-  "title": "Community Poll: UX Refinements or New Features?",
-  "content": "I want your input for the next milestone. Should I focus on UX refinements or on shipping more features (see the README for the list)?\n\nVote in the poll here: https://github.com/Firstp1ck/Pacsea/discussions/83",
+  "id": "2025-12-20-nvidia-590-pascal-support",
+  "title": "Critical: NVIDIA 590 Driver Drops Pascal Support",
+  "content": "IMPORTANT: The NVIDIA 590 driver has discontinued support for Pascal architecture GPUs, and Arch Linux main packages have switched to Open Kernel Modules.\n\n**Impact:**\n- Pascal-based GPUs (GTX 10xx series, including GTX 1050, 1060, 1070, 1080, etc.) are no longer supported by NVIDIA 590 drivers\n- Users with Pascal GPUs who update to NVIDIA 590 will lose graphics functionality\n- Main NVIDIA packages in Arch Linux now use Open Kernel Modules\n\n**Resolution:**\n- Pascal GPU users must take action to maintain functionality:\n  1. Uninstall the official nvidia, nvidia-lts, or nvidia-dkms packages\n  2. Install nvidia-580xx-dkms from the AUR\n- Do NOT update to NVIDIA 590 if you have a Pascal-based GPU\n- For non-Pascal GPUs, replace packages with Open Kernel Modules versions:\n  - Replace nvidia with nvidia-open\n  - Replace nvidia-dkms with nvidia-open-dkms\n  - Replace nvidia-lts with nvidia-lts-open\n\n**Why this matters for Pacsea users:**\nPacsea manages package updates, and this change affects NVIDIA driver packages. Users with Pascal GPUs need to be aware that updating NVIDIA drivers may break their graphics functionality. If you have a Pascal GPU, you'll need to switch to nvidia-580xx-dkms from the AUR instead of the official packages.\n\n**Source:** https://www.reddit.com/r/archlinux/comments/1prm8rl/archannounce_nvidia_590_driver_drops_pascal/\n\n**Note:** Check your GPU model before updating NVIDIA drivers. Pascal GPUs include the entire GTX 10xx series (1050, 1050 Ti, 1060, 1070, 1070 Ti, 1080, 1080 Ti).",
   "min_version": "0.6.0",
   "max_version": null,
   "expires": null

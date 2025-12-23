@@ -56,29 +56,52 @@ fn handle_results_pane(
         return false;
     }
 
-    if is_left_down {
-        let (_, y, _, _) = app
-            .results_rect
-            .expect("results_rect should be Some when is_in_rect returns true");
-        let row = my.saturating_sub(y) as usize;
-        let offset = app.list_state.offset();
-        let idx = offset + row;
-        if idx < app.results.len() {
-            app.selected = idx;
-            app.list_state.select(Some(idx));
-        }
-    }
+    let (_, y, _, _) = app
+        .results_rect
+        .expect("results_rect should be Some when is_in_rect returns true");
+    // Results list has a top border; adjust so first row maps to index 0.
+    let row = my.saturating_sub(y.saturating_add(1)) as usize;
 
-    match m.kind {
-        MouseEventKind::ScrollUp => {
-            move_sel_cached(app, -1, details_tx, comments_tx);
-            true
+    if matches!(app.app_mode, crate::state::types::AppMode::News) {
+        let offset = app.news_list_state.offset();
+        let idx = offset + row;
+        if idx < app.news_results.len() && is_left_down {
+            app.news_selected = idx;
+            app.news_list_state.select(Some(idx));
+            crate::events::utils::update_news_url(app);
         }
-        MouseEventKind::ScrollDown => {
-            move_sel_cached(app, 1, details_tx, comments_tx);
-            true
+        match m.kind {
+            MouseEventKind::ScrollUp => {
+                crate::events::utils::move_news_selection(app, -1);
+                true
+            }
+            MouseEventKind::ScrollDown => {
+                crate::events::utils::move_news_selection(app, 1);
+                true
+            }
+            _ => is_left_down,
         }
-        _ => is_left_down,
+    } else {
+        if is_left_down {
+            let offset = app.list_state.offset();
+            let idx = offset + row;
+            if idx < app.results.len() {
+                app.selected = idx;
+                app.list_state.select(Some(idx));
+            }
+        }
+
+        match m.kind {
+            MouseEventKind::ScrollUp => {
+                move_sel_cached(app, -1, details_tx, comments_tx);
+                true
+            }
+            MouseEventKind::ScrollDown => {
+                move_sel_cached(app, 1, details_tx, comments_tx);
+                true
+            }
+            _ => is_left_down,
+        }
     }
 }
 

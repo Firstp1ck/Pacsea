@@ -454,15 +454,17 @@ pub(super) fn handle_news_modal(ke: KeyEvent, app: &mut AppState, mut modal: Mod
     if let Modal::News {
         ref items,
         ref mut selected,
+        ref mut scroll,
     } = modal
     {
-        let result = super::common::handle_news(ke, app, items, selected);
+        let result = super::common::handle_news(ke, app, items, selected, scroll);
         return restore::restore_if_not_closed_with_bool_result(
             app,
             result,
             Modal::News {
                 items: items.clone(),
                 selected: *selected,
+                scroll: *scroll,
             },
         );
     }
@@ -639,6 +641,110 @@ pub(super) fn handle_scan_config_modal(ke: KeyEvent, app: &mut AppState, mut mod
     false
 }
 
+/// What: Handle key events for `NewsSetup` modal, including restoration logic.
+///
+/// Inputs:
+/// - `ke`: Key event
+/// - `app`: Mutable application state
+/// - `modal`: `NewsSetup` modal variant
+///
+/// Output:
+/// - `true` if modal was closed (to stop propagation), otherwise `false`
+///
+/// Details:
+/// - Handles navigation, toggles, date selection, and Enter to save settings
+/// - On save, persists settings and triggers startup news fetch
+pub(super) fn handle_news_setup_modal(ke: KeyEvent, app: &mut AppState, mut modal: Modal) -> bool {
+    if let Modal::NewsSetup {
+        ref mut show_arch_news,
+        ref mut show_advisories,
+        ref mut show_aur_updates,
+        ref mut show_aur_comments,
+        ref mut show_pkg_updates,
+        ref mut max_age_days,
+        ref mut cursor,
+    } = modal
+    {
+        match ke.code {
+            KeyCode::Esc => {
+                // Cancel - restore previous modal or close
+                if let Some(prev_modal) = app.previous_modal.take() {
+                    app.modal = prev_modal;
+                } else {
+                    app.modal = crate::state::Modal::None;
+                }
+                return true;
+            }
+            KeyCode::Up => {
+                if *cursor > 0 {
+                    *cursor -= 1;
+                }
+            }
+            KeyCode::Down => {
+                // Max cursor is 7 (0-4 for toggles, 5-7 for date buttons)
+                if *cursor < 7 {
+                    *cursor += 1;
+                }
+            }
+            KeyCode::Left => {
+                // Navigate between date buttons when on date row (cursor 5-7)
+                if *cursor >= 5 && *cursor <= 7 && *cursor > 5 {
+                    *cursor -= 1;
+                }
+            }
+            KeyCode::Right => {
+                // Navigate between date buttons when on date row (cursor 5-7)
+                if *cursor >= 5 && *cursor <= 7 && *cursor < 7 {
+                    *cursor += 1;
+                }
+            }
+            KeyCode::Char(' ') => match *cursor {
+                0 => *show_arch_news = !*show_arch_news,
+                1 => *show_advisories = !*show_advisories,
+                2 => *show_aur_updates = !*show_aur_updates,
+                3 => *show_aur_comments = !*show_aur_comments,
+                4 => *show_pkg_updates = !*show_pkg_updates,
+                5 => *max_age_days = Some(7),
+                6 => *max_age_days = Some(30),
+                7 => *max_age_days = Some(90),
+                _ => {}
+            },
+            KeyCode::Enter => {
+                // Save all settings
+                crate::theme::save_startup_news_show_arch_news(*show_arch_news);
+                crate::theme::save_startup_news_show_advisories(*show_advisories);
+                crate::theme::save_startup_news_show_aur_updates(*show_aur_updates);
+                crate::theme::save_startup_news_show_aur_comments(*show_aur_comments);
+                crate::theme::save_startup_news_show_pkg_updates(*show_pkg_updates);
+                crate::theme::save_startup_news_max_age_days(*max_age_days);
+                crate::theme::save_startup_news_configured(true);
+
+                // Mark that we need to trigger startup news fetch
+                app.trigger_startup_news_fetch = true;
+
+                // Close modal
+                app.modal = crate::state::Modal::None;
+                return true;
+            }
+            _ => {}
+        }
+        restore::restore_if_not_closed_with_esc(
+            app,
+            &ke,
+            Modal::NewsSetup {
+                show_arch_news: *show_arch_news,
+                show_advisories: *show_advisories,
+                show_aur_updates: *show_aur_updates,
+                show_aur_comments: *show_aur_comments,
+                show_pkg_updates: *show_pkg_updates,
+                max_age_days: *max_age_days,
+                cursor: *cursor,
+            },
+        );
+    }
+    false
+}
+
 /// What: Handle key events for `VirusTotalSetup` modal, including restoration logic.
 ///
 /// Inputs:
@@ -708,7 +814,7 @@ pub(super) fn handle_gnome_terminal_prompt_modal(
 /// Details:
 /// - Delegates to password handler and restores modal if needed
 /// - Returns `true` on Enter to indicate password should be submitted
-#[allow(clippy::too_many_lines)] // Complex password validation and execution flow requires many lines
+#[allow(clippy::too_many_lines)] // Complex password validation and execution flow requires many lines (function has 327 lines)
 pub(super) fn handle_password_prompt_modal(
     ke: KeyEvent,
     app: &mut AppState,

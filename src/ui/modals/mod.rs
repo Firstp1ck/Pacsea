@@ -3,19 +3,33 @@ use ratatui::{Frame, prelude::Rect, style::Style, widgets::Block};
 use crate::state::AppState;
 use crate::theme::theme;
 
+/// Alert modal rendering.
 mod alert;
+/// Announcement modal rendering.
 mod announcement;
+/// Common utilities for modal rendering.
 mod common;
+/// Confirmation modal rendering.
 mod confirm;
+/// Help overlay modal rendering.
 mod help;
+/// Miscellaneous modal rendering utilities.
 mod misc;
+/// News modal rendering.
 mod news;
+/// Password prompt modal rendering.
 mod password;
+/// Post-summary modal rendering.
 mod post_summary;
+/// Preflight modal rendering.
 mod preflight;
+/// Preflight execution modal rendering.
 mod preflight_exec;
+/// Modal renderer utilities.
 mod renderer;
+/// System update modal rendering.
 mod system_update;
+/// Updates modal rendering.
 mod updates;
 
 /// What: Render modal overlays (`Alert`, `ConfirmInstall`, `ConfirmRemove`, `SystemUpdate`, `Help`, `News`).
@@ -117,12 +131,18 @@ mod tests {
 
         // News
         app.modal = crate::state::Modal::News {
-            items: vec![crate::state::NewsItem {
+            items: vec![crate::state::types::NewsFeedItem {
+                id: "test".to_string(),
                 date: "2025-10-11".into(),
                 title: "Test".into(),
-                url: String::new(),
+                summary: None,
+                url: Some(String::new()),
+                source: crate::state::types::NewsFeedSource::ArchNews,
+                severity: None,
+                packages: Vec::new(),
             }],
             selected: 0,
+            scroll: 0,
         };
         term.draw(|f| {
             let area = f.area();

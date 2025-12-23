@@ -1,3 +1,6 @@
+use crate::state::AppState;
+use crate::state::types::AppMode;
+use crate::theme::theme;
 use ratatui::{
     Frame,
     prelude::Rect,
@@ -6,14 +9,19 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, List, ListItem},
 };
 
-use crate::state::AppState;
-use crate::theme::theme;
-
+/// Dropdown menu rendering module.
 mod dropdowns;
+/// Search results list rendering module.
 mod list;
+/// News feed rendering module.
+mod news;
+/// Sort menu rendering module.
 mod sort_menu;
+/// Status bar rendering module.
 mod status;
+/// Title bar rendering module.
 mod title;
+/// Utility functions for results rendering.
 mod utils;
 
 /// What: Context struct containing all extracted values needed for rendering.
@@ -24,9 +32,13 @@ mod utils;
 ///
 /// Details: Reduces data flow complexity by grouping related values together.
 pub struct RenderContext {
+    /// Number of search results.
     pub results_len: usize,
+    /// Optional repositories configuration.
     pub optional_repos: OptionalRepos,
+    /// Menu states for dropdowns and menus.
     pub menu_states: MenuStates,
+    /// Filter states for search results.
     pub filter_states: FilterStates,
 }
 
@@ -39,15 +51,25 @@ pub struct RenderContext {
 /// Details: Used to pass multiple optional repo flags as a single parameter.
 #[allow(clippy::struct_excessive_bools)]
 pub struct OptionalRepos {
+    /// Whether `EndeavourOS` repository is available.
     pub has_eos: bool,
+    /// Whether `CachyOS` repository is available.
     pub has_cachyos: bool,
+    /// Whether `Artix` repository is available.
     pub has_artix: bool,
+    /// Whether `Artix Omniverse` repository is available.
     pub has_artix_omniverse: bool,
+    /// Whether `Artix Universe` repository is available.
     pub has_artix_universe: bool,
+    /// Whether `Artix Lib32` repository is available.
     pub has_artix_lib32: bool,
+    /// Whether `Artix Galaxy` repository is available.
     pub has_artix_galaxy: bool,
+    /// Whether `Artix World` repository is available.
     pub has_artix_world: bool,
+    /// Whether `Artix System` repository is available.
     pub has_artix_system: bool,
+    /// Whether `Manjaro` repository is available.
     pub has_manjaro: bool,
 }
 
@@ -60,10 +82,15 @@ pub struct OptionalRepos {
 /// Details: Used to pass multiple menu states as a single parameter.
 #[allow(clippy::struct_excessive_bools)]
 pub struct MenuStates {
+    /// Whether the sort menu is open.
     pub sort_menu_open: bool,
+    /// Whether the config menu is open.
     pub config_menu_open: bool,
+    /// Whether the panels menu is open.
     pub panels_menu_open: bool,
+    /// Whether the options menu is open.
     pub options_menu_open: bool,
+    /// Whether the collapsed menu is open.
     pub collapsed_menu_open: bool,
 }
 
@@ -76,19 +103,33 @@ pub struct MenuStates {
 /// Details: Used to pass multiple filter states as a single parameter.
 #[allow(clippy::struct_excessive_bools)]
 pub struct FilterStates {
+    /// Whether to show AUR packages.
     pub show_aur: bool,
+    /// Whether to show core repository packages.
     pub show_core: bool,
+    /// Whether to show extra repository packages.
     pub show_extra: bool,
+    /// Whether to show multilib repository packages.
     pub show_multilib: bool,
+    /// Whether to show `EndeavourOS` repository packages.
     pub show_eos: bool,
+    /// Whether to show `CachyOS` repository packages.
     pub show_cachyos: bool,
+    /// Whether to show `Artix` repository packages.
     pub show_artix: bool,
+    /// Whether to show `Artix Omniverse` repository packages.
     pub show_artix_omniverse: bool,
+    /// Whether to show `Artix Universe` repository packages.
     pub show_artix_universe: bool,
+    /// Whether to show `Artix Lib32` repository packages.
     pub show_artix_lib32: bool,
+    /// Whether to show `Artix Galaxy` repository packages.
     pub show_artix_galaxy: bool,
+    /// Whether to show `Artix World` repository packages.
     pub show_artix_world: bool,
+    /// Whether to show `Artix System` repository packages.
     pub show_artix_system: bool,
+    /// Whether to show `Manjaro` repository packages.
     pub show_manjaro: bool,
 }
 
@@ -109,6 +150,10 @@ pub struct FilterStates {
 /// - Renders dropdown overlays for Sort/Options/Config/Panels when open, and records rects.
 /// - Reduces data flow complexity by extracting all data in one operation and batching mutations.
 pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
+    if matches!(app.app_mode, AppMode::News) {
+        render_news_results(f, app, area);
+        return;
+    }
     // Keep selection centered within the visible results list when possible
     utils::center_selection(app, area);
 
@@ -188,9 +233,70 @@ fn render_list_widget(
 /// to ensure dropdowns appear on top.
 pub use dropdowns::render_dropdowns;
 
+/// What: Render news results in the results area.
+///
+/// Inputs:
+/// - `f`: Frame to render into.
+/// - `app`: Application state.
+/// - `area`: Area to render within.
+///
+/// Output: Renders news feed items as a list.
+///
+/// Details: Renders news feed items from `app.news_results` as a list with source labels.
+fn render_news_results(f: &mut Frame, app: &mut AppState, area: Rect) {
+    let th = theme();
+    // Record results rect first (before any other mutations)
+    app.results_rect = Some((area.x, area.y, area.width, area.height));
+
+    // Extract all immutable data we need first (clone to avoid borrowing)
+    let news_loading = app.news_loading;
+    let news_results = app.news_results.clone();
+    let news_read_ids = app.news_read_ids.clone();
+    let news_read_urls = app.news_read_urls.clone();
+    let needs_select_none = news_loading && news_results.is_empty();
+
+    // Now do all mutable operations first
+    // Handle news_list_state mutation
+    if needs_select_none {
+        app.news_list_state.select(None);
+    }
+
+    // Build title spans and record rects (mutates app button/filter rects)
+    let title_spans = news::build_news_title_spans_and_record_rects(app, area);
+
+    // Build and render list inline to avoid storing items across mutable operations
+    f.render_stateful_widget(
+        List::new(
+            news::build_news_list_items(
+                app,
+                news_loading,
+                &news_results,
+                &news_read_ids,
+                &news_read_urls,
+            )
+            .0,
+        )
+        .style(Style::default().fg(th.text).bg(th.base))
+        .block(
+            Block::default()
+                .title(Line::from(title_spans))
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().fg(th.surface2)),
+        )
+        .highlight_style(Style::default().bg(th.surface1))
+        .highlight_symbol("> "),
+        area,
+        &mut app.news_list_state,
+    );
+    let btn_x = app.sort_button_rect.map_or(area.x, |(x, _, _, _)| x);
+    sort_menu::render_sort_menu(f, app, area, btn_x);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::state::types::NewsFeedSource;
 
     /// What: Ensure rendering results populates button rectangles and status overlays without panic.
     ///
@@ -272,6 +378,15 @@ mod tests {
             "app.results.filters.manjaro".to_string(),
             "Manjaro".to_string(),
         );
+        translations.insert("app.news.filters.arch".to_string(), "Arch".to_string());
+        translations.insert(
+            "app.news.filters.advisories".to_string(),
+            "Advisories".to_string(),
+        );
+        translations.insert(
+            "app.news.filters.installed_only".to_string(),
+            "Installed".to_string(),
+        );
         app.translations = translations.clone();
         app.translations_fallback = translations;
     }
@@ -308,5 +423,44 @@ mod tests {
         assert!(app.panels_button_rect.is_some());
         assert!(app.arch_status_rect.is_some());
         assert!(app.results_rect.is_some());
+    }
+
+    #[test]
+    fn news_filters_leave_gap_between_aur_comments_and_read_toggle() {
+        use ratatui::{Terminal, backend::TestBackend};
+
+        let backend = TestBackend::new(160, 10);
+        let mut term = Terminal::new(backend).expect("failed to create test terminal");
+        let mut app = crate::state::AppState::default();
+        init_test_translations(&mut app);
+        app.app_mode = AppMode::News;
+        app.news_results = vec![crate::state::types::NewsFeedItem {
+            id: "1".into(),
+            date: "2025-01-01".into(),
+            title: "Example update".into(),
+            summary: None,
+            url: None,
+            source: NewsFeedSource::AurComment,
+            severity: None,
+            packages: Vec::new(),
+        }];
+
+        term.draw(|f| {
+            let area = f.area();
+            render_results(f, &mut app, area);
+        })
+        .expect("failed to draw test terminal");
+
+        let buffer = term.backend().buffer();
+        let mut title_line = String::new();
+        for x in 0..buffer.area.width {
+            title_line.push_str(buffer[(x, 0)].symbol());
+        }
+
+        let trimmed = title_line.trim_end();
+        assert!(
+            trimmed.contains("[AUR Comments]  [All]"),
+            "expected spacing between AUR comments and read filters, saw: {trimmed}"
+        );
     }
 }

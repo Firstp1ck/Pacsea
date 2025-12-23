@@ -2,6 +2,7 @@ use crossterm::event::KeyEvent;
 use tokio::sync::mpsc;
 
 use crate::state::{AppState, PackageItem};
+use std::time::Instant;
 
 /// What: Check if a key event matches any chord in a list, handling Shift+char edge cases.
 ///
@@ -15,6 +16,7 @@ use crate::state::{AppState, PackageItem};
 /// Details:
 /// - Treats Shift+<char> from config as equivalent to uppercase char without Shift from terminal.
 /// - Handles cases where terminals report Shift inconsistently.
+#[must_use]
 pub fn matches_any(ke: &KeyEvent, list: &[crate::theme::KeyChord]) -> bool {
     list.iter().any(|c| {
         if (c.code, c.mods) == (ke.code, ke.modifiers) {
@@ -49,6 +51,7 @@ pub fn matches_any(ke: &KeyEvent, list: &[crate::theme::KeyChord]) -> bool {
 /// Output: Character count as `usize`
 ///
 /// Details: Counts Unicode scalar values using `s.chars().count()`.
+#[must_use]
 pub fn char_count(s: &str) -> usize {
     s.chars().count()
 }
@@ -60,6 +63,7 @@ pub fn char_count(s: &str) -> usize {
 ///
 /// Details: Returns 0 for `ci==0`; returns `s.len()` when `ci>=char_count(s)`; otherwise maps
 /// the character index to a byte offset via `char_indices()`.
+#[must_use]
 pub fn byte_index_for_char(s: &str, ci: usize) -> usize {
     let cc = char_count(s);
     if ci == 0 {
@@ -168,6 +172,167 @@ pub fn refresh_selected_details(
         } else {
             let _ = details_tx.send(item);
         }
+    }
+}
+
+/// Move news selection by delta, keeping it in view.
+pub fn move_news_selection(app: &mut AppState, delta: isize) {
+    if app.news_results.is_empty() {
+        app.news_selected = 0;
+        app.news_list_state.select(None);
+        app.details.url.clear();
+        return;
+    }
+    let len = app.news_results.len();
+    if app.news_selected >= len {
+        app.news_selected = len.saturating_sub(1);
+    }
+    app.news_list_state.select(Some(app.news_selected));
+    let steps = delta.unsigned_abs();
+    for _ in 0..steps {
+        if delta.is_negative() {
+            app.news_list_state.select_previous();
+        } else {
+            app.news_list_state.select_next();
+        }
+    }
+    let sel = app.news_list_state.selected().unwrap_or(0);
+    app.news_selected = std::cmp::min(sel, len.saturating_sub(1));
+    app.news_list_state.select(Some(app.news_selected));
+    update_news_url(app);
+}
+
+/// Synchronize details URL and content with currently selected news item.
+/// Also triggers content fetching if channel is provided and content is not cached.
+pub fn update_news_url(app: &mut AppState) {
+    if let Some(item) = app.news_results.get(app.news_selected)
+        && let Some(url) = &item.url
+    {
+        app.details.url.clone_from(url);
+        // Check if content is cached
+        let mut cached = app.news_content_cache.get(url).cloned();
+        if let Some(ref c) = cached
+            && url.contains("://archlinux.org/packages/")
+            && !c.starts_with("Package Info:")
+        {
+            // Cached pre-metadata version: force refresh
+            cached = None;
+            tracing::debug!(
+                url,
+                "news content cache missing package metadata; will refetch"
+            );
+        }
+        app.news_content = cached;
+        if app.news_content.is_some() {
+            tracing::debug!(url, "news content served from cache");
+        } else {
+            // Content not cached - set debounce timer to wait 0.5 seconds before fetching
+            app.news_content_debounce_timer = Some(std::time::Instant::now());
+            tracing::debug!(url, "news content not cached, setting debounce timer");
+        }
+        app.news_content_scroll = 0;
+    } else {
+        app.details.url.clear();
+        app.news_content = None;
+        app.news_content_debounce_timer = None;
+    }
+    app.news_content_loading = false;
+}
+
+/// Request news content fetch if not cached or loading.
+/// Implements 0.5 second debounce - only requests after user stays on item for 0.5 seconds.
+pub fn maybe_request_news_content(
+    app: &mut AppState,
+    news_content_req_tx: &mpsc::UnboundedSender<String>,
+) {
+    // Only request if in news mode with a selected item that has a URL
+    if !matches!(app.app_mode, crate::state::types::AppMode::News) {
+        tracing::trace!("news_content: skip request, not in news mode");
+        return;
+    }
+    if app.news_content_loading {
+        tracing::debug!(
+            selected = app.news_selected,
+            "news_content: skip request, already loading"
+        );
+        return;
+    }
+    if let Some(item) = app.news_results.get(app.news_selected)
+        && let Some(url) = &item.url
+        && app.news_content.is_none()
+        && !app.news_content_cache.contains_key(url)
+    {
+        // Check debounce timer - only request after 0.5 seconds of staying on the item
+        // 500ms balances user experience with server load: long enough to avoid excessive
+        // fetches during rapid navigation, short enough to feel responsive.
+        const DEBOUNCE_DELAY_MS: u64 = 500;
+        if let Some(timer) = app.news_content_debounce_timer {
+            // Safe to unwrap: elapsed will be small (well within u64)
+            #[allow(clippy::cast_possible_truncation)]
+            let elapsed = timer.elapsed().as_millis() as u64;
+            if elapsed < DEBOUNCE_DELAY_MS {
+                // Debounce not expired yet - wait longer
+                tracing::trace!(
+                    selected = app.news_selected,
+                    url,
+                    elapsed_ms = elapsed,
+                    remaining_ms = DEBOUNCE_DELAY_MS - elapsed,
+                    "news_content: debounce timer not expired, waiting"
+                );
+                return;
+            }
+            // Debounce expired - clear timer and proceed with request
+            app.news_content_debounce_timer = None;
+        } else {
+            // No debounce timer set - this shouldn't happen, but set it now
+            app.news_content_debounce_timer = Some(std::time::Instant::now());
+            tracing::debug!(
+                selected = app.news_selected,
+                url,
+                "news_content: no debounce timer, setting one now"
+            );
+            return;
+        }
+
+        app.news_content_loading = true;
+        app.news_content_loading_since = Some(Instant::now());
+        tracing::debug!(
+            selected = app.news_selected,
+            title = item.title,
+            url,
+            "news_content: requesting article content (debounce expired)"
+        );
+        if let Err(e) = news_content_req_tx.send(url.clone()) {
+            tracing::warn!(
+                error = %e,
+                selected = app.news_selected,
+                title = item.title,
+                url,
+                "news_content: failed to enqueue content request"
+            );
+            app.news_content_loading = false;
+            app.news_content_loading_since = None;
+            app.news_content = Some(format!("Failed to load content: {e}"));
+            app.toast_message = Some("News content request failed".to_string());
+            app.toast_expires_at = Some(Instant::now() + std::time::Duration::from_secs(3));
+        }
+    } else {
+        tracing::trace!(
+            selected = app.news_selected,
+            has_item = app.news_results.get(app.news_selected).is_some(),
+            has_url = app
+                .news_results
+                .get(app.news_selected)
+                .and_then(|it| it.url.as_ref())
+                .is_some(),
+            content_cached = app
+                .news_results
+                .get(app.news_selected)
+                .and_then(|it| it.url.as_ref())
+                .is_some_and(|u| app.news_content_cache.contains_key(u)),
+            has_content = app.news_content.is_some(),
+            "news_content: skip request (cached/absent URL/already loaded)"
+        );
     }
 }
 

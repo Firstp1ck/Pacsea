@@ -5,6 +5,7 @@
 use std::process::Command;
 use tracing::{debug, warn};
 
+/// Result type alias for pacman command operations.
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 /// What: Execute `pacman` with the provided arguments and capture stdout.

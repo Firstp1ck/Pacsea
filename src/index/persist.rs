@@ -68,7 +68,7 @@ pub fn save_to_disk(path: &Path) {
                 "Failed to write index file to disk"
             );
         } else {
-            tracing::debug!(
+            tracing::info!(
                 path = %path.display(),
                 package_count = guard.pkgs.len(),
                 "Successfully saved index to disk"

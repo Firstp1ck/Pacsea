@@ -21,13 +21,19 @@ use ratatui::{
 };
 
 use crate::i18n;
+use crate::state::types::AppMode;
 use crate::{state::AppState, theme::theme};
 
+/// Details pane rendering module.
 mod details;
 pub mod helpers;
+/// Middle row rendering module.
 mod middle;
+/// Modal overlays rendering module.
 mod modals;
+/// Search results rendering module.
 mod results;
+/// Updates pane rendering module.
 mod updates;
 
 /// What: Layout height constraints for UI panes.
@@ -39,10 +45,15 @@ mod updates;
 /// Details:
 /// - Groups minimum and maximum height constraints to reduce data flow complexity.
 struct LayoutConstraints {
+    /// Minimum height for results pane.
     min_results: u16,
+    /// Minimum height for middle pane.
     min_middle: u16,
+    /// Minimum height for package info pane.
     min_package_info: u16,
+    /// Maximum height for results pane.
     max_results: u16,
+    /// Maximum height for middle pane.
     max_middle: u16,
 }
 
@@ -75,8 +86,11 @@ impl LayoutConstraints {
 /// Details:
 /// - Groups related layout parameters to reduce data flow complexity by grouping related fields.
 struct LayoutHeights {
+    /// Height for results pane.
     results: u16,
+    /// Height for middle pane.
     middle: u16,
+    /// Height for details pane.
     details: u16,
 }
 
@@ -276,7 +290,7 @@ fn render_toast(f: &mut Frame, app: &AppState, area: ratatui::prelude::Rect) {
     // Determine toast type by checking against all known news-related translation keys
     // This is language-agnostic as it compares the actual translated text
     // List of all news-related toast translation keys (add new ones here as needed)
-    let news_keys = ["app.toasts.no_new_news"];
+    let news_keys = ["app.toasts.no_new_news", "app.news_button.loading"];
     let is_news_toast = news_keys.iter().any(|key| {
         let translated = i18n::t(app, key);
         msg == &translated
@@ -351,10 +365,14 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
 
     results::render_results(f, app, chunks[0]);
     middle::render_middle(f, app, chunks[1]);
-    details::render_details(f, app, chunks[2]);
+    if matches!(app.app_mode, AppMode::News) {
+        details::render_news_details(f, app, chunks[2]);
+    } else {
+        details::render_details(f, app, chunks[2]);
+    }
     modals::render_modals(f, app, area);
 
-    // Render dropdowns last to ensure they appear on top layer
+    // Render dropdowns last to ensure they appear on top layer (now for both modes)
     results::render_dropdowns(f, app, chunks[0]);
 
     // Render transient toast (bottom-right) if present

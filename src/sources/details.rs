@@ -5,6 +5,7 @@ use serde_json::Value;
 use crate::state::{PackageDetails, PackageItem, Source};
 use crate::util::{arrs, s, ss, u64_of};
 
+/// Result type alias for package details fetching operations.
 type Result<T> = super::Result<T>;
 
 /// Split a whitespace-separated field to Vec<String>, treating "None"/missing as empty.
@@ -111,18 +112,31 @@ fn parse_pacman_output(text: &str) -> std::collections::BTreeMap<String, String>
 ///
 /// Groups related fields together to reduce data flow complexity.
 struct ParsedFields {
+    /// Package licenses.
     licenses: Vec<String>,
+    /// Package groups.
     groups: Vec<String>,
+    /// Packages provided by this package.
     provides: Vec<String>,
+    /// Required dependencies.
     depends: Vec<String>,
+    /// Optional dependencies.
     opt_depends: Vec<String>,
+    /// Packages that require this package.
     required_by: Vec<String>,
+    /// Packages that optionally depend on this package.
     optional_for: Vec<String>,
+    /// Packages that conflict with this package.
     conflicts: Vec<String>,
+    /// Packages that this package replaces.
     replaces: Vec<String>,
+    /// Package description.
     description: String,
+    /// Target architecture.
     architecture: String,
+    /// Download size in bytes.
     download_size: Option<u64>,
+    /// Installed size in bytes.
     install_size: Option<u64>,
 }
 

@@ -135,15 +135,31 @@ fn map_syntect_color(sc: syntect::highlighting::Color, th: &Theme) -> Color {
     Color::Rgb(r, g, b)
 }
 
+/// What: Cache entry for highlighted PKGBUILD text.
+///
+/// Inputs: Created from PKGBUILD text and highlighting.
+///
+/// Output: Cached highlighted lines for reuse.
+///
+/// Details: Stores the original text and pre-highlighted lines to avoid re-highlighting unchanged text.
 #[derive(Clone)]
 struct PkgbHighlightCache {
+    /// Original PKGBUILD text.
     text: String,
+    /// Pre-highlighted lines.
     lines: Vec<Line<'static>>,
 }
 
 /// Global cache for PKGBUILD highlighting to enable dirty-region reuse across renders.
 static PKGB_CACHE: OnceLock<Mutex<Option<PkgbHighlightCache>>> = OnceLock::new();
 
+/// What: Get the global PKGBUILD highlight cache lock.
+///
+/// Inputs: None.
+///
+/// Output: Reference to the cache mutex.
+///
+/// Details: Returns the global cache mutex, initializing it if necessary.
 fn cache_lock() -> &'static Mutex<Option<PkgbHighlightCache>> {
     PKGB_CACHE.get_or_init(|| Mutex::new(None))
 }
@@ -250,6 +266,16 @@ pub fn highlight_pkgbuild(text: &str, th: &Theme) -> Vec<Line<'static>> {
     highlighted_lines
 }
 
+/// What: Convert syntect highlighted line to ratatui Line.
+///
+/// Inputs:
+/// - `highlighted_line`: Syntect style-text pairs.
+/// - `th`: Theme for color conversion.
+/// - `fallback`: Fallback text if conversion fails.
+///
+/// Output: ratatui Line with styled spans.
+///
+/// Details: Converts syntect highlighting styles to ratatui-compatible spans with theme colors.
 fn to_ratatui_line(
     highlighted_line: &[(syntect::highlighting::Style, &str)],
     th: &Theme,

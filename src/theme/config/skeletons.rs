@@ -318,8 +318,35 @@ scan_do_sleuth = true\n\
 \n\
 # News\n\
 # Symbols for read/unread indicators in the News popup\n\
+app_start_mode = package\n\
 news_read_symbol = ✓\n\
 news_unread_symbol = ∘\n\
+news_filter_show_arch_news = true\n\
+news_filter_show_advisories = true\n\
+news_filter_show_pkg_updates = true\n\
+news_filter_show_aur_updates = true\n\
+news_filter_show_aur_comments = true\n\
+# When news_filter_show_advisories is true, this restricts advisories to only those affecting installed packages\n\
+news_filter_installed_only = false\n\
+# Allowed values: number of days | all\n\
+news_max_age_days = 30\n\
+\n\
+# Startup News Popup Configuration\n\
+# Whether startup news popup setup has been completed\n\
+startup_news_configured = false\n\
+# News sources to show in startup popup\n\
+startup_news_show_arch_news = true\n\
+startup_news_show_advisories = true\n\
+startup_news_show_aur_updates = true\n\
+startup_news_show_aur_comments = true\n\
+startup_news_show_pkg_updates = true\n\
+# Maximum age of news items in days for startup popup (7, 30, or 90)\n\
+startup_news_max_age_days = 7\n\
+\n\
+# News Cache\n\
+# How many days to keep Arch news and advisories cached on disk.\n\
+# Reduces network requests on startup. Default is 14 days.\n\
+news_cache_ttl_days = 14\n\
 \n\
 # VirusTotal\n\
 # API key used for VirusTotal scans (optional)\n\
@@ -452,4 +479,7 @@ keybind_install_focus_left = Left\n\
 \n\
 # NEWS — Actions\n\
 keybind_news_mark_read = r\n\
-keybind_news_mark_all_read = CTRL+R\n";
+keybind_news_mark_all_read = CTRL+R\n\
+keybind_news_feed_mark_read = r\n\
+keybind_news_feed_mark_unread = u\n\
+keybind_news_feed_toggle_read = t\n";

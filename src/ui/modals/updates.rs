@@ -4,8 +4,9 @@ use ratatui::{
     prelude::Rect,
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, BorderType, Borders, Clear, Paragraph, Wrap},
+    widgets::{Block, BorderType, Borders, Clear, Paragraph},
 };
+use unicode_width::UnicodeWidthStr;
 
 use crate::i18n;
 use crate::state::AppState;
@@ -92,81 +93,177 @@ fn get_install_tool(pkg_name: &str) -> &'static str {
     "AUR"
 }
 
-/// What: Build all three line vectors for update entries in a single pass.
+/// What: Wrap text into lines that fit within the given width.
+///
+/// Inputs:
+/// - `content`: Text content to wrap
+/// - `available_width`: Width available for wrapping
+///
+/// Output:
+/// - Vector of strings, each representing a wrapped line
+///
+/// Details:
+/// - Uses Unicode display width for accurate measurement
+/// - Wraps at word boundaries
+/// - Returns at least one empty line if content is empty
+fn wrap_text_to_lines(content: &str, available_width: u16) -> Vec<String> {
+    if content.trim().is_empty() {
+        return vec![String::new()];
+    }
+
+    let width = available_width.max(1) as usize;
+    let words: Vec<&str> = content.split_whitespace().collect();
+    if words.is_empty() {
+        return vec![String::new()];
+    }
+
+    let mut lines = Vec::new();
+    let mut current_line = String::new();
+    let mut current_width = 0usize;
+
+    for word in words {
+        let word_width = word.width();
+        let separator_width = usize::from(current_width > 0);
+        let test_width = current_width + separator_width + word_width;
+
+        if test_width > width && current_width > 0 {
+            // Wrap to new line
+            lines.push(current_line);
+            current_line = word.to_string();
+            current_width = word_width;
+        } else {
+            if current_width > 0 {
+                current_line.push(' ');
+            }
+            current_line.push_str(word);
+            current_width = test_width;
+        }
+    }
+
+    if !current_line.is_empty() {
+        lines.push(current_line);
+    }
+
+    if lines.is_empty() {
+        lines.push(String::new());
+    }
+
+    lines
+}
+
+/// What: Build all three line vectors for update entries with proper alignment.
 ///
 /// Inputs:
 /// - `entries`: Update entries to display (`name`, `old_version`, `new_version`)
 /// - `th`: Theme for styling
 /// - `selected`: Index of the currently selected entry
+/// - `left_width`: Width of the left pane in characters
+/// - `right_width`: Width of the right pane in characters
 ///
 /// Output:
 /// - Returns `UpdateLines` containing left, center, and right pane lines
 ///
 /// Details:
-/// - Iterates over entries once to build all three line vectors simultaneously
+/// - Pre-calculates wrapping for each entry to ensure all panes have matching line counts
 /// - Left pane: old versions with right padding (right-aligned)
 /// - Center pane: arrows with spacing (centered)
 /// - Right pane: new versions with tool label (left-aligned)
-/// - Highlights the selected entry with background color
+/// - Highlights the selected entry with cursor indicator
+/// - All three panes have the same number of lines per entry for proper alignment
 fn build_update_lines(
     entries: &[(String, String, String)],
     th: &Theme,
     selected: usize,
+    left_width: u16,
+    right_width: u16,
 ) -> UpdateLines {
     let mut left_lines = Vec::new();
     let mut center_lines = Vec::new();
     let mut right_lines = Vec::new();
+
+    let text_style = Style::default().fg(th.text);
+    let cursor_style = Style::default().fg(th.mauve).add_modifier(Modifier::BOLD);
+    let center_style = Style::default().fg(th.mauve).add_modifier(Modifier::BOLD);
 
     for (idx, (name, old_version, new_version)) in entries.iter().enumerate() {
         let is_selected = idx == selected;
 
         // Determine which tool will be used for this package
         let tool = get_install_tool(name);
-
-        // Build left pane line (old versions) - right-aligned with padding
-        // Add cursor indicator "▶" for selected item with distinct styling
-        if is_selected {
-            let mut left_spans = Vec::new();
-            // Cursor indicator with mauve color to stand out (no background, block handles it)
-            let cursor_style = Style::default().fg(th.mauve).add_modifier(Modifier::BOLD);
-            left_spans.push(Span::styled("▶ ", cursor_style));
-            // Package name and version with normal styling (no background, block handles it)
-            let text_style = Style::default().fg(th.text);
-            left_spans.push(Span::styled(
-                format!("{name} - {old_version}     "),
-                text_style,
-            ));
-            left_lines.push(Line::from(left_spans));
-        } else {
-            let left_text = format!("  {name} - {old_version}     ");
-            let left_style = Style::default().fg(th.text);
-            left_lines.push(Line::from(Span::styled(left_text, left_style)));
-        }
-
-        // Build center arrow line with spacing (5 spaces on each side)
-        // No background on span, block handles it for selected lines
-        let center_style = Style::default().fg(th.mauve).add_modifier(Modifier::BOLD);
-        center_lines.push(Line::from(Span::styled("     →     ", center_style)));
-
-        // Build right pane line (new versions) with tool label and padding
-        // No background on span, block handles it for selected lines
-        let mut right_spans = Vec::new();
-        right_spans.push(Span::styled("     ", Style::default()));
-        right_spans.push(Span::styled(
-            format!("{name} - {new_version} "),
-            Style::default().fg(th.text),
-        ));
-        // Add tool label in a distinct color
         let tool_color = match tool {
             "pacman" => th.green,
             "AUR" => th.yellow,
             _ => th.overlay1,
         };
-        right_spans.push(Span::styled(
-            format!("[{tool}]"),
-            Style::default().fg(tool_color).add_modifier(Modifier::BOLD),
-        ));
-        right_lines.push(Line::from(right_spans));
+
+        // Build left text without cursor/indicator initially
+        let left_text = format!("{name} - {old_version}     ");
+
+        // Build right text without padding initially (we'll add tool label later)
+        let right_text = format!("     {name} - {new_version}");
+
+        // Calculate wrapped lines for left and right text
+        let left_wrapped = wrap_text_to_lines(&left_text, left_width);
+        let right_wrapped = wrap_text_to_lines(&right_text, right_width);
+
+        // Determine maximum lines needed across all panes (center always 1 line)
+        let left_lines_count = left_wrapped.len();
+        let right_lines_count = right_wrapped.len();
+        let max_lines = left_lines_count.max(right_lines_count).max(1);
+
+        // Build left pane lines
+        for (line_idx, line) in left_wrapped.iter().enumerate() {
+            if line_idx == 0 && is_selected {
+                // First line gets cursor indicator
+                let spans = vec![
+                    Span::styled("▶ ", cursor_style),
+                    Span::styled(line.clone(), text_style),
+                ];
+                left_lines.push(Line::from(spans));
+            } else if line_idx == 0 && !is_selected {
+                // First line gets spacing for alignment
+                left_lines.push(Line::from(Span::styled(format!("  {line}"), text_style)));
+            } else {
+                // Subsequent lines
+                left_lines.push(Line::from(Span::styled(line.clone(), text_style)));
+            }
+        }
+
+        // Pad left pane with empty lines if needed
+        while left_lines.len() < max_lines {
+            left_lines.push(Line::from(Span::styled("", text_style)));
+        }
+
+        // Build center pane lines (always 1 line, pad if needed)
+        center_lines.push(Line::from(Span::styled("     →     ", center_style)));
+        while center_lines.len() < max_lines {
+            center_lines.push(Line::from(Span::styled("", center_style)));
+        }
+
+        // Build right pane lines
+        for (line_idx, line) in right_wrapped.iter().enumerate() {
+            let is_last_line = line_idx == right_wrapped.len() - 1;
+            if is_last_line {
+                // Last line gets tool label
+                let spans = vec![
+                    Span::styled(line.clone(), text_style),
+                    Span::styled(" ", text_style),
+                    Span::styled(
+                        format!("[{tool}]"),
+                        Style::default().fg(tool_color).add_modifier(Modifier::BOLD),
+                    ),
+                ];
+                right_lines.push(Line::from(spans));
+            } else {
+                // Other lines
+                right_lines.push(Line::from(Span::styled(line.clone(), text_style)));
+            }
+        }
+
+        // Pad right pane with empty lines if needed
+        while right_lines.len() < max_lines {
+            right_lines.push(Line::from(Span::styled("", text_style)));
+        }
     }
 
     UpdateLines {
@@ -190,8 +287,9 @@ fn build_update_lines(
 /// - Renders the paragraph widget to the frame
 ///
 /// Details:
-/// - Creates a paragraph with common styling (text color, background, wrap, scroll)
+/// - Creates a paragraph with common styling (text color, background, scroll)
 /// - Applies the specified alignment
+/// - Wrapping is pre-calculated in `build_update_lines()`, so no wrap needed here
 fn render_pane(
     f: &mut Frame,
     lines: Vec<Line<'static>>,
@@ -204,7 +302,6 @@ fn render_pane(
     let para = Paragraph::new(lines)
         .style(Style::default().fg(th.text).bg(th.mantle))
         .alignment(alignment)
-        .wrap(Wrap { trim: true })
         .scroll((scroll, 0));
     f.render_widget(para, chunk);
 }
@@ -284,7 +381,11 @@ pub fn render_updates(
             ])
             .split(chunks[1]);
 
-        let update_lines = build_update_lines(entries, &th, selected);
+        // Calculate pane widths for wrapping calculations
+        let left_width = pane_chunks[0].width;
+        let right_width = pane_chunks[2].width;
+
+        let update_lines = build_update_lines(entries, &th, selected, left_width, right_width);
 
         // Render panes using helper function
         render_pane(

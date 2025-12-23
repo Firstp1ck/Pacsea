@@ -2,10 +2,15 @@
 
 use lru::LruCache;
 use ratatui::widgets::ListState;
+use serde_json;
+use std::fs;
 use std::{collections::HashMap, collections::HashSet, path::PathBuf, time::Instant};
 
 use crate::state::modal::Modal;
-use crate::state::types::{ArchStatusColor, Focus, PackageDetails, PackageItem, SortMode};
+use crate::state::types::{
+    AppMode, ArchStatusColor, Focus, NewsFeedItem, NewsReadFilter, NewsSortMode, PackageDetails,
+    PackageItem, SortMode,
+};
 use crate::theme::KeyMap;
 
 /// What: Create default paths for persisted data.
@@ -27,18 +32,24 @@ pub(super) fn default_paths() -> (
     std::path::PathBuf,
     std::path::PathBuf,
     std::path::PathBuf,
+    std::path::PathBuf,
+    std::path::PathBuf,
+    std::path::PathBuf,
 ) {
     let lists_dir = crate::theme::lists_dir();
     (
         lists_dir.join("recent_searches.json"),
         lists_dir.join("details_cache.json"),
         lists_dir.join("news_read_urls.json"),
+        lists_dir.join("news_read_ids.json"),
         lists_dir.join("install_list.json"),
         lists_dir.join("official_index.json"),
         lists_dir.join("install_deps_cache.json"),
         lists_dir.join("file_cache.json"),
         lists_dir.join("services_cache.json"),
         lists_dir.join("announcement_read.json"),
+        lists_dir.join("news_recent_searches.json"),
+        lists_dir.join("news_bookmarks.json"),
     )
 }
 
@@ -84,6 +95,189 @@ pub(super) type DefaultSearchState = (
     Option<Vec<PackageItem>>,
 );
 
+/// Type alias for default news feed state tuple.
+#[allow(clippy::type_complexity)]
+pub(super) type DefaultNewsFeedState = (
+    Vec<NewsFeedItem>,
+    Vec<NewsFeedItem>,
+    bool, // news_loading
+    bool, // news_ready
+    usize,
+    ListState,
+    String,
+    usize,
+    Option<usize>,
+    LruCache<String, String>,
+    PathBuf,
+    bool, // news_recent_dirty
+    bool, // news_filter_show_arch_news
+    bool, // news_filter_show_advisories
+    bool, // news_filter_show_pkg_updates
+    bool, // news_filter_show_aur_updates
+    bool, // news_filter_show_aur_comments
+    bool, // news_filter_installed_only
+    NewsReadFilter,
+    Option<(u16, u16, u16, u16)>, // arch rect
+    Option<(u16, u16, u16, u16)>, // advisory rect
+    Option<(u16, u16, u16, u16)>, // installed rect
+    Option<(u16, u16, u16, u16)>, // updates rect
+    Option<(u16, u16, u16, u16)>, // aur updates rect
+    Option<(u16, u16, u16, u16)>, // aur comments rect
+    Option<(u16, u16, u16, u16)>, // read rect
+    Option<u32>,                  // max age days
+    bool,                         // show history pane
+    bool,                         // show bookmarks pane
+    NewsSortMode,                 // sort mode
+    Vec<crate::state::types::NewsBookmark>,
+    PathBuf,                                   // bookmarks path
+    bool,                                      // bookmarks dirty
+    std::collections::HashMap<String, String>, // news_content_cache
+    PathBuf,                                   // news_content_cache_path
+    bool,                                      // news_content_cache_dirty
+    Option<String>,                            // news_content
+    bool,                                      // news_content_loading
+    Option<Instant>,                           // news_content_loading_since
+    Option<Instant>,                           // news_content_debounce_timer
+    u16,                                       // news_content_scroll
+    Option<String>,                            // news_history_pending
+    Option<Instant>,                           // news_history_pending_at
+    Option<String>,                            // news_history_last_saved
+);
+
+/// What: Default application mode.
+///
+/// Inputs: None
+///
+/// Output: `AppMode::Package`
+#[must_use]
+pub(super) const fn default_app_mode() -> AppMode {
+    AppMode::Package
+}
+
+/// What: Create default state for the news feed.
+///
+/// Inputs:
+/// - `news_recent_path`: Path to persist news recent searches
+/// - `news_bookmarks_path`: Path to persist news bookmarks
+/// - `news_feed_path`: Path to persist news feed items
+/// - `news_content_cache_path`: Path to persist news article content cache
+///
+/// Output:
+/// - Tuple containing news feed data, UI state, and persistence flags.
+pub(super) fn default_news_feed_state(
+    news_recent_path: PathBuf,
+    news_bookmarks_path: PathBuf,
+    news_feed_path: &PathBuf,
+    news_content_cache_path: PathBuf,
+) -> DefaultNewsFeedState {
+    let recent_capacity = super::recent_capacity();
+    let mut news_recent = LruCache::unbounded();
+    news_recent.resize(recent_capacity);
+    if let Ok(s) = fs::read_to_string(&news_recent_path)
+        && let Ok(values) = serde_json::from_str::<Vec<String>>(&s)
+    {
+        for v in values.into_iter().rev() {
+            let key = v.to_ascii_lowercase();
+            news_recent.put(key, v);
+        }
+    }
+    let news_bookmarks: Vec<crate::state::types::NewsBookmark> =
+        fs::read_to_string(&news_bookmarks_path)
+            .ok()
+            .and_then(|s| serde_json::from_str::<Vec<crate::state::types::NewsBookmark>>(&s).ok())
+            .or_else(|| {
+                // Backward compatibility: load old format Vec<NewsFeedItem>
+                fs::read_to_string(&news_bookmarks_path)
+                    .ok()
+                    .and_then(|s| serde_json::from_str::<Vec<NewsFeedItem>>(&s).ok())
+                    .map(|items| {
+                        items
+                            .into_iter()
+                            .map(|item| crate::state::types::NewsBookmark {
+                                item,
+                                content: None,
+                                html_path: None,
+                            })
+                            .collect()
+                    })
+            })
+            .unwrap_or_default();
+    let cached_items: Vec<crate::state::types::NewsFeedItem> = fs::read_to_string(news_feed_path)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default();
+    // Load news content cache from disk (URL -> article content)
+    // Filter out any error messages that may have been persisted in older versions
+    let news_content_cache: std::collections::HashMap<String, String> =
+        fs::read_to_string(&news_content_cache_path)
+            .ok()
+            .and_then(|s| {
+                serde_json::from_str::<std::collections::HashMap<String, String>>(&s).ok()
+            })
+            .map(|cache| {
+                cache
+                    .into_iter()
+                    .filter(|(_, v)| !v.starts_with("Failed to load content:"))
+                    .collect()
+            })
+            .unwrap_or_default();
+    if !news_content_cache.is_empty() {
+        tracing::info!(
+            path = %news_content_cache_path.display(),
+            entries = news_content_cache.len(),
+            "loaded news content cache from disk"
+        );
+    }
+    let news_loading = cached_items.is_empty();
+    let news_ready = !cached_items.is_empty(); // News are ready if cached items exist
+    (
+        cached_items.clone(), // news_items
+        cached_items,         // news_results (filtered later)
+        news_loading,         // news_loading
+        news_ready,           // news_ready
+        0,                    // news_selected
+        ListState::default(), // news_list_state
+        String::new(),        // news_search_input
+        0,                    // news_search_caret
+        None,                 // news_search_select_anchor
+        news_recent,
+        news_recent_path,
+        false,               // news_recent_dirty
+        true,                // news_filter_show_arch_news
+        true,                // news_filter_show_advisories
+        true,                // news_filter_show_pkg_updates
+        true,                // news_filter_show_aur_updates
+        true,                // news_filter_show_aur_comments
+        false,               // news_filter_installed_only
+        NewsReadFilter::All, // news_filter_read_status
+        None,                // news_filter_arch_rect
+        None,                // news_filter_advisory_rect
+        None,                // news_filter_installed_rect
+        None,                // news_filter_updates_rect
+        None,                // news_filter_aur_updates_rect
+        None,                // news_filter_aur_comments_rect
+        None,                // news_filter_read_rect
+        Some(30),
+        true, // show_news_history_pane
+        true, // show_news_bookmarks_pane
+        NewsSortMode::DateDesc,
+        news_bookmarks, // news_bookmarks
+        news_bookmarks_path,
+        false,                   // news_bookmarks_dirty
+        news_content_cache,      // news_content_cache (loaded from disk)
+        news_content_cache_path, // news_content_cache_path
+        false,                   // news_content_cache_dirty
+        None,                    // news_content
+        false,                   // news_content_loading
+        None,                    // news_content_loading_since
+        None,                    // news_content_debounce_timer
+        0,                       // news_content_scroll
+        None,                    // news_history_pending
+        None,                    // news_history_pending_at
+        None,                    // news_history_last_saved
+    )
+}
+
 /// Type alias for default install lists state tuple.
 pub(super) type DefaultInstallListsState = (
     Vec<PackageItem>,
@@ -112,6 +306,7 @@ pub(super) type DefaultClickableRectsState = (
     ArchStatusColor,
     Option<usize>,
     Vec<String>,
+    Option<(u16, u16, u16, u16)>,
     Option<(u16, u16, u16, u16)>,
     bool,
     bool,
@@ -176,6 +371,7 @@ pub(super) type DefaultModalRectsState = (
     Vec<(u16, u16, u16, String)>,
     Vec<crate::announcements::RemoteAnnouncement>,
     Option<Vec<crate::state::NewsItem>>,
+    bool,
     Option<(u16, u16, u16, u16)>,
     Option<(u16, u16, u16, u16)>,
     u16,
@@ -189,6 +385,7 @@ pub(super) type DefaultModalRectsState = (
 pub(super) type DefaultSortingMenusState = (
     SortMode,
     bool,
+    Option<(u16, u16, u16, u16)>,
     Option<(u16, u16, u16, u16)>,
     Option<(u16, u16, u16, u16)>,
     Option<Instant>,
@@ -326,6 +523,22 @@ pub(super) fn default_news_state(
     (std::collections::HashSet::new(), news_read_path, false)
 }
 
+/// What: Create default read-IDs state for news feed items.
+///
+/// Inputs:
+/// - `news_read_ids_path`: Path where read news IDs are persisted.
+///
+/// Output:
+/// - Tuple of news read-id fields: `news_read_ids`, `news_read_ids_path`, `news_read_ids_dirty`.
+///
+/// Details:
+/// - Initializes empty set of read news IDs.
+pub(super) fn default_news_read_ids_state(
+    news_read_ids_path: PathBuf,
+) -> (std::collections::HashSet<String>, PathBuf, bool) {
+    (std::collections::HashSet::new(), news_read_ids_path, false)
+}
+
 /// What: Create default announcement state.
 ///
 /// Inputs:
@@ -433,7 +646,7 @@ pub(super) const fn default_scroll_prefetch_state() -> (u32, Option<Instant>, bo
 /// Inputs: None.
 ///
 /// Output:
-/// - Tuple of clickable rectangle fields: `url_button_rect`, `vt_url_rect`, `install_import_rect`, `install_export_rect`, `arch_status_text`, `arch_status_rect`, `arch_status_color`, `updates_count`, `updates_list`, `updates_button_rect`, `updates_loading`, `refresh_updates`, `pending_updates_modal`, `faillock_locked`, `faillock_lockout_until`, `faillock_remaining_minutes`.
+/// - Tuple of clickable rectangle fields: `url_button_rect`, `vt_url_rect`, `install_import_rect`, `install_export_rect`, `arch_status_text`, `arch_status_rect`, `arch_status_color`, `updates_count`, `updates_list`, `updates_button_rect`, `news_button_rect`, `updates_loading`, `refresh_updates`, `pending_updates_modal`, `faillock_locked`, `faillock_lockout_until`, `faillock_remaining_minutes`.
 ///
 /// Details:
 /// - All rectangles start as None, updates check is loading by default.
@@ -449,6 +662,7 @@ pub(super) fn default_clickable_rects_state() -> DefaultClickableRectsState {
         ArchStatusColor::None,
         None,
         Vec::new(),
+        None,
         None,
         true,
         false,
@@ -558,10 +772,10 @@ pub(super) const fn default_mouse_hit_test_state() -> DefaultMouseHitTestState {
 /// Inputs: None.
 ///
 /// Output:
-/// - Tuple of modal rectangle fields: `news_rect`, `news_list_rect`, `announcement_rect`, `announcement_urls`, `pending_announcements`, `pending_news`, `updates_modal_rect`, `updates_modal_content_rect`, `help_scroll`, `help_rect`, `preflight_tab_rects`, `preflight_content_rect`.
+/// - Tuple of modal rectangle fields: `news_rect`, `news_list_rect`, `announcement_rect`, `announcement_urls`, `pending_announcements`, `pending_news`, `trigger_startup_news_fetch`, `updates_modal_rect`, `updates_modal_content_rect`, `help_scroll`, `help_rect`, `preflight_tab_rects`, `preflight_content_rect`.
 ///
 /// Details:
-/// - All modal rectangles start as None, help scroll starts at 0, `announcement_urls` and `pending_announcements` start as empty Vec, `pending_news` starts as None.
+/// - All modal rectangles start as None, help scroll starts at 0, `announcement_urls` and `pending_announcements` start as empty Vec, `pending_news` starts as None, `trigger_startup_news_fetch` starts as false.
 pub(super) const fn default_modal_rects_state() -> DefaultModalRectsState {
     (
         None,
@@ -570,6 +784,7 @@ pub(super) const fn default_modal_rects_state() -> DefaultModalRectsState {
         Vec::new(),
         Vec::new(),
         None,
+        false,
         None,
         None,
         0,
@@ -584,7 +799,7 @@ pub(super) const fn default_modal_rects_state() -> DefaultModalRectsState {
 /// Inputs: None.
 ///
 /// Output:
-/// - Tuple of sorting/menu fields: `sort_mode`, `sort_menu_open`, `sort_button_rect`, `sort_menu_rect`, `sort_menu_auto_close_at`, `options_menu_open`, `options_button_rect`, `options_menu_rect`, `panels_menu_open`, `panels_button_rect`, `panels_menu_rect`, `config_menu_open`, `artix_filter_menu_open`, `artix_filter_menu_rect`, `config_button_rect`, `config_menu_rect`, `collapsed_menu_open`, `collapsed_menu_button_rect`, `collapsed_menu_rect`, `sort_cache_repo_name`, `sort_cache_aur_popularity`, `sort_cache_signature`.
+/// - Tuple of sorting/menu fields: `sort_mode`, `sort_menu_open`, `sort_button_rect`, `news_age_button_rect`, `sort_menu_rect`, `sort_menu_auto_close_at`, `options_menu_open`, `options_button_rect`, `options_menu_rect`, `panels_menu_open`, `panels_button_rect`, `panels_menu_rect`, `config_menu_open`, `artix_filter_menu_open`, `artix_filter_menu_rect`, `config_button_rect`, `config_menu_rect`, `collapsed_menu_open`, `collapsed_menu_button_rect`, `collapsed_menu_rect`, `sort_cache_repo_name`, `sort_cache_aur_popularity`, `sort_cache_signature`.
 ///
 /// Details:
 /// - All menus are closed by default, sort mode is `SortMode::RepoThenName`.
@@ -593,6 +808,7 @@ pub(super) const fn default_sorting_menus_state() -> DefaultSortingMenusState {
     (
         SortMode::RepoThenName,
         false,
+        None,
         None,
         None,
         None,

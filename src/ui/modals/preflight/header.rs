@@ -19,7 +19,9 @@ use super::helpers::render_header_chips;
 ///
 /// Details: Used to track whether a tab is complete and/or loading.
 struct TabStatus {
+    /// Whether the tab data is complete.
     complete: bool,
+    /// Whether the tab is currently loading.
     loading: bool,
 }
 
@@ -586,16 +588,27 @@ fn store_content_rect(app: &mut AppState, content_rect: Rect) {
 ///
 /// Details: Groups all data needed for tab header rendering to reduce parameter count.
 pub struct TabHeaderContext<'a> {
+    /// Application state.
     pub app: &'a mut AppState,
+    /// Content rectangle for rendering.
     pub content_rect: Rect,
+    /// Currently active preflight tab.
     pub current_tab: PreflightTab,
+    /// Header chip metrics.
     pub header_chips: &'a PreflightHeaderChips,
+    /// Package items being analyzed.
     pub items: &'a [crate::state::PackageItem],
+    /// Preflight summary data, if available.
     pub summary: Option<&'a crate::state::modal::PreflightSummaryData>,
+    /// Dependency information.
     pub dependency_info: &'a [crate::state::modal::DependencyInfo],
+    /// File information.
     pub file_info: &'a [crate::state::modal::PackageFileInfo],
+    /// Whether service information has been loaded.
     pub services_loaded: bool,
+    /// Sandbox analysis information.
     pub sandbox_info: &'a [crate::logic::sandbox::SandboxInfo],
+    /// Whether sandbox information has been loaded.
     pub sandbox_loaded: bool,
 }
 

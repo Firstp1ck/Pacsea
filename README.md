@@ -4,7 +4,7 @@
 [![Made with Rust](https://img.shields.io/badge/Made%20with-Rust-orange.svg)](https://www.rust-lang.org/)
 [![Target: Arch Linux](https://img.shields.io/badge/Target-Arch%20Linux-1793D1?logo=arch-linux&logoColor=white)](https://archlinux.org/)
 
-Pacsea is a fast, friendly TUI for browsing and installing Arch and AUR packages — built for speed and minimal keystrokes.
+Pacsea is a fast, friendly TUI for browsing and installing Arch and AUR packages — plus a built-in Arch news and advisory feed — built for speed and minimal keystrokes.
 
 ## Community
 <p align="center">
@@ -64,6 +64,7 @@ pacsea
 | Feature | Description |
 |---------|-------------|
 | **Integrated Process Execution** | All operations execute directly within the TUI with real-time output streaming, progress bars, and inline password prompts — no external terminals |
+| **News feed & advisories** | News mode shows Arch news and security advisories with filters (Arch/advisory/installed-only, age), search with history, read/unread tracking, bookmarks, and cached article content |
 | **Security Scan for AUR Packages** | Comprehensive security scanning workflow with multiple tools (ClamAV, Trivy, Semgrep, ShellCheck, VirusTotal, custom patterns, aur-sleuth) and detailed scan summaries |
 | **Fuzzy Search** | Toggle flexible fuzzy search mode to find packages even without exact names |
 | **Unified search** | Fast results across official repos and the AUR |
@@ -121,6 +122,7 @@ Pacsea provides a keyboard-first interface for searching, queueing, and installi
 - Review packages before installing with the Preflight modal
 - Run security scans for AUR packages
 - Manage installed packages, including removal and downgrade
+- Switch to News mode (Options → News) to browse Arch news and security advisories, filter by source/age/installed-only, search with history, and bookmark/read items with cached article content
 - All operations execute directly in the TUI with real-time output and progress indicators
 
 For a complete reference of all keyboard shortcuts, see the [Keyboard Shortcuts](https://github.com/Firstp1ck/Pacsea/wiki/Keyboard-Shortcuts) wiki page.
@@ -147,6 +149,8 @@ Pacsea uses three configuration files located in `~/.config/pacsea/`:
 For complete configuration documentation, including all available settings, theme customization, and keybind configuration, see the [Configuration](https://github.com/Firstp1ck/Pacsea/wiki/Configuration) wiki page.
 
 Example configuration files are available in the [`config/`](config/) directory.
+
+News defaults to 30-day items and shows Arch news plus security advisories; adjust via `app_start_mode` (`package` or `news`), `news_filter_show_arch_news`, `news_filter_show_advisories`, `news_filter_installed_only`, and `news_max_age_days` in `settings.conf`.
 
 ![Settings overview (v0.4.1)](Images/Settings_v0.4.1.png "Settings overview (v0.4.1)")
 

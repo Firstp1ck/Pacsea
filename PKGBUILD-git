@@ -35,8 +35,9 @@ optdepends=(
     'semgrep-bin: static analysis checks'
     'shellcheck: lint shell scripts'
     'downgrade: Downgrade of Packages'
-    'pacman-contrib: Update Check'
+    'pacman-contrib: Used as a fallback for update checking'
 )
+
 makedepends=('cargo' 'git')
 conflicts=('pacsea' 'pacsea-bin')
 provides=('pacsea')

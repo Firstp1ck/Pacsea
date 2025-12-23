@@ -107,6 +107,9 @@ fi"#
 /// - Performs `VirusTotal` hash lookups for `PKGBUILD`/`src` files when `VT_API_KEY` is provided.
 /// - aur-sleuth runs in separate terminal simultaneously if enabled.
 /// - Note: This function is kept for backward compatibility; actual execution should use `ExecutorRequest::Scan`.
+/// - `_do_clamav`, `_do_trivy`, `_do_semgrep`, `_do_shellcheck`, `_do_virustotal`, and `_do_custom` parameters are kept for API consistency but unused in this function.
+/// - The actual scan configuration is handled via `ExecutorRequest::Scan` which reads from the application state.
+/// - The underscore prefix suppresses Rust/clippy warnings for intentionally unused parameters.
 #[cfg(not(target_os = "windows"))]
 #[allow(
     clippy::too_many_arguments,
@@ -123,6 +126,10 @@ pub fn spawn_aur_scan_for_with_config(
     _do_custom: bool,
     do_sleuth: bool,
 ) {
+    // Note: _do_clamav, _do_trivy, _do_semgrep, _do_shellcheck, _do_virustotal, and _do_custom
+    // are unused in this function. They are kept for API consistency, but the actual scan
+    // configuration is handled via ExecutorRequest::Scan which reads from application state.
+    // The underscore prefix suppresses Rust/clippy warnings for intentionally unused parameters.
     // If sleuth is enabled, spawn it in a separate terminal
     if do_sleuth {
         let sleuth_cmd = build_sleuth_command_for_terminal(pkg);

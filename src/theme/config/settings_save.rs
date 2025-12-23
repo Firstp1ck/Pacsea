@@ -334,6 +334,89 @@ pub fn save_mirror_count(value: u16) {
     save_string_key("mirror_count", &value.to_string());
 }
 
+/// Persist start mode (package/news).
+pub fn save_app_start_mode(start_in_news: bool) {
+    let v = if start_in_news { "news" } else { "package" };
+    save_string_key("app_start_mode", v);
+}
+
+/// Persist whether to show Arch news items.
+pub fn save_news_filter_show_arch_news(value: bool) {
+    save_boolean_key("news_filter_show_arch_news", value);
+}
+
+/// Persist whether to show security advisories.
+pub fn save_news_filter_show_advisories(value: bool) {
+    save_boolean_key("news_filter_show_advisories", value);
+}
+
+/// Persist whether to show installed package updates in the News view.
+pub fn save_news_filter_show_pkg_updates(value: bool) {
+    save_boolean_key("news_filter_show_pkg_updates", value);
+}
+
+/// Persist whether to show AUR package updates in the News view.
+pub fn save_news_filter_show_aur_updates(value: bool) {
+    save_boolean_key("news_filter_show_aur_updates", value);
+}
+
+/// Persist whether to show AUR comments in the News view.
+pub fn save_news_filter_show_aur_comments(value: bool) {
+    save_boolean_key("news_filter_show_aur_comments", value);
+}
+
+/// Persist whether to restrict advisories to installed packages.
+pub fn save_news_filter_installed_only(value: bool) {
+    save_boolean_key("news_filter_installed_only", value);
+}
+
+/// Persist whether news filters are collapsed behind the Filters button.
+pub fn save_news_filters_collapsed(value: bool) {
+    save_boolean_key("news_filters_collapsed", value);
+}
+
+/// Persist the maximum age of news items (None = all).
+pub fn save_news_max_age_days(value: Option<u32>) {
+    let v = value.map_or_else(|| "all".to_string(), |d| d.to_string());
+    save_string_key("news_max_age_days", &v);
+}
+
+/// Persist whether startup news popup setup has been completed.
+pub fn save_startup_news_configured(value: bool) {
+    save_boolean_key("startup_news_configured", value);
+}
+
+/// Persist whether to show Arch news in startup news popup.
+pub fn save_startup_news_show_arch_news(value: bool) {
+    save_boolean_key("startup_news_show_arch_news", value);
+}
+
+/// Persist whether to show security advisories in startup news popup.
+pub fn save_startup_news_show_advisories(value: bool) {
+    save_boolean_key("startup_news_show_advisories", value);
+}
+
+/// Persist whether to show AUR updates in startup news popup.
+pub fn save_startup_news_show_aur_updates(value: bool) {
+    save_boolean_key("startup_news_show_aur_updates", value);
+}
+
+/// Persist whether to show AUR comments in startup news popup.
+pub fn save_startup_news_show_aur_comments(value: bool) {
+    save_boolean_key("startup_news_show_aur_comments", value);
+}
+
+/// Persist whether to show official package updates in startup news popup.
+pub fn save_startup_news_show_pkg_updates(value: bool) {
+    save_boolean_key("startup_news_show_pkg_updates", value);
+}
+
+/// Persist the maximum age of news items for startup news popup (None = all).
+pub fn save_startup_news_max_age_days(value: Option<u32>) {
+    let v = value.map_or_else(|| "all".to_string(), |d| d.to_string());
+    save_string_key("startup_news_max_age_days", &v);
+}
+
 /// What: Persist the `VirusTotal` API key used for scanning packages.
 ///
 /// Inputs:

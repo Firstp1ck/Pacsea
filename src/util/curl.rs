@@ -8,9 +8,17 @@
 //! - Redacts URL query parameters in debug logs to prevent potential secret leakage
 
 use super::curl_args;
+use chrono;
 use serde_json::Value;
 use std::sync::OnceLock;
 
+/// What: Result type alias for curl utility errors.
+///
+/// Inputs: None (type alias).
+///
+/// Output: Result type with boxed error trait object.
+///
+/// Details: Standard error type for curl operations.
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 /// Cached curl binary path for performance (computed once at first use).
@@ -130,6 +138,82 @@ fn redact_url_for_logging(url: &str) -> String {
     )
 }
 
+/// What: Extract HTTP code from curl's `-w` output format.
+///
+/// Inputs:
+/// - `output`: The stdout output from curl that may contain `__HTTP_CODE__:XXX`
+///
+/// Output:
+/// - Some(u16) if an HTTP code was found, None otherwise
+///
+/// Details:
+/// - Looks for the `__HTTP_CODE__:` marker we add via `-w` flag
+fn extract_http_code_from_output(output: &str) -> Option<u16> {
+    output
+        .lines()
+        .find(|line| line.starts_with("__HTTP_CODE__:"))
+        .and_then(|line| line.strip_prefix("__HTTP_CODE__:"))
+        .and_then(|code| code.trim().parse().ok())
+}
+
+/// What: Extract HTTP code from curl's stderr error message.
+///
+/// Inputs:
+/// - `stderr`: The stderr output from curl
+///
+/// Output:
+/// - Some(u16) if an HTTP code was found in the error message, None otherwise
+///
+/// Details:
+/// - Parses curl's error format: "The requested URL returned error: XXX"
+fn extract_http_code_from_stderr(stderr: &str) -> Option<u16> {
+    // curl stderr format: "curl: (22) The requested URL returned error: 404"
+    stderr
+        .find("returned error: ")
+        .map(|idx| &stderr[idx + "returned error: ".len()..])
+        .and_then(|s| {
+            // Extract just the numeric part
+            let code_str: String = s.chars().take_while(char::is_ascii_digit).collect();
+            code_str.parse().ok()
+        })
+}
+
+/// What: Maps curl exit code to a human-readable error message with HTTP code info.
+///
+/// Inputs:
+/// - `code`: Exit code from curl process.
+/// - `status`: The full process exit status for signal handling.
+/// - `http_code`: The actual HTTP status code from the server.
+///
+/// Output:
+/// - Human-readable error string describing the network issue with specific HTTP code.
+///
+/// Details:
+/// - Provides more specific error messages when HTTP code is known
+/// - 404 is "Resource not found", 429 is "Rate limited", etc.
+fn map_curl_error_with_http_code(
+    code: Option<i32>,
+    status: std::process::ExitStatus,
+    http_code: u16,
+) -> String {
+    // If we have the actual HTTP code, provide a more specific message
+    match http_code {
+        404 => "HTTP 404: Resource not found (package may not exist in repository)".to_string(),
+        429 => "HTTP 429: Rate limited by server".to_string(),
+        500 => "HTTP 500: Internal server error".to_string(),
+        502 => "HTTP 502: Bad gateway".to_string(),
+        503 => "HTTP 503: Service temporarily unavailable".to_string(),
+        504 => "HTTP 504: Gateway timeout".to_string(),
+        _ if (400..500).contains(&http_code) => {
+            format!("HTTP {http_code}: Client error")
+        }
+        _ if http_code >= 500 => {
+            format!("HTTP {http_code}: Server error (temporarily unavailable)")
+        }
+        _ => map_curl_error(code, status),
+    }
+}
+
 /// What: Map curl exit codes to user-friendly error messages.
 ///
 /// Inputs:
@@ -160,8 +244,7 @@ fn map_curl_error(code: Option<i32>, status: std::process::ExitStatus) -> String
             }
         },
         |code| match code {
-            22 => "HTTP error from server (likely 502/503/504 - server temporarily unavailable)"
-                .to_string(),
+            22 => "HTTP error from server (code unknown)".to_string(),
             6 => "Could not resolve host (DNS/network issue)".to_string(),
             7 => "Failed to connect to host (network unreachable)".to_string(),
             28 => "Operation timeout".to_string(),
@@ -188,8 +271,15 @@ fn map_curl_error(code: Option<i32>, status: std::process::ExitStatus) -> String
 /// - Executes curl with appropriate flags and parses the UTF-8 body with `serde_json`.
 /// - On Windows, uses `-k` flag to skip SSL certificate verification.
 /// - Provides user-friendly error messages for common curl failure cases.
+/// - For HTTP errors, includes the actual status code in the error message when available.
 pub fn curl_json(url: &str) -> Result<Value> {
-    let args = curl_args(url, &[]);
+    let mut args = curl_args(url, &[]);
+    // Add write-out format to capture HTTP status code on failure
+    // The %{http_code} is curl's write-out format, not a Rust format string
+    #[allow(clippy::literal_string_with_formatting_args)]
+    let write_out_format = "\n__HTTP_CODE__:%{http_code}".to_string();
+    args.push("-w".to_string());
+    args.push(write_out_format);
     let curl_bin = get_curl_path();
     #[cfg(target_os = "windows")]
     {
@@ -203,24 +293,41 @@ pub fn curl_json(url: &str) -> Result<Value> {
     }
     let out = std::process::Command::new(curl_bin).args(&args).output()?;
     if !out.status.success() {
-        let error_msg = map_curl_error(out.status.code(), out.status);
+        // Try to extract HTTP status code from stderr or stdout
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        let stdout = String::from_utf8_lossy(&out.stdout);
+
+        // Look for HTTP code in the output
+        let http_code = extract_http_code_from_output(&stdout)
+            .or_else(|| extract_http_code_from_stderr(&stderr));
+
+        let error_msg = if let Some(code) = http_code {
+            map_curl_error_with_http_code(out.status.code(), out.status, code)
+        } else {
+            map_curl_error(out.status.code(), out.status)
+        };
+
         #[cfg(target_os = "windows")]
         {
             let safe_url = redact_url_for_logging(url);
             // On Windows, also log stderr for debugging
-            if !out.stderr.is_empty() {
-                let stderr = String::from_utf8_lossy(&out.stderr);
+            if !stderr.is_empty() {
                 tracing::warn!(stderr = %stderr, url = %safe_url, "curl stderr output on Windows");
             }
             // Also log stdout in case there's useful info there
-            if !out.stdout.is_empty() {
-                let stdout = String::from_utf8_lossy(&out.stdout);
+            if !stdout.is_empty() {
                 tracing::debug!(stdout = %stdout, url = %safe_url, "curl stdout on Windows (non-success)");
             }
         }
         return Err(error_msg.into());
     }
-    let body = String::from_utf8(out.stdout)?;
+    let raw_body = String::from_utf8(out.stdout)?;
+    // Strip the __HTTP_CODE__:XXX suffix we added via -w flag
+    let body = raw_body
+        .lines()
+        .filter(|line| !line.starts_with("__HTTP_CODE__:"))
+        .collect::<Vec<_>>()
+        .join("\n");
     #[cfg(target_os = "windows")]
     {
         // On Windows, log response details for debugging API issues (URL redacted)
@@ -264,6 +371,208 @@ pub fn curl_text(url: &str) -> Result<String> {
     curl_text_with_args(url, &[])
 }
 
+/// What: Parse Retry-After header value into seconds.
+///
+/// Inputs:
+/// - `retry_after`: Retry-After header value (can be seconds as number or HTTP-date)
+///
+/// Output:
+/// - `Some(seconds)` if parsing succeeds, `None` otherwise
+///
+/// Details:
+/// - Supports both numeric format (seconds) and HTTP-date format (RFC 7231).
+/// - For HTTP-date, calculates seconds until that date.
+fn parse_retry_after(retry_after: &str) -> Option<u64> {
+    let trimmed = retry_after.trim();
+    // Try parsing as number (seconds)
+    if let Ok(seconds) = trimmed.parse::<u64>() {
+        return Some(seconds);
+    }
+    // Try parsing as HTTP-date (RFC 7231)
+    // Common formats: "Wed, 21 Oct 2015 07:28:00 GMT", "Wed, 21 Oct 2015 07:28:00 +0000"
+    if let Ok(dt) = chrono::DateTime::parse_from_rfc2822(trimmed) {
+        let now = chrono::Utc::now();
+        let retry_time = dt.with_timezone(&chrono::Utc);
+        if retry_time > now {
+            let duration = retry_time - now;
+            let seconds = duration.num_seconds().max(0);
+            // Safe: seconds is non-negative, and u64::MAX is much larger than any reasonable retry time
+            #[allow(clippy::cast_sign_loss)]
+            return Some(seconds as u64);
+        }
+        return Some(0);
+    }
+    // Try RFC 3339 format
+    if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(trimmed) {
+        let now = chrono::Utc::now();
+        let retry_time = dt.with_timezone(&chrono::Utc);
+        if retry_time > now {
+            let duration = retry_time - now;
+            let seconds = duration.num_seconds().max(0);
+            // Safe: seconds is non-negative, and u64::MAX is much larger than any reasonable retry time
+            #[allow(clippy::cast_sign_loss)]
+            return Some(seconds as u64);
+        }
+        return Some(0);
+    }
+    None
+}
+
+/// What: Extract header value from HTTP response headers (case-insensitive).
+///
+/// Inputs:
+/// - `headers_text`: Raw HTTP headers text (from curl -i output)
+/// - `header_name`: Name of the header to extract (case-insensitive)
+///
+/// Output:
+/// - `Some(value)` if header found, `None` otherwise
+///
+/// Details:
+/// - Searches for header name (case-insensitive).
+/// - Returns trimmed value after the colon.
+fn extract_header_value(headers_text: &str, header_name: &str) -> Option<String> {
+    let header_lower = header_name.to_lowercase();
+    for line in headers_text.lines() {
+        let line_lower = line.trim_start().to_lowercase();
+        if line_lower.starts_with(&format!("{header_lower}:"))
+            && let Some(colon_pos) = line.find(':')
+        {
+            let value = line[colon_pos + 1..].trim().to_string();
+            return Some(value);
+        }
+    }
+    None
+}
+
+/// What: Extract Retry-After header value from HTTP response headers.
+///
+/// Inputs:
+/// - `headers_text`: Raw HTTP headers text (from curl -i output)
+///
+/// Output:
+/// - `Some(seconds)` if Retry-After header found and parsed, `None` otherwise
+///
+/// Details:
+/// - Searches for "Retry-After:" header (case-insensitive).
+/// - Parses the value using `parse_retry_after()`.
+fn extract_retry_after(headers_text: &str) -> Option<u64> {
+    extract_header_value(headers_text, "Retry-After")
+        .as_deref()
+        .and_then(parse_retry_after)
+}
+
+/// Response metadata including headers for parsing `Retry-After`, `ETag`, and `Last-Modified`.
+#[derive(Debug, Clone)]
+pub struct CurlResponse {
+    /// Response body.
+    pub body: String,
+    /// HTTP status code.
+    pub status_code: Option<u16>,
+    /// Retry-After header value in seconds, if present.
+    pub retry_after_seconds: Option<u64>,
+    /// `ETag` header value, if present.
+    pub etag: Option<String>,
+    /// Last-Modified header value, if present.
+    pub last_modified: Option<String>,
+}
+
+/// What: Fetch plain text from a URL using curl with custom arguments, including headers.
+///
+/// Inputs:
+/// - `url`: URL to request
+/// - `extra_args`: Additional curl arguments (e.g., `["--max-time", "10"]`)
+///
+/// Output:
+/// - `Ok(CurlResponse)` with response body, status code, and parsed headers; `Err` if curl or UTF-8 decoding fails
+///
+/// # Errors
+/// - Returns `Err` when curl command execution fails (I/O error or curl not found)
+/// - Returns `Err` when curl exits with non-zero status (network errors, HTTP errors, timeouts)
+/// - Returns `Err` when response body cannot be decoded as UTF-8
+///
+/// Details:
+/// - Executes curl with `-i` flag to include headers in output.
+/// - Uses `-w "\n%{http_code}\n"` to get HTTP status code at the end.
+/// - Parses Retry-After header from response headers.
+/// - Separates headers from body in the response.
+pub fn curl_text_with_args_headers(url: &str, extra_args: &[&str]) -> Result<CurlResponse> {
+    let mut args = curl_args(url, extra_args);
+    // Include headers in output (-i flag)
+    args.push("-i".to_string());
+    // Append write-out format to get HTTP status code at the end
+    args.push("-w".to_string());
+    args.push("\n%{http_code}\n".to_string());
+    let curl_bin = get_curl_path();
+    let out = std::process::Command::new(curl_bin)
+        .args(&args)
+        .output()
+        .map_err(|e| {
+            format!("curl command failed to execute: {e} (is curl installed and in PATH?)")
+        })?;
+
+    let stdout = String::from_utf8(out.stdout)?;
+
+    // Parse status code from the end of output (last line should be the status code)
+    let status_code = stdout
+        .lines()
+        .last()
+        .and_then(|line| line.trim().parse::<u16>().ok());
+
+    // Find the boundary between headers and body (empty line)
+    let lines: Vec<&str> = stdout.lines().collect();
+    let mut header_end = 0;
+    let mut found_empty_line = false;
+    for (i, line) in lines.iter().enumerate() {
+        if line.trim().is_empty() && i > 0 {
+            // Found empty line separating headers from body
+            header_end = i;
+            found_empty_line = true;
+            break;
+        }
+    }
+
+    // Extract headers and body
+    let (headers_text, body_lines) = if found_empty_line {
+        let headers: Vec<&str> = lines[..header_end].to_vec();
+        // Skip the empty line and status code line at the end
+        let body_end = lines.len().saturating_sub(1); // Exclude status code line
+        let body: Vec<&str> = if header_end + 1 < body_end {
+            lines[header_end + 1..body_end].to_vec()
+        } else {
+            vec![]
+        };
+        (headers.join("\n"), body.join("\n"))
+    } else {
+        // No headers found, treat entire output as body (minus status code)
+        let body_end = lines.len().saturating_sub(1);
+        let body: Vec<&str> = if body_end > 0 {
+            lines[..body_end].to_vec()
+        } else {
+            vec![]
+        };
+        (String::new(), body.join("\n"))
+    };
+
+    // Parse headers
+    let retry_after_seconds = (!headers_text.is_empty())
+        .then(|| extract_retry_after(&headers_text))
+        .flatten();
+    let etag = (!headers_text.is_empty())
+        .then(|| extract_header_value(&headers_text, "ETag"))
+        .flatten();
+    let last_modified = (!headers_text.is_empty())
+        .then(|| extract_header_value(&headers_text, "Last-Modified"))
+        .flatten();
+
+    Ok(CurlResponse {
+        body: body_lines,
+        status_code,
+        retry_after_seconds,
+        etag,
+        last_modified,
+    })
+}
+
 /// What: Fetch plain text from a URL using curl with custom arguments.
 ///
 /// Inputs:
@@ -277,13 +586,22 @@ pub fn curl_text(url: &str) -> Result<String> {
 /// - Returns `Err` when curl command execution fails (I/O error or curl not found)
 /// - Returns `Err` when curl exits with non-zero status (network errors, HTTP errors, timeouts)
 /// - Returns `Err` when response body cannot be decoded as UTF-8
+/// - Returns `Err` with message containing "429" when HTTP 429 (Too Many Requests) is received
 ///
 /// Details:
 /// - Executes curl with appropriate flags plus extra arguments.
 /// - On Windows, uses `-k` flag to skip SSL certificate verification.
+/// - Uses `-i` flag to include headers for Retry-After parsing.
+/// - Uses `-w "\n%{http_code}\n"` to detect HTTP status codes, especially 429.
 /// - Provides user-friendly error messages for common curl failure cases.
+/// - HTTP 429/503 errors include Retry-After information when available.
 pub fn curl_text_with_args(url: &str, extra_args: &[&str]) -> Result<String> {
-    let args = curl_args(url, extra_args);
+    let mut args = curl_args(url, extra_args);
+    // Include headers in output (-i flag) for Retry-After parsing
+    args.push("-i".to_string());
+    // Append write-out format to get HTTP status code at the end
+    args.push("-w".to_string());
+    args.push("\n%{http_code}\n".to_string());
     let curl_bin = get_curl_path();
     let out = std::process::Command::new(curl_bin)
         .args(&args)
@@ -291,11 +609,115 @@ pub fn curl_text_with_args(url: &str, extra_args: &[&str]) -> Result<String> {
         .map_err(|e| {
             format!("curl command failed to execute: {e} (is curl installed and in PATH?)")
         })?;
+
+    let stdout = String::from_utf8(out.stdout)?;
+
+    // Parse status code from the end of output (last line should be the status code)
+    // Check if last line is a numeric status code (3 digits)
+    let lines: Vec<&str> = stdout.lines().collect();
+    let (status_code, body_end) = lines.last().map_or((None, lines.len()), |last_line| {
+        let trimmed = last_line.trim();
+        // Check if last line looks like an HTTP status code (3 digits)
+        if trimmed.len() == 3 && trimmed.chars().all(|c| c.is_ascii_digit()) {
+            (
+                trimmed.parse::<u16>().ok(),
+                lines.len().saturating_sub(1), // Exclude status code line
+            )
+        } else {
+            // Last line is not a status code, include it in body
+            (None, lines.len())
+        }
+    });
+
+    // Find the boundary between headers and body (empty line)
+    let mut header_end = 0;
+    let mut found_empty_line = false;
+    for (i, line) in lines.iter().enumerate() {
+        if line.trim().is_empty() && i > 0 {
+            // Found empty line separating headers from body
+            header_end = i;
+            found_empty_line = true;
+            break;
+        }
+    }
+
+    // Extract headers and body
+    let (headers_text, body_lines) = if found_empty_line {
+        let headers: Vec<&str> = lines[..header_end].to_vec();
+        // Check if headers section actually contains non-empty lines
+        // If not, treat as if there are no headers (empty line is just formatting)
+        let has_actual_headers = headers.iter().any(|h| !h.trim().is_empty());
+        if has_actual_headers {
+            // Skip the empty line and status code line at the end
+            let body: Vec<&str> = if header_end + 1 < body_end {
+                lines[header_end + 1..body_end].to_vec()
+            } else {
+                vec![]
+            };
+            (headers.join("\n"), body.join("\n"))
+        } else {
+            // No actual headers, treat entire output as body (up to body_end)
+            let body: Vec<&str> = if body_end > 0 {
+                // Include everything up to body_end, filtering out empty lines
+                lines[..body_end]
+                    .iter()
+                    .filter(|line| !line.trim().is_empty())
+                    .copied()
+                    .collect()
+            } else {
+                vec![]
+            };
+            (String::new(), body.join("\n"))
+        }
+    } else {
+        // No headers found, treat entire output as body (up to body_end)
+        let body: Vec<&str> = if body_end > 0 {
+            lines[..body_end].to_vec()
+        } else {
+            vec![]
+        };
+        (String::new(), body.join("\n"))
+    };
+
+    // Parse headers
+    let retry_after_seconds = if headers_text.is_empty() {
+        None
+    } else {
+        extract_retry_after(&headers_text)
+    };
+
+    // Check for HTTP errors
+    if let Some(code) = status_code
+        && code >= 400
+    {
+        // Check if we got HTTP 429 (Too Many Requests)
+        if code == 429 {
+            let mut error_msg = "HTTP 429 Too Many Requests - rate limited by server".to_string();
+            if let Some(retry_after) = retry_after_seconds {
+                error_msg.push_str(" (Retry-After: ");
+                error_msg.push_str(&retry_after.to_string());
+                error_msg.push_str("s)");
+            }
+            return Err(error_msg.into());
+        }
+        if code == 503 {
+            let mut error_msg = "HTTP 503 Service Unavailable".to_string();
+            if let Some(retry_after) = retry_after_seconds {
+                error_msg.push_str(" (Retry-After: ");
+                error_msg.push_str(&retry_after.to_string());
+                error_msg.push_str("s)");
+            }
+            return Err(error_msg.into());
+        }
+    }
+
+    // Check curl exit status for other errors
     if !out.status.success() {
         let error_msg = map_curl_error(out.status.code(), out.status);
         return Err(error_msg.into());
     }
-    Ok(String::from_utf8(out.stdout)?)
+
+    Ok(body_lines)
 }
 
 #[cfg(test)]

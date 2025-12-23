@@ -34,6 +34,19 @@ fn render_confirm_reinstall_modal(
     }
 }
 
+/// What: Render the confirm batch update modal.
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `app`: Application state
+/// - `area`: Rendering area
+/// - `ctx`: Context with items and dry-run flag
+///
+/// Output:
+/// - Returns the modal state after rendering
+///
+/// Details:
+/// - Displays confirmation dialog for batch package updates
 fn render_confirm_batch_update_modal(
     f: &mut Frame,
     app: &AppState,
@@ -80,13 +93,21 @@ fn render_confirm_aur_update_modal(
 ///
 /// Details: Reduces individual field extractions and uses, lowering data flow complexity.
 struct PreflightExecContext {
+    /// Package items being processed.
     items: Vec<crate::state::PackageItem>,
+    /// Preflight action (install/remove/downgrade).
     action: crate::state::PreflightAction,
+    /// Currently active preflight tab.
     tab: crate::state::PreflightTab,
+    /// Whether verbose logging is enabled.
     verbose: bool,
+    /// Log lines to display.
     log_lines: Vec<String>,
+    /// Whether the operation can be aborted.
     abortable: bool,
+    /// Header chip metrics.
     header_chips: PreflightHeaderChips,
+    /// Operation success status (None if still running).
     success: Option<bool>,
 }
 
@@ -99,14 +120,23 @@ struct PreflightExecContext {
 /// Details: Reduces individual field extractions and uses, lowering data flow complexity.
 #[allow(clippy::struct_excessive_bools)]
 struct SystemUpdateContext {
+    /// Whether to update mirrors.
     do_mirrors: bool,
+    /// Whether to update official packages.
     do_pacman: bool,
+    /// Whether to force database sync.
     force_sync: bool,
+    /// Whether to update AUR packages.
     do_aur: bool,
+    /// Whether to clean package cache.
     do_cache: bool,
+    /// Currently selected country index.
     country_idx: usize,
+    /// List of available countries for mirror selection.
     countries: Vec<String>,
+    /// Number of mirrors to use.
     mirror_count: u16,
+    /// Cursor position in the UI.
     cursor: usize,
 }
 
@@ -118,11 +148,17 @@ struct SystemUpdateContext {
 ///
 /// Details: Reduces individual field extractions and uses, lowering data flow complexity.
 struct PostSummaryContext {
+    /// Whether the operation succeeded.
     success: bool,
+    /// Number of files changed.
     changed_files: usize,
+    /// Number of .pacnew files created.
     pacnew_count: usize,
+    /// Number of .pacsave files created.
     pacsave_count: usize,
+    /// List of services pending restart.
     services_pending: Vec<String>,
+    /// Snapshot label if a snapshot was created.
     snapshot_label: Option<String>,
 }
 
@@ -135,13 +171,21 @@ struct PostSummaryContext {
 /// Details: Reduces individual field extractions and uses, lowering data flow complexity.
 #[allow(clippy::struct_excessive_bools)]
 struct ScanConfigContext {
+    /// Whether to run `ClamAV` scan.
     do_clamav: bool,
+    /// Whether to run `Trivy` scan.
     do_trivy: bool,
+    /// Whether to run `Semgrep` scan.
     do_semgrep: bool,
+    /// Whether to run `ShellCheck` scan.
     do_shellcheck: bool,
+    /// Whether to run `VirusTotal` scan.
     do_virustotal: bool,
+    /// Whether to run custom scan.
     do_custom: bool,
+    /// Whether to run Sleuth scan.
     do_sleuth: bool,
+    /// Cursor position in the UI.
     cursor: usize,
 }
 
@@ -153,6 +197,7 @@ struct ScanConfigContext {
 ///
 /// Details: Reduces individual field extractions and uses, lowering data flow complexity.
 struct AlertContext {
+    /// Alert message to display.
     message: String,
 }
 
@@ -164,6 +209,7 @@ struct AlertContext {
 ///
 /// Details: Reduces individual field extractions and uses, lowering data flow complexity.
 struct ConfirmInstallContext {
+    /// Package items to install.
     items: Vec<crate::state::PackageItem>,
 }
 
@@ -175,6 +221,7 @@ struct ConfirmInstallContext {
 ///
 /// Details: Reduces individual field extractions and uses, lowering data flow complexity.
 struct ConfirmRemoveContext {
+    /// Package items to remove.
     items: Vec<crate::state::PackageItem>,
 }
 
@@ -186,13 +233,25 @@ struct ConfirmRemoveContext {
 ///
 /// Details: Reduces individual field extractions and uses, lowering data flow complexity.
 struct ConfirmReinstallContext {
+    /// Packages that are already installed (shown in confirmation).
     items: Vec<crate::state::PackageItem>,
+    /// All packages to install (including both installed and not installed).
     all_items: Vec<crate::state::PackageItem>,
+    /// Header chip metrics.
     header_chips: PreflightHeaderChips,
 }
 
+/// What: Context struct grouping `ConfirmBatchUpdate` modal fields to reduce data flow complexity.
+///
+/// Inputs: None (constructed from Modal variant).
+///
+/// Output: Groups related fields together for passing to render functions.
+///
+/// Details: Reduces individual field extractions and uses, lowering data flow complexity.
 struct ConfirmBatchUpdateContext {
+    /// Package items to update.
     items: Vec<crate::state::PackageItem>,
+    /// Whether this is a dry-run operation.
     dry_run: bool,
 }
 
@@ -204,6 +263,7 @@ struct ConfirmBatchUpdateContext {
 ///
 /// Details: Reduces individual field extractions and uses, lowering data flow complexity.
 struct ConfirmAurUpdateContext {
+    /// Confirmation message text to display to the user.
     message: String,
 }
 
@@ -215,8 +275,12 @@ struct ConfirmAurUpdateContext {
 ///
 /// Details: Reduces individual field extractions and uses, lowering data flow complexity.
 struct NewsContext {
-    items: Vec<crate::state::NewsItem>,
+    /// News feed items to display.
+    items: Vec<crate::state::types::NewsFeedItem>,
+    /// Currently selected news item index.
     selected: usize,
+    /// Scroll offset (lines) for the news list.
+    scroll: u16,
 }
 
 /// What: Context struct grouping Announcement modal fields to reduce data flow complexity.
@@ -227,9 +291,13 @@ struct NewsContext {
 ///
 /// Details: Reduces individual field extractions and uses, lowering data flow complexity.
 struct AnnouncementContext {
+    /// Announcement title.
     title: String,
+    /// Announcement content text.
     content: String,
+    /// Announcement identifier.
     id: String,
+    /// Scroll offset in lines.
     scroll: u16,
 }
 
@@ -241,8 +309,11 @@ struct AnnouncementContext {
 ///
 /// Details: Reduces individual field extractions and uses, lowering data flow complexity.
 struct UpdatesContext {
+    /// Update entries (package name, current version, new version).
     entries: Vec<(String, String, String)>,
+    /// Scroll offset in lines.
     scroll: u16,
+    /// Currently selected entry index.
     selected: usize,
 }
 
@@ -254,7 +325,9 @@ struct UpdatesContext {
 ///
 /// Details: Reduces individual field extractions and uses, lowering data flow complexity.
 struct OptionalDepsContext {
+    /// Optional dependency rows to display.
     rows: Vec<OptionalDepRow>,
+    /// Currently selected row index.
     selected: usize,
 }
 
@@ -266,7 +339,34 @@ struct OptionalDepsContext {
 ///
 /// Details: Reduces individual field extractions and uses, lowering data flow complexity.
 struct VirusTotalSetupContext {
+    /// API key input buffer.
     input: String,
+    /// Cursor position within the input buffer.
+    cursor: usize,
+}
+
+/// What: Context struct grouping `NewsSetup` modal fields to reduce data flow complexity.
+///
+/// Inputs: None (constructed from Modal variant).
+///
+/// Output: Groups related fields together for passing to render functions.
+///
+/// Details: Reduces individual field extractions and uses, lowering data flow complexity.
+#[allow(clippy::struct_excessive_bools)]
+struct NewsSetupContext {
+    /// Whether to show Arch news.
+    show_arch_news: bool,
+    /// Whether to show security advisories.
+    show_advisories: bool,
+    /// Whether to show AUR updates.
+    show_aur_updates: bool,
+    /// Whether to show AUR comments.
+    show_aur_comments: bool,
+    /// Whether to show official package updates.
+    show_pkg_updates: bool,
+    /// Maximum age of news items in days (7, 30, or 90).
+    max_age_days: Option<u32>,
+    /// Current cursor position (0-4 for toggles, 5-7 for date buttons).
     cursor: usize,
 }
 
@@ -278,10 +378,15 @@ struct VirusTotalSetupContext {
 ///
 /// Details: Reduces individual field extractions and uses, lowering data flow complexity.
 struct PasswordPromptContext {
+    /// Purpose for requesting the password (install/remove/update/etc.).
     purpose: crate::state::modal::PasswordPurpose,
+    /// Items involved in the operation requiring authentication.
     items: Vec<crate::state::PackageItem>,
+    /// Current password input buffer.
     input: String,
+    /// Cursor position within the input buffer.
     cursor: usize,
+    /// Optional error message to display.
     error: Option<String>,
 }
 
@@ -300,11 +405,21 @@ struct PasswordPromptContext {
 /// - Each implementation handles field extraction, rendering, and state reconstruction.
 /// - This trait pattern eliminates repetitive match arms in the main render function.
 trait ModalRenderer {
+    /// What: Render a modal variant to the frame.
+    ///
+    /// Inputs:
+    /// - `f`: Frame to render into.
+    /// - `app`: Application state.
+    /// - `area`: Area to render within.
+    ///
+    /// Output: Returns the next modal state (may be the same or different).
+    ///
+    /// Details: Each modal variant implements this trait to render itself.
     fn render(self, f: &mut Frame, app: &mut AppState, area: Rect) -> Modal;
 }
 
 impl ModalRenderer for Modal {
-    #[allow(clippy::too_many_lines)] // Modal match with many variants
+    #[allow(clippy::too_many_lines)] // Modal match with many variants (function has 215 lines)
     fn render(self, f: &mut Frame, app: &mut AppState, area: Rect) -> Modal {
         match self {
             Self::Alert { message } => {
@@ -411,8 +526,16 @@ impl ModalRenderer for Modal {
                 render_system_update_modal(f, app, area, ctx)
             }
             Self::Help => render_help_modal(f, app, area),
-            Self::News { items, selected } => {
-                let ctx = NewsContext { items, selected };
+            Self::News {
+                items,
+                selected,
+                scroll,
+            } => {
+                let ctx = NewsContext {
+                    items,
+                    selected,
+                    scroll,
+                };
                 render_news_modal(f, app, area, ctx)
             }
             Self::Announcement {
@@ -473,6 +596,26 @@ impl ModalRenderer for Modal {
                 render_virustotal_setup_modal(f, app, area, ctx)
             }
             Self::ImportHelp => render_import_help_modal(f, app, area),
+            Self::NewsSetup {
+                show_arch_news,
+                show_advisories,
+                show_aur_updates,
+                show_aur_comments,
+                show_pkg_updates,
+                max_age_days,
+                cursor,
+            } => {
+                let ctx = NewsSetupContext {
+                    show_arch_news,
+                    show_advisories,
+                    show_aur_updates,
+                    show_aur_comments,
+                    show_pkg_updates,
+                    max_age_days,
+                    cursor,
+                };
+                render_news_setup_modal(f, app, area, ctx)
+            }
             Self::PasswordPrompt {
                 purpose,
                 items,
@@ -731,10 +874,11 @@ fn render_help_modal(f: &mut Frame, app: &mut AppState, area: Rect) -> Modal {
 /// - Uses context struct to reduce data flow complexity by grouping related fields.
 /// - Takes context by value to avoid cloning when reconstructing the Modal.
 fn render_news_modal(f: &mut Frame, app: &mut AppState, area: Rect, ctx: NewsContext) -> Modal {
-    news::render_news(f, app, area, &ctx.items, ctx.selected);
+    news::render_news(f, app, area, &ctx.items, ctx.selected, ctx.scroll);
     Modal::News {
         items: ctx.items,
         selected: ctx.selected,
+        scroll: ctx.scroll,
     }
 }
 
@@ -897,6 +1041,59 @@ fn render_virustotal_setup_modal(
 fn render_import_help_modal(f: &mut Frame, app: &AppState, area: Rect) -> Modal {
     misc::render_import_help(f, area, app);
     Modal::ImportHelp
+}
+
+/// What: Render `NewsSetup` modal and return reconstructed state.
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `app`: Mutable application state
+/// - `area`: Full available area
+/// - `ctx`: Context struct containing all `NewsSetup` fields (taken by value)
+///
+/// Output:
+/// - Returns the reconstructed Modal
+///
+/// Details:
+/// - Uses context struct to reduce data flow complexity by grouping related fields.
+/// - Takes context by value to avoid cloning when reconstructing the Modal.
+#[allow(clippy::needless_pass_by_value)]
+fn render_news_setup_modal(
+    f: &mut Frame,
+    app: &AppState,
+    area: Rect,
+    ctx: NewsSetupContext,
+) -> Modal {
+    let NewsSetupContext {
+        show_arch_news,
+        show_advisories,
+        show_aur_updates,
+        show_aur_comments,
+        show_pkg_updates,
+        max_age_days,
+        cursor,
+    } = ctx;
+    misc::render_news_setup(
+        f,
+        area,
+        app,
+        show_arch_news,
+        show_advisories,
+        show_aur_updates,
+        show_aur_comments,
+        show_pkg_updates,
+        max_age_days,
+        cursor,
+    );
+    Modal::NewsSetup {
+        show_arch_news,
+        show_advisories,
+        show_aur_updates,
+        show_aur_comments,
+        show_pkg_updates,
+        max_age_days,
+        cursor,
+    }
 }
 
 /// What: Render `PasswordPrompt` modal and return reconstructed state.

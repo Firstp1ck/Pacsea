@@ -5,15 +5,17 @@ use tokio::sync::mpsc;
 use tokio::time::Duration;
 
 use crate::logic::send_query;
-use crate::state::{AppState, ArchStatusColor, Modal, NewsItem, PackageItem, QueryInput};
+use crate::state::{AppState, ArchStatusColor, PackageItem, QueryInput};
 
 use super::super::persist::{
     maybe_flush_announcement_read, maybe_flush_cache, maybe_flush_deps_cache,
-    maybe_flush_files_cache, maybe_flush_install, maybe_flush_news_read,
+    maybe_flush_files_cache, maybe_flush_install, maybe_flush_news_bookmarks,
+    maybe_flush_news_content_cache, maybe_flush_news_read, maybe_flush_news_read_ids,
+    maybe_flush_news_recent, maybe_flush_news_seen_aur_comments, maybe_flush_news_seen_versions,
     maybe_flush_pkgbuild_parse_cache, maybe_flush_recent, maybe_flush_sandbox_cache,
     maybe_flush_services_cache,
 };
-use super::super::recent::maybe_save_recent;
+use super::super::recent::{maybe_save_news_recent, maybe_save_recent};
 
 /// What: Handle PKGBUILD result event.
 ///
@@ -523,6 +525,9 @@ fn handle_installed_cache_polling(
 /// - Polls installed/explicit caches if needed
 /// - Handles ring prefetch, sort menu auto-close, and toast expiration
 #[allow(clippy::too_many_arguments)]
+// Function is 151 lines, just 1 line over the threshold. Refactoring would require
+// significant restructuring of the tick handling logic which would reduce readability.
+#[allow(clippy::too_many_lines)] // Function has 205 lines - handles periodic tasks (cache flushing, faillock checks, news content timeouts, preflight resolution, executor requests) that require sequential processing
 pub fn handle_tick(
     app: &mut AppState,
     query_tx: &mpsc::UnboundedSender<QueryInput>,
@@ -542,15 +547,23 @@ pub fn handle_tick(
     updates_tx: &mpsc::UnboundedSender<(usize, Vec<String>)>,
     executor_req_tx: &mpsc::UnboundedSender<crate::install::ExecutorRequest>,
     post_summary_req_tx: &mpsc::UnboundedSender<(Vec<PackageItem>, Option<bool>)>,
+    news_content_req_tx: &mpsc::UnboundedSender<String>,
 ) {
     // Check faillock status periodically (every minute via worker, but also check here)
     // We check every tick but only update if enough time has passed
     static LAST_FAILLOCK_CHECK: std::sync::OnceLock<std::sync::Mutex<Instant>> =
         std::sync::OnceLock::new();
     maybe_save_recent(app);
+    maybe_save_news_recent(app);
     maybe_flush_cache(app);
     maybe_flush_recent(app);
+    maybe_flush_news_recent(app);
+    maybe_flush_news_bookmarks(app);
+    maybe_flush_news_content_cache(app);
     maybe_flush_news_read(app);
+    maybe_flush_news_read_ids(app);
+    maybe_flush_news_seen_versions(app);
+    maybe_flush_news_seen_aur_comments(app);
     maybe_flush_announcement_read(app);
     maybe_flush_install(app);
     maybe_flush_deps_cache(app);
@@ -584,12 +597,48 @@ pub fn handle_tick(
         app.faillock_remaining_minutes = remaining_minutes;
     }
 
+    // Timeout guard for news content fetches to avoid stuck "Loading content..."
+    // Only check timeout if main news feed is not loading (to avoid showing timeout toast during initial load)
+    if app.news_content_loading && !app.news_loading {
+        if let Some(started) = app.news_content_loading_since {
+            if started.elapsed() > std::time::Duration::from_secs(10) {
+                let url = app
+                    .news_results
+                    .get(app.news_selected)
+                    .and_then(|it| it.url.clone());
+                tracing::warn!(
+                    selected = app.news_selected,
+                    url = ?url,
+                    elapsed_ms = started.elapsed().as_millis(),
+                    "news_content: timed out waiting for response"
+                );
+                app.news_content_loading = false;
+                app.news_content_loading_since = None;
+                app.news_content = Some("Failed to load content: timed out after 10s".to_string());
+                app.toast_message = Some("News content timed out".to_string());
+                app.toast_expires_at = Some(Instant::now() + std::time::Duration::from_secs(3));
+            } else {
+                tracing::trace!(
+                    selected = app.news_selected,
+                    elapsed_ms = started.elapsed().as_millis(),
+                    "news_content: still loading"
+                );
+            }
+        } else {
+            // Ensure we set a start time if missing for safety
+            app.news_content_loading_since = Some(Instant::now());
+        }
+    }
+
     // Refresh updates list if flag is set (manual refresh via button click)
     if app.refresh_updates {
         app.refresh_updates = false;
         app.updates_loading = true;
-        crate::app::runtime::workers::auxiliary::spawn_updates_worker(updates_tx.clone());
+        crate::app::runtime::workers::updates::spawn_updates_worker(updates_tx.clone());
     }
+
+    // Request news content if in news mode and content not cached
+    crate::events::utils::maybe_request_news_content(app, news_content_req_tx);
 
     handle_preflight_resolution(
         app,
@@ -674,8 +723,11 @@ pub fn handle_tick(
         app.sort_menu_auto_close_at = None;
     }
 
+    // Clear expired toast, but don't clear news loading toast while news are still loading
     if let Some(deadline) = app.toast_expires_at
         && std::time::Instant::now() >= deadline
+        && !app.news_loading
+    // Don't clear toast if news are still loading
     {
         app.toast_message = None;
         app.toast_expires_at = None;
@@ -686,29 +738,43 @@ pub fn handle_tick(
 ///
 /// Inputs:
 /// - `app`: Application state
-/// - `todays`: List of news items
+/// - `items`: List of news feed items
 ///
 /// Details:
 /// - Shows toast if no new news
 /// - Opens news modal if there are unread items
-pub fn handle_news(app: &mut AppState, todays: &[NewsItem]) {
-    if todays.is_empty() {
-        app.toast_message = Some(crate::i18n::t(app, "app.toasts.no_new_news"));
-        app.toast_expires_at = Some(Instant::now() + Duration::from_secs(10));
+/// - Clears `news_loading` flag only when news modal is actually shown
+pub fn handle_news(app: &mut AppState, items: &[crate::state::types::NewsFeedItem]) {
+    tracing::info!(
+        items_count = items.len(),
+        current_modal = ?app.modal,
+        news_loading = app.news_loading,
+        "handle_news called"
+    );
+    // Don't clear news_loading or toast here - the main news feed pane may still be loading.
+    // The loading toast and flag will be cleared when handle_news_feed_items receives the aggregated feed.
+
+    if items.is_empty() {
+        // No news available - set ready flag to false
+        tracing::info!("no news items, marking as not ready");
+        app.news_ready = false;
     } else {
-        // Queue news to show after all announcements are dismissed
-        // Only show immediately if no modal is currently displayed
-        if matches!(app.modal, Modal::None) {
-            app.modal = Modal::News {
-                items: todays.to_vec(),
-                selected: 0,
-            };
-            tracing::info!("showing news modal immediately (no other modals)");
-        } else {
-            // Queue news to show after announcements
-            app.pending_news = Some(todays.to_vec());
-            tracing::debug!("queued news (modal already open, will show after announcements)");
-        }
+        // News are ready - set flag and store items for button click
+        tracing::info!("news items available, marking as ready");
+        app.news_ready = true;
+        // Store news items for later display when button is clicked
+        // Convert NewsFeedItem to NewsItem for pending_news (legacy format)
+        let legacy_items: Vec<crate::state::NewsItem> = items
+            .iter()
+            .filter_map(|item| {
+                item.url.as_ref().map(|url| crate::state::NewsItem {
+                    date: item.date.clone(),
+                    title: item.title.clone(),
+                    url: url.clone(),
+                })
+            })
+            .collect();
+        app.pending_news = Some(legacy_items);
     }
 }
 
@@ -771,6 +837,7 @@ mod tests {
         let (updates_tx, _updates_rx) = mpsc::unbounded_channel();
         let (executor_req_tx, _executor_req_rx) = mpsc::unbounded_channel();
         let (post_summary_req_tx, _post_summary_req_rx) = mpsc::unbounded_channel();
+        let (news_content_req_tx, _news_content_req_rx) = mpsc::unbounded_channel();
 
         // Should not panic
         handle_tick(
@@ -786,6 +853,7 @@ mod tests {
             &updates_tx,
             &executor_req_tx,
             &post_summary_req_tx,
+            &news_content_req_tx,
         );
     }
 
@@ -836,6 +904,7 @@ mod tests {
         let (updates_tx, _updates_rx) = mpsc::unbounded_channel();
         let (executor_req_tx, _executor_req_rx) = mpsc::unbounded_channel();
         let (post_summary_req_tx, _post_summary_req_rx) = mpsc::unbounded_channel();
+        let (news_content_req_tx, _news_content_req_rx) = mpsc::unbounded_channel();
 
         handle_tick(
             &mut app,
@@ -850,6 +919,7 @@ mod tests {
             &updates_tx,
             &executor_req_tx,
             &post_summary_req_tx,
+            &news_content_req_tx,
         );
 
         // Queues should be cleared
@@ -902,6 +972,7 @@ mod tests {
         let (updates_tx, _updates_rx) = mpsc::unbounded_channel();
         let (executor_req_tx, _executor_req_rx) = mpsc::unbounded_channel();
         let (post_summary_req_tx, _post_summary_req_rx) = mpsc::unbounded_channel();
+        let (news_content_req_tx, _news_content_req_rx) = mpsc::unbounded_channel();
 
         handle_tick(
             &mut app,
@@ -916,6 +987,7 @@ mod tests {
             &updates_tx,
             &executor_req_tx,
             &post_summary_req_tx,
+            &news_content_req_tx,
         );
 
         // Request should be sent
@@ -940,45 +1012,56 @@ mod tests {
     /// - Tests that empty news list shows appropriate message
     fn handle_news_shows_toast_when_empty() {
         let mut app = new_app();
-        let news: Vec<NewsItem> = vec![];
+        let news: Vec<crate::state::types::NewsFeedItem> = vec![];
 
         handle_news(&mut app, &news);
 
-        // Toast should be set
-        assert!(app.toast_message.is_some());
-        assert!(app.toast_expires_at.is_some());
+        // News should not be ready
+        assert!(!app.news_ready);
+        // Toast should be cleared
+        assert!(app.toast_message.is_none());
+        assert!(app.toast_expires_at.is_none());
     }
 
     #[test]
-    /// What: Verify that `handle_news` opens modal when news available.
+    /// What: Verify that `handle_news` sets `news_ready` and stores news for button click.
     ///
     /// Inputs:
     /// - `AppState`
     /// - Non-empty news list
     ///
     /// Output:
-    /// - News modal is opened
-    /// - First item is selected
+    /// - `news_ready` is true
+    /// - `pending_news` is set with news items
+    /// - Modal is NOT automatically opened (waiting for button click)
     ///
     /// Details:
-    /// - Tests that news modal is properly opened
+    /// - Tests that news are marked as ready and stored for later display
     fn handle_news_opens_modal_when_available() {
         let mut app = new_app();
-        let news = vec![NewsItem {
-            title: "Test News".to_string(),
-            url: "https://example.com/news".to_string(),
+        let news = vec![crate::state::types::NewsFeedItem {
+            id: "https://example.com/news".to_string(),
             date: String::new(),
+            title: "Test News".to_string(),
+            summary: None,
+            url: Some("https://example.com/news".to_string()),
+            source: crate::state::types::NewsFeedSource::ArchNews,
+            severity: None,
+            packages: Vec::new(),
         }];
 
         handle_news(&mut app, &news);
 
-        // Modal should be opened
-        if let crate::state::Modal::News { items, selected } = &app.modal {
-            assert_eq!(items.len(), 1);
-            assert_eq!(selected, &0);
-        } else {
-            panic!("Expected News modal");
+        // News should be ready
+        assert!(app.news_ready);
+        // Pending news should be set
+        assert!(app.pending_news.is_some());
+        if let Some(pending) = &app.pending_news {
+            assert_eq!(pending.len(), 1);
+            assert_eq!(pending[0].title, "Test News");
         }
+        // Modal should NOT be automatically opened (waiting for button click)
+        assert!(matches!(app.modal, crate::state::Modal::None));
     }
 
     #[test]

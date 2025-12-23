@@ -1,8 +1,11 @@
 //! Menu mouse event handling (sort, options, config, panels, import/export).
 
+use std::time::Instant;
+
 use tokio::sync::mpsc;
 
 use crate::events::utils::refresh_selected_details;
+use crate::i18n;
 use crate::state::{AppState, PackageItem};
 
 use super::menu_options;
@@ -66,6 +69,77 @@ pub fn handle_updates_button(app: &mut AppState) -> bool {
     // Set flag to open modal after refresh completes
     app.pending_updates_modal = true;
     // Don't open modal yet - wait for refresh to complete
+    false
+}
+
+/// Handle click on News button.
+///
+/// What: Opens the News modal with available news items.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+///
+/// Output:
+/// - `false` if handled
+///
+/// Details:
+/// - Opens News modal if news are ready
+/// - Shows "No News available" message if no news exist
+/// - Converts `pending_news` (legacy format) to `NewsFeedItem` format for modal
+/// - Preserves `pending_news` for subsequent opens by using `as_ref()` instead of `take()`
+pub fn handle_news_button(app: &mut AppState) -> bool {
+    if app.news_ready {
+        // Convert NewsItem to NewsFeedItem for the modal
+        // Use as_ref() instead of take() to preserve pending_news for subsequent opens
+        if let Some(news_items) = app.pending_news.as_ref() {
+            // Filter out items that have been marked as read (by ID or URL)
+            let feed_items: Vec<crate::state::types::NewsFeedItem> = news_items
+                .iter()
+                .filter(|item| {
+                    // Filter out items marked as read by ID (id == url for Arch news)
+                    !app.news_read_ids.contains(&item.url)
+                        && !app.news_read_urls.contains(&item.url)
+                })
+                .map(|item| crate::state::types::NewsFeedItem {
+                    id: item.url.clone(),
+                    date: item.date.clone(),
+                    title: item.title.clone(),
+                    summary: None,
+                    url: Some(item.url.clone()),
+                    source: crate::state::types::NewsFeedSource::ArchNews,
+                    severity: None,
+                    packages: Vec::new(),
+                })
+                .collect();
+            // Only show modal if there are unread items
+            if feed_items.is_empty() {
+                // All items have been read - show toast instead
+                app.toast_message = Some(crate::i18n::t(app, "app.toasts.no_new_news"));
+                app.toast_expires_at =
+                    Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
+                return true;
+            }
+            app.modal = crate::state::Modal::News {
+                items: feed_items,
+                selected: 0,
+                scroll: 0,
+            };
+        } else {
+            // No news available - show empty modal
+            app.modal = crate::state::Modal::News {
+                items: Vec::new(),
+                selected: 0,
+                scroll: 0,
+            };
+        }
+    } else {
+        // No news available - show empty modal
+        app.modal = crate::state::Modal::News {
+            items: Vec::new(),
+            selected: 0,
+            scroll: 0,
+        };
+    }
     false
 }
 
@@ -262,31 +336,44 @@ fn handle_sort_menu_click(
 ) -> Option<bool> {
     if let Some((_x, y, _w, _h)) = app.sort_menu_rect {
         let row = my.saturating_sub(y) as usize;
-        match row {
-            0 => {
-                app.sort_mode = crate::state::SortMode::RepoThenName;
-                crate::theme::save_sort_mode(app.sort_mode);
+        if matches!(app.app_mode, crate::state::types::AppMode::News) {
+            match row {
+                0 => app.news_sort_mode = crate::state::types::NewsSortMode::DateDesc,
+                1 => app.news_sort_mode = crate::state::types::NewsSortMode::DateAsc,
+                2 => app.news_sort_mode = crate::state::types::NewsSortMode::Title,
+                3 => app.news_sort_mode = crate::state::types::NewsSortMode::SourceThenTitle,
+                4 => app.news_sort_mode = crate::state::types::NewsSortMode::SeverityThenDate,
+                5 => app.news_sort_mode = crate::state::types::NewsSortMode::UnreadThenDate,
+                _ => return None,
             }
-            1 => {
-                app.sort_mode = crate::state::SortMode::AurPopularityThenOfficial;
-                crate::theme::save_sort_mode(app.sort_mode);
+            app.refresh_news_results();
+        } else {
+            match row {
+                0 => {
+                    app.sort_mode = crate::state::SortMode::RepoThenName;
+                    crate::theme::save_sort_mode(app.sort_mode);
+                }
+                1 => {
+                    app.sort_mode = crate::state::SortMode::AurPopularityThenOfficial;
+                    crate::theme::save_sort_mode(app.sort_mode);
+                }
+                2 => {
+                    app.sort_mode = crate::state::SortMode::BestMatches;
+                    crate::theme::save_sort_mode(app.sort_mode);
+                }
+                _ => return None,
             }
-            2 => {
-                app.sort_mode = crate::state::SortMode::BestMatches;
-                crate::theme::save_sort_mode(app.sort_mode);
+            crate::logic::sort_results_preserve_selection(app);
+            if app.results.is_empty() {
+                app.list_state.select(None);
+            } else {
+                app.selected = 0;
+                app.list_state.select(Some(0));
+                refresh_selected_details(app, details_tx);
             }
-            _ => return None,
         }
         app.sort_menu_open = false;
         app.sort_menu_auto_close_at = None;
-        crate::logic::sort_results_preserve_selection(app);
-        if app.results.is_empty() {
-            app.list_state.select(None);
-        } else {
-            app.selected = 0;
-            app.list_state.select(Some(0));
-            refresh_selected_details(app, details_tx);
-        }
         Some(false)
     } else {
         None
@@ -313,12 +400,22 @@ fn handle_options_menu_click(
 ) -> Option<bool> {
     if let Some((_x, y, _w, _h)) = app.options_menu_rect {
         let row = my.saturating_sub(y) as usize;
-        match row {
-            0 => handle_installed_only_toggle(app, details_tx),
-            1 => handle_system_update_option(app),
-            2 => handle_news_option(app),
-            3 => handle_optional_deps_option(app),
-            _ => return None,
+        let news_mode = matches!(app.app_mode, crate::state::types::AppMode::News);
+        if news_mode {
+            match row {
+                0 => handle_system_update_option(app),
+                1 => handle_optional_deps_option(app),
+                2 => handle_mode_toggle(app, details_tx),
+                _ => return None,
+            }
+        } else {
+            match row {
+                0 => handle_installed_only_toggle(app, details_tx),
+                1 => handle_system_update_option(app),
+                2 => handle_optional_deps_option(app),
+                3 => handle_mode_toggle(app, details_tx),
+                _ => return None,
+            }
         }
         app.options_menu_open = false;
         Some(false)
@@ -387,11 +484,74 @@ fn handle_installed_only_toggle(
         crate::events::utils::refresh_selected_details(app, details_tx);
 
         let path = crate::theme::config_dir().join("installed_packages.txt");
-        let mut names: Vec<String> = crate::index::explicit_names().into_iter().collect();
-        names.sort();
+        // Query pacman directly with current mode to ensure file reflects the setting
+        let names = crate::index::query_explicit_packages_sync(app.installed_packages_mode);
         let body = names.join("\n");
         let _ = std::fs::write(path, body);
     }
+}
+
+/// What: Toggle between package mode and news feed mode.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+/// - `details_tx`: Channel to request package details when switching back to package mode
+pub(in crate::events) fn handle_mode_toggle(
+    app: &mut AppState,
+    details_tx: &mpsc::UnboundedSender<PackageItem>,
+) {
+    if matches!(app.app_mode, crate::state::types::AppMode::News) {
+        app.app_mode = crate::state::types::AppMode::Package;
+        if app.results.is_empty() {
+            app.list_state.select(None);
+        } else {
+            app.selected = app.selected.min(app.results.len().saturating_sub(1));
+            app.list_state.select(Some(app.selected));
+            refresh_selected_details(app, details_tx);
+        }
+    } else {
+        app.app_mode = crate::state::types::AppMode::News;
+        if app.news_results.is_empty() {
+            app.news_list_state.select(None);
+            app.news_selected = 0;
+        } else {
+            app.news_selected = 0;
+            app.news_list_state.select(Some(0));
+        }
+    }
+    crate::theme::save_app_start_mode(matches!(app.app_mode, crate::state::types::AppMode::News));
+}
+
+/// What: Toggle news maximum age filter between 7, 30, 90 days, and no limit.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+///
+/// Output:
+/// - None (modifies app state directly)
+///
+/// Details:
+/// - Cycles through age options: 7 days → 30 days → 90 days → no limit → 7 days
+/// - Refreshes news results after changing the filter
+pub(in crate::events) fn handle_news_age_toggle(app: &mut AppState) {
+    const AGES: [Option<u32>; 4] = [Some(7), Some(30), Some(90), None];
+    let current = app.news_max_age_days;
+    let next = AGES
+        .iter()
+        .cycle()
+        .skip_while(|&&v| v != current)
+        .nth(1)
+        .copied()
+        .unwrap_or(Some(7));
+    app.news_max_age_days = next;
+    app.refresh_news_results();
+    let age_label = app.news_max_age_days.map_or_else(
+        || i18n::t(app, "app.results.options_menu.news_age_all"),
+        |d| i18n::t_fmt1(app, "app.results.options_menu.news_age_days", d.to_string()),
+    );
+    app.toast_message = Some(age_label);
+    app.toast_expires_at = Some(Instant::now() + std::time::Duration::from_secs(3));
+    crate::theme::save_news_max_age_days(app.news_max_age_days);
 }
 
 /// Handle system update option.
@@ -433,47 +593,6 @@ fn handle_system_update_option(app: &mut AppState) {
         mirror_count: prefs.mirror_count,
         cursor: 0,
     };
-}
-
-/// Handle news option.
-///
-/// What: Fetches latest Arch news and opens News modal.
-///
-/// Inputs:
-/// - `app`: Mutable application state
-///
-/// Details:
-/// - Shows alert modal if fetch fails or times out
-fn handle_news_option(app: &mut AppState) {
-    let (tx, rx) = std::sync::mpsc::channel();
-    std::thread::spawn(move || {
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build();
-        let res = match rt {
-            Ok(rt) => rt.block_on(crate::sources::fetch_arch_news(10)),
-            Err(e) => Err::<Vec<crate::state::NewsItem>, _>(format!("rt: {e}").into()),
-        };
-        let _ = tx.send(res);
-    });
-    match rx.recv_timeout(std::time::Duration::from_secs(3)) {
-        Ok(Ok(list)) => {
-            app.modal = crate::state::Modal::News {
-                items: list,
-                selected: 0,
-            };
-        }
-        Ok(Err(e)) => {
-            app.modal = crate::state::Modal::Alert {
-                message: format!("Failed to fetch news: {e}"),
-            };
-        }
-        Err(_) => {
-            app.modal = crate::state::Modal::Alert {
-                message: "Timed out fetching news".to_string(),
-            };
-        }
-    }
 }
 
 /// Handle optional deps option.
@@ -562,26 +681,53 @@ fn handle_config_menu_click(_mx: u16, my: u16, app: &mut AppState) -> Option<boo
 fn handle_panels_menu_click(_mx: u16, my: u16, app: &mut AppState) -> Option<bool> {
     if let Some((_x, y, _w, _h)) = app.panels_menu_rect {
         let row = my.saturating_sub(y) as usize;
-        match row {
-            0 => {
-                app.show_recent_pane = !app.show_recent_pane;
-                if !app.show_recent_pane && matches!(app.focus, crate::state::Focus::Recent) {
-                    app.focus = crate::state::Focus::Search;
+        let news_mode = matches!(app.app_mode, crate::state::types::AppMode::News);
+        if news_mode {
+            match row {
+                0 => {
+                    app.show_news_history_pane = !app.show_news_history_pane;
+                    if !app.show_news_history_pane
+                        && matches!(app.focus, crate::state::Focus::Recent)
+                    {
+                        app.focus = crate::state::Focus::Search;
+                    }
                 }
-                crate::theme::save_show_recent_pane(app.show_recent_pane);
-            }
-            1 => {
-                app.show_install_pane = !app.show_install_pane;
-                if !app.show_install_pane && matches!(app.focus, crate::state::Focus::Install) {
-                    app.focus = crate::state::Focus::Search;
+                1 => {
+                    app.show_news_bookmarks_pane = !app.show_news_bookmarks_pane;
+                    if !app.show_news_bookmarks_pane
+                        && matches!(app.focus, crate::state::Focus::Install)
+                    {
+                        app.focus = crate::state::Focus::Search;
+                    }
                 }
-                crate::theme::save_show_install_pane(app.show_install_pane);
+                2 => {
+                    app.show_keybinds_footer = !app.show_keybinds_footer;
+                    crate::theme::save_show_keybinds_footer(app.show_keybinds_footer);
+                }
+                _ => return None,
             }
-            2 => {
-                app.show_keybinds_footer = !app.show_keybinds_footer;
-                crate::theme::save_show_keybinds_footer(app.show_keybinds_footer);
+        } else {
+            match row {
+                0 => {
+                    app.show_recent_pane = !app.show_recent_pane;
+                    if !app.show_recent_pane && matches!(app.focus, crate::state::Focus::Recent) {
+                        app.focus = crate::state::Focus::Search;
+                    }
+                    crate::theme::save_show_recent_pane(app.show_recent_pane);
+                }
+                1 => {
+                    app.show_install_pane = !app.show_install_pane;
+                    if !app.show_install_pane && matches!(app.focus, crate::state::Focus::Install) {
+                        app.focus = crate::state::Focus::Search;
+                    }
+                    crate::theme::save_show_install_pane(app.show_install_pane);
+                }
+                2 => {
+                    app.show_keybinds_footer = !app.show_keybinds_footer;
+                    crate::theme::save_show_keybinds_footer(app.show_keybinds_footer);
+                }
+                _ => return None,
             }
-            _ => return None,
         }
         Some(false)
     } else {
@@ -694,7 +840,12 @@ pub(super) fn handle_menus_mouse(
     details_tx: &mpsc::UnboundedSender<PackageItem>,
 ) -> Option<bool> {
     // Check button clicks first
-    if point_in_rect(mx, my, app.updates_button_rect) {
+    // In News mode, check news button first; otherwise check updates button
+    if matches!(app.app_mode, crate::state::types::AppMode::News) {
+        if point_in_rect(mx, my, app.news_button_rect) {
+            return Some(handle_news_button(app));
+        }
+    } else if point_in_rect(mx, my, app.updates_button_rect) {
         return Some(handle_updates_button(app));
     }
     if point_in_rect(mx, my, app.install_import_rect) {
@@ -705,6 +856,10 @@ pub(super) fn handle_menus_mouse(
     }
     if point_in_rect(mx, my, app.arch_status_rect) {
         return Some(handle_arch_status());
+    }
+    if point_in_rect(mx, my, app.news_age_button_rect) {
+        handle_news_age_toggle(app);
+        return Some(false);
     }
     if point_in_rect(mx, my, app.sort_button_rect) {
         return Some(handle_sort_button(app));
@@ -746,7 +901,25 @@ pub(super) fn handle_menus_mouse(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
+    use super::*;
+    use crate::state::types::AppMode;
     use crate::util::parse_update_entry;
+
+    fn seed_news_age_translations(app: &mut crate::state::AppState) {
+        let mut translations = HashMap::new();
+        translations.insert(
+            "app.results.options_menu.news_age_all".to_string(),
+            "News age: all time".to_string(),
+        );
+        translations.insert(
+            "app.results.options_menu.news_age_days".to_string(),
+            "News age: {} days".to_string(),
+        );
+        app.translations = translations.clone();
+        app.translations_fallback = translations;
+    }
 
     /// What: Test that updates parsing correctly extracts old and new versions.
     ///
@@ -799,6 +972,108 @@ mod tests {
             assert_eq!(name, expected_name, "Wrong name for: {input}");
             assert_eq!(old_version, expected_old, "Wrong old_version for: {input}");
             assert_eq!(new_version, expected_new, "Wrong new_version for: {input}");
+        }
+    }
+
+    #[test]
+    fn news_age_toggle_sets_toast_and_cycles_value() {
+        let mut app = crate::state::AppState::default();
+        seed_news_age_translations(&mut app);
+        app.news_max_age_days = Some(7);
+        app.app_mode = AppMode::News;
+
+        handle_news_age_toggle(&mut app);
+
+        assert_eq!(app.news_max_age_days, Some(30));
+        assert!(app.toast_message.as_ref().is_some());
+        assert!(app.toast_expires_at.is_some());
+    }
+
+    // Removed: News options menu no longer includes a News age entry.
+
+    /// What: Test that `handle_news_button` preserves `pending_news` for multiple opens.
+    ///
+    /// Inputs:
+    /// - `AppState` with `news_ready` set to true and `pending_news` populated
+    ///
+    /// Output:
+    /// - Modal opens with news items on first call
+    /// - `pending_news` remains available after first call
+    /// - Modal opens with news items on second call
+    /// - `pending_news` remains available after second call
+    ///
+    /// Details:
+    /// - Tests the bug fix where `pending_news` was consumed on first open
+    /// - Verifies that news items are available for subsequent opens
+    #[test]
+    fn test_handle_news_button_preserves_pending_news() {
+        let mut app = crate::state::AppState::default();
+
+        // Set up news items
+        let news_items = vec![
+            crate::state::NewsItem {
+                date: "2025-01-01".to_string(),
+                title: "Test News 1".to_string(),
+                url: "https://example.com/news1".to_string(),
+            },
+            crate::state::NewsItem {
+                date: "2025-01-02".to_string(),
+                title: "Test News 2".to_string(),
+                url: "https://example.com/news2".to_string(),
+            },
+        ];
+
+        app.news_ready = true;
+        app.pending_news = Some(news_items);
+
+        // First call - should open modal with items
+        handle_news_button(&mut app);
+
+        // Verify modal was opened with items
+        if let crate::state::Modal::News { items, .. } = &app.modal {
+            assert_eq!(items.len(), 2, "Modal should have 2 items on first open");
+            assert_eq!(items[0].title, "Test News 1");
+            assert_eq!(items[1].title, "Test News 2");
+        } else {
+            panic!("Modal should be News variant after first call");
+        }
+
+        // Verify pending_news is still available (not consumed)
+        assert!(
+            app.pending_news.is_some(),
+            "pending_news should still be available after first open"
+        );
+        if let Some(pending) = &app.pending_news {
+            assert_eq!(pending.len(), 2, "pending_news should still have 2 items");
+            assert_eq!(pending[0].title, "Test News 1");
+        }
+
+        // Close modal
+        app.modal = crate::state::Modal::None;
+
+        // Second call - should still open modal with items
+        handle_news_button(&mut app);
+
+        // Verify modal was opened again with items
+        if let crate::state::Modal::News { items, .. } = &app.modal {
+            assert_eq!(items.len(), 2, "Modal should have 2 items on second open");
+            assert_eq!(items[0].title, "Test News 1");
+            assert_eq!(items[1].title, "Test News 2");
+        } else {
+            panic!("Modal should be News variant after second call");
+        }
+
+        // Verify pending_news is still available after second call
+        assert!(
+            app.pending_news.is_some(),
+            "pending_news should still be available after second open"
+        );
+        if let Some(pending) = &app.pending_news {
+            assert_eq!(
+                pending.len(),
+                2,
+                "pending_news should still have 2 items after second open"
+            );
         }
     }
 }

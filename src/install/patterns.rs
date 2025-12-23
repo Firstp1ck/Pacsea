@@ -83,12 +83,23 @@ impl Default for PatternSets {
     }
 }
 
+/// What: Security section priority levels.
+///
+/// Inputs: Used for categorizing security patterns.
+///
+/// Output: Priority level enum.
+///
+/// Details: Represents different priority levels for security pattern matching.
 #[cfg(not(target_os = "windows"))]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum Section {
+    /// Critical priority section.
     Critical,
+    /// High priority section.
     High,
+    /// Medium priority section.
     Medium,
+    /// Low priority section.
     Low,
 }
 

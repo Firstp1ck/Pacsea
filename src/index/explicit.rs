@@ -48,6 +48,46 @@ pub fn explicit_names() -> HashSet<String> {
         .unwrap_or_default()
 }
 
+/// What: Query pacman directly for explicitly installed packages with the specified mode.
+///
+/// Inputs:
+/// - `mode`: Filter mode for installed packages.
+///   - `LeafOnly`: Uses `pacman -Qetq` (explicitly installed AND not required)
+///   - `AllExplicit`: Uses `pacman -Qeq` (all explicitly installed)
+///
+/// Output:
+/// - Returns a sorted vector of package names, or empty vector on error.
+///
+/// Details:
+/// - Queries pacman synchronously without using the cache.
+/// - Used when writing `installed_packages.txt` to ensure the file reflects the current mode setting.
+#[must_use]
+pub fn query_explicit_packages_sync(mode: InstalledPackagesMode) -> Vec<String> {
+    let args: &[&str] = match mode {
+        InstalledPackagesMode::LeafOnly => &["-Qetq"], // explicitly installed AND not required (leaf)
+        InstalledPackagesMode::AllExplicit => &["-Qeq"], // all explicitly installed
+    };
+    match crate::util::pacman::run_pacman(args) {
+        Ok(body) => {
+            let mut names: Vec<String> = body
+                .lines()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+            names.sort();
+            names
+        }
+        Err(e) => {
+            tracing::warn!(
+                mode = ?mode,
+                error = %e,
+                "Failed to query explicit packages from pacman"
+            );
+            Vec::new()
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     /// What: Return an empty set when the explicit cache has not been populated.

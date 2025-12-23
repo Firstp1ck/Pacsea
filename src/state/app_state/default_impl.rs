@@ -3,6 +3,7 @@
 use super::AppState;
 use super::defaults;
 use super::defaults_cache;
+use std::collections::HashMap;
 
 impl Default for AppState {
     /// What: Construct a default, empty [`AppState`] with initialized paths, selection states, and timers.
@@ -19,19 +20,54 @@ impl Default for AppState {
     /// - Sets selection indices to zero, result buffers to empty, and UI flags to default visibility states.
     /// - All repository filters default to showing everything.
     /// - Initializes timers, scroll positions, and modal states to their default values.
-    #[allow(clippy::too_many_lines)]
+    #[allow(clippy::too_many_lines)] // Function has 652 lines - initializes large AppState struct with many fields, delegating to helper functions for logical grouping; refactoring would reduce readability
     fn default() -> Self {
         let (
             recent_path,
             cache_path,
             news_read_path,
+            news_read_ids_path,
             install_path,
             official_index_path,
             deps_cache_path,
             files_cache_path,
             services_cache_path,
             announcement_read_path,
+            news_recent_path,
+            news_bookmarks_path,
         ) = defaults::default_paths();
+        let news_feed_path = crate::theme::lists_dir().join("news_feed.json");
+        let news_content_cache_path = crate::theme::lists_dir().join("news_content_cache.json");
+        let news_seen_pkg_versions_path =
+            crate::theme::lists_dir().join("news_seen_pkg_updates.json");
+        let news_seen_aur_comments_path =
+            crate::theme::lists_dir().join("news_seen_aur_comments.json");
+        let news_seen_pkg_versions: HashMap<String, String> =
+            std::fs::read_to_string(&news_seen_pkg_versions_path)
+                .ok()
+                .and_then(|s| serde_json::from_str(&s).ok())
+                .unwrap_or_default();
+        let news_seen_aur_comments: HashMap<String, String> =
+            std::fs::read_to_string(&news_seen_aur_comments_path)
+                .ok()
+                .and_then(|s| serde_json::from_str(&s).ok())
+                .unwrap_or_default();
+
+        // Load last startup timestamp and save current timestamp
+        let last_startup_path = crate::theme::lists_dir().join("last_startup.txt");
+        let last_startup_timestamp = std::fs::read_to_string(&last_startup_path)
+            .ok()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
+        // Save current timestamp for next startup
+        let current_timestamp = chrono::Local::now().format("%Y%m%d:%H%M%S").to_string();
+        let _ = std::fs::write(&last_startup_path, &current_timestamp);
+        tracing::info!(
+            previous = ?last_startup_timestamp,
+            current = %current_timestamp,
+            "startup timestamp tracking"
+        );
+
         let (
             results_filter_show_aur,
             results_filter_show_core,
@@ -85,6 +121,60 @@ impl Default for AppState {
             search_cache_results,
         ) = defaults::default_search_state();
 
+        let app_mode = defaults::default_app_mode();
+
+        let (
+            news_items,
+            news_results,
+            news_loading,
+            news_ready,
+            news_selected,
+            news_list_state,
+            news_search_input,
+            news_search_caret,
+            news_search_select_anchor,
+            news_recent,
+            news_recent_path,
+            news_recent_dirty,
+            news_filter_show_arch_news,
+            news_filter_show_advisories,
+            news_filter_show_pkg_updates,
+            news_filter_show_aur_updates,
+            news_filter_show_aur_comments,
+            news_filter_installed_only,
+            news_filter_read_status,
+            news_filter_arch_rect,
+            news_filter_advisory_rect,
+            news_filter_installed_rect,
+            news_filter_updates_rect,
+            news_filter_aur_updates_rect,
+            news_filter_aur_comments_rect,
+            news_filter_read_rect,
+            news_max_age_days,
+            show_news_history_pane,
+            show_news_bookmarks_pane,
+            news_sort_mode,
+            news_bookmarks,
+            news_bookmarks_path,
+            news_bookmarks_dirty,
+            news_content_cache,
+            news_content_cache_path,
+            news_content_cache_dirty,
+            news_content,
+            news_content_loading,
+            news_content_loading_since,
+            news_content_debounce_timer,
+            news_content_scroll,
+            news_history_pending,
+            news_history_pending_at,
+            news_history_last_saved,
+        ) = defaults::default_news_feed_state(
+            news_recent_path,
+            news_bookmarks_path,
+            &news_feed_path,
+            news_content_cache_path,
+        );
+
         let (recent, history_state, recent_path, recent_dirty) =
             defaults::default_recent_state(recent_path);
 
@@ -93,6 +183,9 @@ impl Default for AppState {
 
         let (news_read_urls, news_read_path, news_read_dirty) =
             defaults::default_news_state(news_read_path);
+
+        let (news_read_ids, news_read_ids_path, news_read_ids_dirty) =
+            defaults::default_news_read_ids_state(news_read_ids_path);
 
         let (announcements_read_ids, announcement_read_path, announcement_dirty) =
             defaults::default_announcement_state(announcement_read_path);
@@ -135,6 +228,7 @@ impl Default for AppState {
             updates_count,
             updates_list,
             updates_button_rect,
+            news_button_rect,
             updates_loading,
             refresh_updates,
             pending_updates_modal,
@@ -202,6 +296,7 @@ impl Default for AppState {
             announcement_urls,
             pending_announcements,
             pending_news,
+            trigger_startup_news_fetch,
             updates_modal_rect,
             updates_modal_content_rect,
             help_scroll,
@@ -214,6 +309,7 @@ impl Default for AppState {
             sort_mode,
             sort_menu_open,
             sort_button_rect,
+            news_age_button_rect,
             sort_menu_rect,
             sort_menu_auto_close_at,
             options_menu_open,
@@ -288,6 +384,7 @@ impl Default for AppState {
         ) = defaults_cache::default_preflight_state();
 
         Self {
+            app_mode,
             input,
             results,
             all_results,
@@ -316,9 +413,65 @@ impl Default for AppState {
             news_read_urls,
             news_read_path,
             news_read_dirty,
+            news_read_ids,
+            news_read_ids_path,
+            news_read_ids_dirty,
+            news_items,
+            news_results,
+            news_loading,
+            news_ready,
+            news_selected,
+            news_list_state,
+            news_search_input,
+            news_search_caret,
+            news_search_select_anchor,
+            news_recent,
+            news_recent_path,
+            news_recent_dirty,
+            news_filter_show_arch_news,
+            news_filter_show_advisories,
+            news_filter_show_pkg_updates,
+            news_filter_show_aur_updates,
+            news_filter_show_aur_comments,
+            news_filter_installed_only,
+            news_filter_read_status,
+            news_filter_arch_rect,
+            news_filter_advisory_rect,
+            news_filter_installed_rect,
+            news_filter_updates_rect,
+            news_filter_aur_updates_rect,
+            news_filter_aur_comments_rect,
+            news_filter_read_rect,
+            news_max_age_days,
+            show_news_history_pane,
+            show_news_bookmarks_pane,
+            news_sort_mode,
+            news_bookmarks,
+            news_bookmarks_path,
+            news_bookmarks_dirty,
+            news_content_cache,
+            news_content_cache_path,
+            news_content_cache_dirty,
+            news_content,
+            news_content_loading,
+            news_content_loading_since,
+            news_content_debounce_timer,
+            news_content_scroll,
+            news_feed_path,
+            news_seen_pkg_versions,
+            news_seen_pkg_versions_path,
+            news_seen_pkg_versions_dirty: false,
+            news_seen_aur_comments,
+            news_seen_aur_comments_path,
+            news_seen_aur_comments_dirty: false,
+            news_history_pending,
+            news_history_pending_at,
+            news_history_last_saved,
             announcements_read_ids,
             announcement_read_path,
             announcement_dirty,
+            last_startup_timestamp,
+            last_startup_path,
             install_list,
             install_state,
             remove_list,
@@ -355,6 +508,7 @@ impl Default for AppState {
             updates_count,
             updates_list,
             updates_button_rect,
+            news_button_rect,
             updates_loading,
             refresh_updates,
             pending_updates_modal,
@@ -407,6 +561,7 @@ impl Default for AppState {
             announcement_urls,
             pending_announcements,
             pending_news,
+            trigger_startup_news_fetch,
             updates_modal_rect,
             updates_modal_content_rect,
             help_scroll,
@@ -417,6 +572,7 @@ impl Default for AppState {
             installed_packages_mode: crate::state::types::InstalledPackagesMode::default(),
             sort_menu_open,
             sort_button_rect,
+            news_age_button_rect,
             sort_menu_rect,
             sort_menu_auto_close_at,
             sort_cache_repo_name,

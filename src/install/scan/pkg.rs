@@ -96,8 +96,15 @@ fn add_setup_commands(cmds: &mut Vec<String>, pkg: &str) {
 ///
 /// Output:
 /// - Appends fetch commands to the vector.
+///
+/// Details:
+/// - `_pkg` parameter is kept for API consistency but unused in Rust code.
+/// - The shell variable `$pkg` is set in `add_setup_commands()` earlier in the command chain.
+/// - The underscore prefix suppresses Rust/clippy warnings for intentionally unused parameters.
 #[cfg(not(target_os = "windows"))]
 fn add_fetch_commands(cmds: &mut Vec<String>, _pkg: &str) {
+    // Note: _pkg is unused in Rust code; shell variable $pkg is used in command strings.
+    // Parameter kept for API consistency with other command builder functions.
     // 1) Fetch PKGBUILD via AUR helper first; fallback to git clone
     cmds.push("echo 'Fetching PKGBUILD via AUR helper (-G)…'".to_string());
     cmds.push("echo \"[PACSEA] phase=fetch_helper ts=$(date -Ins)\"".to_string());
@@ -117,8 +124,13 @@ fn add_fetch_commands(cmds: &mut Vec<String>, _pkg: &str) {
 ///
 /// Details:
 /// - Handles PKGBUILD location fallbacks and helper cache population.
+/// - `_pkg` parameter is kept for API consistency but unused in Rust code.
+/// - The shell variable `$pkg` is set in `add_setup_commands()` earlier in the command chain.
+/// - The underscore prefix suppresses Rust/clippy warnings for intentionally unused parameters.
 #[cfg(not(target_os = "windows"))]
 fn add_makepkg_commands(cmds: &mut Vec<String>, _pkg: &str) {
+    // Note: _pkg is unused in Rust code; shell variable $pkg is used in command strings.
+    // Parameter kept for API consistency with other command builder functions.
     // 2) Download sources only
     cmds.push("echo 'Running makepkg -o (download sources only)…'".to_string());
     cmds.push("echo \"[PACSEA] phase=makepkg_download ts=$(date -Ins)\"".to_string());
@@ -231,9 +243,16 @@ pub fn add_scans_without_sleuth(cmds: &mut Vec<String>) {
 /// Output:
 /// - Appends summary commands to the vector.
 /// - Note: Kept for backward compatibility; new code should use `add_summary_commands_without_sleuth`.
+///
+/// Details:
+/// - `_pkg` parameter is kept for API consistency but unused in Rust code.
+/// - The shell variable `$pkg` is set in `add_setup_commands()` earlier in the command chain.
+/// - The underscore prefix suppresses Rust/clippy warnings for intentionally unused parameters.
 #[cfg(not(target_os = "windows"))]
 #[allow(dead_code)] // Kept for backward compatibility
 fn add_summary_commands(cmds: &mut Vec<String>, _pkg: &str) {
+    // Note: _pkg is unused in Rust code; shell variable $pkg is used in command strings.
+    // Parameter kept for API consistency with other command builder functions.
     // Final note with working directory for manual inspection
     cmds.push("echo".to_string());
     cmds.push("echo '--- Summary ---'".to_string());
@@ -262,8 +281,13 @@ fn add_summary_commands(cmds: &mut Vec<String>, _pkg: &str) {
 ///
 /// Details:
 /// - Used for integrated process execution (aur-sleuth runs separately in terminal).
+/// - `_pkg` parameter is kept for API consistency but unused in Rust code.
+/// - The shell variable `$pkg` is set in `add_setup_commands()` earlier in the command chain.
+/// - The underscore prefix suppresses Rust/clippy warnings for intentionally unused parameters.
 #[cfg(not(target_os = "windows"))]
 pub fn add_summary_commands_without_sleuth(cmds: &mut Vec<String>, _pkg: &str) {
+    // Note: _pkg is unused in Rust code; shell variable $pkg is used in command strings.
+    // Parameter kept for API consistency with other command builder functions.
     // Final note with working directory for manual inspection
     cmds.push("echo".to_string());
     cmds.push("echo '--- Summary ---'".to_string());

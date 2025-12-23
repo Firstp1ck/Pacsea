@@ -64,6 +64,12 @@ hu-HU:
       search_focused: "Keresés (fókuszált)"
       recent: "Keresési előzmények:"
       recent_focused: "Keresési előzmények (fókuszált)"
+      # TODO: translate to hungarian
+      news_recent: "News search history"
+      news_recent_focused: "News search history (focused)"
+      # TODO: translate to hungarian
+      news_bookmarks: "Bookmarks"
+      news_bookmarks_focused: "Bookmarks (focused)"
       install_list: "Telepítési lista"
       install_list_focused: "Telepítési lista (fókuszált)"
       downgrade_list: "Visszafejlesztési lista"
@@ -96,10 +102,10 @@ hu-HU:
       aur_maintenance_ongoing: "Az AUR karbantartása folyamatban van"
       aur_issues_detected: "AUR-problémák felismerve (tekintse meg az állapotot)"
       aur_degraded: "Az AUR teljesítménye csökkent (tekintse meg az állapotot)"
-      service_outage: "{} üzemzavar (tekintse meg az állapotot) — {} ma: {:.1}%"
-      service_degraded: "A(z) {} teljesítménye csökkent (tekintse meg az állapotot) — {} ma: {:.1}%"
-      service_issues_detected: "{} problémák felismerve (tekintse meg az állapotot) — {} ma: {:.1}%"
-      systems_nominal_with_service: "Az Arch rendszereinek állapota megfelelő — {} ma: {:.1}%"
+      service_outage: "{} üzemzavar (tekintse meg az állapotot) — {} ma: {}%"
+      service_degraded: "A(z) {} teljesítménye csökkent (tekintse meg az állapotot) — {} ma: {}%"
+      service_issues_detected: "{} problémák felismerve (tekintse meg az állapotot) — {} ma: {}%"
+      systems_nominal_with_service: "Az Arch rendszereinek állapota megfelelő — {} ma: {}%"
       aur_today_suffix: " — AUR ma: {}%"
       
     labels:
@@ -148,6 +154,10 @@ hu-HU:
       loading: "Frissítések ellenőrzése…"
       locked: "🔒 Zárolt"
       locked_with_time: "🔒 Zárolás {} perc múlva"
+    news_button:
+      ready: "News Ready" # TODO: translate to hungarian
+      none: "No News available" # TODO: translate to hungarian
+      loading: "Loading news..." # TODO: translate to hungarian
       
     actions:
       exit: "Kilépés"
@@ -228,6 +238,8 @@ hu-HU:
       show_pkgbuild: "PKGBUILD megjelenítése"
       hide_pkgbuild: "PKGBUILD elrejtése"
       url_label: "Webcím:"
+      # TODO: translate to hungarian
+      open_url_label: "[Open in Browser]"
       loading_pkgb: "PKGBUILD betöltése…"
       copy_pkgbuild: "PKGBUILD másolása"
       reload_pkgbuild: "PKGBUILD újratöltése"
@@ -301,14 +313,35 @@ hu-HU:
         hide_recent: "Legutóbbi elrejtése"
         show_install_list: "Telepítési lista megjelenítése"
         hide_install_list: "Telepítési lista elrejtése"
-        show_keybinds: "Billentyűparancsok megjelenítése"
-        hide_keybinds: "Billentyűparancsok elrejtése"
+        show_keybinds: "Billentyűkötések megjelenítése"
+        hide_keybinds: "Billentyűkötések elrejtése"
+        # TODO: translate to hungarian
+        show_history: "History"
+        hide_history: "History"
+        show_bookmarks: "Bookmarks"
+        hide_bookmarks: "Bookmarks"
       options_menu:
         list_all_packages: "Összes csomag listázása"
         list_installed_packages: "Telepített csomagok listázása"
         update_system: "Rendszer frissítése"
         news: "Hírek"
+        # TODO: translate to hungarian
+        news_management: "News management"
+        package_mode: "Package mode"
+        news_age_days: "News age: {} days"
+        news_age_all: "News age: all time"
         tui_optional_deps: "A PacSea nem kötelező függőségei"
+    news:
+      filters:
+        # TODO: translate to hungarian
+        arch: "Arch"
+        advisories: "Advisories"
+        installed_only: "Installed only"
+    loading:
+      # TODO: translate to hungarian
+      news: "Loading news..."
+      news_first_load_hint: "(First load may take a few minutes due to rate limiting)"
+      news_pkg_impact_hint: "Package details from archlinux.org may be slower during loading."
         
     modals:
       common:
@@ -318,10 +351,14 @@ hu-HU:
         header_clipboard_copy: "Másolás a vágólapra"
         header_connection_issue: "Kapcsolati probléma"
         header_account_locked: "Zárolt fiók"
+        # TODO: translate to hungarian
+        header_config_directories: "Configuration Directories"
         title_configuration_error: " Konfigurációs hiba "
         title_clipboard_copy: " Másolás a vágólapra "
         title_connection_issue: " Kapcsolati probléma "
         title_account_locked: " Zárolt fiók "
+        # TODO: translate to hungarian
+        title_config_directories: " Configuration Directories "
         account_locked: "Fiókja jelenleg zárolva van. A zárolás feloldásához jelentkezzen be rendszergazdaként a „su” paranccsal, és futtassa a „faillock --user {} --reset” parancsot."
         account_locked_with_time: "Fiókja jelenleg zárolva van. A zárolás feloldásához jelentkezzen be rendszergazdaként a „su” paranccsal, és futtassa a „faillock --user {} --reset” parancsot. A fiók zárolásáig {} perc van hátra."
       password_prompt:
@@ -453,9 +490,22 @@ hu-HU:
           updates: " Elérhető frissítések megnyitása"
       news:
         title: " Hírek "
-        heading: "Arch Linux hírek"
-        none: "Nincsenek elérhető hírek."
+        # TODO: translate to hungarian
+        heading: "Arch Linux News"
+        none: "No news items available."
+        # TODO: translate to hungarian
+        keybinds_hint: "Up/Down/K/J: navigate  •  Enter: open  • {}: mark read  • {}: mark all read  •  Esc/Q: close"
         footer_hint: "Fel/Le: kiválasztás • Enter: megnyitás • {}: megjelölés olvasottként • {}: összes megjelölése olvasottként • Esc: bezárás"
+      news_setup:
+        # TODO: translate to hungarian
+        title: "News Popup Setup"
+        arch_news: "Arch News"
+        advisories: "Advisories - Official Security News"
+        aur_updates: "AUR Updates"
+        aur_comments: "AUR Comments"
+        pkg_updates: "Official Package Updates"
+        date_selection: "Maximum age"
+        footer_hint: "Up/Down: select  •  Space: toggle  •  Enter: save  •  Esc: cancel"
       announcement:
         footer_hint: "r: Megjelölés olvasottként | Enter/Esc: Eltüntetés (megjelenítés újra)"
       updates_window:

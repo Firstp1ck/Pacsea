@@ -1,17 +1,43 @@
 //! Network and system data retrieval module split into submodules.
 
+/// Security advisories fetching.
+mod advisories;
+/// AUR comments fetching.
 mod comments;
+/// Package details fetching.
 mod details;
-mod news;
+/// News feed fetching.
+mod feeds;
+/// Arch Linux news fetching.
+pub mod news;
+/// PKGBUILD content fetching.
 mod pkgbuild;
+/// Package search functionality.
 mod search;
+/// Arch Linux status page monitoring.
 pub mod status;
 
+/// What: Result type alias for sources module errors.
+///
+/// Inputs: None (type alias).
+///
+/// Output: Result type with boxed error trait object.
+///
+/// Details: Standard error type for network and parsing operations in the sources module.
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
+pub use advisories::fetch_security_advisories;
 pub use comments::fetch_aur_comments;
 pub use details::fetch_details;
-pub use news::fetch_arch_news;
+pub use feeds::{
+    NewsFeedContext, check_circuit_breaker, extract_endpoint_pattern,
+    extract_retry_after_from_error, fetch_continuation_items, fetch_news_feed,
+    get_aur_json_changes, get_official_json_changes, increase_archlinux_backoff,
+    load_official_json_cache, official_json_cache_path, optimize_max_age_for_startup,
+    rate_limit_archlinux, record_circuit_breaker_outcome, reset_archlinux_backoff,
+    take_network_error,
+};
+pub use news::{fetch_arch_news, fetch_news_content, parse_news_html};
 pub use pkgbuild::fetch_pkgbuild_fast;
 pub use search::fetch_all_with_errors;
 pub use status::fetch_arch_status_text;

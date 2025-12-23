@@ -350,6 +350,27 @@ fn apply_news_keybind(key: &str, chord: Option<KeyChord>, settings: &mut Setting
             assign_keybind(chord, &mut settings.keymap.news_mark_all_read);
             true
         }
+        "keybind_news_feed_mark_read" => {
+            if chord.is_none() {
+                tracing::warn!("Failed to parse keybind_news_feed_mark_read");
+            }
+            assign_keybind(chord, &mut settings.keymap.news_mark_read_feed);
+            true
+        }
+        "keybind_news_feed_mark_unread" => {
+            if chord.is_none() {
+                tracing::warn!("Failed to parse keybind_news_feed_mark_unread");
+            }
+            assign_keybind(chord, &mut settings.keymap.news_mark_unread_feed);
+            true
+        }
+        "keybind_news_feed_toggle_read" => {
+            if chord.is_none() {
+                tracing::warn!("Failed to parse keybind_news_feed_toggle_read");
+            }
+            assign_keybind(chord, &mut settings.keymap.news_toggle_read_feed);
+            true
+        }
         _ => false,
     }
 }
@@ -731,6 +752,36 @@ mod tests {
         ));
         assert_eq!(settings2.keymap.news_mark_all_read.len(), 1);
         assert_eq!(settings2.keymap.news_mark_all_read[0], chord);
+
+        // Test news feed mark read
+        let mut settings3 = Settings::default();
+        assert!(apply_news_keybind(
+            "keybind_news_feed_mark_read",
+            Some(chord),
+            &mut settings3
+        ));
+        assert_eq!(settings3.keymap.news_mark_read_feed.len(), 1);
+        assert_eq!(settings3.keymap.news_mark_read_feed[0], chord);
+
+        // Test news feed mark unread
+        let mut settings4 = Settings::default();
+        assert!(apply_news_keybind(
+            "keybind_news_feed_mark_unread",
+            Some(chord),
+            &mut settings4
+        ));
+        assert_eq!(settings4.keymap.news_mark_unread_feed.len(), 1);
+        assert_eq!(settings4.keymap.news_mark_unread_feed[0], chord);
+
+        // Test news feed toggle read
+        let mut settings5 = Settings::default();
+        assert!(apply_news_keybind(
+            "keybind_news_feed_toggle_read",
+            Some(chord),
+            &mut settings5
+        ));
+        assert_eq!(settings5.keymap.news_toggle_read_feed.len(), 1);
+        assert_eq!(settings5.keymap.news_toggle_read_feed[0], chord);
 
         // Test invalid keybind
         assert!(!apply_news_keybind(

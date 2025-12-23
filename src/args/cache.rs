@@ -12,7 +12,8 @@ use pacsea::theme;
 /// - Exits the process after clearing cache files.
 ///
 /// Details:
-/// - Removes `install_deps_cache.json`, `file_cache.json`, `services_cache.json`, `sandbox_cache.json`, and `details_cache.json`.
+/// - Removes all cache files including dependency, file, service, sandbox, details, PKGBUILD parse,
+///   news feed, news content, news seen updates/comments, and news/advisories article caches.
 /// - Prints the number of cleared files to stdout.
 /// - Exits immediately after clearing (doesn't launch TUI).
 pub fn handle_clear_cache() -> ! {
@@ -24,6 +25,14 @@ pub fn handle_clear_cache() -> ! {
         "services_cache.json",
         "sandbox_cache.json",
         "details_cache.json",
+        "pkgbuild_parse_cache.json",
+        "news_content_cache.json",
+        "news_feed.json",
+        "news_seen_pkg_updates.json",
+        "news_seen_aur_comments.json",
+        "arch_news_cache.json",
+        "advisories_cache.json",
+        "news_article_cache.json",
     ];
 
     let mut cleared_count = 0;

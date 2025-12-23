@@ -100,7 +100,9 @@ fn transition_to_search(
     if activate_normal_mode {
         app.search_normal_mode = true;
     }
-    refresh_selected_details(app, details_tx);
+    if !matches!(app.app_mode, crate::state::types::AppMode::News) {
+        refresh_selected_details(app, details_tx);
+    }
 }
 
 /// What: Handle wrap-around navigation from Recent (leftmost) to Install (rightmost) pane.
@@ -119,7 +121,9 @@ fn handle_recent_to_install_wrap(
     app: &mut AppState,
     details_tx: &mpsc::UnboundedSender<PackageItem>,
 ) {
-    if app.installed_only_mode {
+    if matches!(app.app_mode, crate::state::types::AppMode::News) {
+        app.focus = crate::state::Focus::Install;
+    } else if app.installed_only_mode {
         // In installed-only mode, land on the Remove subpane when wrapping
         app.right_pane_focus = crate::state::RightPaneFocus::Remove;
         if app.remove_state.selected().is_none() && !app.remove_list.is_empty() {
@@ -147,9 +151,15 @@ fn handle_recent_to_install_wrap(
 /// Details:
 /// - Clears the recent list, deselects any item, and marks the list as dirty.
 fn clear_recent_list(app: &mut AppState) {
-    app.recent.clear();
-    app.history_state.select(None);
-    app.recent_dirty = true;
+    if matches!(app.app_mode, crate::state::types::AppMode::News) {
+        app.news_recent.clear();
+        app.history_state.select(None);
+        app.news_recent_dirty = true;
+    } else {
+        app.recent.clear();
+        app.history_state.select(None);
+        app.recent_dirty = true;
+    }
 }
 
 /// What: Remove the currently selected item from the Recent list.
@@ -172,17 +182,31 @@ fn remove_recent_item(app: &mut AppState, preview_tx: &mpsc::UnboundedSender<Pac
         return false;
     };
     let i = inds.get(vsel).copied().unwrap_or(0);
-    if app.remove_recent_at(i).is_none() {
+    let removed = if matches!(app.app_mode, crate::state::types::AppMode::News) {
+        let res = app.remove_news_recent_at(i).is_some();
+        if res {
+            app.news_recent_dirty = true;
+        }
+        res
+    } else {
+        let res = app.remove_recent_at(i).is_some();
+        if res {
+            app.recent_dirty = true;
+        }
+        res
+    };
+    if !removed {
         return false;
     }
-    app.recent_dirty = true;
     let vis_len = inds.len().saturating_sub(1); // now one less visible
     if vis_len == 0 {
         app.history_state.select(None);
     } else {
         let new_sel = if vsel >= vis_len { vis_len - 1 } else { vsel };
         app.history_state.select(Some(new_sel));
-        crate::ui::helpers::trigger_recent_preview(app, preview_tx);
+        if !matches!(app.app_mode, crate::state::types::AppMode::News) {
+            crate::ui::helpers::trigger_recent_preview(app, preview_tx);
+        }
     }
     true
 }
@@ -204,7 +228,11 @@ fn get_selected_recent_query(app: &AppState) -> Option<String> {
     }
     let vsel = app.history_state.selected()?;
     let i = inds.get(vsel).copied()?;
-    app.recent_value_at(i)
+    if matches!(app.app_mode, crate::state::types::AppMode::News) {
+        app.news_recent_value_at(i)
+    } else {
+        app.recent_value_at(i)
+    }
 }
 
 /// What: Handle Enter key to use the selected recent query.
@@ -222,14 +250,22 @@ fn handle_recent_enter(app: &mut AppState, query_tx: &mpsc::UnboundedSender<Quer
     let Some(q) = get_selected_recent_query(app) else {
         return false;
     };
-    app.input = q;
     app.focus = crate::state::Focus::Search;
     app.last_input_change = std::time::Instant::now();
     app.last_saved_value = None;
-    // Position caret at end and clear selection
-    app.search_caret = char_count(&app.input);
-    app.search_select_anchor = None;
-    send_query(app, query_tx);
+    if matches!(app.app_mode, crate::state::types::AppMode::News) {
+        app.news_search_input = q.clone();
+        app.input = q;
+        app.search_caret = char_count(&app.news_search_input);
+        app.search_select_anchor = None;
+        app.refresh_news_results();
+    } else {
+        app.input = q;
+        // Position caret at end and clear selection
+        app.search_caret = char_count(&app.input);
+        app.search_select_anchor = None;
+        send_query(app, query_tx);
+    }
     true
 }
 
@@ -245,6 +281,9 @@ fn handle_recent_enter(app: &mut AppState, query_tx: &mpsc::UnboundedSender<Quer
 /// Details:
 /// - Asynchronously resolves a best-effort match and enqueues it to the install list.
 fn handle_recent_space(app: &AppState, add_tx: &mpsc::UnboundedSender<PackageItem>) -> bool {
+    if matches!(app.app_mode, crate::state::types::AppMode::News) {
+        return false;
+    }
     let Some(q) = get_selected_recent_query(app) else {
         return false;
     };
@@ -293,6 +332,11 @@ pub fn handle_recent_key(
     // Pane-search mode first
     if app.pane_find.is_some() && handle_recent_find_mode(&ke, app, preview_tx) {
         return false; // Key was handled in find mode
+    }
+
+    // Handle Shift+char keybinds (menus, import, export, updates, status) that work in all modes
+    if crate::events::search::handle_shift_keybinds(&ke, app) {
+        return false;
     }
 
     let km = &app.keymap;

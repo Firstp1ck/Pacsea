@@ -18,8 +18,23 @@ use tokio::task;
 /// - `refresh_official_index_from_arch_api(persist_path, net_err_tx, notify_tx)`
 /// - `refresh_windows_mirrors_and_index(persist_path, repo_dir, net_err_tx, notify_tx)`
 use super::{OfficialPkg, idx, save_to_disk};
+use crate::sources::{
+    check_circuit_breaker, extract_endpoint_pattern, extract_retry_after_from_error,
+    increase_archlinux_backoff, rate_limit_archlinux, record_circuit_breaker_outcome,
+    reset_archlinux_backoff,
+};
 use crate::util::curl;
 
+/// What: Convenience result type for mirror helpers.
+///
+/// Inputs:
+/// - `T`: Success value type for the mirror operation.
+///
+/// Output:
+/// - `Result<T, Box<dyn std::error::Error + Send + Sync>>` shared across this module.
+///
+/// Details:
+/// - Keeps function signatures concise while preserving sendable error semantics.
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 /// What: Download Arch mirror metadata and render a concise `mirrorlist.txt`.
@@ -378,34 +393,124 @@ fn fetch_package_page(
     Ok((results, true))
 }
 
-/// What: Fetch all packages for a single repository.
+/// What: Fetch all packages for a single repository with rate limiting.
 ///
 /// Inputs:
 /// - `repo`: Repository name.
 /// - `arch`: Architecture.
+/// - `endpoint_pattern`: Endpoint pattern for circuit breaker tracking.
+/// - `net_err_tx`: Channel for sending network errors.
 ///
 /// Output:
 /// - `Ok(Vec<OfficialPkg>)` with all packages from the repository.
 ///
 /// Details:
 /// - Pages through all results and parses packages from JSON.
-fn fetch_repo_packages(repo: &str, arch: &str) -> Result<Vec<OfficialPkg>> {
+/// - Applies rate limiting between page requests to prevent IP blocking.
+/// - Uses circuit breaker pattern to avoid overwhelming the server.
+/// - Handles HTTP 429/503 errors with exponential backoff.
+async fn fetch_repo_packages_with_rate_limit(
+    repo: &str,
+    arch: &str,
+    endpoint_pattern: &str,
+    net_err_tx: &tokio::sync::mpsc::UnboundedSender<String>,
+) -> Result<Vec<OfficialPkg>> {
     tracing::info!(repo = repo, "Fetching packages from repository");
     let mut pkgs: Vec<OfficialPkg> = Vec::new();
     let mut page: usize = 1;
     let limit: usize = 250;
 
     loop {
-        let (results, has_more) = fetch_package_page(repo, arch, page, limit)?;
-        for obj in results {
-            if let Some(pkg) = parse_package_from_json(&obj, repo, arch) {
-                pkgs.push(pkg);
+        // Check circuit breaker before each page
+        if let Err(e) = check_circuit_breaker(endpoint_pattern) {
+            let msg = format!(
+                "Circuit breaker open for {}: {}. Stopping repository fetch for {}",
+                endpoint_pattern, e, repo
+            );
+            tracing::warn!(repo = repo, page = page, error = %e, "Circuit breaker blocked page fetch");
+            let _ = net_err_tx.send(msg);
+            return Err(format!("Circuit breaker open: {}", e).into());
+        }
+
+        // Apply rate limiting before each request
+        let _permit = rate_limit_archlinux().await;
+
+        // Fetch page in blocking task
+        let fetch_result = task::spawn_blocking({
+            let repo = repo.to_string();
+            let arch = arch.to_string();
+            move || fetch_package_page_sync(&repo, &arch, page, limit)
+        })
+        .await;
+
+        match fetch_result {
+            Ok(Ok((results, has_more))) => {
+                // Success: reset backoff and record success
+                reset_archlinux_backoff();
+                record_circuit_breaker_outcome(endpoint_pattern, true);
+
+                for obj in results {
+                    if let Some(pkg) = parse_package_from_json(&obj, repo, arch) {
+                        pkgs.push(pkg);
+                    }
+                }
+
+                if !has_more {
+                    break;
+                }
+                page += 1;
+            }
+            Ok(Err(e)) => {
+                // Error: check for rate limiting and update backoff
+                let error_str = e.to_string();
+                let retry_after_seconds = extract_retry_after_from_error(&error_str);
+
+                if error_str.contains("429") || error_str.contains("503") {
+                    if let Some(retry_after) = retry_after_seconds {
+                        tracing::warn!(
+                            repo = repo,
+                            page = page,
+                            retry_after_seconds = retry_after,
+                            "HTTP {} detected, using Retry-After for backoff",
+                            if error_str.contains("429") {
+                                "429"
+                            } else {
+                                "503"
+                            }
+                        );
+                        increase_archlinux_backoff(Some(retry_after));
+                    } else {
+                        tracing::warn!(
+                            repo = repo,
+                            page = page,
+                            "HTTP {} detected, increasing backoff",
+                            if error_str.contains("429") {
+                                "429"
+                            } else {
+                                "503"
+                            }
+                        );
+                        increase_archlinux_backoff(None);
+                    }
+                } else {
+                    // Other errors: mild backoff increase
+                    increase_archlinux_backoff(None);
+                }
+
+                // Record failure for circuit breaker
+                record_circuit_breaker_outcome(endpoint_pattern, false);
+
+                // Return error to stop fetching this repository
+                return Err(e);
+            }
+            Err(join_err) => {
+                // Task join error
+                let msg = format!("Task join error during page fetch: {}", join_err);
+                tracing::error!(repo = repo, page = page, error = %join_err, "Task join error");
+                let _ = net_err_tx.send(msg);
+                return Err(format!("Task join error: {}", join_err).into());
             }
         }
-        if !has_more {
-            break;
-        }
-        page += 1;
     }
 
     tracing::info!(
@@ -414,6 +519,29 @@ fn fetch_repo_packages(repo: &str, arch: &str) -> Result<Vec<OfficialPkg>> {
         "Completed fetching repository"
     );
     Ok(pkgs)
+}
+
+/// What: Fetch a single page of packages from the Arch API (synchronous version for spawn_blocking).
+///
+/// Inputs:
+/// - `repo`: Repository name.
+/// - `arch`: Architecture.
+/// - `page`: Page number.
+/// - `limit`: Results per page.
+///
+/// Output:
+/// - `Ok((results, has_more))` with the results array and whether more pages exist.
+///
+/// Details:
+/// - Wrapper around `fetch_package_page` for use in spawn_blocking context.
+/// - The URL is constructed internally by `fetch_package_page`.
+fn fetch_package_page_sync(
+    repo: &str,
+    arch: &str,
+    page: usize,
+    limit: usize,
+) -> Result<(Vec<serde_json::Value>, bool)> {
+    fetch_package_page(repo, arch, page, limit)
 }
 
 /// What: Build the official index via the Arch Packages JSON API and persist it.
@@ -429,6 +557,8 @@ fn fetch_repo_packages(repo: &str, arch: &str) -> Result<Vec<OfficialPkg>> {
 /// Details:
 /// - Pages through `core`, `extra`, and `multilib` results, dedupes by `(repo,name)`, and updates
 ///   the in-memory index before persisting.
+/// - Uses rate limiting with exponential backoff to prevent IP blocking by archlinux.org.
+/// - Applies circuit breaker pattern to avoid overwhelming the server during outages.
 pub async fn refresh_official_index_from_arch_api(
     persist_path: PathBuf,
     net_err_tx: tokio::sync::mpsc::UnboundedSender<String>,
@@ -436,12 +566,39 @@ pub async fn refresh_official_index_from_arch_api(
 ) {
     let repos = vec!["core", "extra", "multilib"];
     let arch = "x86_64";
+    let endpoint_pattern = "/packages/*/json/";
 
-    let res = task::spawn_blocking(move || -> Result<Vec<OfficialPkg>> {
+    let res = async {
         let mut pkgs: Vec<OfficialPkg> = Vec::new();
         for repo in repos {
-            let repo_pkgs = fetch_repo_packages(repo, arch)?;
-            pkgs.extend(repo_pkgs);
+            // Check circuit breaker before fetching repository
+            if let Err(e) = check_circuit_breaker(endpoint_pattern) {
+                let msg = format!(
+                    "Circuit breaker open for {}: {}. Skipping repository {}",
+                    endpoint_pattern, e, repo
+                );
+                tracing::warn!(repo = repo, error = %e, "Circuit breaker blocked repository fetch");
+                let _ = net_err_tx.send(msg);
+                continue;
+            }
+
+            match fetch_repo_packages_with_rate_limit(repo, arch, endpoint_pattern, &net_err_tx)
+                .await
+            {
+                Ok(repo_pkgs) => {
+                    pkgs.extend(repo_pkgs);
+                    // Record success for circuit breaker
+                    record_circuit_breaker_outcome(endpoint_pattern, true);
+                }
+                Err(e) => {
+                    let msg = format!("Failed to fetch repository {}: {}", repo, e);
+                    tracing::error!(repo = repo, error = %e, "Failed to fetch repository");
+                    let _ = net_err_tx.send(msg);
+                    // Record failure for circuit breaker
+                    record_circuit_breaker_outcome(endpoint_pattern, false);
+                    // Continue with other repositories
+                }
+            }
         }
         // Sort and dedup by (repo, name)
         pkgs.sort_by(|a, b| a.repo.cmp(&b.repo).then(a.name.cmp(&b.name)));
@@ -461,7 +618,7 @@ pub async fn refresh_official_index_from_arch_api(
             "Completed fetching all repositories"
         );
         Ok(pkgs)
-    })
+    }
     .await;
 
     match res {

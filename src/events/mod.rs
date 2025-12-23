@@ -10,13 +10,16 @@ use crate::state::{AppState, Focus, PackageItem, QueryInput};
 
 mod distro;
 mod global;
+/// Install pane event handling.
 mod install;
 mod modals;
 mod mouse;
 mod preflight;
+/// Recent packages event handling module.
 mod recent;
 mod search;
-mod utils;
+/// Utility functions for event handling.
+pub mod utils;
 
 // Re-export open_preflight_modal for use in tests and other modules
 pub use search::open_preflight_modal;
@@ -484,12 +487,15 @@ mod tests {
         );
         assert!(app.options_menu_open);
 
-        let mut key_four_event =
-            crossterm::event::KeyEvent::new(KeyCode::Char('4'), KeyModifiers::empty());
-        key_four_event.kind = KeyEventKind::Press;
-        let key_four = CEvent::Key(key_four_event);
+        // In Package mode, TUI Optional Deps is at index 3 (key '3')
+        // In News mode, TUI Optional Deps is at index 2 (key '2')
+        // Since tests default to Package mode, use '3'
+        let mut key_three_event =
+            crossterm::event::KeyEvent::new(KeyCode::Char('3'), KeyModifiers::empty());
+        key_three_event.kind = KeyEventKind::Press;
+        let key_three = CEvent::Key(key_three_event);
         let _ = super::handle_event(
-            &key_four,
+            &key_three,
             app,
             &channels.0,
             &channels.1,
@@ -668,14 +674,14 @@ mod tests {
         );
         assert!(app.options_menu_open);
 
-        // Press '4' to open Optional Deps
-        let mut key_four_event =
-            crossterm::event::KeyEvent::new(KeyCode::Char('4'), KeyModifiers::empty());
-        key_four_event.kind = KeyEventKind::Press;
-        let key_four = CEvent::Key(key_four_event);
+        // Press '3' to open Optional Deps (Package mode: List installed=1, Update system=2, TUI Optional Deps=3, News management=4)
+        let mut key_three_event =
+            crossterm::event::KeyEvent::new(KeyCode::Char('3'), KeyModifiers::empty());
+        key_three_event.kind = KeyEventKind::Press;
+        let key_three = CEvent::Key(key_three_event);
         let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
         let _ = super::handle_event(
-            &key_four,
+            &key_three,
             &mut app,
             &qtx,
             &dtx,

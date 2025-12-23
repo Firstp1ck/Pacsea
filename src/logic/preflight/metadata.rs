@@ -124,7 +124,9 @@ pub(super) fn fetch_installed_size<R: CommandRunner>(
 /// - Values are `None` when the upstream output omits a field.
 #[derive(Default, Debug)]
 pub struct OfficialMetadata {
+    /// Download size in bytes, if available.
     pub(crate) download_size: Option<u64>,
+    /// Install size in bytes, if available.
     pub(crate) install_size: Option<u64>,
 }
 

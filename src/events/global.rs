@@ -4,6 +4,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use tokio::sync::mpsc;
 
 use crate::app::{apply_settings_to_app_state, initialize_locale_system};
+use crate::events::mouse::menus::{handle_mode_toggle, handle_news_age_toggle};
 use crate::events::utils;
 use crate::state::{AppState, PackageItem};
 use crate::theme::{reload_theme, settings};
@@ -96,8 +97,8 @@ fn handle_options_installed_only_toggle(
         crate::logic::apply_filters_and_sort_preserve_selection(app);
         utils::refresh_selected_details(app, details_tx);
         let path = crate::theme::config_dir().join("installed_packages.txt");
-        let mut names: Vec<String> = crate::index::explicit_names().into_iter().collect();
-        names.sort();
+        // Query pacman directly with current mode to ensure file reflects the setting
+        let names = crate::index::query_explicit_packages_sync(app.installed_packages_mode);
         let body = names.join("\n");
         let _ = std::fs::write(path, body);
     }
@@ -145,46 +146,6 @@ fn handle_options_system_update(app: &mut AppState) {
     };
 }
 
-/// What: Handle news option from options menu.
-///
-/// Inputs:
-/// - `app`: Mutable application state
-///
-/// Details:
-/// - Fetches latest Arch news and opens News modal.
-/// - Shows alert modal if fetch fails or times out.
-fn handle_options_news(app: &mut AppState) {
-    let (tx, rx) = std::sync::mpsc::channel();
-    std::thread::spawn(move || {
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build();
-        let res = match rt {
-            Ok(rt) => rt.block_on(crate::sources::fetch_arch_news(10)),
-            Err(e) => Err::<Vec<crate::state::NewsItem>, _>(format!("rt: {e}").into()),
-        };
-        let _ = tx.send(res);
-    });
-    match rx.recv_timeout(std::time::Duration::from_secs(3)) {
-        Ok(Ok(list)) => {
-            app.modal = crate::state::Modal::News {
-                items: list,
-                selected: 0,
-            };
-        }
-        Ok(Err(e)) => {
-            app.modal = crate::state::Modal::Alert {
-                message: format!("Failed to fetch news: {e}"),
-            };
-        }
-        Err(_) => {
-            app.modal = crate::state::Modal::Alert {
-                message: "Timed out fetching news".to_string(),
-            };
-        }
-    }
-}
-
 /// What: Handle optional deps option from options menu.
 ///
 /// Inputs:
@@ -206,26 +167,51 @@ fn handle_options_optional_deps(app: &mut AppState) {
 /// Details:
 /// - Toggles visibility of recent pane, install pane, or keybinds footer.
 fn handle_panels_menu_selection(idx: usize, app: &mut AppState) {
-    match idx {
-        0 => {
-            app.show_recent_pane = !app.show_recent_pane;
-            if !app.show_recent_pane && matches!(app.focus, crate::state::Focus::Recent) {
-                app.focus = crate::state::Focus::Search;
+    let news_mode = matches!(app.app_mode, crate::state::types::AppMode::News);
+    if news_mode {
+        match idx {
+            0 => {
+                app.show_news_history_pane = !app.show_news_history_pane;
+                if !app.show_news_history_pane && matches!(app.focus, crate::state::Focus::Recent) {
+                    app.focus = crate::state::Focus::Search;
+                }
             }
-            crate::theme::save_show_recent_pane(app.show_recent_pane);
-        }
-        1 => {
-            app.show_install_pane = !app.show_install_pane;
-            if !app.show_install_pane && matches!(app.focus, crate::state::Focus::Install) {
-                app.focus = crate::state::Focus::Search;
+            1 => {
+                app.show_news_bookmarks_pane = !app.show_news_bookmarks_pane;
+                if !app.show_news_bookmarks_pane
+                    && matches!(app.focus, crate::state::Focus::Install)
+                {
+                    app.focus = crate::state::Focus::Search;
+                }
             }
-            crate::theme::save_show_install_pane(app.show_install_pane);
+            2 => {
+                app.show_keybinds_footer = !app.show_keybinds_footer;
+                crate::theme::save_show_keybinds_footer(app.show_keybinds_footer);
+            }
+            _ => {}
         }
-        2 => {
-            app.show_keybinds_footer = !app.show_keybinds_footer;
-            crate::theme::save_show_keybinds_footer(app.show_keybinds_footer);
+    } else {
+        match idx {
+            0 => {
+                app.show_recent_pane = !app.show_recent_pane;
+                if !app.show_recent_pane && matches!(app.focus, crate::state::Focus::Recent) {
+                    app.focus = crate::state::Focus::Search;
+                }
+                crate::theme::save_show_recent_pane(app.show_recent_pane);
+            }
+            1 => {
+                app.show_install_pane = !app.show_install_pane;
+                if !app.show_install_pane && matches!(app.focus, crate::state::Focus::Install) {
+                    app.focus = crate::state::Focus::Search;
+                }
+                crate::theme::save_show_install_pane(app.show_install_pane);
+            }
+            2 => {
+                app.show_keybinds_footer = !app.show_keybinds_footer;
+                crate::theme::save_show_keybinds_footer(app.show_keybinds_footer);
+            }
+            _ => {}
         }
-        _ => {}
     }
 }
 
@@ -501,24 +487,43 @@ fn handle_toggle_comments(app: &mut AppState, comments_tx: &mpsc::UnboundedSende
 /// - `false` if sort mode was changed
 ///
 /// Details:
-/// - Cycles through sort modes, persists preference, re-sorts results, and refreshes details.
+/// - In News mode: cycles through news sort modes and refreshes news results.
+/// - In Package mode: cycles through package sort modes, persists preference, re-sorts results.
 fn handle_change_sort(app: &mut AppState, details_tx: &mpsc::UnboundedSender<PackageItem>) -> bool {
-    // Cycle through sort modes in fixed order
-    app.sort_mode = match app.sort_mode {
-        crate::state::SortMode::RepoThenName => crate::state::SortMode::AurPopularityThenOfficial,
-        crate::state::SortMode::AurPopularityThenOfficial => crate::state::SortMode::BestMatches,
-        crate::state::SortMode::BestMatches => crate::state::SortMode::RepoThenName,
-    };
-    // Persist preference and apply immediately
-    crate::theme::save_sort_mode(app.sort_mode);
-    crate::logic::sort_results_preserve_selection(app);
-    // Jump selection to top and refresh details
-    if app.results.is_empty() {
-        app.list_state.select(None);
+    if matches!(app.app_mode, crate::state::types::AppMode::News) {
+        // News mode: cycle through news sort modes
+        use crate::state::types::NewsSortMode;
+        app.news_sort_mode = match app.news_sort_mode {
+            NewsSortMode::DateDesc => NewsSortMode::DateAsc,
+            NewsSortMode::DateAsc => NewsSortMode::Title,
+            NewsSortMode::Title => NewsSortMode::SourceThenTitle,
+            NewsSortMode::SourceThenTitle => NewsSortMode::SeverityThenDate,
+            NewsSortMode::SeverityThenDate => NewsSortMode::UnreadThenDate,
+            NewsSortMode::UnreadThenDate => NewsSortMode::DateDesc,
+        };
+        app.refresh_news_results();
     } else {
-        app.selected = 0;
-        app.list_state.select(Some(0));
-        utils::refresh_selected_details(app, details_tx);
+        // Package mode: cycle through package sort modes in fixed order
+        app.sort_mode = match app.sort_mode {
+            crate::state::SortMode::RepoThenName => {
+                crate::state::SortMode::AurPopularityThenOfficial
+            }
+            crate::state::SortMode::AurPopularityThenOfficial => {
+                crate::state::SortMode::BestMatches
+            }
+            crate::state::SortMode::BestMatches => crate::state::SortMode::RepoThenName,
+        };
+        // Persist preference and apply immediately
+        crate::theme::save_sort_mode(app.sort_mode);
+        crate::logic::sort_results_preserve_selection(app);
+        // Jump selection to top and refresh details
+        if app.results.is_empty() {
+            app.list_state.select(None);
+        } else {
+            app.selected = 0;
+            app.list_state.select(Some(0));
+            utils::refresh_selected_details(app, details_tx);
+        }
     }
     // Show the dropdown so the user sees the current option with a check mark
     app.sort_menu_open = true;
@@ -530,7 +535,7 @@ fn handle_change_sort(app: &mut AppState, details_tx: &mpsc::UnboundedSender<Pac
 /// What: Handle numeric menu selection for options menu.
 ///
 /// Inputs:
-/// - `idx`: Selected menu index (0=installed-only, 1=update, 2=news, 3=optional deps)
+/// - `idx`: Selected menu index (0-based, where '1' key maps to idx 0)
 /// - `app`: Mutable application state
 /// - `details_tx`: Channel to request package details
 ///
@@ -538,21 +543,66 @@ fn handle_change_sort(app: &mut AppState, details_tx: &mpsc::UnboundedSender<Pac
 /// - `Some(false)` if selection was handled, `None` otherwise
 ///
 /// Details:
-/// - Routes numeric selection to appropriate options menu handler and closes menu.
+/// - Package mode display order: List installed (1), Update system (2), TUI Optional Deps (3), News management (4)
+/// - News mode display order: Update system (1), TUI Optional Deps (2), Package mode (3)
+/// - Closes the options menu when a selection is handled.
+/// - Note: News age toggle (idx 3 in News mode) is not displayed in menu but handler remains for compatibility.
 fn handle_options_menu_numeric(
     idx: usize,
     app: &mut AppState,
     details_tx: &mpsc::UnboundedSender<PackageItem>,
 ) -> Option<bool> {
-    match idx {
-        0 => handle_options_installed_only_toggle(app, details_tx),
-        1 => handle_options_system_update(app),
-        2 => handle_options_news(app),
-        3 => handle_options_optional_deps(app),
-        _ => return None,
+    let news_mode = matches!(app.app_mode, crate::state::types::AppMode::News);
+    let handled = if news_mode {
+        // News mode display order: Update system (1), TUI Optional Deps (2), Package mode (3)
+        match idx {
+            0 => {
+                handle_options_system_update(app);
+                true
+            }
+            1 => {
+                handle_options_optional_deps(app);
+                true
+            }
+            2 => {
+                handle_mode_toggle(app, details_tx);
+                true
+            }
+            3 => {
+                handle_news_age_toggle(app);
+                true
+            }
+            _ => false,
+        }
+    } else {
+        // Package mode display order: List installed (1), Update system (2), TUI Optional Deps (3), News management (4)
+        match idx {
+            0 => {
+                handle_options_installed_only_toggle(app, details_tx);
+                true
+            }
+            1 => {
+                handle_options_system_update(app);
+                true
+            }
+            2 => {
+                handle_options_optional_deps(app);
+                true
+            }
+            3 => {
+                handle_mode_toggle(app, details_tx);
+                true
+            }
+            _ => false,
+        }
+    };
+
+    if handled {
+        app.options_menu_open = false;
+        Some(false)
+    } else {
+        None
     }
-    app.options_menu_open = false;
-    Some(false)
 }
 
 /// What: Handle numeric menu selection for panels menu.

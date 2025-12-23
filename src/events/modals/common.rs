@@ -83,14 +83,55 @@ fn show_next_pending_announcement(app: &mut AppState) {
     );
 
     // After all announcements are shown, check for pending news
+    tracing::debug!(
+        pending_news_exists = app.pending_news.is_some(),
+        news_loading = app.news_loading,
+        "checking for pending news after announcements"
+    );
     if let Some(news_items) = app.pending_news.take()
         && !news_items.is_empty()
     {
-        app.modal = crate::state::Modal::News {
-            items: news_items,
-            selected: 0,
-        };
-        tracing::info!("showing pending news after announcements");
+        tracing::info!(
+            news_items_count = news_items.len(),
+            news_loading_before = app.news_loading,
+            "showing pending news after announcements"
+        );
+        // Clear loading flag when news modal is actually shown
+        app.news_loading = false;
+        // Convert NewsItem to NewsFeedItem for the modal, filtering out read items
+        let feed_items: Vec<crate::state::types::NewsFeedItem> = news_items
+            .into_iter()
+            .filter(|item| {
+                // Filter out items marked as read by ID or URL
+                !app.news_read_ids.contains(&item.url) && !app.news_read_urls.contains(&item.url)
+            })
+            .map(|item| crate::state::types::NewsFeedItem {
+                id: item.url.clone(),
+                date: item.date,
+                title: item.title,
+                summary: None,
+                url: Some(item.url),
+                source: crate::state::types::NewsFeedSource::ArchNews,
+                severity: None,
+                packages: Vec::new(),
+            })
+            .collect();
+        // Only show modal if there are unread items
+        if feed_items.is_empty() {
+            tracing::debug!("all pending news items have been read, not showing modal");
+        } else {
+            app.modal = crate::state::Modal::News {
+                items: feed_items,
+                selected: 0,
+                scroll: 0,
+            };
+            tracing::info!(
+                news_loading_after = app.news_loading,
+                "pending news modal set, loading flag cleared"
+            );
+        }
+    } else if app.pending_news.is_some() {
+        tracing::debug!("pending news exists but is empty, not showing");
     }
 }
 
@@ -299,37 +340,285 @@ pub(super) fn handle_help(ke: KeyEvent, app: &mut AppState) -> bool {
     }
 }
 
+/// What: Calculate scroll offset to keep the selected item in the middle of the viewport.
+///
+/// Inputs:
+/// - `selected`: Currently selected item index
+/// - `total_items`: Total number of items in the list
+/// - `visible_height`: Height of the visible content area (in lines)
+///
+/// Output:
+/// - Scroll offset (lines) that centers the selected item
+///
+/// Details:
+/// - Calculates scroll so selected item is in the middle of visible area
+/// - Ensures scroll doesn't go negative or past the end
+#[cfg_attr(test, allow(dead_code))]
+fn calculate_news_scroll_for_selection(
+    selected: usize,
+    total_items: usize,
+    visible_height: u16,
+) -> u16 {
+    if total_items == 0 || visible_height == 0 {
+        return 0;
+    }
+
+    // Clamp values to u16::MAX to prevent overflow in calculations.
+    // Note: If selected or total_items exceeds u16::MAX, the scroll calculation will be
+    // performed for the clamped values, which may not match the actual selected item.
+    // This is acceptable since u16::MAX (65535) is far beyond practical UI list sizes.
+    let selected_line = u16::try_from(selected).unwrap_or(u16::MAX);
+    let total_lines = u16::try_from(total_items).unwrap_or(u16::MAX);
+    // Ensure selected doesn't exceed total after clamping to maintain valid calculations
+    let selected_line = selected_line.min(total_lines);
+
+    // Calculate middle position: we want selected item to be at visible_height / 2
+    let middle_offset = visible_height / 2;
+
+    // Calculate desired scroll to center the selection
+    let desired_scroll = selected_line.saturating_sub(middle_offset);
+
+    // Calculate maximum scroll (when last item is at the bottom)
+    let max_scroll = total_lines.saturating_sub(visible_height);
+
+    // Clamp scroll to valid range
+    desired_scroll.min(max_scroll)
+}
+
+#[cfg(test)]
+mod news_tests {
+    use super::*;
+    use crate::state::{AppState, types::NewsFeedItem, types::NewsFeedSource};
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+    #[test]
+    /// What: Test `calculate_news_scroll_for_selection` centers selected item.
+    ///
+    /// Inputs:
+    /// - Selected index, total items, visible height.
+    ///
+    /// Output:
+    /// - Scroll offset that centers selection within viewport bounds.
+    ///
+    /// Details:
+    /// - Verifies scroll calculation clamps to valid range.
+    fn test_calculate_news_scroll_for_selection() {
+        // Test: center item in middle of list
+        let scroll = calculate_news_scroll_for_selection(5, 10, 5);
+        assert!(scroll <= 5, "Scroll should not exceed max");
+
+        // Test: first item (should scroll to 0)
+        let scroll = calculate_news_scroll_for_selection(0, 10, 5);
+        assert_eq!(scroll, 0, "First item should have scroll 0");
+
+        // Test: empty list
+        let scroll = calculate_news_scroll_for_selection(0, 0, 5);
+        assert_eq!(scroll, 0, "Empty list should return 0");
+
+        // Test: zero height
+        let scroll = calculate_news_scroll_for_selection(5, 10, 0);
+        assert_eq!(scroll, 0, "Zero height should return 0");
+    }
+
+    #[test]
+    /// What: Test `handle_news` marks item as read when keymap chord is pressed.
+    ///
+    /// Inputs:
+    /// - News modal with items, keymap chord for mark-read.
+    ///
+    /// Output:
+    /// - Selected item added to `news_read_ids` and `news_read_urls`, dirty flags set.
+    ///
+    /// Details:
+    /// - Verifies read-state mutation and dirty flag handling.
+    fn test_handle_news_mark_read() {
+        let mut app = AppState::default();
+        app.keymap.news_mark_read = [crate::theme::KeyChord {
+            code: KeyCode::Char('r'),
+            mods: KeyModifiers::empty(),
+        }]
+        .into();
+
+        let items = vec![NewsFeedItem {
+            id: "test-id-1".to_string(),
+            date: "2025-01-01".to_string(),
+            title: "Test News".to_string(),
+            summary: None,
+            url: Some("https://example.com/news/1".to_string()),
+            source: NewsFeedSource::ArchNews,
+            severity: None,
+            packages: Vec::new(),
+        }];
+
+        let mut selected = 0;
+        let mut scroll = 0;
+        let mut ke = KeyEvent::new(KeyCode::Char('r'), KeyModifiers::empty());
+        ke.kind = crossterm::event::KeyEventKind::Press;
+
+        let _ = handle_news(ke, &mut app, &items, &mut selected, &mut scroll);
+
+        assert!(app.news_read_ids.contains("test-id-1"));
+        assert!(app.news_read_urls.contains("https://example.com/news/1"));
+        assert!(app.news_read_ids_dirty);
+        assert!(app.news_read_dirty);
+    }
+
+    #[test]
+    /// What: Test `handle_news` marks all items as read when mark-all-read chord is pressed.
+    ///
+    /// Inputs:
+    /// - News modal with multiple items, keymap chord for mark-all-read.
+    ///
+    /// Output:
+    /// - All items added to read sets, dirty flags set.
+    ///
+    /// Details:
+    /// - Verifies bulk read-state mutation.
+    fn test_handle_news_mark_all_read() {
+        let mut app = AppState::default();
+        app.keymap.news_mark_all_read = [crate::theme::KeyChord {
+            code: KeyCode::Char('r'),
+            mods: KeyModifiers::CONTROL,
+        }]
+        .into();
+
+        let items = vec![
+            NewsFeedItem {
+                id: "test-id-1".to_string(),
+                date: "2025-01-01".to_string(),
+                title: "Test News 1".to_string(),
+                summary: None,
+                url: Some("https://example.com/news/1".to_string()),
+                source: NewsFeedSource::ArchNews,
+                severity: None,
+                packages: Vec::new(),
+            },
+            NewsFeedItem {
+                id: "test-id-2".to_string(),
+                date: "2025-01-02".to_string(),
+                title: "Test News 2".to_string(),
+                summary: None,
+                url: Some("https://example.com/news/2".to_string()),
+                source: NewsFeedSource::ArchNews,
+                severity: None,
+                packages: Vec::new(),
+            },
+        ];
+
+        let mut selected = 0;
+        let mut scroll = 0;
+        let mut ke = KeyEvent::new(KeyCode::Char('r'), KeyModifiers::CONTROL);
+        ke.kind = crossterm::event::KeyEventKind::Press;
+
+        let _ = handle_news(ke, &mut app, &items, &mut selected, &mut scroll);
+
+        assert!(app.news_read_ids.contains("test-id-1"));
+        assert!(app.news_read_ids.contains("test-id-2"));
+        assert!(app.news_read_urls.contains("https://example.com/news/1"));
+        assert!(app.news_read_urls.contains("https://example.com/news/2"));
+        assert!(app.news_read_ids_dirty);
+        assert!(app.news_read_dirty);
+    }
+
+    #[test]
+    /// What: Test `handle_news` navigation updates selection and scroll.
+    ///
+    /// Inputs:
+    /// - News modal with items, navigation keys (Up/Down).
+    ///
+    /// Output:
+    /// - Selection index updated, scroll recalculated.
+    ///
+    /// Details:
+    /// - Verifies navigation updates selection and scroll centering.
+    #[allow(clippy::field_reassign_with_default)] // Field assignment in tests is acceptable for test setup
+    fn test_handle_news_navigation() {
+        let mut app = AppState::default();
+        app.news_list_rect = Some((0, 0, 50, 10)); // visible height = 10
+
+        let items = vec![
+            NewsFeedItem {
+                id: "test-id-1".to_string(),
+                date: "2025-01-01".to_string(),
+                title: "Test News 1".to_string(),
+                summary: None,
+                url: None,
+                source: NewsFeedSource::ArchNews,
+                severity: None,
+                packages: Vec::new(),
+            },
+            NewsFeedItem {
+                id: "test-id-2".to_string(),
+                date: "2025-01-02".to_string(),
+                title: "Test News 2".to_string(),
+                summary: None,
+                url: None,
+                source: NewsFeedSource::ArchNews,
+                severity: None,
+                packages: Vec::new(),
+            },
+        ];
+
+        let mut selected = 0;
+        let mut scroll = 0;
+
+        // Test Down key
+        let mut ke = KeyEvent::new(KeyCode::Down, KeyModifiers::empty());
+        ke.kind = crossterm::event::KeyEventKind::Press;
+        let _ = handle_news(ke, &mut app, &items, &mut selected, &mut scroll);
+        assert_eq!(selected, 1, "Down should increment selection");
+
+        // Test Up key
+        let mut ke = KeyEvent::new(KeyCode::Up, KeyModifiers::empty());
+        ke.kind = crossterm::event::KeyEventKind::Press;
+        let _ = handle_news(ke, &mut app, &items, &mut selected, &mut scroll);
+        assert_eq!(selected, 0, "Up should decrement selection");
+    }
+}
+
 /// What: Handle key events for News modal.
 ///
 /// Inputs:
 /// - `ke`: Key event
 /// - `app`: Mutable application state
-/// - `items`: News items
+/// - `items`: News feed items
 /// - `selected`: Currently selected item index
+/// - `scroll`: Mutable scroll offset
 ///
 /// Output:
 /// - `true` if Esc was pressed (to stop propagation), otherwise `false`
 ///
 /// Details:
 /// - Handles Esc/q to close, navigation, Enter to open URL, keymap shortcuts for marking read
+/// - Updates scroll to keep selection centered
 pub(super) fn handle_news(
     ke: KeyEvent,
     app: &mut AppState,
-    items: &[crate::state::NewsItem],
+    items: &[crate::state::types::NewsFeedItem],
     selected: &mut usize,
+    scroll: &mut u16,
 ) -> bool {
     let km = &app.keymap;
     if crate::events::utils::matches_any(&ke, &km.news_mark_read) {
         if let Some(it) = items.get(*selected) {
-            app.news_read_urls.insert(it.url.clone());
-            app.news_read_dirty = true;
+            // Mark as read using id (primary) and url if available
+            app.news_read_ids.insert(it.id.clone());
+            app.news_read_ids_dirty = true;
+            if let Some(url) = &it.url {
+                app.news_read_urls.insert(url.clone());
+                app.news_read_dirty = true;
+            }
         }
         return false;
     }
     if crate::events::utils::matches_any(&ke, &km.news_mark_all_read) {
         for it in items {
-            app.news_read_urls.insert(it.url.clone());
+            app.news_read_ids.insert(it.id.clone());
+            if let Some(url) = &it.url {
+                app.news_read_urls.insert(url.clone());
+            }
         }
+        app.news_read_ids_dirty = true;
         app.news_read_dirty = true;
         return false;
     }
@@ -341,16 +630,72 @@ pub(super) fn handle_news(
         KeyCode::Up | KeyCode::Char('k') => {
             if *selected > 0 {
                 *selected -= 1;
+                // Update scroll to keep selection centered
+                if let Some((_, _, _, visible_h)) = app.news_list_rect {
+                    *scroll =
+                        calculate_news_scroll_for_selection(*selected, items.len(), visible_h);
+                }
             }
         }
         KeyCode::Down | KeyCode::Char('j') => {
             if *selected + 1 < items.len() {
                 *selected += 1;
+                // Update scroll to keep selection centered
+                if let Some((_, _, _, visible_h)) = app.news_list_rect {
+                    *scroll =
+                        calculate_news_scroll_for_selection(*selected, items.len(), visible_h);
+                }
+            }
+        }
+        KeyCode::PageUp => {
+            if *selected >= 10 {
+                *selected -= 10;
+            } else {
+                *selected = 0;
+            }
+            if let Some((_, _, _, visible_h)) = app.news_list_rect {
+                *scroll = calculate_news_scroll_for_selection(*selected, items.len(), visible_h);
+            }
+        }
+        KeyCode::PageDown => {
+            let max_idx = items.len().saturating_sub(1);
+            *selected = (*selected + 10).min(max_idx);
+            if let Some((_, _, _, visible_h)) = app.news_list_rect {
+                *scroll = calculate_news_scroll_for_selection(*selected, items.len(), visible_h);
+            }
+        }
+        KeyCode::Char('d')
+            if ke
+                .modifiers
+                .contains(crossterm::event::KeyModifiers::CONTROL) =>
+        {
+            // Ctrl+D: page down (25 lines)
+            let max_idx = items.len().saturating_sub(1);
+            *selected = (*selected + 25).min(max_idx);
+            if let Some((_, _, _, visible_h)) = app.news_list_rect {
+                *scroll = calculate_news_scroll_for_selection(*selected, items.len(), visible_h);
+            }
+        }
+        KeyCode::Char('u')
+            if ke
+                .modifiers
+                .contains(crossterm::event::KeyModifiers::CONTROL) =>
+        {
+            // Ctrl+U: page up (20 lines)
+            if *selected >= 20 {
+                *selected -= 20;
+            } else {
+                *selected = 0;
+            }
+            if let Some((_, _, _, visible_h)) = app.news_list_rect {
+                *scroll = calculate_news_scroll_for_selection(*selected, items.len(), visible_h);
             }
         }
         KeyCode::Enter => {
-            if let Some(it) = items.get(*selected) {
-                crate::util::open_url(&it.url);
+            if let Some(it) = items.get(*selected)
+                && let Some(url) = &it.url
+            {
+                crate::util::open_url(url);
             }
         }
         _ => {}
@@ -615,7 +960,6 @@ pub(super) fn handle_gnome_terminal_prompt(ke: KeyEvent, app: &mut AppState) -> 
 mod tests {
     use super::*;
     use crate::announcements::RemoteAnnouncement;
-    use crate::state::types::NewsItem;
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
     /// What: Create a test `KeyEvent` for testing.
@@ -837,7 +1181,7 @@ mod tests {
         let mut app = crate::state::AppState::default();
         app.modal = crate::state::Modal::None;
 
-        let news_items = vec![NewsItem {
+        let news_items = vec![crate::state::NewsItem {
             date: "2025-01-01".to_string(),
             title: "Test News".to_string(),
             url: "https://example.com/news".to_string(),

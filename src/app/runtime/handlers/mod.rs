@@ -1,9 +1,15 @@
+/// Common utilities for channel handlers.
 mod common;
 
+/// Handler for file analysis results.
 pub mod files;
+/// Handler for install list and dependency results.
 pub mod install;
+/// Handler for sandbox analysis results.
 pub mod sandbox;
+/// Handler for search results and details updates.
 pub mod search;
+/// Handler for service impact analysis results.
 pub mod services;
 
 pub use files::handle_file_result;

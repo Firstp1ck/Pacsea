@@ -2,39 +2,25 @@
 
 use lru::LruCache;
 use ratatui::widgets::ListState;
-use std::{
-    collections::HashMap, collections::HashSet, num::NonZeroUsize, path::PathBuf, time::Instant,
-};
+use std::{collections::HashMap, collections::HashSet, path::PathBuf, time::Instant};
 
 use crate::state::modal::{CascadeMode, Modal, PreflightAction, ServiceImpact};
 use crate::state::types::{
-    ArchStatusColor, Focus, InstalledPackagesMode, PackageDetails, PackageItem, RightPaneFocus,
-    SortMode,
+    AppMode, ArchStatusColor, Focus, InstalledPackagesMode, NewsFeedItem, NewsReadFilter,
+    NewsSortMode, PackageDetails, PackageItem, RightPaneFocus, SortMode,
 };
 use crate::theme::KeyMap;
 
+mod constants;
 mod default_impl;
 mod defaults;
 mod defaults_cache;
+mod methods;
 
-/// Maximum number of recent searches to retain (most-recent-first).
-pub const RECENT_CAPACITY: usize = 20;
+#[cfg(test)]
+mod tests;
 
-/// What: Provide the non-zero capacity used by the LRU recent cache.
-///
-/// Inputs: None.
-///
-/// Output:
-/// - Non-zero capacity for the recent LRU cache.
-///
-/// Details:
-/// - Uses a const unchecked constructor because the capacity constant is guaranteed
-///   to be greater than zero.
-#[must_use]
-pub const fn recent_capacity() -> NonZeroUsize {
-    // SAFETY: `RECENT_CAPACITY` is a non-zero constant.
-    unsafe { NonZeroUsize::new_unchecked(RECENT_CAPACITY) }
-}
+pub use constants::{FileSyncResult, RECENT_CAPACITY, recent_capacity};
 
 /// Global application state shared by the event, networking, and UI layers.
 ///
@@ -44,6 +30,8 @@ pub const fn recent_capacity() -> NonZeroUsize {
 #[derive(Debug)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct AppState {
+    /// Current top-level mode (package management vs news feed).
+    pub app_mode: AppMode,
     /// Current search input text.
     pub input: String,
     /// Current search results, most relevant first.
@@ -108,6 +96,115 @@ pub struct AppState {
     pub news_read_path: PathBuf,
     /// Dirty flag indicating `news_read_urls` needs to be saved.
     pub news_read_dirty: bool,
+    /// Set of news feed item IDs the user has marked as read.
+    pub news_read_ids: std::collections::HashSet<String>,
+    /// Path where the read news IDs are persisted as JSON.
+    pub news_read_ids_path: PathBuf,
+    /// Dirty flag indicating `news_read_ids` needs to be saved.
+    pub news_read_ids_dirty: bool,
+    /// News feed items currently loaded.
+    pub news_items: Vec<NewsFeedItem>,
+    /// Filtered/sorted news results shown in the UI.
+    pub news_results: Vec<NewsFeedItem>,
+    /// Whether the news feed is currently loading.
+    pub news_loading: bool,
+    /// Whether news are ready to be viewed (loading complete and news available).
+    pub news_ready: bool,
+    /// Selected index within news results.
+    pub news_selected: usize,
+    /// List state for news results pane.
+    pub news_list_state: ListState,
+    /// News search input text.
+    pub news_search_input: String,
+    /// Caret position within news search input.
+    pub news_search_caret: usize,
+    /// Selection anchor within news search input.
+    pub news_search_select_anchor: Option<usize>,
+    /// LRU cache of recent news searches (case-insensitive key).
+    pub news_recent: LruCache<String, String>,
+    /// Path where news recent searches are persisted.
+    pub news_recent_path: PathBuf,
+    /// Dirty flag indicating `news_recent` needs to be saved.
+    pub news_recent_dirty: bool,
+    /// Pending news search awaiting debounce before saving to history.
+    pub news_history_pending: Option<String>,
+    /// Timestamp when the pending news search was last updated.
+    pub news_history_pending_at: Option<std::time::Instant>,
+    /// Last news search saved to history (prevents duplicate saves).
+    pub news_history_last_saved: Option<String>,
+    /// Whether to show Arch news items.
+    pub news_filter_show_arch_news: bool,
+    /// Whether to show security advisories.
+    pub news_filter_show_advisories: bool,
+    /// Whether to show installed package update items.
+    pub news_filter_show_pkg_updates: bool,
+    /// Whether to show AUR package update items.
+    pub news_filter_show_aur_updates: bool,
+    /// Whether to show AUR comment items.
+    pub news_filter_show_aur_comments: bool,
+    /// Whether to restrict advisories to installed packages.
+    pub news_filter_installed_only: bool,
+    /// Read/unread filter for the News Feed list.
+    pub news_filter_read_status: NewsReadFilter,
+    /// Clickable rectangle for Arch news filter chip in news title.
+    pub news_filter_arch_rect: Option<(u16, u16, u16, u16)>,
+    /// Clickable rectangle for security advisory filter chip in news title.
+    pub news_filter_advisory_rect: Option<(u16, u16, u16, u16)>,
+    /// Clickable rectangle for installed-only advisory filter chip in news title.
+    pub news_filter_installed_rect: Option<(u16, u16, u16, u16)>,
+    /// Clickable rectangle for installed update filter chip in news title.
+    pub news_filter_updates_rect: Option<(u16, u16, u16, u16)>,
+    /// Clickable rectangle for AUR update filter chip in news title.
+    pub news_filter_aur_updates_rect: Option<(u16, u16, u16, u16)>,
+    /// Clickable rectangle for AUR comment filter chip in news title.
+    pub news_filter_aur_comments_rect: Option<(u16, u16, u16, u16)>,
+    /// Clickable rectangle for read/unread filter chip in news title.
+    pub news_filter_read_rect: Option<(u16, u16, u16, u16)>,
+    /// Maximum age of news items in days (None = unlimited).
+    pub news_max_age_days: Option<u32>,
+    /// Whether to show the news history pane in News mode.
+    pub show_news_history_pane: bool,
+    /// Whether to show the news bookmarks pane in News mode.
+    pub show_news_bookmarks_pane: bool,
+    /// Sort mode for news results.
+    pub news_sort_mode: NewsSortMode,
+    /// Saved news/bookmarked items with cached content.
+    pub news_bookmarks: Vec<crate::state::types::NewsBookmark>,
+    /// Path where news bookmarks are persisted.
+    pub news_bookmarks_path: PathBuf,
+    /// Dirty flag indicating `news_bookmarks` needs to be saved.
+    pub news_bookmarks_dirty: bool,
+    /// Cache of fetched news article content (URL -> content).
+    pub news_content_cache: std::collections::HashMap<String, String>,
+    /// Path where the news content cache is persisted.
+    pub news_content_cache_path: PathBuf,
+    /// Dirty flag indicating `news_content_cache` needs to be saved.
+    pub news_content_cache_dirty: bool,
+    /// Currently displayed news content (for the selected item).
+    pub news_content: Option<String>,
+    /// Whether news content is currently being fetched.
+    pub news_content_loading: bool,
+    /// When the current news content load started (for timeout/logging).
+    pub news_content_loading_since: Option<std::time::Instant>,
+    /// Debounce timer for news content requests - tracks when user selected current item.
+    /// Only requests content after 0.5 seconds of staying on the same item.
+    pub news_content_debounce_timer: Option<std::time::Instant>,
+    /// Scroll offset for news content details.
+    pub news_content_scroll: u16,
+    /// Path where the cached news feed is persisted.
+    pub news_feed_path: PathBuf,
+    /// Last-seen versions for installed packages (dedup for update feed items).
+    pub news_seen_pkg_versions: HashMap<String, String>,
+    /// Path where last-seen package versions are persisted.
+    pub news_seen_pkg_versions_path: PathBuf,
+    /// Dirty flag indicating `news_seen_pkg_versions` needs to be saved.
+    pub news_seen_pkg_versions_dirty: bool,
+    /// Last-seen AUR comment identifiers per installed package.
+    pub news_seen_aur_comments: HashMap<String, String>,
+    /// Path where last-seen AUR comments are persisted.
+    pub news_seen_aur_comments_path: PathBuf,
+    /// Dirty flag indicating `news_seen_aur_comments` needs to be saved.
+    pub news_seen_aur_comments_dirty: bool,
 
     // Announcement read tracking (persisted)
     /// Set of announcement IDs the user has marked as read.
@@ -117,6 +214,13 @@ pub struct AppState {
     pub announcement_read_path: PathBuf,
     /// Dirty flag indicating `announcements_read_ids` needs to be saved.
     pub announcement_dirty: bool,
+
+    // Last startup tracking (for incremental updates)
+    /// Timestamp of the previous TUI startup (format: `YYYYMMDD:HHMMSS`).
+    /// Used to determine what news/updates need fresh fetching vs cached data.
+    pub last_startup_timestamp: Option<String>,
+    /// Path where the last startup timestamp is persisted.
+    pub last_startup_path: PathBuf,
 
     // Install list pane
     /// Packages selected for installation.
@@ -220,6 +324,8 @@ pub struct AppState {
     pub updates_list: Vec<String>,
     /// Clickable rectangle for the updates button (x, y, w, h).
     pub updates_button_rect: Option<(u16, u16, u16, u16)>,
+    /// Clickable rectangle for the news button in News mode (x, y, w, h).
+    pub news_button_rect: Option<(u16, u16, u16, u16)>,
     /// Whether updates check is currently in progress.
     pub updates_loading: bool,
     /// Flag to trigger refresh of updates list after package installation/update.
@@ -293,8 +399,11 @@ pub struct AppState {
     pub toast_expires_at: Option<Instant>,
 
     // User settings loaded at startup
+    /// Left pane width percentage.
     pub layout_left_pct: u16,
+    /// Center pane width percentage.
     pub layout_center_pct: u16,
+    /// Right pane width percentage.
     pub layout_right_pct: u16,
     /// Resolved key bindings from user settings
     pub keymap: KeyMap,
@@ -342,6 +451,8 @@ pub struct AppState {
     pub pending_announcements: Vec<crate::announcements::RemoteAnnouncement>,
     /// Pending news to show after all announcements are dismissed.
     pub pending_news: Option<Vec<crate::state::NewsItem>>,
+    /// Flag to trigger startup news fetch after `NewsSetup` is completed.
+    pub trigger_startup_news_fetch: bool,
 
     // Updates modal mouse hit-testing
     /// Outer rectangle of the Updates modal (including borders) when visible.
@@ -370,6 +481,8 @@ pub struct AppState {
     pub sort_menu_open: bool,
     /// Clickable rectangle for the sort button in the Results title (x, y, w, h).
     pub sort_button_rect: Option<(u16, u16, u16, u16)>,
+    /// Clickable rectangle for the news age toggle button (x, y, w, h).
+    pub news_age_button_rect: Option<(u16, u16, u16, u16)>,
     /// Inner content rectangle of the sort dropdown menu when visible (x, y, w, h).
     pub sort_menu_rect: Option<(u16, u16, u16, u16)>,
     /// Deadline after which the sort dropdown auto-closes.
@@ -598,130 +711,4 @@ pub struct AppState {
     pub pending_executor_password: Option<String>,
     /// File database sync result from background thread (checked in tick handler).
     pub pending_file_sync_result: Option<FileSyncResult>,
-}
-
-/// File database sync result type.
-pub type FileSyncResult = std::sync::Arc<std::sync::Mutex<Option<Result<bool, String>>>>;
-
-impl AppState {
-    /// What: Return recent searches in most-recent-first order.
-    ///
-    /// Inputs:
-    /// - `self`: Application state containing the recent LRU cache.
-    ///
-    /// Output:
-    /// - Vector of recent search strings ordered from most to least recent.
-    ///
-    /// Details:
-    /// - Clones stored values; limited to `RECENT_CAPACITY`.
-    #[must_use]
-    pub fn recent_values(&self) -> Vec<String> {
-        self.recent.iter().map(|(_, v)| v.clone()).collect()
-    }
-
-    /// What: Fetch a recent search by positional index.
-    ///
-    /// Inputs:
-    /// - `index`: Zero-based position in most-recent-first ordering.
-    ///
-    /// Output:
-    /// - `Some(String)` when the index is valid; `None` otherwise.
-    ///
-    /// Details:
-    /// - Uses the LRU iterator, so `index == 0` is the most recent entry.
-    #[must_use]
-    pub fn recent_value_at(&self, index: usize) -> Option<String> {
-        self.recent.iter().nth(index).map(|(_, v)| v.clone())
-    }
-
-    /// What: Remove a recent search at the provided position.
-    ///
-    /// Inputs:
-    /// - `index`: Zero-based position in most-recent-first ordering.
-    ///
-    /// Output:
-    /// - `Some(String)` containing the removed value when found; `None` otherwise.
-    ///
-    /// Details:
-    /// - Resolves the cache key via iteration, then pops it to maintain LRU invariants.
-    pub fn remove_recent_at(&mut self, index: usize) -> Option<String> {
-        let key = self.recent.iter().nth(index).map(|(k, _)| k.clone())?;
-        self.recent.pop(&key)
-    }
-
-    /// What: Replace the recent cache with the provided most-recent-first entries.
-    ///
-    /// Inputs:
-    /// - `items`: Slice of recent search strings ordered from most to least recent.
-    ///
-    /// Output:
-    /// - None (mutates `self.recent`).
-    ///
-    /// Details:
-    /// - Clears existing entries, enforces configured capacity, and preserves ordering by
-    ///   inserting from least-recent to most-recent.
-    pub fn load_recent_items(&mut self, items: &[String]) {
-        self.recent.clear();
-        self.recent.resize(recent_capacity());
-        for value in items.iter().rev() {
-            let stored = value.clone();
-            let key = stored.to_ascii_lowercase();
-            self.recent.put(key, stored);
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::AppState;
-
-    #[test]
-    /// What: Verify `AppState::default` initialises UI flags and filesystem paths under the configured lists directory.
-    ///
-    /// Inputs:
-    /// - No direct inputs; shims the `HOME` environment variable to a temporary directory before constructing `AppState`.
-    ///
-    /// Output:
-    /// - Ensures selection indices reset to zero, result buffers start empty, and cached path values live under `lists_dir`.
-    ///
-    /// Details:
-    /// - Uses a mutex guard to serialise environment mutations and restores `HOME` at the end to avoid cross-test interference.
-    fn app_state_default_initializes_paths_and_flags() {
-        let _guard = crate::state::test_mutex()
-            .lock()
-            .expect("Test mutex poisoned");
-        // Shim HOME so lists_dir() resolves under a temp dir
-        let orig_home = std::env::var_os("HOME");
-        let dir = std::env::temp_dir().join(format!(
-            "pacsea_test_state_default_{}_{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .expect("System time is before UNIX epoch")
-                .as_nanos()
-        ));
-        let _ = std::fs::create_dir_all(&dir);
-        unsafe { std::env::set_var("HOME", dir.display().to_string()) };
-
-        let app = AppState::default();
-        assert_eq!(app.selected, 0);
-        assert!(app.results.is_empty());
-        assert!(app.all_results.is_empty());
-        assert!(!app.loading_index);
-        assert!(!app.dry_run);
-        // Paths should point under lists_dir
-        let lists = crate::theme::lists_dir();
-        assert!(app.recent_path.starts_with(&lists));
-        assert!(app.cache_path.starts_with(&lists));
-        assert!(app.install_path.starts_with(&lists));
-        assert!(app.official_index_path.starts_with(&lists));
-
-        unsafe {
-            if let Some(v) = orig_home {
-                std::env::set_var("HOME", v);
-            } else {
-                std::env::remove_var("HOME");
-            }
-        }
-    }
 }

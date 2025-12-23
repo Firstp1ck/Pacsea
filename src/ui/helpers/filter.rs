@@ -3,6 +3,7 @@
 //! This module provides functions for filtering indices in the Recent and Install panes
 //! based on pane-find queries.
 
+use crate::state::types::AppMode;
 use crate::state::{AppState, Focus};
 
 /// What: Produce visible indices into `app.recent` considering pane-find when applicable.
@@ -23,7 +24,11 @@ use crate::state::{AppState, Focus};
 pub fn filtered_recent_indices(app: &AppState) -> Vec<usize> {
     let apply =
         matches!(app.focus, Focus::Recent) && app.pane_find.as_ref().is_some_and(|s| !s.is_empty());
-    let recents = app.recent_values();
+    let recents = if matches!(app.app_mode, AppMode::News) {
+        app.news_recent_values()
+    } else {
+        app.recent_values()
+    };
     if !apply {
         return (0..recents.len()).collect();
     }

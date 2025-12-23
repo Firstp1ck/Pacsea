@@ -2,9 +2,11 @@ use ratatui::Terminal;
 use tokio::select;
 
 use crate::i18n;
+use crate::state::types::NewsFeedPayload;
 use crate::state::{AppState, PackageItem};
 use crate::ui::ui;
 use crate::util::parse_update_entry;
+use tracing::info;
 
 use super::background::Channels;
 use super::handlers::{
@@ -219,6 +221,153 @@ fn handle_updates_list(app: &mut AppState, count: usize, list: Vec<String>) {
     }
 }
 
+/// What: Apply filters and sorting to news feed items.
+///
+/// Inputs:
+/// - `app`: Application state containing news feed data and filter flags.
+/// - `payload`: News feed payload containing items and metadata.
+///
+/// Details:
+/// - Does not clear `news_loading` flag here - it will be cleared when news modal is shown.
+fn handle_news_feed_items(app: &mut AppState, payload: NewsFeedPayload) {
+    tracing::info!(
+        items_count = payload.items.len(),
+        "received aggregated news feed payload in event loop"
+    );
+    app.news_items = payload.items;
+    app.news_seen_pkg_versions = payload.seen_pkg_versions;
+    app.news_seen_pkg_versions_dirty = true;
+    app.news_seen_aur_comments = payload.seen_aur_comments;
+    app.news_seen_aur_comments_dirty = true;
+    match serde_json::to_string_pretty(&app.news_items) {
+        Ok(serialized) => {
+            if let Err(e) = std::fs::write(&app.news_feed_path, serialized) {
+                tracing::warn!(error = %e, path = ?app.news_feed_path, "failed to persist news feed cache");
+            }
+        }
+        Err(e) => tracing::warn!(error = %e, "failed to serialize news feed cache"),
+    }
+    app.refresh_news_results();
+
+    // News feed is now loaded - clear loading flag and toast
+    app.news_loading = false;
+    app.toast_message = None;
+    app.toast_expires_at = None;
+
+    info!(
+        fetched = app.news_items.len(),
+        visible = app.news_results.len(),
+        max_age_days = app.news_max_age_days.map(i64::from),
+        installed_only = app.news_filter_installed_only,
+        arch_on = app.news_filter_show_arch_news,
+        advisories_on = app.news_filter_show_advisories,
+        "news feed updated"
+    );
+    // Check for network errors and show a small toast
+    if crate::sources::take_network_error() {
+        app.toast_message = Some("Network error: some news sources unreachable".to_string());
+        app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
+    }
+}
+
+/// What: Handle a single incremental news item from background continuation.
+///
+/// Inputs:
+/// - `app`: Application state
+/// - `item`: The news feed item to add
+///
+/// Details:
+/// - Appends the item to `news_items` if not already present (by id).
+/// - Refreshes filtered/sorted results.
+/// - Persists the updated feed cache to disk.
+fn handle_incremental_news_item(app: &mut AppState, item: crate::state::types::NewsFeedItem) {
+    // Check if item already exists (by id)
+    if app.news_items.iter().any(|existing| existing.id == item.id) {
+        tracing::debug!(
+            item_id = %item.id,
+            "incremental news item already exists, skipping"
+        );
+        return;
+    }
+
+    tracing::info!(
+        item_id = %item.id,
+        source = ?item.source,
+        title = %item.title,
+        "received incremental news item"
+    );
+
+    // Add the new item
+    app.news_items.push(item);
+
+    // Refresh filtered/sorted results
+    app.refresh_news_results();
+
+    // Persist to disk
+    if let Ok(serialized) = serde_json::to_string_pretty(&app.news_items)
+        && let Err(e) = std::fs::write(&app.news_feed_path, serialized)
+    {
+        tracing::warn!(error = %e, path = ?app.news_feed_path, "failed to persist incremental news feed cache");
+    }
+}
+
+/// What: Handle news article content response.
+///
+/// Inputs:
+/// - `app`: Application state
+/// - `url`: The URL that was fetched
+/// - `content`: The article content
+fn handle_news_content(app: &mut AppState, url: &str, content: String) {
+    // Only cache successful content, not error messages
+    // Error messages start with "Failed to load content:" and should not be persisted
+    let is_error = content.starts_with("Failed to load content:");
+    if is_error {
+        tracing::debug!(
+            url,
+            "news_content: not caching error response to allow retry"
+        );
+    } else {
+        app.news_content_cache
+            .insert(url.to_string(), content.clone());
+        app.news_content_cache_dirty = true;
+    }
+
+    // Update displayed content if this is for the currently selected item
+    if let Some(selected_url) = app
+        .news_results
+        .get(app.news_selected)
+        .and_then(|selected| selected.url.as_deref())
+        && selected_url == url
+    {
+        tracing::debug!(
+            url,
+            len = content.len(),
+            selected = app.news_selected,
+            "news_content: response matches selection"
+        );
+        app.news_content_loading = false;
+        app.news_content = if content.is_empty() {
+            None
+        } else {
+            Some(content)
+        };
+    } else {
+        // Clear loading flag even if selection changed; a new request will be issued on next tick.
+        tracing::debug!(
+            url,
+            len = content.len(),
+            selected = app.news_selected,
+            selected_url = ?app
+                .news_results
+                .get(app.news_selected)
+                .and_then(|selected| selected.url.as_deref()),
+            "news_content: response does not match current selection"
+        );
+        app.news_content_loading = false;
+    }
+    app.news_content_loading_since = None;
+}
+
 /// What: Process one iteration of channel message handling.
 ///
 /// Inputs:
@@ -231,6 +380,7 @@ fn handle_updates_list(app: &mut AppState, count: usize, list: Vec<String>) {
 /// - Waits for and processes a single message from any channel
 /// - Returns `true` when an event handler indicates exit (e.g., quit command)
 /// - Uses select! to wait on multiple channels concurrently
+#[allow(clippy::cognitive_complexity)]
 async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -> bool {
     select! {
         Some(ev) = channels.event_rx.recv() => {
@@ -297,6 +447,18 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
             handle_comments_result(app, pkgname, result, &channels.tick_tx);
             false
         }
+        Some(feed) = channels.news_feed_rx.recv() => {
+            handle_news_feed_items(app, feed);
+            false
+        }
+        Some(item) = channels.news_incremental_rx.recv() => {
+            handle_incremental_news_item(app, item);
+            false
+        }
+        Some((url, content)) = channels.news_content_res_rx.recv() => {
+            handle_news_content(app, &url, content);
+            false
+        }
         Some(msg) = channels.net_err_rx.recv() => {
             tracing::warn!(error = %msg, "Network error received");
             #[cfg(not(windows))]
@@ -323,11 +485,22 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
                 &channels.updates_tx,
                 &channels.executor_req_tx,
                 &channels.post_summary_req_tx,
+                &channels.news_content_req_tx,
             );
             false
         }
-        Some(todays) = channels.news_rx.recv() => {
-            handle_news(app, &todays);
+        Some(items) = channels.news_rx.recv() => {
+            tracing::info!(
+                items_count = items.len(),
+                news_loading_before = app.news_loading,
+                "received news items from channel"
+            );
+            handle_news(app, &items);
+            tracing::info!(
+                news_loading_after = app.news_loading,
+                modal = ?app.modal,
+                "handle_news completed"
+            );
             false
         }
         Some(announcement) = channels.announcement_rx.recv() => {
@@ -502,7 +675,7 @@ fn handle_downgrade_success(app: &mut AppState, items: &[crate::state::PackageIt
 /// - Processes `Line`, `ReplaceLastLine`, `Finished`, and `Error` outputs
 /// - Handles success/failure cases for Install, Remove, and Downgrade actions
 /// - Shows confirmation popup for AUR update when pacman fails
-#[allow(clippy::too_many_lines)] // Function handles multiple executor output types and modal transitions
+#[allow(clippy::too_many_lines)] // Function handles multiple executor output types and modal transitions (function has 187 lines)
 fn handle_executor_output(app: &mut AppState, output: crate::install::ExecutorOutput) {
     // Log what we received (at trace level to avoid spam)
     match &output {
@@ -691,6 +864,236 @@ fn handle_executor_output(app: &mut AppState, output: crate::install::ExecutorOu
     }
 }
 
+/// What: Trigger startup news fetch using current startup news settings.
+///
+/// Inputs:
+/// - `channels`: Communication channels for background workers
+/// - `app`: Application state for read sets
+///
+/// Output: None
+///
+/// Details:
+/// - Fetches news feed using startup news settings and sends to `news_tx` channel
+/// - Called when `trigger_startup_news_fetch` flag is set after `NewsSetup` completion
+/// - Sets `news_loading` flag to show loading modal
+fn trigger_startup_news_fetch(channels: &Channels, app: &mut AppState) {
+    use crate::sources;
+    use crate::state::types::NewsSortMode;
+    use std::collections::HashSet;
+
+    let prefs = crate::theme::settings();
+    if !prefs.startup_news_configured {
+        return;
+    }
+
+    // Set loading flag to show loading modal
+    app.news_loading = true;
+    tracing::info!("news_loading set to true, triggering startup news fetch");
+
+    let news_tx = channels.news_tx.clone();
+    let read_urls = app.news_read_urls.clone();
+    let read_ids = app.news_read_ids.clone();
+    let installed: HashSet<String> = crate::index::explicit_names().into_iter().collect();
+    // Create mutable copies for the fetch (won't be persisted, but needed for API)
+    let mut seen_versions = app.news_seen_pkg_versions.clone();
+    let mut seen_aur_comments = app.news_seen_aur_comments.clone();
+
+    tokio::spawn(async move {
+        tracing::info!("on-demand startup news fetch task started");
+        let mut installed_set = installed;
+        if installed_set.is_empty() {
+            crate::index::refresh_installed_cache().await;
+            crate::index::refresh_explicit_cache(crate::state::InstalledPackagesMode::AllExplicit)
+                .await;
+            let refreshed: HashSet<String> = crate::index::explicit_names().into_iter().collect();
+            if !refreshed.is_empty() {
+                installed_set = refreshed;
+            }
+        }
+        let include_pkg_updates =
+            prefs.startup_news_show_pkg_updates || prefs.startup_news_show_aur_updates;
+        // Use lower limit for startup popup (20) vs main feed (50)
+        // If both official and AUR updates are requested, double the limit so both types can be included
+        #[allow(clippy::items_after_statements)]
+        const STARTUP_NEWS_LIMIT: usize = 20;
+        let updates_limit =
+            if prefs.startup_news_show_pkg_updates && prefs.startup_news_show_aur_updates {
+                STARTUP_NEWS_LIMIT * 2
+            } else {
+                STARTUP_NEWS_LIMIT
+            };
+        let ctx = sources::NewsFeedContext {
+            force_emit_all: true,
+            updates_list_path: Some(crate::theme::lists_dir().join("available_updates.txt")),
+            limit: updates_limit,
+            include_arch_news: prefs.startup_news_show_arch_news,
+            include_advisories: prefs.startup_news_show_advisories,
+            include_pkg_updates,
+            include_aur_comments: prefs.startup_news_show_aur_comments,
+            installed_filter: Some(&installed_set),
+            installed_only: false,
+            sort_mode: NewsSortMode::DateDesc,
+            seen_pkg_versions: &mut seen_versions,
+            seen_aur_comments: &mut seen_aur_comments,
+            max_age_days: prefs.startup_news_max_age_days,
+        };
+        tracing::info!(
+            limit = updates_limit,
+            include_arch_news = prefs.startup_news_show_arch_news,
+            include_advisories = prefs.startup_news_show_advisories,
+            include_pkg_updates,
+            include_aur_comments = prefs.startup_news_show_aur_comments,
+            max_age_days = ?prefs.startup_news_max_age_days,
+            installed_count = installed_set.len(),
+            "starting on-demand startup news fetch"
+        );
+        match sources::fetch_news_feed(ctx).await {
+            Ok(feed) => {
+                tracing::info!(
+                    total_items = feed.len(),
+                    "on-demand startup news fetch completed successfully"
+                );
+                // Filter by source type for package updates (AUR vs official are mixed in fetch_installed_updates)
+                let source_filtered: Vec<crate::state::types::NewsFeedItem> = feed
+                    .into_iter()
+                    .filter(|item| match item.source {
+                        crate::state::types::NewsFeedSource::ArchNews => {
+                            prefs.startup_news_show_arch_news
+                        }
+                        crate::state::types::NewsFeedSource::SecurityAdvisory => {
+                            prefs.startup_news_show_advisories
+                        }
+                        crate::state::types::NewsFeedSource::InstalledPackageUpdate => {
+                            prefs.startup_news_show_pkg_updates
+                        }
+                        crate::state::types::NewsFeedSource::AurPackageUpdate => {
+                            prefs.startup_news_show_aur_updates
+                        }
+                        crate::state::types::NewsFeedSource::AurComment => {
+                            prefs.startup_news_show_aur_comments
+                        }
+                    })
+                    .collect();
+                // Filter by max age days
+                let filtered: Vec<crate::state::types::NewsFeedItem> =
+                    if let Some(max_days) = prefs.startup_news_max_age_days {
+                        let cutoff_date = chrono::Utc::now()
+                            .checked_sub_signed(chrono::Duration::days(i64::from(max_days)))
+                            .map(|dt| dt.format("%Y-%m-%d").to_string());
+                        #[allow(clippy::unnecessary_map_or)]
+                        let filtered_items = source_filtered
+                            .into_iter()
+                            .filter(|item| {
+                                cutoff_date
+                                    .as_ref()
+                                    .map_or(true, |cutoff| &item.date >= cutoff)
+                            })
+                            .collect();
+                        filtered_items
+                    } else {
+                        source_filtered
+                    };
+                // Filter out already-read items
+                #[allow(clippy::unnecessary_map_or)]
+                let unread: Vec<crate::state::types::NewsFeedItem> = filtered
+                    .into_iter()
+                    .filter(|item| {
+                        !read_ids.contains(&item.id)
+                            && item.url.as_ref().is_none_or(|url| !read_urls.contains(url))
+                    })
+                    .collect();
+                tracing::info!(
+                    unread_count = unread.len(),
+                    "sending on-demand startup news items to channel"
+                );
+                match news_tx.send(unread) {
+                    Ok(()) => {
+                        tracing::info!("on-demand startup news items sent to channel successfully");
+                    }
+                    Err(e) => {
+                        tracing::error!(
+                            error = %e,
+                            "failed to send on-demand startup news items to channel (receiver dropped?)"
+                        );
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "on-demand startup news fetch failed");
+                tracing::info!("sending empty array to clear loading flag after fetch error");
+                let _ = news_tx.send(Vec::new());
+            }
+        }
+    });
+}
+
+#[cfg(test)]
+mod startup_news_tests {
+    use crate::state::types::{NewsFeedItem, NewsFeedSource};
+    use std::collections::HashSet;
+
+    #[test]
+    /// What: Test filtering logic for already-read news items.
+    ///
+    /// Inputs:
+    /// - News items with some marked as read (by ID and URL).
+    ///
+    /// Output:
+    /// - Only unread items returned.
+    ///
+    /// Details:
+    /// - Verifies read filtering excludes items by both ID and URL.
+    fn test_filter_already_read_items() {
+        let read_ids: HashSet<String> = HashSet::from(["id-1".to_string()]);
+
+        let read_urls: HashSet<String> = HashSet::from(["https://example.com/news/2".to_string()]);
+
+        let items = vec![
+            NewsFeedItem {
+                id: "id-1".to_string(),
+                date: "2025-01-01".to_string(),
+                title: "Item 1".to_string(),
+                summary: None,
+                url: Some("https://example.com/news/1".to_string()),
+                source: NewsFeedSource::ArchNews,
+                severity: None,
+                packages: Vec::new(),
+            },
+            NewsFeedItem {
+                id: "id-2".to_string(),
+                date: "2025-01-02".to_string(),
+                title: "Item 2".to_string(),
+                summary: None,
+                url: Some("https://example.com/news/2".to_string()),
+                source: NewsFeedSource::ArchNews,
+                severity: None,
+                packages: Vec::new(),
+            },
+            NewsFeedItem {
+                id: "id-3".to_string(),
+                date: "2025-01-03".to_string(),
+                title: "Item 3".to_string(),
+                summary: None,
+                url: Some("https://example.com/news/3".to_string()),
+                source: NewsFeedSource::ArchNews,
+                severity: None,
+                packages: Vec::new(),
+            },
+        ];
+
+        let unread: Vec<NewsFeedItem> = items
+            .into_iter()
+            .filter(|item| {
+                !read_ids.contains(&item.id)
+                    && item.url.as_ref().is_none_or(|url| !read_urls.contains(url))
+            })
+            .collect();
+
+        assert_eq!(unread.len(), 1);
+        assert_eq!(unread[0].id, "id-3");
+    }
+}
+
 /// What: Run the main event loop, processing all channel messages and rendering the UI.
 ///
 /// Inputs:
@@ -704,12 +1107,19 @@ fn handle_executor_output(app: &mut AppState, output: crate::install::ExecutorOu
 /// - Renders UI frames and handles all channel messages (events, search results, details,
 ///   preflight data, PKGBUILD, news, status, etc.)
 /// - Exits when event handler returns true (e.g., quit command)
+/// - Checks for `trigger_startup_news_fetch` flag and triggers fetch if set
 pub async fn run_event_loop(
     terminal: &mut Option<Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>>,
     app: &mut AppState,
     channels: &mut Channels,
 ) {
     loop {
+        // Check if we need to trigger startup news fetch
+        if app.trigger_startup_news_fetch {
+            app.trigger_startup_news_fetch = false;
+            trigger_startup_news_fetch(channels, &mut *app);
+        }
+
         if let Some(t) = terminal.as_mut() {
             let _ = t.draw(|f| ui(f, app));
         }
@@ -717,5 +1127,92 @@ pub async fn run_event_loop(
         if process_channel_messages(app, channels).await {
             break;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::handle_news_content;
+    use crate::state::AppState;
+    use crate::state::types::{NewsFeedItem, NewsFeedSource};
+
+    /// What: Build a minimal `NewsFeedItem` for news content tests.
+    ///
+    /// Inputs:
+    /// - `id`: Stable identifier for the item.
+    /// - `url`: URL to associate with the item.
+    ///
+    /// Output:
+    /// - `NewsFeedItem` with Arch news source and empty optional fields.
+    ///
+    /// Details:
+    /// - Uses a fixed date to keep assertions deterministic.
+    fn make_news_item(id: &str, url: &str) -> NewsFeedItem {
+        NewsFeedItem {
+            id: id.to_string(),
+            date: "2024-01-01".to_string(),
+            title: format!("Title {id}"),
+            summary: None,
+            url: Some(url.to_string()),
+            source: NewsFeedSource::ArchNews,
+            severity: None,
+            packages: Vec::new(),
+        }
+    }
+
+    #[test]
+    /// What: Ensure stale news content responses do not clear loading for the active selection.
+    ///
+    /// Inputs:
+    /// - App with selection on item `b` and loading flagged true.
+    /// - Content response for outdated item `a`.
+    ///
+    /// Output:
+    /// - `news_content_loading` remains true and displayed content stays `None`.
+    ///
+    /// Details:
+    /// - Prevents stale responses from cancelling the fetch for the current item.
+    fn handle_news_content_keeps_loading_for_mismatched_url() {
+        let mut app = AppState {
+            news_results: vec![
+                make_news_item("a", "https://example.com/a"),
+                make_news_item("b", "https://example.com/b"),
+            ],
+            news_selected: 1,
+            news_content_loading: true,
+            ..AppState::default()
+        };
+
+        handle_news_content(&mut app, "https://example.com/a", "old".to_string());
+
+        assert!(!app.news_content_loading);
+        assert!(app.news_content.is_none());
+        assert!(app.news_content_cache.contains_key("https://example.com/a"));
+    }
+
+    #[test]
+    /// What: Ensure news content responses for the selected item clear loading and set content.
+    ///
+    /// Inputs:
+    /// - App with selection on item `a` and loading flagged true.
+    /// - Content response for the same item.
+    ///
+    /// Output:
+    /// - Loading flag clears and content is stored.
+    ///
+    /// Details:
+    /// - Confirms the happy path still updates UI state correctly.
+    fn handle_news_content_updates_current_selection() {
+        let mut app = AppState {
+            news_results: vec![make_news_item("a", "https://example.com/a")],
+            news_content_loading: true,
+            ..AppState::default()
+        };
+
+        handle_news_content(&mut app, "https://example.com/a", "payload".to_string());
+
+        assert!(!app.news_content_loading);
+        assert_eq!(app.news_content, Some("payload".to_string()));
+        assert!(app.news_content_cache.contains_key("https://example.com/a"));
     }
 }

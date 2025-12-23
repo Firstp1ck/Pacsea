@@ -2,9 +2,11 @@
 
 use scraper::{ElementRef, Html, Selector};
 use std::time::Duration;
+use tracing::debug;
 
 use crate::state::types::AurComment;
 
+/// Result type alias for AUR comments fetching operations.
 type Result<T> = super::Result<T>;
 
 /// Context for extracting comment data from HTML elements.
@@ -46,11 +48,25 @@ struct CommentExtractionContext<'a> {
 /// - Sorts comments by date descending (latest first)
 /// - Only works for AUR packages
 pub async fn fetch_aur_comments(pkgname: String) -> Result<Vec<AurComment>> {
+    use reqwest::header::{ACCEPT, ACCEPT_LANGUAGE, HeaderMap, HeaderValue};
+
     let url = format!("https://aur.archlinux.org/packages/{pkgname}");
 
-    // Create HTTP client with timeout
+    // Create HTTP client with browser-like headers and reasonable timeout.
+    // Increased from 500ms to 5s to handle archlinux.org's DDoS protection delays.
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        ACCEPT,
+        HeaderValue::from_static("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"),
+    );
+    headers.insert(ACCEPT_LANGUAGE, HeaderValue::from_static("en-US,en;q=0.5"));
     let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(10))
+        .timeout(Duration::from_secs(5))
+        .user_agent(format!(
+            "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0 Pacsea/{}",
+            env!("CARGO_PKG_VERSION")
+        ))
+        .default_headers(headers)
         .build()
         .map_err(|e| format!("Failed to create HTTP client: {e}"))?;
 
@@ -209,6 +225,14 @@ fn extract_comment_from_header(
 
     // Parse date to timestamp
     let date_timestamp = parse_date_to_timestamp(&date_text);
+    if date_timestamp.is_none() && !date_text.is_empty() {
+        debug!(
+            pkgname = %context.pkgname,
+            author = %author,
+            date_text = %date_text,
+            "Failed to parse comment date to timestamp"
+        );
+    }
 
     // Convert UTC date to local timezone for display
     let local_date = convert_utc_to_local_date(&date_text);
@@ -216,7 +240,9 @@ fn extract_comment_from_header(
     // Determine if this comment is pinned
     let is_pinned = determine_pinned_status(comment_id, index, context);
 
+    let stable_id = comment_id.map(str::to_string).or_else(|| date_url.clone());
     Some(AurComment {
+        id: stable_id,
         author,
         date: local_date,
         date_timestamp,
@@ -454,11 +480,19 @@ fn get_tz_abbr_from_offset(offset_hours: i32, _date: chrono::NaiveDate) -> Optio
 /// - `Some(i64)` with Unix timestamp if parsing succeeds; `None` otherwise.
 ///
 /// Details:
-/// - Attempts to parse common AUR date formats
+/// - Attempts to parse common AUR date formats and many other common formats
 /// - AUR uses format: "YYYY-MM-DD HH:MM (TZ)" where TZ is timezone abbreviation
+/// - Supports ISO 8601, RFC 2822, RFC 3339, and various date separator formats
 /// - Returns None if parsing fails (will use string comparison for sorting)
+/// - Logs debug information when parsing fails to help diagnose issues
 fn parse_date_to_timestamp(date_str: &str) -> Option<i64> {
     let date_str = date_str.trim();
+
+    // Skip empty strings early
+    if date_str.is_empty() {
+        debug!("Failed to parse empty date string");
+        return None;
+    }
 
     // AUR format: "YYYY-MM-DD HH:MM (UTC)" or "YYYY-MM-DD HH:MM (CEST)" etc.
     // Try to parse the date/time part before the timezone
@@ -470,11 +504,26 @@ fn parse_date_to_timestamp(date_str: &str) -> Option<i64> {
             // AUR dates are in UTC, so we can treat them as UTC
             return dt.and_utc().timestamp().into();
         }
+
+        // Try with seconds: "YYYY-MM-DD HH:MM:SS"
+        if let Ok(dt) = chrono::NaiveDateTime::parse_from_str(date_time_part, "%Y-%m-%d %H:%M:%S") {
+            return dt.and_utc().timestamp().into();
+        }
     }
 
     // Try ISO 8601-like format: "YYYY-MM-DD HH:MM:SS"
     if let Ok(dt) = chrono::NaiveDateTime::parse_from_str(date_str, "%Y-%m-%d %H:%M:%S") {
         return dt.and_utc().timestamp().into();
+    }
+
+    // Try ISO 8601 format: "YYYY-MM-DDTHH:MM:SS" (with T separator)
+    if let Ok(dt) = chrono::NaiveDateTime::parse_from_str(date_str, "%Y-%m-%dT%H:%M:%S") {
+        return dt.and_utc().timestamp().into();
+    }
+
+    // Try ISO 8601 with timezone: "YYYY-MM-DDTHH:MM:SSZ" or "YYYY-MM-DDTHH:MM:SS+HH:MM"
+    if let Ok(dt) = chrono::DateTime::parse_from_str(date_str, "%Y-%m-%dT%H:%M:%S%z") {
+        return Some(dt.timestamp());
     }
 
     // Try date-only format: "YYYY-MM-DD"
@@ -484,16 +533,45 @@ fn parse_date_to_timestamp(date_str: &str) -> Option<i64> {
         return dt.and_utc().timestamp().into();
     }
 
-    // Try RFC 2822 format
+    // Try RFC 2822 format (e.g., "Mon, 15 May 2025 03:55:00 +0000")
     if let Ok(dt) = chrono::DateTime::parse_from_rfc2822(date_str) {
         return Some(dt.timestamp());
     }
 
-    // Try RFC 3339 format
+    // Try RFC 3339 format (e.g., "2025-05-15T03:55:00Z")
     if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(date_str) {
         return Some(dt.timestamp());
     }
 
+    // Try formats with different separators: "YYYY/MM/DD HH:MM"
+    if let Ok(dt) = chrono::NaiveDateTime::parse_from_str(date_str, "%Y/%m/%d %H:%M") {
+        return dt.and_utc().timestamp().into();
+    }
+
+    // Try formats with different separators: "DD.MM.YYYY HH:MM"
+    if let Ok(dt) = chrono::NaiveDateTime::parse_from_str(date_str, "%d.%m.%Y %H:%M") {
+        return dt.and_utc().timestamp().into();
+    }
+
+    // Try formats with different separators: "MM/DD/YYYY HH:MM"
+    if let Ok(dt) = chrono::NaiveDateTime::parse_from_str(date_str, "%m/%d/%Y %H:%M") {
+        return dt.and_utc().timestamp().into();
+    }
+
+    // Try Unix timestamp as string
+    if let Ok(ts) = date_str.parse::<i64>() {
+        // Validate it's a reasonable timestamp (between 2000 and 2100)
+        if ts > 946_684_800 && ts < 4_102_444_800 {
+            return Some(ts);
+        }
+    }
+
+    // All parsing attempts failed - log for debugging
+    debug!(
+        date_str = %date_str,
+        date_str_len = date_str.len(),
+        "Failed to parse date string to timestamp"
+    );
     None
 }
 
@@ -722,5 +800,96 @@ mod tests {
                 "UTC should always return 'UTC' abbreviation. Date: {date:?}, Got: {result:?}"
             );
         }
+    }
+
+    /// What: Test date parsing with various AUR date formats.
+    ///
+    /// Inputs:
+    /// - Various date string formats that might come from AUR
+    ///
+    /// Output:
+    /// - Should successfully parse valid AUR date formats
+    ///
+    /// Details:
+    /// - Tests common AUR date formats including UTC+2 format
+    #[test]
+    fn test_parse_date_to_timestamp() {
+        // Test standard AUR formats
+        assert!(
+            parse_date_to_timestamp("2025-04-14 11:52 (UTC)").is_some(),
+            "Should parse UTC format"
+        );
+        assert!(
+            parse_date_to_timestamp("2025-04-14 11:52 (CEST)").is_some(),
+            "Should parse CEST format"
+        );
+        assert!(
+            parse_date_to_timestamp("2025-04-14 11:52 (UTC+2)").is_some(),
+            "Should parse UTC+2 format"
+        );
+        assert!(
+            parse_date_to_timestamp("2024-12-01 10:00 (UTC)").is_some(),
+            "Should parse December date"
+        );
+
+        // Test edge cases
+        assert!(
+            parse_date_to_timestamp("").is_none(),
+            "Empty string should return None"
+        );
+        assert!(
+            parse_date_to_timestamp("invalid date").is_none(),
+            "Invalid date should return None"
+        );
+
+        // Test ISO 8601 formats
+        assert!(
+            parse_date_to_timestamp("2025-04-14 11:52:30").is_some(),
+            "Should parse ISO 8601-like format with seconds"
+        );
+        assert!(
+            parse_date_to_timestamp("2025-04-14T11:52:30").is_some(),
+            "Should parse ISO 8601 format with T separator"
+        );
+
+        // Test date-only format
+        assert!(
+            parse_date_to_timestamp("2025-04-14").is_some(),
+            "Should parse date-only format"
+        );
+
+        // Test alternative separator formats
+        assert!(
+            parse_date_to_timestamp("2025/04/14 11:52").is_some(),
+            "Should parse format with / separators"
+        );
+        assert!(
+            parse_date_to_timestamp("14.04.2025 11:52").is_some(),
+            "Should parse DD.MM.YYYY format"
+        );
+        assert!(
+            parse_date_to_timestamp("04/14/2025 11:52").is_some(),
+            "Should parse MM/DD/YYYY format"
+        );
+
+        // Test Unix timestamp as string
+        assert!(
+            parse_date_to_timestamp("1735689600").is_some(),
+            "Should parse Unix timestamp string"
+        );
+
+        // Verify the parsed timestamp is reasonable
+        if let Some(ts) = parse_date_to_timestamp("2025-04-14 11:52 (UTC)") {
+            // April 14, 2025 should be a valid future timestamp
+            assert!(ts > 0, "Timestamp should be positive");
+        }
+
+        // Verify timestamps are consistent across formats
+        let ts1 = parse_date_to_timestamp("2025-04-14 11:52 (UTC)");
+        let ts2 = parse_date_to_timestamp("2025-04-14 11:52:00");
+        assert_eq!(
+            ts1, ts2,
+            "Same date/time should produce same timestamp regardless of format"
+        );
     }
 }
