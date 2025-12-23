@@ -11,7 +11,7 @@
 - **AUR Package Allocation**: AUR packages get dedicated allocation (half of limit) to ensure representation alongside official packages
 - **Reliability**: Rate limiting, circuit breakers, and error recovery prevent IP blocking from archlinux.org (404s don't trigger circuit breaker)
 - **Performance**: Multi-layer caching (15min memory, 14 days disk) reduces network requests
-- **Code Quality**: Improved clippy allow comments, reduced function complexity, added CodeQL workflow
+- **Code Quality**: Improved clippy allow comments, reduced function complexity, added CodeQL workflow, improved documentation with rustdoc comments and inline explanations
 - **Refactoring**: Modularized large source files into organized submodules (sources/feeds, sources/news, events/modals/tests, ui/results/title, app_state, workers)
 - **Logging**: Promoted important operational messages from DEBUG to INFO level for better visibility
 - **i18n**: Made config directory alert detection language-agnostic using path patterns instead of hardcoded strings
@@ -22,6 +22,7 @@
 - Fixed `installed_packages.txt` export to respect `installed_packages_mode` setting
 - Fixed alert title showing "Connection issue" instead of "Configuration Directories" for config directory messages after package removal
 - Fixed Shift+Tab keybind to also work in News mode (previously only worked in Package mode)
+- Fixed overflow handling in scroll calculations with proper clamping to prevent incorrect scroll positions
 
 ## Type of change
 - [x] feat (new feature)
@@ -92,8 +93,8 @@ cargo test -- --test-threads=1
 - **Fallback**: Uses `checkupdates` when database sync fails (Landlock restrictions)
 - **UI**: Multi-line keybinds, improved alignment, better menu organization
 - **Code Quality**: Enhanced clippy comments with line counts, reduced complexity via helper functions and type aliases, CodeQL workflow
-- **Refactoring**: Split large files (2981-line feeds.rs, 1731-line news.rs, 1689-line tests.rs, 1448-line title.rs) into modular subdirectories; extracted alert message type detection and formatting into helper functions
-- **Documentation**: Added comments explaining intentionally unused parameters
+- **Refactoring**: Split large files (2981-line feeds.rs, 1731-line news.rs, 1689-line tests.rs, 1448-line title.rs) into modular subdirectories; extracted alert message type detection and formatting into helper functions; changed PathBuf parameters to Path for better flexibility; removed unused _url parameter from fetch_package_page_sync
+- **Documentation**: Added comments explaining intentionally unused parameters; added rustdoc comments to test functions; documented permit dropping consequences in rate_limit_archlinux; documented 500ms debounce delay rationale
 - **i18n**: Added translation keys for config directory alerts (en-US, de-DE, hu-HU); made detection language-agnostic using path pattern matching
 
 ## Breaking changes
