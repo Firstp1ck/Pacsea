@@ -116,7 +116,7 @@ end
 
 function validate_semver
     set -l ver_str $argv[1]
-    if string match -r '^[0-9]+\.[0-9]+\.[0-9]+$' $ver_str
+    if string match -r -- '^[0-9]+\.[0-9]+\.[0-9]+$' $ver_str
         return 0
     else
         return 1
@@ -330,14 +330,14 @@ function generate_announcement
     # Parse the release file line by line
     while read -l line
         # Detect "## What's New" section start
-        if string match -r '^##\s+What' "$line"
+        if string match -r -- '^##\s+What' "$line"
             set in_whats_new true
             continue
         end
         
         # Detect end of "What's New" section (another ## header)
         if test "$in_whats_new" = true
-            if string match -r '^##\s+' "$line"
+            if string match -r -- '^##\s+' "$line"
                 # Another major section - stop parsing
                 set in_whats_new false
                 continue
@@ -347,15 +347,15 @@ function generate_announcement
         # Inside What's New section
         if test "$in_whats_new" = true
             # Detect subsection headers (### ...)
-            if string match -r '^###' "$line"
+            if string match -r -- '^###' "$line"
                 # Extract subsection name (strip ### and emoji)
                 set current_subsection (string replace -r '^###\s*[^\s]*\s*' '' "$line" | string trim)
                 continue
             end
             
             # Extract bullet points
-            if string match -r '^[-*]\s+' "$line"
-                set -l item (string replace -r '^[-*]\s+' '' "$line")
+            if string match -r -- '^[*\-]\s+' "$line"
+                set -l item (string replace -r '^[*\-]\s+' '' "$line")
                 # Truncate long items
                 if test (string length "$item") -gt 80
                     set item (string sub -l 77 "$item")"..."
@@ -913,7 +913,7 @@ function update_security_md
     
     while read -l line
         # Detect the start of the version table
-        if string match -r '^\|\s*Version\s*\|\s*Supported' "$line"
+        if string match -r -- '^\|\s*Version\s*\|\s*Supported' "$line"
             set in_table true
             set header_written false
             set separator_written false
@@ -923,7 +923,7 @@ function update_security_md
         end
         
         # Handle table separator line
-        if test "$in_table" = true; and string match -r '^\|\s*-' "$line"
+        if test "$in_table" = true; and string match -r -- '^\|\s*-' "$line"
             if not test "$separator_written" = true
                 echo "$line" >> "$tmp_file"
                 set separator_written true
@@ -936,11 +936,11 @@ function update_security_md
         
         # Handle table rows
         if test "$in_table" = true
-            if string match -r '^\|\s*<' "$line"
+            if string match -r -- '^\|\s*<' "$line"
                 # This is the "< X.Y.Z" line - update it
                 echo "| < $major_minor.0   | :x:                |" >> "$tmp_file"
                 continue
-            else if string match -r '^\|\s*[0-9]' "$line"
+            else if string match -r -- '^\|\s*[0-9]' "$line"
                 # Another version row - skip old version entries
                 continue
             else if test -z (string trim "$line")
@@ -948,13 +948,13 @@ function update_security_md
                 set in_table false
                 echo "$line" >> "$tmp_file"
                 continue
-            else if string match -r '^##' "$line"
+            else if string match -r -- '^##' "$line"
                 # New section - end of table
                 set in_table false
                 echo "" >> "$tmp_file"
                 echo "$line" >> "$tmp_file"
                 continue
-            else if not string match -r '^\|' "$line"
+            else if not string match -r -- '^\|' "$line"
                 # Not a table line anymore
                 set in_table false
                 echo "$line" >> "$tmp_file"
@@ -1021,41 +1021,128 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
     # Create a temporary file for the new changelog
     set -l tmp_file (mktemp)
     
-    # Find the first --- separator line number
-    set -l header_end (grep -n '^---$' "$changelog_file" | head -1 | cut -d: -f1)
+    # Check if this version already exists
+    set -l existing_version_line 0
+    set -l line_num 0
+    while read -l line
+        set line_num (math $line_num + 1)
+        if string match -r -- '^##\s*\[' "$line"
+            if string match -qr -- "\[$new_ver\]" "$line"
+                set existing_version_line $line_num
+                break
+            end
+        end
+    end < "$changelog_file"
     
-    if test -n "$header_end"
-        # Write header (up to and including first ---)
-        head -n $header_end "$changelog_file" > "$tmp_file"
+    if test $existing_version_line -gt 0
+        # Version exists - replace it in place
+        log_info "Version $new_ver already exists, replacing in place..."
         
-        # Add blank line and new entry header
-        echo "" >> "$tmp_file"
+        # Find where the version entry ends (next --- separator or next version entry)
+        set -l version_start $existing_version_line
+        set -l version_end 0
+        set -l line_num 0
+        set -l in_version_section false
+        set -l found_start false
+        
+        while read -l line
+            set line_num (math $line_num + 1)
+            
+            # Check if we've reached the start of the version entry
+            if test $line_num -eq $version_start
+                set found_start true
+                set in_version_section true
+                continue
+            end
+            
+            # If we're in the version section, look for the end
+            if test "$in_version_section" = true
+                # End at next --- separator (but not the one right after the version header)
+                if string match -qr -- '^---$' "$line"
+                    if test $line_num -gt (math $version_start + 2)
+                        set version_end $line_num
+                        break
+                    end
+                end
+                # Or end at next version entry
+                if string match -r -- '^##\s*\[' "$line"
+                    set version_end $line_num
+                    break
+                end
+            end
+        end < "$changelog_file"
+        
+        # If we didn't find an end, use end of file
+        if test $version_end -eq 0
+            set version_end (wc -l < "$changelog_file" | string trim)
+            set version_end (math $version_end + 1)
+        end
+        
+        # Write everything before the version entry
+        if test $version_start -gt 1
+            head -n (math $version_start - 1) "$changelog_file" > "$tmp_file"
+        else
+            touch "$tmp_file"
+        end
+        
+        # Add the new version entry
         echo "## [$new_ver] - $release_date" >> "$tmp_file"
         echo "" >> "$tmp_file"
-        
-        # Append release content (preserving newlines)
         cat "$release_file" >> "$tmp_file"
-        
-        # Add separator
         echo "" >> "$tmp_file"
         echo "---" >> "$tmp_file"
+        echo "" >> "$tmp_file"
         
-        # Append rest of changelog (after first ---)
-        tail -n +$header_end "$changelog_file" | tail -n +2 >> "$tmp_file"
-        
-        # Replace original file
-        mv "$tmp_file" "$changelog_file"
+        # Append everything after the old version entry
+        tail -n +$version_end "$changelog_file" >> "$tmp_file"
     else
-        # No header found, prepend new entry
-        echo "## [$new_ver] - $release_date" > "$tmp_file"
-        echo "" >> "$tmp_file"
-        cat "$release_file" >> "$tmp_file"
-        echo "" >> "$tmp_file"
-        echo "---" >> "$tmp_file"
-        echo "" >> "$tmp_file"
-        cat "$changelog_file" >> "$tmp_file"
-        mv "$tmp_file" "$changelog_file"
+        # Version doesn't exist - add it to the top
+        log_info "Version $new_ver not found, adding to the top..."
+        
+        # Find the first version entry (## [version])
+        set -l first_version_line (grep -n '^##\s*\[.*\]' "$changelog_file" | head -1 | cut -d: -f1)
+        
+        if test -n "$first_version_line"; and test $first_version_line -gt 1
+            # Write everything before the first version entry (header if exists)
+            head -n (math $first_version_line - 1) "$changelog_file" > "$tmp_file"
+            
+            # Add new version entry
+            echo "## [$new_ver] - $release_date" >> "$tmp_file"
+            echo "" >> "$tmp_file"
+            
+            # Append release content (preserving newlines)
+            cat "$release_file" >> "$tmp_file"
+            
+            # Add separator
+            echo "" >> "$tmp_file"
+            echo "---" >> "$tmp_file"
+            echo "" >> "$tmp_file"
+            
+            # Append rest of changelog (starting from first version entry)
+            tail -n +$first_version_line "$changelog_file" >> "$tmp_file"
+        else if test -n "$first_version_line"
+            # First version is at line 1, just prepend new entry
+            echo "## [$new_ver] - $release_date" > "$tmp_file"
+            echo "" >> "$tmp_file"
+            cat "$release_file" >> "$tmp_file"
+            echo "" >> "$tmp_file"
+            echo "---" >> "$tmp_file"
+            echo "" >> "$tmp_file"
+            cat "$changelog_file" >> "$tmp_file"
+        else
+            # No version entry found, prepend new entry at the very top
+            echo "## [$new_ver] - $release_date" > "$tmp_file"
+            echo "" >> "$tmp_file"
+            cat "$release_file" >> "$tmp_file"
+            echo "" >> "$tmp_file"
+            echo "---" >> "$tmp_file"
+            echo "" >> "$tmp_file"
+            cat "$changelog_file" >> "$tmp_file"
+        end
     end
+    
+    # Replace original file
+    mv "$tmp_file" "$changelog_file"
     
     log_success "CHANGELOG.md updated"
     return 0

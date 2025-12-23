@@ -1,25 +1,10 @@
-## [0.6.2] - 2025-12-05
+# Changelog
 
-### Added
-- **Force Sync Option**: System Update modal now includes a Force Sync mode
-- Toggle between `Normal (-Syu)` and `Force Sync (-Syyu)` on the pacman update row
-- Use `←`/`→` or `Tab` keys to switch sync mode
-- Force sync refreshes all package databases even if unchanged
+All notable changes to Pacsea will be documented in this file.
 
-### Fixed
-- **Install list preserved**: System update no longer clears queued packages from the install list
-- **Faster exit**: App now closes immediately when exiting during preflight loading
-- **Auto-refresh**: Available updates count refreshes automatically after install/remove/downgrade operations
-
-### Changed
-- Updated Hungarian translations
-
-### Contributors
-- @Firstp1ck
-- @summoner001 
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
-
 ## [0.7.0] - 2025-12-23
 
 # Release v0.7.0
@@ -119,15 +104,27 @@ paru -S pacsea-git   # or: yay -S pacsea-git
 
 
 ---
+## [0.6.2] - 2025-12-05
 
-# Changelog
+### Added
+- **Force Sync Option**: System Update modal now includes a Force Sync mode
+- Toggle between `Normal (-Syu)` and `Force Sync (-Syyu)` on the pacman update row
+- Use `←`/`→` or `Tab` keys to switch sync mode
+- Force sync refreshes all package databases even if unchanged
 
-All notable changes to Pacsea will be documented in this file.
+### Fixed
+- **Install list preserved**: System update no longer clears queued packages from the install list
+- **Faster exit**: App now closes immediately when exiting during preflight loading
+- **Auto-refresh**: Available updates count refreshes automatically after install/remove/downgrade operations
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+### Changed
+- Updated Hungarian translations
+
+### Contributors
+- @Firstp1ck
+- @summoner001 
 
 ---
-
 ## [0.6.1] - 2025-12-05
 
 ### Added
