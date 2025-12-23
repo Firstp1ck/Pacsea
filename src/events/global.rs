@@ -487,24 +487,43 @@ fn handle_toggle_comments(app: &mut AppState, comments_tx: &mpsc::UnboundedSende
 /// - `false` if sort mode was changed
 ///
 /// Details:
-/// - Cycles through sort modes, persists preference, re-sorts results, and refreshes details.
+/// - In News mode: cycles through news sort modes and refreshes news results.
+/// - In Package mode: cycles through package sort modes, persists preference, re-sorts results.
 fn handle_change_sort(app: &mut AppState, details_tx: &mpsc::UnboundedSender<PackageItem>) -> bool {
-    // Cycle through sort modes in fixed order
-    app.sort_mode = match app.sort_mode {
-        crate::state::SortMode::RepoThenName => crate::state::SortMode::AurPopularityThenOfficial,
-        crate::state::SortMode::AurPopularityThenOfficial => crate::state::SortMode::BestMatches,
-        crate::state::SortMode::BestMatches => crate::state::SortMode::RepoThenName,
-    };
-    // Persist preference and apply immediately
-    crate::theme::save_sort_mode(app.sort_mode);
-    crate::logic::sort_results_preserve_selection(app);
-    // Jump selection to top and refresh details
-    if app.results.is_empty() {
-        app.list_state.select(None);
+    if matches!(app.app_mode, crate::state::types::AppMode::News) {
+        // News mode: cycle through news sort modes
+        use crate::state::types::NewsSortMode;
+        app.news_sort_mode = match app.news_sort_mode {
+            NewsSortMode::DateDesc => NewsSortMode::DateAsc,
+            NewsSortMode::DateAsc => NewsSortMode::Title,
+            NewsSortMode::Title => NewsSortMode::SourceThenTitle,
+            NewsSortMode::SourceThenTitle => NewsSortMode::SeverityThenDate,
+            NewsSortMode::SeverityThenDate => NewsSortMode::UnreadThenDate,
+            NewsSortMode::UnreadThenDate => NewsSortMode::DateDesc,
+        };
+        app.refresh_news_results();
     } else {
-        app.selected = 0;
-        app.list_state.select(Some(0));
-        utils::refresh_selected_details(app, details_tx);
+        // Package mode: cycle through package sort modes in fixed order
+        app.sort_mode = match app.sort_mode {
+            crate::state::SortMode::RepoThenName => {
+                crate::state::SortMode::AurPopularityThenOfficial
+            }
+            crate::state::SortMode::AurPopularityThenOfficial => {
+                crate::state::SortMode::BestMatches
+            }
+            crate::state::SortMode::BestMatches => crate::state::SortMode::RepoThenName,
+        };
+        // Persist preference and apply immediately
+        crate::theme::save_sort_mode(app.sort_mode);
+        crate::logic::sort_results_preserve_selection(app);
+        // Jump selection to top and refresh details
+        if app.results.is_empty() {
+            app.list_state.select(None);
+        } else {
+            app.selected = 0;
+            app.list_state.select(Some(0));
+            utils::refresh_selected_details(app, details_tx);
+        }
     }
     // Show the dropdown so the user sees the current option with a check mark
     app.sort_menu_open = true;

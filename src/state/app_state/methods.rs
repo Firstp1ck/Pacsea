@@ -274,11 +274,17 @@ impl AppState {
             NewsSortMode::DateDesc => filtered.sort_by(|a, b| b.date.cmp(&a.date)),
             NewsSortMode::DateAsc => filtered.sort_by(|a, b| a.date.cmp(&b.date)),
             NewsSortMode::Title => {
-                filtered.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
+                filtered.sort_by(|a, b| {
+                    a.title
+                        .to_lowercase()
+                        .cmp(&b.title.to_lowercase())
+                        .then(b.date.cmp(&a.date))
+                });
             }
             NewsSortMode::SourceThenTitle => filtered.sort_by(|a, b| {
                 a.source
                     .cmp(&b.source)
+                    .then(b.date.cmp(&a.date))
                     .then(a.title.to_lowercase().cmp(&b.title.to_lowercase()))
             }),
             NewsSortMode::SeverityThenDate => filtered.sort_by(|a, b| {

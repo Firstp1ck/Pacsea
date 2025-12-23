@@ -214,7 +214,9 @@ fn integration_executor_output_network_error() {
         "Failed to connect to host (network unreachable)",
         "Could not resolve host (DNS/network issue)",
         "Operation timeout",
-        "HTTP error from server (likely 502/503/504 - server temporarily unavailable)",
+        "HTTP error from server (code unknown)",
+        "HTTP 404: Resource not found (package may not exist in repository)",
+        "HTTP 503: Service temporarily unavailable",
     ];
 
     for error_msg in network_errors {

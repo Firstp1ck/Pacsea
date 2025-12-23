@@ -226,6 +226,7 @@ fn spawn_faillock_worker(tick_tx: &mpsc::UnboundedSender<()>) {
 /// - `status_tx`: Channel sender for Arch status updates
 /// - `news_tx`: Channel sender for Arch news updates
 /// - `news_feed_tx`: Channel sender for aggregated news feed (Arch news + advisories)
+/// - `news_incremental_tx`: Channel sender for incremental background news items
 /// - `announcement_tx`: Channel sender for remote announcement updates
 /// - `tick_tx`: Channel sender for tick events
 /// - `news_read_ids`: Set of already-read news IDs
@@ -253,6 +254,7 @@ pub fn spawn_auxiliary_workers(
     status_tx: &mpsc::UnboundedSender<(String, ArchStatusColor)>,
     news_tx: &mpsc::UnboundedSender<Vec<crate::state::types::NewsFeedItem>>,
     news_feed_tx: &mpsc::UnboundedSender<crate::state::types::NewsFeedPayload>,
+    news_incremental_tx: &mpsc::UnboundedSender<crate::state::types::NewsFeedItem>,
     announcement_tx: &mpsc::UnboundedSender<crate::announcements::RemoteAnnouncement>,
     tick_tx: &mpsc::UnboundedSender<()>,
     news_read_ids: &std::collections::HashSet<String>,
@@ -304,6 +306,7 @@ pub fn spawn_auxiliary_workers(
         );
         news::spawn_aggregated_news_feed_worker(
             news_feed_tx,
+            news_incremental_tx,
             news_seen_pkg_versions,
             news_seen_aur_comments,
             Some(completion_rx),

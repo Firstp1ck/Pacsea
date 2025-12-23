@@ -138,6 +138,82 @@ fn redact_url_for_logging(url: &str) -> String {
     )
 }
 
+/// What: Extract HTTP code from curl's `-w` output format.
+///
+/// Inputs:
+/// - `output`: The stdout output from curl that may contain `__HTTP_CODE__:XXX`
+///
+/// Output:
+/// - Some(u16) if an HTTP code was found, None otherwise
+///
+/// Details:
+/// - Looks for the `__HTTP_CODE__:` marker we add via `-w` flag
+fn extract_http_code_from_output(output: &str) -> Option<u16> {
+    output
+        .lines()
+        .find(|line| line.starts_with("__HTTP_CODE__:"))
+        .and_then(|line| line.strip_prefix("__HTTP_CODE__:"))
+        .and_then(|code| code.trim().parse().ok())
+}
+
+/// What: Extract HTTP code from curl's stderr error message.
+///
+/// Inputs:
+/// - `stderr`: The stderr output from curl
+///
+/// Output:
+/// - Some(u16) if an HTTP code was found in the error message, None otherwise
+///
+/// Details:
+/// - Parses curl's error format: "The requested URL returned error: XXX"
+fn extract_http_code_from_stderr(stderr: &str) -> Option<u16> {
+    // curl stderr format: "curl: (22) The requested URL returned error: 404"
+    stderr
+        .find("returned error: ")
+        .map(|idx| &stderr[idx + "returned error: ".len()..])
+        .and_then(|s| {
+            // Extract just the numeric part
+            let code_str: String = s.chars().take_while(char::is_ascii_digit).collect();
+            code_str.parse().ok()
+        })
+}
+
+/// What: Maps curl exit code to a human-readable error message with HTTP code info.
+///
+/// Inputs:
+/// - `code`: Exit code from curl process.
+/// - `status`: The full process exit status for signal handling.
+/// - `http_code`: The actual HTTP status code from the server.
+///
+/// Output:
+/// - Human-readable error string describing the network issue with specific HTTP code.
+///
+/// Details:
+/// - Provides more specific error messages when HTTP code is known
+/// - 404 is "Resource not found", 429 is "Rate limited", etc.
+fn map_curl_error_with_http_code(
+    code: Option<i32>,
+    status: std::process::ExitStatus,
+    http_code: u16,
+) -> String {
+    // If we have the actual HTTP code, provide a more specific message
+    match http_code {
+        404 => "HTTP 404: Resource not found (package may not exist in repository)".to_string(),
+        429 => "HTTP 429: Rate limited by server".to_string(),
+        500 => "HTTP 500: Internal server error".to_string(),
+        502 => "HTTP 502: Bad gateway".to_string(),
+        503 => "HTTP 503: Service temporarily unavailable".to_string(),
+        504 => "HTTP 504: Gateway timeout".to_string(),
+        _ if (400..500).contains(&http_code) => {
+            format!("HTTP {http_code}: Client error")
+        }
+        _ if http_code >= 500 => {
+            format!("HTTP {http_code}: Server error (temporarily unavailable)")
+        }
+        _ => map_curl_error(code, status),
+    }
+}
+
 /// What: Map curl exit codes to user-friendly error messages.
 ///
 /// Inputs:
@@ -168,8 +244,7 @@ fn map_curl_error(code: Option<i32>, status: std::process::ExitStatus) -> String
             }
         },
         |code| match code {
-            22 => "HTTP error from server (likely 502/503/504 - server temporarily unavailable)"
-                .to_string(),
+            22 => "HTTP error from server (code unknown)".to_string(),
             6 => "Could not resolve host (DNS/network issue)".to_string(),
             7 => "Failed to connect to host (network unreachable)".to_string(),
             28 => "Operation timeout".to_string(),
@@ -196,8 +271,15 @@ fn map_curl_error(code: Option<i32>, status: std::process::ExitStatus) -> String
 /// - Executes curl with appropriate flags and parses the UTF-8 body with `serde_json`.
 /// - On Windows, uses `-k` flag to skip SSL certificate verification.
 /// - Provides user-friendly error messages for common curl failure cases.
+/// - For HTTP errors, includes the actual status code in the error message when available.
 pub fn curl_json(url: &str) -> Result<Value> {
-    let args = curl_args(url, &[]);
+    let mut args = curl_args(url, &[]);
+    // Add write-out format to capture HTTP status code on failure
+    // The %{http_code} is curl's write-out format, not a Rust format string
+    #[allow(clippy::literal_string_with_formatting_args)]
+    let write_out_format = "\n__HTTP_CODE__:%{http_code}".to_string();
+    args.push("-w".to_string());
+    args.push(write_out_format);
     let curl_bin = get_curl_path();
     #[cfg(target_os = "windows")]
     {
@@ -211,24 +293,41 @@ pub fn curl_json(url: &str) -> Result<Value> {
     }
     let out = std::process::Command::new(curl_bin).args(&args).output()?;
     if !out.status.success() {
-        let error_msg = map_curl_error(out.status.code(), out.status);
+        // Try to extract HTTP status code from stderr or stdout
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        let stdout = String::from_utf8_lossy(&out.stdout);
+
+        // Look for HTTP code in the output
+        let http_code = extract_http_code_from_output(&stdout)
+            .or_else(|| extract_http_code_from_stderr(&stderr));
+
+        let error_msg = if let Some(code) = http_code {
+            map_curl_error_with_http_code(out.status.code(), out.status, code)
+        } else {
+            map_curl_error(out.status.code(), out.status)
+        };
+
         #[cfg(target_os = "windows")]
         {
             let safe_url = redact_url_for_logging(url);
             // On Windows, also log stderr for debugging
-            if !out.stderr.is_empty() {
-                let stderr = String::from_utf8_lossy(&out.stderr);
+            if !stderr.is_empty() {
                 tracing::warn!(stderr = %stderr, url = %safe_url, "curl stderr output on Windows");
             }
             // Also log stdout in case there's useful info there
-            if !out.stdout.is_empty() {
-                let stdout = String::from_utf8_lossy(&out.stdout);
+            if !stdout.is_empty() {
                 tracing::debug!(stdout = %stdout, url = %safe_url, "curl stdout on Windows (non-success)");
             }
         }
         return Err(error_msg.into());
     }
-    let body = String::from_utf8(out.stdout)?;
+    let raw_body = String::from_utf8(out.stdout)?;
+    // Strip the __HTTP_CODE__:XXX suffix we added via -w flag
+    let body = raw_body
+        .lines()
+        .filter(|line| !line.starts_with("__HTTP_CODE__:"))
+        .collect::<Vec<_>>()
+        .join("\n");
     #[cfg(target_os = "windows")]
     {
         // On Windows, log response details for debugging API issues (URL redacted)

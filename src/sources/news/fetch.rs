@@ -6,6 +6,7 @@ use crate::sources::news::utils::is_archlinux_url;
 use crate::sources::news::{
     aur::extract_aur_pkg_from_url,
     cache::{load_article_entry_from_disk_cache, save_article_to_disk_cache},
+    utils::is_arch_package_url,
 };
 use crate::state::NewsItem;
 use reqwest;
@@ -15,6 +16,75 @@ use tracing::{info, warn};
 
 /// Result type alias for Arch Linux news fetching operations.
 type Result<T> = super::Result<T>;
+
+/// What: Extract cache path from an official package URL.
+///
+/// Inputs:
+/// - `url`: The official package URL.
+///
+/// Output:
+/// - `Some(PathBuf)` if URL is valid; `None` otherwise.
+///
+/// Details:
+/// - Parses URL format: `https://archlinux.org/packages/{repo}/{arch}/{name}/`
+/// - Handles query parameters and fragments in the name.
+fn extract_official_package_cache_path(url: &str) -> Option<std::path::PathBuf> {
+    let lower = url.to_ascii_lowercase();
+    let pos = lower.find("archlinux.org/packages/")?;
+    let after = &url[pos + "archlinux.org/packages/".len()..];
+    let parts: Vec<&str> = after.split('/').filter(|s| !s.is_empty()).collect();
+    if parts.len() >= 3 {
+        let repo = parts[0];
+        let arch = parts[1];
+        let name = parts[2]
+            .split('?')
+            .next()
+            .unwrap_or(parts[2])
+            .split('#')
+            .next()
+            .unwrap_or(parts[2]);
+        Some(crate::sources::official_json_cache_path(repo, arch, name))
+    } else {
+        None
+    }
+}
+
+/// What: Prepend official package JSON changes to content if available.
+///
+/// Inputs:
+/// - `url`: The official package URL.
+/// - `content`: The content to prepend changes to.
+///
+/// Output:
+/// - Content with changes prepended if available; original content otherwise.
+///
+/// Details:
+/// - Only modifies content if changes are detected and not already present.
+fn prepend_official_package_changes(url: &str, content: &str) -> String {
+    let Some(cache_path) = extract_official_package_cache_path(url) else {
+        return content.to_string();
+    };
+
+    let Some(cached_json) = crate::sources::load_official_json_cache(&cache_path) else {
+        return content.to_string();
+    };
+
+    let pkg_obj = cached_json.get("pkg").unwrap_or(&cached_json);
+
+    let Some(pkg_name) = pkg_obj.get("pkgname").and_then(serde_json::Value::as_str) else {
+        return content.to_string();
+    };
+
+    let Some(changes) = crate::sources::get_official_json_changes(pkg_name) else {
+        return content.to_string();
+    };
+
+    if content.starts_with("Changes detected") {
+        content.to_string()
+    } else {
+        format!("{changes}\n\n─── Package Info ───\n\n{content}")
+    }
+}
 
 /// Shared HTTP client with connection pooling for news content fetching.
 /// Connection pooling is enabled by default in `reqwest::Client`.
@@ -132,9 +202,27 @@ pub async fn fetch_news_content(url: &str) -> Result<String> {
     use crate::sources::news::aur::render_aur_comments;
 
     if let Some(pkg) = extract_aur_pkg_from_url(url) {
+        // Check for JSON changes first
+        let changes = crate::sources::get_aur_json_changes(&pkg);
         let comments = crate::sources::fetch_aur_comments(pkg.clone()).await?;
-        let rendered = render_aur_comments(&pkg, &comments);
+        let mut rendered = render_aur_comments(&pkg, &comments);
+
+        // Prepend JSON changes if available
+        if let Some(changes_text) = changes {
+            rendered = format!("{changes_text}\n\n─── AUR Comments ───\n\n{rendered}");
+        }
+
         return Ok(rendered);
+    }
+
+    // Check for official package URL and load cached JSON to get package name and changes
+    if is_arch_package_url(url)
+        && let Ok(cache) = ARTICLE_CACHE.lock()
+        && let Some(entry) = cache.get(url)
+        && entry.timestamp.elapsed().as_secs() < ARTICLE_CACHE_TTL_SECONDS
+    {
+        let content = prepend_official_package_changes(url, &entry.content);
+        return Ok(content);
     }
 
     // 1. Check in-memory cache first (fastest, 15-minute TTL)
@@ -163,6 +251,11 @@ pub async fn fetch_news_content(url: &str) -> Result<String> {
                 },
             );
         }
+        // Check for official package changes and prepend if available
+        if is_arch_package_url(url) {
+            let content = prepend_official_package_changes(url, &entry.content);
+            return Ok(content);
+        }
         return Ok(entry.content.clone());
     }
 
@@ -180,17 +273,7 @@ pub async fn fetch_news_content(url: &str) -> Result<String> {
         return Err(e);
     }
 
-    // 4. Apply rate limiting and acquire semaphore for archlinux.org URLs
-    // The permit is held during the entire request to serialize access
-    let _permit = if is_archlinux_url(url) {
-        Some(crate::sources::feeds::rate_limit_archlinux().await)
-    } else {
-        None
-    };
-
-    // 5. Fetch from network with conditional requests
-    let url_owned = url.to_string();
-    let url_for_log = url_owned.clone();
+    // 4. Fetch from network with conditional requests
     // Get cached ETag/Last-Modified for conditional request
     let cached_etag = cached_entry
         .as_ref()
@@ -203,76 +286,34 @@ pub async fn fetch_news_content(url: &str) -> Result<String> {
         .or_else(|| disk_entry.as_ref().and_then(|e| e.last_modified.as_ref()))
         .cloned();
 
-    // Fetch from network with conditional requests using reqwest (connection pooling)
-    let client = HTTP_CLIENT.clone();
-    let mut request = client.get(&url_owned);
-
-    // Add conditional request headers if we have cached ETag/Last-Modified
-    if let Some(ref etag) = cached_etag {
-        request = request.header("If-None-Match", etag);
-    }
-    if let Some(ref last_mod) = cached_last_modified {
-        request = request.header("If-Modified-Since", last_mod);
-    }
-
-    let http_response = request.send().await.map_err(|e| {
-        warn!(error = %e, url = %url_for_log, "failed to fetch news content");
-        // Record failure in circuit breaker
-        crate::sources::feeds::record_circuit_breaker_outcome(&endpoint_pattern, false);
-        Box::<dyn std::error::Error + Send + Sync>::from(format!("Network error: {e}"))
-    })?;
-
-    let status = http_response.status();
-    let status_code = status.as_u16();
-
-    // Handle 304 Not Modified - return cached content
-    if status_code == 304 {
-        info!(
-            url,
-            "server returned 304 Not Modified, using cached content"
-        );
-        if let Some(cached) = cached_entry {
-            return Ok(cached.content);
-        }
-        if let Some(disk) = disk_entry {
-            return Ok(disk.content);
-        }
-        // Fallback: should not happen, but handle gracefully
-        warn!(url, "304 response but no cached content available");
-        return Err("304 Not Modified but no cache available".into());
-    }
-
-    // Extract ETag and Last-Modified from response headers before consuming body
-    let etag = http_response
-        .headers()
-        .get("etag")
-        .and_then(|h| h.to_str().ok())
-        .map(ToString::to_string);
-    let last_modified = http_response
-        .headers()
-        .get("last-modified")
-        .and_then(|h| h.to_str().ok())
-        .map(ToString::to_string);
-
-    // Check for HTTP errors
-    if status.is_client_error() || status.is_server_error() {
-        // Record failure in circuit breaker
-        crate::sources::feeds::record_circuit_breaker_outcome(&endpoint_pattern, false);
-        return Err(handle_http_error(status, status_code, &http_response).into());
-    }
-
-    let body = http_response.text().await.map_err(|e| {
-        warn!(error = %e, url = %url_for_log, "failed to read response body");
-        Box::<dyn std::error::Error + Send + Sync>::from(format!("Failed to read response: {e}"))
-    })?;
-
-    info!(url, bytes = body.len(), "fetched news page");
-
-    // Record success in circuit breaker
-    crate::sources::feeds::record_circuit_breaker_outcome(&endpoint_pattern, true);
+    // Fetch from network
+    let (body, etag, last_modified) =
+        match fetch_from_network(url, cached_etag, cached_last_modified, &endpoint_pattern).await {
+            Ok(result) => result,
+            Err(e) if e.to_string() == "304 Not Modified" => {
+                // Return cached content on 304
+                if let Some(cached) = cached_entry {
+                    return Ok(cached.content);
+                }
+                if let Some(disk) = disk_entry {
+                    return Ok(disk.content);
+                }
+                warn!(url, "304 response but no cached content available");
+                return Err("304 Not Modified but no cache available".into());
+            }
+            Err(e) => return Err(e),
+        };
 
     // Extract article content from HTML
     let content = parse_arch_news_html(&body, Some(url));
+
+    // Prepend official package JSON changes if available
+    let content = if is_arch_package_url(url) {
+        prepend_official_package_changes(url, &content)
+    } else {
+        content
+    };
+
     let parsed_len = content.len();
     if parsed_len == 0 {
         warn!(url, "parsed news content is empty");
@@ -297,6 +338,94 @@ pub async fn fetch_news_content(url: &str) -> Result<String> {
     save_article_to_disk_cache(url, &content, etag, last_modified);
 
     Ok(content)
+}
+
+/// What: Fetch content from network with conditional requests.
+///
+/// Inputs:
+/// - `url`: The URL to fetch.
+/// - `cached_etag`: Optional `ETag` from cache.
+/// - `cached_last_modified`: Optional `Last-Modified` from cache.
+/// - `endpoint_pattern`: Endpoint pattern for circuit breaker.
+///
+/// Output:
+/// - `Ok((body, etag, last_modified))` on success.
+/// - `Err` on network or HTTP errors.
+///
+/// Details:
+/// - Applies rate limiting for archlinux.org URLs.
+/// - Uses conditional requests if `ETag`/`Last-Modified` available.
+/// - Handles 304 Not Modified responses.
+async fn fetch_from_network(
+    url: &str,
+    cached_etag: Option<String>,
+    cached_last_modified: Option<String>,
+    endpoint_pattern: &str,
+) -> Result<(String, Option<String>, Option<String>)> {
+    // Apply rate limiting and acquire semaphore for archlinux.org URLs
+    let _permit = if is_archlinux_url(url) {
+        Some(crate::sources::feeds::rate_limit_archlinux().await)
+    } else {
+        None
+    };
+
+    // Fetch from network with conditional requests using reqwest (connection pooling)
+    let client = HTTP_CLIENT.clone();
+    let mut request = client.get(url);
+
+    // Add conditional request headers if we have cached ETag/Last-Modified
+    if let Some(ref etag) = cached_etag {
+        request = request.header("If-None-Match", etag);
+    }
+    if let Some(ref last_mod) = cached_last_modified {
+        request = request.header("If-Modified-Since", last_mod);
+    }
+
+    let http_response = request.send().await.map_err(|e| {
+        warn!(error = %e, url, "failed to fetch news content");
+        crate::sources::feeds::record_circuit_breaker_outcome(endpoint_pattern, false);
+        Box::<dyn std::error::Error + Send + Sync>::from(format!("Network error: {e}"))
+    })?;
+
+    let status = http_response.status();
+    let status_code = status.as_u16();
+
+    // Handle 304 Not Modified
+    if status_code == 304 {
+        info!(
+            url,
+            "server returned 304 Not Modified, using cached content"
+        );
+        return Err("304 Not Modified".into());
+    }
+
+    // Extract ETag and Last-Modified from response headers before consuming body
+    let etag = http_response
+        .headers()
+        .get("etag")
+        .and_then(|h| h.to_str().ok())
+        .map(ToString::to_string);
+    let last_modified = http_response
+        .headers()
+        .get("last-modified")
+        .and_then(|h| h.to_str().ok())
+        .map(ToString::to_string);
+
+    // Check for HTTP errors
+    if status.is_client_error() || status.is_server_error() {
+        crate::sources::feeds::record_circuit_breaker_outcome(endpoint_pattern, false);
+        return Err(handle_http_error(status, status_code, &http_response).into());
+    }
+
+    let body = http_response.text().await.map_err(|e| {
+        warn!(error = %e, url, "failed to read response body");
+        Box::<dyn std::error::Error + Send + Sync>::from(format!("Failed to read response: {e}"))
+    })?;
+
+    info!(url, bytes = body.len(), "fetched news page");
+    crate::sources::feeds::record_circuit_breaker_outcome(endpoint_pattern, true);
+
+    Ok((body, etag, last_modified))
 }
 
 /// What: Handle HTTP error responses and format error messages.

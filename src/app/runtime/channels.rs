@@ -76,6 +76,10 @@ pub struct Channels {
     pub news_feed_tx: mpsc::UnboundedSender<NewsFeedPayload>,
     /// Receiver for news feed payloads in the main event loop.
     pub news_feed_rx: mpsc::UnboundedReceiver<NewsFeedPayload>,
+    /// Sender for incremental news items (background continuation).
+    pub news_incremental_tx: mpsc::UnboundedSender<crate::state::types::NewsFeedItem>,
+    /// Receiver for incremental news items in the main event loop.
+    pub news_incremental_rx: mpsc::UnboundedReceiver<crate::state::types::NewsFeedItem>,
     /// Request channel for fetching news article content (URL).
     pub news_content_req_tx: mpsc::UnboundedSender<String>,
     /// Response channel for news article content (URL, content).
@@ -267,6 +271,10 @@ struct UtilityChannels {
     news_feed_tx: mpsc::UnboundedSender<NewsFeedPayload>,
     /// Receiver for news feed payloads.
     news_feed_rx: mpsc::UnboundedReceiver<NewsFeedPayload>,
+    /// Sender for incremental news items.
+    news_incremental_tx: mpsc::UnboundedSender<crate::state::types::NewsFeedItem>,
+    /// Receiver for incremental news items.
+    news_incremental_rx: mpsc::UnboundedReceiver<crate::state::types::NewsFeedItem>,
     /// Sender for news article content requests.
     news_content_req_tx: mpsc::UnboundedSender<String>,
     /// Receiver for news article content requests.
@@ -407,6 +415,8 @@ fn create_utility_channels() -> UtilityChannels {
     let (status_tx, status_rx) = mpsc::unbounded_channel::<(String, ArchStatusColor)>();
     let (news_tx, news_rx) = mpsc::unbounded_channel::<Vec<crate::state::types::NewsFeedItem>>();
     let (news_feed_tx, news_feed_rx) = mpsc::unbounded_channel::<NewsFeedPayload>();
+    let (news_incremental_tx, news_incremental_rx) =
+        mpsc::unbounded_channel::<crate::state::types::NewsFeedItem>();
     let (news_content_req_tx, news_content_req_rx) = mpsc::unbounded_channel::<String>();
     let (news_content_res_tx, news_content_res_rx) = mpsc::unbounded_channel::<(String, String)>();
     let (updates_tx, updates_rx) = mpsc::unbounded_channel::<(usize, Vec<String>)>();
@@ -445,6 +455,8 @@ fn create_utility_channels() -> UtilityChannels {
         news_rx,
         news_feed_tx,
         news_feed_rx,
+        news_incremental_tx,
+        news_incremental_rx,
         news_content_req_tx,
         news_content_req_rx,
         news_content_res_tx,
@@ -563,6 +575,8 @@ impl Channels {
             news_rx: utility_channels.news_rx,
             news_feed_tx: utility_channels.news_feed_tx,
             news_feed_rx: utility_channels.news_feed_rx,
+            news_incremental_tx: utility_channels.news_incremental_tx,
+            news_incremental_rx: utility_channels.news_incremental_rx,
             news_content_req_tx: utility_channels.news_content_req_tx,
             news_content_res_rx: utility_channels.news_content_res_rx,
             updates_tx: utility_channels.updates_tx,

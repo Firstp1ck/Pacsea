@@ -48,16 +48,18 @@ fn advisory_html_strips_links_and_keeps_text() {
 }
 
 #[test]
-/// What: Validate HTML substring extraction and time-stripping helpers used by news parsing.
+/// What: Validate HTML substring extraction and date normalization helpers used by news parsing.
 ///
 /// Inputs:
 /// - Sample tags `"<a>hi</a>"`, non-matching input, and date strings with optional time and timezone components.
 ///
 /// Output:
-/// - `extract_between` returns the inner text when delimiters exist and `None` otherwise; `strip_time_and_tz` removes trailing time/zone portions.
+/// - `extract_between` returns the inner text when delimiters exist and `None` otherwise.
+/// - `strip_time_and_tz` normalizes dates to `YYYY-MM-DD` format for proper sorting.
 ///
 /// Details:
 /// - Combines assertions into one test to keep helper coverage concise while guarding string-manipulation edge cases.
+/// - Date normalization ensures Arch news dates (RFC 2822 format) sort correctly alongside other dates.
 fn news_extract_between_and_strip_time_tz() {
     // extract_between
     assert_eq!(
@@ -66,16 +68,20 @@ fn news_extract_between_and_strip_time_tz() {
         "hi"
     );
     assert!(extract_between("nope", "<a>", "</a>").is_none());
-    // strip_time_and_tz
+    // strip_time_and_tz - now normalizes dates to YYYY-MM-DD format
+    // RFC 2822 format with timezone
     assert_eq!(
         strip_time_and_tz("Mon, 23 Oct 2023 12:34:56 +0000"),
-        "Mon, 23 Oct 2023"
+        "2023-10-23"
     );
-    assert_eq!(
-        strip_time_and_tz("Mon, 23 Oct 2023 12:34:56"),
-        "Mon, 23 Oct 2023"
-    );
-    assert_eq!(strip_time_and_tz("Mon, 23 Oct 2023"), "Mon, 23 Oct 2023");
+    // RFC 2822 format without timezone
+    assert_eq!(strip_time_and_tz("Mon, 23 Oct 2023 12:34:56"), "2023-10-23");
+    // Partial RFC 2822 (date only)
+    assert_eq!(strip_time_and_tz("Mon, 23 Oct 2023"), "2023-10-23");
+    // Already YYYY-MM-DD format
+    assert_eq!(strip_time_and_tz("2023-10-23"), "2023-10-23");
+    // Different month/day
+    assert_eq!(strip_time_and_tz("Thu, 21 Aug 2025"), "2025-08-21");
 }
 
 #[test]

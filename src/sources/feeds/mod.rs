@@ -435,11 +435,17 @@ fn sort_news_items(items: &mut [NewsFeedItem], mode: NewsSortMode) {
         NewsSortMode::DateDesc => items.sort_by(|a, b| b.date.cmp(&a.date)),
         NewsSortMode::DateAsc => items.sort_by(|a, b| a.date.cmp(&b.date)),
         NewsSortMode::Title => {
-            items.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
+            items.sort_by(|a, b| {
+                a.title
+                    .to_lowercase()
+                    .cmp(&b.title.to_lowercase())
+                    .then(b.date.cmp(&a.date))
+            });
         }
         NewsSortMode::SourceThenTitle => items.sort_by(|a, b| {
             a.source
                 .cmp(&b.source)
+                .then(b.date.cmp(&a.date))
                 .then(a.title.to_lowercase().cmp(&b.title.to_lowercase()))
         }),
         NewsSortMode::SeverityThenDate => items.sort_by(|a, b| {
@@ -553,11 +559,148 @@ where
     Ok(items)
 }
 
+/// Limit for continuation fetching (effectively unlimited).
+const CONTINUATION_LIMIT: usize = 1000;
+
+/// What: Fetch continuation items for background loading after initial batch.
+///
+/// Inputs:
+/// - `installed`: Set of installed package names.
+/// - `initial_ids`: IDs of items already fetched in initial batch.
+///
+/// Output:
+/// - `Ok(Vec<NewsFeedItem>)`: Additional items not in initial batch.
+///
+/// # Errors
+/// - Network errors when fetching from any source.
+/// - Parsing errors from upstream feeds.
+///
+/// Details:
+/// - Fetches items from all sources with a high limit (1000).
+/// - Filters out items already in `initial_ids`.
+/// - Used by background continuation worker to stream additional items to UI.
+pub async fn fetch_continuation_items<HS, HI>(
+    installed: &HashSet<String, HS>,
+    initial_ids: &HashSet<String, HI>,
+) -> Result<Vec<NewsFeedItem>>
+where
+    HS: std::hash::BuildHasher + Send + Sync + 'static,
+    HI: std::hash::BuildHasher + Send + Sync,
+{
+    use crate::state::types::NewsFeedSource;
+
+    info!(
+        installed_count = installed.len(),
+        initial_count = initial_ids.len(),
+        "starting continuation fetch"
+    );
+
+    // Fetch from all sources in parallel
+    let ((updates_result, comments_result), (arch_result, advisories_result)) = tokio::join!(
+        async {
+            // Package updates - use fresh seen maps (continuation doesn't track seen state)
+            let mut seen_versions: HashMap<String, String> = HashMap::new();
+            let mut seen_aur_comments: HashMap<String, String> = HashMap::new();
+            let updates = fetch_installed_updates(
+                installed,
+                CONTINUATION_LIMIT,
+                &mut seen_versions,
+                true, // force_emit_all
+                None,
+            )
+            .await;
+            let comments = fetch_installed_aur_comments(
+                installed,
+                CONTINUATION_LIMIT,
+                &mut seen_aur_comments,
+                true, // force_emit_all
+            )
+            .await;
+            (updates, comments)
+        },
+        fetch_slow_sources(
+            true, // include_arch_news
+            true, // include_advisories
+            CONTINUATION_LIMIT,
+            Some(installed),
+            false, // installed_only
+            None,  // cutoff_date
+        )
+    );
+
+    let mut items = Vec::new();
+
+    // Add Arch news (filter out already-sent items)
+    if let Ok(arch_items) = arch_result {
+        for item in arch_items {
+            if !initial_ids.contains(&item.id) {
+                items.push(item);
+            }
+        }
+    }
+
+    // Add advisories (filter out already-sent items)
+    if let Ok(adv_items) = advisories_result {
+        for item in adv_items {
+            if !initial_ids.contains(&item.id) {
+                items.push(item);
+            }
+        }
+    }
+
+    // Add package updates (filter out already-sent items)
+    if let Ok(upd_items) = updates_result {
+        for item in upd_items {
+            if !initial_ids.contains(&item.id) {
+                items.push(item);
+            }
+        }
+    }
+
+    // Add AUR comments (filter out already-sent items)
+    if let Ok(comment_items) = comments_result {
+        for item in comment_items {
+            if !initial_ids.contains(&item.id) {
+                items.push(item);
+            }
+        }
+    }
+
+    // Sort by date descending
+    sort_news_items(&mut items, NewsSortMode::DateDesc);
+
+    info!(
+        total = items.len(),
+        arch = items
+            .iter()
+            .filter(|i| matches!(i.source, NewsFeedSource::ArchNews))
+            .count(),
+        advisories = items
+            .iter()
+            .filter(|i| matches!(i.source, NewsFeedSource::SecurityAdvisory))
+            .count(),
+        updates = items
+            .iter()
+            .filter(|i| matches!(
+                i.source,
+                NewsFeedSource::InstalledPackageUpdate | NewsFeedSource::AurPackageUpdate
+            ))
+            .count(),
+        "continuation fetch complete"
+    );
+
+    Ok(items)
+}
+
 // Re-export public functions from submodules
 pub use rate_limit::{
     check_circuit_breaker, extract_endpoint_pattern, extract_retry_after_from_error,
     increase_archlinux_backoff, rate_limit_archlinux, record_circuit_breaker_outcome,
     reset_archlinux_backoff, take_network_error,
+};
+pub use updates::{
+    get_aur_json_changes, get_official_json_changes, load_official_json_cache,
+    official_json_cache_path,
 };
 
 #[cfg(test)]

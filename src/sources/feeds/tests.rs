@@ -184,6 +184,11 @@ fn normalize_pkg_date_handles_rfc3339_and_utc_formats() {
         normalize_pkg_date("2025-12-07 11:09 UTC"),
         Some("2025-12-07".to_string())
     );
+    // Test format with milliseconds (as returned by archlinux.org JSON API)
+    assert_eq!(
+        normalize_pkg_date("2025-12-15T19:30:14.422Z"),
+        Some("2025-12-15".to_string())
+    );
 }
 
 #[test]

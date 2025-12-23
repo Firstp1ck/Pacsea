@@ -270,6 +270,47 @@ fn handle_news_feed_items(app: &mut AppState, payload: NewsFeedPayload) {
     }
 }
 
+/// What: Handle a single incremental news item from background continuation.
+///
+/// Inputs:
+/// - `app`: Application state
+/// - `item`: The news feed item to add
+///
+/// Details:
+/// - Appends the item to `news_items` if not already present (by id).
+/// - Refreshes filtered/sorted results.
+/// - Persists the updated feed cache to disk.
+fn handle_incremental_news_item(app: &mut AppState, item: crate::state::types::NewsFeedItem) {
+    // Check if item already exists (by id)
+    if app.news_items.iter().any(|existing| existing.id == item.id) {
+        tracing::debug!(
+            item_id = %item.id,
+            "incremental news item already exists, skipping"
+        );
+        return;
+    }
+
+    tracing::info!(
+        item_id = %item.id,
+        source = ?item.source,
+        title = %item.title,
+        "received incremental news item"
+    );
+
+    // Add the new item
+    app.news_items.push(item);
+
+    // Refresh filtered/sorted results
+    app.refresh_news_results();
+
+    // Persist to disk
+    if let Ok(serialized) = serde_json::to_string_pretty(&app.news_items)
+        && let Err(e) = std::fs::write(&app.news_feed_path, serialized)
+    {
+        tracing::warn!(error = %e, path = ?app.news_feed_path, "failed to persist incremental news feed cache");
+    }
+}
+
 /// What: Handle news article content response.
 ///
 /// Inputs:
@@ -408,6 +449,10 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
         }
         Some(feed) = channels.news_feed_rx.recv() => {
             handle_news_feed_items(app, feed);
+            false
+        }
+        Some(item) = channels.news_incremental_rx.recv() => {
+            handle_incremental_news_item(app, item);
             false
         }
         Some((url, content)) = channels.news_content_res_rx.recv() => {

@@ -263,6 +263,7 @@ pub fn spawn_startup_news_worker(
 ///
 /// Inputs:
 /// - `news_feed_tx`: Channel sender for aggregated news feed
+/// - `news_incremental_tx`: Channel sender for incremental background news items
 /// - `news_seen_pkg_versions`: Map of seen package versions
 /// - `news_seen_aur_comments`: Map of seen AUR comments
 /// - `completion_rx`: Optional oneshot receiver to wait for startup news fetch completion
@@ -273,14 +274,17 @@ pub fn spawn_startup_news_worker(
 /// Details:
 /// - Fetches aggregated news feed (Arch news + security advisories + package updates + AUR comments)
 /// - Sends feed payload to the news feed channel
+/// - Spawns background continuation task to fetch remaining items after initial limit
 /// - Waits for startup news fetch to complete before starting to prevent concurrent archlinux.org requests
 pub fn spawn_aggregated_news_feed_worker(
     news_feed_tx: &mpsc::UnboundedSender<crate::state::types::NewsFeedPayload>,
+    news_incremental_tx: &mpsc::UnboundedSender<crate::state::types::NewsFeedItem>,
     news_seen_pkg_versions: &std::collections::HashMap<String, String>,
     news_seen_aur_comments: &std::collections::HashMap<String, String>,
     completion_rx: Option<oneshot::Receiver<()>>,
 ) {
     let news_feed_tx_once = news_feed_tx.clone();
+    let news_incremental_tx_clone = news_incremental_tx.clone();
     let installed: HashSet<String> = pkgindex::explicit_names().into_iter().collect();
     let mut seen_versions = news_seen_pkg_versions.clone();
     let mut seen_aur_comments = news_seen_aur_comments.clone();
@@ -367,10 +371,77 @@ pub fn spawn_aggregated_news_feed_worker(
                     tracing::warn!(error = ?e, "failed to send news feed to channel");
                 } else {
                     tracing::info!("aggregated news feed payload sent successfully");
+                    // Spawn background continuation task to fetch remaining items
+                    let initial_ids: HashSet<String> = feed.iter().map(|i| i.id.clone()).collect();
+                    spawn_news_continuation_worker(
+                        news_incremental_tx_clone.clone(),
+                        installed_set.clone(),
+                        initial_ids,
+                    );
                 }
             }
             Err(e) => {
                 tracing::warn!(error = %e, "failed to fetch news feed");
+            }
+        }
+    });
+}
+
+/// What: Spawns background worker to continue fetching news items after initial limit.
+///
+/// Inputs:
+/// - `news_incremental_tx`: Channel sender for incremental news items
+/// - `installed_set`: Set of installed package names
+/// - `initial_ids`: Set of item IDs already sent in initial batch
+///
+/// Output:
+/// - None (spawns async task)
+///
+/// Details:
+/// - Fetches remaining items from all news sources (no limit)
+/// - Sends one item per second to the channel
+/// - Skips items already in `initial_ids`
+fn spawn_news_continuation_worker(
+    news_incremental_tx: mpsc::UnboundedSender<crate::state::types::NewsFeedItem>,
+    installed_set: HashSet<String>,
+    initial_ids: HashSet<String>,
+) {
+    tokio::spawn(async move {
+        tracing::info!(
+            initial_count = initial_ids.len(),
+            "starting news continuation worker"
+        );
+
+        // Wait a bit before starting continuation to let UI settle
+        tokio::time::sleep(Duration::from_secs(2)).await;
+
+        // Fetch continuation items from sources (high limit to get everything)
+        let continuation_items =
+            sources::fetch_continuation_items(&installed_set, &initial_ids).await;
+
+        match continuation_items {
+            Ok(items) => {
+                tracing::info!(
+                    count = items.len(),
+                    "continuation worker received items to send"
+                );
+                for item in items {
+                    // Skip if already sent in initial batch
+                    if initial_ids.contains(&item.id) {
+                        continue;
+                    }
+                    // Send item to channel
+                    if let Err(e) = news_incremental_tx.send(item.clone()) {
+                        tracing::warn!(error = ?e, "failed to send incremental news item");
+                        break;
+                    }
+                    // Throttle: 1 item per second
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                }
+                tracing::info!("news continuation worker completed");
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "news continuation fetch failed");
             }
         }
     });
