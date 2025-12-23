@@ -5,7 +5,7 @@ All notable changes to Pacsea will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
-## [0.7.0] - 2025-12-23
+## [0.7.0] - 2025-12-24
 
 # Release v0.7.0
 
@@ -102,6 +102,8 @@ paru -S pacsea-git   # or: yay -S pacsea-git
 
 **Full Changelog**: https://github.com/Firstp1ck/Pacsea/compare/v0.6.2...v0.7.0
 
+
+---
 
 ---
 ## [0.6.2] - 2025-12-05

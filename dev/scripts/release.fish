@@ -349,13 +349,13 @@ function generate_announcement
             # Detect subsection headers (### ...)
             if string match -r -- '^###' "$line"
                 # Extract subsection name (strip ### and emoji)
-                set current_subsection (string replace -r '^###\s*[^\s]*\s*' '' "$line" | string trim)
+                set current_subsection (string replace -r -- '^###\s*[^\s]*\s*' '' "$line" | string trim)
                 continue
             end
             
             # Extract bullet points
             if string match -r -- '^[*\-]\s+' "$line"
-                set -l item (string replace -r '^[*\-]\s+' '' "$line")
+                set -l item (string replace -r -- '^[*\-]\s+' '' "$line")
                 # Truncate long items
                 if test (string length "$item") -gt 80
                     set item (string sub -l 77 "$item")"..."
