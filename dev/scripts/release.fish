@@ -116,7 +116,7 @@ end
 
 function validate_semver
     set -l ver_str $argv[1]
-    if string match -qr '^[0-9]+\.[0-9]+\.[0-9]+$' $ver_str
+    if string match -r '^[0-9]+\.[0-9]+\.[0-9]+$' $ver_str
         return 0
     else
         return 1
@@ -330,14 +330,14 @@ function generate_announcement
     # Parse the release file line by line
     while read -l line
         # Detect "## What's New" section start
-        if string match -qr '^##\s+What' "$line"
+        if string match -r '^##\s+What' "$line"
             set in_whats_new true
             continue
         end
         
         # Detect end of "What's New" section (another ## header)
         if test "$in_whats_new" = true
-            if string match -qr '^##\s+' "$line"
+            if string match -r '^##\s+' "$line"
                 # Another major section - stop parsing
                 set in_whats_new false
                 continue
@@ -347,14 +347,14 @@ function generate_announcement
         # Inside What's New section
         if test "$in_whats_new" = true
             # Detect subsection headers (### ...)
-            if string match -qr '^###' "$line"
+            if string match -r '^###' "$line"
                 # Extract subsection name (strip ### and emoji)
                 set current_subsection (string replace -r '^###\s*[^\s]*\s*' '' "$line" | string trim)
                 continue
             end
             
             # Extract bullet points
-            if string match -qr '^[-*]\s+' "$line"
+            if string match -r '^[-*]\s+' "$line"
                 set -l item (string replace -r '^[-*]\s+' '' "$line")
                 # Truncate long items
                 if test (string length "$item") -gt 80
@@ -913,7 +913,7 @@ function update_security_md
     
     while read -l line
         # Detect the start of the version table
-        if string match -qr '^\|\s*Version\s*\|\s*Supported' "$line"
+        if string match -r '^\|\s*Version\s*\|\s*Supported' "$line"
             set in_table true
             set header_written false
             set separator_written false
@@ -923,7 +923,7 @@ function update_security_md
         end
         
         # Handle table separator line
-        if test "$in_table" = true; and string match -qr '^\|\s*-' "$line"
+        if test "$in_table" = true; and string match -r '^\|\s*-' "$line"
             if not test "$separator_written" = true
                 echo "$line" >> "$tmp_file"
                 set separator_written true
@@ -936,11 +936,11 @@ function update_security_md
         
         # Handle table rows
         if test "$in_table" = true
-            if string match -qr '^\|\s*<' "$line"
+            if string match -r '^\|\s*<' "$line"
                 # This is the "< X.Y.Z" line - update it
                 echo "| < $major_minor.0   | :x:                |" >> "$tmp_file"
                 continue
-            else if string match -qr '^\|\s*[0-9]' "$line"
+            else if string match -r '^\|\s*[0-9]' "$line"
                 # Another version row - skip old version entries
                 continue
             else if test -z (string trim "$line")
@@ -948,13 +948,13 @@ function update_security_md
                 set in_table false
                 echo "$line" >> "$tmp_file"
                 continue
-            else if string match -qr '^##' "$line"
+            else if string match -r '^##' "$line"
                 # New section - end of table
                 set in_table false
                 echo "" >> "$tmp_file"
                 echo "$line" >> "$tmp_file"
                 continue
-            else if not string match -qr '^\|' "$line"
+            else if not string match -r '^\|' "$line"
                 # Not a table line anymore
                 set in_table false
                 echo "$line" >> "$tmp_file"
