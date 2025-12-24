@@ -265,8 +265,10 @@ fn news_unhandled_key_preserves_modal() {
 /// Details:
 /// - Ensures that when News modal is active, Ctrl+R triggers news action (mark all read)
 ///   instead of the global config reload action
+/// - Only works in normal mode
 fn news_ctrl_r_mark_all_read_not_config_reload() {
     let mut app = new_app();
+    app.search_normal_mode = true; // Must be in normal mode
     let items = vec![
         crate::state::types::NewsFeedItem {
             id: "https://example.com/news1".to_string(),
@@ -346,8 +348,10 @@ fn news_ctrl_r_mark_all_read_not_config_reload() {
 ///
 /// Details:
 /// - Tests that lowercase 'r' works for mark single read
+/// - Only works in normal mode
 fn news_modal_lowercase_r_marks_single_read() {
     let mut app = new_app();
+    app.search_normal_mode = true; // Must be in normal mode
     let items = vec![
         crate::state::types::NewsFeedItem {
             id: "https://example.com/1".to_string(),

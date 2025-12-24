@@ -527,8 +527,6 @@ fn handle_change_sort(app: &mut AppState, details_tx: &mpsc::UnboundedSender<Pac
     }
     // Show the dropdown so the user sees the current option with a check mark
     app.sort_menu_open = true;
-    app.sort_menu_auto_close_at =
-        Some(std::time::Instant::now() + std::time::Duration::from_secs(2));
     false
 }
 

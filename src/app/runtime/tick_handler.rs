@@ -715,22 +715,22 @@ pub fn handle_tick(
         app.ring_resume_at = None;
     }
 
-    if app.sort_menu_open
-        && let Some(deadline) = app.sort_menu_auto_close_at
-        && std::time::Instant::now() >= deadline
-    {
-        app.sort_menu_open = false;
-        app.sort_menu_auto_close_at = None;
-    }
-
     // Clear expired toast, but don't clear news loading toast while news are still loading
     if let Some(deadline) = app.toast_expires_at
         && std::time::Instant::now() >= deadline
-        && !app.news_loading
-    // Don't clear toast if news are still loading
     {
-        app.toast_message = None;
-        app.toast_expires_at = None;
+        // Only prevent clearing if it's the actual news loading toast and news are still loading
+        let is_news_loading_toast = app
+            .toast_message
+            .as_ref()
+            .is_some_and(|msg| {
+                let loading_msg = crate::i18n::t(app, "app.news_button.loading");
+                msg == &loading_msg
+            });
+        if !is_news_loading_toast || !app.news_loading {
+            app.toast_message = None;
+            app.toast_expires_at = None;
+        }
     }
 }
 

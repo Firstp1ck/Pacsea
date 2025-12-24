@@ -23,6 +23,7 @@ use crate::theme::theme;
 ///
 /// Details:
 /// - Shows "> " prefix; in normal mode, highlights selected text with lavender background.
+/// - Uses `news_search_input`/`news_search_caret` in News mode, otherwise uses `app.input`/`app.search_caret`.
 fn build_input_spans<'a>(
     app: &AppState,
     search_focused: bool,
@@ -37,41 +38,50 @@ fn build_input_spans<'a>(
             th.overlay1
         }),
     ));
+
+    // Determine which input field and caret to use based on mode
+    let (input_text, caret_ci, select_anchor) = if matches!(app.app_mode, AppMode::News) {
+        (
+            &app.news_search_input,
+            app.news_search_caret,
+            app.news_search_select_anchor,
+        )
+    } else {
+        (&app.input, app.search_caret, app.search_select_anchor)
+    };
+
     if search_focused && app.search_normal_mode {
-        let caret_ci = app.search_caret;
-        let (sel_from_ci, sel_to_ci) = app
-            .search_select_anchor
-            .map_or((caret_ci, caret_ci), |anchor| {
-                (anchor.min(caret_ci), anchor.max(caret_ci))
-            });
-        let cc = app.input.chars().count();
+        let (sel_from_ci, sel_to_ci) = select_anchor.map_or((caret_ci, caret_ci), |anchor| {
+            (anchor.min(caret_ci), anchor.max(caret_ci))
+        });
+        let cc = input_text.chars().count();
         let sel_from_ci = sel_from_ci.min(cc);
         let sel_to_ci = sel_to_ci.min(cc);
         let from_b = {
             if sel_from_ci == 0 {
                 0
             } else {
-                app.input
+                input_text
                     .char_indices()
                     .map(|(i, _)| i)
                     .nth(sel_from_ci)
-                    .unwrap_or(app.input.len())
+                    .unwrap_or(input_text.len())
             }
         };
         let to_b = {
             if sel_to_ci == 0 {
                 0
             } else {
-                app.input
+                input_text
                     .char_indices()
                     .map(|(i, _)| i)
                     .nth(sel_to_ci)
-                    .unwrap_or(app.input.len())
+                    .unwrap_or(input_text.len())
             }
         };
-        let pre = &app.input[..from_b];
-        let sel = &app.input[from_b..to_b];
-        let post = &app.input[to_b..];
+        let pre = &input_text[..from_b];
+        let sel = &input_text[from_b..to_b];
+        let post = &input_text[to_b..];
         if !pre.is_empty() {
             input_spans.push(Span::styled(
                 pre.to_string(),
@@ -95,7 +105,7 @@ fn build_input_spans<'a>(
         }
     } else {
         input_spans.push(Span::styled(
-            app.input.as_str().to_string(),
+            input_text.as_str().to_string(),
             Style::default().fg(if search_focused { th.text } else { th.subtext0 }),
         ));
     }
@@ -248,10 +258,16 @@ pub fn render_search(f: &mut Frame, app: &mut AppState, area: Rect) {
     // Cursor in input
     let right = area.x + area.width.saturating_sub(1);
     // Cursor x: align to caret in characters from start (prefix "> ")
+    // Use news_search_input/news_search_caret in News mode, otherwise use app.input/app.search_caret
+    let (input_text, caret_pos) = if matches!(app.app_mode, AppMode::News) {
+        (&app.news_search_input, app.news_search_caret)
+    } else {
+        (&app.input, app.search_caret)
+    };
     let caret_cols: u16 = if search_focused {
         let mut ci: u16 = 0;
-        let mut it = app.input.chars();
-        for _ in 0..app.search_caret {
+        let mut it = input_text.chars();
+        for _ in 0..caret_pos {
             if it.next().is_some() {
                 ci = ci.saturating_add(1);
             } else {
@@ -260,7 +276,7 @@ pub fn render_search(f: &mut Frame, app: &mut AppState, area: Rect) {
         }
         ci
     } else {
-        u16::try_from(app.input.len()).unwrap_or(u16::MAX)
+        u16::try_from(input_text.len()).unwrap_or(u16::MAX)
     };
     let x = std::cmp::min(area.x + 1 + 2 + caret_cols, right);
     let y = area.y + 1;

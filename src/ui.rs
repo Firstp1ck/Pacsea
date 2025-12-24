@@ -295,10 +295,27 @@ fn render_toast(f: &mut Frame, app: &AppState, area: ratatui::prelude::Rect) {
         let translated = i18n::t(app, key);
         msg == &translated
     });
-    let title_text = if is_news_toast {
+
+    // Check for news age messages by comparing against translation keys or content pattern
+    let translated_all = i18n::t(app, "app.results.options_menu.news_age_all");
+    let is_news_age_toast = msg == &translated_all
+        || msg.starts_with("News age:")
+        || msg.to_lowercase().contains("news age");
+
+    // Check for clipboard messages by content (language-agnostic pattern matching)
+    let msg_lower = msg.to_lowercase();
+    let is_clipboard_toast = msg_lower.contains("clipboard")
+        || msg_lower.contains("wl-copy")
+        || msg_lower.contains("xclip")
+        || msg_lower.contains("copied")
+        || msg_lower.contains("copying");
+
+    let title_text = if is_news_toast || is_news_age_toast {
         i18n::t(app, "app.toasts.title_news")
-    } else {
+    } else if is_clipboard_toast {
         i18n::t(app, "app.toasts.title_clipboard")
+    } else {
+        i18n::t(app, "app.toasts.title_notification")
     };
 
     let content = Span::styled(msg.clone(), Style::default().fg(th.text));
