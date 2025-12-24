@@ -254,10 +254,9 @@ fn handle_recent_enter(app: &mut AppState, query_tx: &mpsc::UnboundedSender<Quer
     app.last_input_change = std::time::Instant::now();
     app.last_saved_value = None;
     if matches!(app.app_mode, crate::state::types::AppMode::News) {
-        app.news_search_input = q.clone();
-        app.input = q;
-        app.search_caret = char_count(&app.news_search_input);
-        app.search_select_anchor = None;
+        app.news_search_input = q;
+        app.news_search_caret = char_count(&app.news_search_input);
+        app.news_search_select_anchor = None;
         app.refresh_news_results();
     } else {
         app.input = q;

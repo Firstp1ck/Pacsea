@@ -877,6 +877,7 @@ fn build_news_footer_lines(app: &AppState, th: &Theme) -> Vec<Line<'static>> {
             let toggle_label = label(&app.keymap.search_normal_toggle, "Esc");
             let clear_label = label(&app.keymap.search_insert_clear, "Shift+Del");
             let fuzzy_label = label(&app.keymap.toggle_fuzzy, "Ctrl+f");
+            let change_sort_label = label(&app.keymap.change_sort, "Shift+Tab");
 
             let mut insert_spans = build_section_header(
                 i18n::t(app, "app.modals.help.normal_mode.insert_mode"),
@@ -900,6 +901,13 @@ fn build_news_footer_lines(app: &AppState, th: &Theme) -> Vec<Line<'static>> {
             insert_spans.push(Span::raw(format!(
                 " {}",
                 i18n::t(app, "app.modals.help.key_labels.toggle_fuzzy")
+            )));
+            insert_spans.push(Span::styled("  |  ", sep_style));
+
+            insert_spans.push(Span::styled(format!("[{change_sort_label}]"), key_style));
+            insert_spans.push(Span::raw(format!(
+                " {}",
+                i18n::t(app, "app.actions.change_sort_mode")
             )));
 
             lines.push(Line::from(insert_spans));

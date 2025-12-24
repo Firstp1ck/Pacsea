@@ -185,19 +185,35 @@ pub fn handle_export(app: &mut AppState) {
 /// Details:
 /// - Begins selection if not already started.
 /// - Moves caret in the specified direction within input bounds.
+/// - Handles both News mode and normal search mode.
 fn handle_selection_move(app: &mut AppState, direction: isize) {
-    if app.search_select_anchor.is_none() {
-        app.search_select_anchor = Some(app.search_caret);
-    }
+    if matches!(app.app_mode, crate::state::types::AppMode::News) {
+        if app.news_search_select_anchor.is_none() {
+            app.news_search_select_anchor = Some(app.news_search_caret);
+        }
 
-    let cc = char_count(&app.input);
-    let cur = isize::try_from(app.search_caret).unwrap_or(0) + direction;
-    let new_ci = if cur < 0 {
-        0
+        let cc = char_count(&app.news_search_input);
+        let cur = isize::try_from(app.news_search_caret).unwrap_or(0) + direction;
+        let new_ci = if cur < 0 {
+            0
+        } else {
+            usize::try_from(cur).unwrap_or(0)
+        };
+        app.news_search_caret = new_ci.min(cc);
     } else {
-        usize::try_from(cur).unwrap_or(0)
-    };
-    app.search_caret = new_ci.min(cc);
+        if app.search_select_anchor.is_none() {
+            app.search_select_anchor = Some(app.search_caret);
+        }
+
+        let cc = char_count(&app.input);
+        let cur = isize::try_from(app.search_caret).unwrap_or(0) + direction;
+        let new_ci = if cur < 0 {
+            0
+        } else {
+            usize::try_from(cur).unwrap_or(0)
+        };
+        app.search_caret = new_ci.min(cc);
+    }
 }
 
 /// What: Handle deletion of selected text range.
@@ -212,30 +228,53 @@ fn handle_selection_move(app: &mut AppState, direction: isize) {
 /// Details:
 /// - Deletes the selected range between anchor and caret.
 /// - Updates input and triggers query refresh.
+/// - Handles both News mode and normal search mode.
 fn handle_selection_delete(
     app: &mut AppState,
     query_tx: &mpsc::UnboundedSender<QueryInput>,
 ) -> bool {
-    let Some(anchor) = app.search_select_anchor.take() else {
+    let (anchor_opt, caret, input_text) =
+        if matches!(app.app_mode, crate::state::types::AppMode::News) {
+            (
+                app.news_search_select_anchor.take(),
+                app.news_search_caret,
+                &mut app.news_search_input,
+            )
+        } else {
+            (
+                app.search_select_anchor.take(),
+                app.search_caret,
+                &mut app.input,
+            )
+        };
+
+    let Some(anchor) = anchor_opt else {
         return false;
     };
 
-    let a = anchor.min(app.search_caret);
-    let b = anchor.max(app.search_caret);
+    let a = anchor.min(caret);
+    let b = anchor.max(caret);
     if a == b {
         return false;
     }
 
-    let bs = byte_index_for_char(&app.input, a);
-    let be = byte_index_for_char(&app.input, b);
-    let mut new_input = String::with_capacity(app.input.len());
-    new_input.push_str(&app.input[..bs]);
-    new_input.push_str(&app.input[be..]);
-    app.input = new_input;
-    app.search_caret = a;
+    let bs = byte_index_for_char(input_text, a);
+    let be = byte_index_for_char(input_text, b);
+    let mut new_input = String::with_capacity(input_text.len());
+    new_input.push_str(&input_text[..bs]);
+    new_input.push_str(&input_text[be..]);
+    *input_text = new_input;
+
+    if matches!(app.app_mode, crate::state::types::AppMode::News) {
+        app.news_search_caret = a;
+        app.refresh_news_results();
+    } else {
+        app.search_caret = a;
+        send_query(app, query_tx);
+    }
+
     app.last_input_change = std::time::Instant::now();
     app.last_saved_value = None;
-    send_query(app, query_tx);
     true
 }
 
@@ -509,11 +548,8 @@ fn handle_input_clear(app: &mut AppState, query_tx: &mpsc::UnboundedSender<Query
     if matches!(app.app_mode, crate::state::types::AppMode::News) {
         if !app.news_search_input.is_empty() {
             app.news_search_input.clear();
-            app.input.clear();
             app.news_search_caret = 0;
             app.news_search_select_anchor = None;
-            app.search_caret = 0;
-            app.search_select_anchor = None;
             app.last_input_change = std::time::Instant::now();
             app.last_saved_value = None;
             app.refresh_news_results();

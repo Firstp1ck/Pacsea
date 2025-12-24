@@ -227,8 +227,10 @@ fn global_keybinds_work_when_no_modal_open() {
 ///
 /// Details:
 /// - Comprehensive test for the original issue (Ctrl+R conflict in News modal)
+/// - Only works in normal mode
 fn modal_keybinds_priority_over_global_ctrl_r_in_news() {
     let mut app = new_app();
+    app.search_normal_mode = true; // Must be in normal mode
     let items = vec![
         crate::state::types::NewsFeedItem {
             id: "https://example.com/1".to_string(),

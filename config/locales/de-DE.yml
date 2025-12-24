@@ -116,6 +116,7 @@ de-DE:
       worldwide: "Weltweit"
     toasts:
       title_news: " Neuigkeiten "
+      title_notification: " Benachrichtigung "
       title_clipboard: " Zwischenablage "
       copying_pkgbuild: "PKGBUILD wird in Zwischenablage kopiert…"
       pkgbuild_not_loaded: "PKGBUILD noch nicht geladen"
@@ -463,7 +464,7 @@ de-DE:
           panels_menu: "  Panels-Menü"
         normal_mode:
           label: "Normalmodus:"
-          insert_mode: " Einfügemodus, "
+          insert_mode: " Einfügemodus: "
           move: " bewegen, "
           page: " Seite, "
           select_text: " Text auswählen, "

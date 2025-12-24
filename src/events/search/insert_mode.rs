@@ -29,14 +29,11 @@ fn handle_character_input(
 ) {
     if matches!(app.app_mode, crate::state::types::AppMode::News) {
         app.news_search_input.push(ch);
-        app.input = app.news_search_input.clone();
         app.last_input_change = std::time::Instant::now();
         app.last_saved_value = None;
         let caret = char_count(&app.news_search_input);
         app.news_search_caret = caret;
         app.news_search_select_anchor = None;
-        app.search_caret = caret;
-        app.search_select_anchor = None;
         app.refresh_news_results();
     } else {
         app.input.push(ch);
@@ -62,14 +59,11 @@ fn handle_character_input(
 fn handle_backspace(app: &mut AppState, query_tx: &mpsc::UnboundedSender<QueryInput>) {
     if matches!(app.app_mode, crate::state::types::AppMode::News) {
         app.news_search_input.pop();
-        app.input = app.news_search_input.clone();
         app.last_input_change = std::time::Instant::now();
         app.last_saved_value = None;
         let caret = char_count(&app.news_search_input);
         app.news_search_caret = caret;
         app.news_search_select_anchor = None;
-        app.search_caret = caret;
-        app.search_select_anchor = None;
         app.refresh_news_results();
     } else {
         app.input.pop();
@@ -252,7 +246,16 @@ pub fn handle_insert_mode(
                 let km = &app.keymap;
                 if matches_any(&ke, &km.search_insert_clear) {
                     // Clear entire search input
-                    if !app.input.is_empty() {
+                    if matches!(app.app_mode, crate::state::types::AppMode::News) {
+                        if !app.news_search_input.is_empty() {
+                            app.news_search_input.clear();
+                            app.news_search_caret = 0;
+                            app.news_search_select_anchor = None;
+                            app.last_input_change = std::time::Instant::now();
+                            app.last_saved_value = None;
+                            app.refresh_news_results();
+                        }
+                    } else if !app.input.is_empty() {
                         app.input.clear();
                         app.search_caret = 0;
                         app.search_select_anchor = None;

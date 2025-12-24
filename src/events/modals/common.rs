@@ -431,8 +431,11 @@ mod news_tests {
     ///
     /// Details:
     /// - Verifies read-state mutation and dirty flag handling.
+    /// - Only works in normal mode.
+    #[allow(clippy::field_reassign_with_default)] // Field assignment in tests is acceptable for test setup
     fn test_handle_news_mark_read() {
         let mut app = AppState::default();
+        app.search_normal_mode = true; // Must be in normal mode
         app.keymap.news_mark_read = [crate::theme::KeyChord {
             code: KeyCode::Char('r'),
             mods: KeyModifiers::empty(),
@@ -474,8 +477,11 @@ mod news_tests {
     ///
     /// Details:
     /// - Verifies bulk read-state mutation.
+    /// - Only works in normal mode.
+    #[allow(clippy::field_reassign_with_default)] // Field assignment in tests is acceptable for test setup
     fn test_handle_news_mark_all_read() {
         let mut app = AppState::default();
+        app.search_normal_mode = true; // Must be in normal mode
         app.keymap.news_mark_all_read = [crate::theme::KeyChord {
             code: KeyCode::Char('r'),
             mods: KeyModifiers::CONTROL,
@@ -574,6 +580,112 @@ mod news_tests {
         let _ = handle_news(ke, &mut app, &items, &mut selected, &mut scroll);
         assert_eq!(selected, 0, "Up should decrement selection");
     }
+
+    #[test]
+    /// What: Test `handle_news` does not mark item as read when in insert mode.
+    ///
+    /// Inputs:
+    /// - News modal with items, keymap chord for mark-read, but in insert mode.
+    ///
+    /// Output:
+    /// - Item should NOT be added to read sets when in insert mode.
+    ///
+    /// Details:
+    /// - Verifies that mark read only works in normal mode, not insert mode.
+    #[allow(clippy::field_reassign_with_default)] // Field assignment in tests is acceptable for test setup
+    fn test_handle_news_mark_read_insert_mode() {
+        let mut app = AppState::default();
+        app.search_normal_mode = false; // Insert mode
+        app.keymap.news_mark_read = [crate::theme::KeyChord {
+            code: KeyCode::Char('r'),
+            mods: KeyModifiers::empty(),
+        }]
+        .into();
+
+        let items = vec![NewsFeedItem {
+            id: "test-id-1".to_string(),
+            date: "2025-01-01".to_string(),
+            title: "Test News".to_string(),
+            summary: None,
+            url: Some("https://example.com/news/1".to_string()),
+            source: NewsFeedSource::ArchNews,
+            severity: None,
+            packages: Vec::new(),
+        }];
+
+        let mut selected = 0;
+        let mut scroll = 0;
+        let mut ke = KeyEvent::new(KeyCode::Char('r'), KeyModifiers::empty());
+        ke.kind = crossterm::event::KeyEventKind::Press;
+
+        let _ = handle_news(ke, &mut app, &items, &mut selected, &mut scroll);
+
+        // In insert mode, 'r' should not mark as read
+        assert!(!app.news_read_ids.contains("test-id-1"));
+        assert!(!app.news_read_urls.contains("https://example.com/news/1"));
+        assert!(!app.news_read_ids_dirty);
+        assert!(!app.news_read_dirty);
+    }
+
+    #[test]
+    /// What: Test `handle_news` does not mark all items as read when in insert mode.
+    ///
+    /// Inputs:
+    /// - News modal with multiple items, keymap chord for mark-all-read, but in insert mode.
+    ///
+    /// Output:
+    /// - Items should NOT be added to read sets when in insert mode.
+    ///
+    /// Details:
+    /// - Verifies that mark all read only works in normal mode, not insert mode.
+    #[allow(clippy::field_reassign_with_default)] // Field assignment in tests is acceptable for test setup
+    fn test_handle_news_mark_all_read_insert_mode() {
+        let mut app = AppState::default();
+        app.search_normal_mode = false; // Insert mode
+        app.keymap.news_mark_all_read = [crate::theme::KeyChord {
+            code: KeyCode::Char('r'),
+            mods: KeyModifiers::CONTROL,
+        }]
+        .into();
+
+        let items = vec![
+            NewsFeedItem {
+                id: "test-id-1".to_string(),
+                date: "2025-01-01".to_string(),
+                title: "Test News 1".to_string(),
+                summary: None,
+                url: Some("https://example.com/news/1".to_string()),
+                source: NewsFeedSource::ArchNews,
+                severity: None,
+                packages: Vec::new(),
+            },
+            NewsFeedItem {
+                id: "test-id-2".to_string(),
+                date: "2025-01-02".to_string(),
+                title: "Test News 2".to_string(),
+                summary: None,
+                url: Some("https://example.com/news/2".to_string()),
+                source: NewsFeedSource::ArchNews,
+                severity: None,
+                packages: Vec::new(),
+            },
+        ];
+
+        let mut selected = 0;
+        let mut scroll = 0;
+        let mut ke = KeyEvent::new(KeyCode::Char('r'), KeyModifiers::CONTROL);
+        ke.kind = crossterm::event::KeyEventKind::Press;
+
+        let _ = handle_news(ke, &mut app, &items, &mut selected, &mut scroll);
+
+        // In insert mode, Ctrl+R should not mark as read
+        assert!(!app.news_read_ids.contains("test-id-1"));
+        assert!(!app.news_read_ids.contains("test-id-2"));
+        assert!(!app.news_read_urls.contains("https://example.com/news/1"));
+        assert!(!app.news_read_urls.contains("https://example.com/news/2"));
+        assert!(!app.news_read_ids_dirty);
+        assert!(!app.news_read_dirty);
+    }
 }
 
 /// What: Handle key events for News modal.
@@ -591,6 +703,7 @@ mod news_tests {
 /// Details:
 /// - Handles Esc/q to close, navigation, Enter to open URL, keymap shortcuts for marking read
 /// - Updates scroll to keep selection centered
+/// - Mark read actions only work in normal mode (not insert mode)
 pub(super) fn handle_news(
     ke: KeyEvent,
     app: &mut AppState,
@@ -600,6 +713,10 @@ pub(super) fn handle_news(
 ) -> bool {
     let km = &app.keymap;
     if crate::events::utils::matches_any(&ke, &km.news_mark_read) {
+        // Mark as read only works in normal mode
+        if !app.search_normal_mode {
+            return false;
+        }
         if let Some(it) = items.get(*selected) {
             // Mark as read using id (primary) and url if available
             app.news_read_ids.insert(it.id.clone());
@@ -612,6 +729,10 @@ pub(super) fn handle_news(
         return false;
     }
     if crate::events::utils::matches_any(&ke, &km.news_mark_all_read) {
+        // Mark all as read only works in normal mode
+        if !app.search_normal_mode {
+            return false;
+        }
         for it in items {
             app.news_read_ids.insert(it.id.clone());
             if let Some(url) = &it.url {

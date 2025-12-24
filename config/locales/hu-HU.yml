@@ -120,6 +120,8 @@ hu-HU:
     toasts:
       title_news: " Hírek "
       title_clipboard: " Vágólap "
+      # TODO: translate to hungarian
+      title_notification: " Notification "
       copying_pkgbuild: "PKGBUILD másolása a vágólapra…"
       pkgbuild_not_loaded: "A PKGBUILD még nincs betöltve"
       install_list_empty: "A telepítési lista üres"
@@ -466,7 +468,7 @@ hu-HU:
           panels_menu: "  Panelek menü"
         normal_mode:
           label: "Normál mód:"
-          insert_mode: " Beszúrásos mód, "
+          insert_mode: " Beszúrásos mód: "
           move: " mozgás, "
           page: " lapozás, "
           select_text: " Szöveg kijelölése, "

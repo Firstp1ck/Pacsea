@@ -225,12 +225,10 @@ fn handle_arch_status() -> bool {
 ///
 /// Output:
 /// - `false` if handled
+#[allow(clippy::missing_const_for_fn)]
 fn handle_sort_button(app: &mut AppState) -> bool {
     app.sort_menu_open = !app.sort_menu_open;
-    if app.sort_menu_open {
-        app.sort_menu_auto_close_at =
-            Some(std::time::Instant::now() + std::time::Duration::from_secs(2));
-    } else {
+    if !app.sort_menu_open {
         app.sort_menu_auto_close_at = None;
     }
     false
