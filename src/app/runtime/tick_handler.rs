@@ -720,13 +720,10 @@ pub fn handle_tick(
         && std::time::Instant::now() >= deadline
     {
         // Only prevent clearing if it's the actual news loading toast and news are still loading
-        let is_news_loading_toast = app
-            .toast_message
-            .as_ref()
-            .is_some_and(|msg| {
-                let loading_msg = crate::i18n::t(app, "app.news_button.loading");
-                msg == &loading_msg
-            });
+        let is_news_loading_toast = app.toast_message.as_ref().is_some_and(|msg| {
+            let loading_msg = crate::i18n::t(app, "app.news_button.loading");
+            msg == &loading_msg
+        });
         if !is_news_loading_toast || !app.news_loading {
             app.toast_message = None;
             app.toast_expires_at = None;

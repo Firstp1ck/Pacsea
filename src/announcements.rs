@@ -54,6 +54,11 @@ pub const VERSION_ANNOUNCEMENTS: &[VersionAnnouncement] = &[
         title: "Version 0.7.0",
         content: "## What's New\n\n- **Arch Linux News**: Latest announcements and updates from archlinux.org\n- **Security Advisories**: Security alerts with severity indicators and affecte...\n- **Package Updates**: Track version changes for your installed packages with c...\n- **AUR Comments**: Recent community discussions and feedback\n- **Change Detection**: Automatically detects package changes (version, maintai...\n\n",
     },
+    VersionAnnouncement {
+        version: "0.7.1",
+        title: "Version 0.7.1",
+        content: "## What's New\n\n### News Mode Enhancements\n- **Separated search inputs**: News mode and Package mode now have independent search fields\n  - No more shared state issues when switching between modes\n  - Search text is preserved when switching modes\n- **Improved mark-as-read behavior**: Mark read actions (`r` key) now only work in normal mode\n  - Prevents accidental marking when typing 'r' in insert mode\n  - More consistent with vim-like behavior\n\n### Toast Notifications\n- Improved toast clearing logic for better user experience\n- Enhanced toast title detection for news, clipboard, and notification types\n- Added notification title translations\n\n### UI Polish\n- Sort menu no longer auto-closes (stays open until you select an option or close it)\n- Added `change_sort` keybind to help footer in News mode\n- Fixed help text punctuation for better readability\n\n",
+    },
 ];
 
 /// What: Remote announcement fetched from GitHub Gist.

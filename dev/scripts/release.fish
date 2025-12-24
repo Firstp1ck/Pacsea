@@ -356,9 +356,9 @@ function generate_announcement
             # Extract bullet points
             if string match -r -- '^[*\-]\s+' "$line"
                 set -l item (string replace -r -- '^[*\-]\s+' '' "$line")
-                # Truncate long items
-                if test (string length "$item") -gt 80
-                    set item (string sub -l 77 "$item")"..."
+                # Truncate very long items (keep up to 150 chars to preserve content)
+                if test (string length "$item") -gt 150
+                    set item (string sub -l 147 "$item")"..."
                 end
                 # Skip empty items
                 if test -n "$item"
