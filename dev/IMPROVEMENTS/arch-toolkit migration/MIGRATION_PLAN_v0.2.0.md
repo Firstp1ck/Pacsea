@@ -487,12 +487,20 @@ fn dependency_status_to_pacsea_status(status: &arch_toolkit::DependencyStatus) -
 
 **Issue:** Pacsea uses i18n for parsing localized pacman output labels, but arch-toolkit uses English-only.
 
-**Solution Options:**
-1. Keep custom parsing functions for i18n support
-2. Use arch-toolkit and accept English-only limitation
-3. Contribute i18n support to arch-toolkit (future enhancement)
+**Solution:** ✅ **PROPOSED**: Add optional `ParseConfig` to arch-toolkit with English fallback
+- See [I18N_PROPOSAL.md](./I18N_PROPOSAL.md) for detailed proposal
+- Add `ParseConfig` struct that accepts custom labels (depends, conflicts, none)
+- Always includes English labels as fallback
+- Maintains backward compatibility (optional parameter)
+- Zero additional dependencies
 
-**Recommendation:** Keep custom parsing functions if i18n is critical, otherwise migrate to arch-toolkit.
+**Implementation Plan:**
+1. Implement `ParseConfig` in arch-toolkit (see proposal)
+2. Update `parse_pacman_si_deps()` and `parse_pacman_si_conflicts()` to accept optional config
+3. Pacsea can provide i18n labels from its locale system via `ParseConfig`
+4. Falls back to English if config not provided or labels fail to load
+
+**Recommendation:** Implement i18n support in arch-toolkit using the proposed `ParseConfig` approach.
 
 ### Challenge 2: Different Dependency Resolution Strategy
 
