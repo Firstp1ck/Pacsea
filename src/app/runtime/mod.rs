@@ -73,6 +73,13 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
     // Initialize application state (loads settings, caches, etc.)
     let init_flags = initialize_app_state(&mut app, dry_run_flag, headless);
 
+    // Initialize ArchClient for AUR operations with caching enabled
+    if let Err(e) =
+        crate::sources::init_arch_client_with_cache(Some(crate::sources::create_cache_config()))
+    {
+        tracing::warn!("Failed to initialize ArchClient: {e}. AUR operations may be unavailable.");
+    }
+
     // Create channels and spawn background workers
     let mut channels = Channels::new(app.official_index_path.clone());
 

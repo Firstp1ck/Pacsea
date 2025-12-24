@@ -1,5 +1,8 @@
 # Rust Development Rules for AI Agents
 
+- When using the arch-toolkit crate, always check if arch-toolkit provides the same functionality.
+- If it does not, skip the implementation and add a TODO to the arch-toolkit directory.
+
 ## When Creating New Code (Files, Functions, Methods, Enums)
 - Always check cyclomatic complexity < 25
 - Always check data flow complexity < 25

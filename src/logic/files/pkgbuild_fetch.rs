@@ -1,18 +1,8 @@
 //! PKGBUILD fetching functions.
 
+use crate::sources::get_arch_client;
 use crate::util::{curl_args, percent_encode};
 use std::process::Command;
-use std::sync::Mutex;
-use std::time::{Duration, Instant};
-
-/// Rate limiter for PKGBUILD requests to avoid overwhelming AUR servers.
-///
-/// Tracks the timestamp of the last PKGBUILD request to enforce minimum intervals.
-static PKGBUILD_RATE_LIMITER: Mutex<Option<Instant>> = Mutex::new(None);
-/// Minimum interval between PKGBUILD requests in milliseconds.
-///
-/// Prevents overwhelming AUR servers with too many rapid requests.
-const PKGBUILD_MIN_INTERVAL_MS: u64 = 500;
 
 /// What: Try to find PKGBUILD in a directory structure.
 ///
@@ -244,18 +234,15 @@ pub fn get_pkgbuild_from_cache(name: &str) -> Option<String> {
 /// - Returns PKGBUILD content as a string, or an error if fetch fails.
 ///
 /// # Errors
-/// - Returns `Err` when network request fails (curl execution error)
+/// - Returns `Err` when network request fails
 /// - Returns `Err` when PKGBUILD cannot be fetched from AUR or official repositories
-/// - Returns `Err` when rate limiting mutex is poisoned
-///
-/// # Panics
-/// - Panics if the rate limiting mutex is poisoned
 ///
 /// Details:
 /// - First tries offline methods (yay/paru cache, yay -G, paru -G).
-/// - Then tries AUR with rate limiting (500ms between requests).
+/// - For AUR packages: tries arch-toolkit first (with automatic rate limiting and retry logic).
+/// - Falls back to curl-based AUR fetching if arch-toolkit unavailable or fails.
 /// - Falls back to official GitLab repos for official packages.
-/// - Uses curl to fetch PKGBUILD from AUR or official GitLab repos.
+/// - Leverages automatic rate limiting, retry logic, and optional caching from arch-toolkit for AUR packages.
 pub fn fetch_pkgbuild_sync(name: &str) -> Result<String, String> {
     // 1. Try offline methods first (yay/paru cache)
     if let Some(cached) = get_pkgbuild_from_cache(name) {
@@ -263,34 +250,54 @@ pub fn fetch_pkgbuild_sync(name: &str) -> Result<String, String> {
         return Ok(cached);
     }
 
-    // 2. Rate limiting: ensure minimum interval between requests
-    {
-        let mut last_request = PKGBUILD_RATE_LIMITER
-            .lock()
-            .expect("PKGBUILD rate limiter mutex poisoned");
-        if let Some(last) = *last_request {
-            let elapsed = last.elapsed();
-            if elapsed < Duration::from_millis(PKGBUILD_MIN_INTERVAL_MS) {
-                let delay = Duration::from_millis(PKGBUILD_MIN_INTERVAL_MS)
-                    .checked_sub(elapsed)
-                    .expect("elapsed should be less than PKGBUILD_MIN_INTERVAL_MS");
-                tracing::debug!(
-                    "Rate limiting PKGBUILD request for {}: waiting {:?}",
-                    name,
-                    delay
-                );
-                std::thread::sleep(delay);
+    // 2. Try AUR first using arch-toolkit (for AUR packages)
+    if let Some(client) = get_arch_client() {
+        let pkgbuild_result = match tokio::runtime::Handle::try_current() {
+            Ok(handle) => handle.block_on(client.aur().pkgbuild(name)),
+            Err(_) => {
+                // No runtime available, create a new one
+                match tokio::runtime::Runtime::new() {
+                    Ok(rt) => rt.block_on(client.aur().pkgbuild(name)),
+                    Err(e) => {
+                        tracing::debug!("Failed to create tokio runtime for PKGBUILD fetch: {}", e);
+                        // Fall through to curl-based AUR fetching
+                        return Err(format!("Failed to create tokio runtime: {e}"));
+                    }
+                }
+            }
+        };
+
+        match pkgbuild_result {
+            Ok(text) if !text.trim().is_empty() && text.contains("pkgname") => {
+                return Ok(text);
+            }
+            Ok(_) => {
+                tracing::debug!("AUR returned empty or invalid PKGBUILD for {}", name);
+                // Fall through to curl-based AUR fetching
+            }
+            Err(e) => {
+                tracing::debug!("AUR PKGBUILD fetch failed for {}: {}", name, e);
+                // Check if it's an HTTP error (like 502) - don't fallback to GitLab for AUR packages
+                let error_str = e.to_string();
+                if error_str.contains("HTTP") || error_str.contains("502") {
+                    return Err(format!("AUR returned HTTP error: {e}"));
+                }
+                // Fall through to curl-based AUR fetching for other errors
             }
         }
-        *last_request = Some(Instant::now());
+    } else {
+        tracing::debug!(
+            "ArchClient not initialized, falling back to curl for {}",
+            name
+        );
     }
 
-    // 3. Try AUR first (works for both AUR and official packages via AUR mirror)
+    // 3. Fallback to curl-based AUR fetching (for backward compatibility or when arch-toolkit unavailable)
     let url_aur = format!(
         "https://aur.archlinux.org/cgit/aur.git/plain/PKGBUILD?h={}",
         percent_encode(name)
     );
-    tracing::debug!("Fetching PKGBUILD from AUR: {}", url_aur);
+    tracing::debug!("Fetching PKGBUILD from AUR (curl fallback): {}", url_aur);
 
     let args = curl_args(&url_aur, &[]);
     let output = Command::new("curl").args(&args).output();

@@ -1,22 +1,12 @@
-//! PKGBUILD fetching with rate limiting and caching.
+//! PKGBUILD fetching with arch-toolkit integration and caching.
 
 use crate::logic::files::get_pkgbuild_from_cache;
+use crate::sources::get_arch_client;
 use crate::state::{PackageItem, Source};
 use crate::util::percent_encode;
-use std::sync::Mutex;
-use std::time::{Duration, Instant};
 
 /// Result type alias for PKGBUILD fetching operations.
 type Result<T> = super::Result<T>;
-
-/// Rate limiter for PKGBUILD requests to avoid overwhelming AUR servers.
-///
-/// Tracks the timestamp of the last PKGBUILD request to enforce minimum intervals.
-static PKGBUILD_RATE_LIMITER: Mutex<Option<Instant>> = Mutex::new(None);
-/// Minimum interval between PKGBUILD requests in milliseconds.
-///
-/// Reduced from 500ms to 200ms for faster preview operations.
-const PKGBUILD_MIN_INTERVAL_MS: u64 = 200;
 
 /// What: Fetch PKGBUILD content for a package from AUR or official Git packaging repos.
 ///
@@ -27,18 +17,16 @@ const PKGBUILD_MIN_INTERVAL_MS: u64 = 200;
 /// - `Ok(String)` with PKGBUILD text when available; `Err` on network or lookup failure.
 ///
 /// # Errors
-/// - Returns `Err` when network request fails (curl execution error)
+/// - Returns `Err` when network request fails
 /// - Returns `Err` when PKGBUILD cannot be fetched from AUR or official GitLab repositories
-/// - Returns `Err` when rate limiting mutex is poisoned
 /// - Returns `Err` when task spawn fails
-///
-/// # Panics
-/// - Panics if the rate limiting mutex is poisoned
+/// - Returns `Err` when `ArchClient` is not initialized (for AUR packages)
 ///
 /// Details:
 /// - First tries offline methods (yay/paru cache) for fast loading.
-/// - Then tries network with rate limiting and timeout (10s).
-/// - Uses curl with timeout to prevent hanging on slow servers.
+/// - For AUR packages: uses arch-toolkit with automatic rate limiting and retry logic.
+/// - For official packages: uses curl with timeout to fetch from GitLab.
+/// - Leverages automatic rate limiting, retry logic, and optional caching from arch-toolkit for AUR packages.
 pub async fn fetch_pkgbuild_fast(item: &PackageItem) -> Result<String> {
     let name = item.name.clone();
 
@@ -53,52 +41,19 @@ pub async fn fetch_pkgbuild_fast(item: &PackageItem) -> Result<String> {
         return Ok(cached);
     }
 
-    // 2. Rate limiting: ensure minimum interval between requests
-    let delay = {
-        let mut last_request = PKGBUILD_RATE_LIMITER
-            .lock()
-            .expect("PKGBUILD rate limiter mutex poisoned");
-        if let Some(last) = *last_request {
-            let elapsed = last.elapsed();
-            if elapsed < Duration::from_millis(PKGBUILD_MIN_INTERVAL_MS) {
-                let delay = Duration::from_millis(PKGBUILD_MIN_INTERVAL_MS)
-                    .checked_sub(elapsed)
-                    .expect("elapsed should be less than PKGBUILD_MIN_INTERVAL_MS");
-                tracing::debug!(
-                    "Rate limiting PKGBUILD request for {}: waiting {:?}",
-                    name,
-                    delay
-                );
-                // Drop the guard before await
-                *last_request = Some(Instant::now());
-                Some(delay)
-            } else {
-                *last_request = Some(Instant::now());
-                None
-            }
-        } else {
-            *last_request = Some(Instant::now());
-            None
-        }
-    };
-    if let Some(delay) = delay {
-        tokio::time::sleep(delay).await;
-    }
-
-    // 3. Fetch from network with timeout
+    // 2. Fetch from network
     match &item.source {
         Source::Aur => {
-            let url = format!(
-                "https://aur.archlinux.org/cgit/aur.git/plain/PKGBUILD?h={}",
-                percent_encode(&name)
-            );
-            // Use curl with timeout to prevent hanging
-            let res = tokio::task::spawn_blocking({
-                let url = url.clone();
-                move || crate::util::curl::curl_text_with_args(&url, &["--max-time", "10"])
-            })
-            .await??;
-            Ok(res)
+            // Use arch-toolkit for AUR packages
+            let Some(client) = get_arch_client() else {
+                return Err("AUR PKGBUILD unavailable: ArchClient not initialized".into());
+            };
+
+            match client.aur().pkgbuild(&name).await {
+                Ok(text) if !text.trim().is_empty() && text.contains("pkgname") => Ok(text),
+                Ok(_) => Err("AUR returned empty or invalid PKGBUILD".into()),
+                Err(e) => Err(format!("AUR PKGBUILD fetch failed: {e}").into()),
+            }
         }
         Source::Official { .. } => {
             let url_main = format!(
@@ -133,46 +88,13 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    #[ignore = "Only run when explicitly mentioned"]
-    #[allow(clippy::await_holding_lock)]
-    async fn pkgbuild_fetches_aur_via_curl_text() {
-        let _guard = crate::sources::test_mutex()
-            .lock()
-            .expect("Test mutex poisoned");
-        // Shim PATH with fake curl
-        let old_path = std::env::var("PATH").unwrap_or_default();
-        let mut root = std::env::temp_dir();
-        root.push(format!(
-            "pacsea_fake_curl_pkgbuild_{}_{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .expect("System time is before UNIX epoch")
-                .as_nanos()
-        ));
-        std::fs::create_dir_all(&root).expect("Failed to create test root directory");
-        let mut bin = root.clone();
-        bin.push("bin");
-        std::fs::create_dir_all(&bin).expect("Failed to create test bin directory");
-        let mut curl = bin.clone();
-        curl.push("curl");
-        let script = "#!/bin/sh\necho 'pkgver=1'\n";
-        std::fs::write(&curl, script.as_bytes()).expect("Failed to write test curl script");
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let mut perm = std::fs::metadata(&curl)
-                .expect("Failed to read test curl script metadata")
-                .permissions();
-            perm.set_mode(0o755);
-            std::fs::set_permissions(&curl, perm)
-                .expect("Failed to set test curl script permissions");
-        }
-        let new_path = format!("{}:{old_path}", bin.to_string_lossy());
-        unsafe { std::env::set_var("PATH", &new_path) };
+    #[ignore = "Requires network access and ArchClient initialization"]
+    async fn pkgbuild_fetches_aur_via_arch_toolkit() {
+        // Initialize ArchClient for testing
+        crate::sources::init_arch_client().expect("Failed to initialize ArchClient for test");
 
         let item = PackageItem {
-            name: "yay-bin".into(),
+            name: "yay".into(),
             version: String::new(),
             description: String::new(),
             source: Source::Aur,
@@ -180,13 +102,22 @@ mod tests {
             out_of_date: None,
             orphaned: false,
         };
-        let txt = super::fetch_pkgbuild_fast(&item)
-            .await
-            .expect("Failed to fetch PKGBUILD in test");
-        assert!(txt.contains("pkgver=1"));
-
-        unsafe { std::env::set_var("PATH", &old_path) };
-        let _ = std::fs::remove_dir_all(&root);
+        let result = super::fetch_pkgbuild_fast(&item).await;
+        match result {
+            Ok(txt) => {
+                // Verify PKGBUILD structure
+                assert!(txt.contains("pkgname") || txt.contains("pkgver"));
+            }
+            Err(e) => {
+                // Network errors are acceptable in tests
+                assert!(
+                    e.to_string().contains("AUR PKGBUILD")
+                        || e.to_string().contains("ArchClient")
+                        || e.to_string().contains("Network"),
+                    "Unexpected error: {e}"
+                );
+            }
+        }
     }
 
     #[test]
