@@ -113,7 +113,7 @@ pub fn parse_pkgbuild_deps(pkgbuild: &str) -> (Vec<String>, Vec<String>, Vec<Str
             }
 
             tracing::debug!(
-                "parse_pkgbuild_deps: Found key-value pair: key='{}', base_key='{}', value='{}'",
+                "parse_pkgbuild_deps: Found key-value pair: key={:?}, base_key={:?}, value={:?}",
                 key,
                 base_key,
                 value.chars().take(100).collect::<String>()
@@ -183,7 +183,7 @@ pub fn parse_pkgbuild_deps(pkgbuild: &str) -> (Vec<String>, Vec<String>, Vec<Str
                     |closing_paren_pos| {
                         // Single-line array (may have content after closing paren): depends=('foo' 'bar') or depends+=('foo' 'bar') other_code
                         let array_content = &value[1..closing_paren_pos];
-                        tracing::debug!("Parsing single-line {} array: {}", key, array_content);
+                        tracing::debug!("Parsing single-line {} array: {:?}", key, array_content);
                         let parsed = parse_array_content(array_content);
                         tracing::debug!("Parsed array content: {:?}", parsed);
                         parsed
@@ -420,7 +420,7 @@ pub fn parse_pkgbuild_conflicts(pkgbuild: &str) -> Vec<String> {
             }
 
             tracing::debug!(
-                "parse_pkgbuild_conflicts: Found key-value pair: key='{}', base_key='{}', value='{}'",
+                "parse_pkgbuild_conflicts: Found key-value pair: key={:?}, base_key={:?}, value={:?}",
                 key,
                 base_key,
                 value.chars().take(100).collect::<String>()
