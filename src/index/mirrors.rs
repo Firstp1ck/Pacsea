@@ -572,6 +572,9 @@ pub async fn refresh_official_index_from_arch_api(
         for repo in repos {
             // Check circuit breaker before fetching repository
             if let Err(e) = check_circuit_breaker(endpoint_pattern) {
+                // Use error in both format string and tracing
+                // Explicitly acknowledge e usage for static analysis tools like CodeQL
+                let _ = &e;
                 let msg = format!(
                     "Circuit breaker open for {}: {}. Skipping repository {}",
                     endpoint_pattern, e, repo
@@ -590,6 +593,9 @@ pub async fn refresh_official_index_from_arch_api(
                     record_circuit_breaker_outcome(endpoint_pattern, true);
                 }
                 Err(e) => {
+                    // Use error in both format string and tracing
+                    // Explicitly acknowledge e usage for static analysis tools like CodeQL
+                    let _ = &e;
                     let msg = format!("Failed to fetch repository {}: {}", repo, e);
                     tracing::error!(repo = repo, error = %e, "Failed to fetch repository");
                     let _ = net_err_tx.send(msg);

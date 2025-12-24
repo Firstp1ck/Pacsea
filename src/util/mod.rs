@@ -629,10 +629,12 @@ pub fn open_file(path: &std::path::Path) {
 /// // Note: This function runs asynchronously and does not block.
 /// // During tests (`cargo test`), it's a no-op to prevent opening browsers.
 /// ```
-#[cfg_attr(test, allow(unused_variables))]
 #[allow(clippy::missing_const_for_fn)]
 pub fn open_url(url: &str) {
     // Skip actual spawning during tests
+    // Note: url is only used in non-test builds, but we acknowledge it for static analysis
+    #[cfg(test)]
+    let _ = url;
     #[cfg(not(test))]
     {
         let url = url.to_string();
