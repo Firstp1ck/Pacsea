@@ -1,8 +1,10 @@
 use std::sync::OnceLock;
 use tokio::sync::mpsc;
 
+use crate::app::runtime::workers::updates_helpers::check_aur_helper;
+#[cfg(not(target_os = "windows"))]
 use crate::app::runtime::workers::updates_helpers::{
-    check_aur_helper, has_checkupdates, has_fakeroot, setup_temp_db, sync_temp_db,
+    has_checkupdates, has_fakeroot, setup_temp_db, sync_temp_db,
 };
 use crate::app::runtime::workers::updates_parsing::{
     get_installed_version, parse_checkupdates, parse_checkupdates_tool, parse_qua,
@@ -288,7 +290,7 @@ pub fn spawn_updates_worker(updates_tx: mpsc::UnboundedSender<(usize, Vec<String
             };
 
             #[cfg(target_os = "windows")]
-            let (output_checkupdates, is_checkupdates_tool) = {
+            let (output_checkupdates, _is_checkupdates_tool) = {
                 tracing::debug!("Executing: pacman -Qu (Windows fallback)");
                 (
                     Command::new("pacman")

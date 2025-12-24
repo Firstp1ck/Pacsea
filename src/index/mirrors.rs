@@ -19,9 +19,8 @@ use tokio::task;
 /// - `refresh_windows_mirrors_and_index(persist_path, repo_dir, net_err_tx, notify_tx)`
 use super::{OfficialPkg, idx, save_to_disk};
 use crate::sources::{
-    check_circuit_breaker, extract_endpoint_pattern, extract_retry_after_from_error,
-    increase_archlinux_backoff, rate_limit_archlinux, record_circuit_breaker_outcome,
-    reset_archlinux_backoff,
+    check_circuit_breaker, extract_retry_after_from_error, increase_archlinux_backoff,
+    rate_limit_archlinux, record_circuit_breaker_outcome, reset_archlinux_backoff,
 };
 use crate::util::curl;
 
@@ -568,7 +567,7 @@ pub async fn refresh_official_index_from_arch_api(
     let arch = "x86_64";
     let endpoint_pattern = "/packages/*/json/";
 
-    let res = async {
+    let res: Result<Vec<OfficialPkg>> = async {
         let mut pkgs: Vec<OfficialPkg> = Vec::new();
         for repo in repos {
             // Check circuit breaker before fetching repository
@@ -622,7 +621,7 @@ pub async fn refresh_official_index_from_arch_api(
     .await;
 
     match res {
-        Ok(Ok(new_list)) => {
+        Ok(new_list) => {
             tracing::info!(
                 package_count = new_list.len(),
                 path = %persist_path.display(),
@@ -640,15 +639,10 @@ pub async fn refresh_official_index_from_arch_api(
             tracing::info!(path = %persist_path.display(), "Persisted index to disk");
             let _ = notify_tx.send(());
         }
-        Ok(Err(e)) => {
+        Err(e) => {
             let msg = format!("Failed to fetch official index via API: {e}");
             let _ = net_err_tx.send(msg);
             tracing::error!(error = %e, "Failed to fetch official index");
-        }
-        Err(join_err) => {
-            let msg = format!("Task join error during index fetch: {join_err}");
-            let _ = net_err_tx.send(msg);
-            tracing::error!(error = %join_err, "Task join error");
         }
     }
 }
