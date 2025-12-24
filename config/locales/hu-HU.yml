@@ -64,12 +64,10 @@ hu-HU:
       search_focused: "Keresés (fókuszált)"
       recent: "Keresési előzmények:"
       recent_focused: "Keresési előzmények (fókuszált)"
-      # TODO: translate to hungarian
-      news_recent: "News search history"
-      news_recent_focused: "News search history (focused)"
-      # TODO: translate to hungarian
-      news_bookmarks: "Bookmarks"
-      news_bookmarks_focused: "Bookmarks (focused)"
+      news_recent: "Hírkeresési előzmények"
+      news_recent_focused: "Hírkeresési előzmények (fókuszált)"
+      news_bookmarks: "Könyvjelzők"
+      news_bookmarks_focused: "Könyvjelzők (fókuszált)"
       install_list: "Telepítési lista"
       install_list_focused: "Telepítési lista (fókuszált)"
       downgrade_list: "Visszafejlesztési lista"
@@ -155,9 +153,9 @@ hu-HU:
       locked: "🔒 Zárolt"
       locked_with_time: "🔒 Zárolás {} perc múlva"
     news_button:
-      ready: "News Ready" # TODO: translate to hungarian
-      none: "No News available" # TODO: translate to hungarian
-      loading: "Loading news..." # TODO: translate to hungarian
+      ready: "Hírek kész"
+      none: "Nincsenek elérhető hírek"
+      loading: "Hírek betöltése…"
       
     actions:
       exit: "Kilépés"
@@ -238,8 +236,7 @@ hu-HU:
       show_pkgbuild: "PKGBUILD megjelenítése"
       hide_pkgbuild: "PKGBUILD elrejtése"
       url_label: "Webcím:"
-      # TODO: translate to hungarian
-      open_url_label: "[Open in Browser]"
+      open_url_label: "[Megnyitás a böngészőben]"
       loading_pkgb: "PKGBUILD betöltése…"
       copy_pkgbuild: "PKGBUILD másolása"
       reload_pkgbuild: "PKGBUILD újratöltése"
@@ -315,33 +312,29 @@ hu-HU:
         hide_install_list: "Telepítési lista elrejtése"
         show_keybinds: "Billentyűkötések megjelenítése"
         hide_keybinds: "Billentyűkötések elrejtése"
-        # TODO: translate to hungarian
-        show_history: "History"
-        hide_history: "History"
-        show_bookmarks: "Bookmarks"
-        hide_bookmarks: "Bookmarks"
+        show_history: "Előzmények megjelenítése"
+        hide_history: "Előzmények elrejtése"
+        show_bookmarks: "Könyvjelzők megjelenítése"
+        hide_bookmarks: "Könyvjelzők elrejtése"
       options_menu:
         list_all_packages: "Összes csomag listázása"
         list_installed_packages: "Telepített csomagok listázása"
         update_system: "Rendszer frissítése"
         news: "Hírek"
-        # TODO: translate to hungarian
-        news_management: "News management"
-        package_mode: "Package mode"
-        news_age_days: "News age: {} days"
-        news_age_all: "News age: all time"
+        news_management: "Hírkezelés"
+        package_mode: "Csomagkezelés"
+        news_age_days: "Az elmúlt {} nap hírei"
+        news_age_all: "Az elmúlt összes nap hírei"
         tui_optional_deps: "A PacSea nem kötelező függőségei"
     news:
       filters:
-        # TODO: translate to hungarian
         arch: "Arch"
-        advisories: "Advisories"
-        installed_only: "Installed only"
+        advisories: "Figyelmeztetések"
+        installed_only: "Csak telepített"
     loading:
-      # TODO: translate to hungarian
-      news: "Loading news..."
-      news_first_load_hint: "(First load may take a few minutes due to rate limiting)"
-      news_pkg_impact_hint: "Package details from archlinux.org may be slower during loading."
+      news: "Hírek betöltése…"
+      news_first_load_hint: "(Az első betöltés eltarthat néhány percig a sebességkorlátozás miatt.)"
+      news_pkg_impact_hint: "Az archlinux.org webhelyről származó csomagadatok betöltése lassabb lehet."
         
     modals:
       common:
@@ -351,14 +344,12 @@ hu-HU:
         header_clipboard_copy: "Másolás a vágólapra"
         header_connection_issue: "Kapcsolati probléma"
         header_account_locked: "Zárolt fiók"
-        # TODO: translate to hungarian
-        header_config_directories: "Configuration Directories"
+        header_config_directories: "Konfigurációs könyvtárak"
         title_configuration_error: " Konfigurációs hiba "
         title_clipboard_copy: " Másolás a vágólapra "
         title_connection_issue: " Kapcsolati probléma "
         title_account_locked: " Zárolt fiók "
-        # TODO: translate to hungarian
-        title_config_directories: " Configuration Directories "
+        title_config_directories: " Konfigurációs könyvtárak "
         account_locked: "Fiókja jelenleg zárolva van. A zárolás feloldásához jelentkezzen be rendszergazdaként a „su” paranccsal, és futtassa a „faillock --user {} --reset” parancsot."
         account_locked_with_time: "Fiókja jelenleg zárolva van. A zárolás feloldásához jelentkezzen be rendszergazdaként a „su” paranccsal, és futtassa a „faillock --user {} --reset” parancsot. A fiók zárolásáig {} perc van hátra."
       password_prompt:
@@ -440,7 +431,7 @@ hu-HU:
           - "  • Megnyitás: Beállítások → Rendszer frissítése"
           - "  • Fel/Le: mozgás • Szóköz: be/ki • Balra/Jobbra: országváltás • Enter: futtatás • Esc: bezárás"
         news_lines:
-          - "  • Megnyitás: Beállítások → Hírek • Fel/Le: kiválasztás a hírek között • Enter: megnyitás • Esc: bezárás"
+          - "  • Megnyitás: Beállítások → Hírek • Fel/Le: hírek kiválasztása • Enter: megnyitás • Esc: bezárás"
         close_hint: "Nyomja meg az Entert vagy az Esc gombot a bezáráshoz"
         key_labels:
           help_overlay: "Súgóréteg"
@@ -490,22 +481,19 @@ hu-HU:
           updates: " Elérhető frissítések megnyitása"
       news:
         title: " Hírek "
-        # TODO: translate to hungarian
-        heading: "Arch Linux News"
-        none: "No news items available."
-        # TODO: translate to hungarian
-        keybinds_hint: "Up/Down/K/J: navigate  •  Enter: open  • {}: mark read  • {}: mark all read  •  Esc/Q: close"
+        heading: "Arch Linux hírek"
+        none: "Nincsenek elérhető hírek."
+        keybinds_hint: "Fel/Le/K/J: navigáció  •  Enter: megnyitás  • {}: megjelölés olvasottként  • {}: összes megjelölése olvasottként  •  Esc/Q: bezárás"
         footer_hint: "Fel/Le: kiválasztás • Enter: megnyitás • {}: megjelölés olvasottként • {}: összes megjelölése olvasottként • Esc: bezárás"
       news_setup:
-        # TODO: translate to hungarian
-        title: "News Popup Setup"
-        arch_news: "Arch News"
-        advisories: "Advisories - Official Security News"
-        aur_updates: "AUR Updates"
-        aur_comments: "AUR Comments"
-        pkg_updates: "Official Package Updates"
-        date_selection: "Maximum age"
-        footer_hint: "Up/Down: select  •  Space: toggle  •  Enter: save  •  Esc: cancel"
+        title: "Hírek felugró ablakának beállítása"
+        arch_news: "Arch hírek"
+        advisories: "Figyelmeztetések - Hivatalos biztonsági értesítések"
+        aur_updates: "AUR-frissítések"
+        aur_comments: "AUR-megjegyzések"
+        pkg_updates: "Hivatalos csomagfrissítések"
+        date_selection: "Életkor legfeljebb"
+        footer_hint: "Fel/Le: kiválasztás  •  Szóköz: be/ki  •  Enter: mentés  •  Esc: megszakítás"
       announcement:
         footer_hint: "r: Megjelölés olvasottként | Enter/Esc: Eltüntetés (megjelenítés újra)"
       updates_window:
@@ -797,7 +785,7 @@ hu-HU:
         prompt: "Továbbra is szeretné folytatni az eltávolítást?"
         cancelled: "Eltávolítás megszakítva"
         success: "✓ A csomagok sikeresen el lettek távolítva"
-        config_dirs_found: "Megjegyzés: A konfigurációs könyvtárak a /home könyvtárában találhatók:"
+        config_dirs_found: "Megjegyzés: A konfigurációs könyvtárak a „/home” könyvtárban találhatók:"
         config_dirs_note: "Ha már nincs szüksége ezekre a könyvtárakra, akkor érdemes lehet őket kézzel eltávolítania."
         failed: "✗ Nem sikerült eltávolítani a csomagokat"
         exec_failed: "✗ Nem sikerült végrehajtani a pacman parancsot: {}"
