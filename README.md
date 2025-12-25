@@ -25,6 +25,11 @@ Pacsea is a fast, friendly TUI for browsing and installing Arch and AUR packages
 ### Main app view
 ![Main app view (v0.5.2)](Images/AppView_v0.5.2.png "Main app view (v0.5.2)")
 
+### News feed view
+Browse Arch news, security advisories, package updates, and AUR comments in a unified feed. Filter by source, search with history, bookmark important items, and track read/unread status. All content is cached for offline access and automatically updated in the background.
+
+![News feed view (v0.7.1)](Images/News_feed_v0.7.1.png "News feed view (v0.7.1)")
+
 ## Table of Contents
 - [Quick start](#quick-start)
 - [Features](#features)
