@@ -205,22 +205,20 @@ For troubleshooting common issues, solutions, and diagnostic information, see th
 
 ### Other Potential Features
 - **Show with Hover over button, what the button does**
+- **Add PKGBUILD Preview shellcheck and namcap**
 - **Mirror Search and extensive Mirror Selection**
 - **Add Chaotic AUR setup and add Garuda Repository Support**
-- **Multi Package Manager Support for: Debian-Based (apt), Fedora-Based (dnf) and Flatpak Support**
-- **Add custom Repository Support (e.g Make Cachy/Manjaro/EOS Repositories available to other Arch based Systems)**
-- **Ability to resolve dependency conflicts**
-- **Add accessability themes for visual impairments**
-- **Add PKGBUILD Preview shellcheck and namcap**
-- **Add custom upgrade commands**
-- **Add possibility to view News for the respectiv Distro: EndeavourOS, Manjaro, Garuda and  CachyOS**
-- **Add possibility to view News based on installed Packages (Including AUR comments)**
-- **Available Update button. Opens a Preview with old and new version. -> done;**
+- **Add possibility to view News for the respectiv Distro: EndeavourOS, Manjaro, Garuda and CachyOS**
   - grouped by system critical updates like Kernel, systemd and other CORE packages that need restart and other packages (pacman and aur, incl. search/filter)
-- **Commandline Flags -u and --update use set "Update System" from the TUI settings.**
-- **Ability to maintain your AUR packages**
+- **Add custom Repository Support (e.g Make Cachy/Manjaro/EOS Repositories available to other Arch based Systems)**
 - **Implement `rebuild-detector` that checks if a package needs to be rebuild**
+- **Add custom upgrade commands**
+- **Add accessability themes for visual impairments**
+- **Add System Tray Support for popular Bars like Waybar, Quickshell, Hyprbar, Swaybar, etc.**
+- **Ability to resolve dependency conflicts**
+- **Ability to maintain your AUR packages**
 - **Implement Wiki into the TUI**
+- **Multi Package Manager Support for: Debian-Based (apt), Fedora-Based (dnf) and Flatpak Support**
 
 ## Credits
 - Inspired by the following yay commandline: `yay -Slq | fzf --multi --preview 'yay -Sii {}' --preview-window=down:75% --layout=default | xargs -ro yay -S`
