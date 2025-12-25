@@ -64,7 +64,7 @@ pacsea
 | Feature | Description |
 |---------|-------------|
 | **Integrated Process Execution** | All operations execute directly within the TUI with real-time output streaming, progress bars, and inline password prompts — no external terminals |
-| **News feed & advisories** | Extended News Mode with multiple sources: Arch news, security advisories, package updates with change detection, and AUR comments. Features include smart caching for offline access, background processing with automatic retries, streaming updates, AUR balance, filters (Arch/advisory/updates/comments/installed-only, age), independent search inputs for News and Package modes, search with history, read/unread tracking with improved mark-as-read behavior, bookmarks, and cached article content |
+| **News feed & advisories** | Unified news feed combining Arch news, security advisories, package update notifications, and AUR package comments. Includes offline access with automatic caching, filtering by source or date, search with history, bookmarking, read/unread tracking, and background updates |
 | **Security Scan for AUR Packages** | Comprehensive security scanning workflow with multiple tools (ClamAV, Trivy, Semgrep, ShellCheck, VirusTotal, custom patterns, aur-sleuth) and detailed scan summaries |
 | **Fuzzy Search** | Toggle flexible fuzzy search mode to find packages even without exact names |
 | **Unified search** | Fast results across official repos and the AUR |
