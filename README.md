@@ -4,7 +4,7 @@
 [![Made with Rust](https://img.shields.io/badge/Made%20with-Rust-orange.svg)](https://www.rust-lang.org/)
 [![Target: Arch Linux](https://img.shields.io/badge/Target-Arch%20Linux-1793D1?logo=arch-linux&logoColor=white)](https://archlinux.org/)
 
-Pacsea is a fast, friendly TUI for browsing and installing Arch and AUR packages — plus a built-in Arch news and advisory feed — built for speed and minimal keystrokes.
+Pacsea is a TUI application for browsing and installing Arch and AUR packages. It includes an integrated Arch news and advisory feed and supports keyboard-first navigation.
 
 ## Community
 <p align="center">
