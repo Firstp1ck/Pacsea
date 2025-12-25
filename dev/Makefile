@@ -15,11 +15,13 @@
 .DEFAULT_GOAL := help
 
 # Colors for output (using tput for portability)
-COLOR_RESET := $(shell tput sgr0)
-COLOR_BOLD := $(shell tput bold)
-COLOR_GREEN := $(shell tput setaf 2)
-COLOR_YELLOW := $(shell tput setaf 3)
-COLOR_BLUE := $(shell tput setaf 4)
+# Suppress errors for unknown terminal types (e.g., kitty on macOS)
+# and provide fallbacks if tput fails
+COLOR_RESET := $(shell tput sgr0 2>/dev/null || echo "")
+COLOR_BOLD := $(shell tput bold 2>/dev/null || echo "")
+COLOR_GREEN := $(shell tput setaf 2 2>/dev/null || echo "")
+COLOR_YELLOW := $(shell tput setaf 3 2>/dev/null || echo "")
+COLOR_BLUE := $(shell tput setaf 4 2>/dev/null || echo "")
 
 # Scripts directory (relative to dev/)
 SCRIPTS_DIR := scripts

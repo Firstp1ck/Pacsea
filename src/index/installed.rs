@@ -160,6 +160,8 @@ exit 1
         unsafe {
             std::env::set_var("PATH", &new_path);
         }
+        // Small delay to ensure PATH is propagated to child processes (needed on macOS)
+        std::thread::sleep(std::time::Duration::from_millis(10));
 
         super::refresh_installed_cache().await;
 

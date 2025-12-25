@@ -58,6 +58,8 @@ fn ui_options_update_system_enter_triggers_tilix_args_shape() {
         std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
         std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
+    // Small delay to ensure PATH is propagated to child processes (needed on macOS)
+    std::thread::sleep(std::time::Duration::from_millis(10));
 
     let mut app = crate_root::state::AppState::default();
     let (qtx, _qrx) = tokio::sync::mpsc::unbounded_channel();
@@ -111,7 +113,14 @@ fn ui_options_update_system_enter_triggers_tilix_args_shape() {
         &pkgb_tx,
         &comments_tx,
     );
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    // Wait for file to be created with retries (needed on macOS where process spawning may be slower)
+    let mut attempts = 0;
+    while !out_path.exists() && attempts < 50 {
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        attempts += 1;
+    }
+    // Give the process time to complete writing to avoid race conditions
+    std::thread::sleep(std::time::Duration::from_millis(100));
     let body = std::fs::read_to_string(&out_path).expect("fake terminal args file written");
     let lines: Vec<&str> = body.lines().collect();
     assert!(lines.len() >= 3, "expected at least 3 args, got: {body}");
@@ -164,6 +173,8 @@ fn ui_options_update_system_enter_triggers_mate_terminal_args_shape() {
         std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
         std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
+    // Small delay to ensure PATH is propagated to child processes (needed on macOS)
+    std::thread::sleep(std::time::Duration::from_millis(10));
 
     let mut app = crate_root::state::AppState::default();
     let (qtx, _qrx) = tokio::sync::mpsc::unbounded_channel();
@@ -217,7 +228,14 @@ fn ui_options_update_system_enter_triggers_mate_terminal_args_shape() {
         &pkgb_tx,
         &comments_tx,
     );
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    // Wait for file to be created with retries (needed on macOS where process spawning may be slower)
+    let mut attempts = 0;
+    while !out_path.exists() && attempts < 50 {
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        attempts += 1;
+    }
+    // Give the process time to complete writing to avoid race conditions
+    std::thread::sleep(std::time::Duration::from_millis(100));
     let body = std::fs::read_to_string(&out_path).expect("fake terminal args file written");
     let lines: Vec<&str> = body.lines().collect();
     assert!(lines.len() >= 3, "expected at least 3 args, got: {body}");
@@ -266,6 +284,8 @@ fn ui_options_update_system_enter_triggers_gnome_terminal_args_shape() {
         std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
         std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
+    // Small delay to ensure PATH is propagated to child processes (needed on macOS)
+    std::thread::sleep(std::time::Duration::from_millis(10));
 
     let mut app = crate_root::state::AppState::default();
     let (qtx, _qrx) = tokio::sync::mpsc::unbounded_channel();
@@ -319,7 +339,14 @@ fn ui_options_update_system_enter_triggers_gnome_terminal_args_shape() {
         &pkgb_tx,
         &comments_tx,
     );
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    // Wait for file to be created with retries (needed on macOS where process spawning may be slower)
+    let mut attempts = 0;
+    while !out_path.exists() && attempts < 50 {
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        attempts += 1;
+    }
+    // Give the process time to complete writing to avoid race conditions
+    std::thread::sleep(std::time::Duration::from_millis(100));
     let body = std::fs::read_to_string(&out_path).expect("fake terminal args file written");
     let lines: Vec<&str> = body.lines().collect();
     assert!(lines.len() >= 3, "expected at least 3 args, got: {body}");
@@ -368,6 +395,8 @@ fn ui_options_update_system_enter_triggers_konsole_args_shape() {
         std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
         std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
+    // Small delay to ensure PATH is propagated to child processes (needed on macOS)
+    std::thread::sleep(std::time::Duration::from_millis(10));
 
     let mut app = crate_root::state::AppState::default();
     let (qtx, _qrx) = tokio::sync::mpsc::unbounded_channel();
@@ -421,7 +450,14 @@ fn ui_options_update_system_enter_triggers_konsole_args_shape() {
         &pkgb_tx,
         &comments_tx,
     );
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    // Wait for file to be created with retries (needed on macOS where process spawning may be slower)
+    let mut attempts = 0;
+    while !out_path.exists() && attempts < 50 {
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        attempts += 1;
+    }
+    // Give the process time to complete writing to avoid race conditions
+    std::thread::sleep(std::time::Duration::from_millis(100));
     let body = std::fs::read_to_string(&out_path).expect("fake terminal args file written");
     let lines: Vec<&str> = body.lines().collect();
     assert!(lines.len() >= 3, "expected at least 3 args, got: {body}");
@@ -470,6 +506,8 @@ fn ui_options_update_system_enter_triggers_alacritty_args_shape() {
         std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
         std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
+    // Small delay to ensure PATH is propagated to child processes (needed on macOS)
+    std::thread::sleep(std::time::Duration::from_millis(10));
 
     let mut app = crate_root::state::AppState::default();
     let (qtx, _qrx) = tokio::sync::mpsc::unbounded_channel();
@@ -523,7 +561,14 @@ fn ui_options_update_system_enter_triggers_alacritty_args_shape() {
         &pkgb_tx,
         &comments_tx,
     );
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    // Wait for file to be created with retries (needed on macOS where process spawning may be slower)
+    let mut attempts = 0;
+    while !out_path.exists() && attempts < 50 {
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        attempts += 1;
+    }
+    // Give the process time to complete writing to avoid race conditions
+    std::thread::sleep(std::time::Duration::from_millis(100));
     let body = std::fs::read_to_string(&out_path).expect("fake terminal args file written");
     let lines: Vec<&str> = body.lines().collect();
     assert!(lines.len() >= 3, "expected at least 3 args, got: {body}");
@@ -572,6 +617,8 @@ fn ui_options_update_system_enter_triggers_kitty_args_shape() {
         std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
         std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
+    // Small delay to ensure PATH is propagated to child processes (needed on macOS)
+    std::thread::sleep(std::time::Duration::from_millis(10));
 
     let mut app = crate_root::state::AppState::default();
     let (qtx, _qrx) = tokio::sync::mpsc::unbounded_channel();
@@ -625,7 +672,14 @@ fn ui_options_update_system_enter_triggers_kitty_args_shape() {
         &pkgb_tx,
         &comments_tx,
     );
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    // Wait for file to be created with retries (needed on macOS where process spawning may be slower)
+    let mut attempts = 0;
+    while !out_path.exists() && attempts < 50 {
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        attempts += 1;
+    }
+    // Give the process time to complete writing to avoid race conditions
+    std::thread::sleep(std::time::Duration::from_millis(100));
     let body = std::fs::read_to_string(&out_path).expect("fake terminal args file written");
     let lines: Vec<&str> = body.lines().collect();
     assert!(lines.len() >= 2, "expected at least 2 args, got: {body}");
@@ -673,6 +727,8 @@ fn ui_options_update_system_enter_triggers_xterm_args_shape() {
         std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
         std::env::set_var("PACSEA_TEST_HEADLESS", "1");
     }
+    // Small delay to ensure PATH is propagated to child processes (needed on macOS)
+    std::thread::sleep(std::time::Duration::from_millis(10));
 
     let mut app = crate_root::state::AppState::default();
     let (qtx, _qrx) = tokio::sync::mpsc::unbounded_channel();
@@ -726,7 +782,14 @@ fn ui_options_update_system_enter_triggers_xterm_args_shape() {
         &pkgb_tx,
         &comments_tx,
     );
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    // Wait for file to be created with retries (needed on macOS where process spawning may be slower)
+    let mut attempts = 0;
+    while !out_path.exists() && attempts < 50 {
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        attempts += 1;
+    }
+    // Give the process time to complete writing to avoid race conditions
+    std::thread::sleep(std::time::Duration::from_millis(100));
     let body = std::fs::read_to_string(&out_path).expect("fake terminal args file written");
     let lines: Vec<&str> = body.lines().collect();
     assert!(lines.len() >= 4, "expected at least 4 args, got: {body}");

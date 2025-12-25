@@ -387,7 +387,14 @@ mod tests {
             true,
             crate::state::modal::CascadeMode::CascadeWithConfigs,
         );
-        std::thread::sleep(std::time::Duration::from_millis(50));
+        // Wait for file to be created with retries (needed on macOS where process spawning may be slower)
+        let mut attempts = 0;
+        while !out_path.exists() && attempts < 50 {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+            attempts += 1;
+        }
+        // Give the process time to complete writing to avoid race conditions
+        std::thread::sleep(std::time::Duration::from_millis(100));
 
         let body = fs::read_to_string(&out_path).expect("fake terminal args file written");
         let lines: Vec<&str> = body.lines().collect();

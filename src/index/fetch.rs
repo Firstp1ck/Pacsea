@@ -175,6 +175,8 @@ exit 0
         }
         let new_path = format!("{}:{old_path}", bin.to_string_lossy());
         unsafe { std::env::set_var("PATH", &new_path) };
+        // Small delay to ensure PATH is propagated to child processes (needed on macOS)
+        std::thread::sleep(std::time::Duration::from_millis(10));
 
         let pkgs = super::fetch_official_pkg_names()
             .await
