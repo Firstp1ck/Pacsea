@@ -3,7 +3,7 @@ hu-HU:
   meta:
     name: "Magyar (Magyarország)"
     direction: "ltr"
-    
+
   app:
     parsing:
       pacman_depends_labels:
@@ -58,7 +58,7 @@ hu-HU:
         downgrade: "Visszafejlesztési eszköz"
     search_mode_fuzzy: "KÖZELÍTŐ"
     search_mode_normal: "NORMÁL"
-      
+
     titles:
       search: "Keresés"
       search_focused: "Keresés (fókuszált)"
@@ -105,7 +105,7 @@ hu-HU:
       service_issues_detected: "{} problémák felismerve (tekintse meg az állapotot) — {} ma: {}%"
       systems_nominal_with_service: "Az Arch rendszereinek állapota megfelelő — {} ma: {}%"
       aur_today_suffix: " — AUR ma: {}%"
-      
+
     labels:
       open_menus: "Menük megnyitása:"
       config: "Konfiguráció"
@@ -120,8 +120,7 @@ hu-HU:
     toasts:
       title_news: " Hírek "
       title_clipboard: " Vágólap "
-      # TODO: translate to hungarian
-      title_notification: " Notification "
+      title_notification: " Értesítés "
       copying_pkgbuild: "PKGBUILD másolása a vágólapra…"
       pkgbuild_not_loaded: "A PKGBUILD még nincs betöltve"
       install_list_empty: "A telepítési lista üres"
@@ -158,7 +157,7 @@ hu-HU:
       ready: "Hírek kész"
       none: "Nincsenek elérhető hírek"
       loading: "Hírek betöltése…"
-      
+
     actions:
       exit: "Kilépés"
       help: "Súgó"
@@ -213,7 +212,7 @@ hu-HU:
       toggle: "be/ki"
       insert: "beszúrás"
       page: "lapozás"
-      
+
     details:
       fields:
         repository: "Tároló"
@@ -252,7 +251,7 @@ hu-HU:
         confirm_installation: "Csomagtelepítés megerősítése"
         confirm_downgrade: "Csomag visszafejlesztésének megerősítése"
         confirm_removal: "Csomageltávolítás megerősítése"
-      
+
     results:
       title: "Találatok"
       status_label: "Állapot:"
@@ -337,7 +336,7 @@ hu-HU:
       news: "Hírek betöltése…"
       news_first_load_hint: "(Az első betöltés eltarthat néhány percig a sebességkorlátozás miatt.)"
       news_pkg_impact_hint: "Az archlinux.org webhelyről származó csomagadatok betöltése lassabb lehet."
-        
+
     modals:
       common:
         close_hint: "Nyomja meg az Entert vagy az Esc gombot a bezáráshoz"
