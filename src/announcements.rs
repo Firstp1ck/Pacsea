@@ -59,6 +59,11 @@ pub const VERSION_ANNOUNCEMENTS: &[VersionAnnouncement] = &[
         title: "Version 0.7.1",
         content: "## What's New\n\n### News Mode Enhancements\n- **Separated search inputs**: News mode and Package mode now have independent search fields\n  - No more shared state issues when switching between modes\n  - Search text is preserved when switching modes\n- **Improved mark-as-read behavior**: Mark read actions (`r` key) now only work in normal mode\n  - Prevents accidental marking when typing 'r' in insert mode\n  - More consistent with vim-like behavior\n\n### Toast Notifications\n- Improved toast clearing logic for better user experience\n- Enhanced toast title detection for news, clipboard, and notification types\n- Added notification title translations\n\n### UI Polish\n- Sort menu no longer auto-closes (stays open until you select an option or close it)\n- Added `change_sort` keybind to help footer in News mode\n- Fixed help text punctuation for better readability\n\n",
     },
+    VersionAnnouncement {
+        version: "0.7.2",
+        title: "Version 0.7.2",
+        content: "## What's New\n\n- Updated multiple dependencies to address low-severity security vulnerabilities\n- Updated core dependencies including `clap`, `ratatui`, `tokio`, `reqwest`, and more\n- Improved overall security posture of the application\n- Fixed CodeQL security analysis issues (#2, #3, #4, #5)\n- Enhanced input validation in import modals\n\n",
+    },
 ];
 
 /// What: Remote announcement fetched from GitHub Gist.
