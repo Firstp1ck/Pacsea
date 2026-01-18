@@ -164,6 +164,11 @@ pub struct Settings {
     /// If `true`, fetches announcements from the configured Gist URL.
     /// If `false`, remote announcements are disabled (version announcements still show).
     pub get_announcement: bool,
+    /// Whether to use passwordless sudo for install operations when available.
+    /// If `false` (default), password prompt is always shown even if passwordless sudo is configured.
+    /// If `true`, passwordless sudo is used when available, skipping the password prompt.
+    /// This acts as an additional safety barrier requiring explicit opt-in.
+    pub use_passwordless_sudo: bool,
 }
 
 impl Default for Settings {
@@ -228,6 +233,7 @@ impl Default for Settings {
             updates_refresh_interval: 30, // Default to 30 seconds
             installed_packages_mode: crate::state::InstalledPackagesMode::LeafOnly,
             get_announcement: true, // Default to fetching remote announcements
+            use_passwordless_sudo: false, // Default to always showing password prompt (safety barrier)
         }
     }
 }
