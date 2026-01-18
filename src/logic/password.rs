@@ -19,7 +19,21 @@ use std::process::Command;
 /// - `-n`: Non-interactive mode (fails if password required).
 /// - `true`: Simple command that always succeeds if sudo works.
 /// - Returns `Ok(false)` if sudo is not available or requires a password.
+/// - **Testing**: If `PACSEA_TEST_SUDO_PASSWORDLESS` env var is set, uses that value instead.
+///   Set to "1" to simulate passwordless sudo available, "0" to simulate unavailable.
+///   This is used by integration tests to control behavior without actual sudo access.
 pub fn check_passwordless_sudo_available() -> Result<bool, String> {
+    // Check for test environment variable override
+    // This allows integration tests to simulate passwordless sudo without actual sudo access
+    // Only used when the env var is explicitly set - normal operation is unaffected
+    if let Ok(val) = std::env::var("PACSEA_TEST_SUDO_PASSWORDLESS") {
+        tracing::debug!(
+            "Using test override for passwordless sudo check: PACSEA_TEST_SUDO_PASSWORDLESS={}",
+            val
+        );
+        return Ok(val == "1");
+    }
+
     let status = Command::new("sudo")
         .args(["-n", "true"])
         .stdin(std::process::Stdio::null())
@@ -45,8 +59,23 @@ pub fn check_passwordless_sudo_available() -> Result<bool, String> {
 /// - If enabled, checks if passwordless sudo is actually available on the system.
 /// - Returns `true` only if both conditions are met.
 /// - Logs the decision for debugging purposes.
+/// - **Testing**: If `PACSEA_TEST_SUDO_PASSWORDLESS` env var is set, this overrides both
+///   the settings check and the system availability check. Set to "1" for passwordless
+///   enabled, "0" for disabled. This allows integration tests to control the entire
+///   passwordless sudo workflow without modifying settings or having actual sudo access.
 #[must_use]
 pub fn should_use_passwordless_sudo(settings: &crate::theme::Settings) -> bool {
+    // Check for test environment variable override
+    // This allows integration tests to control passwordless sudo behavior without
+    // modifying settings or having actual sudo access
+    if let Ok(val) = std::env::var("PACSEA_TEST_SUDO_PASSWORDLESS") {
+        tracing::debug!(
+            "Using test override for should_use_passwordless_sudo: PACSEA_TEST_SUDO_PASSWORDLESS={}",
+            val
+        );
+        return val == "1";
+    }
+
     // Check if passwordless sudo is enabled in settings (safety barrier)
     if !settings.use_passwordless_sudo {
         tracing::debug!("Passwordless sudo disabled in settings, requiring password prompt");
