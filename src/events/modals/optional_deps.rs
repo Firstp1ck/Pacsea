@@ -213,36 +213,65 @@ fn handle_optional_deps_enter(
                 orphaned: false,
             };
 
-            // These commands need sudo (makepkg -si), so prompt for password first
-            // Check faillock status before showing password prompt
+            // These commands need sudo (makepkg -si)
+            // Check faillock status before proceeding
             let username = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
             if let Some(lockout_msg) =
                 crate::logic::faillock::get_lockout_message_if_locked(&username, app)
             {
-                // User is locked out - show warning and don't show password prompt
+                // User is locked out - show warning
                 app.modal = crate::state::Modal::Alert {
                     message: lockout_msg,
                 };
                 return (crate::state::Modal::None, false);
             }
-            app.modal = crate::state::Modal::PasswordPrompt {
-                purpose: crate::state::modal::PasswordPurpose::Install,
-                items: vec![item],
-                input: String::new(),
-                cursor: 0,
-                error: None,
-            };
 
-            // Store the custom command and header chips for after password prompt
-            app.pending_custom_command = Some(cmd);
-            app.pending_exec_header_chips = Some(crate::state::modal::PreflightHeaderChips {
+            let header_chips = crate::state::modal::PreflightHeaderChips {
                 package_count: 1,
                 download_bytes: 0,
                 install_delta_bytes: 0,
                 aur_count: 1,
                 risk_score: 0,
                 risk_level: crate::state::modal::RiskLevel::Low,
-            });
+            };
+
+            // Check passwordless sudo availability (requires setting enabled AND system configured)
+            let settings = crate::theme::settings();
+            if crate::logic::password::should_use_passwordless_sudo(&settings) {
+                // Passwordless sudo enabled and available - skip password prompt and proceed directly
+                // Store the custom command for execution
+                app.pending_custom_command = Some(cmd);
+                // Transition to PreflightExec for custom command
+                app.modal = crate::state::Modal::PreflightExec {
+                    items: vec![item],
+                    action: crate::state::PreflightAction::Install,
+                    tab: crate::state::PreflightTab::Summary,
+                    verbose: false,
+                    log_lines: Vec::new(),
+                    abortable: false,
+                    header_chips,
+                    success: None,
+                };
+                // Store executor request with no password
+                app.pending_executor_request =
+                    Some(crate::install::ExecutorRequest::CustomCommand {
+                        command: app.pending_custom_command.take().unwrap_or_default(),
+                        password: None,
+                        dry_run: app.dry_run,
+                    });
+            } else {
+                // Passwordless sudo not enabled or not available - show password prompt
+                app.modal = crate::state::Modal::PasswordPrompt {
+                    purpose: crate::state::modal::PasswordPurpose::Install,
+                    items: vec![item],
+                    input: String::new(),
+                    cursor: 0,
+                    error: None,
+                };
+                // Store the custom command and header chips for after password prompt
+                app.pending_custom_command = Some(cmd);
+                app.pending_exec_header_chips = Some(header_chips);
+            }
 
             return (app.modal.clone(), false);
         }

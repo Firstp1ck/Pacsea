@@ -24,6 +24,9 @@ pub mod utils;
 // Re-export open_preflight_modal for use in tests and other modules
 pub use search::open_preflight_modal;
 
+// Re-export start_execution for use in install/direct.rs and other modules
+pub use preflight::start_execution;
+
 /// What: Dispatch a single terminal event (keyboard/mouse) and mutate the [`AppState`].
 ///
 /// Inputs:

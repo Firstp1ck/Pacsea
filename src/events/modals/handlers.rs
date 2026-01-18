@@ -264,17 +264,30 @@ pub(super) fn handle_confirm_batch_update_modal(
                 // Get header_chips if available from pending_exec_header_chips, otherwise use default
                 let header_chips = app.pending_exec_header_chips.take().unwrap_or_default();
 
-                // Check if password is needed (same logic as handle_proceed_install)
-                // All installs need password (official and AUR both need sudo)
-                // Show password prompt - user can press Enter if passwordless sudo is configured
-                app.modal = crate::state::Modal::PasswordPrompt {
-                    purpose: crate::state::modal::PasswordPurpose::Install,
-                    items: items_clone,
-                    input: String::new(),
-                    cursor: 0,
-                    error: None,
-                };
-                app.pending_exec_header_chips = Some(header_chips);
+                // Check passwordless sudo availability (requires setting enabled AND system configured)
+                // All installs need sudo (official and AUR both need sudo)
+                // but password may not be needed if passwordless sudo is configured and enabled
+                let settings = crate::theme::settings();
+                if crate::logic::password::should_use_passwordless_sudo(&settings) {
+                    // Passwordless sudo enabled and available - skip password prompt and proceed directly
+                    crate::events::preflight::start_execution(
+                        app,
+                        &items_clone,
+                        crate::state::PreflightAction::Install,
+                        header_chips,
+                        None, // No password needed
+                    );
+                } else {
+                    // Passwordless sudo not enabled or not available - show password prompt
+                    app.modal = crate::state::Modal::PasswordPrompt {
+                        purpose: crate::state::modal::PasswordPurpose::Install,
+                        items: items_clone,
+                        input: String::new(),
+                        cursor: 0,
+                        error: None,
+                    };
+                    app.pending_exec_header_chips = Some(header_chips);
+                }
                 return true;
             }
             _ => {}
@@ -381,32 +394,45 @@ pub(super) fn handle_confirm_reinstall_modal(
                 // Retrieve password that was stored when reinstall confirmation was shown
                 let password = app.pending_executor_password.take();
 
-                // All installs need password (official and AUR both need sudo)
+                // All installs need sudo (official and AUR both need sudo)
                 if password.is_none() {
-                    // Check faillock status before showing password prompt
+                    // Check faillock status before proceeding
                     let username = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
                     if let Some(lockout_msg) =
                         crate::logic::faillock::get_lockout_message_if_locked(&username, app)
                     {
-                        // User is locked out - show warning and don't show password prompt
+                        // User is locked out - show warning
                         app.modal = crate::state::Modal::Alert {
                             message: lockout_msg,
                         };
                         return true;
                     }
-                    // Show password prompt (password wasn't provided yet)
-                    app.modal = crate::state::Modal::PasswordPrompt {
-                        purpose: crate::state::modal::PasswordPurpose::Install,
-                        items: items_clone,
-                        input: String::new(),
-                        cursor: 0,
-                        error: None,
-                    };
-                    app.pending_exec_header_chips = Some(header_chips_clone);
+
+                    // Check passwordless sudo availability (requires setting enabled AND system configured)
+                    let settings = crate::theme::settings();
+                    if crate::logic::password::should_use_passwordless_sudo(&settings) {
+                        // Passwordless sudo enabled and available - skip password prompt and proceed directly
+                        crate::events::preflight::start_execution(
+                            app,
+                            &items_clone,
+                            crate::state::PreflightAction::Install,
+                            header_chips_clone,
+                            None, // No password needed
+                        );
+                    } else {
+                        // Passwordless sudo not enabled or not available - show password prompt
+                        app.modal = crate::state::Modal::PasswordPrompt {
+                            purpose: crate::state::modal::PasswordPurpose::Install,
+                            items: items_clone,
+                            input: String::new(),
+                            cursor: 0,
+                            error: None,
+                        };
+                        app.pending_exec_header_chips = Some(header_chips_clone);
+                    }
                 } else {
-                    // Password already obtained or not needed, go directly to execution
-                    use crate::events::preflight::keys;
-                    keys::start_execution(
+                    // Password already obtained, go directly to execution
+                    crate::events::preflight::start_execution(
                         app,
                         &items_clone,
                         crate::state::PreflightAction::Install,

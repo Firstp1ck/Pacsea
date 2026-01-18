@@ -318,28 +318,41 @@ pub(super) fn handle_proceed_install(
         return false; // Don't close modal yet, wait for confirmation
     }
 
-    // Check if password is needed
-    // Both official packages (sudo pacman) and AUR packages (paru/yay need sudo for final step)
-    // require password, so always show password prompt
-    // User can press Enter if passwordless sudo is configured
+    // Check faillock status before proceeding
     let username = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
     if let Some(lockout_msg) = crate::logic::faillock::get_lockout_message_if_locked(&username, app)
     {
-        // User is locked out - show warning and don't show password prompt
+        // User is locked out - show warning
         app.modal = crate::state::Modal::Alert {
             message: lockout_msg,
         };
         return false;
     }
-    // Show password prompt for all installs (official and AUR)
-    app.modal = crate::state::Modal::PasswordPrompt {
-        purpose: crate::state::modal::PasswordPurpose::Install,
-        items: packages,
-        input: String::new(),
-        cursor: 0,
-        error: None,
-    };
-    app.pending_exec_header_chips = Some(header_chips);
+
+    // Check passwordless sudo availability (requires setting enabled AND system configured)
+    // Both official packages (sudo pacman) and AUR packages (paru/yay need sudo for final step)
+    // require sudo, but password may not be needed if passwordless sudo is configured and enabled
+    let settings = crate::theme::settings();
+    if crate::logic::password::should_use_passwordless_sudo(&settings) {
+        // Passwordless sudo enabled and available - skip password prompt and proceed directly
+        super::start_execution(
+            app,
+            &packages,
+            crate::state::PreflightAction::Install,
+            header_chips,
+            None, // No password needed
+        );
+    } else {
+        // Passwordless sudo not enabled or not available - show password prompt
+        app.modal = crate::state::Modal::PasswordPrompt {
+            purpose: crate::state::modal::PasswordPurpose::Install,
+            items: packages,
+            input: String::new(),
+            cursor: 0,
+            error: None,
+        };
+        app.pending_exec_header_chips = Some(header_chips);
+    }
     false // Keep TUI open
 }
 

@@ -225,6 +225,13 @@ clipboard_suffix = Check PKGBUILD and source for suspicious and malicious activi
 # Recommended to keep this false for safety unless you understand the risks of executing package operations directly.\n\
 skip_preflight = false\n\
 \n\
+# Passwordless sudo\n\
+# When true, Pacsea will use passwordless sudo for install operations if configured on the system.\n\
+# When false (default), Pacsea will always show the password prompt even if passwordless sudo is available.\n\
+# This acts as an additional safety barrier requiring explicit opt-in.\n\
+# To use this feature, you must also have passwordless sudo configured in /etc/sudoers or /etc/sudoers.d/\n\
+use_passwordless_sudo = false\n\
+\n\
 # Mirrors\n\
 # Select one or more countries (comma-separated). Example: \"Switzerland, Germany, Austria\"\n\
 selected_countries = Worldwide\n\
