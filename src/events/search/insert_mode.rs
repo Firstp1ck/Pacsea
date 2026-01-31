@@ -219,7 +219,7 @@ pub fn handle_insert_mode(
             handle_backspace(app, query_tx);
         }
         // Handle Enter - but NOT if it's actually Ctrl+M (which some terminals send as Enter)
-        (KeyCode::Char('\n') | KeyCode::Enter, m) => {
+        (KeyCode::Char('\n' | '\r') | KeyCode::Enter, m) => {
             // Don't open preflight if Ctrl is held (might be Ctrl+M interpreted as Enter)
             if m.contains(KeyModifiers::CONTROL) {
                 tracing::debug!(

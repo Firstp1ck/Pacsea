@@ -201,7 +201,7 @@ fn handle_news_bookmarks_key(ke: KeyEvent, app: &mut AppState) -> bool {
             }
             app.focus = crate::state::Focus::Recent;
         }
-        KeyCode::Enter => {
+        KeyCode::Enter | KeyCode::Char('\n' | '\r') => {
             load_news_bookmark(app);
         }
         KeyCode::Delete => {
@@ -349,7 +349,7 @@ pub fn handle_install_key(
         KeyCode::Char('/') => {
             app.pane_find = Some(String::new());
         }
-        KeyCode::Enter => {
+        KeyCode::Enter | KeyCode::Char('\n' | '\r') => {
             handle_enter_key(app);
         }
         KeyCode::Esc => {
@@ -418,7 +418,7 @@ fn handle_pane_find_mode(
     details_tx: &mpsc::UnboundedSender<PackageItem>,
 ) -> bool {
     match ke.code {
-        KeyCode::Enter => {
+        KeyCode::Enter | KeyCode::Char('\n' | '\r') => {
             find_in_install(app, true);
             refresh_install_details(app, details_tx);
         }

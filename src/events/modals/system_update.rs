@@ -113,7 +113,7 @@ pub(super) fn handle_system_update(
             }
             Some(false)
         }
-        KeyCode::Enter => {
+        KeyCode::Enter | KeyCode::Char('\n' | '\r') => {
             handle_system_update_enter(
                 app,
                 *do_mirrors,

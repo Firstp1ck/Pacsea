@@ -207,6 +207,82 @@ fn news_enter_preserves_modal() {
 }
 
 #[test]
+/// What: Verify numpad Enter (carriage return) in News modal has same effect as main Enter.
+///
+/// Inputs:
+/// - News modal with item
+/// - KeyCode::Char('\r')
+///
+/// Output:
+/// - Modal remains News, selected unchanged
+///
+/// Details:
+/// - Ensures numpad Enter handling does not break News; same outcome as main Enter
+fn news_numpad_enter_carriage_return_keeps_modal_open() {
+    let items = vec![crate::state::types::NewsFeedItem {
+        id: "https://example.com/1".to_string(),
+        date: "2025-01-01".to_string(),
+        title: "Test".to_string(),
+        summary: None,
+        url: Some("https://example.com".to_string()),
+        source: crate::state::types::NewsFeedSource::ArchNews,
+        severity: None,
+        packages: Vec::new(),
+    }];
+    let mut app = new_app();
+    app.modal = crate::state::Modal::News {
+        items: items.clone(),
+        selected: 0,
+        scroll: 0,
+    };
+    let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
+    let ke = key_event(KeyCode::Char('\r'), KeyModifiers::empty());
+    handle_modal_key(ke, &mut app, &add_tx);
+    match &app.modal {
+        crate::state::Modal::News { selected, .. } => assert_eq!(*selected, 0),
+        _ => panic!("Modal should remain News after numpad Enter"),
+    }
+}
+
+#[test]
+/// What: Verify numpad Enter (newline) in News modal has same effect as main Enter.
+///
+/// Inputs:
+/// - News modal with item
+/// - KeyCode::Char('\n')
+///
+/// Output:
+/// - Modal remains News, selected unchanged
+///
+/// Details:
+/// - Ensures numpad Enter handling does not break News; same outcome as main Enter
+fn news_numpad_enter_newline_keeps_modal_open() {
+    let items = vec![crate::state::types::NewsFeedItem {
+        id: "https://example.com/1".to_string(),
+        date: "2025-01-01".to_string(),
+        title: "Test".to_string(),
+        summary: None,
+        url: Some("https://example.com".to_string()),
+        source: crate::state::types::NewsFeedSource::ArchNews,
+        severity: None,
+        packages: Vec::new(),
+    }];
+    let mut app = new_app();
+    app.modal = crate::state::Modal::News {
+        items: items.clone(),
+        selected: 0,
+        scroll: 0,
+    };
+    let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
+    let ke = key_event(KeyCode::Char('\n'), KeyModifiers::empty());
+    handle_modal_key(ke, &mut app, &add_tx);
+    match &app.modal {
+        crate::state::Modal::News { selected, .. } => assert_eq!(*selected, 0),
+        _ => panic!("Modal should remain News after numpad Enter"),
+    }
+}
+
+#[test]
 /// What: Verify unhandled keys in News modal don't break state.
 ///
 /// Inputs:

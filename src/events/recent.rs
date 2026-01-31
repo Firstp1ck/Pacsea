@@ -24,7 +24,7 @@ fn handle_recent_find_mode(
     preview_tx: &mpsc::UnboundedSender<PackageItem>,
 ) -> bool {
     match ke.code {
-        KeyCode::Enter => {
+        KeyCode::Enter | KeyCode::Char('\n' | '\r') => {
             find_in_recent(app, true);
             crate::ui::helpers::trigger_recent_preview(app, preview_tx);
         }
@@ -371,7 +371,7 @@ pub fn handle_recent_key(
         KeyCode::Char(' ') => {
             handle_recent_space(app, add_tx);
         }
-        KeyCode::Enter => {
+        KeyCode::Enter | KeyCode::Char('\n' | '\r') => {
             handle_recent_enter(app, query_tx);
         }
         _ => {}

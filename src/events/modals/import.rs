@@ -23,7 +23,7 @@ pub(super) fn handle_import_help(
     add_tx: &mpsc::UnboundedSender<PackageItem>,
 ) -> bool {
     match ke.code {
-        KeyCode::Enter => {
+        KeyCode::Enter | KeyCode::Char('\n' | '\r') => {
             app.modal = crate::state::Modal::None;
             handle_import_help_enter(add_tx);
         }
