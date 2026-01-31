@@ -2,6 +2,7 @@
 
 mod direct_install_integration;
 mod direct_install_ui;
+mod editor_config_integration;
 mod executor_output;
 mod install_integration;
 mod install_ui;

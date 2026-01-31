@@ -42,14 +42,18 @@ fn handle_config_menu_numeric_selection(idx: usize, app: &mut AppState) -> bool 
         }
     };
 
-    let path_str = target.display().to_string();
-    let editor_cmd = format!(
-        "((command -v nvim >/dev/null 2>&1 || sudo pacman -Qi neovim >/dev/null 2>&1) && nvim '{path_str}') || \\\n                         ((command -v vim >/dev/null 2>&1 || sudo pacman -Qi vim >/dev/null 2>&1) && vim '{path_str}') || \\\n                         ((command -v hx >/dev/null 2>&1 || sudo pacman -Qi helix >/dev/null 2>&1) && hx '{path_str}') || \\\n                         ((command -v helix >/dev/null 2>&1 || sudo pacman -Qi helix >/dev/null 2>&1) && helix '{path_str}') || \\\n                         ((command -v emacsclient >/dev/null 2>&1 || sudo pacman -Qi emacs >/dev/null 2>&1) && emacsclient -t '{path_str}') || \\\n                         ((command -v emacs >/dev/null 2>&1 || sudo pacman -Qi emacs >/dev/null 2>&1) && emacs -nw '{path_str}') || \\\n                         ((command -v nano >/dev/null 2>&1 || sudo pacman -Qi nano >/dev/null 2>&1) && nano '{path_str}') || \\\n                         (echo 'No terminal editor found (nvim/vim/emacsclient/emacs/hx/helix/nano).'; echo 'File: {path_str}'; read -rn1 -s _ || true)"
-    );
-    let cmds = vec![editor_cmd];
-    std::thread::spawn(move || {
-        crate::install::spawn_shell_commands_in_terminal(&cmds);
-    });
+    #[cfg(target_os = "windows")]
+    {
+        crate::util::open_file(&target);
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let editor_cmd = crate::install::editor_open_config_command(&target);
+        let cmds = vec![editor_cmd];
+        std::thread::spawn(move || {
+            crate::install::spawn_shell_commands_in_terminal(&cmds);
+        });
+    }
     app.config_menu_open = false;
     true
 }
