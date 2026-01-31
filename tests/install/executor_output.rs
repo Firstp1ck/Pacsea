@@ -505,7 +505,8 @@ fn integration_executor_request_install() {
             assert_eq!(items.len(), 2);
             assert_eq!(items[0].name, "ripgrep");
             assert_eq!(items[1].name, "yay-bin");
-            assert_eq!(password, Some("testpassword".to_string()));
+            // Avoid logging password on assert failure.
+            assert!(password.as_deref() == Some("testpassword"), "Password mismatch");
             assert!(!dry_run);
         }
         _ => panic!("Expected ExecutorRequest::Install"),
@@ -544,7 +545,8 @@ fn integration_executor_request_remove() {
         } => {
             assert_eq!(names.len(), 2);
             assert_eq!(names[0], "pkg1");
-            assert_eq!(password, Some("testpassword".to_string()));
+            // Avoid logging password on assert failure.
+            assert!(password.as_deref() == Some("testpassword"), "Password mismatch");
             assert_eq!(cascade, CascadeMode::Cascade);
             assert!(!dry_run);
         }
@@ -580,7 +582,8 @@ fn integration_executor_request_downgrade() {
         } => {
             assert_eq!(names.len(), 1);
             assert_eq!(names[0], "pkg1");
-            assert_eq!(password, Some("testpassword".to_string()));
+            // Avoid logging password on assert failure.
+            assert!(password.as_deref() == Some("testpassword"), "Password mismatch");
             assert!(!dry_run);
         }
         _ => panic!("Expected ExecutorRequest::Downgrade"),
@@ -612,7 +615,8 @@ fn integration_executor_request_custom_command() {
             dry_run,
         } => {
             assert_eq!(command, "makepkg -si");
-            assert_eq!(password, Some("testpassword".to_string()));
+            // Avoid logging password on assert failure.
+            assert!(password.as_deref() == Some("testpassword"), "Password mismatch");
             assert!(!dry_run);
         }
         _ => panic!("Expected ExecutorRequest::CustomCommand"),
@@ -651,7 +655,8 @@ fn integration_executor_request_update() {
             assert_eq!(commands.len(), 2);
             assert!(commands[0].contains("pacman"));
             assert!(commands[1].contains("paru"));
-            assert_eq!(password, Some("testpassword".to_string()));
+            // Avoid logging password on assert failure.
+            assert!(password.as_deref() == Some("testpassword"), "Password mismatch");
             assert!(!dry_run);
         }
         _ => panic!("Expected ExecutorRequest::Update"),

@@ -255,7 +255,8 @@ fn integration_password_prompt_input_capture() {
 
     match app.modal {
         Modal::PasswordPrompt { input, cursor, .. } => {
-            assert_eq!(input, "secretpassword");
+            // Avoid logging password input on assert failure.
+            assert!(input == "secretpassword", "Password input mismatch");
             assert_eq!(cursor, 14);
             // Note: Actual masking is done in UI rendering, not in state
         }
@@ -406,8 +407,8 @@ fn integration_password_prompt_submission_to_preflight_exec() {
         _ => panic!("Expected PreflightExec modal"),
     }
 
-    // Verify password was captured
-    assert_eq!(password, Some("testpassword".to_string()));
+    // Verify password was captured; avoid logging password on assert failure.
+    assert!(password.as_deref() == Some("testpassword"), "Password mismatch");
 }
 
 #[test]

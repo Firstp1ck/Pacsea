@@ -114,7 +114,10 @@ fn ui_file_sync_preflight_exec_structure() {
             dry_run,
         }) => {
             assert_eq!(command, "sudo pacman -Fy");
-            assert_eq!(password, Some("testpassword".to_string()));
+            assert!(
+                password.as_deref() == Some("testpassword"),
+                "Password mismatch"
+            );
             assert!(!dry_run);
         }
         _ => panic!("Expected CustomCommand executor request"),

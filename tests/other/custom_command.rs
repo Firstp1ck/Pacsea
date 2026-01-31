@@ -67,7 +67,7 @@ fn integration_custom_command_with_password() {
             command, password, ..
         } => {
             assert!(command.contains("sudo"));
-            assert_eq!(password, Some("testpassword".to_string()));
+            assert!(password.as_deref() == Some("testpassword"), "Password mismatch");
         }
         _ => panic!("Expected ExecutorRequest::CustomCommand"),
     }
@@ -315,7 +315,7 @@ fn integration_custom_command_to_preflight_exec() {
             command, password, ..
         }) => {
             assert_eq!(command, "sudo pacman -Fy");
-            assert_eq!(password, Some("testpassword".to_string()));
+            assert!(password.as_deref() == Some("testpassword"), "Password mismatch");
         }
         _ => panic!("Expected ExecutorRequest::CustomCommand"),
     }

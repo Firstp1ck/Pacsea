@@ -660,7 +660,10 @@ fn integration_update_executor_request_with_password() {
 
     match request {
         ExecutorRequest::Update { password, .. } => {
-            assert_eq!(password, Some("testpassword".to_string()));
+            assert!(
+                password.as_deref() == Some("testpassword"),
+                "Password mismatch"
+            );
         }
         _ => panic!("Expected Update request"),
     }
@@ -775,7 +778,10 @@ fn integration_downgrade_executor_request_with_password() {
 
     match request {
         ExecutorRequest::Downgrade { password, .. } => {
-            assert_eq!(password, Some("testpassword".to_string()));
+            assert!(
+                password.as_deref() == Some("testpassword"),
+                "Password mismatch"
+            );
         }
         _ => panic!("Expected Downgrade request"),
     }
@@ -943,7 +949,10 @@ fn integration_filesync_custom_command_with_password() {
 
     match request {
         ExecutorRequest::CustomCommand { password, .. } => {
-            assert_eq!(password, Some("testpassword".to_string()));
+            assert!(
+                password.as_deref() == Some("testpassword"),
+                "Password mismatch"
+            );
         }
         _ => panic!("Expected CustomCommand request"),
     }

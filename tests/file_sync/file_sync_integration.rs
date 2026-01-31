@@ -179,7 +179,7 @@ fn integration_file_sync_executor_request() {
                 ..
             } => {
                 assert_eq!(command, "sudo pacman -Fy");
-                assert_eq!(pwd, Some("testpassword".to_string()));
+                assert!(pwd.as_deref() == Some("testpassword"), "Password mismatch");
             }
             _ => panic!("Expected CustomCommand executor request"),
         }

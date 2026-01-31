@@ -264,7 +264,7 @@ fn integration_direct_install_executor_request() {
         }) => {
             assert_eq!(items.len(), 1);
             assert_eq!(items[0].name, "ripgrep");
-            assert_eq!(pwd, Some("testpassword".to_string()));
+            assert!(pwd.as_deref() == Some("testpassword"), "Password mismatch");
         }
         _ => panic!("Expected Install executor request"),
     }
@@ -350,7 +350,7 @@ fn integration_direct_remove_executor_request() {
         }) => {
             assert_eq!(names.len(), 1);
             assert_eq!(names[0], "test-package");
-            assert_eq!(pwd, Some("testpassword".to_string()));
+            assert!(pwd.as_deref() == Some("testpassword"), "Password mismatch");
             assert_eq!(cascade, CascadeMode::Cascade);
         }
         _ => panic!("Expected Remove executor request"),

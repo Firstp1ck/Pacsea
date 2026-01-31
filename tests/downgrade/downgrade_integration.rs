@@ -235,7 +235,10 @@ fn integration_executor_request_downgrade_with_password() {
             assert_eq!(names.len(), 2);
             assert_eq!(names[0], "pkg1");
             assert_eq!(names[1], "pkg2");
-            assert_eq!(password, Some("testpassword".to_string()));
+            assert!(
+                password.as_deref() == Some("testpassword"),
+                "Password mismatch"
+            );
             assert!(!dry_run);
         }
         _ => panic!("Expected ExecutorRequest::Downgrade"),
@@ -432,7 +435,10 @@ fn integration_downgrade_to_preflight_exec() {
         }) => {
             assert_eq!(names.len(), 1);
             assert_eq!(names[0], "test-pkg");
-            assert_eq!(password, Some("testpassword".to_string()));
+            assert!(
+                password.as_deref() == Some("testpassword"),
+                "Password mismatch"
+            );
         }
         _ => panic!("Expected ExecutorRequest::Downgrade"),
     }
