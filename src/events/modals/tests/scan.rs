@@ -97,24 +97,24 @@ fn virustotal_setup_enter_opens_browser() {
     // Modal should remain open since input is empty
     match &app.modal {
         crate::state::Modal::VirusTotalSetup { .. } => {}
-        _ => panic!("Modal should remain VirusTotalSetup after Enter with empty input"),
+        _ => panic!("Modal should remain `VirusTotalSetup` after Enter with empty input"),
     }
 
     // No cleanup needed - open_url is a no-op during tests
 }
 
 #[test]
-/// What: Verify numpad Enter (carriage return) in VirusTotalSetup with empty input keeps modal open like main Enter.
+/// What: Verify numpad Enter (carriage return) in `VirusTotalSetup` with empty input keeps modal open like main Enter.
 ///
 /// Inputs:
-/// - VirusTotalSetup modal with empty input
-/// - KeyCode::Char('\r')
+/// - `VirusTotalSetup` modal with empty input
+/// - `KeyCode::Char`('\r')
 ///
 /// Output:
-/// - Modal remains VirusTotalSetup
+/// - Modal remains `VirusTotalSetup`
 ///
 /// Details:
-/// - Ensures numpad Enter handling does not break VirusTotalSetup; same outcome as main Enter
+/// - Ensures numpad Enter handling does not break `VirusTotalSetup`; same outcome as main Enter
 fn virus_total_setup_numpad_enter_carriage_return_empty_input_keeps_modal_open() {
     let mut app = new_app();
     app.modal = crate::state::Modal::VirusTotalSetup {
@@ -126,22 +126,22 @@ fn virus_total_setup_numpad_enter_carriage_return_empty_input_keeps_modal_open()
     handle_modal_key(ke, &mut app, &add_tx);
     match &app.modal {
         crate::state::Modal::VirusTotalSetup { .. } => {}
-        _ => panic!("Modal should remain VirusTotalSetup after numpad Enter with empty input"),
+        _ => panic!("Modal should remain `VirusTotalSetup` after numpad Enter with empty input"),
     }
 }
 
 #[test]
-/// What: Verify numpad Enter (newline) in VirusTotalSetup with empty input keeps modal open like main Enter.
+/// What: Verify numpad Enter (newline) in `VirusTotalSetup` with empty input keeps modal open like main Enter.
 ///
 /// Inputs:
-/// - VirusTotalSetup modal with empty input
-/// - KeyCode::Char('\n')
+/// - `VirusTotalSetup` modal with empty input
+/// - `KeyCode::Char`('\n')
 ///
 /// Output:
-/// - Modal remains VirusTotalSetup
+/// - Modal remains `VirusTotalSetup`
 ///
 /// Details:
-/// - Ensures numpad Enter handling does not break VirusTotalSetup; same outcome as main Enter
+/// - Ensures numpad Enter handling does not break `VirusTotalSetup`; same outcome as main Enter
 fn virus_total_setup_numpad_enter_newline_empty_input_keeps_modal_open() {
     let mut app = new_app();
     app.modal = crate::state::Modal::VirusTotalSetup {
@@ -153,6 +153,6 @@ fn virus_total_setup_numpad_enter_newline_empty_input_keeps_modal_open() {
     handle_modal_key(ke, &mut app, &add_tx);
     match &app.modal {
         crate::state::Modal::VirusTotalSetup { .. } => {}
-        _ => panic!("Modal should remain VirusTotalSetup after numpad Enter with empty input"),
+        _ => panic!("Modal should remain `VirusTotalSetup` after numpad Enter with empty input"),
     }
 }

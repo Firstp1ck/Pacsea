@@ -71,17 +71,17 @@ fn post_summary_enter_closes_modal() {
 }
 
 #[test]
-/// What: Verify numpad Enter (carriage return) closes PostSummary modal like main Enter.
+/// What: Verify numpad Enter (carriage return) closes `PostSummary` modal like main Enter.
 ///
 /// Inputs:
-/// - PostSummary modal
-/// - KeyCode::Char('\r')
+/// - `PostSummary` modal
+/// - `KeyCode::Char`('\r')
 ///
 /// Output:
 /// - Modal is set to None
 ///
 /// Details:
-/// - Ensures numpad Enter handling does not break PostSummary; same outcome as main Enter
+/// - Ensures numpad Enter handling does not break `PostSummary`; same outcome as main Enter
 fn post_summary_numpad_enter_carriage_return_closes_modal() {
     let mut app = new_app();
     app.modal = crate::state::Modal::PostSummary {
@@ -99,17 +99,17 @@ fn post_summary_numpad_enter_carriage_return_closes_modal() {
 }
 
 #[test]
-/// What: Verify numpad Enter (newline) closes PostSummary modal like main Enter.
+/// What: Verify numpad Enter (newline) closes `PostSummary` modal like main Enter.
 ///
 /// Inputs:
-/// - PostSummary modal
-/// - KeyCode::Char('\n')
+/// - `PostSummary` modal
+/// - `KeyCode::Char`('\n')
 ///
 /// Output:
 /// - Modal is set to None
 ///
 /// Details:
-/// - Ensures numpad Enter handling does not break PostSummary; same outcome as main Enter
+/// - Ensures numpad Enter handling does not break `PostSummary`; same outcome as main Enter
 fn post_summary_numpad_enter_newline_closes_modal() {
     let mut app = new_app();
     app.modal = crate::state::Modal::PostSummary {

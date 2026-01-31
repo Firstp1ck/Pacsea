@@ -65,7 +65,7 @@ fn alert_enter_closes_modal() {
 ///
 /// Inputs:
 /// - Alert modal with message
-/// - KeyCode::Char('\r') (numpad Enter on some terminals)
+/// - `KeyCode::Char`('\r') (numpad Enter on some terminals)
 ///
 /// Output:
 /// - Modal is set to None
@@ -88,7 +88,7 @@ fn alert_numpad_enter_carriage_return_closes_modal() {
 ///
 /// Inputs:
 /// - Alert modal with message
-/// - KeyCode::Char('\n') (numpad Enter on some terminals)
+/// - `KeyCode::Char`('\n') (numpad Enter on some terminals)
 ///
 /// Output:
 /// - Modal is set to None

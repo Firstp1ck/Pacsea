@@ -114,17 +114,17 @@ fn confirm_remove_enter_closes_modal() {
 }
 
 #[test]
-/// What: Verify numpad Enter (carriage return) closes ConfirmRemove modal like main Enter.
+/// What: Verify numpad Enter (carriage return) closes `ConfirmRemove` modal like main Enter.
 ///
 /// Inputs:
-/// - ConfirmRemove modal
-/// - KeyCode::Char('\r')
+/// - `ConfirmRemove` modal
+/// - `KeyCode::Char`('\r')
 ///
 /// Output:
 /// - Modal is set to None
 ///
 /// Details:
-/// - Ensures numpad Enter handling does not break ConfirmRemove; same outcome as main Enter
+/// - Ensures numpad Enter handling does not break `ConfirmRemove`; same outcome as main Enter
 fn confirm_remove_numpad_enter_carriage_return_closes_modal() {
     let mut app = new_app();
     app.modal = crate::state::Modal::ConfirmRemove {
@@ -145,17 +145,17 @@ fn confirm_remove_numpad_enter_carriage_return_closes_modal() {
 }
 
 #[test]
-/// What: Verify numpad Enter (newline) closes ConfirmRemove modal like main Enter.
+/// What: Verify numpad Enter (newline) closes `ConfirmRemove` modal like main Enter.
 ///
 /// Inputs:
-/// - ConfirmRemove modal
-/// - KeyCode::Char('\n')
+/// - `ConfirmRemove` modal
+/// - `KeyCode::Char`('\n')
 ///
 /// Output:
 /// - Modal is set to None
 ///
 /// Details:
-/// - Ensures numpad Enter handling does not break ConfirmRemove; same outcome as main Enter
+/// - Ensures numpad Enter handling does not break `ConfirmRemove`; same outcome as main Enter
 fn confirm_remove_numpad_enter_newline_closes_modal() {
     let mut app = new_app();
     app.modal = crate::state::Modal::ConfirmRemove {

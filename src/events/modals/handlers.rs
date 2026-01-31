@@ -1060,6 +1060,15 @@ pub(super) fn handle_password_prompt_modal(
             // Handle Update purpose with pending_update_commands
             if matches!(purpose, crate::state::modal::PasswordPurpose::Update) {
                 if let Some(commands) = app.pending_update_commands.take() {
+                    // Store password and header_chips so AUR update can run after pacman succeeds,
+                    // or so ConfirmAurUpdate can run AUR if pacman fails
+                    match (&mut app.pending_executor_password, &password) {
+                        (Some(p), Some(pass)) => p.clone_from(pass),
+                        (None, Some(pass)) => app.pending_executor_password = Some(pass.clone()),
+                        (_, None) => app.pending_executor_password = None,
+                    }
+                    app.pending_exec_header_chips = Some(header_chips.clone());
+
                     // Transition to PreflightExec for system update
                     app.modal = Modal::PreflightExec {
                         items: Vec::new(), // System update doesn't have package items

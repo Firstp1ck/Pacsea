@@ -60,17 +60,17 @@ fn gnome_terminal_prompt_enter_spawns_terminal() {
 }
 
 #[test]
-/// What: Verify numpad Enter (carriage return) closes GnomeTerminalPrompt like main Enter.
+/// What: Verify numpad Enter (carriage return) closes `GnomeTerminalPrompt` like main Enter.
 ///
 /// Inputs:
-/// - GnomeTerminalPrompt modal
-/// - KeyCode::Char('\r')
+/// - `GnomeTerminalPrompt` modal
+/// - `KeyCode::Char`('\r')
 ///
 /// Output:
 /// - Modal is set to None
 ///
 /// Details:
-/// - Ensures numpad Enter handling does not break GnomeTerminalPrompt; same outcome as main Enter
+/// - Ensures numpad Enter handling does not break `GnomeTerminalPrompt`; same outcome as main Enter
 fn gnome_terminal_prompt_numpad_enter_carriage_return_closes_modal() {
     let mut app = new_app();
     app.modal = crate::state::Modal::GnomeTerminalPrompt;
@@ -81,17 +81,17 @@ fn gnome_terminal_prompt_numpad_enter_carriage_return_closes_modal() {
 }
 
 #[test]
-/// What: Verify numpad Enter (newline) closes GnomeTerminalPrompt like main Enter.
+/// What: Verify numpad Enter (newline) closes `GnomeTerminalPrompt` like main Enter.
 ///
 /// Inputs:
-/// - GnomeTerminalPrompt modal
-/// - KeyCode::Char('\n')
+/// - `GnomeTerminalPrompt` modal
+/// - `KeyCode::Char`('\n')
 ///
 /// Output:
 /// - Modal is set to None
 ///
 /// Details:
-/// - Ensures numpad Enter handling does not break GnomeTerminalPrompt; same outcome as main Enter
+/// - Ensures numpad Enter handling does not break `GnomeTerminalPrompt`; same outcome as main Enter
 fn gnome_terminal_prompt_numpad_enter_newline_closes_modal() {
     let mut app = new_app();
     app.modal = crate::state::Modal::GnomeTerminalPrompt;
@@ -153,17 +153,17 @@ fn import_help_enter_closes_modal() {
 }
 
 #[test]
-/// What: Verify numpad Enter (carriage return) closes ImportHelp modal like main Enter.
+/// What: Verify numpad Enter (carriage return) closes `ImportHelp` modal like main Enter.
 ///
 /// Inputs:
-/// - ImportHelp modal
-/// - KeyCode::Char('\r')
+/// - `ImportHelp` modal
+/// - `KeyCode::Char`('\r')
 ///
 /// Output:
 /// - Modal is set to None
 ///
 /// Details:
-/// - Ensures numpad Enter handling does not break ImportHelp; same outcome as main Enter
+/// - Ensures numpad Enter handling does not break `ImportHelp`; same outcome as main Enter
 fn import_help_numpad_enter_carriage_return_closes_modal() {
     let mut app = new_app();
     app.modal = crate::state::Modal::ImportHelp;
@@ -174,17 +174,17 @@ fn import_help_numpad_enter_carriage_return_closes_modal() {
 }
 
 #[test]
-/// What: Verify numpad Enter (newline) closes ImportHelp modal like main Enter.
+/// What: Verify numpad Enter (newline) closes `ImportHelp` modal like main Enter.
 ///
 /// Inputs:
-/// - ImportHelp modal
-/// - KeyCode::Char('\n')
+/// - `ImportHelp` modal
+/// - `KeyCode::Char`('\n')
 ///
 /// Output:
 /// - Modal is set to None
 ///
 /// Details:
-/// - Ensures numpad Enter handling does not break ImportHelp; same outcome as main Enter
+/// - Ensures numpad Enter handling does not break `ImportHelp`; same outcome as main Enter
 fn import_help_numpad_enter_newline_closes_modal() {
     let mut app = new_app();
     app.modal = crate::state::Modal::ImportHelp;

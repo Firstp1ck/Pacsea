@@ -61,7 +61,7 @@ fn help_enter_closes_modal() {
 ///
 /// Inputs:
 /// - Help modal
-/// - KeyCode::Char('\r')
+/// - `KeyCode::Char`('\r')
 ///
 /// Output:
 /// - Modal is set to None
@@ -82,7 +82,7 @@ fn help_numpad_enter_carriage_return_closes_modal() {
 ///
 /// Inputs:
 /// - Help modal
-/// - KeyCode::Char('\n')
+/// - `KeyCode::Char`('\n')
 ///
 /// Output:
 /// - Modal is set to None

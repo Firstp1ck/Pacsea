@@ -16,6 +16,47 @@ use super::super::persist::{
     maybe_flush_services_cache,
 };
 use super::super::recent::{maybe_save_news_recent, maybe_save_recent};
+use crate::install::ExecutorRequest;
+
+/// What: Queue AUR update after system update success when pacman + AUR were both selected.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+///
+/// Output: None
+///
+/// Details:
+/// - When `PreflightExec` shows success, items are empty (system update), and pending AUR command
+///   is set, queues the AUR command and updates the modal log. Called from tick to avoid borrow
+///   conflict in `event_loop`.
+fn maybe_queue_aur_after_system_update_success(app: &mut AppState) {
+    let (success_is_true, items_empty) =
+        if let crate::state::Modal::PreflightExec { success, items, .. } = &app.modal {
+            (success == &Some(true), items.is_empty())
+        } else {
+            (false, false)
+        };
+    if !success_is_true || !items_empty || app.pending_aur_update_command.is_none() {
+        return;
+    }
+    let aur_cmd = app.pending_aur_update_command.take();
+    let password = app.pending_executor_password.take();
+    if let (Some(aur_cmd), Some(password)) = (aur_cmd, password) {
+        app.pending_executor_request = Some(ExecutorRequest::Update {
+            commands: vec![aur_cmd],
+            password: Some(password),
+            dry_run: app.dry_run,
+        });
+        if let crate::state::Modal::PreflightExec {
+            log_lines, success, ..
+        } = &mut app.modal
+        {
+            log_lines.push(String::new());
+            log_lines.push("Running AUR update...".to_string());
+            *success = None;
+        }
+    }
+}
 
 /// What: Handle PKGBUILD result event.
 ///
@@ -649,6 +690,8 @@ pub fn handle_tick(
         summary_req_tx,
     );
 
+    maybe_queue_aur_after_system_update_success(app);
+
     // Send pending executor request if PreflightExec modal is active
     if let Some(request) = app.pending_executor_request.take()
         && matches!(app.modal, crate::state::Modal::PreflightExec { .. })
@@ -794,6 +837,9 @@ pub fn handle_status(app: &mut AppState, txt: &str, color: ArchStatusColor) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::install::ExecutorRequest;
+    use crate::state::Modal;
+    use crate::state::modal::{PreflightAction, PreflightTab};
 
     /// What: Provide a baseline `AppState` for tick handler tests.
     ///
@@ -925,6 +971,95 @@ mod tests {
         assert!(app.preflight_files_items.is_none());
         assert!(app.preflight_services_items.is_none());
         assert!(app.preflight_sandbox_items.is_none());
+    }
+
+    #[test]
+    /// What: Verify AUR update is queued after system update success when pacman + AUR were selected.
+    ///
+    /// Inputs:
+    /// - `AppState` with `PreflightExec` (success, empty items), `pending_aur_update_command`,
+    ///   and `pending_executor_password` set; tick handler called.
+    ///
+    /// Output:
+    /// - `pending_executor_request` is `Some(Update { commands: [aur_cmd], ... })`,
+    ///   `pending_aur_update_command` is `None`, modal log contains "Running AUR update...".
+    ///
+    /// Details:
+    /// - Ensures "Update system" with all selections (including AUR) runs AUR after pacman succeeds.
+    fn handle_tick_queues_aur_after_system_update_success() {
+        let mut app = new_app();
+        let aur_cmd = "paru -Sua --noconfirm".to_string();
+        app.modal = Modal::PreflightExec {
+            items: vec![],
+            action: PreflightAction::Install,
+            tab: PreflightTab::Summary,
+            verbose: false,
+            log_lines: vec!["Done.".to_string()],
+            abortable: false,
+            header_chips: crate::state::modal::PreflightHeaderChips::default(),
+            success: Some(true),
+        };
+        app.pending_aur_update_command = Some(aur_cmd.clone());
+        app.pending_executor_password = Some("pass".to_string());
+
+        let (query_tx, _query_rx) = mpsc::unbounded_channel();
+        let (details_tx, _details_rx) = mpsc::unbounded_channel();
+        let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel();
+        let (deps_tx, _deps_rx) = mpsc::unbounded_channel();
+        let (files_tx, _files_rx) = mpsc::unbounded_channel();
+        let (services_tx, _services_rx) = mpsc::unbounded_channel();
+        let (sandbox_tx, _sandbox_rx) = mpsc::unbounded_channel();
+        let (summary_tx, _summary_rx) = mpsc::unbounded_channel();
+        let (updates_tx, _updates_rx) = mpsc::unbounded_channel();
+        let (executor_req_tx, mut executor_req_rx) = mpsc::unbounded_channel();
+        let (post_summary_tx, _post_summary_rx) = mpsc::unbounded_channel();
+        let (news_content_tx, _news_content_rx) = mpsc::unbounded_channel();
+
+        handle_tick(
+            &mut app,
+            &query_tx,
+            &details_tx,
+            &pkgb_tx,
+            &deps_tx,
+            &files_tx,
+            &services_tx,
+            &sandbox_tx,
+            &summary_tx,
+            &updates_tx,
+            &executor_req_tx,
+            &post_summary_tx,
+            &news_content_tx,
+        );
+
+        assert!(
+            app.pending_aur_update_command.is_none(),
+            "pending_aur_update_command should be taken when AUR is queued"
+        );
+        let request = executor_req_rx
+            .try_recv()
+            .expect("executor should receive Update request with AUR command");
+        match &request {
+            ExecutorRequest::Update {
+                commands, password, ..
+            } => {
+                assert_eq!(commands.len(), 1);
+                assert_eq!(commands[0], aur_cmd);
+                assert_eq!(password.as_deref(), Some("pass"));
+            }
+            _ => panic!("expected ExecutorRequest::Update, got {request:?}"),
+        }
+        if let Modal::PreflightExec {
+            log_lines, success, ..
+        } = &app.modal
+        {
+            assert!(
+                log_lines.iter().any(|l| l == "Running AUR update..."),
+                "modal log should contain 'Running AUR update...'"
+            );
+            assert!(success.is_none(), "success should be cleared for AUR run");
+        } else {
+            panic!("modal should still be PreflightExec");
+        }
     }
 
     #[test]

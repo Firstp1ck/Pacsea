@@ -211,7 +211,7 @@ fn news_enter_preserves_modal() {
 ///
 /// Inputs:
 /// - News modal with item
-/// - KeyCode::Char('\r')
+/// - `KeyCode::Char`('\r')
 ///
 /// Output:
 /// - Modal remains News, selected unchanged
@@ -231,7 +231,7 @@ fn news_numpad_enter_carriage_return_keeps_modal_open() {
     }];
     let mut app = new_app();
     app.modal = crate::state::Modal::News {
-        items: items.clone(),
+        items,
         selected: 0,
         scroll: 0,
     };
@@ -249,7 +249,7 @@ fn news_numpad_enter_carriage_return_keeps_modal_open() {
 ///
 /// Inputs:
 /// - News modal with item
-/// - KeyCode::Char('\n')
+/// - `KeyCode::Char`('\n')
 ///
 /// Output:
 /// - Modal remains News, selected unchanged
@@ -269,7 +269,7 @@ fn news_numpad_enter_newline_keeps_modal_open() {
     }];
     let mut app = new_app();
     app.modal = crate::state::Modal::News {
-        items: items.clone(),
+        items,
         selected: 0,
         scroll: 0,
     };
