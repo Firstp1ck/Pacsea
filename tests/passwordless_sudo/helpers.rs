@@ -317,13 +317,13 @@ fn verify_password_match(actual: Option<&str>, expected: Option<&str>) {
     match (actual, expected) {
         (None, None) => { /* Success - both None */ }
         (Some(act), Some(exp)) => {
-            assert_eq!(act, exp, "Expected password '{exp}', got '{act}'");
+            assert_eq!(act, exp, "Password did not match expected value");
         }
-        (None, Some(exp)) => {
-            panic!("Expected password '{exp}', got None");
+        (None, Some(_exp)) => {
+            panic!("Expected a password, but got None");
         }
-        (Some(act), None) => {
-            panic!("Expected no password, got '{act}'");
+        (Some(_act), None) => {
+            panic!("Expected no password, but a password was provided");
         }
     }
 }
