@@ -346,6 +346,10 @@ fn parse_misc_settings(key: &str, val: &str, settings: &mut Settings) -> bool {
             }
             true
         }
+        "use_passwordless_sudo" | "passwordless_sudo" | "allow_passwordless_sudo" => {
+            settings.use_passwordless_sudo = parse_bool(val);
+            true
+        }
         _ => false,
     }
 }

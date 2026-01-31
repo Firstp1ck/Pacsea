@@ -588,25 +588,20 @@ impl UpdateState {
 /// - Exits the process with code 1 if password is empty or cannot be read.
 ///
 /// Details:
+/// - Respects `use_passwordless_sudo` from settings (aligned with TUI). Skips password prompt
+///   only when both the setting is enabled and `sudo -n true` succeeds.
 /// - Prompts user for password using `rpassword::prompt_password`.
 /// - Validates that password is not empty (after trimming whitespace).
 /// - Empty passwords are rejected early to prevent sudo failures.
 #[cfg(not(target_os = "windows"))]
 fn prompt_and_validate_password(write_log: &(dyn Fn(&str) + Send + Sync)) -> Option<String> {
     use std::io::IsTerminal;
-    use std::process::Command;
 
-    // Check if passwordless sudo is available
-    if Command::new("sudo")
-        .args(["-n", "true"])
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .is_ok_and(|s| s.success())
-    {
-        // Passwordless sudo works, no password needed
-        write_log("Passwordless sudo detected, skipping password prompt");
+    // Only skip password prompt when use_passwordless_sudo is enabled in settings AND
+    // passwordless sudo is available on the system (aligned with TUI behavior).
+    let settings = theme::settings();
+    if pacsea::logic::password::should_use_passwordless_sudo(&settings) {
+        write_log("Passwordless sudo enabled in settings and available, skipping password prompt");
         return None;
     }
 

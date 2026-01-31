@@ -149,7 +149,8 @@ fn integration_executor_request_creation() {
             dry_run,
         } => {
             assert_eq!(req_items.len(), 2);
-            assert_eq!(password, Some("testpass".to_string()));
+            // Avoid logging password on assert failure.
+            assert!(password.as_deref() == Some("testpass"), "Password mismatch");
             assert!(!dry_run);
         }
         ExecutorRequest::Remove { .. }
@@ -201,7 +202,8 @@ fn integration_password_prompt_state() {
             ..
         } => {
             assert_eq!(items.len(), 1);
-            assert_eq!(input, "testpassword");
+            // Avoid logging password input on assert failure.
+            assert!(input == "testpassword", "Password input mismatch");
             assert_eq!(cursor, 12);
         }
         _ => panic!("Expected PasswordPrompt modal"),
@@ -346,7 +348,7 @@ fn integration_empty_password_handling() {
 
     match request {
         ExecutorRequest::Install { password, .. } => {
-            assert_eq!(password, None, "Empty password should result in None");
+            assert!(password.is_none(), "Expected no password");
         }
         ExecutorRequest::Remove { .. }
         | ExecutorRequest::Downgrade { .. }

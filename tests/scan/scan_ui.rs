@@ -84,7 +84,7 @@ fn ui_virustotal_setup_modal_structure() {
 
     match app.modal {
         Modal::VirusTotalSetup { input, cursor } => {
-            assert_eq!(input, "test-api-key-12345");
+            assert!(input == "test-api-key-12345", "API key mismatch");
             assert_eq!(cursor, 18);
         }
         _ => panic!("Expected VirusTotalSetup modal"),

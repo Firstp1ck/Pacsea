@@ -150,7 +150,7 @@ fn integration_remove_executor_request_creation() {
             dry_run,
         } => {
             assert_eq!(req_names.len(), 2);
-            assert_eq!(password, Some("testpass".to_string()));
+            assert!(password.as_deref() == Some("testpass"), "Password mismatch");
             assert_eq!(cascade, CascadeMode::Cascade);
             assert!(!dry_run);
         }

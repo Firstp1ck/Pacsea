@@ -371,7 +371,10 @@ fn integration_system_update_pacman_command() {
             assert!(commands[0].contains("pacman"));
             assert!(commands[0].contains("-Syu"));
             assert!(commands[0].contains("--noconfirm"));
-            assert_eq!(password, Some("testpassword".to_string()));
+            assert!(
+                password.as_deref() == Some("testpassword"),
+                "Password mismatch"
+            );
             assert!(!dry_run);
         }
         _ => panic!("Expected ExecutorRequest::Update"),
@@ -444,7 +447,10 @@ fn integration_system_update_cache_command() {
             assert!(commands[0].contains("pacman"));
             assert!(commands[0].contains("-Sc"));
             assert!(commands[0].contains("--noconfirm"));
-            assert_eq!(password, Some("testpassword".to_string()));
+            assert!(
+                password.as_deref() == Some("testpassword"),
+                "Password mismatch"
+            );
         }
         _ => panic!("Expected ExecutorRequest::Update"),
     }
@@ -605,7 +611,10 @@ fn integration_system_update_to_preflight_exec() {
     // Verify executor request
     match app.pending_executor_request {
         Some(ExecutorRequest::Update { password, .. }) => {
-            assert_eq!(password, Some("testpassword".to_string()));
+            assert!(
+                password.as_deref() == Some("testpassword"),
+                "Password mismatch"
+            );
         }
         _ => panic!("Expected ExecutorRequest::Update"),
     }

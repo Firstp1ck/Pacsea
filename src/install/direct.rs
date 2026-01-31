@@ -10,36 +10,55 @@ use crate::state::{AppState, PackageItem, modal::CascadeMode};
 /// - `dry_run`: Whether to run in dry-run mode
 ///
 /// Output:
-/// - Transitions to `PasswordPrompt` (all installs need password for sudo)
+/// - If passwordless sudo is available: Proceeds directly to `PreflightExec` modal.
+/// - If passwordless sudo is not available: Transitions to `PasswordPrompt` modal.
 ///
 /// Details:
+/// - Checks for passwordless sudo first to skip password prompt if available.
 /// - Both official packages (sudo pacman) and AUR packages (paru/yay need sudo for final step)
-///   require password, so always show `PasswordPrompt`
-/// - Uses `ExecutorRequest::Install` for execution
+///   require sudo, but password may not be needed if passwordless sudo is configured.
+/// - Uses `ExecutorRequest::Install` for execution.
 pub fn start_integrated_install(app: &mut AppState, item: &PackageItem, dry_run: bool) {
+    use crate::events::start_execution;
     use crate::state::modal::PreflightHeaderChips;
 
     app.dry_run = dry_run;
+    let items = vec![item.clone()];
+    let header_chips = PreflightHeaderChips::default();
 
-    // Check faillock status before showing password prompt
+    // Check faillock status before proceeding
     let username = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
     if let Some(lockout_msg) = crate::logic::faillock::get_lockout_message_if_locked(&username, app)
     {
-        // User is locked out - show warning and don't show password prompt
+        // User is locked out - show warning
         app.modal = crate::state::Modal::Alert {
             message: lockout_msg,
         };
         return;
     }
-    // Show password prompt for all installs (official and AUR both need sudo)
-    app.modal = crate::state::Modal::PasswordPrompt {
-        purpose: crate::state::modal::PasswordPurpose::Install,
-        items: vec![item.clone()],
-        input: String::new(),
-        cursor: 0,
-        error: None,
-    };
-    app.pending_exec_header_chips = Some(PreflightHeaderChips::default());
+
+    // Check passwordless sudo availability (requires setting enabled AND system configured)
+    let settings = crate::theme::settings();
+    if crate::logic::password::should_use_passwordless_sudo(&settings) {
+        // Passwordless sudo enabled and available - skip password prompt and proceed directly
+        start_execution(
+            app,
+            &items,
+            crate::state::PreflightAction::Install,
+            header_chips,
+            None, // No password needed
+        );
+    } else {
+        // Passwordless sudo not enabled or not available - show password prompt
+        app.modal = crate::state::Modal::PasswordPrompt {
+            purpose: crate::state::modal::PasswordPurpose::Install,
+            items,
+            input: String::new(),
+            cursor: 0,
+            error: None,
+        };
+        app.pending_exec_header_chips = Some(header_chips);
+    }
 }
 
 /// What: Start integrated install process for multiple packages (bypassing preflight).
@@ -50,36 +69,55 @@ pub fn start_integrated_install(app: &mut AppState, item: &PackageItem, dry_run:
 /// - `dry_run`: Whether to run in dry-run mode
 ///
 /// Output:
-/// - Transitions to `PasswordPrompt` (all installs need password for sudo)
+/// - If passwordless sudo is available: Proceeds directly to `PreflightExec` modal.
+/// - If passwordless sudo is not available: Transitions to `PasswordPrompt` modal.
 ///
 /// Details:
+/// - Checks for passwordless sudo first to skip password prompt if available.
 /// - Both official packages (sudo pacman) and AUR packages (paru/yay need sudo for final step)
-///   require password, so always show `PasswordPrompt`
-/// - Uses `ExecutorRequest::Install` for execution
+///   require sudo, but password may not be needed if passwordless sudo is configured.
+/// - Uses `ExecutorRequest::Install` for execution.
 pub fn start_integrated_install_all(app: &mut AppState, items: &[PackageItem], dry_run: bool) {
+    use crate::events::start_execution;
     use crate::state::modal::PreflightHeaderChips;
 
     app.dry_run = dry_run;
+    let items_vec = items.to_vec();
+    let header_chips = PreflightHeaderChips::default();
 
-    // Check faillock status before showing password prompt
+    // Check faillock status before proceeding
     let username = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
     if let Some(lockout_msg) = crate::logic::faillock::get_lockout_message_if_locked(&username, app)
     {
-        // User is locked out - show warning and don't show password prompt
+        // User is locked out - show warning
         app.modal = crate::state::Modal::Alert {
             message: lockout_msg,
         };
         return;
     }
-    // Show password prompt for all installs (official and AUR both need sudo)
-    app.modal = crate::state::Modal::PasswordPrompt {
-        purpose: crate::state::modal::PasswordPurpose::Install,
-        items: items.to_vec(),
-        input: String::new(),
-        cursor: 0,
-        error: None,
-    };
-    app.pending_exec_header_chips = Some(PreflightHeaderChips::default());
+
+    // Check passwordless sudo availability (requires setting enabled AND system configured)
+    let settings = crate::theme::settings();
+    if crate::logic::password::should_use_passwordless_sudo(&settings) {
+        // Passwordless sudo enabled and available - skip password prompt and proceed directly
+        start_execution(
+            app,
+            &items_vec,
+            crate::state::PreflightAction::Install,
+            header_chips,
+            None, // No password needed
+        );
+    } else {
+        // Passwordless sudo not enabled or not available - show password prompt
+        app.modal = crate::state::Modal::PasswordPrompt {
+            purpose: crate::state::modal::PasswordPurpose::Install,
+            items: items_vec,
+            input: String::new(),
+            cursor: 0,
+            error: None,
+        };
+        app.pending_exec_header_chips = Some(header_chips);
+    }
 }
 
 /// What: Start integrated remove process (bypassing preflight).
@@ -94,8 +132,10 @@ pub fn start_integrated_install_all(app: &mut AppState, items: &[PackageItem], d
 /// - Transitions to `PasswordPrompt` (remove always needs sudo)
 ///
 /// Details:
-/// - Remove operations always need sudo, so always show `PasswordPrompt`
-/// - Uses `ExecutorRequest::Remove` for execution
+/// - Remove operations always need sudo, so always show `PasswordPrompt`.
+/// - Remove is intentionally never passwordless (even when `use_passwordless_sudo` is true)
+///   for safety; only install/update can skip the password prompt.
+/// - Uses `ExecutorRequest::Remove` for execution.
 pub fn start_integrated_remove_all(
     app: &mut AppState,
     names: &[String],
@@ -124,7 +164,8 @@ pub fn start_integrated_remove_all(
         })
         .collect();
 
-    // Remove operations always need sudo (pacman -R requires sudo regardless of package source)
+    // Remove operations always need sudo (pacman -R requires sudo regardless of package source).
+    // Remove is intentionally never passwordless for safety (see docstring).
     // Check faillock status before showing password prompt
     let username = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
     if let Some(lockout_msg) = crate::logic::faillock::get_lockout_message_if_locked(&username, app)
