@@ -2,6 +2,21 @@
 
 use std::process::Command;
 
+/// What: Returns true only when running in integration test context.
+///
+/// Inputs:
+/// - None (reads env var `PACSEA_INTEGRATION_TEST`).
+///
+/// Output:
+/// - `true` if `PACSEA_INTEGRATION_TEST=1` is set, `false` otherwise.
+///
+/// Details:
+/// - Used to gate `PACSEA_TEST_SUDO_PASSWORDLESS` so production never honors it.
+/// - Integration tests set this env var so the test override is applied.
+fn is_integration_test_context() -> bool {
+    std::env::var("PACSEA_INTEGRATION_TEST").is_ok_and(|v| v == "1")
+}
+
 /// What: Check if passwordless sudo is available for the current user.
 ///
 /// Inputs:
@@ -19,14 +34,15 @@ use std::process::Command;
 /// - `-n`: Non-interactive mode (fails if password required).
 /// - `true`: Simple command that always succeeds if sudo works.
 /// - Returns `Ok(false)` if sudo is not available or requires a password.
-/// - **Testing**: If `PACSEA_TEST_SUDO_PASSWORDLESS` env var is set, uses that value instead.
-///   Set to "1" to simulate passwordless sudo available, "0" to simulate unavailable.
-///   This is used by integration tests to control behavior without actual sudo access.
+/// - **Testing**: Only when `PACSEA_INTEGRATION_TEST=1` is set (test harness), the env var
+///   `PACSEA_TEST_SUDO_PASSWORDLESS` is honored: "1" = available, "0" = unavailable.
+///   In production (when `PACSEA_INTEGRATION_TEST` is not set), `PACSEA_TEST_SUDO_PASSWORDLESS`
+///   is ignored so the only way to enable passwordless sudo is via `use_passwordless_sudo` in settings.
 pub fn check_passwordless_sudo_available() -> Result<bool, String> {
-    // Check for test environment variable override
-    // This allows integration tests to simulate passwordless sudo without actual sudo access
-    // Only used when the env var is explicitly set - normal operation is unaffected
-    if let Ok(val) = std::env::var("PACSEA_TEST_SUDO_PASSWORDLESS") {
+    // Honor test override only in integration test context so production never honors it
+    if is_integration_test_context()
+        && let Ok(val) = std::env::var("PACSEA_TEST_SUDO_PASSWORDLESS")
+    {
         tracing::debug!(
             "Using test override for passwordless sudo check: PACSEA_TEST_SUDO_PASSWORDLESS={}",
             val
@@ -59,16 +75,14 @@ pub fn check_passwordless_sudo_available() -> Result<bool, String> {
 /// - If enabled, checks if passwordless sudo is actually available on the system.
 /// - Returns `true` only if both conditions are met.
 /// - Logs the decision for debugging purposes.
-/// - **Testing**: If `PACSEA_TEST_SUDO_PASSWORDLESS` env var is set, this overrides both
-///   the settings check and the system availability check. Set to "1" for passwordless
-///   enabled, "0" for disabled. This allows integration tests to control the entire
-///   passwordless sudo workflow without modifying settings or having actual sudo access.
+/// - **Testing**: Only when `PACSEA_INTEGRATION_TEST=1` is set (test harness), the env var
+///   `PACSEA_TEST_SUDO_PASSWORDLESS` is honored. In production this override is disabled.
 #[must_use]
 pub fn should_use_passwordless_sudo(settings: &crate::theme::Settings) -> bool {
-    // Check for test environment variable override
-    // This allows integration tests to control passwordless sudo behavior without
-    // modifying settings or having actual sudo access
-    if let Ok(val) = std::env::var("PACSEA_TEST_SUDO_PASSWORDLESS") {
+    // Honor test override only in integration test context so production never honors it
+    if is_integration_test_context()
+        && let Ok(val) = std::env::var("PACSEA_TEST_SUDO_PASSWORDLESS")
+    {
         tracing::debug!(
             "Using test override for should_use_passwordless_sudo: PACSEA_TEST_SUDO_PASSWORDLESS={}",
             val

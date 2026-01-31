@@ -11,21 +11,22 @@
 
 use pacsea::state::{AppState, Modal, PackageItem, Source, modal::PasswordPurpose};
 
-/// What: Set the environment variable to control passwordless sudo behavior in tests.
+/// What: Set the environment variables to control passwordless sudo behavior in tests.
 ///
 /// Inputs:
 /// - `enabled`: If true, simulates passwordless sudo available; if false, simulates unavailable.
 ///
 /// Output:
-/// - Sets `PACSEA_TEST_SUDO_PASSWORDLESS` environment variable.
+/// - Sets `PACSEA_INTEGRATION_TEST=1` and `PACSEA_TEST_SUDO_PASSWORDLESS` (1 or 0).
 ///
 /// Details:
-/// - This environment variable is checked by the test-aware `check_passwordless_sudo_available()`
-///   function when the `test` cfg is active.
+/// - `PACSEA_INTEGRATION_TEST=1` marks the process as in integration test context so production
+///   code honors `PACSEA_TEST_SUDO_PASSWORDLESS`. Without it, the test var is ignored.
 pub fn set_passwordless_sudo_env(enabled: bool) {
     // SAFETY: This is only used in tests where we control the environment
     // and test threads run sequentially with --test-threads=1
     unsafe {
+        std::env::set_var("PACSEA_INTEGRATION_TEST", "1");
         if enabled {
             std::env::set_var("PACSEA_TEST_SUDO_PASSWORDLESS", "1");
         } else {
@@ -34,13 +35,13 @@ pub fn set_passwordless_sudo_env(enabled: bool) {
     }
 }
 
-/// What: Clear the passwordless sudo test environment variable.
+/// What: Clear the passwordless sudo test environment variables.
 ///
 /// Inputs:
 /// - None.
 ///
 /// Output:
-/// - Removes `PACSEA_TEST_SUDO_PASSWORDLESS` environment variable.
+/// - Removes `PACSEA_INTEGRATION_TEST` and `PACSEA_TEST_SUDO_PASSWORDLESS`.
 ///
 /// Details:
 /// - Should be called after each test to ensure clean state.
@@ -48,8 +49,24 @@ pub fn clear_passwordless_sudo_env() {
     // SAFETY: This is only used in tests where we control the environment
     // and test threads run sequentially with --test-threads=1
     unsafe {
+        std::env::remove_var("PACSEA_INTEGRATION_TEST");
         std::env::remove_var("PACSEA_TEST_SUDO_PASSWORDLESS");
     }
+}
+
+/// What: Ensure process is not in integration test context (production-like behavior).
+///
+/// Inputs:
+/// - None.
+///
+/// Output:
+/// - Removes `PACSEA_INTEGRATION_TEST` and `PACSEA_TEST_SUDO_PASSWORDLESS`.
+///
+/// Details:
+/// - Use in tests that verify behavior when the test env var is not honored (e.g. install
+///   shows password prompt when `use_passwordless_sudo` is false and test override is disabled).
+pub fn ensure_not_integration_test_context() {
+    clear_passwordless_sudo_env();
 }
 
 /// What: Execute a closure with a specific passwordless sudo environment setting.
@@ -62,8 +79,8 @@ pub fn clear_passwordless_sudo_env() {
 /// - Returns the result of the closure.
 ///
 /// Details:
-/// - Sets the environment variable, executes the closure, then clears the variable.
-/// - Ensures cleanup even if the closure panics.
+/// - Sets `PACSEA_INTEGRATION_TEST=1` and `PACSEA_TEST_SUDO_PASSWORDLESS`, executes the
+///   closure, then clears both. Ensures cleanup even if the closure panics.
 pub fn with_sudo_env<T, F: FnOnce() -> T>(enabled: bool, f: F) -> T {
     set_passwordless_sudo_env(enabled);
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));

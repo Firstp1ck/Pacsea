@@ -342,6 +342,33 @@ fn integration_remove_cascade_mode_requires_password() {
 // =============================================================================
 
 #[test]
+/// What: Test install shows password prompt when test env var is not honored (production-like).
+///
+/// Inputs:
+/// - No `PACSEA_INTEGRATION_TEST` set, so `PACSEA_TEST_SUDO_PASSWORDLESS` is ignored.
+/// - Default settings have `use_passwordless_sudo = false`.
+///
+/// Output:
+/// - `PasswordPrompt` modal shown for install.
+///
+/// Details:
+/// - When not in integration test context, production code ignores the test env var.
+/// - With `use_passwordless_sudo` false in settings, install must show password prompt
+///   even if the system has passwordless sudo (or test var would have simulated it).
+fn integration_install_shows_password_prompt_when_test_var_not_honored() {
+    ensure_not_integration_test_context();
+
+    let item = create_official_package("test-pkg");
+    let mut app = new_dry_run_app();
+
+    pacsea::install::start_integrated_install(&mut app, &item, true);
+
+    // Without PACSEA_INTEGRATION_TEST, test var is ignored; default settings have
+    // use_passwordless_sudo = false, so we must see PasswordPrompt.
+    verify_password_prompt_with_items(&app, PasswordPurpose::Install, &["test-pkg"]);
+}
+
+#[test]
 /// What: Test that environment variable correctly controls passwordless sudo behavior.
 ///
 /// Inputs:

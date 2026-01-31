@@ -13,7 +13,9 @@ Adds passwordless sudo support for install/update operations. Users can opt-in v
 
 - New config option: `use_passwordless_sudo` (default: `false`)
 - Applies to install/update operations only; remove operations always require password
-- Includes 34 integration tests with environment variable support for testing
+- Includes 35 integration tests with environment variable support for testing
+- Test env var `PACSEA_TEST_SUDO_PASSWORDLESS` is honored only when `PACSEA_INTEGRATION_TEST=1` is set (production never honors it)
+- CLI update respects `use_passwordless_sudo` from settings (aligned with TUI)
 
 ## Type of change
 - [x] feat (new feature)
@@ -37,8 +39,8 @@ cargo fmt --all
 cargo clippy --all-targets --all-features -- -D warnings
 cargo test -- --test-threads=1
 
-# Integration tests (with simulated passwordless sudo)
-PACSEA_TEST_SUDO_PASSWORDLESS=1 cargo test passwordless_sudo -- --test-threads=1
+# Integration tests (with simulated passwordless sudo; test harness sets PACSEA_INTEGRATION_TEST=1)
+cargo test passwordless_sudo -- --test-threads=1
 ```
 
 **Manual testing:**
@@ -59,7 +61,7 @@ PACSEA_TEST_SUDO_PASSWORDLESS=1 cargo test passwordless_sudo -- --test-threads=1
 - [x] No `unwrap()` or `expect()` in non-test code
 
 **Testing:**
-- [x] Added 34 integration tests covering install/update/remove operations and edge cases
+- [x] Added 35 integration tests covering install/update/remove operations and edge cases (including test-var-not-honored when not in integration test context)
 
 **Documentation:**
 - [x] Updated README if behavior, options, or keybinds changed (keep high-level, reference wiki)
@@ -87,10 +89,11 @@ PACSEA_TEST_SUDO_PASSWORDLESS=1 cargo test passwordless_sudo -- --test-threads=1
 - Graceful degradation: falls back to password prompt if sudo unavailable or check fails
 
 **Main changes:**
-- `src/logic/password.rs`: Detection functions
-- `src/install/direct.rs`, `src/events/modals/handlers.rs`: Skip password prompt when enabled
+- `src/logic/password.rs`: Detection functions; test env var honored only when `PACSEA_INTEGRATION_TEST=1`
+- `src/install/direct.rs`, `src/events/modals/handlers.rs`: Skip password prompt when enabled; remove intentionally never passwordless (comment)
+- `src/args/update.rs`: CLI update respects `use_passwordless_sudo` from settings
 - `config/settings.conf`, `src/theme/`: New config option
-- `tests/passwordless_sudo/`: Integration test suite (34 tests)
+- `tests/passwordless_sudo/`: Integration test suite (35 tests); helpers set `PACSEA_INTEGRATION_TEST=1`
 
 ## Breaking changes
 None. Opt-in feature, defaults to `false`.

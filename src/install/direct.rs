@@ -132,8 +132,10 @@ pub fn start_integrated_install_all(app: &mut AppState, items: &[PackageItem], d
 /// - Transitions to `PasswordPrompt` (remove always needs sudo)
 ///
 /// Details:
-/// - Remove operations always need sudo, so always show `PasswordPrompt`
-/// - Uses `ExecutorRequest::Remove` for execution
+/// - Remove operations always need sudo, so always show `PasswordPrompt`.
+/// - Remove is intentionally never passwordless (even when `use_passwordless_sudo` is true)
+///   for safety; only install/update can skip the password prompt.
+/// - Uses `ExecutorRequest::Remove` for execution.
 pub fn start_integrated_remove_all(
     app: &mut AppState,
     names: &[String],
@@ -162,7 +164,8 @@ pub fn start_integrated_remove_all(
         })
         .collect();
 
-    // Remove operations always need sudo (pacman -R requires sudo regardless of package source)
+    // Remove operations always need sudo (pacman -R requires sudo regardless of package source).
+    // Remove is intentionally never passwordless for safety (see docstring).
     // Check faillock status before showing password prompt
     let username = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
     if let Some(lockout_msg) = crate::logic::faillock::get_lockout_message_if_locked(&username, app)
