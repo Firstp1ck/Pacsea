@@ -145,6 +145,11 @@ pub fn shell_single_quote(s: &str) -> String {
 }
 
 #[cfg(not(target_os = "windows"))]
+/// Fallback message when no terminal editor is found. Must not contain single quotes (used inside `echo '...'` in shell).
+/// Reusable for i18n or logging if needed.
+const EDITOR_FALLBACK_MESSAGE: &str = "No terminal editor found (nvim/vim/emacsclient/emacs/hx/helix/nano). Set VISUAL or EDITOR to use your preferred editor.";
+
+#[cfg(not(target_os = "windows"))]
 /// What: Build a shell command string that opens a config file in the user's preferred terminal editor.
 ///
 /// Inputs:
@@ -163,8 +168,7 @@ pub fn shell_single_quote(s: &str) -> String {
 pub fn editor_open_config_command(path: &std::path::Path) -> String {
     let path_str = path.display().to_string();
     let path_quoted = shell_single_quote(&path_str);
-    // Message must not contain single quotes; used inside echo '...' in shell.
-    let fallback_msg = "No terminal editor found (nvim/vim/emacsclient/emacs/hx/helix/nano). Set VISUAL or EDITOR to use your preferred editor.";
+    // path_quoted is already single-quoted, so the full argument to echo is one safe string.
     format!(
         "( [ -n \"${{VISUAL}}\" ] && command -v \"${{VISUAL%% *}}\" >/dev/null 2>&1 && eval \"${{VISUAL}}\" {path_quoted} ) || \
          ( [ -n \"${{EDITOR}}\" ] && command -v \"${{EDITOR%% *}}\" >/dev/null 2>&1 && eval \"${{EDITOR}}\" {path_quoted} ) || \
@@ -175,7 +179,7 @@ pub fn editor_open_config_command(path: &std::path::Path) -> String {
          ((command -v emacsclient >/dev/null 2>&1 || sudo pacman -Qi emacs >/dev/null 2>&1) && emacsclient -t {path_quoted}) || \
          ((command -v emacs >/dev/null 2>&1 || sudo pacman -Qi emacs >/dev/null 2>&1) && emacs -nw {path_quoted}) || \
          ((command -v nano >/dev/null 2>&1 || sudo pacman -Qi nano >/dev/null 2>&1) && nano {path_quoted}) || \
-         (echo '{fallback_msg}'; echo 'File: {path_quoted}'; read -rn1 -s _ || true)"
+         (echo '{EDITOR_FALLBACK_MESSAGE}'; echo 'File: {path_quoted}'; read -rn1 -s _ || true)"
     )
 }
 

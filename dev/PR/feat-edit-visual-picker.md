@@ -14,6 +14,7 @@ Please ensure you've reviewed these before submitting your PR.
 - Path is passed through `shell_single_quote` so paths with spaces or single quotes are safe; VISUAL/EDITOR support values with options (e.g. `nvim -f`, `emacsclient -t`) via `eval` in the shell snippet.
 - Add Windows branch in `normal_mode` (open config via `open_file`) for consistency with global and menus.
 - Add unit tests for command order (VISUAL → EDITOR → fallbacks) and path quoting; add integration tests with `VISUAL=echo` and `EDITOR=echo` to confirm the config path is passed and printed.
+- Fallback message in const `EDITOR_FALLBACK_MESSAGE` in `utils.rs` (reusable for i18n/logging). Integration tests use env isolation (`.env_clear()` then only `PATH` and `VISUAL`/`EDITOR`) so CI/runner env does not affect results. Comment in code notes that `path_quoted` is already single-quoted for the final `echo` in the fallback.
 
 ## Type of change
 - [x] feat (new feature)

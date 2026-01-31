@@ -6,6 +6,7 @@
 #![cfg(test)]
 #![cfg(not(target_os = "windows"))]
 
+use std::env;
 use std::path::Path;
 use std::process::Command;
 
@@ -27,11 +28,13 @@ fn integration_editor_config_visual_echo_prints_path() {
     let path_str = path.display().to_string();
     let cmd = pacsea::install::editor_open_config_command(path);
 
+    let path_env = env::var("PATH").unwrap_or_default();
     let output = Command::new("bash")
         .arg("-lc")
         .arg(&cmd)
+        .env_clear()
+        .env("PATH", &path_env)
         .env("VISUAL", "echo")
-        .env_remove("EDITOR")
         .output()
         .expect("bash -lc must run");
 
@@ -59,10 +62,12 @@ fn integration_editor_config_editor_echo_prints_path() {
     let path_str = path.display().to_string();
     let cmd = pacsea::install::editor_open_config_command(path);
 
+    let path_env = env::var("PATH").unwrap_or_default();
     let output = Command::new("bash")
         .arg("-lc")
         .arg(&cmd)
-        .env_remove("VISUAL")
+        .env_clear()
+        .env("PATH", &path_env)
         .env("EDITOR", "echo")
         .output()
         .expect("bash -lc must run");
