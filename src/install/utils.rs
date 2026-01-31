@@ -144,6 +144,41 @@ pub fn shell_single_quote(s: &str) -> String {
     out
 }
 
+#[cfg(not(target_os = "windows"))]
+/// What: Build a shell command string that opens a config file in the user's preferred terminal editor.
+///
+/// Inputs:
+/// - `path`: Path to the config file to open.
+///
+/// Output:
+/// - A single shell expression that tries, in order: `$VISUAL`, `$EDITOR`, then the built-in
+///   fallback chain (nvim, vim, hx, helix, emacsclient, emacs, nano), and finally a fallback
+///   message with `read -rn1 -s _`.
+///
+/// Details:
+/// - The script expects `VISUAL`/`EDITOR` to be runnable commands that accept a file path.
+/// - The path is passed through `shell_single_quote` so paths with spaces or single quotes are safe.
+/// - Order: VISUAL then EDITOR then nvim → vim → hx → helix → emacsclient -t → emacs -nw → nano.
+#[must_use]
+pub fn editor_open_config_command(path: &std::path::Path) -> String {
+    let path_str = path.display().to_string();
+    let path_quoted = shell_single_quote(&path_str);
+    // Message must not contain single quotes; used inside echo '...' in shell.
+    let fallback_msg = "No terminal editor found (nvim/vim/emacsclient/emacs/hx/helix/nano). Set VISUAL or EDITOR to use your preferred editor.";
+    format!(
+        "( [ -n \"${{VISUAL}}\" ] && command -v \"${{VISUAL%% *}}\" >/dev/null 2>&1 && eval \"${{VISUAL}}\" {path_quoted} ) || \
+         ( [ -n \"${{EDITOR}}\" ] && command -v \"${{EDITOR%% *}}\" >/dev/null 2>&1 && eval \"${{EDITOR}}\" {path_quoted} ) || \
+         ((command -v nvim >/dev/null 2>&1 || sudo pacman -Qi neovim >/dev/null 2>&1) && nvim {path_quoted}) || \
+         ((command -v vim >/dev/null 2>&1 || sudo pacman -Qi vim >/dev/null 2>&1) && vim {path_quoted}) || \
+         ((command -v hx >/dev/null 2>&1 || sudo pacman -Qi helix >/dev/null 2>&1) && hx {path_quoted}) || \
+         ((command -v helix >/dev/null 2>&1 || sudo pacman -Qi helix >/dev/null 2>&1) && helix {path_quoted}) || \
+         ((command -v emacsclient >/dev/null 2>&1 || sudo pacman -Qi emacs >/dev/null 2>&1) && emacsclient -t {path_quoted}) || \
+         ((command -v emacs >/dev/null 2>&1 || sudo pacman -Qi emacs >/dev/null 2>&1) && emacs -nw {path_quoted}) || \
+         ((command -v nano >/dev/null 2>&1 || sudo pacman -Qi nano >/dev/null 2>&1) && nano {path_quoted}) || \
+         (echo '{fallback_msg}'; echo 'File: {path_quoted}'; read -rn1 -s _ || true)"
+    )
+}
+
 #[cfg(all(test, not(target_os = "windows")))]
 mod tests {
     #[test]
@@ -264,5 +299,91 @@ mod tests {
         assert_eq!(super::shell_single_quote(""), "''");
         assert_eq!(super::shell_single_quote("abc"), "'abc'");
         assert_eq!(super::shell_single_quote("a'b"), "'a'\"'\"'b'");
+    }
+
+    #[test]
+    /// What: Assert that `editor_open_config_command` builds a command with VISUAL then EDITOR then fallbacks.
+    ///
+    /// Inputs:
+    /// - A dummy path (e.g. `/tmp/settings.conf`).
+    ///
+    /// Output:
+    /// - The returned string contains VISUAL branch before EDITOR branch before nvim fallback.
+    ///
+    /// Details:
+    /// - Shell-only implementation; order is fixed in the string regardless of env.
+    fn utils_editor_open_config_command_order_visual_then_editor_then_fallbacks() {
+        use std::path::Path;
+        let path = Path::new("/tmp/settings.conf");
+        let cmd = super::editor_open_config_command(path);
+        let idx_visual = cmd.find("VISUAL").expect("command must mention VISUAL");
+        let idx_editor = cmd.find("EDITOR").expect("command must mention EDITOR");
+        let idx_nvim = cmd
+            .find("nvim")
+            .expect("command must mention nvim fallback");
+        assert!(idx_visual < idx_editor, "VISUAL must appear before EDITOR");
+        assert!(
+            idx_editor < idx_nvim,
+            "EDITOR must appear before nvim fallback"
+        );
+    }
+
+    #[test]
+    /// What: Assert that `editor_open_config_command` includes the full fallback chain and final message.
+    ///
+    /// Inputs:
+    /// - A dummy path.
+    ///
+    /// Output:
+    /// - The returned string contains nvim, vim, hx, helix, emacsclient, emacs, nano and "No terminal editor found".
+    ///
+    /// Details:
+    /// - Validates the built-in fallback list and fallback message without executing shell.
+    fn utils_editor_open_config_command_contains_fallback_chain_and_message() {
+        use std::path::Path;
+        let path = Path::new("/tmp/theme.conf");
+        let cmd = super::editor_open_config_command(path);
+        assert!(cmd.contains("nvim"), "fallback chain must include nvim");
+        assert!(cmd.contains("vim"), "fallback chain must include vim");
+        assert!(cmd.contains("hx"), "fallback chain must include hx");
+        assert!(cmd.contains("helix"), "fallback chain must include helix");
+        assert!(
+            cmd.contains("emacsclient"),
+            "fallback chain must include emacsclient"
+        );
+        assert!(cmd.contains("emacs"), "fallback chain must include emacs");
+        assert!(cmd.contains("nano"), "fallback chain must include nano");
+        assert!(
+            cmd.contains("No terminal editor found"),
+            "command must include fallback message"
+        );
+    }
+
+    #[test]
+    /// What: Assert that the path in `editor_open_config_command` is shell-single-quoted.
+    ///
+    /// Inputs:
+    /// - A path containing a single quote (e.g. `/tmp/foo'bar.conf`).
+    ///
+    /// Output:
+    /// - The returned string contains the safely quoted path (single-quote escape sequence), not raw path.
+    ///
+    /// Details:
+    /// - Paths with single quotes must be quoted via `shell_single_quote` so the shell sees one argument.
+    fn utils_editor_open_config_command_path_is_shell_single_quoted() {
+        use std::path::Path;
+        let path_with_quote = Path::new("/tmp/foo'bar.conf");
+        let path_str = path_with_quote.display().to_string();
+        let path_quoted = super::shell_single_quote(&path_str);
+        let cmd = super::editor_open_config_command(path_with_quote);
+        assert!(
+            cmd.contains(&path_quoted),
+            "command must contain shell-single-quoted path, got quoted: {path_quoted:?}"
+        );
+        // Raw unquoted path with single quote would break shell; must not appear as '/tmp/foo'bar.conf'
+        assert!(
+            !cmd.contains("/tmp/foo'bar.conf"),
+            "command must not contain raw path with unescaped single quote"
+        );
     }
 }
