@@ -473,7 +473,7 @@ fn handle_preflight_open(ke: &KeyEvent, app: &mut AppState) -> bool {
     }
 
     let should_open = matches_any(ke, &app.keymap.search_install)
-        || matches!(ke.code, KeyCode::Char('\n') | KeyCode::Enter);
+        || matches!(ke.code, KeyCode::Char('\n' | '\r') | KeyCode::Enter);
 
     if should_open && let Some(item) = app.results.get(app.selected).cloned() {
         tracing::debug!("[NormalMode] Opening preflight for package: {}", item.name);

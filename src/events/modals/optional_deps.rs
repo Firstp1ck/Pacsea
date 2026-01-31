@@ -40,7 +40,7 @@ pub(super) fn handle_optional_deps(
             }
             Some(false)
         }
-        KeyCode::Enter => {
+        KeyCode::Enter | KeyCode::Char('\n' | '\r') => {
             if let Some(row) = rows.get(*selected) {
                 match handle_optional_deps_enter(app, row) {
                     (new_modal, true) => {

@@ -112,3 +112,65 @@ fn confirm_remove_enter_closes_modal() {
 
     // No cleanup needed - spawn_shell_commands_in_terminal is a no-op during tests
 }
+
+#[test]
+/// What: Verify numpad Enter (carriage return) closes `ConfirmRemove` modal like main Enter.
+///
+/// Inputs:
+/// - `ConfirmRemove` modal
+/// - `KeyCode::Char`('\r')
+///
+/// Output:
+/// - Modal is set to None
+///
+/// Details:
+/// - Ensures numpad Enter handling does not break `ConfirmRemove`; same outcome as main Enter
+fn confirm_remove_numpad_enter_carriage_return_closes_modal() {
+    let mut app = new_app();
+    app.modal = crate::state::Modal::ConfirmRemove {
+        items: vec![PackageItem {
+            name: "test-pkg".to_string(),
+            version: "1.0".to_string(),
+            description: String::new(),
+            source: Source::Aur,
+            popularity: None,
+            out_of_date: None,
+            orphaned: false,
+        }],
+    };
+    let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
+    let ke = key_event(KeyCode::Char('\r'), KeyModifiers::empty());
+    handle_modal_key(ke, &mut app, &add_tx);
+    assert!(matches!(app.modal, crate::state::Modal::None));
+}
+
+#[test]
+/// What: Verify numpad Enter (newline) closes `ConfirmRemove` modal like main Enter.
+///
+/// Inputs:
+/// - `ConfirmRemove` modal
+/// - `KeyCode::Char`('\n')
+///
+/// Output:
+/// - Modal is set to None
+///
+/// Details:
+/// - Ensures numpad Enter handling does not break `ConfirmRemove`; same outcome as main Enter
+fn confirm_remove_numpad_enter_newline_closes_modal() {
+    let mut app = new_app();
+    app.modal = crate::state::Modal::ConfirmRemove {
+        items: vec![PackageItem {
+            name: "test-pkg".to_string(),
+            version: "1.0".to_string(),
+            description: String::new(),
+            source: Source::Aur,
+            popularity: None,
+            out_of_date: None,
+            orphaned: false,
+        }],
+    };
+    let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
+    let ke = key_event(KeyCode::Char('\n'), KeyModifiers::empty());
+    handle_modal_key(ke, &mut app, &add_tx);
+    assert!(matches!(app.modal, crate::state::Modal::None));
+}

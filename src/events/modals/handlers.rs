@@ -112,7 +112,13 @@ pub(super) fn handle_post_summary_modal(ke: KeyEvent, app: &mut AppState, modal:
         restore::restore_if_not_closed_with_excluded_keys(
             app,
             &ke,
-            &[KeyCode::Esc, KeyCode::Enter, KeyCode::Char('q')],
+            &[
+                KeyCode::Esc,
+                KeyCode::Enter,
+                KeyCode::Char('q'),
+                KeyCode::Char('\n'),
+                KeyCode::Char('\r'),
+            ],
             Modal::PostSummary {
                 success: *success,
                 changed_files: *changed_files,
@@ -255,7 +261,7 @@ pub(super) fn handle_confirm_batch_update_modal(
                 app.modal = crate::state::Modal::None;
                 return true;
             }
-            KeyCode::Enter => {
+            KeyCode::Enter | KeyCode::Char('\n' | '\r') => {
                 // Continue with batch update - use executor pattern instead of spawning terminal
                 let items_clone = items.clone();
                 let dry_run_clone = *dry_run;
@@ -322,7 +328,7 @@ pub(super) fn handle_confirm_aur_update_modal(
                 app.modal = crate::state::Modal::None;
                 return true;
             }
-            KeyCode::Enter | KeyCode::Char('y' | 'Y') => {
+            KeyCode::Enter | KeyCode::Char('\n' | '\r' | 'y' | 'Y') => {
                 // Continue with AUR update
                 if let Some(aur_command) = app.pending_aur_update_command.take() {
                     let password = app.pending_executor_password.clone();
@@ -386,7 +392,7 @@ pub(super) fn handle_confirm_reinstall_modal(
                 app.modal = crate::state::Modal::None;
                 return true;
             }
-            KeyCode::Enter => {
+            KeyCode::Enter | KeyCode::Char('\n' | '\r') => {
                 // Proceed with reinstall - use executor pattern
                 // Use all_items (all packages) instead of just installed ones
                 let items_clone = all_items.clone();
@@ -735,7 +741,7 @@ pub(super) fn handle_news_setup_modal(ke: KeyEvent, app: &mut AppState, mut moda
                 7 => *max_age_days = Some(90),
                 _ => {}
             },
-            KeyCode::Enter => {
+            KeyCode::Enter | KeyCode::Char('\n' | '\r') => {
                 // Save all settings
                 crate::theme::save_startup_news_show_arch_news(*show_arch_news);
                 crate::theme::save_startup_news_show_advisories(*show_advisories);
@@ -1054,6 +1060,15 @@ pub(super) fn handle_password_prompt_modal(
             // Handle Update purpose with pending_update_commands
             if matches!(purpose, crate::state::modal::PasswordPurpose::Update) {
                 if let Some(commands) = app.pending_update_commands.take() {
+                    // Store password and header_chips so AUR update can run after pacman succeeds,
+                    // or so ConfirmAurUpdate can run AUR if pacman fails
+                    match (&mut app.pending_executor_password, &password) {
+                        (Some(p), Some(pass)) => p.clone_from(pass),
+                        (None, Some(pass)) => app.pending_executor_password = Some(pass.clone()),
+                        (_, None) => app.pending_executor_password = None,
+                    }
+                    app.pending_exec_header_chips = Some(header_chips.clone());
+
                     // Transition to PreflightExec for system update
                     app.modal = Modal::PreflightExec {
                         items: Vec::new(), // System update doesn't have package items

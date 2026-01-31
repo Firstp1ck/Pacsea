@@ -170,7 +170,7 @@ pub(super) fn handle_alert(ke: KeyEvent, app: &mut AppState, message: &str) -> b
             }
             true // Stop propagation to prevent mode toggle
         }
-        KeyCode::Enter => {
+        KeyCode::Enter | KeyCode::Char('\n' | '\r') => {
             if is_help {
                 app.help_scroll = 0; // Reset scroll when closing
             }
@@ -230,7 +230,7 @@ pub(super) fn handle_preflight_exec(
             app.modal = crate::state::Modal::None;
             true // Stop propagation
         }
-        KeyCode::Enter => {
+        KeyCode::Enter | KeyCode::Char('\n' | '\r') => {
             // Check if this is a scan (items have names starting with "scan:")
             let is_scan = items.iter().any(|item| item.name.starts_with("scan:"));
 
@@ -293,7 +293,7 @@ pub(super) fn handle_post_summary(
 ) -> bool {
     match ke.code {
         // Close modal and stop propagation to prevent key from reaching other handlers
-        KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q') => {
+        KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q' | '\n' | '\r') => {
             app.modal = crate::state::Modal::None;
             true // Stop propagation - prevents Enter from opening preflight again
         }
@@ -332,7 +332,7 @@ pub(super) fn handle_help(ke: KeyEvent, app: &mut AppState) -> bool {
             app.modal = crate::state::Modal::None;
             true // Stop propagation to prevent mode toggle
         }
-        KeyCode::Enter => {
+        KeyCode::Enter | KeyCode::Char('\n' | '\r') => {
             app.modal = crate::state::Modal::None;
             false
         }
@@ -812,7 +812,7 @@ pub(super) fn handle_news(
                 *scroll = calculate_news_scroll_for_selection(*selected, items.len(), visible_h);
             }
         }
-        KeyCode::Enter => {
+        KeyCode::Enter | KeyCode::Char('\n' | '\r') => {
             if let Some(it) = items.get(*selected)
                 && let Some(url) = &it.url
             {
@@ -856,7 +856,9 @@ pub(super) fn handle_announcement(
             show_next_pending_announcement(app);
             return true; // Stop propagation
         }
-        crossterm::event::KeyCode::Enter | crossterm::event::KeyCode::Esc => {
+        crossterm::event::KeyCode::Enter
+        | crossterm::event::KeyCode::Char('\n' | '\r')
+        | crossterm::event::KeyCode::Esc => {
             // Dismiss temporarily - will show again on next startup
             tracing::debug!(id = %id, "dismissed announcement temporarily, closing modal");
             app.modal = crate::state::Modal::None;
@@ -919,7 +921,7 @@ pub(super) fn handle_updates(
             app.modal = crate::state::Modal::None;
             return true; // Stop propagation
         }
-        KeyCode::Enter => {
+        KeyCode::Enter | KeyCode::Char('\n' | '\r') => {
             // Install/update the selected package
             if let Some((pkg_name, _, new_version)) = entries.get(*selected) {
                 // Try to find the package in the official index first
@@ -1047,7 +1049,7 @@ fn update_scroll_for_selection(scroll: &mut u16, selected: usize) {
 /// - Handles Enter to install terminal, Esc to show warning
 pub(super) fn handle_gnome_terminal_prompt(ke: KeyEvent, app: &mut AppState) -> bool {
     match ke.code {
-        KeyCode::Enter => {
+        KeyCode::Enter | KeyCode::Char('\n' | '\r') => {
             // Install GNOME Terminal, then close the prompt
 
             let cmd = "(sudo pacman -S --needed --noconfirm gnome-terminal) || (sudo pacman -S --needed --noconfirm gnome-console) || (sudo pacman -S --needed --noconfirm kgx)".to_string();
@@ -1368,7 +1370,13 @@ mod tests {
     /// - `Enter`, `Esc`, and `q` should dismiss temporarily (will show again on next startup).
     #[allow(clippy::field_reassign_with_default)]
     fn test_handle_announcement_dismiss_temporary() {
-        for key_code in [KeyCode::Enter, KeyCode::Esc, KeyCode::Char('q')] {
+        for key_code in [
+            KeyCode::Enter,
+            KeyCode::Char('\n'),
+            KeyCode::Char('\r'),
+            KeyCode::Esc,
+            KeyCode::Char('q'),
+        ] {
             let mut app = crate::state::AppState::default();
             app.modal = crate::state::Modal::Announcement {
                 title: "Test".to_string(),

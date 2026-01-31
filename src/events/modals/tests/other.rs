@@ -60,6 +60,48 @@ fn gnome_terminal_prompt_enter_spawns_terminal() {
 }
 
 #[test]
+/// What: Verify numpad Enter (carriage return) closes `GnomeTerminalPrompt` like main Enter.
+///
+/// Inputs:
+/// - `GnomeTerminalPrompt` modal
+/// - `KeyCode::Char`('\r')
+///
+/// Output:
+/// - Modal is set to None
+///
+/// Details:
+/// - Ensures numpad Enter handling does not break `GnomeTerminalPrompt`; same outcome as main Enter
+fn gnome_terminal_prompt_numpad_enter_carriage_return_closes_modal() {
+    let mut app = new_app();
+    app.modal = crate::state::Modal::GnomeTerminalPrompt;
+    let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
+    let ke = key_event(KeyCode::Char('\r'), KeyModifiers::empty());
+    handle_modal_key(ke, &mut app, &add_tx);
+    assert!(matches!(app.modal, crate::state::Modal::None));
+}
+
+#[test]
+/// What: Verify numpad Enter (newline) closes `GnomeTerminalPrompt` like main Enter.
+///
+/// Inputs:
+/// - `GnomeTerminalPrompt` modal
+/// - `KeyCode::Char`('\n')
+///
+/// Output:
+/// - Modal is set to None
+///
+/// Details:
+/// - Ensures numpad Enter handling does not break `GnomeTerminalPrompt`; same outcome as main Enter
+fn gnome_terminal_prompt_numpad_enter_newline_closes_modal() {
+    let mut app = new_app();
+    app.modal = crate::state::Modal::GnomeTerminalPrompt;
+    let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
+    let ke = key_event(KeyCode::Char('\n'), KeyModifiers::empty());
+    handle_modal_key(ke, &mut app, &add_tx);
+    assert!(matches!(app.modal, crate::state::Modal::None));
+}
+
+#[test]
 /// What: Verify Esc key closes `ImportHelp` modal.
 ///
 /// Inputs:
@@ -108,4 +150,46 @@ fn import_help_enter_closes_modal() {
     assert!(matches!(app.modal, crate::state::Modal::None));
 
     // No cleanup needed - file picker is a no-op during tests (see events/modals/import.rs)
+}
+
+#[test]
+/// What: Verify numpad Enter (carriage return) closes `ImportHelp` modal like main Enter.
+///
+/// Inputs:
+/// - `ImportHelp` modal
+/// - `KeyCode::Char`('\r')
+///
+/// Output:
+/// - Modal is set to None
+///
+/// Details:
+/// - Ensures numpad Enter handling does not break `ImportHelp`; same outcome as main Enter
+fn import_help_numpad_enter_carriage_return_closes_modal() {
+    let mut app = new_app();
+    app.modal = crate::state::Modal::ImportHelp;
+    let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
+    let ke = key_event(KeyCode::Char('\r'), KeyModifiers::empty());
+    handle_modal_key(ke, &mut app, &add_tx);
+    assert!(matches!(app.modal, crate::state::Modal::None));
+}
+
+#[test]
+/// What: Verify numpad Enter (newline) closes `ImportHelp` modal like main Enter.
+///
+/// Inputs:
+/// - `ImportHelp` modal
+/// - `KeyCode::Char`('\n')
+///
+/// Output:
+/// - Modal is set to None
+///
+/// Details:
+/// - Ensures numpad Enter handling does not break `ImportHelp`; same outcome as main Enter
+fn import_help_numpad_enter_newline_closes_modal() {
+    let mut app = new_app();
+    app.modal = crate::state::Modal::ImportHelp;
+    let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
+    let ke = key_event(KeyCode::Char('\n'), KeyModifiers::empty());
+    handle_modal_key(ke, &mut app, &add_tx);
+    assert!(matches!(app.modal, crate::state::Modal::None));
 }
