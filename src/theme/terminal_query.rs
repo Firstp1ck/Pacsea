@@ -142,8 +142,8 @@ const OSC_READ_MAX_BYTES: usize = 4096;
 /// touch stdin and cannot race with crossterm's event thread. No background
 /// thread is used.
 ///
-/// On Windows: uses a cancellable reader thread (WaitForSingleObject with short
-/// timeout + cancel flag) so join() returns quickly and does not hang if the
+/// On Windows: uses a cancellable reader thread (`WaitForSingleObject` with short
+/// timeout + cancel flag) so `join()` returns quickly and does not hang if the
 /// OSC query never yields bytes.
 /// On other non-Unix: uses a reader thread with a bounded join so the caller
 /// does not block indefinitely.

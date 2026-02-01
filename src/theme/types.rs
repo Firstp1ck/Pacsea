@@ -174,7 +174,7 @@ pub struct Settings {
     /// If `false` (default), uses theme.conf colors.
     /// Note: Terminal theme is also used automatically when theme.conf is missing/invalid
     /// and the terminal is on the supported list (alacritty, kitty, konsole, ghostty, xterm,
-    /// gnome-terminal, xfce4-terminal, tilix, mate-terminal, wezterm-gui, WezTerm).
+    /// gnome-terminal, xfce4-terminal, tilix, mate-terminal, wezterm-gui, `WezTerm`).
     pub use_terminal_theme: bool,
 }
 
