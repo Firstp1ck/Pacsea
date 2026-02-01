@@ -1099,6 +1099,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
             set version_end (wc -l < "$changelog_file" | string trim)
             set version_end (math $version_end + 1)
         end
+        # tail -n +N requires N >= 1; avoid "Negative number not allowed in window=N"
+        if test $version_end -lt 1
+            set version_end 1
+        end
         
         # Write everything before the version entry
         if test $version_start -gt 1
@@ -1123,6 +1127,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
         
         # Find the first version entry (## [version])
         set -l first_version_line (grep -n '^##\s*\[.*\]' "$changelog_file" | head -1 | cut -d: -f1)
+        # tail -n +N requires N >= 1; avoid "Negative number not allowed in window=N"
+        if test -n "$first_version_line"; and test $first_version_line -lt 1
+            set first_version_line 1
+        end
         
         if test -n "$first_version_line"; and test $first_version_line -gt 1
             # Write everything before the first version entry (header if exists)

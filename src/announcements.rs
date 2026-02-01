@@ -64,6 +64,11 @@ pub const VERSION_ANNOUNCEMENTS: &[VersionAnnouncement] = &[
         title: "Version 0.7.2",
         content: "## What's New\n\n- Updated multiple dependencies to address low-severity security vulnerabilities\n- Updated core dependencies including `clap`, `ratatui`, `tokio`, `reqwest`, and more\n- Improved overall security posture of the application\n- Fixed CodeQL security analysis issues (#2, #3, #4, #5)\n- Enhanced input validation in import modals\n\n",
     },
+    VersionAnnouncement {
+        version: "0.7.3",
+        title: "Version 0.7.3",
+        content: "## What's New\n\n- TUI install/update/downgrade operations can use passwordless sudo when configured\n- Same behavior as CLI: no password prompt when sudo allows it\n- Remove operations always ask for password for safety\n- Opening config files now uses your `VISUAL` or `EDITOR` environment variable\n- Edit settings, theme, and keybinds in your preferred editor\n\n",
+    },
 ];
 
 /// What: Remote announcement fetched from GitHub Gist.

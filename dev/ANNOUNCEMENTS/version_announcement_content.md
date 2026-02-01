@@ -1,8 +1,8 @@
 ## What's New
 
-- Updated multiple dependencies to address low-severity security vulnerabilities
-- Updated core dependencies including `clap`, `ratatui`, `tokio`, `reqwest`, and more
-- Improved overall security posture of the application
-- Fixed CodeQL security analysis issues (#2, #3, #4, #5)
-- Enhanced input validation in import modals
+- TUI install/update/downgrade operations can use passwordless sudo when configured
+- Same behavior as CLI: no password prompt when sudo allows it
+- Remove operations always ask for password for safety
+- Opening config files now uses your `VISUAL` or `EDITOR` environment variable
+- Edit settings, theme, and keybinds in your preferred editor
 
