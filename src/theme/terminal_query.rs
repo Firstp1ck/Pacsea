@@ -14,6 +14,41 @@ use super::types::Theme;
 /// Increased to 250ms to allow slower terminals to respond.
 const OSC_QUERY_TIMEOUT_MS: u64 = 250;
 
+/// Number of drain iterations to perform after OSC query.
+/// Multiple passes with small delays help catch delayed response bytes.
+const DRAIN_ITERATIONS: usize = 3;
+
+/// Delay between drain iterations (milliseconds).
+/// Short enough to not noticeably slow down reload, but enough to catch stragglers.
+const DRAIN_DELAY_MS: u64 = 10;
+
+/// Drain any stray events from crossterm's event queue.
+///
+/// OSC responses may arrive in chunks or with slight delays. Some terminals
+/// also echo the response to stdin in addition to /dev/tty. This function
+/// drains events multiple times with small delays to ensure all stray bytes
+/// are consumed before returning control to the main event loop.
+///
+/// Without this, OSC response bytes like `10;rgb:e0e0/dede/f4f4` can leak
+/// into the search input field when reloading theme with Ctrl+R.
+fn drain_stray_events() {
+    use crossterm::event::{poll, read as crossterm_read};
+
+    for _ in 0..DRAIN_ITERATIONS {
+        // Drain all immediately available events
+        while poll(Duration::from_millis(0)).unwrap_or(false) {
+            let _ = crossterm_read();
+        }
+        // Small delay to allow any in-flight bytes to arrive
+        std::thread::sleep(Duration::from_millis(DRAIN_DELAY_MS));
+    }
+
+    // Final drain after the last delay
+    while poll(Duration::from_millis(0)).unwrap_or(false) {
+        let _ = crossterm_read();
+    }
+}
+
 /// What: Query the terminal for foreground and background colors.
 ///
 /// Inputs:
@@ -53,7 +88,7 @@ pub fn query_terminal_colors() -> Option<(Color, Color)> {
 
 /// Perform the actual query with terminal in raw mode.
 fn query_with_raw_mode() -> Option<(Color, Color)> {
-    use crossterm::event::{DisableMouseCapture, EnableMouseCapture, poll, read as crossterm_read};
+    use crossterm::event::{DisableMouseCapture, EnableMouseCapture};
     use crossterm::execute;
     use crossterm::terminal::{disable_raw_mode, enable_raw_mode, is_raw_mode_enabled};
 
@@ -74,10 +109,9 @@ fn query_with_raw_mode() -> Option<(Color, Color)> {
         return None;
     }
 
-    // Drain any pending events before sending query
-    while poll(Duration::from_millis(0)).unwrap_or(false) {
-        let _ = crossterm_read();
-    }
+    // Drain any pending events before sending query.
+    // This clears any events that accumulated before we started.
+    drain_stray_events();
 
     let result = (|| {
         let mut stdout = std::io::stdout();
@@ -114,10 +148,11 @@ fn query_with_raw_mode() -> Option<(Color, Color)> {
         Some((fg?, bg?))
     })();
 
-    // Drain any events that arrived during the query
-    while poll(Duration::from_millis(0)).unwrap_or(false) {
-        let _ = crossterm_read();
-    }
+    // Drain any events that arrived during the query.
+    // The OSC response may arrive in chunks or be delayed, so we drain multiple times
+    // with small delays to ensure all stray bytes are consumed before returning control
+    // to the main event loop. This prevents OSC responses from leaking into input fields.
+    drain_stray_events();
 
     // Restore terminal mode if we enabled it
     if !was_raw_mode {
