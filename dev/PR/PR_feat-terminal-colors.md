@@ -21,6 +21,7 @@ Please ensure you've reviewed these before submitting your PR.
   - In headless/test (`PACSEA_TEST_HEADLESS=1`): skip mouse capture disable/enable for clean output.
   - Remove dead `load_theme_from_file` from theme_loader; add rustdoc and error logging in `ensure_theme_file_exists`.
   - Fix AUR cache handling for long filenames in updates feed.
+  - Do not show a "Connection issue" modal for each failed official/AUR package-details fetch when scrolling; only log. Reduces modal spam when network is flaky or circuit breaker is open.
   - Build: add nix (Unix) dependency with poll and fs features.
 - **Doc**: Add `dev/IMPROVEMENTS/TERMINAL_THEME_FALLBACK.md` describing design, OSC sequences, and implementation choices.
 
@@ -95,6 +96,7 @@ RUST_LOG=pacsea=debug cargo run -- --dry-run
 - **Windows**: Reader thread is always joined on timeout to avoid a detached thread draining stdin.
 - **Headless tests**: When `PACSEA_TEST_HEADLESS=1`, mouse capture disable/enable is skipped for clean test output.
 - **AUR updates** (`src/sources/feeds/updates.rs`): Long filename fix is a small, separate change in the same branch; included in this PR.
+- **Package details errors** (`src/app/runtime/event_loop.rs`): When official or AUR package details fail to fetch (e.g. SSL/network or circuit breaker), the error is logged but no modal is shown, so scrolling through packages does not spam "Connection issue" dialogs.
 
 ## Breaking changes
 None. New setting `use_terminal_theme` defaults to `false`; existing configs unchanged.

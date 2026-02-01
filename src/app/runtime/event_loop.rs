@@ -463,10 +463,15 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
             tracing::warn!(error = %msg, "Network error received");
             #[cfg(not(windows))]
             {
-                // On Linux, show error to user via Alert modal
-                app.modal = crate::state::Modal::Alert {
-                    message: msg,
-                };
+                // Package-details-unavailable errors are expected when scrolling with flaky
+                // network or circuit breaker; do not show a modal for each failed package.
+                let is_details_unavailable = msg.starts_with("Official package details unavailable for")
+                    || msg.starts_with("AUR package details unavailable for");
+                if !is_details_unavailable {
+                    app.modal = crate::state::Modal::Alert {
+                        message: msg,
+                    };
+                }
             }
             // On Windows, only log (no popup)
             false
