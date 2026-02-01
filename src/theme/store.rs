@@ -8,7 +8,7 @@ use std::fs;
 use std::sync::{OnceLock, RwLock};
 
 use super::config::THEME_SKELETON_CONTENT;
-use super::paths::{config_dir, resolve_theme_config_path};
+use super::paths::config_dir;
 use super::resolve::{ThemeSource, resolve_theme};
 use super::types::Theme;
 
@@ -39,20 +39,22 @@ fn load_initial_theme() -> Theme {
     resolved.theme
 }
 
-/// What: Ensures theme.conf exists, creating it from skeleton if missing or empty.
+/// What: Ensures theme.conf exists at the canonical config path, creating it from skeleton if missing or empty.
 ///
 /// Inputs:
-/// - None (uses resolved theme config path).
+/// - None.
 ///
 /// Output:
 /// - No return value; logs success or failure.
 ///
 /// Details:
-/// - Creates parent dirs and writes skeleton only when file is missing or empty.
+/// - Always targets `config_dir()/theme.conf` for creation (never the legacy pacsea.conf).
+/// - Reading continues to use `resolve_theme_config_path()` elsewhere so legacy paths are still used when present.
+/// - Creates parent dirs and writes skeleton only when theme.conf is missing or empty.
 /// - Logs success only when both `create_dir_all` and write succeed.
 /// - Logs errors when I/O fails (e.g. permissions, read-only FS) for easier diagnosis.
 fn ensure_theme_file_exists() {
-    let path = resolve_theme_config_path().unwrap_or_else(|| config_dir().join("theme.conf"));
+    let path = config_dir().join("theme.conf");
 
     // Only create if file doesn't exist or is empty
     let should_create = fs::metadata(&path).map_or(true, |meta| meta.len() == 0);

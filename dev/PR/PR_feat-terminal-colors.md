@@ -17,12 +17,13 @@ Please ensure you've reviewed these before submitting your PR.
   - Improve robustness of OSC query (handling reply format, ST terminator, non-TTY).
   - On Unix: query terminal colors via `/dev/tty` with nix `poll` so stdin is not used and crossterm is not raced.
   - Add WezTerm and wezterm-gui to supported terminals (unit test added).
-  - On Windows: join reader thread on timeout to avoid detached thread draining stdin.
+  - On Windows: cancellable reader thread (WaitForSingleObject with short timeout + cancel flag) so join() returns quickly and does not hang if the OSC query never yields bytes; avoids freezing startup/theme reload.
+  - On other non-Unix: bounded join so the caller does not block indefinitely if the reader is stuck on stdin.
   - In headless/test (`PACSEA_TEST_HEADLESS=1`): skip mouse capture disable/enable for clean output.
-  - Remove dead `load_theme_from_file` from theme_loader; add rustdoc and error logging in `ensure_theme_file_exists`.
+  - Remove dead `load_theme_from_file` from theme_loader; add rustdoc and error logging in `ensure_theme_file_exists`. `ensure_theme_file_exists()` always targets `config_dir()/theme.conf` for creation (never legacy pacsea.conf); reading continues to use `resolve_theme_config_path()` elsewhere.
   - Fix AUR cache handling for long filenames in updates feed.
   - Do not show a "Connection issue" modal for each failed official/AUR package-details fetch when scrolling; only log. Reduces modal spam when network is flaky or circuit breaker is open.
-  - Build: add nix (Unix) dependency with poll and fs features.
+  - Build: add nix (Unix) dependency with poll and fs features; add windows-sys (Windows) for timeout-aware stdin wait in OSC reader.
 - **Doc**: Add `dev/IMPROVEMENTS/TERMINAL_THEME_FALLBACK.md` describing design, OSC sequences, and implementation choices.
 
 ## Type of change
@@ -93,7 +94,7 @@ RUST_LOG=pacsea=debug cargo run -- --dry-run
 - **OSC query** (`src/theme/terminal_query.rs`): Uses blocking read with timeout; parses `rgb:rrrr/gggg/bbbb` and optional `rgba`; handles both `\033\\` and BEL as ST. Non-TTY or no reply → returns error so resolution can fall back.
 - **Terminal detection** (`src/theme/terminal_detect.rs`): Heuristic (e.g. `COLORTERM`, `TERM`) to decide if we try OSC query; WezTerm/wezterm-gui added; not all terminals that set these support *query* (some only support *set*), so we still rely on query success/failure.
 - **Unix query** (`src/theme/terminal_query.rs`): Colors are read from `/dev/tty` via nix `poll` so stdin is untouched and there is no race with crossterm.
-- **Windows**: Reader thread is always joined on timeout to avoid a detached thread draining stdin.
+- **Windows**: Reader uses WaitForSingleObject on stdin handle with short timeout and a cancel flag; main sets cancel on recv timeout then join() returns quickly (no hang when OSC query never yields bytes). Other non-Unix: bounded join so the caller does not block indefinitely.
 - **Headless tests**: When `PACSEA_TEST_HEADLESS=1`, mouse capture disable/enable is skipped for clean test output.
 - **AUR updates** (`src/sources/feeds/updates.rs`): Long filename fix is a small, separate change in the same branch; included in this PR.
 - **Package details errors** (`src/app/runtime/event_loop.rs`): When official or AUR package details fail to fetch (e.g. SSL/network or circuit breaker), the error is logged but no modal is shown, so scrolling through packages does not spam "Connection issue" dialogs.

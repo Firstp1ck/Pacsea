@@ -17,7 +17,7 @@ const OSC_QUERY_TIMEOUT_MS: u64 = 250;
 /// What: Query the terminal for foreground and background colors.
 ///
 /// Inputs:
-/// - None (uses stdout/stdin for query).
+/// - None. On Unix uses stdout and `/dev/tty`; on Windows/non-Unix uses stdout and stdin.
 ///
 /// Output:
 /// - `Some((foreground, background))` if query succeeds.
@@ -25,9 +25,10 @@ const OSC_QUERY_TIMEOUT_MS: u64 = 250;
 ///
 /// Details:
 /// - Sends OSC 10 and OSC 11 queries to stdout.
-/// - Reads responses from stdin with a short timeout.
+/// - On Unix, reads responses from `/dev/tty` with a short timeout (avoids touching stdin).
+/// - On Windows/non-Unix, reads responses from stdin with a short timeout.
 /// - Parses `rgb:rrrr/gggg/bbbb` format responses.
-/// - Requires terminal to be in raw mode for stdin reading.
+/// - Requires terminal to be in raw mode.
 /// - Retries once on failure to handle slow terminal initialization.
 #[must_use]
 pub fn query_terminal_colors() -> Option<(Color, Color)> {
@@ -141,8 +142,11 @@ const OSC_READ_MAX_BYTES: usize = 4096;
 /// touch stdin and cannot race with crossterm's event thread. No background
 /// thread is used.
 ///
-/// On Windows: uses a reader thread and always joins it (on timeout we still
-/// join so no detached thread can keep draining stdin).
+/// On Windows: uses a cancellable reader thread (WaitForSingleObject with short
+/// timeout + cancel flag) so join() returns quickly and does not hang if the
+/// OSC query never yields bytes.
+/// On other non-Unix: uses a reader thread with a bounded join so the caller
+/// does not block indefinitely.
 fn read_with_timeout(timeout: Duration) -> Option<String> {
     #[cfg(unix)]
     return read_with_timeout_unix(timeout);
@@ -217,8 +221,13 @@ fn read_with_timeout_unix(timeout: Duration) -> Option<String> {
     None
 }
 
-#[cfg(not(unix))]
-/// What: Read from stdin with timeout using a thread; always joins the thread.
+/// Interval (ms) at which the Windows reader thread waits on stdin handle before
+/// checking cancel; keeps join() bounded when main times out.
+#[cfg(windows)]
+const READER_POLL_MS: u32 = 50;
+
+#[cfg(all(not(unix), windows))]
+/// What: Read from stdin with timeout using a cancellable reader thread (Windows).
 ///
 /// Inputs:
 /// - `timeout`: Maximum time to wait for the first data.
@@ -227,11 +236,85 @@ fn read_with_timeout_unix(timeout: Duration) -> Option<String> {
 /// - `Some(s)` if data was received before timeout (with both OSC 10 and 11), `None` otherwise.
 ///
 /// Details:
-/// - Spawns a reader thread; on timeout we still join it so no detached thread
-///   can keep draining stdin and race with crossterm.
+/// - Reader uses WaitForSingleObject on stdin handle with short timeout so it
+///   wakes periodically; main sets a cancel flag on recv timeout then join() returns quickly.
+/// - Avoids join() hanging when OSC query never yields bytes (e.g. startup/theme reload).
+fn read_with_timeout_thread_joined(timeout: Duration) -> Option<String> {
+    use std::os::windows::io::AsRawHandle;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::mpsc;
+    use std::thread;
+
+    let cancel = Arc::new(AtomicBool::new(false));
+    let cancel_reader = Arc::clone(&cancel);
+    let (tx, rx) = mpsc::channel();
+    let handle = thread::spawn(move || {
+        let mut result = Vec::new();
+        let mut buffer = [0u8; 512];
+        let stdin = std::io::stdin();
+        let raw_handle = stdin.as_raw_handle();
+
+        loop {
+            if cancel_reader.load(Ordering::Relaxed) {
+                break;
+            }
+            let wait_ms = READER_POLL_MS;
+            let ret = unsafe {
+                windows_sys::Win32::System::Threading::WaitForSingleObject(
+                    raw_handle as *mut _,
+                    wait_ms,
+                )
+            };
+            if ret == windows_sys::Win32::System::Threading::WAIT_TIMEOUT {
+                continue;
+            }
+            if ret != windows_sys::Win32::System::Threading::WAIT_OBJECT_0 {
+                break;
+            }
+            let n = match stdin.read(&mut buffer) {
+                Ok(0) | Err(_) => break,
+                Ok(n) => n,
+            };
+            result.extend_from_slice(&buffer[..n]);
+            if result.len() > OSC_READ_MAX_BYTES {
+                break;
+            }
+            let s = String::from_utf8_lossy(&result).to_string();
+            if parse_osc_color_response(&s, 10).is_some()
+                && parse_osc_color_response(&s, 11).is_some()
+            {
+                break;
+            }
+        }
+
+        let _ = tx.send(String::from_utf8_lossy(&result).to_string());
+    });
+
+    let out = rx.recv_timeout(timeout).ok();
+    cancel.store(true, Ordering::Relaxed);
+    let _ = handle.join();
+    out
+}
+
+#[cfg(all(not(unix), not(windows)))]
+/// What: Read from stdin with timeout using a thread; joins with bounded wait.
+///
+/// Inputs:
+/// - `timeout`: Maximum time to wait for the first data.
+///
+/// Output:
+/// - `Some(s)` if data was received before timeout (with both OSC 10 and 11), `None` otherwise.
+///
+/// Details:
+/// - Spawns a reader thread. On timeout, waits up to JOIN_TIMEOUT for the thread
+///   to finish; if it does not (reader blocked on stdin), the handle is dropped
+///   (thread detaches) so the caller does not block indefinitely.
 fn read_with_timeout_thread_joined(timeout: Duration) -> Option<String> {
     use std::sync::mpsc;
     use std::thread;
+
+    const JOIN_TIMEOUT: Duration = Duration::from_secs(2);
 
     let (tx, rx) = mpsc::channel();
     let handle = thread::spawn(move || {
@@ -260,7 +343,14 @@ fn read_with_timeout_thread_joined(timeout: Duration) -> Option<String> {
     });
 
     let out = rx.recv_timeout(timeout).ok();
-    let _ = handle.join();
+    // Bounded join: avoid blocking forever if reader is stuck on stdin.read()
+    let (join_tx, join_rx) = mpsc::channel();
+    let join_handle = handle;
+    thread::spawn(move || {
+        let _ = join_handle.join();
+        let _ = join_tx.send(());
+    });
+    let _ = join_rx.recv_timeout(JOIN_TIMEOUT);
     out
 }
 
