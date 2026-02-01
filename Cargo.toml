@@ -48,7 +48,7 @@ chrono = "0.4.43"
 portable-pty = "0.9"
 strip-ansi-escapes = "0.2"
 lru = "0.16.3"
-ego-tree = "0.10"
+ego-tree = "0.10.0"
 rand = "0.9.2"
 
 [target.'cfg(unix)'.dependencies]

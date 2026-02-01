@@ -15,17 +15,23 @@ Please ensure you've reviewed these before submitting your PR.
   - Add theme resolution order: prefer terminal theme when `use_terminal_theme=true` and terminal is supported; otherwise use file theme or skeleton.
   - Add OSC 10/11 query implementation with timeout and robust parsing (`terminal_query.rs`), terminal support detection (`terminal_detect.rs`), and resolution logic (`resolve.rs`).
   - Improve robustness of OSC query (handling reply format, ST terminator, non-TTY).
+  - On Unix: query terminal colors via `/dev/tty` with nix `poll` so stdin is not used and crossterm is not raced.
+  - Add WezTerm and wezterm-gui to supported terminals (unit test added).
+  - On Windows: join reader thread on timeout to avoid detached thread draining stdin.
+  - In headless/test (`PACSEA_TEST_HEADLESS=1`): skip mouse capture disable/enable for clean output.
+  - Remove dead `load_theme_from_file` from theme_loader; add rustdoc and error logging in `ensure_theme_file_exists`.
   - Fix AUR cache handling for long filenames in updates feed.
+  - Build: add nix (Unix) dependency with poll and fs features.
 - **Doc**: Add `dev/IMPROVEMENTS/TERMINAL_THEME_FALLBACK.md` describing design, OSC sequences, and implementation choices.
 
 ## Type of change
 - [x] feat (new feature)
 - [x] fix (bug fix)
 - [ ] docs (documentation only)
-- [ ] refactor (no functional change)
+- [x] refactor (no functional change)
 - [ ] perf (performance)
 - [ ] test (add/update tests)
-- [ ] chore (build/infra/CI)
+- [x] chore (build/infra/CI)
 - [x] ui (visual/interaction changes)
 - [ ] breaking change (incompatible behavior)
 
@@ -40,7 +46,7 @@ cargo clippy --all-targets --all-features -- -D warnings
 cargo check
 cargo test -- --test-threads=1
 ```
-2. Terminal theme on supported terminal (e.g. Alacritty, Kitty, WezTerm): set `use_terminal_theme = true` in `settings.conf`, run Pacsea; UI should match terminal fg/bg–derived colors. Change terminal theme and reload theme in Pacsea to see updates.
+2. Terminal theme on supported terminal (e.g. Alacritty, Kitty, WezTerm): set `use_terminal_theme = true` in `settings.conf`, run Pacsea; UI should match terminal fg/bg–derived colors. Change terminal theme and reload theme in Pacsea to see updates. On Unix, query uses `/dev/tty` (no stdin).
 3. Unsupported / non-TTY: run with `use_terminal_theme = true` in a pipe or unsupported terminal; should fall back to theme.conf or default skeleton without hanging.
 4. AUR updates: run update flow on a system with AUR packages; long cache filenames should not cause failures.
 
@@ -84,7 +90,10 @@ RUST_LOG=pacsea=debug cargo run -- --dry-run
 ## Notes for reviewers
 - **Theme resolution** (`src/theme/resolve.rs`): Order is (1) if `use_terminal_theme` and terminal supported → query OSC, use terminal theme; (2) else use theme from file or skeleton. Fallback on query failure avoids hanging in pipes/CI/unsupported terminals.
 - **OSC query** (`src/theme/terminal_query.rs`): Uses blocking read with timeout; parses `rgb:rrrr/gggg/bbbb` and optional `rgba`; handles both `\033\\` and BEL as ST. Non-TTY or no reply → returns error so resolution can fall back.
-- **Terminal detection** (`src/theme/terminal_detect.rs`): Heuristic (e.g. `COLORTERM`, `TERM`) to decide if we try OSC query; not all terminals that set these support *query* (some only support *set*), so we still rely on query success/failure.
+- **Terminal detection** (`src/theme/terminal_detect.rs`): Heuristic (e.g. `COLORTERM`, `TERM`) to decide if we try OSC query; WezTerm/wezterm-gui added; not all terminals that set these support *query* (some only support *set*), so we still rely on query success/failure.
+- **Unix query** (`src/theme/terminal_query.rs`): Colors are read from `/dev/tty` via nix `poll` so stdin is untouched and there is no race with crossterm.
+- **Windows**: Reader thread is always joined on timeout to avoid a detached thread draining stdin.
+- **Headless tests**: When `PACSEA_TEST_HEADLESS=1`, mouse capture disable/enable is skipped for clean test output.
 - **AUR updates** (`src/sources/feeds/updates.rs`): Long filename fix is a small, separate change in the same branch; included in this PR.
 
 ## Breaking changes
