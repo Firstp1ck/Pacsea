@@ -6,7 +6,7 @@
 
 use ratatui::style::Color;
 use std::io::{Read, Write};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use super::types::Theme;
 
@@ -58,10 +58,14 @@ fn query_with_raw_mode() -> Option<(Color, Color)> {
 
     // Check if already in raw mode (app is running)
     let was_raw_mode = is_raw_mode_enabled().unwrap_or(false);
-    tracing::debug!(was_raw_mode, "Starting terminal color query");
+    let is_headless = std::env::var("PACSEA_TEST_HEADLESS").ok().as_deref() == Some("1");
+    tracing::debug!(was_raw_mode, is_headless, "Starting terminal color query");
 
-    // Disable mouse capture to prevent mouse events from mixing with OSC response
-    let _ = execute!(std::io::stdout(), DisableMouseCapture);
+    // Disable mouse capture only when not headless (prevents events mixing with OSC response).
+    // In headless/test mode we skip all mouse-capture changes to keep output clean.
+    if !is_headless {
+        let _ = execute!(std::io::stdout(), DisableMouseCapture);
+    }
 
     // Enable raw mode if not already enabled
     if !was_raw_mode && enable_raw_mode().is_err() {
@@ -119,37 +123,145 @@ fn query_with_raw_mode() -> Option<(Color, Color)> {
         let _ = disable_raw_mode();
     }
 
-    // Re-enable mouse capture
-    let _ = execute!(std::io::stdout(), EnableMouseCapture);
+    // Re-enable mouse capture only if it was enabled before (was_raw_mode) and not headless.
+    // Avoids enabling mouse reporting before setup_terminal() or in test mode.
+    if !is_headless && was_raw_mode {
+        let _ = execute!(std::io::stdout(), EnableMouseCapture);
+    }
 
     result
 }
 
-/// Read from stdin with a timeout.
+/// Maximum buffer size when reading OSC responses (avoids runaway growth).
+const OSC_READ_MAX_BYTES: usize = 4096;
+
+/// Read from the terminal with a timeout.
 ///
-/// Uses a thread-based approach with a flag to signal completion.
-/// The thread is detached on timeout, which is safe since we're only reading.
+/// On Unix: reads from `/dev/tty` using poll + non-blocking read so we never
+/// touch stdin and cannot race with crossterm's event thread. No background
+/// thread is used.
+///
+/// On Windows: uses a reader thread and always joins it (on timeout we still
+/// join so no detached thread can keep draining stdin).
 fn read_with_timeout(timeout: Duration) -> Option<String> {
+    #[cfg(unix)]
+    return read_with_timeout_unix(timeout);
+
+    #[cfg(not(unix))]
+    return read_with_timeout_thread_joined(timeout);
+}
+
+#[cfg(unix)]
+/// What: Read OSC response from /dev/tty with a deadline using poll + non-blocking read.
+///
+/// Inputs:
+/// - `timeout`: Maximum time to wait for data.
+///
+/// Output:
+/// - `Some(s)` if data was read before timeout (with both OSC 10 and 11), `None` otherwise.
+///
+/// Details:
+/// - Uses a separate fd (/dev/tty) so stdin is never touched; avoids racing
+///   with crossterm's stdin event thread. No background thread.
+fn read_with_timeout_unix(timeout: Duration) -> Option<String> {
+    use nix::fcntl::{FcntlArg, OFlag, fcntl};
+    use nix::poll::{PollFd, PollFlags, PollTimeout, poll};
+    use std::os::fd::BorrowedFd;
+    use std::os::unix::io::AsRawFd;
+
+    let mut tty = std::fs::File::open("/dev/tty").ok()?;
+    let raw_fd = tty.as_raw_fd();
+
+    let fd = unsafe { BorrowedFd::borrow_raw(raw_fd) };
+    let flags = fcntl(fd, FcntlArg::F_GETFL).ok()?;
+    let mut oflags = OFlag::from_bits_truncate(flags);
+    oflags.insert(OFlag::O_NONBLOCK);
+    fcntl(fd, FcntlArg::F_SETFL(oflags)).ok()?;
+
+    let deadline = Instant::now() + timeout;
+    let mut result = Vec::new();
+    let mut buffer = [0u8; 512];
+
+    while Instant::now() < deadline {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        // Cap to u16::MAX ms for PollTimeout; truncation is intentional.
+        #[allow(clippy::cast_possible_truncation)]
+        let ms = remaining.as_millis().min(u128::from(u16::MAX)) as u16;
+        let poll_timeout = PollTimeout::from(ms);
+        let poll_fd = unsafe { BorrowedFd::borrow_raw(raw_fd) };
+        let mut poll_fds = [PollFd::new(poll_fd, PollFlags::POLLIN)];
+        match poll(&mut poll_fds, poll_timeout) {
+            Ok(0) => {}
+            Ok(_) => {
+                loop {
+                    match tty.read(&mut buffer) {
+                        Ok(0) => break,
+                        Ok(n) => result.extend_from_slice(&buffer[..n]),
+                        Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
+                        Err(_) => break,
+                    }
+                }
+                if result.len() > OSC_READ_MAX_BYTES {
+                    break;
+                }
+                let s = String::from_utf8_lossy(&result).to_string();
+                if parse_osc_color_response(&s, 10).is_some()
+                    && parse_osc_color_response(&s, 11).is_some()
+                {
+                    return Some(s);
+                }
+            }
+            Err(_) => break,
+        }
+    }
+    None
+}
+
+#[cfg(not(unix))]
+/// What: Read from stdin with timeout using a thread; always joins the thread.
+///
+/// Inputs:
+/// - `timeout`: Maximum time to wait for the first data.
+///
+/// Output:
+/// - `Some(s)` if data was received before timeout (with both OSC 10 and 11), `None` otherwise.
+///
+/// Details:
+/// - Spawns a reader thread; on timeout we still join it so no detached thread
+///   can keep draining stdin and race with crossterm.
+fn read_with_timeout_thread_joined(timeout: Duration) -> Option<String> {
     use std::sync::mpsc;
     use std::thread;
 
     let (tx, rx) = mpsc::channel();
-
-    // Spawn a thread to read stdin
-    // This thread will block until data is available, but we'll ignore it on timeout
-    thread::spawn(move || {
+    let handle = thread::spawn(move || {
+        let mut result = Vec::new();
         let mut buffer = [0u8; 512];
         let mut stdin = std::io::stdin();
-        // Read in a loop to get both OSC responses
-        let mut result = Vec::new();
-        if let Ok(n) = stdin.read(&mut buffer) {
+
+        loop {
+            let n = match stdin.read(&mut buffer) {
+                Ok(0) | Err(_) => break,
+                Ok(n) => n,
+            };
             result.extend_from_slice(&buffer[..n]);
+            if result.len() > OSC_READ_MAX_BYTES {
+                break;
+            }
+            let s = String::from_utf8_lossy(&result).to_string();
+            if parse_osc_color_response(&s, 10).is_some()
+                && parse_osc_color_response(&s, 11).is_some()
+            {
+                break;
+            }
         }
+
         let _ = tx.send(String::from_utf8_lossy(&result).to_string());
     });
 
-    // Wait for response with timeout
-    rx.recv_timeout(timeout).ok()
+    let out = rx.recv_timeout(timeout).ok();
+    let _ = handle.join();
+    out
 }
 
 /// Parse an OSC color response for a specific code (10 for fg, 11 for bg).

@@ -51,6 +51,9 @@ lru = "0.16.3"
 ego-tree = "0.10"
 rand = "0.9.2"
 
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.31", features = ["poll", "fs"], default-features = false }
+
 [dev-dependencies]
 tempfile = "3.24.0"
 syn = { version = "2.0.114", features = ["full", "parsing", "extra-traits"] }

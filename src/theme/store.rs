@@ -39,7 +39,18 @@ fn load_initial_theme() -> Theme {
     resolved.theme
 }
 
-/// Ensure theme.conf exists, creating it from skeleton if needed.
+/// What: Ensures theme.conf exists, creating it from skeleton if missing or empty.
+///
+/// Inputs:
+/// - None (uses resolved theme config path).
+///
+/// Output:
+/// - No return value; logs success or failure.
+///
+/// Details:
+/// - Creates parent dirs and writes skeleton only when file is missing or empty.
+/// - Logs success only when both `create_dir_all` and write succeed.
+/// - Logs errors when I/O fails (e.g. permissions, read-only FS) for easier diagnosis.
 fn ensure_theme_file_exists() {
     let path = resolve_theme_config_path().unwrap_or_else(|| config_dir().join("theme.conf"));
 
@@ -47,11 +58,28 @@ fn ensure_theme_file_exists() {
     let should_create = fs::metadata(&path).map_or(true, |meta| meta.len() == 0);
 
     if should_create {
-        if let Some(dir) = path.parent() {
-            let _ = fs::create_dir_all(dir);
+        if let Some(dir) = path.parent()
+            && let Err(e) = fs::create_dir_all(dir)
+        {
+            tracing::error!(
+                path = %dir.display(),
+                error = %e,
+                "Failed to create theme config directory"
+            );
+            return;
         }
-        let _ = fs::write(&path, THEME_SKELETON_CONTENT);
-        tracing::info!(path = %path.display(), "Created theme.conf skeleton");
+        match fs::write(&path, THEME_SKELETON_CONTENT) {
+            Ok(()) => {
+                tracing::info!(path = %path.display(), "Created theme.conf skeleton");
+            }
+            Err(e) => {
+                tracing::error!(
+                    path = %path.display(),
+                    error = %e,
+                    "Failed to write theme.conf skeleton"
+                );
+            }
+        }
     }
 }
 

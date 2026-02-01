@@ -7,7 +7,7 @@ use std::env;
 
 /// Terminals known to support OSC 10/11 color queries.
 /// These terminals can report their foreground/background colors reliably.
-const SUPPORTED_TERMINALS: [&str; 9] = [
+const SUPPORTED_TERMINALS: [&str; 11] = [
     "alacritty",
     "kitty",
     "konsole",
@@ -17,6 +17,8 @@ const SUPPORTED_TERMINALS: [&str; 9] = [
     "xfce4-terminal", // Binary name for xfce-terminal
     "tilix",
     "mate-terminal",
+    "wezterm",     // TERM_PROGRAM=WezTerm or binary wezterm
+    "wezterm-gui", // WezTerm GUI binary when launched from desktop
 ];
 
 /// Alternative names for some terminals (e.g., process names vs binary names).
@@ -216,6 +218,15 @@ mod tests {
         // TERM variable often has suffixes like -256color
         assert!(is_supported_name("xterm-256color"));
         assert!(is_supported_name("xterm-direct"));
+    }
+
+    #[test]
+    fn test_is_supported_name_wezterm() {
+        assert!(is_supported_name("wezterm"));
+        assert!(is_supported_name("WezTerm"));
+        assert!(is_supported_name("wezterm-gui"));
+        // TERM_PROGRAM is often set to "WezTerm" by WezTerm
+        assert!(is_supported_name("WezTerm"));
     }
 
     #[test]
