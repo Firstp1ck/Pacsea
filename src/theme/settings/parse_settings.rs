@@ -350,6 +350,10 @@ fn parse_misc_settings(key: &str, val: &str, settings: &mut Settings) -> bool {
             settings.use_passwordless_sudo = parse_bool(val);
             true
         }
+        "use_terminal_theme" | "terminal_theme" => {
+            settings.use_terminal_theme = parse_bool(val);
+            true
+        }
         _ => false,
     }
 }

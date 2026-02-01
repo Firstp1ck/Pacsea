@@ -317,14 +317,16 @@ fn handle_reload_config(
 ) -> bool {
     let mut errors = Vec::new();
 
-    // Reload theme
+    // Reload settings first so theme resolution sees updated use_terminal_theme
+    let new_settings = settings();
+    let old_locale = app.locale.clone();
+
+    // Reload theme (uses settings for use_terminal_theme)
     if let Err(msg) = reload_theme() {
         errors.push(format!("Theme reload failed: {msg}"));
     }
 
-    // Reload settings and keybinds
-    let new_settings = settings();
-    let old_locale = app.locale.clone();
+    // Apply settings to app state
     let old_installed_mode = app.installed_packages_mode;
     apply_settings_to_app_state(app, &new_settings);
 

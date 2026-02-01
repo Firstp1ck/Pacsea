@@ -9,10 +9,16 @@ mod config;
 mod parsing;
 /// Path resolution for config directories.
 mod paths;
+/// Unified theme resolution logic.
+mod resolve;
 /// Settings access and management.
 mod settings;
 /// Theme store and caching.
 mod store;
+/// Terminal detection for theme fallback.
+mod terminal_detect;
+/// Terminal color query and theme derivation.
+mod terminal_query;
 /// Theme type definitions.
 mod types;
 

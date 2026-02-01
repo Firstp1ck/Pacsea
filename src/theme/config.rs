@@ -23,7 +23,7 @@ mod tests;
 pub use skeletons::THEME_SKELETON_CONTENT;
 
 // Re-export theme loading functions
-pub use theme_loader::{load_theme_from_file, try_load_theme_with_diagnostics};
+pub use theme_loader::try_load_theme_with_diagnostics;
 
 // Re-export settings save functions
 pub use settings_save::{

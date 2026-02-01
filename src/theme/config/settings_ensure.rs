@@ -96,6 +96,7 @@ fn get_app_value(key: &str, prefs: &Settings) -> Option<String> {
         }
         "locale" => Some(prefs.locale.clone()),
         "preferred_terminal" => Some(prefs.preferred_terminal.clone()),
+        "use_terminal_theme" => Some(bool_to_string(prefs.use_terminal_theme)),
         _ => None,
     }
 }
