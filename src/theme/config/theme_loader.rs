@@ -108,18 +108,3 @@ pub fn try_load_theme_with_diagnostics(path: &Path) -> Result<Theme, String> {
         Err(errors.join("\n"))
     }
 }
-
-/// What: Load a theme from disk while discarding any diagnostics on failure.
-///
-/// Inputs:
-/// - `path`: Filesystem path to the theme configuration.
-///
-/// Output:
-/// - `Some(Theme)` when parsing succeeds.
-/// - `None` when the file is missing or contains validation errors.
-///
-/// Details:
-/// - Wraps [`try_load_theme_with_diagnostics`] and converts its error into `None`.
-pub fn load_theme_from_file(path: &Path) -> Option<Theme> {
-    try_load_theme_with_diagnostics(path).ok()
-}

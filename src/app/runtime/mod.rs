@@ -59,6 +59,12 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>
 /// - Cleanup: Flushes pending writes and restores terminal modes before returning.
 pub async fn run(dry_run_flag: bool) -> Result<()> {
     let headless = std::env::var("PACSEA_TEST_HEADLESS").ok().as_deref() == Some("1");
+
+    // Force theme resolution BEFORE terminal setup.
+    // This is important because theme resolution may query terminal colors via OSC 10/11,
+    // which must happen before mouse capture is enabled to avoid input conflicts.
+    let _ = crate::theme::theme();
+
     if !headless {
         setup_terminal()?;
     }
