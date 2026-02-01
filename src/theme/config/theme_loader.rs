@@ -120,6 +120,7 @@ pub fn try_load_theme_with_diagnostics(path: &Path) -> Result<Theme, String> {
 ///
 /// Details:
 /// - Wraps [`try_load_theme_with_diagnostics`] and converts its error into `None`.
+#[allow(dead_code)]
 pub fn load_theme_from_file(path: &Path) -> Option<Theme> {
     try_load_theme_with_diagnostics(path).ok()
 }

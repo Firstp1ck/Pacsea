@@ -388,7 +388,15 @@ updates_refresh_interval = 30\n\
 # Default: true\n\
 # If true, fetches remote announcements from GitHub Gist\n\
 # If false, remote announcements are disabled (version announcements still show)\n\
-get_announcement = true\n";
+get_announcement = true\n\
+\n\
+# Terminal Theme\n\
+# When true, uses the terminal's theme colors instead of theme.conf via OSC 10/11 queries.\n\
+# When false (default), uses theme.conf colors.\n\
+# Note: Terminal theme is also used automatically when theme.conf is missing/invalid\n\
+# and the terminal is supported (alacritty, kitty, konsole, ghostty, xterm,\n\
+# gnome-terminal, xfce-terminal, tilix, mate-terminal).\n\
+use_terminal_theme = false\n";
 
 /// Standalone keybinds skeleton used when initializing a separate keybinds.conf
 pub const KEYBINDS_SKELETON_CONTENT: &str = "# Pacsea keybindings configuration\n\

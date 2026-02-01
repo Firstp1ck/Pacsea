@@ -141,3 +141,119 @@ Recommendation: **1 + 4** (query at startup with fallback), optionally behind **
 - **Recommended trigger**: Empty theme.conf or an explicit `use_terminal_theme = true` in theme.conf.
 - **Recommended implementation**: Query at startup when terminal theme is requested; on success build `Theme` from fg/bg + derivation; on failure or timeout use existing default theme. Optionally gate behind a feature flag until behavior is stable.
 - **Not recommended** (for a first version): Full “use terminal palette for every role” via Reset/Indexed, due to UI complexity and terminal palette variability.
+
+---
+
+## Implementation (Completed)
+
+The terminal theme fallback feature has been implemented following the recommendations above. Here are the details:
+
+### Configuration
+
+- **Setting**: `use_terminal_theme` in `settings.conf` (default: `false`)
+- **Aliases**: `terminal_theme` is accepted as an alias for compatibility
+- When `true`, Pacsea will attempt to use terminal colors even if `theme.conf` has a valid theme
+- When `false` (or unset), terminal colors are only used as a fallback when `theme.conf` is missing, empty, or invalid
+
+### Supported Terminals
+
+The following terminals are recognized as supporting OSC 10/11 queries:
+
+| Terminal | Detection Method |
+|----------|------------------|
+| Alacritty | `TERM_PROGRAM` env, parent process name |
+| Kitty | `TERM_PROGRAM` env, parent process name |
+| Konsole | `COLORTERM` env, parent process name |
+| Ghostty | `TERM_PROGRAM` env, parent process name |
+| xterm | `TERM_PROGRAM` env, parent process name |
+| gnome-terminal | Parent process name |
+| xfce4-terminal | Parent process name |
+| tilix | Parent process name |
+| mate-terminal | Parent process name |
+
+**Detection priority**:
+1. `TERM_PROGRAM` environment variable
+2. `COLORTERM` environment variable
+3. Parent process name (Linux only, via `/proc`)
+
+### Resolution Flow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Theme Resolution Flow                         │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  1. Try load theme.conf                                          │
+│     ↓                                                            │
+│  2. Valid theme from file?                                       │
+│     ├─ YES + use_terminal_theme=false → Use file theme           │
+│     ├─ YES + use_terminal_theme=true  → Go to step 3             │
+│     └─ NO                             → Go to step 3             │
+│     ↓                                                            │
+│  3. Terminal supported?                                          │
+│     ├─ YES → Query OSC 10/11                                     │
+│     │         ├─ Success → Use terminal-derived theme            │
+│     │         └─ Failure → Go to step 4                          │
+│     └─ NO  → Go to step 4                                        │
+│     ↓                                                            │
+│  4. Valid theme from file?                                       │
+│     ├─ YES → Use file theme                                      │
+│     └─ NO  → Use codebase default (Catppuccin Mocha)             │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Color Derivation
+
+When using terminal theme, the 16 semantic colors are derived from the foreground and background:
+
+- **Background colors** (base, mantle, crust): Derived from terminal background with varying darkness
+- **Surface colors** (surface1, surface2): Interpolated between background and foreground
+- **Overlay colors** (overlay1, overlay2): Further interpolated toward foreground
+- **Text colors** (text, subtext0, subtext1): Terminal foreground with varying opacity toward background
+- **Accent colors** (sapphire, mauve, green, yellow, red, lavender): Fixed Catppuccin-inspired palette
+
+**Light/Dark detection**: Based on background luminance calculation (`0.299*R + 0.587*G + 0.114*B`). Luminance > 127 = light theme, otherwise dark theme.
+
+### OSC Query Details
+
+- **Timeout**: 150ms for reading terminal response
+- **Query format**: `\033]10;?\007` for foreground, `\033]11;?\007` for background
+- **Response parsing**: Handles `rgb:RRRR/GGGG/BBBB` format (4 hex digits per channel)
+- **Raw mode**: Uses crossterm to enter raw terminal mode during query
+
+### Files Modified/Created
+
+| File | Description |
+|------|-------------|
+| `src/theme/types.rs` | Added `use_terminal_theme: bool` field to Settings |
+| `src/theme/settings/parse_settings.rs` | Added parsing for `use_terminal_theme` |
+| `src/theme/config/skeletons.rs` | Added skeleton entry for the setting |
+| `src/theme/config/settings_ensure.rs` | Added getter for the setting |
+| `src/theme/terminal_detect.rs` | **New** - Terminal detection logic |
+| `src/theme/terminal_query.rs` | **New** - OSC query and theme derivation |
+| `src/theme/resolve.rs` | **New** - Unified resolution logic |
+| `src/theme/store.rs` | Updated to use resolution logic |
+| `src/theme/mod.rs` | Added new module declarations |
+| `src/events/global.rs` | Fixed reload order (settings before theme) |
+| `config/settings.conf` | Added example setting |
+
+### Testing
+
+Unit tests cover:
+- Terminal detection for all 9 supported terminals
+- Color parsing from OSC response strings
+- Theme derivation from fg/bg colors
+- Skeleton theme parsing
+- Resolution logic branches
+
+### Usage
+
+To enable terminal theme:
+
+```conf
+# In ~/.config/pacsea/settings.conf
+use_terminal_theme = true
+```
+
+Or simply delete/empty `theme.conf` when using a supported terminal - Pacsea will automatically use the terminal's colors.
