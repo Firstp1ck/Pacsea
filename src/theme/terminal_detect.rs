@@ -37,6 +37,7 @@ const TERMINAL_ALIASES: [(&str, &str); 3] = [
 ///
 /// Details:
 /// - Checks `TERM_PROGRAM` environment variable first (set by some terminals).
+/// - Checks `TERM` environment variable (most reliable for terminal type).
 /// - Falls back to reading the parent process name on Linux via `/proc`.
 /// - Case-insensitive matching against the supported terminal list.
 /// - Returns `false` if not running in a TTY or detection fails.
@@ -54,8 +55,17 @@ pub fn is_supported_terminal_for_theme() -> bool {
         return true;
     }
 
-    // Try COLORTERM (sometimes set to the terminal name)
+    // Try TERM (most reliable - set by the terminal itself, e.g., "alacritty", "xterm-256color")
+    if let Ok(term) = env::var("TERM")
+        && is_supported_name(&term)
+    {
+        return true;
+    }
+
+    // Try COLORTERM (sometimes set to the terminal name, but often just "truecolor")
     if let Ok(colorterm) = env::var("COLORTERM")
+        && colorterm != "truecolor"
+        && colorterm != "24bit"
         && is_supported_name(&colorterm)
     {
         return true;
@@ -95,7 +105,14 @@ pub fn get_terminal_name() -> Option<String> {
         return Some(term_program);
     }
 
-    // Try COLORTERM
+    // Try TERM (most reliable for terminal type)
+    if let Ok(term) = env::var("TERM")
+        && !term.is_empty()
+    {
+        return Some(term);
+    }
+
+    // Try COLORTERM (if not just a capability indicator)
     if let Ok(colorterm) = env::var("COLORTERM")
         && !colorterm.is_empty()
         && colorterm != "truecolor"
@@ -196,6 +213,9 @@ mod tests {
         // Some terminals report longer names
         assert!(is_supported_name("alacritty-0.13.0"));
         assert!(is_supported_name("/usr/bin/kitty"));
+        // TERM variable often has suffixes like -256color
+        assert!(is_supported_name("xterm-256color"));
+        assert!(is_supported_name("xterm-direct"));
     }
 
     #[test]

@@ -1,6 +1,7 @@
 //! Package updates fetching (official and AUR).
+use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet};
-use std::hash::BuildHasher;
+use std::hash::{BuildHasher, Hash, Hasher};
 use std::path::PathBuf;
 use std::sync::{LazyLock, Mutex};
 use std::time::Instant;
@@ -550,6 +551,9 @@ fn aur_json_cache_dir() -> PathBuf {
     crate::theme::lists_dir().join("aur_json_cache")
 }
 
+/// Max length for AUR cache filename key; longer keys use a hash to avoid `NAME_MAX` (255) limits.
+const AUR_CACHE_KEY_MAX_LEN: usize = 200;
+
 /// What: Get the path to a cached AUR JSON file for a set of packages.
 ///
 /// Inputs:
@@ -559,12 +563,12 @@ fn aur_json_cache_dir() -> PathBuf {
 /// - `PathBuf` to the cache file.
 ///
 /// Details:
-/// - Creates a deterministic filename from sorted package names.
+/// - Creates a deterministic filename from sorted package names; uses a hash when the key
+///   would exceed `AUR_CACHE_KEY_MAX_LEN` to avoid "File name too long" (os error 36).
 fn aur_json_cache_path(pkgnames: &[String]) -> PathBuf {
     let mut sorted = pkgnames.to_vec();
     sorted.sort();
     let key = sorted.join(",");
-    // Create a safe filename from the key
     let safe_key = key
         .chars()
         .map(|c| {
@@ -575,7 +579,14 @@ fn aur_json_cache_path(pkgnames: &[String]) -> PathBuf {
             }
         })
         .collect::<String>();
-    aur_json_cache_dir().join(format!("{safe_key}.json"))
+    let filename_key = if safe_key.len() <= AUR_CACHE_KEY_MAX_LEN {
+        safe_key
+    } else {
+        let mut hasher = DefaultHasher::new();
+        key.hash(&mut hasher);
+        format!("{:016x}", hasher.finish())
+    };
+    aur_json_cache_dir().join(format!("{filename_key}.json"))
 }
 
 /// What: Load previously cached AUR JSON from disk.
@@ -1260,4 +1271,38 @@ where
     }
 
     Ok(items)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::aur_json_cache_path;
+
+    /// What: Ensure AUR cache path uses a short hash when package list is long.
+    ///
+    /// Details:
+    /// - Prevents "File name too long" (os error 36) by keeping filename under `NAME_MAX`.
+    #[test]
+    fn aur_json_cache_path_long_list_uses_short_filename() {
+        let many: Vec<String> = (0..60).map(|i| format!("pkg-{i}")).collect();
+        let path = aur_json_cache_path(&many);
+        let name = path.file_name().expect("has filename").to_string_lossy();
+        assert!(
+            name.len() <= 255,
+            "filename must not exceed NAME_MAX: len={}",
+            name.len()
+        );
+        assert!(name.ends_with(".json"));
+        // Long list should use hash: 16 hex chars + ".json"
+        assert!(
+            name.len() <= 25,
+            "long key should use hash (short name): {name}"
+        );
+    }
+
+    #[test]
+    fn aur_json_cache_path_deterministic() {
+        let a = vec!["b".into(), "a".into()];
+        let b = vec!["a".into(), "b".into()];
+        assert_eq!(aur_json_cache_path(&a), aur_json_cache_path(&b));
+    }
 }

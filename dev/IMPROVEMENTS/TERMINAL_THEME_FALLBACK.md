@@ -173,8 +173,9 @@ The following terminals are recognized as supporting OSC 10/11 queries:
 
 **Detection priority**:
 1. `TERM_PROGRAM` environment variable
-2. `COLORTERM` environment variable
-3. Parent process name (Linux only, via `/proc`)
+2. `TERM` environment variable (most reliable - e.g., "alacritty", "xterm-256color")
+3. `COLORTERM` environment variable (if not just "truecolor" or "24bit")
+4. Parent process name (Linux only, via `/proc`)
 
 ### Resolution Flow
 

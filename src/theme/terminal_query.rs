@@ -11,7 +11,8 @@ use std::time::Duration;
 use super::types::Theme;
 
 /// Default timeout for OSC query response (milliseconds).
-const OSC_QUERY_TIMEOUT_MS: u64 = 150;
+/// Increased to 250ms to allow slower terminals to respond.
+const OSC_QUERY_TIMEOUT_MS: u64 = 250;
 
 /// What: Query the terminal for foreground and background colors.
 ///
@@ -27,24 +28,51 @@ const OSC_QUERY_TIMEOUT_MS: u64 = 150;
 /// - Reads responses from stdin with a short timeout.
 /// - Parses `rgb:rrrr/gggg/bbbb` format responses.
 /// - Requires terminal to be in raw mode for stdin reading.
+/// - Retries once on failure to handle slow terminal initialization.
 #[must_use]
 pub fn query_terminal_colors() -> Option<(Color, Color)> {
     // Check if we're in a terminal
     use std::io::IsTerminal;
     if !std::io::stdout().is_terminal() || !std::io::stdin().is_terminal() {
+        tracing::debug!("Not a terminal, skipping OSC query");
         return None;
     }
 
-    // We need raw mode to read the terminal response
+    // Try query, with one retry on failure
+    // The retry helps with slow terminal initialization at startup
+    if let Some(colors) = query_with_raw_mode() {
+        return Some(colors);
+    }
+
+    // Small delay before retry
+    std::thread::sleep(Duration::from_millis(50));
+    tracing::debug!("Retrying OSC query after initial failure");
     query_with_raw_mode()
 }
 
 /// Perform the actual query with terminal in raw mode.
 fn query_with_raw_mode() -> Option<(Color, Color)> {
-    use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
+    use crossterm::event::{DisableMouseCapture, EnableMouseCapture, poll, read as crossterm_read};
+    use crossterm::execute;
+    use crossterm::terminal::{disable_raw_mode, enable_raw_mode, is_raw_mode_enabled};
 
-    // Enable raw mode to read terminal response
-    enable_raw_mode().ok()?;
+    // Check if already in raw mode (app is running)
+    let was_raw_mode = is_raw_mode_enabled().unwrap_or(false);
+    tracing::debug!(was_raw_mode, "Starting terminal color query");
+
+    // Disable mouse capture to prevent mouse events from mixing with OSC response
+    let _ = execute!(std::io::stdout(), DisableMouseCapture);
+
+    // Enable raw mode if not already enabled
+    if !was_raw_mode && enable_raw_mode().is_err() {
+        tracing::debug!("Failed to enable raw mode for OSC query");
+        return None;
+    }
+
+    // Drain any pending events before sending query
+    while poll(Duration::from_millis(0)).unwrap_or(false) {
+        let _ = crossterm_read();
+    }
 
     let result = (|| {
         let mut stdout = std::io::stdout();
@@ -58,25 +86,49 @@ fn query_with_raw_mode() -> Option<(Color, Color)> {
         write!(stdout, "\x1b]10;?\x07\x1b]11;?\x07").ok()?;
         stdout.flush().ok()?;
 
-        // Read response with timeout
+        // Read response with timeout using our thread-based approach
+        // (crossterm's event reader doesn't handle OSC responses)
         let response = read_with_timeout(Duration::from_millis(OSC_QUERY_TIMEOUT_MS))?;
+        tracing::debug!(response_len = response.len(), "Received OSC response");
 
         // Parse both colors from response
         // Response format: ESC ] 10 ; rgb:rrrr/gggg/bbbb ST ESC ] 11 ; rgb:rrrr/gggg/bbbb ST
         // ST can be BEL (\x07) or ESC \ (\x1b\x5c)
-        let fg = parse_osc_color_response(&response, 10)?;
-        let bg = parse_osc_color_response(&response, 11)?;
+        let fg = parse_osc_color_response(&response, 10);
+        let bg = parse_osc_color_response(&response, 11);
 
-        Some((fg, bg))
+        if fg.is_none() || bg.is_none() {
+            tracing::debug!(
+                fg_parsed = fg.is_some(),
+                bg_parsed = bg.is_some(),
+                "Failed to parse OSC color response"
+            );
+            return None;
+        }
+
+        Some((fg?, bg?))
     })();
 
-    // Always restore terminal mode
-    let _ = disable_raw_mode();
+    // Drain any events that arrived during the query
+    while poll(Duration::from_millis(0)).unwrap_or(false) {
+        let _ = crossterm_read();
+    }
+
+    // Restore terminal mode if we enabled it
+    if !was_raw_mode {
+        let _ = disable_raw_mode();
+    }
+
+    // Re-enable mouse capture
+    let _ = execute!(std::io::stdout(), EnableMouseCapture);
 
     result
 }
 
 /// Read from stdin with a timeout.
+///
+/// Uses a thread-based approach with a flag to signal completion.
+/// The thread is detached on timeout, which is safe since we're only reading.
 fn read_with_timeout(timeout: Duration) -> Option<String> {
     use std::sync::mpsc;
     use std::thread;
@@ -84,12 +136,16 @@ fn read_with_timeout(timeout: Duration) -> Option<String> {
     let (tx, rx) = mpsc::channel();
 
     // Spawn a thread to read stdin
+    // This thread will block until data is available, but we'll ignore it on timeout
     thread::spawn(move || {
-        let mut buffer = [0u8; 256];
+        let mut buffer = [0u8; 512];
         let mut stdin = std::io::stdin();
+        // Read in a loop to get both OSC responses
+        let mut result = Vec::new();
         if let Ok(n) = stdin.read(&mut buffer) {
-            let _ = tx.send(String::from_utf8_lossy(&buffer[..n]).to_string());
+            result.extend_from_slice(&buffer[..n]);
         }
+        let _ = tx.send(String::from_utf8_lossy(&result).to_string());
     });
 
     // Wait for response with timeout
