@@ -120,6 +120,27 @@ pub fn initialize_locale_system(
     }
 }
 
+/// What: Run startup config preflight exactly once and return resolved settings.
+///
+/// Inputs:
+/// - None.
+///
+/// Output:
+/// - Returns the current `Settings` after legacy migration and key ensure operations.
+///
+/// Details:
+/// - Migrates legacy config layout into split config files when needed.
+/// - Ensures `theme.conf` and `settings.conf` include all known keys.
+/// - Reads and returns settings from disk after preflight so downstream initialization
+///   can reuse the same resolved snapshot.
+pub fn run_startup_config_preflight() -> crate::theme::Settings {
+    crate::theme::maybe_migrate_legacy_confs();
+    crate::theme::ensure_theme_keys_present();
+    let prefs = crate::theme::settings();
+    crate::theme::ensure_settings_keys_present(&prefs);
+    prefs
+}
+
 /// What: Initialize application state: load settings, caches, and persisted data.
 ///
 /// Inputs:
@@ -567,22 +588,28 @@ fn check_version_announcement(app: &mut AppState) {
 /// - `app`: Mutable application state to initialize
 /// - `dry_run_flag`: Whether to enable dry-run mode for this session
 /// - `headless`: Whether running in headless/test mode
+/// - `prefs`: Preflighted settings snapshot to apply during initialization
 ///
 /// Output:
 /// - Returns `InitFlags` indicating which caches need background resolution
 ///
 /// Details:
-/// - Loads and migrates configuration files
+/// - Applies startup settings that were preflighted before runtime initialization
 /// - Initializes locale system and translations
 /// - Loads persisted data: recent searches, install list, details cache, dependency/file/service/sandbox caches
 /// - Loads news read URLs and announcement state
 /// - Loads official package index from disk
 /// - Checks for version-embedded announcements
-pub fn initialize_app_state(app: &mut AppState, dry_run_flag: bool, headless: bool) -> InitFlags {
+pub fn initialize_app_state(
+    app: &mut AppState,
+    dry_run_flag: bool,
+    headless: bool,
+    prefs: &crate::theme::Settings,
+) -> InitFlags {
     app.dry_run = if dry_run_flag {
         true
     } else {
-        crate::theme::settings().app_dry_run_default
+        prefs.app_dry_run_default
     };
     app.last_input_change = Instant::now();
 
@@ -598,15 +625,10 @@ pub fn initialize_app_state(app: &mut AppState, dry_run_flag: bool, headless: bo
         "resolved state file paths"
     );
 
-    // Migrate legacy single-file config to split files before reading settings
-    crate::theme::maybe_migrate_legacy_confs();
-    let prefs = crate::theme::settings();
-    // Ensure config has all known settings keys (non-destructive append)
-    crate::theme::ensure_settings_keys_present(&prefs);
-    apply_settings_to_app_state(app, &prefs);
+    apply_settings_to_app_state(app, prefs);
 
     // Initialize locale system
-    initialize_locale_system(app, &prefs.locale, &prefs);
+    initialize_locale_system(app, &prefs.locale, prefs);
 
     check_gnome_terminal(app, headless);
 
@@ -856,7 +878,8 @@ mod tests {
     /// - Tests that `dry_run` flag is properly initialized
     fn initialize_app_state_sets_dry_run_flag() {
         let mut app = new_app();
-        let flags = initialize_app_state(&mut app, true, false);
+        let prefs = crate::theme::settings();
+        let flags = initialize_app_state(&mut app, true, false, &prefs);
 
         assert!(app.dry_run);
         // Flags should be returned (InitFlags struct is created)
@@ -881,7 +904,8 @@ mod tests {
     /// - Tests that settings are properly applied to app state
     fn initialize_app_state_loads_settings() {
         let mut app = new_app();
-        let _flags = initialize_app_state(&mut app, false, false);
+        let prefs = crate::theme::settings();
+        let _flags = initialize_app_state(&mut app, false, false, &prefs);
 
         // Settings should be loaded (values depend on config, but should be set)
         assert!(app.layout_left_pct > 0);

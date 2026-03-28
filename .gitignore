@@ -26,9 +26,6 @@ official_index.json
 install_list.json
 install_log.txt
 installed_packages.txt
-
-RELEASE_v*.md
-Documents/
 exported-assets/
 .jj
 AUR_BUILD/
@@ -50,3 +47,5 @@ clippy_errors.txt
 
 *.pyc
 __pycache__/
+dev/COMMIT/*
+dev/PR/*

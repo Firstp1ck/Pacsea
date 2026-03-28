@@ -25,7 +25,7 @@ mod workers;
 use background::{Channels, spawn_auxiliary_workers, spawn_event_thread};
 use cleanup::cleanup_on_exit;
 use event_loop::run_event_loop;
-use init::{initialize_app_state, trigger_initial_resolutions};
+use init::{initialize_app_state, run_startup_config_preflight, trigger_initial_resolutions};
 
 /// Result type alias for runtime operations.
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
@@ -60,6 +60,9 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>
 pub async fn run(dry_run_flag: bool) -> Result<()> {
     let headless = std::env::var("PACSEA_TEST_HEADLESS").ok().as_deref() == Some("1");
 
+    // Run startup config preflight once before first theme resolution.
+    let prefs = run_startup_config_preflight();
+
     // Force theme resolution BEFORE terminal setup.
     // This is important because theme resolution may query terminal colors via OSC 10/11,
     // which must happen before mouse capture is enabled to avoid input conflicts.
@@ -77,7 +80,7 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
     let mut app = AppState::default();
 
     // Initialize application state (loads settings, caches, etc.)
-    let init_flags = initialize_app_state(&mut app, dry_run_flag, headless);
+    let init_flags = initialize_app_state(&mut app, dry_run_flag, headless, &prefs);
 
     // Create channels and spawn background workers
     let mut channels = Channels::new(app.official_index_path.clone());

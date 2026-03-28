@@ -1,7 +1,9 @@
 #[cfg(test)]
 #[allow(clippy::items_after_test_module, clippy::module_inception)]
 mod tests {
-    use crate::theme::config::settings_ensure::ensure_settings_keys_present;
+    use crate::theme::config::settings_ensure::{
+        ensure_settings_keys_present, ensure_theme_keys_present,
+    };
     use crate::theme::config::settings_save::{
         save_selected_countries, save_show_recent_pane, save_sort_mode,
     };
@@ -53,6 +55,41 @@ mod tests {
         assert!(err.contains("Unknown key"));
         assert!(err.contains("Missing required keys"));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    /// What: Verify `ensure_theme_keys_present` appends skeleton defaults for incomplete theme files.
+    ///
+    /// Inputs:
+    /// - Temporary `HOME` with `theme.conf` containing only one color key.
+    ///
+    /// Output:
+    /// - After ensure, `try_load_theme_with_diagnostics` succeeds (all required keys present).
+    ///
+    /// Details:
+    /// - Uses the same path resolution as the real app (`~/.config/pacsea/theme.conf`).
+    fn ensure_theme_keys_present_fills_missing_from_skeleton() {
+        use std::fs;
+
+        let _guard = crate::theme::test_mutex()
+            .lock()
+            .expect("Test mutex poisoned");
+        let base = std::env::temp_dir().join(format!(
+            "pacsea_test_ensure_theme_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("System time is before UNIX epoch")
+                .as_nanos()
+        ));
+        let pacsea = base.join(".config").join("pacsea");
+        fs::create_dir_all(&pacsea).expect("create pacsea config dir");
+        let theme_path = pacsea.join("theme.conf");
+        fs::write(&theme_path, "base = #111111\n").expect("write partial theme");
+
+        let _home_guard = HomeTestGuard::new(base);
+        ensure_theme_keys_present();
+        try_load_theme_with_diagnostics(&theme_path).expect("theme should load after ensure");
     }
 
     #[test]
@@ -399,68 +436,123 @@ mod tests {
         );
     }
 
-    /// What: Restore original environment variables.
+    /// What: Manage temporary HOME override and cleanup for theme config tests.
     ///
     /// Inputs:
-    /// - Original HOME and `XDG_CONFIG_HOME` values.
+    /// - `base`: Temporary HOME root path created by the test.
     ///
-    /// Output: None
+    /// Output:
+    /// - Guard object that restores `HOME` and removes the temp directory on drop.
     ///
     /// Details:
-    /// - Restores environment variables to their original values or removes them if they were unset.
-    fn restore_env_vars(
+    /// - Ensures panic-safe cleanup so environment state is restored even during unwinding.
+    struct HomeTestGuard {
         orig_home: Option<std::ffi::OsString>,
-        orig_xdg: Option<std::ffi::OsString>,
-    ) {
-        unsafe {
-            if let Some(v) = orig_home {
-                std::env::set_var("HOME", v);
-            } else {
-                std::env::remove_var("HOME");
-            }
-            if let Some(v) = orig_xdg {
-                std::env::set_var("XDG_CONFIG_HOME", v);
-            } else {
-                std::env::remove_var("XDG_CONFIG_HOME");
-            }
+        base: std::path::PathBuf,
+    }
+
+    impl HomeTestGuard {
+        /// What: Create a guard that points `HOME` at a temporary directory.
+        ///
+        /// Inputs:
+        /// - `base`: Temporary directory path to use as `HOME`.
+        ///
+        /// Output:
+        /// - Initialized `HomeTestGuard`.
+        ///
+        /// Details:
+        /// - Captures original `HOME` for restoration in `Drop`.
+        fn new(base: std::path::PathBuf) -> Self {
+            let orig_home = std::env::var_os("HOME");
+            unsafe { std::env::set_var("HOME", base.display().to_string()) };
+            Self { orig_home, base }
         }
     }
 
-    /// What: Setup temporary test environment for settings tests.
+    impl Drop for HomeTestGuard {
+        fn drop(&mut self) {
+            unsafe {
+                if let Some(v) = self.orig_home.as_ref() {
+                    std::env::set_var("HOME", v);
+                } else {
+                    std::env::remove_var("HOME");
+                }
+            }
+            let _ = std::fs::remove_dir_all(&self.base);
+        }
+    }
+
+    /// What: Manage temporary HOME/XDG overrides and cleanup for settings tests.
     ///
     /// Inputs: None
     ///
     /// Output:
-    /// - Tuple of (base directory, config directory, original HOME, original `XDG_CONFIG_HOME`)
+    /// - Guard object with paths for isolated settings tests.
     ///
     /// Details:
-    /// - Creates temporary directory structure and sets environment variables for isolated testing.
-    fn setup_test_environment() -> (
-        std::path::PathBuf,
-        std::path::PathBuf,
-        Option<std::ffi::OsString>,
-        Option<std::ffi::OsString>,
-    ) {
-        use std::fs;
-        let orig_home = std::env::var_os("HOME");
-        let orig_xdg = std::env::var_os("XDG_CONFIG_HOME");
+    /// - Restores `HOME` and `XDG_CONFIG_HOME` and removes the temp tree on drop.
+    struct SettingsEnvGuard {
+        base: std::path::PathBuf,
+        cfg_dir: std::path::PathBuf,
+        orig_home: Option<std::ffi::OsString>,
+        orig_xdg: Option<std::ffi::OsString>,
+    }
 
-        let base = std::env::temp_dir().join(format!(
-            "pacsea_test_config_params_{}_{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .expect("System time is before UNIX epoch")
-                .as_nanos()
-        ));
-        let cfg_dir = base.join(".config").join("pacsea");
-        let _ = fs::create_dir_all(&cfg_dir);
-        unsafe {
-            std::env::set_var("HOME", base.display().to_string());
-            std::env::remove_var("XDG_CONFIG_HOME");
+    impl SettingsEnvGuard {
+        /// What: Create an isolated settings environment using a temporary HOME.
+        ///
+        /// Inputs: None
+        ///
+        /// Output:
+        /// - Initialized `SettingsEnvGuard` with generated temp directories.
+        ///
+        /// Details:
+        /// - Removes `XDG_CONFIG_HOME` so resolution follows HOME-based paths in tests.
+        fn new() -> Self {
+            use std::fs;
+
+            let orig_home = std::env::var_os("HOME");
+            let orig_xdg = std::env::var_os("XDG_CONFIG_HOME");
+            let base = std::env::temp_dir().join(format!(
+                "pacsea_test_config_params_{}_{}",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .expect("System time is before UNIX epoch")
+                    .as_nanos()
+            ));
+            let cfg_dir = base.join(".config").join("pacsea");
+            let _ = fs::create_dir_all(&cfg_dir);
+            unsafe {
+                std::env::set_var("HOME", base.display().to_string());
+                std::env::remove_var("XDG_CONFIG_HOME");
+            }
+
+            Self {
+                base,
+                cfg_dir,
+                orig_home,
+                orig_xdg,
+            }
         }
+    }
 
-        (base, cfg_dir, orig_home, orig_xdg)
+    impl Drop for SettingsEnvGuard {
+        fn drop(&mut self) {
+            unsafe {
+                if let Some(v) = self.orig_home.as_ref() {
+                    std::env::set_var("HOME", v);
+                } else {
+                    std::env::remove_var("HOME");
+                }
+                if let Some(v) = self.orig_xdg.as_ref() {
+                    std::env::set_var("XDG_CONFIG_HOME", v);
+                } else {
+                    std::env::remove_var("XDG_CONFIG_HOME");
+                }
+            }
+            let _ = std::fs::remove_dir_all(&self.base);
+        }
     }
 
     /// What: Test that skeleton config contains all expected keys.
@@ -704,10 +796,10 @@ mod tests {
         let _guard = crate::theme::test_mutex()
             .lock()
             .expect("Test mutex poisoned");
-        let (base, cfg_dir, orig_home, orig_xdg) = setup_test_environment();
+        let env_guard = SettingsEnvGuard::new();
 
         let expected_keys = get_expected_settings_keys();
-        let settings_path = cfg_dir.join("settings.conf");
+        let settings_path = env_guard.cfg_dir.join("settings.conf");
 
         // Test 1: Verify all Settings fields are present in skeleton config
         test_skeleton_contains_all_keys(&expected_keys);
@@ -733,8 +825,7 @@ mod tests {
         // Test 7: Save functions persist values correctly
         test_save_functions_persist(&settings_path);
 
-        // Cleanup
-        restore_env_vars(orig_home, orig_xdg);
-        let _ = fs::remove_dir_all(&base);
+        // Explicit drop keeps cleanup before this test returns, while still panic-safe.
+        drop(env_guard);
     }
 }
