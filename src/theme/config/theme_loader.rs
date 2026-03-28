@@ -7,7 +7,7 @@ use crate::theme::parsing::{apply_override_to_map, canonical_to_preferred};
 use crate::theme::types::Theme;
 
 /// Canonical theme color keys required for a complete palette.
-pub(super) const THEME_REQUIRED_CANONICAL: [&str; 16] = [
+pub const THEME_REQUIRED_CANONICAL: [&str; 16] = [
     "base", "mantle", "crust", "surface1", "surface2", "overlay1", "overlay2", "text", "subtext0",
     "subtext1", "sapphire", "mauve", "green", "yellow", "red", "lavender",
 ];
@@ -75,7 +75,7 @@ fn build_theme_color_map(content: &str, errors: &mut Vec<String>) -> HashMap<Str
 ///
 /// Output:
 /// - Canonical keys present with valid colors after parsing.
-pub(super) fn resolved_theme_canonical_keys(content: &str) -> HashSet<String> {
+pub fn resolved_theme_canonical_keys(content: &str) -> HashSet<String> {
     let mut errors = Vec::new();
     let map = build_theme_color_map(content, &mut errors);
     map.into_keys().collect()
