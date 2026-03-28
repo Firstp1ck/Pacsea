@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 ///
 /// Details:
 /// - Prefers `$HOME/.config/pacsea/theme.conf`, then legacy `pacsea.conf`, and repeats for XDG paths.
-pub(super) fn resolve_theme_config_path() -> Option<PathBuf> {
+pub fn resolve_theme_config_path() -> Option<PathBuf> {
     let home = env::var("HOME").ok();
     let xdg_config = env::var("XDG_CONFIG_HOME").ok();
     let mut candidates: Vec<PathBuf> = Vec::new();

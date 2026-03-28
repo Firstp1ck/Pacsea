@@ -1,7 +1,9 @@
 #[cfg(test)]
 #[allow(clippy::items_after_test_module, clippy::module_inception)]
 mod tests {
-    use crate::theme::config::settings_ensure::ensure_settings_keys_present;
+    use crate::theme::config::settings_ensure::{
+        ensure_settings_keys_present, ensure_theme_keys_present,
+    };
     use crate::theme::config::settings_save::{
         save_selected_countries, save_show_recent_pane, save_sort_mode,
     };
@@ -53,6 +55,51 @@ mod tests {
         assert!(err.contains("Unknown key"));
         assert!(err.contains("Missing required keys"));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    /// What: Verify `ensure_theme_keys_present` appends skeleton defaults for incomplete theme files.
+    ///
+    /// Inputs:
+    /// - Temporary `HOME` with `theme.conf` containing only one color key.
+    ///
+    /// Output:
+    /// - After ensure, `try_load_theme_with_diagnostics` succeeds (all required keys present).
+    ///
+    /// Details:
+    /// - Uses the same path resolution as the real app (`~/.config/pacsea/theme.conf`).
+    fn ensure_theme_keys_present_fills_missing_from_skeleton() {
+        use std::fs;
+
+        let _guard = crate::theme::test_mutex()
+            .lock()
+            .expect("Test mutex poisoned");
+        let orig_home = std::env::var_os("HOME");
+        let base = std::env::temp_dir().join(format!(
+            "pacsea_test_ensure_theme_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("System time is before UNIX epoch")
+                .as_nanos()
+        ));
+        let pacsea = base.join(".config").join("pacsea");
+        fs::create_dir_all(&pacsea).expect("create pacsea config dir");
+        let theme_path = pacsea.join("theme.conf");
+        fs::write(&theme_path, "base = #111111\n").expect("write partial theme");
+
+        unsafe { std::env::set_var("HOME", base.display().to_string()) };
+        ensure_theme_keys_present();
+        try_load_theme_with_diagnostics(&theme_path).expect("theme should load after ensure");
+
+        unsafe {
+            if let Some(v) = orig_home {
+                std::env::set_var("HOME", v);
+            } else {
+                std::env::remove_var("HOME");
+            }
+        }
+        let _ = fs::remove_dir_all(&base);
     }
 
     #[test]

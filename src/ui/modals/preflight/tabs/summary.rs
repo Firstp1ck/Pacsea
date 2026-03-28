@@ -98,6 +98,14 @@ struct IncompleteLogState {
     dependency_info_count: usize,
 }
 
+/// What: Emit a debug log when the incomplete-data indicator snapshot changes.
+///
+/// Inputs:
+/// - `state`: Current incomplete-data log snapshot used for change detection.
+///
+/// Output: None.
+///
+/// Details: Uses a `ChangeLogger` so identical consecutive frames are not logged.
 fn log_incomplete_state(state: &IncompleteLogState) {
     static LOGGER: OnceLock<Mutex<ChangeLogger<IncompleteLogState>>> = OnceLock::new();
     let mut logger = LOGGER

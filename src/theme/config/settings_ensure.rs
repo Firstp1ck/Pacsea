@@ -5,7 +5,12 @@ use std::path::Path;
 use crate::theme::config::skeletons::{
     KEYBINDS_SKELETON_CONTENT, SETTINGS_SKELETON_CONTENT, THEME_SKELETON_CONTENT,
 };
-use crate::theme::paths::{config_dir, resolve_keybinds_config_path, resolve_settings_config_path};
+use crate::theme::config::theme_loader::{THEME_REQUIRED_CANONICAL, resolved_theme_canonical_keys};
+use crate::theme::parsing::canonical_for_key;
+use crate::theme::paths::{
+    config_dir, resolve_keybinds_config_path, resolve_settings_config_path,
+    resolve_theme_config_path,
+};
 use crate::theme::types::Settings;
 
 /// What: Convert a boolean value to a config string.
@@ -526,6 +531,88 @@ fn ensure_keybinds_present(keybinds_path: &Path) {
 
     let new_content = new_lines.join("\n");
     let _ = fs::write(keybinds_path, new_content);
+}
+
+/// What: Ensure `theme.conf` (or legacy theme file) defines every required theme key, appending skeleton defaults for any gaps.
+///
+/// Inputs:
+/// - None.
+///
+/// Output:
+/// - None.
+///
+/// Details:
+/// - Resolves the same path as theme loading (`resolve_theme_config_path` or `config_dir()/theme.conf`).
+/// - Writes the full theme skeleton when the file is missing or empty.
+/// - Otherwise appends `key = value` lines from `THEME_SKELETON_CONTENT` for each missing canonical color.
+/// - Must run before the first `theme()` load so incomplete files are repaired on disk first.
+pub fn ensure_theme_keys_present() {
+    let p = resolve_theme_config_path().unwrap_or_else(|| config_dir().join("theme.conf"));
+    if let Some(dir) = p.parent() {
+        let _ = fs::create_dir_all(dir);
+    }
+
+    let meta = fs::metadata(&p).ok();
+    let file_missing = meta.is_none();
+    let file_empty = meta.is_none_or(|m| m.len() == 0);
+
+    if file_missing || file_empty {
+        let _ = fs::write(&p, THEME_SKELETON_CONTENT);
+        return;
+    }
+
+    let Ok(content) = fs::read_to_string(&p) else {
+        return;
+    };
+
+    let have = resolved_theme_canonical_keys(&content);
+    let missing: Vec<&str> = THEME_REQUIRED_CANONICAL
+        .iter()
+        .copied()
+        .filter(|k| !have.contains(*k))
+        .collect();
+
+    if missing.is_empty() {
+        return;
+    }
+
+    let mut defaults: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    for line in THEME_SKELETON_CONTENT.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with("//") {
+            continue;
+        }
+        if !trimmed.contains('=') {
+            continue;
+        }
+        let mut parts = trimmed.splitn(2, '=');
+        let raw_key = parts.next().unwrap_or("").trim();
+        let norm = raw_key.to_lowercase().replace(['.', '-', ' '], "_");
+        let Some(canon) = canonical_for_key(&norm) else {
+            continue;
+        };
+        defaults
+            .entry(canon.to_string())
+            .or_insert_with(|| trimmed.to_string());
+    }
+
+    let mut lines: Vec<String> = content.lines().map(ToString::to_string).collect();
+    if !lines.is_empty() && !lines.last().is_some_and(|l| l.trim().is_empty()) {
+        lines.push(String::new());
+    }
+    lines.push("# Missing theme keys added automatically".to_string());
+    lines.push(String::new());
+    for canon in missing {
+        if let Some(line) = defaults.get(canon) {
+            lines.push(line.clone());
+        } else {
+            tracing::warn!(
+                canon = canon,
+                "theme skeleton had no default line for missing canonical key"
+            );
+        }
+    }
+    let _ = fs::write(&p, lines.join("\n"));
 }
 
 /// What: Migrate legacy `pacsea.conf` into the split `theme.conf` and `settings.conf` files.

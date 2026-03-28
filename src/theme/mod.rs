@@ -23,8 +23,8 @@ mod terminal_query;
 mod types;
 
 pub use config::{
-    ensure_settings_keys_present, maybe_migrate_legacy_confs, save_app_start_mode,
-    save_fuzzy_search, save_mirror_count, save_news_filter_installed_only,
+    ensure_settings_keys_present, ensure_theme_keys_present, maybe_migrate_legacy_confs,
+    save_app_start_mode, save_fuzzy_search, save_mirror_count, save_news_filter_installed_only,
     save_news_filter_show_advisories, save_news_filter_show_arch_news,
     save_news_filter_show_aur_comments, save_news_filter_show_aur_updates,
     save_news_filter_show_pkg_updates, save_news_filters_collapsed, save_news_max_age_days,
