@@ -25,7 +25,7 @@ mod workers;
 use background::{Channels, spawn_auxiliary_workers, spawn_event_thread};
 use cleanup::cleanup_on_exit;
 use event_loop::run_event_loop;
-use init::{initialize_app_state, trigger_initial_resolutions};
+use init::{initialize_app_state, run_startup_config_preflight, trigger_initial_resolutions};
 
 /// Result type alias for runtime operations.
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
@@ -60,12 +60,8 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>
 pub async fn run(dry_run_flag: bool) -> Result<()> {
     let headless = std::env::var("PACSEA_TEST_HEADLESS").ok().as_deref() == Some("1");
 
-    // Migrate legacy configs, fill missing keys from skeletons, then refresh settings from disk
-    // so the first theme load sees a complete theme.conf and up-to-date settings.conf.
-    crate::theme::maybe_migrate_legacy_confs();
-    crate::theme::ensure_theme_keys_present();
-    let prefs = crate::theme::settings();
-    crate::theme::ensure_settings_keys_present(&prefs);
+    // Run startup config preflight once before first theme resolution.
+    let prefs = run_startup_config_preflight();
 
     // Force theme resolution BEFORE terminal setup.
     // This is important because theme resolution may query terminal colors via OSC 10/11,
@@ -84,7 +80,7 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
     let mut app = AppState::default();
 
     // Initialize application state (loads settings, caches, etc.)
-    let init_flags = initialize_app_state(&mut app, dry_run_flag, headless);
+    let init_flags = initialize_app_state(&mut app, dry_run_flag, headless, &prefs);
 
     // Create channels and spawn background workers
     let mut channels = Channels::new(app.official_index_path.clone());
