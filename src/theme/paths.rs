@@ -206,6 +206,53 @@ pub fn lists_dir() -> PathBuf {
 
 #[cfg(test)]
 mod tests {
+    /// What: Manage temporary HOME override for path resolution tests.
+    ///
+    /// Inputs:
+    /// - `base`: Temporary HOME root directory.
+    ///
+    /// Output:
+    /// - Guard that restores `HOME` and removes temp directory on drop.
+    ///
+    /// Details:
+    /// - Provides panic-safe cleanup for tests mutating process-wide environment.
+    struct HomeTestGuard {
+        orig_home: Option<std::ffi::OsString>,
+        base: std::path::PathBuf,
+    }
+
+    impl HomeTestGuard {
+        /// What: Create a HOME override guard for test isolation.
+        ///
+        /// Inputs:
+        /// - `base`: Temporary path to use as `HOME`.
+        ///
+        /// Output:
+        /// - Initialized `HomeTestGuard`.
+        ///
+        /// Details:
+        /// - Captures original HOME and applies test HOME immediately.
+        fn new(base: std::path::PathBuf) -> Self {
+            let orig_home = std::env::var_os("HOME");
+            let _ = std::fs::create_dir_all(&base);
+            unsafe { std::env::set_var("HOME", base.display().to_string()) };
+            Self { orig_home, base }
+        }
+    }
+
+    impl Drop for HomeTestGuard {
+        fn drop(&mut self) {
+            unsafe {
+                if let Some(v) = self.orig_home.as_ref() {
+                    std::env::set_var("HOME", v);
+                } else {
+                    std::env::remove_var("HOME");
+                }
+            }
+            let _ = std::fs::remove_dir_all(&self.base);
+        }
+    }
+
     #[test]
     /// What: Verify path helpers resolve under the Pacsea config directory rooted at `HOME`.
     ///
@@ -221,7 +268,6 @@ mod tests {
         let _guard = crate::theme::test_mutex()
             .lock()
             .expect("Test mutex poisoned");
-        let orig_home = std::env::var_os("HOME");
         let base = std::env::temp_dir().join(format!(
             "pacsea_test_paths_{}_{}",
             std::process::id(),
@@ -230,20 +276,12 @@ mod tests {
                 .expect("System time is before UNIX epoch")
                 .as_nanos()
         ));
-        let _ = std::fs::create_dir_all(&base);
-        unsafe { std::env::set_var("HOME", base.display().to_string()) };
+        let _home_guard = HomeTestGuard::new(base);
         let cfg = super::config_dir();
         let logs = super::logs_dir();
         let lists = super::lists_dir();
         assert!(cfg.ends_with("pacsea"));
         assert!(logs.ends_with("logs"));
         assert!(lists.ends_with("lists"));
-        unsafe {
-            if let Some(v) = orig_home {
-                std::env::set_var("HOME", v);
-            } else {
-                std::env::remove_var("HOME");
-            }
-        }
     }
 }
