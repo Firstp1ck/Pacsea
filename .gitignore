@@ -50,3 +50,4 @@ clippy_errors.txt
 
 *.pyc
 __pycache__/
+dev/COMMIT/*
