@@ -136,3 +136,47 @@ pub fn try_load_theme_with_diagnostics(path: &Path) -> Result<Theme, String> {
         Err(errors.join("\n"))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::try_load_theme_with_diagnostics;
+
+    /// What: Verify the shipped `config/theme.conf` parses successfully via diagnostics loader.
+    ///
+    /// Inputs:
+    /// - Theme config text loaded from `CARGO_MANIFEST_DIR/config/theme.conf`.
+    ///
+    /// Output:
+    /// - Loader returns `Ok(Theme)` for the shipped configuration.
+    ///
+    /// Details:
+    /// - Copies shipped file content to a temporary file path so the loader exercises
+    ///   real file I/O behavior instead of in-memory parsing.
+    #[test]
+    fn shipped_theme_conf_parses_successfully() {
+        let shipped_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("config")
+            .join("theme.conf");
+        let shipped_content = std::fs::read_to_string(&shipped_path).unwrap_or_else(|error| {
+            panic!(
+                "failed reading shipped theme config {}: {error}",
+                shipped_path.display()
+            )
+        });
+
+        let temp_dir = tempfile::TempDir::new().expect("temp dir should be creatable");
+        let temp_theme_path = temp_dir.path().join("theme.conf");
+        std::fs::write(&temp_theme_path, shipped_content).unwrap_or_else(|error| {
+            panic!(
+                "failed writing temporary theme config {}: {error}",
+                temp_theme_path.display()
+            )
+        });
+
+        let result = try_load_theme_with_diagnostics(&temp_theme_path);
+        assert!(
+            result.is_ok(),
+            "shipped config/theme.conf should parse, got: {result:?}"
+        );
+    }
+}
