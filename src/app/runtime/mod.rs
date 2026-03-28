@@ -60,6 +60,13 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>
 pub async fn run(dry_run_flag: bool) -> Result<()> {
     let headless = std::env::var("PACSEA_TEST_HEADLESS").ok().as_deref() == Some("1");
 
+    // Migrate legacy configs, fill missing keys from skeletons, then refresh settings from disk
+    // so the first theme load sees a complete theme.conf and up-to-date settings.conf.
+    crate::theme::maybe_migrate_legacy_confs();
+    crate::theme::ensure_theme_keys_present();
+    let prefs = crate::theme::settings();
+    crate::theme::ensure_settings_keys_present(&prefs);
+
     // Force theme resolution BEFORE terminal setup.
     // This is important because theme resolution may query terminal colors via OSC 10/11,
     // which must happen before mouse capture is enabled to avoid input conflicts.

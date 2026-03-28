@@ -65,6 +65,14 @@ struct FilesLogState {
     package_summaries: Vec<FilePackageSummary>,
 }
 
+/// What: Emit a debug log when the files-tab render snapshot changes.
+///
+/// Inputs:
+/// - `state`: Current files-tab log snapshot used for change detection.
+///
+/// Output: None.
+///
+/// Details: Uses a `ChangeLogger` so identical consecutive frames are not logged.
 fn log_files_state(state: &FilesLogState) {
     static LOGGER: OnceLock<Mutex<ChangeLogger<FilesLogState>>> = OnceLock::new();
     let mut logger = LOGGER

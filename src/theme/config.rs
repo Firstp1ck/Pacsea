@@ -41,4 +41,6 @@ pub use settings_save::{
 };
 
 // Re-export settings ensure/migration functions
-pub use settings_ensure::{ensure_settings_keys_present, maybe_migrate_legacy_confs};
+pub use settings_ensure::{
+    ensure_settings_keys_present, ensure_theme_keys_present, maybe_migrate_legacy_confs,
+};
