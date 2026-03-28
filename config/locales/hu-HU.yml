@@ -294,6 +294,7 @@ hu-HU:
         artix_galaxy: "GALAXY"
         artix_world: "WORLD"
         artix_system: "SYSTEM"
+        blackarch: "BlackArch"
         manjaro: "Manjaro"
       sort_menu:
         title: "Rendezés"

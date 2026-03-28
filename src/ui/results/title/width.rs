@@ -51,6 +51,10 @@ pub(super) fn calculate_optional_repos_width(
         width = width
             .saturating_add(1 + u16::try_from(labels.artix_system.width()).unwrap_or(u16::MAX));
     }
+    if repos.has_blackarch {
+        width =
+            width.saturating_add(1 + u16::try_from(labels.blackarch.width()).unwrap_or(u16::MAX));
+    }
     if repos.has_manjaro {
         width = width.saturating_add(1 + u16::try_from(labels.manjaro.width()).unwrap_or(u16::MAX));
     }
@@ -109,6 +113,7 @@ pub(super) fn create_repos_without_specific(optional_repos: &OptionalRepos) -> O
         has_artix_galaxy: false,
         has_artix_world: false,
         has_artix_system: false,
+        has_blackarch: optional_repos.has_blackarch,
         has_manjaro: optional_repos.has_manjaro,
     }
 }

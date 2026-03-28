@@ -10,7 +10,7 @@
 /// - `true` when the repository passes the active filters; otherwise `false`.
 ///
 /// Details:
-/// - Normalizes repository names and applies special-handling for EOS/CachyOS/Artix classification helpers.
+/// - Normalizes repository names and applies special-handling for EOS/CachyOS/Artix/BlackArch classification helpers.
 /// - Unknown repositories are only allowed when every official filter is enabled simultaneously.
 #[must_use]
 pub fn repo_toggle_for(repo: &str, app: &crate::state::AppState) -> bool {
@@ -40,6 +40,8 @@ pub fn repo_toggle_for(repo: &str, app: &crate::state::AppState) -> bool {
     } else if crate::index::is_artix_repo(&r) {
         // Fallback for any other Artix repo (shouldn't happen, but safe)
         app.results_filter_show_artix
+    } else if crate::index::is_blackarch_repo(&r) {
+        app.results_filter_show_blackarch
     } else {
         // Unknown official repo: include only when all official filters are enabled
         app.results_filter_show_core
@@ -54,6 +56,7 @@ pub fn repo_toggle_for(repo: &str, app: &crate::state::AppState) -> bool {
             && app.results_filter_show_artix_galaxy
             && app.results_filter_show_artix_world
             && app.results_filter_show_artix_system
+            && app.results_filter_show_blackarch
     }
 }
 
@@ -68,8 +71,8 @@ pub fn repo_toggle_for(repo: &str, app: &crate::state::AppState) -> bool {
 /// - Returns a display label describing the ecosystem the package belongs to.
 ///
 /// Details:
-/// - Distinguishes `EndeavourOS`, `CachyOS`, and `Artix Linux` repos (with specific labels for each Artix repo:
-///   `OMNI`, `UNI`, `LIB32`, `GALAXY`, `WORLD`, `SYSTEM`), and detects `Manjaro` branding by name/owner heuristics.
+/// - Distinguishes `EndeavourOS`, `CachyOS`, `Artix Linux` repos (with specific labels for each Artix repo:
+///   `OMNI`, `UNI`, `LIB32`, `GALAXY`, `WORLD`, `SYSTEM`), `BlackArch`, and detects `Manjaro` branding by name/owner heuristics.
 /// - Falls back to the raw repository string when no special classification matches.
 #[must_use]
 pub fn label_for_official(repo: &str, name: &str, owner: &str) -> String {
@@ -93,6 +96,8 @@ pub fn label_for_official(repo: &str, name: &str, owner: &str) -> String {
     } else if crate::index::is_artix_repo(&r) {
         // Fallback for any other Artix repo (shouldn't happen, but safe)
         "Artix".to_string()
+    } else if crate::index::is_blackarch_repo(&r) {
+        "BlackArch".to_string()
     } else if crate::index::is_manjaro_name_or_owner(name, owner) {
         "Manjaro".to_string()
     } else {
@@ -189,7 +194,65 @@ mod tests {
         assert_eq!(label_for_official("cachyos-extra", "pkg", ""), "CachyOS");
         assert_eq!(label_for_official("omniverse", "pkg", ""), "OMNI");
         assert_eq!(label_for_official("universe", "pkg", ""), "UNI");
+        assert_eq!(label_for_official("blackarch", "pkg", ""), "BlackArch");
         assert_eq!(label_for_official("extra", "manjaro-kernel", ""), "Manjaro");
         assert_eq!(label_for_official("core", "glibc", ""), "core");
+    }
+
+    #[test]
+    /// What: Validate `BlackArch` toggle routes through its dedicated flag.
+    ///
+    /// Inputs:
+    /// - `app`: Application state with `BlackArch` enabled, then disabled.
+    ///
+    /// Output:
+    /// - `repo_toggle_for("blackarch", ...)` respects the `results_filter_show_blackarch` flag.
+    ///
+    /// Details:
+    /// - Exercises the `BlackArch` branch in `repo_toggle_for`.
+    fn repo_toggle_blackarch_flag() {
+        let mut app = AppState {
+            results_filter_show_blackarch: true,
+            ..Default::default()
+        };
+        assert!(repo_toggle_for("blackarch", &app));
+        assert!(repo_toggle_for("BlackArch", &app));
+
+        app.results_filter_show_blackarch = false;
+        assert!(!repo_toggle_for("blackarch", &app));
+    }
+
+    #[test]
+    /// What: Ensure unknown-repo fallback includes `BlackArch` in its all-on requirement.
+    ///
+    /// Inputs:
+    /// - `app`: Application state with all official flags on, then `BlackArch` disabled.
+    ///
+    /// Output:
+    /// - Unknown repo rejected when `BlackArch` flag is off.
+    ///
+    /// Details:
+    /// - Verifies the extended conjunction in the fallback clause.
+    fn repo_toggle_unknown_includes_blackarch_flag() {
+        let mut app = AppState {
+            results_filter_show_core: true,
+            results_filter_show_extra: true,
+            results_filter_show_multilib: true,
+            results_filter_show_eos: true,
+            results_filter_show_cachyos: true,
+            results_filter_show_artix: true,
+            results_filter_show_artix_omniverse: true,
+            results_filter_show_artix_universe: true,
+            results_filter_show_artix_lib32: true,
+            results_filter_show_artix_galaxy: true,
+            results_filter_show_artix_world: true,
+            results_filter_show_artix_system: true,
+            results_filter_show_blackarch: true,
+            ..Default::default()
+        };
+        assert!(repo_toggle_for("unlisted", &app));
+
+        app.results_filter_show_blackarch = false;
+        assert!(!repo_toggle_for("unlisted", &app));
     }
 }
