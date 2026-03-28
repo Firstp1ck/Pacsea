@@ -102,6 +102,14 @@ struct SandboxLogState {
     has_error: bool,
 }
 
+/// What: Emit a debug log when the sandbox-tab render snapshot changes.
+///
+/// Inputs:
+/// - `state`: Current sandbox-tab log snapshot used for change detection.
+///
+/// Output: None.
+///
+/// Details: Uses a `ChangeLogger` so identical consecutive frames are not logged.
 fn log_sandbox_state(state: &SandboxLogState) {
     static LOGGER: OnceLock<Mutex<ChangeLogger<SandboxLogState>>> = OnceLock::new();
     let mut logger = LOGGER
