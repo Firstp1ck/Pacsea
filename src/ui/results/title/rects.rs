@@ -160,6 +160,17 @@ fn record_optional_repo_rects(
         app.results_filter_artix_system_rect = None;
     }
 
+    // Record BlackArch filter
+    if optional_repos.has_blackarch {
+        app.results_filter_blackarch_rect = Some(layout.record_rect(&optional_labels.blackarch));
+        layout.advance(
+            u16::try_from(optional_labels.blackarch.width()).unwrap_or(u16::MAX),
+            1,
+        );
+    } else {
+        app.results_filter_blackarch_rect = None;
+    }
+
     // Record Manjaro filter
     if optional_repos.has_manjaro {
         app.results_filter_manjaro_rect = Some(layout.record_rect(&optional_labels.manjaro));

@@ -55,7 +55,7 @@ pub(super) fn default_paths() -> (
 
 /// Type alias for default filter state tuple.
 ///
-/// Contains 13 boolean flags for repository filters and an array of 13 optional rects.
+/// Contains 14 boolean flags for repository filters and an array of 14 optional rects.
 pub(super) type DefaultFilters = (
     bool,
     bool,
@@ -70,7 +70,8 @@ pub(super) type DefaultFilters = (
     bool,
     bool,
     bool,
-    [Option<(u16, u16, u16, u16)>; 13],
+    bool,
+    [Option<(u16, u16, u16, u16)>; 14],
 );
 
 /// Type alias for default search state tuple.
@@ -433,7 +434,8 @@ pub(super) const fn default_filters() -> DefaultFilters {
         true,       // show_artix_galaxy
         true,       // show_artix_world
         true,       // show_artix_system
-        [None; 13], // filter rects
+        true,       // show_blackarch
+        [None; 14], // filter rects
     )
 }
 

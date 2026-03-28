@@ -44,6 +44,8 @@ pub(super) struct TitleI18nStrings {
     pub(super) filter_artix_world: String,
     /// Translated Artix System repository filter text.
     pub(super) filter_artix_system: String,
+    /// Translated `BlackArch` repository filter text.
+    pub(super) filter_blackarch: String,
     /// Translated Manjaro repository filter text.
     pub(super) filter_manjaro: String,
 }
@@ -74,6 +76,8 @@ pub(super) struct OptionalReposLabels {
     pub(super) artix_world: String,
     /// Artix System repository label.
     pub(super) artix_system: String,
+    /// `BlackArch` repository label.
+    pub(super) blackarch: String,
     /// Manjaro repository label.
     pub(super) manjaro: String,
 }

@@ -181,6 +181,7 @@ pub(super) fn calculate_title_layout_info(
         artix_galaxy: format!("[{}]", i18n.filter_artix_galaxy),
         artix_world: format!("[{}]", i18n.filter_artix_world),
         artix_system: format!("[{}]", i18n.filter_artix_system),
+        blackarch: format!("[{}]", i18n.filter_blackarch),
         manjaro: format!("[{}]", i18n.filter_manjaro),
     };
 

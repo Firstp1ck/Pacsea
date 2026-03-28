@@ -69,6 +69,8 @@ pub struct OptionalRepos {
     pub has_artix_world: bool,
     /// Whether `Artix System` repository is available.
     pub has_artix_system: bool,
+    /// Whether `BlackArch` repository is available.
+    pub has_blackarch: bool,
     /// Whether `Manjaro` repository is available.
     pub has_manjaro: bool,
 }
@@ -129,6 +131,8 @@ pub struct FilterStates {
     pub show_artix_world: bool,
     /// Whether to show `Artix System` repository packages.
     pub show_artix_system: bool,
+    /// Whether to show `BlackArch` repository packages.
+    pub show_blackarch: bool,
     /// Whether to show `Manjaro` repository packages.
     pub show_manjaro: bool,
 }
@@ -373,6 +377,10 @@ mod tests {
         translations.insert(
             "app.results.filters.artix_system".to_string(),
             "SYSTEM".to_string(),
+        );
+        translations.insert(
+            "app.results.filters.blackarch".to_string(),
+            "BlackArch".to_string(),
         );
         translations.insert(
             "app.results.filters.manjaro".to_string(),

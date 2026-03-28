@@ -172,6 +172,33 @@ pub const fn artix_repo_names() -> &'static [&'static str] {
     ]
 }
 
+/// What: Check if a repo name belongs to `BlackArch`
+///
+/// Input:
+/// - `repo` repository name
+///
+/// Output:
+/// - `true` if it matches "blackarch" (case-insensitive)
+///
+/// Details:
+/// - Lowercases and checks exact equality.
+#[must_use]
+pub const fn is_blackarch_repo(repo: &str) -> bool {
+    repo.eq_ignore_ascii_case("blackarch")
+}
+
+#[cfg(not(target_os = "windows"))]
+/// What: Known `BlackArch` repo names usable with pacman -Sl
+///
+/// Output:
+/// - Static slice of repo names
+///
+/// Details:
+/// - Returns `["blackarch"]`.
+pub const fn blackarch_repo_names() -> &'static [&'static str] {
+    &["blackarch"]
+}
+
 /// What: Heuristic to treat a name as EndeavourOS-branded
 ///
 /// Input:
@@ -259,6 +286,27 @@ mod tests {
         assert!(super::is_eos_name("eos-hello"));
         assert!(super::is_eos_name("my-eos-helper"));
         assert!(!super::is_eos_name("hello"));
+    }
+
+    #[test]
+    /// What: Confirm repo heuristics for `BlackArch`.
+    ///
+    /// Inputs:
+    /// - Various repo strings spanning expected matches and misses.
+    ///
+    /// Output:
+    /// - Assertions that only `BlackArch` repo returns true.
+    ///
+    /// Details:
+    /// - Checks case-insensitive exact matching.
+    fn blackarch_repo_rules() {
+        assert!(super::is_blackarch_repo("blackarch"));
+        assert!(super::is_blackarch_repo("BlackArch"));
+        assert!(super::is_blackarch_repo("BLACKARCH"));
+        assert!(!super::is_blackarch_repo("blackarch-extra"));
+        assert!(!super::is_blackarch_repo("core"));
+        assert!(!super::is_blackarch_repo("cachyos"));
+        assert!(!super::is_blackarch_repo("eos"));
     }
 
     #[test]

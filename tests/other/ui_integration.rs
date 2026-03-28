@@ -75,6 +75,10 @@ fn init_test_translations(app: &mut AppState) {
         "SYSTEM".to_string(),
     );
     translations.insert(
+        "app.results.filters.blackarch".to_string(),
+        "BlackArch".to_string(),
+    );
+    translations.insert(
         "app.results.filters.manjaro".to_string(),
         "Manjaro".to_string(),
     );

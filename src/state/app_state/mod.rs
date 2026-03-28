@@ -567,6 +567,8 @@ pub struct AppState {
     pub results_filter_show_artix_world: bool,
     /// Whether to include packages from Artix system repo in the Results view.
     pub results_filter_show_artix_system: bool,
+    /// Whether to include packages from the `blackarch` repo in the Results view.
+    pub results_filter_show_blackarch: bool,
     /// Whether to include packages labeled as `manjaro` in the Results view.
     pub results_filter_show_manjaro: bool,
     /// Clickable rectangle for the AUR filter toggle in the Results title (x, y, w, h).
@@ -595,6 +597,8 @@ pub struct AppState {
     pub results_filter_artix_world_rect: Option<(u16, u16, u16, u16)>,
     /// Clickable rectangle for the Artix system filter toggle in the Results title (x, y, w, h).
     pub results_filter_artix_system_rect: Option<(u16, u16, u16, u16)>,
+    /// Clickable rectangle for the `BlackArch` filter toggle in the Results title (x, y, w, h).
+    pub results_filter_blackarch_rect: Option<(u16, u16, u16, u16)>,
     /// Clickable rectangle for the Manjaro filter toggle in the Results title (x, y, w, h).
     pub results_filter_manjaro_rect: Option<(u16, u16, u16, u16)>,
     /// Clickable rectangle for the fuzzy search mode indicator in the Search title (x, y, w, h).

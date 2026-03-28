@@ -297,6 +297,35 @@ pub(super) fn render_artix_specific_filters(
     spans
 }
 
+/// What: Render `BlackArch` filter.
+///
+/// Inputs:
+/// - `i18n`: Pre-computed i18n strings
+/// - `optional_repos`: Optional repository availability flags
+/// - `filter_states`: Filter toggle states
+///
+/// Output: Vector of spans for `BlackArch` filter.
+///
+/// Details: Renders `BlackArch` filter if available.
+pub(super) fn render_blackarch_filter(
+    i18n: &TitleI18nStrings,
+    optional_repos: &OptionalRepos,
+    filter_states: &FilterStates,
+) -> Vec<Span<'static>> {
+    let filt = create_filter_renderer();
+    let mut spans = Vec::new();
+    if let Some(span) = render_optional_filter(
+        optional_repos.has_blackarch,
+        &i18n.filter_blackarch,
+        filter_states.show_blackarch,
+        &filt,
+    ) {
+        spans.push(Span::raw(" "));
+        spans.push(span);
+    }
+    spans
+}
+
 /// What: Render Manjaro filter.
 ///
 /// Inputs:

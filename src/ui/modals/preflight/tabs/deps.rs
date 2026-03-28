@@ -552,6 +552,7 @@ fn render_dependency_item(
             let repo_lower = repo.to_lowercase();
             let color = if crate::index::is_eos_repo(&repo_lower)
                 || crate::index::is_cachyos_repo(&repo_lower)
+                || crate::index::is_blackarch_repo(&repo_lower)
             {
                 th.sapphire
             } else {

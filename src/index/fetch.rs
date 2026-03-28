@@ -1,7 +1,7 @@
 #[cfg(not(windows))]
 use super::OfficialPkg;
 #[cfg(not(windows))]
-use super::distro::{artix_repo_names, cachyos_repo_names, eos_repo_names};
+use super::distro::{artix_repo_names, blackarch_repo_names, cachyos_repo_names, eos_repo_names};
 
 /// What: Fetch a minimal list of official packages using `pacman -Sl`.
 ///
@@ -13,8 +13,8 @@ use super::distro::{artix_repo_names, cachyos_repo_names, eos_repo_names};
 ///   are empty for speed. The result is deduplicated by `(repo, name)`.
 ///
 /// Details:
-/// - Combines results from core, extra, multilib, `EndeavourOS`, `CachyOS`, and `Artix Linux` repositories before
-///   sorting and deduplicating entries.
+/// - Combines results from core, extra, multilib, `EndeavourOS`, `CachyOS`, `Artix Linux`, and
+///   `BlackArch` repositories before sorting and deduplicating entries.
 #[cfg(not(windows))]
 pub async fn fetch_official_pkg_names()
 -> Result<Vec<OfficialPkg>, Box<dyn std::error::Error + Send + Sync>> {
@@ -68,12 +68,24 @@ pub async fn fetch_official_pkg_names()
                 .unwrap_or_default();
         artix_pairs.push((repo, body));
     }
+    // BlackArch: attempt known repo names; missing ones yield empty output
+    let mut blackarch_pairs: Vec<(&str, String)> = Vec::new();
+    for &repo in blackarch_repo_names() {
+        let body =
+            tokio::task::spawn_blocking(move || crate::util::pacman::run_pacman(&["-Sl", repo]))
+                .await
+                .ok()
+                .and_then(Result::ok)
+                .unwrap_or_default();
+        blackarch_pairs.push((repo, body));
+    }
     let mut pkgs: Vec<OfficialPkg> = Vec::new();
     for (repo, text) in [("core", core), ("extra", extra), ("multilib", multilib)]
         .into_iter()
         .chain(eos_pairs.into_iter())
         .chain(cach_pairs.into_iter())
         .chain(artix_pairs.into_iter())
+        .chain(blackarch_pairs.into_iter())
     {
         for line in text.lines() {
             // Format: "repo pkgname version [installed]"
