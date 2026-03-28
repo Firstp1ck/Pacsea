@@ -4,9 +4,6 @@ mod tests {
     use crate::theme::config::settings_ensure::{
         ensure_settings_keys_present, ensure_theme_keys_present,
     };
-    use crate::theme::config::settings_ensure::{
-        ensure_settings_keys_present, ensure_theme_keys_present,
-    };
     use crate::theme::config::settings_save::{
         save_selected_countries, save_show_recent_pane, save_sort_mode,
     };
@@ -77,6 +74,7 @@ mod tests {
         let _guard = crate::theme::test_mutex()
             .lock()
             .expect("Test mutex poisoned");
+        let orig_home = std::env::var_os("HOME");
         let base = std::env::temp_dir().join(format!(
             "pacsea_test_ensure_theme_{}_{}",
             std::process::id(),
@@ -90,9 +88,18 @@ mod tests {
         let theme_path = pacsea.join("theme.conf");
         fs::write(&theme_path, "base = #111111\n").expect("write partial theme");
 
-        let _home_guard = HomeTestGuard::new(base);
+        unsafe { std::env::set_var("HOME", base.display().to_string()) };
         ensure_theme_keys_present();
         try_load_theme_with_diagnostics(&theme_path).expect("theme should load after ensure");
+
+        unsafe {
+            if let Some(v) = orig_home {
+                std::env::set_var("HOME", v);
+            } else {
+                std::env::remove_var("HOME");
+            }
+        }
+        let _ = fs::remove_dir_all(&base);
     }
 
     #[test]
