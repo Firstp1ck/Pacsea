@@ -442,7 +442,7 @@ mod tests {
     /// - `base`: Temporary HOME root path created by the test.
     ///
     /// Output:
-    /// - Guard object that restores `HOME` and removes the temp directory on drop.
+    /// - Guard object that restores `HOME` and `XDG_CONFIG_HOME` and removes the temp directory on drop.
     ///
     /// Details:
     /// - Clears `XDG_CONFIG_HOME` while active so path resolution cannot read the developer's real
