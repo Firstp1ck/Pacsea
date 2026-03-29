@@ -904,8 +904,20 @@ fn render_removal_plan(
     let plan_header_style = Style::default()
         .fg(th.overlay1)
         .add_modifier(Modifier::BOLD);
+    let tool = match crate::logic::privilege::active_tool() {
+        Ok(t) => t,
+        Err(msg) => {
+            return vec![
+                Line::from(Span::styled(
+                    i18n::t(app, "app.modals.preflight.summary.removal_plan_preview"),
+                    plan_header_style,
+                )),
+                Line::from(Span::styled(msg, Style::default().fg(th.red))),
+            ];
+        }
+    };
     let mut plan_command = crate::logic::privilege::build_privilege_command(
-        crate::logic::privilege::active_tool(),
+        tool,
         &format!(
             "pacman {} --noconfirm {}",
             cascade_mode.flag(),

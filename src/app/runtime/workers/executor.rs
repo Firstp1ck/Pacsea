@@ -43,12 +43,18 @@ fn handle_install_request(
 
     // For official packages: password is piped to sudo (printf '%s\n' password | sudo -S command)
     // For AUR packages: cache sudo credentials first, then run paru/yay (same sudo prompt flow)
-    let cmd = if has_aur {
+    let cmd = match if has_aur {
         // Build AUR command without password embedded
         build_install_command_for_executor(&items, None, dry_run)
     } else {
         // Build official command with password piping
         build_install_command_for_executor(&items, password.as_deref(), dry_run)
+    } {
+        Ok(c) => c,
+        Err(err) => {
+            let _ = res_tx.send(ExecutorOutput::Error(err));
+            return;
+        }
     };
 
     // For AUR packages, warm up privilege credentials so paru/yay don't re-prompt.
@@ -56,11 +62,20 @@ fn handle_install_request(
     // `;` ensures AUR command runs even if warmup returns non-zero.
     let final_cmd = if has_aur && !dry_run && password.is_some() {
         if let Some(ref pass) = password {
-            let tool = crate::logic::privilege::active_tool();
-            if let Some(warmup) = crate::logic::privilege::build_credential_warmup(tool, pass) {
-                format!("{warmup} ; {cmd}")
-            } else {
-                cmd
+            match crate::logic::privilege::active_tool() {
+                Ok(tool) => {
+                    if let Some(warmup) =
+                        crate::logic::privilege::build_credential_warmup(tool, pass)
+                    {
+                        format!("{warmup} ; {cmd}")
+                    } else {
+                        cmd
+                    }
+                }
+                Err(err) => {
+                    let _ = res_tx.send(ExecutorOutput::Error(err));
+                    return;
+                }
             }
         } else {
             cmd
@@ -97,7 +112,14 @@ fn handle_remove_request(
         names.len(),
         dry_run
     );
-    let cmd = build_remove_command_for_executor(&names, password.as_deref(), cascade, dry_run);
+    let cmd = match build_remove_command_for_executor(&names, password.as_deref(), cascade, dry_run)
+    {
+        Ok(c) => c,
+        Err(err) => {
+            let _ = res_tx.send(ExecutorOutput::Error(err));
+            return;
+        }
+    };
     let res_tx_clone = res_tx;
     tokio::task::spawn_blocking(move || {
         execute_command_pty(&cmd, None, res_tx_clone);
@@ -124,7 +146,13 @@ fn handle_downgrade_request(
         names.len(),
         dry_run
     );
-    let cmd = build_downgrade_command_for_executor(&names, password.as_deref(), dry_run);
+    let cmd = match build_downgrade_command_for_executor(&names, password.as_deref(), dry_run) {
+        Ok(c) => c,
+        Err(err) => {
+            let _ = res_tx.send(ExecutorOutput::Error(err));
+            return;
+        }
+    };
     let res_tx_clone = res_tx;
     tokio::task::spawn_blocking(move || {
         execute_command_pty(&cmd, None, res_tx_clone);
@@ -151,7 +179,13 @@ fn handle_update_request(
         commands.len(),
         dry_run
     );
-    let cmd = build_update_command_for_executor(&commands, password.as_deref(), dry_run);
+    let cmd = match build_update_command_for_executor(&commands, password.as_deref(), dry_run) {
+        Ok(c) => c,
+        Err(err) => {
+            let _ = res_tx.send(ExecutorOutput::Error(err));
+            return;
+        }
+    };
     tracing::debug!("[Runtime] Built update command (length={})", cmd.len());
     let res_tx_clone = res_tx;
     tokio::task::spawn_blocking(move || {
@@ -234,7 +268,13 @@ fn handle_custom_command_request(
         // For commands that invoke a privilege tool, provide password via ASKPASS.
         // Only sudo supports SUDO_ASKPASS; doas commands are run directly (doas
         // handles its own terminal prompting and has no askpass equivalent).
-        let tool = crate::logic::privilege::active_tool();
+        let tool = match crate::logic::privilege::active_tool() {
+            Ok(t) => t,
+            Err(err) => {
+                let _ = res_tx.send(ExecutorOutput::Error(err));
+                return;
+            }
+        };
         let needs_askpass = command.contains(tool.binary_name())
             && tool.capabilities().supports_askpass
             && password.is_some();

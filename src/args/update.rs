@@ -412,7 +412,7 @@ fn run_command_with_logging(
     // Build the command with optional password piping for privilege tools.
     // When program is the active privilege tool, handle password piping.
     // When program is not a privilege tool (e.g., paru/yay), use directly.
-    let tool = pacsea::logic::privilege::active_tool();
+    let tool = pacsea::logic::privilege::active_tool().map_err(std::io::Error::other)?;
     let full_command = if program == tool.binary_name() {
         password.map_or_else(
             || pacsea::logic::privilege::build_privilege_command(tool, &args_str),
@@ -739,7 +739,23 @@ fn run_pacman_update(
     );
     write_log("Starting system update: pacman -Syu --noconfirm");
 
-    let tool = pacsea::logic::privilege::active_tool();
+    let tool = match pacsea::logic::privilege::active_tool() {
+        Ok(t) => t,
+        Err(err) => {
+            println!(
+                "{}",
+                error_color(&i18n::t("app.cli.update.pacman_exec_failed"), no_color)
+            );
+            eprintln!("{}", error_color(&err, no_color));
+            write_log(&format!("FAILED: Could not resolve privilege tool: {err}"));
+            state.all_succeeded = false;
+            state
+                .failed_commands
+                .push("pacman -Syu --noconfirm".to_string());
+            state.pacman_succeeded = Some(false);
+            return;
+        }
+    };
     let pacman_result = run_command_with_logging(
         tool.binary_name(),
         &["pacman", "-Syu", "--noconfirm"],
@@ -813,7 +829,9 @@ fn refresh_sudo_timestamp(password: Option<&str>, write_log: &(dyn Fn(&str) + Se
     use std::process::Command;
 
     if let Some(pass) = password {
-        let tool = pacsea::logic::privilege::active_tool();
+        let Ok(tool) = pacsea::logic::privilege::active_tool() else {
+            return;
+        };
         if let Some(warmup) = pacsea::logic::privilege::build_credential_warmup(tool, pass) {
             let _ = Command::new("bash")
                 .arg("-c")

@@ -22,7 +22,11 @@ use super::utils::{choose_terminal_index_prefer_path, command_on_path, shell_sin
 /// - `dry_run`: When `true`, prints commands instead of executing
 ///
 /// Output:
-/// - Shell command string with hold tail appended
+/// - `Ok(shell command string)` with hold tail appended
+///
+/// # Errors
+///
+/// Returns `Err` when the configured privilege tool cannot be resolved for official paths.
 ///
 /// Details:
 /// - Official packages are grouped into a single `pacman` invocation
@@ -33,7 +37,7 @@ fn build_batch_install_command(
     official: &[String],
     aur: &[String],
     dry_run: bool,
-) -> String {
+) -> Result<String, String> {
     let hold_tail = "; echo; echo 'Finished.'; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
 
     if dry_run {
@@ -45,9 +49,9 @@ fn build_batch_install_command(
                 hold = hold_tail
             );
             let quoted = shell_single_quote(&cmd);
-            format!("echo DRY RUN: {quoted}")
+            Ok(format!("echo DRY RUN: {quoted}"))
         } else if !official.is_empty() {
-            let tool = crate::logic::privilege::active_tool();
+            let tool = crate::logic::privilege::active_tool()?;
             let cmd = format!(
                 "{}{hold}",
                 crate::logic::privilege::build_privilege_command(
@@ -57,18 +61,18 @@ fn build_batch_install_command(
                 hold = hold_tail
             );
             let quoted = shell_single_quote(&cmd);
-            format!("echo DRY RUN: {quoted}")
+            Ok(format!("echo DRY RUN: {quoted}"))
         } else {
-            format!("echo DRY RUN: nothing to install{hold_tail}")
+            Ok(format!("echo DRY RUN: nothing to install{hold_tail}"))
         }
     } else if !aur.is_empty() {
         let all: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
         let n = all.join(" ");
-        format!(
+        Ok(format!(
             "{body}{hold}",
             body = aur_install_body("-S --needed --noconfirm", &n),
             hold = hold_tail
-        )
+        ))
     } else if !official.is_empty() {
         // Check if any packages have version info (coming from updates window)
         let has_versions = items
@@ -78,26 +82,26 @@ fn build_batch_install_command(
             matches!(item.source, Source::Official { .. }) && crate::index::is_installed(&item.name)
         });
 
-        let tool = crate::logic::privilege::active_tool();
+        let tool = crate::logic::privilege::active_tool()?;
         if has_versions && reinstall_any {
-            format!(
+            Ok(format!(
                 "{} bash -c 'pacman -Sy --noconfirm && pacman -S --noconfirm {n}'{hold}",
                 tool.binary_name(),
                 n = official.join(" "),
                 hold = hold_tail
-            )
+            ))
         } else {
-            format!(
+            Ok(format!(
                 "{}{hold}",
                 crate::logic::privilege::build_privilege_command(
                     tool,
                     &format!("pacman -S --needed --noconfirm {}", official.join(" "))
                 ),
                 hold = hold_tail
-            )
+            ))
         }
     } else {
-        format!("echo nothing to install{hold_tail}")
+        Ok(format!("echo nothing to install{hold_tail}"))
     }
 }
 
@@ -186,7 +190,13 @@ pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
         "spawning install"
     );
 
-    let cmd_str = build_batch_install_command(items, &official, &aur, dry_run);
+    let cmd_str = match build_batch_install_command(items, &official, &aur, dry_run) {
+        Ok(s) => s,
+        Err(err) => {
+            tracing::error!(error = %err, "privilege tool resolution failed for batch install");
+            return;
+        }
+    };
 
     // Prefer GNOME Terminal when running under GNOME desktop
     let is_gnome = std::env::var("XDG_CURRENT_DESKTOP")
