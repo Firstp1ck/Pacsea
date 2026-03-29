@@ -442,12 +442,15 @@ mod tests {
     /// - `base`: Temporary HOME root path created by the test.
     ///
     /// Output:
-    /// - Guard object that restores `HOME` and removes the temp directory on drop.
+    /// - Guard object that restores `HOME` and `XDG_CONFIG_HOME` and removes the temp directory on drop.
     ///
     /// Details:
+    /// - Clears `XDG_CONFIG_HOME` while active so path resolution cannot read the developer's real
+    ///   config tree (same approach as `SettingsEnvGuard`).
     /// - Ensures panic-safe cleanup so environment state is restored even during unwinding.
     struct HomeTestGuard {
         orig_home: Option<std::ffi::OsString>,
+        orig_xdg: Option<std::ffi::OsString>,
         base: std::path::PathBuf,
     }
 
@@ -461,11 +464,20 @@ mod tests {
         /// - Initialized `HomeTestGuard`.
         ///
         /// Details:
-        /// - Captures original `HOME` for restoration in `Drop`.
+        /// - Captures original `HOME` and `XDG_CONFIG_HOME` for restoration in `Drop`.
+        /// - Removes `XDG_CONFIG_HOME` so theme/settings resolution follows the test `HOME`.
         fn new(base: std::path::PathBuf) -> Self {
             let orig_home = std::env::var_os("HOME");
-            unsafe { std::env::set_var("HOME", base.display().to_string()) };
-            Self { orig_home, base }
+            let orig_xdg = std::env::var_os("XDG_CONFIG_HOME");
+            unsafe {
+                std::env::set_var("HOME", base.display().to_string());
+                std::env::remove_var("XDG_CONFIG_HOME");
+            }
+            Self {
+                orig_home,
+                orig_xdg,
+                base,
+            }
         }
     }
 
@@ -476,6 +488,11 @@ mod tests {
                     std::env::set_var("HOME", v);
                 } else {
                     std::env::remove_var("HOME");
+                }
+                if let Some(v) = self.orig_xdg.as_ref() {
+                    std::env::set_var("XDG_CONFIG_HOME", v);
+                } else {
+                    std::env::remove_var("XDG_CONFIG_HOME");
                 }
             }
             let _ = std::fs::remove_dir_all(&self.base);

@@ -55,7 +55,15 @@ pub(super) fn default_paths() -> (
 
 /// Type alias for default filter state tuple.
 ///
-/// Contains 14 boolean flags for repository filters and an array of 14 optional rects.
+/// What: Bundles default values for every results title-bar repository filter in [`super::AppState`].
+///
+/// Inputs: N/A (type alias only).
+///
+/// Output: Tuple of fifteen `show` flags and fifteen optional hit-test rectangles (`None` until layout runs).
+///
+/// Details:
+/// - Order matches `AppState` fields `results_filter_show_*` / `results_filter_*_rect`:
+///   `AUR`, core, extra, multilib, `EndeavourOS`, `CachyOS`, `Artix` (fallback), `Artix` OMNI, UNI, LIB32, GALAXY, WORLD, SYSTEM, `BlackArch`, `Manjaro`.
 pub(super) type DefaultFilters = (
     bool,
     bool,
@@ -71,7 +79,8 @@ pub(super) type DefaultFilters = (
     bool,
     bool,
     bool,
-    [Option<(u16, u16, u16, u16)>; 14],
+    bool,
+    [Option<(u16, u16, u16, u16)>; 15],
 );
 
 /// Type alias for default search state tuple.
@@ -435,7 +444,8 @@ pub(super) const fn default_filters() -> DefaultFilters {
         true,       // show_artix_world
         true,       // show_artix_system
         true,       // show_blackarch
-        [None; 14], // filter rects
+        true,       // show_manjaro
+        [None; 15], // filter rects
     )
 }
 
