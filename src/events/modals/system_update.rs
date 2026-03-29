@@ -182,12 +182,24 @@ fn handle_system_update_enter(
         };
         crate::theme::save_selected_countries(countries_arg);
         crate::theme::save_mirror_count(mirror_count);
-        cmds.push(distro::mirror_update_command(countries_arg, mirror_count));
+        match distro::mirror_update_command(countries_arg, mirror_count) {
+            Ok(cmd) => cmds.push(cmd),
+            Err(msg) => {
+                app.modal = crate::state::Modal::Alert { message: msg };
+                return;
+            }
+        }
     }
     if do_pacman {
         // Use -Syyu (force sync) or -Syu (normal sync) based on user selection
         let sync_flag = if force_sync { "-Syyu" } else { "-Syu" };
-        let tool = crate::logic::privilege::active_tool();
+        let tool = match crate::logic::privilege::active_tool() {
+            Ok(t) => t,
+            Err(msg) => {
+                app.modal = crate::state::Modal::Alert { message: msg };
+                return;
+            }
+        };
         cmds.push(crate::logic::privilege::build_privilege_command(
             tool,
             &format!("pacman {sync_flag} --noconfirm"),
@@ -227,7 +239,13 @@ fn handle_system_update_enter(
         }
     }
     if do_cache {
-        let tool = crate::logic::privilege::active_tool();
+        let tool = match crate::logic::privilege::active_tool() {
+            Ok(t) => t,
+            Err(msg) => {
+                app.modal = crate::state::Modal::Alert { message: msg };
+                return;
+            }
+        };
         let bin = tool.binary_name();
         cmds.push(crate::logic::privilege::build_privilege_command(
             tool,

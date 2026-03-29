@@ -341,28 +341,58 @@ pub fn resolve_privilege_tool(mode: PrivilegeMode) -> Result<PrivilegeTool, Stri
 // Convenience resolver
 // ---------------------------------------------------------------------------
 
-/// What: Resolve the privilege tool from the current settings, with sudo fallback.
+/// What: Resolve the privilege tool for a given mode, applying Auto-only fallback policy.
+///
+/// Inputs:
+/// - `mode`: Privilege selection mode (from settings, tests, or callers).
+///
+/// Output:
+/// - `Ok(PrivilegeTool)` when resolution succeeds, including `Ok(Sudo)` after `Auto`
+///   resolution failure (with warning logged).
+/// - `Err(String)` with an actionable message when `Sudo` or `Doas` mode is set but that
+///   binary is missing from `$PATH`.
+///
+/// Details:
+/// - Explicit modes never substitute the other tool; `Auto` may fall back to sudo so
+///   behaviour stays lenient when no privilege binary is installed.
+fn active_tool_for_mode(mode: PrivilegeMode) -> Result<PrivilegeTool, String> {
+    match resolve_privilege_tool(mode) {
+        Ok(tool) => Ok(tool),
+        Err(err) if mode == PrivilegeMode::Auto => {
+            tracing::warn!(
+                configured_mode = %mode,
+                error = %err,
+                fallback = "sudo",
+                "Privilege tool auto-resolution failed — falling back to sudo; privileged commands may fail if sudo is missing"
+            );
+            Ok(PrivilegeTool::Sudo)
+        }
+        Err(err) => Err(err),
+    }
+}
+
+/// What: Resolve the privilege tool using the cached application settings.
 ///
 /// Inputs: None (reads `crate::theme::settings().privilege_mode`).
 ///
-/// Output: The active [`PrivilegeTool`].
+/// Output:
+/// - `Ok(PrivilegeTool)` for successful resolution, or `Ok(Sudo)` after `Auto` failure
+///   (see [`active_tool_for_mode`]).
+/// - `Err(String)` when explicit `sudo` or `doas` mode cannot be satisfied.
 ///
 /// Details:
-/// - Reads the cached application settings and resolves the configured mode.
-/// - Falls back to `Sudo` if resolution fails (e.g. neither tool is on `$PATH`).
-/// - Logs a warning on fallback so the user can diagnose missing tools.
-#[must_use]
-pub fn active_tool() -> PrivilegeTool {
+/// - Callers should propagate or display `Err` so misconfiguration is visible.
+/// - Same fallback rules as [`active_tool_for_mode`].
+///
+/// # Errors
+///
+/// Returns `Err` when [`PrivilegeMode::Sudo`] or [`PrivilegeMode::Doas`] is configured but
+/// that tool is not available on `$PATH`. [`PrivilegeMode::Auto`] never errors here: it falls
+/// back to [`PrivilegeTool::Sudo`] after logging a warning.
+#[must_use = "caller should handle missing explicit privilege tools"]
+pub fn active_tool() -> Result<PrivilegeTool, String> {
     let settings = crate::theme::settings();
-    resolve_privilege_tool(settings.privilege_mode).unwrap_or_else(|e| {
-        tracing::warn!(
-            configured_mode = %settings.privilege_mode,
-            error = %e,
-            fallback = "sudo",
-            "Privilege tool resolution failed — commands may fail if sudo is also missing"
-        );
-        PrivilegeTool::Sudo
-    })
+    active_tool_for_mode(settings.privilege_mode)
 }
 
 // ---------------------------------------------------------------------------
@@ -897,11 +927,62 @@ mod tests {
     // -- active_tool ---------------------------------------------------------
 
     #[test]
-    fn active_tool_returns_valid_tool() {
-        let tool = active_tool();
+    fn active_tool_returns_ok_with_sudo_or_doas() {
+        let tool = active_tool().expect("active_tool should resolve in this environment");
         assert!(
             tool == PrivilegeTool::Sudo || tool == PrivilegeTool::Doas,
             "active_tool should return Sudo or Doas"
+        );
+    }
+
+    #[test]
+    fn active_tool_for_mode_explicit_doas_errors_when_missing() {
+        let _guard = crate::global_test_mutex_lock();
+        unsafe {
+            std::env::set_var("PACSEA_INTEGRATION_TEST", "1");
+            std::env::set_var("PACSEA_TEST_PRIVILEGE_AVAILABLE", "sudo");
+        }
+        let result = super::active_tool_for_mode(PrivilegeMode::Doas);
+        unsafe {
+            std::env::remove_var("PACSEA_TEST_PRIVILEGE_AVAILABLE");
+            std::env::remove_var("PACSEA_INTEGRATION_TEST");
+        }
+        let err = result.expect_err("explicit doas without doas on PATH should error");
+        assert!(err.contains("doas is not available"));
+    }
+
+    #[test]
+    fn active_tool_for_mode_explicit_sudo_errors_when_missing() {
+        let _guard = crate::global_test_mutex_lock();
+        unsafe {
+            std::env::set_var("PACSEA_INTEGRATION_TEST", "1");
+            std::env::set_var("PACSEA_TEST_PRIVILEGE_AVAILABLE", "doas");
+        }
+        let result = super::active_tool_for_mode(PrivilegeMode::Sudo);
+        unsafe {
+            std::env::remove_var("PACSEA_TEST_PRIVILEGE_AVAILABLE");
+            std::env::remove_var("PACSEA_INTEGRATION_TEST");
+        }
+        let err = result.expect_err("explicit sudo without sudo on PATH should error");
+        assert!(err.contains("sudo is not available"));
+    }
+
+    #[test]
+    fn active_tool_for_mode_auto_none_falls_back_to_sudo() {
+        let _guard = crate::global_test_mutex_lock();
+        unsafe {
+            std::env::set_var("PACSEA_INTEGRATION_TEST", "1");
+            std::env::set_var("PACSEA_TEST_PRIVILEGE_AVAILABLE", "none");
+        }
+        let result = super::active_tool_for_mode(PrivilegeMode::Auto);
+        unsafe {
+            std::env::remove_var("PACSEA_TEST_PRIVILEGE_AVAILABLE");
+            std::env::remove_var("PACSEA_INTEGRATION_TEST");
+        }
+        assert_eq!(
+            result,
+            Ok(PrivilegeTool::Sudo),
+            "Auto with no tools should still return Ok(Sudo) after fallback"
         );
     }
 
