@@ -1,11 +1,79 @@
-High-impact priorities (80/20 view)
+# Improvement suggestions (preflight, dry-run, batch flows)
+
+80/20 priorities and per-flow status live in the tables below. Diagrams: `dev/WORKFLOWS/developer/*.mmd` (and mirrored under `manager/`).
+
+## Progress todos (2026-03-30)
+
+Use this section for tracking; detail and nuance stay in the tables.
+
+### Cross-cutting / preflight
+
+- [ ] Disk space check before install/remove/update with actionable hints
+- [ ] Mirror health check + fix guidance before risky operations
+- [ ] Pacman db lock detection + what to do (wait, remove stale lock, etc.)
+- [ ] Richer dry-run: conflicts, reverse deps / orphans, rough ETA (size/time) for batch and direct flows
+- [ ] Unified “what will happen” confirm + optional per-item overrides (beyond current preflight-only summaries)
+- [ ] Resilience: lock-aware retry, mirror/helper fallback UX (not only paru/yay automatic fallback), links to structured logs
+- [ ] State recovery: resumable batches, rollback hints after partial failure (see general table)
+
+### Removal (batch)
+
+- [x] Reverse-dependency context in preflight (Deps tab, meta warnings) — see table
+- [ ] Base / protected package guard with typed confirm or hard block where appropriate
+- [ ] Orphan cleanup preview and staged cleanup
+- [ ] Blocked-item reasons surfaced in UI + guided retry
+- [ ] Parallel dry-run dependency checks where safe
+
+### System update
+
+- [ ] Optional pre-snapshot / rollback note; disk + mirror pre-checks in update flow
+- [ ] Auto-scope or assist conflict resolution
+- [ ] Guided retry (alt helper/mirror) with log reference
+- [ ] Reboot scheduling (now / later / remind)
+
+### Install (batch)
+
+- [x] Preflight summary: source, version, size (conflicts still weak) — see table
+- [ ] Continue-on-failure toggle + retry actions
+- [ ] Stronger parallel prefetch / reuse of resolved deps (beyond current batch + cache)
+- [ ] Optional post-install hooks or checklist
+
+### Install (direct from results)
+
+- [ ] Clear metadata errors with retry / alternate source
+- [ ] Inline dry-run deps/conflicts when bypassing full preflight
+- [ ] Explicit UI retry for helper/mirror while keeping selection (beyond silent paru/yay fallback)
+
+### Downgrade (batch)
+
+- [ ] Cache versions/signatures + provenance / integrity before confirm
+- [ ] Rollback or package-hold guidance after success
+- [ ] Pre-download + verify before system mutation
+- [ ] Skip/unhold suggestions when target unavailable
+
+### App startup
+
+- [ ] Single blocking popup queue ordered by priority
+- [ ] Remember modal dismissals for the session
+- [ ] Stale cache notice with last refresh + optional background refresh
+- [ ] Offline notice: limited actions + retry timer
+
+### Performance (batch/metadata)
+
+- [x] Caching, batched pacman reads, dependency metadata paths — see table (“Implemented”)
+
+---
+
+## High-impact priorities (80/20 view)
+
 - Pre-flight guardrails: add disk space, mirror health, and pacman lock checks with actionable fixes before confirmation (install/remove/update).
 - Richer dry-runs: show conflicts, reverse deps/orphans, and estimated download/space/time for batch and direct flows.
 - Clear confirms and retries: unified “what will happen”, continue-on-failure toggle, and guided retry with alternate helper/mirror on failure.
 - Safer system updates: optional pre-snapshot/rollback note, mirror freshness check, conflict auto-scope, and reboot scheduling (now/later/remind).
 - Startup sanity: single blocking popup queue, offline notice with limited actions + retry timer, remember dismissals per session.
 
-General improvements (status at a glance)
+## General improvements (status at a glance)
+
 | Suggestion | Status | Notes |
 | --- | --- | --- |
 | Standardize pre-flight checks (tools/disk/mirror/lock + fixes) | Partially implemented | Metadata/risk only; no disk/mirror/lock checks or fix hints. |
@@ -15,7 +83,8 @@ General improvements (status at a glance)
 | Performance (cache/batch/parallel reads) | Implemented | Metadata/deps caches + batched pacman; limited parallelism beyond batching. |
 | State recovery/resume | Not implemented | No resumable batches or rollback hints. |
 
-Removal via batch
+## Removal via batch
+
 | Suggestion | Status | Notes |
 | --- | --- | --- |
 | Reverse-dependency tree + skip/force/keep | Implemented | Preflight Deps tab shows dependents and meta warnings. |
@@ -30,7 +99,8 @@ C -- No --> E[Normalize list: dedupe, verify installed]
 F -- Yes --> F1[Warn; require explicit override per item]
 ```
 
-System update (all options)
+## System update (all options)
+
 | Suggestion | Status | Notes |
 | --- | --- | --- |
 | Pre-snapshot/rollback note + disk/mirror health pre-check | Not implemented |  |
@@ -44,7 +114,8 @@ I -- Yes --> J{Confirmation?}
 K --> L[Execute update per scope]
 ```
 
-Install via batch
+## Install via batch
+
 | Suggestion | Status | Notes |
 | --- | --- | --- |
 | Consolidated plan (source/version/size/conflicts/deps) | Implemented | Preflight summary covers source/version/size; conflicts not surfaced. |
@@ -58,7 +129,8 @@ H -- Yes --> I[Run dry-run batch; collect per-item status]
 M -- Yes --> N[Resolve deps for item]
 ```
 
-Install direct over results
+## Install direct over results
+
 | Suggestion | Status | Notes |
 | --- | --- | --- |
 | Better metadata error with retry/alt source | Not implemented |  |
@@ -70,7 +142,8 @@ B -- Yes --> D{Package metadata ok?}
 F -- Yes --> G[Run dry-run install; capture deps/conflicts]
 ```
 
-Downgrade via batch
+## Downgrade via batch
+
 | Suggestion | Status | Notes |
 | --- | --- | --- |
 | Cache versions/signatures + provenance/integrity before confirm | Not implemented |  |
@@ -84,7 +157,8 @@ G --> H{Tool available?<br/>pacman/paru/yay}
 I -- Yes --> J[Run dry-run downgrade; list changes and risks]
 ```
 
-App startup popups
+## App startup popups
+
 | Suggestion | Status | Notes |
 | --- | --- | --- |
 | Single blocking popup with priority queue | Not implemented |  |
