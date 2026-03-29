@@ -4,9 +4,6 @@ mod tests {
     use crate::theme::config::settings_ensure::{
         ensure_settings_keys_present, ensure_theme_keys_present,
     };
-    use crate::theme::config::settings_ensure::{
-        ensure_settings_keys_present, ensure_theme_keys_present,
-    };
     use crate::theme::config::settings_save::{
         save_selected_countries, save_show_recent_pane, save_sort_mode,
     };
@@ -291,6 +288,7 @@ mod tests {
             "news_read_symbol",
             "news_unread_symbol",
             "preferred_terminal",
+            "privilege_tool",
         ]
         .into_iter()
         .collect()
@@ -419,6 +417,10 @@ mod tests {
         assert_eq!(
             loaded.preferred_terminal, defaults.preferred_terminal,
             "preferred_terminal should match default"
+        );
+        assert_eq!(
+            loaded.privilege_mode, defaults.privilege_mode,
+            "privilege_mode should match default"
         );
     }
 

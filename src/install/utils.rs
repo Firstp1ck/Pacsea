@@ -172,13 +172,13 @@ pub fn editor_open_config_command(path: &std::path::Path) -> String {
     format!(
         "( [ -n \"${{VISUAL}}\" ] && command -v \"${{VISUAL%% *}}\" >/dev/null 2>&1 && eval \"${{VISUAL}}\" {path_quoted} ) || \
          ( [ -n \"${{EDITOR}}\" ] && command -v \"${{EDITOR%% *}}\" >/dev/null 2>&1 && eval \"${{EDITOR}}\" {path_quoted} ) || \
-         ((command -v nvim >/dev/null 2>&1 || sudo pacman -Qi neovim >/dev/null 2>&1) && nvim {path_quoted}) || \
-         ((command -v vim >/dev/null 2>&1 || sudo pacman -Qi vim >/dev/null 2>&1) && vim {path_quoted}) || \
-         ((command -v hx >/dev/null 2>&1 || sudo pacman -Qi helix >/dev/null 2>&1) && hx {path_quoted}) || \
-         ((command -v helix >/dev/null 2>&1 || sudo pacman -Qi helix >/dev/null 2>&1) && helix {path_quoted}) || \
-         ((command -v emacsclient >/dev/null 2>&1 || sudo pacman -Qi emacs >/dev/null 2>&1) && emacsclient -t {path_quoted}) || \
-         ((command -v emacs >/dev/null 2>&1 || sudo pacman -Qi emacs >/dev/null 2>&1) && emacs -nw {path_quoted}) || \
-         ((command -v nano >/dev/null 2>&1 || sudo pacman -Qi nano >/dev/null 2>&1) && nano {path_quoted}) || \
+         ((command -v nvim >/dev/null 2>&1 || pacman -Qi neovim >/dev/null 2>&1) && nvim {path_quoted}) || \
+         ((command -v vim >/dev/null 2>&1 || pacman -Qi vim >/dev/null 2>&1) && vim {path_quoted}) || \
+         ((command -v hx >/dev/null 2>&1 || pacman -Qi helix >/dev/null 2>&1) && hx {path_quoted}) || \
+         ((command -v helix >/dev/null 2>&1 || pacman -Qi helix >/dev/null 2>&1) && helix {path_quoted}) || \
+         ((command -v emacsclient >/dev/null 2>&1 || pacman -Qi emacs >/dev/null 2>&1) && emacsclient -t {path_quoted}) || \
+         ((command -v emacs >/dev/null 2>&1 || pacman -Qi emacs >/dev/null 2>&1) && emacs -nw {path_quoted}) || \
+         ((command -v nano >/dev/null 2>&1 || pacman -Qi nano >/dev/null 2>&1) && nano {path_quoted}) || \
          (echo '{EDITOR_FALLBACK_MESSAGE}'; echo 'File: {path_quoted}'; read -rn1 -s _ || true)"
     )
 }

@@ -10,6 +10,7 @@ pub mod lists;
 pub mod password;
 pub mod prefetch;
 pub mod preflight;
+pub mod privilege;
 pub mod query;
 pub mod sandbox;
 pub mod selection;

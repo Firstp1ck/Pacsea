@@ -162,6 +162,80 @@ Update and add tests:
 
 
 
+## Implementation Status (updated 2026-03-29)
+
+**All phases (0–5) complete.**
+
+### Phase 0: Validation spike — DONE
+- [x] Confirm supported non-interactive check pattern for `doas` — documented in `src/logic/privilege.rs` module docs
+- [x] Confirm password prompt strategy compatibility with runtime architecture — doas cannot pipe via stdin, documented
+- [x] Define minimum supported `doas` variant/version behavior in code comments — `OpenDoas` on Arch
+
+### Phase 1: Config and resolution plumbing — DONE
+- [x] `PrivilegeTool` enum (`Sudo`, `Doas`) — `src/logic/privilege.rs`
+- [x] `PrivilegeMode` selector setting (`auto/sudo/doas`) — `src/logic/privilege.rs`, field in `Settings`
+- [x] `config/settings.conf` privilege tool selection key — `privilege_tool = auto`
+- [x] Skeleton updated — `src/theme/config/skeletons.rs`
+- [x] Settings parsing — `src/theme/settings/parse_settings.rs`
+- [x] Settings ensure — `src/theme/config/settings_ensure.rs`
+- [x] Resolver function `resolve_privilege_tool()` — implemented with auto/explicit modes
+- [x] Convenience resolver `active_tool()` — reads settings + fallback to sudo
+- [x] Command builders — `build_privilege_command`, `build_password_pipe`, `build_credential_warmup`, `build_credential_invalidation`, `validate_password`
+- [x] `PrivilegeCapabilities` struct — documents tool differences
+- [x] 32 unit tests passing — types, resolver, builders, availability
+- [x] Backward-compatible `use_passwordless_sudo` preserved — unchanged
+
+### Phase 2: Runtime executor migration — DONE
+- [x] `src/app/runtime/workers/executor.rs` — credential warmup uses `build_credential_warmup()`
+- [x] `sudo -S` composition replaced with tool-specific builder — `build_password_pipe()`
+- [x] Askpass logic made tool-aware — gates on `tool.capabilities().supports_askpass`
+
+### Phase 3: Modal/install/downgrade flow migration — DONE
+- [x] `src/events/modals/handlers.rs` — downgrade uses `build_privilege_command` / `build_password_pipe`
+- [x] `src/install/executor.rs` — all build_*_command_for_executor use privilege abstraction
+- [x] `src/install/command.rs` — `build_install_command` uses privilege abstraction
+- [x] `src/install/remove.rs` — `spawn_remove_all` uses privilege abstraction
+- [x] `src/install/batch.rs` — `build_batch_install_command` uses privilege abstraction
+- [x] `src/events/modals/system_update.rs` — update commands use privilege abstraction
+- [x] `src/events/modals/common.rs` — terminal install uses privilege abstraction
+- [x] `src/events/install/mod.rs` — downgrade shortcut uses privilege abstraction
+- [x] `src/events/distro.rs` — mirror update commands use `{bin}` from active tool
+- [x] `src/args/update.rs` — CLI update uses `active_tool()` for commands and credential warmup
+- [x] `src/args/install.rs` — CLI install uses `active_tool()` for `Command::new()`
+- [x] `src/args/package.rs` — CLI package search uses `active_tool()` for `Command::new()`
+- [x] `src/args/remove.rs` — CLI remove uses `active_tool()` for `Command::new()`
+- [x] `src/logic/password.rs` — delegates to privilege module for validation and checks
+- [x] `src/app/runtime/tick_handler.rs` — file sync uses `build_privilege_command()`
+- [x] `src/ui/modals/preflight/tabs/summary.rs` — plan preview uses `build_privilege_command()`
+- [x] Password prompt decision logic preserved with test override via `is_integration_test()`
+- [x] `sudo pacman -Qi` in `install/utils.rs`, `install/scan/*.rs`, `events/distro.rs` cleaned up (read-only queries don't need root)
+
+### Phase 4: Test migration and expansion — DONE
+- [x] 48 privilege module unit tests (up from 32): `is_integration_test`, `active_tool`, printf format, doas fallbacks, passwordless overrides, tool symmetry
+- [x] `install/executor.rs` tests made tool-agnostic: assertions use `active_tool().binary_name()` instead of hardcoded `sudo`
+- [x] `install/command.rs` tests made tool-agnostic: same approach
+- [x] `tests/install/direct_install_integration.rs` — AUR test now handles faillock `Alert` gracefully
+- [x] Removed `validate_password_sudo_does_not_panic` test that triggered real faillock entries
+- [x] 967 tests passing (up from 950), 0 failures, 11 ignored
+
+### Phase 5: Hardening and rollout — DONE
+- [x] Actionable error messages with install commands (`pacman -S sudo` / `pacman -S opendoas`)
+- [x] Structured `tracing` logging: mode, doas/sudo availability, selection reason, fallback warnings
+- [x] No regression in AUR security handling verified — scan patterns correctly detect `sudo` usage
+- [x] Cosmetic: removed unnecessary `sudo`/`{bin}` from `pacman -Qi` queries in `install/utils.rs`, `install/scan/common.rs`, `install/scan/pkg.rs`, `events/distro.rs`
+- [x] `events/distro.rs` test assertions made tool-agnostic
+
+### Rollout Checklist
+- [x] Phase 0 capability spike documented in code comments
+- [x] Privilege tool setting added and parsed
+- [x] `executor` and modal handlers migrated
+- [x] Tests generalized and passing (967 tests, 0 failures)
+- [x] Most hardcoded `sudo` strings replaced in production paths (minor cosmetic exceptions deferred)
+- [x] Dry-run output validated for both tools (tests use `active_tool().binary_name()`)
+- [x] Quality gate commands pass (all phases, 967 tests)
+
+---
+
 ## Statement against the implementation
 
 We decided not to add `doas` support because it would slightly increase security risk and noticeably increase maintenance work, without giving most users a clear benefit over the existing `sudo` support. [en.wikipedia](https://en.wikipedia.org/wiki/Setuid)

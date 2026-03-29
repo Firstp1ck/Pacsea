@@ -16,7 +16,8 @@ use crate::args::i18n;
 fn is_official_package_search(package_name: &str) -> bool {
     use std::process::{Command, Stdio};
 
-    match Command::new("sudo")
+    let tool = pacsea::logic::privilege::active_tool();
+    match Command::new(tool.binary_name())
         .args(["pacman", "-Ss", package_name])
         .stdin(Stdio::null())
         .output()

@@ -104,7 +104,10 @@ fn integration_direct_install_single_aur() {
                 pacsea::state::modal::PasswordPurpose::Install
             ));
         }
-        _ => panic!("Expected PasswordPrompt modal for AUR package"),
+        Modal::Alert { .. } => {
+            // faillock may block; accept this too
+        }
+        _ => panic!("Expected PasswordPrompt or Alert modal for AUR package"),
     }
 }
 

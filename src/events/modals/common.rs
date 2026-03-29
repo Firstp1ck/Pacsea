@@ -1052,7 +1052,10 @@ pub(super) fn handle_gnome_terminal_prompt(ke: KeyEvent, app: &mut AppState) -> 
         KeyCode::Enter | KeyCode::Char('\n' | '\r') => {
             // Install GNOME Terminal, then close the prompt
 
-            let cmd = "(sudo pacman -S --needed --noconfirm gnome-terminal) || (sudo pacman -S --needed --noconfirm gnome-console) || (sudo pacman -S --needed --noconfirm kgx)".to_string();
+            let bin = crate::logic::privilege::active_tool().binary_name();
+            let cmd = format!(
+                "({bin} pacman -S --needed --noconfirm gnome-terminal) || ({bin} pacman -S --needed --noconfirm gnome-console) || ({bin} pacman -S --needed --noconfirm kgx)"
+            );
 
             if app.dry_run {
                 // Properly quote the command to avoid syntax errors with complex shell constructs

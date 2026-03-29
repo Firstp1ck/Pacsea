@@ -990,26 +990,37 @@ pub(super) fn handle_password_prompt_modal(
                 let names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
                 let joined = names.join(" ");
 
+                let tool = crate::logic::privilege::active_tool();
                 let cmd = if app.dry_run {
-                    // Properly quote the command to avoid syntax errors
-                    let downgrade_cmd = format!("sudo downgrade {joined}");
+                    let downgrade_cmd = crate::logic::privilege::build_privilege_command(
+                        tool,
+                        &format!("downgrade {joined}"),
+                    );
                     let quoted = crate::install::shell_single_quote(&downgrade_cmd);
                     format!("echo DRY RUN: {quoted}")
                 } else {
-                    // Build command with password passed via sudo -S
                     let downgrade_cmd = password.as_ref().map_or_else(
                         || {
-                            // No password (passwordless sudo)
-                            format!("sudo downgrade {joined}")
+                            crate::logic::privilege::build_privilege_command(
+                                tool,
+                                &format!("downgrade {joined}"),
+                            )
                         },
                         |pass| {
-                            // Use sudo -S to pass password via stdin
-                            let pass_escaped = crate::install::shell_single_quote(pass);
-                            format!("echo {pass_escaped} | sudo -S downgrade {joined}")
+                            crate::logic::privilege::build_password_pipe(
+                                tool,
+                                pass,
+                                &format!("downgrade {joined}"),
+                            )
+                            .unwrap_or_else(|| {
+                                crate::logic::privilege::build_privilege_command(
+                                    tool,
+                                    &format!("downgrade {joined}"),
+                                )
+                            })
                         },
                     );
 
-                    // Check if downgrade command exists or if package is installed (pacman -Qi works without sudo for installed packages)
                     format!(
                         "if (command -v downgrade >/dev/null 2>&1) || pacman -Qi downgrade >/dev/null 2>&1; then {downgrade_cmd}; else echo 'downgrade tool not found. Install \"downgrade\" package.'; fi"
                     )

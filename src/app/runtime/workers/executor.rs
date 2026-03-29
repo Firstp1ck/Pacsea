@@ -30,7 +30,6 @@ fn handle_install_request(
     dry_run: bool,
     res_tx: mpsc::UnboundedSender<ExecutorOutput>,
 ) {
-    use crate::install::shell_single_quote;
     use crate::state::Source;
 
     tracing::info!(
@@ -52,17 +51,17 @@ fn handle_install_request(
         build_install_command_for_executor(&items, password.as_deref(), dry_run)
     };
 
-    // For AUR packages, cache sudo credentials first using the same password piping approach
-    // This ensures paru/yay can use sudo without prompting (same flow as official packages)
-    // Use `;` instead of `&&` so the AUR command runs regardless of sudo -v result
-    // (paru/yay can handle their own sudo prompts if credential caching fails)
+    // For AUR packages, warm up privilege credentials so paru/yay don't re-prompt.
+    // Uses the privilege abstraction: sudo gets `sudo -S -v`, doas skips (unsupported).
+    // `;` ensures AUR command runs even if warmup returns non-zero.
     let final_cmd = if has_aur && !dry_run && password.is_some() {
         if let Some(ref pass) = password {
-            let escaped_pass = shell_single_quote(pass);
-            // Cache sudo credentials first, then run the AUR command
-            // sudo -v validates and caches credentials without running a command
-            // Using `;` ensures AUR command runs even if sudo -v returns non-zero
-            format!("printf '%s\\n' {escaped_pass} | sudo -S -v 2>/dev/null ; {cmd}")
+            let tool = crate::logic::privilege::active_tool();
+            if let Some(warmup) = crate::logic::privilege::build_credential_warmup(tool, pass) {
+                format!("{warmup} ; {cmd}")
+            } else {
+                cmd
+            }
         } else {
             cmd
         }
@@ -232,9 +231,14 @@ fn handle_custom_command_request(
         let quoted = shell_single_quote(&command);
         format!("echo DRY RUN: {quoted}")
     } else {
-        // For commands that use sudo, we need to handle sudo password
-        // Use SUDO_ASKPASS to provide password when sudo prompts
-        if command.contains("sudo") && password.is_some() {
+        // For commands that invoke a privilege tool, provide password via ASKPASS.
+        // Only sudo supports SUDO_ASKPASS; doas commands are run directly (doas
+        // handles its own terminal prompting and has no askpass equivalent).
+        let tool = crate::logic::privilege::active_tool();
+        let needs_askpass = command.contains(tool.binary_name())
+            && tool.capabilities().supports_askpass
+            && password.is_some();
+        if needs_askpass {
             if let Some(ref pass) = password {
                 // Create a temporary script that outputs the password
                 // Use printf instead of echo for better security

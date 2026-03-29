@@ -18,20 +18,21 @@
 /// - On `CachyOS`, ensures `cachyos-rate-mirrors` is installed, runs it, then runs `reflector`.
 /// - Otherwise, attempts to use `reflector` to write `/etc/pacman.d/mirrorlist`; if not found, prints a notice.
 pub fn mirror_update_command(countries: &str, count: u16) -> String {
+    let bin = crate::logic::privilege::active_tool().binary_name();
     if countries.eq("Worldwide") {
         format!(
             "(if grep -q 'Manjaro' /etc/os-release 2>/dev/null; then \
-    ((command -v pacman-mirrors >/dev/null 2>&1) || sudo pacman -Qi pacman-mirrors >/dev/null 2>&1 || sudo pacman -S --needed --noconfirm pacman-mirrors) && \
-    sudo pacman-mirrors --fasttrack {count}; \
+    ((command -v pacman-mirrors >/dev/null 2>&1) || pacman -Qi pacman-mirrors >/dev/null 2>&1 || {bin} pacman -S --needed --noconfirm pacman-mirrors) && \
+    {bin} pacman-mirrors --fasttrack {count}; \
   elif grep -q 'EndeavourOS' /etc/os-release 2>/dev/null; then \
-    ((command -v eos-rankmirrors >/dev/null 2>&1) || sudo pacman -Qi eos-rankmirrors >/dev/null 2>&1 || sudo pacman -S --needed --noconfirm eos-rankmirrors) && sudo eos-rankmirrors || echo 'eos-rankmirrors failed'; \
-    (command -v reflector >/dev/null 2>&1 && sudo reflector --verbose --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist) || echo 'reflector not found; skipping mirror update'; \
+    ((command -v eos-rankmirrors >/dev/null 2>&1) || pacman -Qi eos-rankmirrors >/dev/null 2>&1 || {bin} pacman -S --needed --noconfirm eos-rankmirrors) && {bin} eos-rankmirrors || echo 'eos-rankmirrors failed'; \
+    (command -v reflector >/dev/null 2>&1 && {bin} reflector --verbose --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist) || echo 'reflector not found; skipping mirror update'; \
   elif grep -q 'CachyOS' /etc/os-release 2>/dev/null; then \
-    ((command -v cachyos-rate-mirrors >/dev/null 2>&1) || sudo pacman -Qi cachyos-rate-mirrors >/dev/null 2>&1 || sudo pacman -S --needed --noconfirm cachyos-rate-mirrors) && sudo cachyos-rate-mirrors || echo 'cachyos-rate-mirrors failed'; \
-    (command -v reflector >/dev/null 2>&1 && sudo reflector --verbose --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist) || echo 'reflector not found; skipping mirror update'; \
+    ((command -v cachyos-rate-mirrors >/dev/null 2>&1) || pacman -Qi cachyos-rate-mirrors >/dev/null 2>&1 || {bin} pacman -S --needed --noconfirm cachyos-rate-mirrors) && {bin} cachyos-rate-mirrors || echo 'cachyos-rate-mirrors failed'; \
+    (command -v reflector >/dev/null 2>&1 && {bin} reflector --verbose --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist) || echo 'reflector not found; skipping mirror update'; \
   elif grep -q 'Artix' /etc/os-release 2>/dev/null; then \
-    if ! (sudo pacman -Qi rate-mirrors >/dev/null 2>&1 || command -v rate-mirrors >/dev/null 2>&1); then \
-      if ! (sudo pacman -Qi paru >/dev/null 2>&1 || command -v paru >/dev/null 2>&1) && ! (sudo pacman -Qi yay >/dev/null 2>&1 || command -v yay >/dev/null 2>&1); then \
+    if ! (pacman -Qi rate-mirrors >/dev/null 2>&1 || command -v rate-mirrors >/dev/null 2>&1); then \
+      if ! (pacman -Qi paru >/dev/null 2>&1 || command -v paru >/dev/null 2>&1) && ! (pacman -Qi yay >/dev/null 2>&1 || command -v yay >/dev/null 2>&1); then \
         echo 'Error: rate-mirrors is not installed and no AUR helper (yay/paru) found.'; \
         echo 'Please install yay or paru first, or install rate-mirrors manually.'; \
         exit 1; \
@@ -42,15 +43,15 @@ pub fn mirror_update_command(countries: &str, count: u16) -> String {
         echo 'Mirror update cancelled.'; \
         exit 1; \
       fi; \
-      if sudo pacman -Qi paru >/dev/null 2>&1 || command -v paru >/dev/null 2>&1; then \
+      if pacman -Qi paru >/dev/null 2>&1 || command -v paru >/dev/null 2>&1; then \
         paru -S --needed --noconfirm rate-mirrors || exit 1; \
-      elif sudo pacman -Qi yay >/dev/null 2>&1 || command -v yay >/dev/null 2>&1; then \
+      elif pacman -Qi yay >/dev/null 2>&1 || command -v yay >/dev/null 2>&1; then \
         yay -S --needed --noconfirm rate-mirrors || exit 1; \
       fi; \
     fi; \
-    sudo cp /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist.backup.$(date +%Y%m%d_%H%M%S) || exit 1; \
+    {bin} cp /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist.backup.$(date +%Y%m%d_%H%M%S) || exit 1; \
     if [ \"{countries}\" = \"Worldwide\" ]; then \
-      rate-mirrors --protocol=https --allow-root --country-neighbors-per-country=3 --top-mirrors-number-to-retest={count} --max-jumps=10 artix | sudo tee /etc/pacman.d/mirrorlist || exit 1; \
+      rate-mirrors --protocol=https --allow-root --country-neighbors-per-country=3 --top-mirrors-number-to-retest={count} --max-jumps=10 artix | {bin} tee /etc/pacman.d/mirrorlist || exit 1; \
     else \
       country_count=$(echo '{countries}' | tr ',' '\\n' | wc -l); \
       if [ \"$country_count\" -ne 1 ]; then \
@@ -58,23 +59,23 @@ pub fn mirror_update_command(countries: &str, count: u16) -> String {
         echo 'Please select a single country.'; \
         exit 1; \
       fi; \
-      rate-mirrors --protocol=https --allow-root --entry-country='{countries}' --country-neighbors-per-country=3 --top-mirrors-number-to-retest={count} --max-jumps=10 artix | sudo tee /etc/pacman.d/mirrorlist || exit 1; \
+      rate-mirrors --protocol=https --allow-root --entry-country='{countries}' --country-neighbors-per-country=3 --top-mirrors-number-to-retest={count} --max-jumps=10 artix | {bin} tee /etc/pacman.d/mirrorlist || exit 1; \
     fi; \
   else \
-    (command -v reflector >/dev/null 2>&1 && sudo reflector --verbose --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist) || echo 'reflector not found; skipping mirror update'; \
+    (command -v reflector >/dev/null 2>&1 && {bin} reflector --verbose --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist) || echo 'reflector not found; skipping mirror update'; \
   fi)"
         )
     } else {
         format!(
             "(if grep -q 'Manjaro' /etc/os-release 2>/dev/null; then \
-    ((command -v pacman-mirrors >/dev/null 2>&1) || sudo pacman -Qi pacman-mirrors >/dev/null 2>&1 || sudo pacman -S --needed --noconfirm pacman-mirrors) && \
-    sudo pacman-mirrors --method rank --country '{countries}'; \
+    ((command -v pacman-mirrors >/dev/null 2>&1) || pacman -Qi pacman-mirrors >/dev/null 2>&1 || {bin} pacman -S --needed --noconfirm pacman-mirrors) && \
+    {bin} pacman-mirrors --method rank --country '{countries}'; \
   elif grep -q 'EndeavourOS' /etc/os-release 2>/dev/null; then \
-    ((command -v eos-rankmirrors >/dev/null 2>&1) || sudo pacman -Qi eos-rankmirrors >/dev/null 2>&1 || sudo pacman -S --needed --noconfirm eos-rankmirrors) && sudo eos-rankmirrors || echo 'eos-rankmirrors failed'; \
-    (command -v reflector >/dev/null 2>&1 && sudo reflector --verbose --country '{countries}' --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist) || echo 'reflector not found; skipping mirror update'; \
+    ((command -v eos-rankmirrors >/dev/null 2>&1) || pacman -Qi eos-rankmirrors >/dev/null 2>&1 || {bin} pacman -S --needed --noconfirm eos-rankmirrors) && {bin} eos-rankmirrors || echo 'eos-rankmirrors failed'; \
+    (command -v reflector >/dev/null 2>&1 && {bin} reflector --verbose --country '{countries}' --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist) || echo 'reflector not found; skipping mirror update'; \
   elif grep -q 'CachyOS' /etc/os-release 2>/dev/null; then \
-    ((command -v cachyos-rate-mirrors >/dev/null 2>&1) || sudo pacman -Qi cachyos-rate-mirrors >/dev/null 2>&1 || sudo pacman -S --needed --noconfirm cachyos-rate-mirrors) && sudo cachyos-rate-mirrors || echo 'cachyos-rate-mirrors failed'; \
-    (command -v reflector >/dev/null 2>&1 && sudo reflector --verbose --country '{countries}' --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist) || echo 'reflector not found; skipping mirror update'; \
+    ((command -v cachyos-rate-mirrors >/dev/null 2>&1) || pacman -Qi cachyos-rate-mirrors >/dev/null 2>&1 || {bin} pacman -S --needed --noconfirm cachyos-rate-mirrors) && {bin} cachyos-rate-mirrors || echo 'cachyos-rate-mirrors failed'; \
+    (command -v reflector >/dev/null 2>&1 && {bin} reflector --verbose --country '{countries}' --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist) || echo 'reflector not found; skipping mirror update'; \
   elif grep -q 'Artix' /etc/os-release 2>/dev/null; then \
     country_count=$(echo '{countries}' | tr ',' '\\n' | wc -l); \
     if [ \"$country_count\" -ne 1 ]; then \
@@ -82,8 +83,8 @@ pub fn mirror_update_command(countries: &str, count: u16) -> String {
       echo 'Please select a single country.'; \
       exit 1; \
     fi; \
-    if ! (sudo pacman -Qi rate-mirrors >/dev/null 2>&1 || command -v rate-mirrors >/dev/null 2>&1); then \
-      if ! (sudo pacman -Qi paru >/dev/null 2>&1 || command -v paru >/dev/null 2>&1) && ! (sudo pacman -Qi yay >/dev/null 2>&1 || command -v yay >/dev/null 2>&1); then \
+    if ! (pacman -Qi rate-mirrors >/dev/null 2>&1 || command -v rate-mirrors >/dev/null 2>&1); then \
+      if ! (pacman -Qi paru >/dev/null 2>&1 || command -v paru >/dev/null 2>&1) && ! (pacman -Qi yay >/dev/null 2>&1 || command -v yay >/dev/null 2>&1); then \
         echo 'Error: rate-mirrors is not installed and no AUR helper (yay/paru) found.'; \
         echo 'Please install yay or paru first, or install rate-mirrors manually.'; \
         exit 1; \
@@ -94,16 +95,16 @@ pub fn mirror_update_command(countries: &str, count: u16) -> String {
         echo 'Mirror update cancelled.'; \
         exit 1; \
       fi; \
-      if sudo pacman -Qi paru >/dev/null 2>&1 || command -v paru >/dev/null 2>&1; then \
+      if pacman -Qi paru >/dev/null 2>&1 || command -v paru >/dev/null 2>&1; then \
         paru -S --needed --noconfirm rate-mirrors || exit 1; \
-      elif sudo pacman -Qi yay >/dev/null 2>&1 || command -v yay >/dev/null 2>&1; then \
+      elif pacman -Qi yay >/dev/null 2>&1 || command -v yay >/dev/null 2>&1; then \
         yay -S --needed --noconfirm rate-mirrors || exit 1; \
       fi; \
     fi; \
-    sudo cp /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist.backup.$(date +%Y%m%d_%H%M%S) || exit 1; \
-    rate-mirrors --protocol=https --allow-root --entry-country='{countries}' --country-neighbors-per-country=3 --top-mirrors-number-to-retest={count} --max-jumps=10 artix | sudo tee /etc/pacman.d/mirrorlist || exit 1; \
+    {bin} cp /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist.backup.$(date +%Y%m%d_%H%M%S) || exit 1; \
+    rate-mirrors --protocol=https --allow-root --entry-country='{countries}' --country-neighbors-per-country=3 --top-mirrors-number-to-retest={count} --max-jumps=10 artix | {bin} tee /etc/pacman.d/mirrorlist || exit 1; \
   else \
-    (command -v reflector >/dev/null 2>&1 && sudo reflector --verbose --country '{countries}' --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist) || echo 'reflector not found; skipping mirror update'; \
+    (command -v reflector >/dev/null 2>&1 && {bin} reflector --verbose --country '{countries}' --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist) || echo 'reflector not found; skipping mirror update'; \
   fi)"
         )
     }
@@ -144,11 +145,17 @@ mod tests {
     /// Details:
     /// - Confirms the `EndeavourOS` clause still emits the reflector call with the customized country list.
     fn mirror_update_regional_propagates_country_argument() {
+        let bin = crate::logic::privilege::active_tool().binary_name();
         let countries = "Germany,France";
         let cmd = mirror_update_command(countries, 5);
         assert!(cmd.contains("--country 'Germany,France'"));
         assert!(cmd.contains("grep -q 'EndeavourOS' /etc/os-release"));
-        assert!(cmd.contains("sudo reflector --verbose --country 'Germany,France'"));
+        assert!(
+            cmd.contains(&format!(
+                "{bin} reflector --verbose --country 'Germany,France'"
+            )),
+            "expected '{bin} reflector ...' in: {cmd}"
+        );
     }
 
     #[test]
@@ -164,8 +171,12 @@ mod tests {
     /// Details:
     /// - Guards against accidental removal of distro-specific tooling when modifying the mirrored script.
     fn mirror_update_includes_distro_specific_helpers() {
+        let bin = crate::logic::privilege::active_tool().binary_name();
         let cmd = mirror_update_command("Worldwide", 3);
-        assert!(cmd.contains("sudo eos-rankmirrors"));
+        assert!(
+            cmd.contains(&format!("{bin} eos-rankmirrors")),
+            "expected '{bin} eos-rankmirrors' in: {cmd}"
+        );
         assert!(cmd.contains("cachyos-rate-mirrors"));
         assert!(cmd.contains("echo 'reflector not found; skipping mirror update'"));
     }
@@ -226,9 +237,9 @@ mod tests {
     /// - Validates that the script checks for rate-mirrors and AUR helpers before proceeding.
     fn mirror_update_artix_includes_installation_checks() {
         let cmd = mirror_update_command("Germany", 8);
-        assert!(cmd.contains("sudo pacman -Qi rate-mirrors"));
-        assert!(cmd.contains("sudo pacman -Qi paru"));
-        assert!(cmd.contains("sudo pacman -Qi yay"));
+        assert!(cmd.contains("pacman -Qi rate-mirrors"));
+        assert!(cmd.contains("pacman -Qi paru"));
+        assert!(cmd.contains("pacman -Qi yay"));
         assert!(cmd.contains("command -v rate-mirrors"));
         assert!(cmd.contains("command -v paru"));
         assert!(cmd.contains("command -v yay"));
@@ -249,8 +260,12 @@ mod tests {
     /// Details:
     /// - Ensures mirrorlist backup is created before rate-mirrors execution.
     fn mirror_update_artix_includes_backup() {
+        let bin = crate::logic::privilege::active_tool().binary_name();
         let cmd = mirror_update_command("Germany", 5);
-        assert!(cmd.contains("sudo cp /etc/pacman.d/mirrorlist"));
+        assert!(
+            cmd.contains(&format!("{bin} cp /etc/pacman.d/mirrorlist")),
+            "expected '{bin} cp ...' in: {cmd}"
+        );
         assert!(cmd.contains("mirrorlist.backup"));
         assert!(cmd.contains("date +%Y%m%d_%H%M%S"));
     }

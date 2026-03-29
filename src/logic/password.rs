@@ -1,116 +1,88 @@
-//! Sudo password validation utilities.
+//! Privilege password validation utilities.
+//!
+//! Delegates to [`crate::logic::privilege`] for tool-aware checks.
 
-use std::process::Command;
-
-/// What: Returns true only when running in integration test context.
+/// What: Check if passwordless privilege escalation is available for the current user.
 ///
 /// Inputs:
-/// - None (reads env var `PACSEA_INTEGRATION_TEST`).
+/// - None (uses the active privilege tool from settings).
 ///
 /// Output:
-/// - `true` if `PACSEA_INTEGRATION_TEST=1` is set, `false` otherwise.
-///
-/// Details:
-/// - Used to gate `PACSEA_TEST_SUDO_PASSWORDLESS` so production never honors it.
-/// - Integration tests set this env var so the test override is applied.
-fn is_integration_test_context() -> bool {
-    std::env::var("PACSEA_INTEGRATION_TEST").is_ok_and(|v| v == "1")
-}
-
-/// What: Check if passwordless sudo is available for the current user.
-///
-/// Inputs:
-/// - None (checks system configuration).
-///
-/// Output:
-/// - `Ok(true)` if passwordless sudo is available, `Ok(false)` if not, or `Err(String)` on error.
+/// - `Ok(true)` if passwordless execution is available, `Ok(false)` if not, or `Err(String)` on error.
 ///
 /// # Errors
 ///
-/// - Returns `Err` if the check cannot be executed (e.g., sudo not installed).
+/// - Returns `Err` if the check cannot be executed (e.g., tool not installed).
 ///
 /// Details:
-/// - Uses `sudo -n true` to test if sudo can run without password.
-/// - `-n`: Non-interactive mode (fails if password required).
-/// - `true`: Simple command that always succeeds if sudo works.
-/// - Returns `Ok(false)` if sudo is not available or requires a password.
-/// - **Testing**: Only when `PACSEA_INTEGRATION_TEST=1` is set (test harness), the env var
-///   `PACSEA_TEST_SUDO_PASSWORDLESS` is honored: "1" = available, "0" = unavailable.
-///   In production (when `PACSEA_INTEGRATION_TEST` is not set), `PACSEA_TEST_SUDO_PASSWORDLESS`
-///   is ignored so the only way to enable passwordless sudo is via `use_passwordless_sudo` in settings.
+/// - Delegates to [`crate::logic::privilege::PrivilegeTool::check_passwordless`].
+/// - Uses the resolved privilege tool (sudo or doas) based on settings.
+/// - Both sudo and doas support `-n true` for non-interactive checking.
 pub fn check_passwordless_sudo_available() -> Result<bool, String> {
-    // Honor test override only in integration test context so production never honors it
-    if is_integration_test_context()
-        && let Ok(val) = std::env::var("PACSEA_TEST_SUDO_PASSWORDLESS")
-    {
-        tracing::debug!(
-            "Using test override for passwordless sudo check: PACSEA_TEST_SUDO_PASSWORDLESS={}",
-            val
-        );
-        return Ok(val == "1");
-    }
-
-    let status = Command::new("sudo")
-        .args(["-n", "true"])
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .map_err(|e| format!("Failed to check passwordless sudo: {e}"))?;
-
-    Ok(status.success())
+    let tool = crate::logic::privilege::active_tool();
+    tool.check_passwordless()
 }
 
-/// What: Check if passwordless sudo should be used based on settings and system availability.
+/// What: Check if passwordless privilege escalation should be used based on settings and system availability.
 ///
 /// Inputs:
 /// - `settings`: Reference to the application settings.
 ///
 /// Output:
-/// - `true` if passwordless sudo should be used, `false` otherwise.
+/// - `true` if passwordless execution should be used, `false` otherwise.
 ///
 /// Details:
-/// - First checks if `use_passwordless_sudo` is enabled in settings (safety barrier).
-/// - If not enabled, returns `false` immediately without checking system availability.
-/// - If enabled, checks if passwordless sudo is actually available on the system.
+/// - First checks tool capabilities: tools without stdin-password support (e.g. doas)
+///   bypass the in-app modal and return `true`.
+/// - For stdin-capable tools (sudo), checks if `use_passwordless_sudo` is enabled
+///   in settings (safety barrier).
+/// - If not enabled for stdin-capable tools, returns `false` immediately.
+/// - If enabled, checks if passwordless execution is actually available on the system.
 /// - Returns `true` only if both conditions are met.
-/// - Logs the decision for debugging purposes.
-/// - **Testing**: Only when `PACSEA_INTEGRATION_TEST=1` is set (test harness), the env var
-///   `PACSEA_TEST_SUDO_PASSWORDLESS` is honored. In production this override is disabled.
+/// - Test overrides flow through [`check_passwordless_sudo_available`] → privilege module.
 #[must_use]
 pub fn should_use_passwordless_sudo(settings: &crate::theme::Settings) -> bool {
-    // Honor test override only in integration test context so production never honors it
-    if is_integration_test_context()
+    // In integration test context, honor the test override directly.
+    // This bypasses the settings check so tests can simulate passwordless without
+    // modifying the persisted Settings struct.
+    if crate::logic::privilege::is_integration_test()
         && let Ok(val) = std::env::var("PACSEA_TEST_SUDO_PASSWORDLESS")
     {
         tracing::debug!(
-            "Using test override for should_use_passwordless_sudo: PACSEA_TEST_SUDO_PASSWORDLESS={}",
-            val
+            val = %val,
+            "Using test override for should_use_passwordless_sudo"
         );
         return val == "1";
     }
 
-    // Check if passwordless sudo is enabled in settings (safety barrier)
+    let tool = crate::logic::privilege::active_tool();
+    if !tool.capabilities().supports_stdin_password {
+        tracing::debug!(
+            tool = %tool,
+            "Active privilege tool does not support stdin password; skipping in-app password prompt"
+        );
+        return true;
+    }
+
     if !settings.use_passwordless_sudo {
-        tracing::debug!("Passwordless sudo disabled in settings, requiring password prompt");
+        tracing::debug!("Passwordless privilege disabled in settings, requiring password prompt");
         return false;
     }
 
-    // Check if passwordless sudo is available on the system
     match check_passwordless_sudo_available() {
         Ok(true) => {
-            tracing::info!("Passwordless sudo enabled in settings and available on system");
+            tracing::info!("Passwordless privilege enabled in settings and available on system");
             true
         }
         Ok(false) => {
             tracing::debug!(
-                "Passwordless sudo enabled in settings but not available on system, requiring password prompt"
+                "Passwordless privilege enabled in settings but not available on system, requiring password prompt"
             );
             false
         }
         Err(e) => {
             tracing::debug!(
-                "Passwordless sudo check failed ({}), requiring password prompt",
+                "Passwordless privilege check failed ({}), requiring password prompt",
                 e
             );
             false
@@ -118,7 +90,7 @@ pub fn should_use_passwordless_sudo(settings: &crate::theme::Settings) -> bool {
     }
 }
 
-/// What: Validate a sudo password without executing any command.
+/// What: Validate a privilege tool password without executing any command.
 ///
 /// Inputs:
 /// - `password`: Password to validate.
@@ -128,44 +100,16 @@ pub fn should_use_passwordless_sudo(settings: &crate::theme::Settings) -> bool {
 ///
 /// # Errors
 ///
-/// - Returns `Err` if the validation command cannot be executed (e.g., sudo not available).
+/// - Returns `Err` if the validation command cannot be executed (e.g., tool not available).
+/// - Returns `Err` if the active tool does not support password validation (e.g., doas).
 ///
 /// Details:
-/// - First invalidates cached sudo credentials with `sudo -k` to ensure fresh validation.
-/// - Then executes `printf '%s\n' '<password>' | sudo -S -v` to test password validity.
-/// - Uses `printf` instead of `echo` for more reliable password handling.
-/// - Uses `sudo -v` which validates credentials without executing a command.
-/// - Returns `Ok(true)` if password is valid, `Ok(false)` if invalid.
-/// - Handles errors appropriately (e.g., if sudo is not available).
+/// - Delegates to [`crate::logic::privilege::validate_password`].
+/// - Only works for tools that support stdin password piping (currently sudo).
+/// - For doas, returns an error since doas cannot validate passwords via stdin.
 pub fn validate_sudo_password(password: &str) -> Result<bool, String> {
-    use crate::install::shell_single_quote;
-
-    // Escape password for shell safety
-    let escaped_password = shell_single_quote(password);
-
-    // Build command: sudo -k ; printf '%s\n' '<password>' | sudo -S -v
-    // First, sudo -k invalidates any cached credentials to ensure fresh validation.
-    // Without this, cached credentials could cause validation to succeed even with wrong password.
-    // Use printf instead of echo for more reliable password handling.
-    // sudo -v validates credentials without executing a command.
-    let cmd = format!("sudo -k ; printf '%s\\n' {escaped_password} | sudo -S -v 2>&1");
-
-    // Execute command
-    let output = Command::new("sh")
-        .arg("-c")
-        .arg(&cmd)
-        .output()
-        .map_err(|e| format!("Failed to execute sudo validation: {e}"))?;
-
-    // Check exit code
-    // Exit code 0 means password is valid
-    // Non-zero exit code means password is invalid or other error
-    // This approach is language-independent as it relies on exit codes, not error messages
-    if output.status.success() {
-        Ok(true)
-    } else {
-        Ok(false)
-    }
+    let tool = crate::logic::privilege::active_tool();
+    crate::logic::privilege::validate_password(tool, password)
 }
 
 #[cfg(test)]
@@ -203,6 +147,43 @@ mod tests {
         let result = check_passwordless_sudo_available();
         // Should return Ok with either true or false, depending on system config
         assert!(result.is_ok());
+    }
+
+    #[test]
+    /// What: Ensure doas skips in-app password prompt decision.
+    ///
+    /// Inputs:
+    /// - Integration test env forcing only doas availability.
+    /// - Default settings with `use_passwordless_sudo = false`.
+    ///
+    /// Output:
+    /// - Returns `true` from `should_use_passwordless_sudo`.
+    ///
+    /// Details:
+    /// - doas cannot validate stdin passwords in-app.
+    /// - Pacsea must skip the modal and let terminal doas prompt directly.
+    fn test_should_use_passwordless_sudo_true_for_doas_without_stdin_support() {
+        let _guard = crate::global_test_mutex_lock();
+        unsafe {
+            std::env::set_var("PACSEA_INTEGRATION_TEST", "1");
+            std::env::set_var("PACSEA_TEST_PRIVILEGE_AVAILABLE", "doas");
+        }
+
+        let settings = crate::theme::Settings {
+            use_passwordless_sudo: false,
+            ..crate::theme::Settings::default()
+        };
+        let should_skip_prompt = should_use_passwordless_sudo(&settings);
+
+        unsafe {
+            std::env::remove_var("PACSEA_TEST_PRIVILEGE_AVAILABLE");
+            std::env::remove_var("PACSEA_INTEGRATION_TEST");
+        }
+
+        assert!(
+            should_skip_prompt,
+            "doas should bypass in-app password prompt"
+        );
     }
 
     #[test]
