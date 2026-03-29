@@ -202,27 +202,29 @@ For troubleshooting common issues, solutions, and diagnostic information, see th
 
 ### Potential future Features
 
+Longer specs for tracked items live in [`dev/ROADMAP/`](https://github.com/Firstp1ck/Pacsea/tree/main/dev/ROADMAP).
+
 ### Community Suggestions: Priority Features
-- **Vote for AUR packages via SSH connection**
-- **Adjustable Height of the "Results", "Package Info" and "Search" panes**
-- **Add possibility to switch locations of Top/Center/Bottom panes**
+- **Vote for AUR packages via SSH connection** ([#137](https://github.com/Firstp1ck/Pacsea/issues/137))
+- **Adjustable Height of the "Results", "Package Info" and "Search" panes** ([#135](https://github.com/Firstp1ck/Pacsea/issues/135))
+- **Add possibility to switch locations of Top/Center/Bottom panes** ([#136](https://github.com/Firstp1ck/Pacsea/issues/136))
 
 ### Other Potential Features
-- **Show with Hover over button, what the button does**
-- **Add PKGBUILD Preview shellcheck and namcap**
-- **Mirror Search and extensive Mirror Selection**
-- **Add Chaotic AUR setup and add Garuda Repository Support**
-- **Add possibility to view News for the respectiv Distro: EndeavourOS, Manjaro, Garuda and CachyOS**
+- **Show with Hover over button, what the button does** ([#133](https://github.com/Firstp1ck/Pacsea/issues/133))
+- **Add PKGBUILD Preview shellcheck and namcap** ([#133](https://github.com/Firstp1ck/Pacsea/issues/133))
+- **Mirror Search and extensive Mirror Selection** ([#132](https://github.com/Firstp1ck/Pacsea/issues/132))
+- **Add Chaotic AUR setup and add Garuda Repository Support** ([#132](https://github.com/Firstp1ck/Pacsea/issues/132))
+- **Add possibility to view News for the respective Distro: EndeavourOS, Manjaro, Garuda and CachyOS** ([#131](https://github.com/Firstp1ck/Pacsea/issues/131))
   - grouped by system critical updates like Kernel, systemd and other CORE packages that need restart and other packages (pacman and aur, incl. search/filter)
-- **Add custom Repository Support (e.g Make Cachy/Manjaro/EOS Repositories available to other Arch based Systems)**
-- **Implement `rebuild-detector` that checks if a package needs to be rebuild**
-- **Add custom upgrade commands**
-- **Add accessability themes for visual impairments**
-- **Add System Tray Support for popular Bars like Waybar, Quickshell, Hyprbar, Swaybar, etc.**
-- **Ability to resolve dependency conflicts**
-- **Ability to maintain your AUR packages**
-- **Implement Wiki into the TUI**
-- **Multi Package Manager Support for: Debian-Based (apt), Fedora-Based (dnf) and Flatpak Support**
+- **Add custom Repository Support (e.g Make Cachy/Manjaro/EOS Repositories available to other Arch based Systems)** ([#132](https://github.com/Firstp1ck/Pacsea/issues/132))
+- **Implement `rebuild-detector` that checks if a package needs to be rebuild** ([#134](https://github.com/Firstp1ck/Pacsea/issues/134))
+- **Add custom upgrade commands** ([#134](https://github.com/Firstp1ck/Pacsea/issues/134))
+- **Add accessability themes for visual impairments** ([#130](https://github.com/Firstp1ck/Pacsea/issues/130))
+- **Add System Tray Support for popular Bars like Waybar, Quickshell, Hyprbar, Swaybar, etc.** ([#130](https://github.com/Firstp1ck/Pacsea/issues/130))
+- **Ability to resolve dependency conflicts** ([#134](https://github.com/Firstp1ck/Pacsea/issues/134))
+- **Ability to maintain your AUR packages** ([#129](https://github.com/Firstp1ck/Pacsea/issues/129))
+- **Implement Wiki into the TUI** ([#129](https://github.com/Firstp1ck/Pacsea/issues/129))
+- **Multi Package Manager Support for: Debian-Based (apt), Fedora-Based (dnf) and Flatpak Support** ([#129](https://github.com/Firstp1ck/Pacsea/issues/129))
 
 ## Credits
 - Inspired by the following yay commandline: `yay -Slq | fzf --multi --preview 'yay -Sii {}' --preview-window=down:75% --layout=default | xargs -ro yay -S`
