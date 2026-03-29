@@ -37,23 +37,20 @@ pub fn aur_install_body(flags: &str, n: &str) -> String {
 /// - `dry_run`: When `true`, prints the command instead of executing.
 ///
 /// Output:
-/// - `Ok((command_string, uses_sudo))` with a shell-ready command and whether it requires sudo.
-///
-/// # Errors
-///
-/// Returns `Err` when the configured privilege tool cannot be resolved for official packages.
+/// - Tuple `(command_string, uses_sudo)` with a shell-ready command and whether it requires sudo.
 ///
 /// Details:
 /// - Uses `--needed` flag for new installs, omits it for reinstalls.
 /// - Adds a hold tail so spawned terminals remain open after completion.
+#[must_use]
 pub fn build_install_command(
     item: &PackageItem,
     password: Option<&str>,
     dry_run: bool,
-) -> Result<(String, bool), String> {
+) -> (String, bool) {
     match &item.source {
         Source::Official { .. } => {
-            let tool = crate::logic::privilege::active_tool()?;
+            let tool = crate::logic::privilege::active_tool();
             let reinstall = crate::index::is_installed(&item.name);
             let base_cmd = if reinstall {
                 format!("pacman -S --noconfirm {}", item.name)
@@ -68,7 +65,7 @@ pub fn build_install_command(
                 );
                 let quoted = shell_single_quote(&cmd);
                 let bash = format!("echo DRY RUN: {quoted}");
-                return Ok((bash, true));
+                return (bash, true);
             }
             let pass = password.unwrap_or("");
             if pass.is_empty() {
@@ -76,14 +73,14 @@ pub fn build_install_command(
                     "{}{hold_tail}",
                     crate::logic::privilege::build_privilege_command(tool, &base_cmd)
                 );
-                Ok((bash, true))
+                (bash, true)
             } else {
                 let piped = crate::logic::privilege::build_password_pipe(tool, pass, &base_cmd);
                 let priv_cmd = piped.unwrap_or_else(|| {
                     crate::logic::privilege::build_privilege_command(tool, &base_cmd)
                 });
                 let bash = format!("{priv_cmd}{hold_tail}");
-                Ok((bash, true))
+                (bash, true)
             }
         }
         Source::Aur => {
@@ -110,7 +107,7 @@ pub fn build_install_command(
                     hold = hold_tail
                 )
             };
-            Ok((aur_cmd, false))
+            (aur_cmd, false)
         }
     }
 }
@@ -136,7 +133,7 @@ mod tests {
     /// - Ensures the hold-tail message persists and the helper flags remain in sync with UI behaviour.
     /// - Uses privilege abstraction so output adapts to active tool (sudo or doas).
     fn install_build_install_command_official_variants() {
-        let tool = crate::logic::privilege::active_tool().expect("privilege tool");
+        let tool = crate::logic::privilege::active_tool();
         let bin = tool.binary_name();
 
         let pkg = PackageItem {
@@ -152,7 +149,7 @@ mod tests {
             orphaned: false,
         };
 
-        let (cmd1, uses_sudo1) = build_install_command(&pkg, None, false).expect("build");
+        let (cmd1, uses_sudo1) = build_install_command(&pkg, None, false);
         assert!(uses_sudo1);
         assert!(
             cmd1.contains(&format!("{bin} pacman -S --needed --noconfirm ripgrep")),
@@ -160,7 +157,7 @@ mod tests {
         );
         assert!(cmd1.contains("Press any key to close"));
 
-        let (cmd2, uses_sudo2) = build_install_command(&pkg, Some("pa's"), false).expect("build");
+        let (cmd2, uses_sudo2) = build_install_command(&pkg, Some("pa's"), false);
         assert!(uses_sudo2);
         if tool.capabilities().supports_stdin_password {
             assert!(
@@ -174,7 +171,7 @@ mod tests {
             );
         }
 
-        let (cmd3, uses_sudo3) = build_install_command(&pkg, None, true).expect("build");
+        let (cmd3, uses_sudo3) = build_install_command(&pkg, None, true);
         assert!(uses_sudo3);
         assert!(cmd3.starts_with("echo DRY RUN: '"));
         assert!(
@@ -206,7 +203,7 @@ mod tests {
             orphaned: false,
         };
 
-        let (cmd1, uses_sudo1) = build_install_command(&pkg, None, false).expect("build");
+        let (cmd1, uses_sudo1) = build_install_command(&pkg, None, false);
         assert!(!uses_sudo1);
         assert!(cmd1.contains("command -v paru"));
         assert!(cmd1.contains("paru -S --needed --noconfirm yay-bin"));
@@ -214,7 +211,7 @@ mod tests {
         assert!(cmd1.contains("No AUR helper"));
         assert!(cmd1.contains("Press any key to close"));
 
-        let (cmd2, uses_sudo2) = build_install_command(&pkg, None, true).expect("build");
+        let (cmd2, uses_sudo2) = build_install_command(&pkg, None, true);
         assert!(!uses_sudo2);
         // Dry-run commands are now properly quoted to avoid syntax errors
         assert!(cmd2.starts_with("echo DRY RUN: '"));

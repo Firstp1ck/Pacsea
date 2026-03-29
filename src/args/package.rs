@@ -11,13 +11,14 @@ use crate::args::i18n;
 /// - `true` if the package exists in official repos, `false` otherwise.
 ///
 /// Details:
-/// - Uses `pacman -Ss` directly (read-only sync-db search; no privilege escalation).
+/// - Uses `sudo pacman -Ss` to search for the package and checks if exact match exists.
 /// - Returns `false` if pacman is not available or the package is not found.
 fn is_official_package_search(package_name: &str) -> bool {
     use std::process::{Command, Stdio};
 
-    match Command::new("pacman")
-        .args(["-Ss", package_name])
+    let tool = pacsea::logic::privilege::active_tool();
+    match Command::new(tool.binary_name())
+        .args(["pacman", "-Ss", package_name])
         .stdin(Stdio::null())
         .output()
     {
@@ -181,7 +182,7 @@ pub fn validate_and_categorize_packages(
 /// - Tuple of (`official_packages`, `aur_packages`, `invalid_packages`).
 ///
 /// Details:
-/// - Checks each package using `pacman -Ss` first (read-only, no sudo/doas).
+/// - Checks each package using `sudo pacman -Ss` first.
 /// - If not found, checks using `yay/paru -Ss` (if helper available).
 /// - Packages not found in either are marked as invalid.
 pub fn validate_and_categorize_packages_search(

@@ -43,18 +43,12 @@ fn handle_install_request(
 
     // For official packages: password is piped to sudo (printf '%s\n' password | sudo -S command)
     // For AUR packages: cache sudo credentials first, then run paru/yay (same sudo prompt flow)
-    let cmd = match if has_aur {
+    let cmd = if has_aur {
         // Build AUR command without password embedded
         build_install_command_for_executor(&items, None, dry_run)
     } else {
         // Build official command with password piping
         build_install_command_for_executor(&items, password.as_deref(), dry_run)
-    } {
-        Ok(c) => c,
-        Err(err) => {
-            let _ = res_tx.send(ExecutorOutput::Error(err));
-            return;
-        }
     };
 
     // For AUR packages, warm up privilege credentials so paru/yay don't re-prompt.
@@ -62,20 +56,11 @@ fn handle_install_request(
     // `;` ensures AUR command runs even if warmup returns non-zero.
     let final_cmd = if has_aur && !dry_run && password.is_some() {
         if let Some(ref pass) = password {
-            match crate::logic::privilege::active_tool() {
-                Ok(tool) => {
-                    if let Some(warmup) =
-                        crate::logic::privilege::build_credential_warmup(tool, pass)
-                    {
-                        format!("{warmup} ; {cmd}")
-                    } else {
-                        cmd
-                    }
-                }
-                Err(err) => {
-                    let _ = res_tx.send(ExecutorOutput::Error(err));
-                    return;
-                }
+            let tool = crate::logic::privilege::active_tool();
+            if let Some(warmup) = crate::logic::privilege::build_credential_warmup(tool, pass) {
+                format!("{warmup} ; {cmd}")
+            } else {
+                cmd
             }
         } else {
             cmd
@@ -84,17 +69,9 @@ fn handle_install_request(
         cmd
     };
 
-    let pty_password = if dry_run {
-        None
-    } else {
-        crate::logic::privilege::active_tool()
-            .ok()
-            .filter(|t| !t.capabilities().supports_stdin_password)
-            .and(password)
-    };
     let res_tx_clone = res_tx;
     tokio::task::spawn_blocking(move || {
-        execute_command_pty(&final_cmd, pty_password, res_tx_clone);
+        execute_command_pty(&final_cmd, None, res_tx_clone);
     });
 }
 
@@ -120,25 +97,10 @@ fn handle_remove_request(
         names.len(),
         dry_run
     );
-    let cmd = match build_remove_command_for_executor(&names, password.as_deref(), cascade, dry_run)
-    {
-        Ok(c) => c,
-        Err(err) => {
-            let _ = res_tx.send(ExecutorOutput::Error(err));
-            return;
-        }
-    };
-    let pty_password = if dry_run {
-        None
-    } else {
-        crate::logic::privilege::active_tool()
-            .ok()
-            .filter(|t| !t.capabilities().supports_stdin_password)
-            .and(password)
-    };
+    let cmd = build_remove_command_for_executor(&names, password.as_deref(), cascade, dry_run);
     let res_tx_clone = res_tx;
     tokio::task::spawn_blocking(move || {
-        execute_command_pty(&cmd, pty_password, res_tx_clone);
+        execute_command_pty(&cmd, None, res_tx_clone);
     });
 }
 
@@ -162,24 +124,10 @@ fn handle_downgrade_request(
         names.len(),
         dry_run
     );
-    let cmd = match build_downgrade_command_for_executor(&names, password.as_deref(), dry_run) {
-        Ok(c) => c,
-        Err(err) => {
-            let _ = res_tx.send(ExecutorOutput::Error(err));
-            return;
-        }
-    };
-    let pty_password = if dry_run {
-        None
-    } else {
-        crate::logic::privilege::active_tool()
-            .ok()
-            .filter(|t| !t.capabilities().supports_stdin_password)
-            .and(password)
-    };
+    let cmd = build_downgrade_command_for_executor(&names, password.as_deref(), dry_run);
     let res_tx_clone = res_tx;
     tokio::task::spawn_blocking(move || {
-        execute_command_pty(&cmd, pty_password, res_tx_clone);
+        execute_command_pty(&cmd, None, res_tx_clone);
     });
 }
 
@@ -203,26 +151,12 @@ fn handle_update_request(
         commands.len(),
         dry_run
     );
-    let cmd = match build_update_command_for_executor(&commands, password.as_deref(), dry_run) {
-        Ok(c) => c,
-        Err(err) => {
-            let _ = res_tx.send(ExecutorOutput::Error(err));
-            return;
-        }
-    };
+    let cmd = build_update_command_for_executor(&commands, password.as_deref(), dry_run);
     tracing::debug!("[Runtime] Built update command (length={})", cmd.len());
-    let pty_password = if dry_run {
-        None
-    } else {
-        crate::logic::privilege::active_tool()
-            .ok()
-            .filter(|t| !t.capabilities().supports_stdin_password)
-            .and(password)
-    };
     let res_tx_clone = res_tx;
     tokio::task::spawn_blocking(move || {
         tracing::debug!("[Runtime] spawn_blocking started for update command");
-        execute_command_pty(&cmd, pty_password, res_tx_clone);
+        execute_command_pty(&cmd, None, res_tx_clone);
         tracing::debug!("[Runtime] spawn_blocking completed for update command");
     });
 }
@@ -300,13 +234,7 @@ fn handle_custom_command_request(
         // For commands that invoke a privilege tool, provide password via ASKPASS.
         // Only sudo supports SUDO_ASKPASS; doas commands are run directly (doas
         // handles its own terminal prompting and has no askpass equivalent).
-        let tool = match crate::logic::privilege::active_tool() {
-            Ok(t) => t,
-            Err(err) => {
-                let _ = res_tx.send(ExecutorOutput::Error(err));
-                return;
-            }
-        };
+        let tool = crate::logic::privilege::active_tool();
         let needs_askpass = command.contains(tool.binary_name())
             && tool.capabilities().supports_askpass
             && password.is_some();
@@ -674,9 +602,7 @@ fn send_finish_message(
 ///
 /// Inputs:
 /// - `cmd`: Command string to execute
-/// - `password`: Optional password for tools that prompt on the TTY (e.g. doas).
-///   For sudo the password is embedded in the command via `build_password_pipe`;
-///   for doas this function detects the prompt and writes the password to the PTY.
+/// - `_password`: Optional password (currently unused - password is handled in command builder)
 /// - `res_tx`: Channel sender for output lines
 ///
 /// Details:
@@ -684,18 +610,15 @@ fn send_finish_message(
 /// - Reads output line by line and sends via channel
 /// - Strips ANSI escape codes from output using `strip-ansi-escapes` crate
 /// - Sends Finished message when command completes
-/// - When `password` is `Some`, monitors output for privilege prompts and
-///   writes the password each time one is detected.  The `line_buffer` is
-///   cleared after each write so the same prompt cannot re-trigger.
+/// - Note: Password is handled in command builder (piped for official packages, credential caching for AUR)
 #[cfg(not(target_os = "windows"))]
 #[allow(clippy::needless_pass_by_value)] // Pass by value needed for move into closure
 fn execute_command_pty(
     cmd: &str,
-    password: Option<String>,
+    _password: Option<String>,
     res_tx: mpsc::UnboundedSender<ExecutorOutput>,
 ) {
     use portable_pty::{CommandBuilder, PtySize, native_pty_system};
-    use std::io::Write;
     use std::sync::mpsc as std_mpsc;
 
     tracing::debug!("[PTY] Starting execute_command_pty");
@@ -740,11 +663,6 @@ fn execute_command_pty(
         .master
         .try_clone_reader()
         .expect("Failed to clone reader");
-    let mut pty_writer = if password.is_some() {
-        pty.master.take_writer().ok()
-    } else {
-        None
-    };
     let _master = pty.master; // Keep master alive
     let (data_tx, data_rx) = std_mpsc::channel::<Vec<u8>>();
     spawn_pty_reader_thread(reader, data_tx);
@@ -793,18 +711,6 @@ fn execute_command_pty(
             Ok(data) => {
                 byte_buffer.extend_from_slice(&data);
                 lines_sent += process_byte_buffer_utf8(&mut byte_buffer, &mut line_buffer, &res_tx);
-                if let (Some(writer), Some(pass)) = (&mut pty_writer, &password)
-                    && crate::logic::privilege::contains_password_prompt(&line_buffer)
-                {
-                    if let Err(e) = writer.write_all(pass.as_bytes()) {
-                        tracing::warn!("[PTY] Failed to write password to PTY: {e}");
-                    } else {
-                        let _ = writer.write_all(b"\n");
-                        let _ = writer.flush();
-                        tracing::debug!("[PTY] Password written to PTY for privilege prompt");
-                    }
-                    line_buffer.clear();
-                }
             }
             Err(std_mpsc::RecvTimeoutError::Timeout) => {}
             Err(std_mpsc::RecvTimeoutError::Disconnected) => {

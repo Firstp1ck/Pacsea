@@ -593,15 +593,7 @@ fn handle_enter_key(app: &mut AppState) {
         if skip {
             let names: Vec<String> = app.downgrade_list.iter().map(|p| p.name.clone()).collect();
             let joined = names.join(" ");
-            let tool = match crate::logic::privilege::active_tool() {
-                Ok(t) => t,
-                Err(msg) => {
-                    app.toast_message = Some(msg);
-                    app.toast_expires_at =
-                        Some(std::time::Instant::now() + std::time::Duration::from_secs(8));
-                    return;
-                }
-            };
+            let tool = crate::logic::privilege::active_tool();
             let bin = tool.binary_name();
             let cmd = if app.dry_run {
                 format!("echo DRY RUN: {bin} downgrade {joined}")

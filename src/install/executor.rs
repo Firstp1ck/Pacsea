@@ -126,15 +126,12 @@ pub enum ExecutorOutput {
 /// - Uses `--noconfirm` for non-interactive execution.
 /// - Always uses `sudo -S` for official packages (password written to PTY stdin when sudo prompts).
 /// - Removes hold tail since we're not spawning a terminal.
-///
-/// # Errors
-///
-/// Returns `Err` when the configured privilege tool cannot be resolved for official package paths.
+#[must_use]
 pub fn build_install_command_for_executor(
     items: &[PackageItem],
     password: Option<&str>,
     dry_run: bool,
-) -> Result<String, String> {
+) -> String {
     use super::command::aur_install_body;
     use super::utils::shell_single_quote;
     use crate::state::Source;
@@ -174,7 +171,7 @@ pub fn build_install_command_for_executor(
                 flags = flags
             );
             let quoted = shell_single_quote(&cmd);
-            Ok(format!("echo DRY RUN: {quoted}"))
+            format!("echo DRY RUN: {quoted}")
         } else if !official.is_empty() {
             let installed_set = crate::logic::deps::get_installed_packages();
             let provided_set = crate::logic::deps::get_provided_packages(&installed_set);
@@ -190,15 +187,15 @@ pub fn build_install_command_for_executor(
             } else {
                 "--needed --noconfirm"
             };
-            let tool = crate::logic::privilege::active_tool()?;
+            let tool = crate::logic::privilege::active_tool();
             let cmd = crate::logic::privilege::build_privilege_command(
                 tool,
                 &format!("pacman -S {flags} {}", official.join(" ")),
             );
             let quoted = shell_single_quote(&cmd);
-            Ok(format!("echo DRY RUN: {quoted}"))
+            format!("echo DRY RUN: {quoted}")
         } else {
-            Ok("echo DRY RUN: nothing to install".to_string())
+            "echo DRY RUN: nothing to install".to_string()
         }
     } else if !aur.is_empty() {
         let all: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
@@ -219,7 +216,7 @@ pub fn build_install_command_for_executor(
         } else {
             "-S --needed --noconfirm"
         };
-        Ok(aur_install_body(flags, &n))
+        aur_install_body(flags, &n)
     } else if !official.is_empty() {
         // Check if any packages are already installed (reinstall scenario)
         // Use comprehensive check that includes packages provided by installed packages
@@ -237,9 +234,9 @@ pub fn build_install_command_for_executor(
         } else {
             "--needed --noconfirm"
         };
-        let tool = crate::logic::privilege::active_tool()?;
+        let tool = crate::logic::privilege::active_tool();
         let install_cmd = format!("pacman -S {flags} {}", official.join(" "));
-        Ok(password.map_or_else(
+        password.map_or_else(
             || {
                 let sync = crate::logic::privilege::build_privilege_command(tool, "pacman -Sy");
                 let install = crate::logic::privilege::build_privilege_command(tool, &install_cmd);
@@ -267,9 +264,9 @@ pub fn build_install_command_for_executor(
                     },
                 )
             },
-        ))
+        )
     } else {
-        Ok("echo nothing to install".to_string())
+        "echo nothing to install".to_string()
     }
 }
 
@@ -289,45 +286,42 @@ pub fn build_install_command_for_executor(
 /// - Uses `--noconfirm` for non-interactive execution.
 /// - Always uses `sudo -S` for remove operations (password written to PTY stdin when sudo prompts).
 /// - Removes hold tail since we're not spawning a terminal.
-///
-/// # Errors
-///
-/// Returns `Err` when the configured privilege tool cannot be resolved.
+#[must_use]
 pub fn build_remove_command_for_executor(
     names: &[String],
     password: Option<&str>,
     cascade: crate::state::modal::CascadeMode,
     dry_run: bool,
-) -> Result<String, String> {
+) -> String {
     use super::utils::shell_single_quote;
 
     if names.is_empty() {
-        return Ok(if dry_run {
+        return if dry_run {
             "echo DRY RUN: nothing to remove".to_string()
         } else {
             "echo nothing to remove".to_string()
-        });
+        };
     }
 
     let flag = cascade.flag();
     let names_str = names.join(" ");
 
-    let tool = crate::logic::privilege::active_tool()?;
+    let tool = crate::logic::privilege::active_tool();
     let base_cmd = format!("pacman {flag} --noconfirm {names_str}");
 
     if dry_run {
         let cmd = crate::logic::privilege::build_privilege_command(tool, &base_cmd);
         let quoted = shell_single_quote(&cmd);
-        Ok(format!("echo DRY RUN: {quoted}"))
+        format!("echo DRY RUN: {quoted}")
     } else {
-        Ok(password.map_or_else(
+        password.map_or_else(
             || crate::logic::privilege::build_privilege_command(tool, &base_cmd),
             |pass| {
                 crate::logic::privilege::build_password_pipe(tool, pass, &base_cmd).unwrap_or_else(
                     || crate::logic::privilege::build_privilege_command(tool, &base_cmd),
                 )
             },
-        ))
+        )
     }
 }
 
@@ -346,27 +340,24 @@ pub fn build_remove_command_for_executor(
 /// - Checks if `downgrade` tool is available before executing.
 /// - Read-only package checks use `pacman -Qi` without privilege escalation.
 /// - Removes hold tail since we're not spawning a terminal.
-///
-/// # Errors
-///
-/// Returns `Err` when the configured privilege tool cannot be resolved.
+#[must_use]
 pub fn build_downgrade_command_for_executor(
     names: &[String],
     _password: Option<&str>,
     dry_run: bool,
-) -> Result<String, String> {
+) -> String {
     use super::utils::shell_single_quote;
     if names.is_empty() {
-        return Ok(if dry_run {
+        return if dry_run {
             "echo DRY RUN: nothing to downgrade".to_string()
         } else {
             "echo nothing to downgrade".to_string()
-        });
+        };
     }
 
     let names_str = names.join(" ");
 
-    let tool = crate::logic::privilege::active_tool()?;
+    let tool = crate::logic::privilege::active_tool();
     let bin = tool.binary_name();
 
     if dry_run {
@@ -375,11 +366,11 @@ pub fn build_downgrade_command_for_executor(
             &format!("downgrade {names_str}"),
         );
         let quoted = shell_single_quote(&cmd);
-        Ok(format!("echo DRY RUN: {quoted}"))
+        format!("echo DRY RUN: {quoted}")
     } else {
-        Ok(format!(
+        format!(
             "if (command -v downgrade >/dev/null 2>&1) || pacman -Qi downgrade >/dev/null 2>&1; then {bin} downgrade {names_str}; else echo 'downgrade tool not found. Install \"downgrade\" package.'; fi"
-        ))
+        )
     }
 }
 
@@ -398,24 +389,20 @@ pub fn build_downgrade_command_for_executor(
 /// - For commands starting with `sudo`, pipes password if provided.
 /// - In dry-run mode, wraps each command in `echo DRY RUN:`.
 /// - Removes hold tail since we're not spawning a terminal.
-///
-/// # Errors
-///
-/// Returns `Err` when the configured privilege tool cannot be resolved for non-dry-run paths
-/// or credential warm-up.
+#[must_use]
 pub fn build_update_command_for_executor(
     commands: &[String],
     password: Option<&str>,
     dry_run: bool,
-) -> Result<String, String> {
+) -> String {
     use super::utils::shell_single_quote;
 
     if commands.is_empty() {
-        return Ok(if dry_run {
+        return if dry_run {
             "echo DRY RUN: nothing to update".to_string()
         } else {
             "echo nothing to update".to_string()
-        });
+        };
     }
 
     let processed_commands: Vec<String> = if dry_run {
@@ -447,7 +434,7 @@ pub fn build_update_command_for_executor(
             })
             .collect()
     } else {
-        let tool = crate::logic::privilege::active_tool()?;
+        let tool = crate::logic::privilege::active_tool();
         let prefix = format!("{} ", tool.binary_name());
         commands
             .iter()
@@ -472,13 +459,13 @@ pub fn build_update_command_for_executor(
 
     // Warm up privilege credentials so internal sudo/doas calls don't re-prompt.
     if let Some(pass) = password {
-        let tool = crate::logic::privilege::active_tool()?;
+        let tool = crate::logic::privilege::active_tool();
         if let Some(warmup) = crate::logic::privilege::build_credential_warmup(tool, pass) {
-            return Ok(format!("{warmup} ; {joined}"));
+            return format!("{warmup} ; {joined}");
         }
     }
 
-    Ok(joined)
+    joined
 }
 
 /// What: Build scan command string for `PTY` execution (excluding aur-sleuth).
@@ -599,7 +586,7 @@ mod tests {
     /// - Ensures commands are properly formatted and don't include terminal hold prompts.
     /// - Uses privilege abstraction so output adapts to active tool (sudo or doas).
     fn executor_build_install_command_variants() {
-        let tool = crate::logic::privilege::active_tool().expect("privilege tool");
+        let tool = crate::logic::privilege::active_tool();
         let bin = tool.binary_name();
 
         let official_pkg = create_test_package(
@@ -620,8 +607,7 @@ mod tests {
             &provided_set,
         );
         let cmd1 =
-            build_install_command_for_executor(std::slice::from_ref(&official_pkg), None, false)
-                .expect("build install");
+            build_install_command_for_executor(std::slice::from_ref(&official_pkg), None, false);
         if is_installed {
             assert!(
                 cmd1.contains(&format!("{bin} pacman -S --noconfirm ripgrep")),
@@ -641,8 +627,7 @@ mod tests {
             std::slice::from_ref(&official_pkg),
             Some("pass"),
             false,
-        )
-        .expect("build install");
+        );
         if tool.capabilities().supports_stdin_password {
             assert!(cmd2.contains("printf "), "expected printf in: {cmd2}");
             if is_installed {
@@ -664,14 +649,12 @@ mod tests {
         }
 
         // AUR package
-        let cmd3 = build_install_command_for_executor(std::slice::from_ref(&aur_pkg), None, false)
-            .expect("build install");
+        let cmd3 = build_install_command_for_executor(std::slice::from_ref(&aur_pkg), None, false);
         assert!(cmd3.contains("command -v paru"));
         assert!(!cmd3.contains("Press any key to close"));
 
         // Dry run
-        let cmd4 =
-            build_install_command_for_executor(&[official_pkg], None, true).expect("build install");
+        let cmd4 = build_install_command_for_executor(&[official_pkg], None, true);
         assert!(cmd4.starts_with("echo DRY RUN:"));
     }
 
@@ -696,8 +679,7 @@ mod tests {
         );
         let aur_pkg = create_test_package("yay-bin", Source::Aur);
 
-        let cmd = build_install_command_for_executor(&[official_pkg, aur_pkg], None, false)
-            .expect("build install");
+        let cmd = build_install_command_for_executor(&[official_pkg, aur_pkg], None, false);
         // When AUR packages are present, should use AUR helper
         assert!(cmd.contains("command -v paru") || cmd.contains("command -v yay"));
     }
@@ -714,7 +696,7 @@ mod tests {
     /// Details:
     /// - Empty list should produce a safe no-op command.
     fn executor_build_empty_list() {
-        let cmd = build_install_command_for_executor(&[], None, false).expect("build install");
+        let cmd = build_install_command_for_executor(&[], None, false);
         assert!(cmd.contains("nothing to install") || cmd.is_empty());
     }
 
@@ -759,13 +741,10 @@ mod tests {
         );
         let has_reinstall = ripgrep_installed || fd_installed;
 
-        let cmd =
-            build_install_command_for_executor(&[pkg1, pkg2], None, false).expect("build install");
+        let cmd = build_install_command_for_executor(&[pkg1, pkg2], None, false);
         assert!(cmd.contains("ripgrep"));
         assert!(cmd.contains("fd"));
-        let bin = crate::logic::privilege::active_tool()
-            .expect("privilege tool")
-            .binary_name();
+        let bin = crate::logic::privilege::active_tool().binary_name();
         if has_reinstall {
             assert!(
                 cmd.contains(&format!("{bin} pacman -S --noconfirm")),
@@ -800,7 +779,7 @@ mod tests {
             },
         );
 
-        let cmd = build_install_command_for_executor(&[pkg], None, true).expect("build install");
+        let cmd = build_install_command_for_executor(&[pkg], None, true);
         assert!(cmd.starts_with("echo DRY RUN:"));
         // In dry-run mode, the command is wrapped in echo, so it may contain the original command text
         // The important thing is that it starts with "echo DRY RUN:" which prevents execution
@@ -818,7 +797,7 @@ mod tests {
     /// Details:
     /// - Password should be single-quoted to prevent shell injection.
     fn executor_build_password_escaping() {
-        let tool = crate::logic::privilege::active_tool().expect("privilege tool");
+        let tool = crate::logic::privilege::active_tool();
         let pkg = create_test_package(
             "ripgrep",
             Source::Official {
@@ -828,8 +807,7 @@ mod tests {
         );
 
         let password = "pass'word\"with$special";
-        let cmd = build_install_command_for_executor(&[pkg], Some(password), false)
-            .expect("build install");
+        let cmd = build_install_command_for_executor(&[pkg], Some(password), false);
         if tool.capabilities().supports_stdin_password {
             assert!(cmd.contains("printf"), "expected printf in: {cmd}");
             assert!(
@@ -859,13 +837,12 @@ mod tests {
     fn executor_build_remove_command_variants() {
         use crate::state::modal::CascadeMode;
 
-        let tool = crate::logic::privilege::active_tool().expect("privilege tool");
+        let tool = crate::logic::privilege::active_tool();
         let bin = tool.binary_name();
         let names = vec!["test-pkg1".to_string(), "test-pkg2".to_string()];
 
         // Basic mode without password
-        let cmd1 = build_remove_command_for_executor(&names, None, CascadeMode::Basic, false)
-            .expect("build remove");
+        let cmd1 = build_remove_command_for_executor(&names, None, CascadeMode::Basic, false);
         assert!(
             cmd1.contains(&format!("{bin} pacman -R --noconfirm")),
             "expected '{bin} pacman -R --noconfirm' in: {cmd1}"
@@ -876,8 +853,7 @@ mod tests {
 
         // Cascade mode with password
         let cmd2 =
-            build_remove_command_for_executor(&names, Some("pass"), CascadeMode::Cascade, false)
-                .expect("build remove");
+            build_remove_command_for_executor(&names, Some("pass"), CascadeMode::Cascade, false);
         if tool.capabilities().supports_stdin_password {
             assert!(cmd2.contains("printf "), "expected printf in: {cmd2}");
             assert!(
@@ -893,22 +869,19 @@ mod tests {
 
         // CascadeWithConfigs mode
         let cmd3 =
-            build_remove_command_for_executor(&names, None, CascadeMode::CascadeWithConfigs, false)
-                .expect("build remove");
+            build_remove_command_for_executor(&names, None, CascadeMode::CascadeWithConfigs, false);
         assert!(
             cmd3.contains(&format!("{bin} pacman -Rns --noconfirm")),
             "expected '{bin} pacman -Rns --noconfirm' in: {cmd3}"
         );
 
         // Dry run
-        let cmd4 = build_remove_command_for_executor(&names, None, CascadeMode::Basic, true)
-            .expect("build remove");
+        let cmd4 = build_remove_command_for_executor(&names, None, CascadeMode::Basic, true);
         assert!(cmd4.starts_with("echo DRY RUN:"));
         assert!(cmd4.contains("pacman -R --noconfirm"));
 
         // Empty list
-        let cmd5 = build_remove_command_for_executor(&[], None, CascadeMode::Basic, false)
-            .expect("build remove");
+        let cmd5 = build_remove_command_for_executor(&[], None, CascadeMode::Basic, false);
         assert_eq!(cmd5, "echo nothing to remove");
     }
 
@@ -927,11 +900,10 @@ mod tests {
     /// - `pacman -Qi downgrade` must remain unprivileged because it is read-only.
     fn executor_build_downgrade_command_uses_unprivileged_qi_check() {
         let names = vec!["linux".to_string(), "linux-headers".to_string()];
-        let tool = crate::logic::privilege::active_tool().expect("privilege tool");
+        let tool = crate::logic::privilege::active_tool();
         let bin = tool.binary_name();
 
-        let live =
-            build_downgrade_command_for_executor(&names, None, false).expect("build downgrade");
+        let live = build_downgrade_command_for_executor(&names, None, false);
         assert!(
             live.contains("pacman -Qi downgrade"),
             "expected unprivileged pacman -Qi check in: {live}"
@@ -941,8 +913,7 @@ mod tests {
             "expected tool-aware downgrade command in: {live}"
         );
 
-        let dry =
-            build_downgrade_command_for_executor(&names, None, true).expect("build downgrade");
+        let dry = build_downgrade_command_for_executor(&names, None, true);
         assert!(dry.starts_with("echo DRY RUN:"));
         assert!(dry.contains(&format!("{bin} downgrade linux linux-headers")));
     }

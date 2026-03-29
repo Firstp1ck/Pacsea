@@ -120,13 +120,7 @@ fn install_official_packages(packages: &[String]) {
     }
 
     tracing::info!(packages = ?packages, "Installing official packages");
-    let tool = match pacsea::logic::privilege::active_tool() {
-        Ok(t) => t,
-        Err(err) => {
-            eprintln!("{err}");
-            std::process::exit(1);
-        }
-    };
+    let tool = pacsea::logic::privilege::active_tool();
     let status = Command::new(tool.binary_name())
         .arg("pacman")
         .arg("-S")

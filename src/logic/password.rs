@@ -108,7 +108,7 @@ pub fn should_skip_password_modal(settings: &crate::theme::Settings) -> bool {
 /// - Uses the resolved privilege tool (sudo or doas) based on settings.
 /// - Both sudo and doas support `-n true` for non-interactive checking.
 pub fn check_passwordless_sudo_available() -> Result<bool, String> {
-    let tool = crate::logic::privilege::active_tool()?;
+    let tool = crate::logic::privilege::active_tool();
     tool.check_passwordless()
 }
 
@@ -121,9 +121,11 @@ pub fn check_passwordless_sudo_available() -> Result<bool, String> {
 /// - `true` if passwordless execution should be used, `false` otherwise.
 ///
 /// Details:
-/// - Resolves the active privilege tool for logging and error handling.
-/// - Checks if `use_passwordless_sudo` is enabled in settings (safety barrier).
-/// - If not enabled, returns `false` immediately.
+/// - First checks tool capabilities: tools without stdin-password support (e.g. doas)
+///   bypass the in-app modal and return `true`.
+/// - For stdin-capable tools (sudo), checks if `use_passwordless_sudo` is enabled
+///   in settings (safety barrier).
+/// - If not enabled for stdin-capable tools, returns `false` immediately.
 /// - If enabled, checks if passwordless execution is actually available on the system.
 /// - Returns `true` only if both conditions are met.
 /// - Test overrides flow through [`check_passwordless_sudo_available`] → privilege module.
@@ -142,23 +144,19 @@ pub fn should_use_passwordless_sudo(settings: &crate::theme::Settings) -> bool {
         return val == "1";
     }
 
-    let tool = match crate::logic::privilege::active_tool() {
-        Ok(t) => t,
-        Err(err) => {
-            tracing::warn!(
-                error = %err,
-                "Could not resolve privilege tool; treating as password prompt required"
-            );
-            return false;
-        }
-    };
+    let tool = crate::logic::privilege::active_tool();
+    if !tool.capabilities().supports_stdin_password {
+        tracing::debug!(
+            tool = %tool,
+            "Active privilege tool does not support stdin password; skipping in-app password prompt"
+        );
+        return true;
+    }
+
     let auth_mode = resolve_auth_mode(settings);
     let require_legacy_toggle = auth_mode != AuthMode::PasswordlessOnly;
     if require_legacy_toggle && !settings.use_passwordless_sudo {
-        tracing::debug!(
-            tool = %tool,
-            "Passwordless privilege disabled in settings, requiring password prompt"
-        );
+        tracing::debug!("Passwordless privilege disabled in settings, requiring password prompt");
         return false;
     }
 
@@ -194,13 +192,14 @@ pub fn should_use_passwordless_sudo(settings: &crate::theme::Settings) -> bool {
 /// # Errors
 ///
 /// - Returns `Err` if the validation command cannot be executed (e.g., tool not available).
-/// - Returns `Err` if the active tool does not support programmatic password validation.
+/// - Returns `Err` if the active tool does not support password validation (e.g., doas).
 ///
 /// Details:
 /// - Delegates to [`crate::logic::privilege::validate_password`].
-/// - Works for sudo (via `-S` stdin pipe) and doas (via native `portable-pty` probe).
+/// - Only works for tools that support stdin password piping (currently sudo).
+/// - For doas, returns an error since doas cannot validate passwords via stdin.
 pub fn validate_sudo_password(password: &str) -> Result<bool, String> {
-    let tool = crate::logic::privilege::active_tool()?;
+    let tool = crate::logic::privilege::active_tool();
     crate::logic::privilege::validate_password(tool, password)
 }
 
@@ -242,20 +241,19 @@ mod tests {
     }
 
     #[test]
-    /// What: Ensure doas does not implicitly skip the in-app password prompt.
+    /// What: Ensure doas skips in-app password prompt decision.
     ///
     /// Inputs:
     /// - Integration test env forcing only doas availability.
-    /// - Settings with `use_passwordless_sudo = false`.
+    /// - Default settings with `use_passwordless_sudo = false`.
     ///
     /// Output:
-    /// - Returns `false` from `should_use_passwordless_sudo`.
+    /// - Returns `true` from `should_use_passwordless_sudo`.
     ///
     /// Details:
-    /// - Regression guard for doas flow:
-    ///   selecting doas must still show the same in-app password popup unless
-    ///   passwordless mode is explicitly active.
-    fn test_should_use_passwordless_sudo_false_for_doas_when_passwordless_disabled() {
+    /// - doas cannot validate stdin passwords in-app.
+    /// - Pacsea must skip the modal and let terminal doas prompt directly.
+    fn test_should_use_passwordless_sudo_true_for_doas_without_stdin_support() {
         let _guard = crate::global_test_mutex_lock();
         unsafe {
             std::env::set_var("PACSEA_INTEGRATION_TEST", "1");
@@ -274,8 +272,8 @@ mod tests {
         }
 
         assert!(
-            !should_skip_prompt,
-            "doas should not skip in-app password prompt when passwordless is disabled"
+            should_skip_prompt,
+            "doas should bypass in-app password prompt"
         );
     }
 

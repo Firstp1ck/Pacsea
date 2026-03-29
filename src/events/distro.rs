@@ -17,14 +17,10 @@
 /// - On `EndeavourOS`, ensures `eos-rankmirrors` is installed, runs it, then runs `reflector`.
 /// - On `CachyOS`, ensures `cachyos-rate-mirrors` is installed, runs it, then runs `reflector`.
 /// - Otherwise, attempts to use `reflector` to write `/etc/pacman.d/mirrorlist`; if not found, prints a notice.
-///
-/// # Errors
-///
-/// Returns `Err` when the configured privilege tool cannot be resolved (see [`crate::logic::privilege::active_tool`]).
-pub fn mirror_update_command(countries: &str, count: u16) -> Result<String, String> {
-    let bin = crate::logic::privilege::active_tool()?.binary_name();
+pub fn mirror_update_command(countries: &str, count: u16) -> String {
+    let bin = crate::logic::privilege::active_tool().binary_name();
     if countries.eq("Worldwide") {
-        Ok(format!(
+        format!(
             "(if grep -q 'Manjaro' /etc/os-release 2>/dev/null; then \
     ((command -v pacman-mirrors >/dev/null 2>&1) || pacman -Qi pacman-mirrors >/dev/null 2>&1 || {bin} pacman -S --needed --noconfirm pacman-mirrors) && \
     {bin} pacman-mirrors --fasttrack {count}; \
@@ -68,9 +64,9 @@ pub fn mirror_update_command(countries: &str, count: u16) -> Result<String, Stri
   else \
     (command -v reflector >/dev/null 2>&1 && {bin} reflector --verbose --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist) || echo 'reflector not found; skipping mirror update'; \
   fi)"
-        ))
+        )
     } else {
-        Ok(format!(
+        format!(
             "(if grep -q 'Manjaro' /etc/os-release 2>/dev/null; then \
     ((command -v pacman-mirrors >/dev/null 2>&1) || pacman -Qi pacman-mirrors >/dev/null 2>&1 || {bin} pacman -S --needed --noconfirm pacman-mirrors) && \
     {bin} pacman-mirrors --method rank --country '{countries}'; \
@@ -110,7 +106,7 @@ pub fn mirror_update_command(countries: &str, count: u16) -> Result<String, Stri
   else \
     (command -v reflector >/dev/null 2>&1 && {bin} reflector --verbose --country '{countries}' --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist) || echo 'reflector not found; skipping mirror update'; \
   fi)"
-        ))
+        )
     }
 }
 
@@ -131,7 +127,7 @@ mod tests {
     /// Details:
     /// - Verifies the script includes the fasttrack invocation with the requested count.
     fn mirror_update_worldwide_includes_fasttrack_path() {
-        let cmd = mirror_update_command("Worldwide", 8).expect("mirror command");
+        let cmd = mirror_update_command("Worldwide", 8);
         assert!(cmd.contains("grep -q 'Manjaro' /etc/os-release"));
         assert!(cmd.contains("pacman-mirrors --fasttrack 8"));
     }
@@ -149,11 +145,9 @@ mod tests {
     /// Details:
     /// - Confirms the `EndeavourOS` clause still emits the reflector call with the customized country list.
     fn mirror_update_regional_propagates_country_argument() {
-        let bin = crate::logic::privilege::active_tool()
-            .expect("privilege tool")
-            .binary_name();
+        let bin = crate::logic::privilege::active_tool().binary_name();
         let countries = "Germany,France";
-        let cmd = mirror_update_command(countries, 5).expect("mirror command");
+        let cmd = mirror_update_command(countries, 5);
         assert!(cmd.contains("--country 'Germany,France'"));
         assert!(cmd.contains("grep -q 'EndeavourOS' /etc/os-release"));
         assert!(
@@ -177,10 +171,8 @@ mod tests {
     /// Details:
     /// - Guards against accidental removal of distro-specific tooling when modifying the mirrored script.
     fn mirror_update_includes_distro_specific_helpers() {
-        let bin = crate::logic::privilege::active_tool()
-            .expect("privilege tool")
-            .binary_name();
-        let cmd = mirror_update_command("Worldwide", 3).expect("mirror command");
+        let bin = crate::logic::privilege::active_tool().binary_name();
+        let cmd = mirror_update_command("Worldwide", 3);
         assert!(
             cmd.contains(&format!("{bin} eos-rankmirrors")),
             "expected '{bin} eos-rankmirrors' in: {cmd}"
@@ -202,7 +194,7 @@ mod tests {
     /// Details:
     /// - Verifies Artix branch uses rate-mirrors without --entry-country for Worldwide selection.
     fn mirror_update_worldwide_includes_artix_path() {
-        let cmd = mirror_update_command("Worldwide", 10).expect("mirror command");
+        let cmd = mirror_update_command("Worldwide", 10);
         assert!(cmd.contains("grep -q 'Artix' /etc/os-release"));
         assert!(cmd.contains("rate-mirrors"));
         assert!(cmd.contains("--top-mirrors-number-to-retest=10"));
@@ -223,7 +215,7 @@ mod tests {
     /// Details:
     /// - Confirms the Artix clause validates single country and uses --entry-country parameter.
     fn mirror_update_artix_regional_includes_country_validation() {
-        let cmd = mirror_update_command("Germany", 5).expect("mirror command");
+        let cmd = mirror_update_command("Germany", 5);
         assert!(cmd.contains("grep -q 'Artix' /etc/os-release"));
         assert!(cmd.contains("--entry-country='Germany'"));
         assert!(cmd.contains("Only one country is allowed"));
@@ -244,7 +236,7 @@ mod tests {
     /// Details:
     /// - Validates that the script checks for rate-mirrors and AUR helpers before proceeding.
     fn mirror_update_artix_includes_installation_checks() {
-        let cmd = mirror_update_command("Germany", 8).expect("mirror command");
+        let cmd = mirror_update_command("Germany", 8);
         assert!(cmd.contains("pacman -Qi rate-mirrors"));
         assert!(cmd.contains("pacman -Qi paru"));
         assert!(cmd.contains("pacman -Qi yay"));
@@ -268,10 +260,8 @@ mod tests {
     /// Details:
     /// - Ensures mirrorlist backup is created before rate-mirrors execution.
     fn mirror_update_artix_includes_backup() {
-        let bin = crate::logic::privilege::active_tool()
-            .expect("privilege tool")
-            .binary_name();
-        let cmd = mirror_update_command("Germany", 5).expect("mirror command");
+        let bin = crate::logic::privilege::active_tool().binary_name();
+        let cmd = mirror_update_command("Germany", 5);
         assert!(
             cmd.contains(&format!("{bin} cp /etc/pacman.d/mirrorlist")),
             "expected '{bin} cp ...' in: {cmd}"

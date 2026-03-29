@@ -1036,13 +1036,7 @@ pub(super) fn handle_password_prompt_modal(
                 let names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
                 let joined = names.join(" ");
 
-                let tool = match crate::logic::privilege::active_tool() {
-                    Ok(t) => t,
-                    Err(msg) => {
-                        app.modal = crate::state::Modal::Alert { message: msg };
-                        return true;
-                    }
-                };
+                let tool = crate::logic::privilege::active_tool();
                 let cmd = if app.dry_run {
                     let downgrade_cmd = crate::logic::privilege::build_privilege_command(
                         tool,

@@ -759,55 +759,43 @@ pub fn handle_tick(
                     Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
             }
             Err(_e) => {
-                match crate::logic::privilege::active_tool() {
-                    Ok(tool) => {
-                        let command =
-                            crate::logic::privilege::build_privilege_command(tool, "pacman -Fy");
-                        let settings = crate::theme::settings();
-                        match crate::logic::password::resolve_auth_mode(&settings) {
-                            crate::logic::privilege::AuthMode::Interactive => {
-                                match crate::events::try_interactive_auth_handoff() {
-                                    Ok(true) => {
-                                        queue_file_sync_command_without_password(app, command);
-                                    }
-                                    Ok(false) => {
-                                        app.modal = crate::state::Modal::Alert {
-                                            message: crate::i18n::t(
-                                                app,
-                                                "app.errors.authentication_failed",
-                                            ),
-                                        };
-                                    }
-                                    Err(err) => {
-                                        app.modal = crate::state::Modal::Alert { message: err };
-                                    }
-                                }
-                            }
-                            crate::logic::privilege::AuthMode::PasswordlessOnly
-                                if crate::logic::password::should_skip_password_modal(
-                                    &settings,
-                                ) =>
-                            {
+                let tool = crate::logic::privilege::active_tool();
+                let command = crate::logic::privilege::build_privilege_command(tool, "pacman -Fy");
+                let settings = crate::theme::settings();
+                match crate::logic::password::resolve_auth_mode(&settings) {
+                    crate::logic::privilege::AuthMode::Interactive => {
+                        match crate::events::try_interactive_auth_handoff() {
+                            Ok(true) => {
                                 queue_file_sync_command_without_password(app, command);
                             }
-                            _ => {
-                                app.modal = crate::state::Modal::PasswordPrompt {
-                                    purpose: crate::state::modal::PasswordPurpose::FileSync,
-                                    items: Vec::new(), // No packages involved in file sync
-                                    input: String::new(),
-                                    cursor: 0,
-                                    error: None,
+                            Ok(false) => {
+                                app.modal = crate::state::Modal::Alert {
+                                    message: crate::i18n::t(app, "app.errors.authentication_failed"),
                                 };
-                                app.pending_custom_command = Some(command);
-                                app.pending_exec_header_chips =
-                                    Some(crate::state::modal::PreflightHeaderChips::default());
+                            }
+                            Err(err) => {
+                                app.modal = crate::state::Modal::Alert { message: err };
                             }
                         }
                     }
-                    Err(msg) => {
-                        app.toast_message = Some(msg);
-                        app.toast_expires_at =
-                            Some(std::time::Instant::now() + std::time::Duration::from_secs(8));
+                    crate::logic::privilege::AuthMode::PasswordlessOnly
+                        if crate::logic::password::should_skip_password_modal(&settings) =>
+                    {
+                        queue_file_sync_command_without_password(app, command);
+                    }
+                    _ => {
+                        // Sync failed, show password prompt
+                        app.modal = crate::state::Modal::PasswordPrompt {
+                            purpose: crate::state::modal::PasswordPurpose::FileSync,
+                            items: Vec::new(), // No packages involved in file sync
+                            input: String::new(),
+                            cursor: 0,
+                            error: None,
+                        };
+                        // Store the command to execute after password is provided
+                        app.pending_custom_command = Some(command);
+                        app.pending_exec_header_chips =
+                            Some(crate::state::modal::PreflightHeaderChips::default());
                     }
                 }
             }

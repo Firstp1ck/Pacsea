@@ -4,9 +4,6 @@ mod tests {
     use crate::theme::config::settings_ensure::{
         ensure_settings_keys_present, ensure_theme_keys_present,
     };
-    use crate::theme::config::settings_ensure::{
-        ensure_settings_keys_present, ensure_theme_keys_present,
-    };
     use crate::theme::config::settings_save::{
         save_selected_countries, save_show_recent_pane, save_sort_mode,
     };

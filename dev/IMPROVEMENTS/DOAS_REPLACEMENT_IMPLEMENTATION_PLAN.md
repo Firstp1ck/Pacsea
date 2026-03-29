@@ -1,14 +1,5 @@
 # Doas Replacement Implementation Plan
 
-## Progress todos (2026-03-30)
-
-**Implementation on branch:** feature work is implemented in-tree (`src/logic/privilege.rs`, `privilege_tool` setting, migrated executors/modals/CLI). **Release:** not yet on `origin/main` / not in `CHANGELOG.md` for a stable tag at last review.
-
-- [x] Phases 0–5: abstraction, settings, executor/modal/CLI migration, tests, hardening (see checklist below)
-- [ ] Merge `feature/doas-sudo-replacement` → `main` and cut release
-- [ ] Add `CHANGELOG.md` entry (`privilege_tool`, auto/explicit doas/sudo, doas limitations vs sudo)
-- [ ] Post-merge: grep audit for unintended hardcoded `sudo` in production paths; update docs/wiki only if you maintain them elsewhere
-
 ## Goal
 
 Implement support for `doas` as a replacement for `sudo` in privileged package operations while preserving current behavior, security guarantees, and graceful fallbacks.
@@ -23,9 +14,13 @@ Implement support for `doas` as a replacement for `sudo` in privileged package o
 
 ## Current State Snapshot
 
-**Implemented (this branch):** `src/logic/privilege.rs` centralizes `sudo`/`doas` resolution, command builders, and capability flags; settings include `privilege_tool = auto|sudo|doas`; call sites use the abstraction instead of hardcoded `sudo` for privileged operations.
+`sudo` is hardcoded in multiple areas, especially:
 
-**Pre-refactor baseline (historical):** `sudo` was hardcoded across the runtime executor, install/remove/update builders, modals, and tests. That layout motivated the phases below.
+- Runtime command execution and askpass handling in `src/app/runtime/workers/executor.rs`
+- Install/downgrade flows and password modal logic in `src/events/modals/handlers.rs`
+- Integration tests under `tests/downgrade`, `tests/install`, and `tests/passwordless_sudo`
+
+There is currently no `doas` usage in the repository.
 
 ## Design Strategy
 
@@ -155,15 +150,17 @@ Update and add tests:
   - `cargo check`
   - `cargo test -- --test-threads=1`
 
-## Rollout Checklist (branch — done)
+## Rollout Checklist
 
-- [x] Phase 0 capability spike documented in code comments.
-- [x] Privilege tool setting added and parsed.
-- [x] `executor` and modal handlers migrated.
-- [x] Tests generalized and passing.
-- [x] Hardcoded `sudo` in production paths removed except intentional messages (minor exceptions noted in implementation notes).
-- [x] Dry-run output validated for both tools (tests use active tool binary name).
-- [x] Quality gate commands pass.
+- [ ] Phase 0 capability spike documented in code comments.
+- [ ] Privilege tool setting added and parsed.
+- [ ] `executor` and modal handlers migrated.
+- [ ] Tests generalized and passing.
+- [ ] No remaining hardcoded `sudo` strings in production paths (except intentional logs/messages).
+- [ ] Dry-run output validated for both tools.
+- [ ] Quality gate commands pass.
+
+
 
 ## Implementation Status (updated 2026-03-29)
 
@@ -229,5 +226,23 @@ Update and add tests:
 - [x] `events/distro.rs` test assertions made tool-agnostic
 
 ### Rollout Checklist
+- [x] Phase 0 capability spike documented in code comments
+- [x] Privilege tool setting added and parsed
+- [x] `executor` and modal handlers migrated
+- [x] Tests generalized and passing (967 tests, 0 failures)
+- [x] Most hardcoded `sudo` strings replaced in production paths (minor cosmetic exceptions deferred)
+- [x] Dry-run output validated for both tools (tests use `active_tool().binary_name()`)
+- [x] Quality gate commands pass (all phases, 967 tests)
 
-Same items as **“Rollout Checklist (branch — done)”** earlier in this document; all checked on the feature branch. Outstanding items are under **Progress todos** at the top (merge, changelog, post-merge audit).
+---
+
+## Statement against the implementation
+
+We decided not to add `doas` support because it would slightly increase security risk and noticeably increase maintenance work, without giving most users a clear benefit over the existing `sudo` support. [en.wikipedia](https://en.wikipedia.org/wiki/Setuid)
+
+Things that would increase risk and maintenance cost:
+
+- More ways to run as admin: Every extra “run as administrator” tool is another powerful program attackers can try to break. [cbtnuggets](https://www.cbtnuggets.com/blog/technology/system-admin/linux-file-permissions-understanding-setuid-setgid-and-the-sticky-bit)
+- Two configs to get right: We’d have to support and document both `sudo` and `doas` setups, which doubles the chance of misconfiguration on user systems. [manual.siduction](https://manual.siduction.org/sys-admin-doas_en.html)
+- Extra code paths to test: The package manager would need separate logic for `sudo` and `doas`, meaning more code to write, test, and keep bug‑free. [fluca1978.github](https://fluca1978.github.io/2021/11/08/SUDOvsDOAS.html)
+- More support questions: Users would run into issues specific to each tool and platform, increasing support, debugging, and documentation overhead. [manual.siduction](https://manual.siduction.org/sys-admin-doas_en.html)
