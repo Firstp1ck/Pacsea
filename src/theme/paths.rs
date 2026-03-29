@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 ///
 /// Details:
 /// - Prefers `$HOME/.config/pacsea/theme.conf`, then legacy `pacsea.conf`, and repeats for XDG paths.
-pub fn resolve_theme_config_path() -> Option<PathBuf> {
+pub(super) fn resolve_theme_config_path() -> Option<PathBuf> {
     let home = env::var("HOME").ok();
     let xdg_config = env::var("XDG_CONFIG_HOME").ok();
     let mut candidates: Vec<PathBuf> = Vec::new();
@@ -212,12 +212,15 @@ mod tests {
     /// - `base`: Temporary HOME root directory.
     ///
     /// Output:
-    /// - Guard that restores `HOME` and removes temp directory on drop.
+    /// - Guard that restores `HOME` and `XDG_CONFIG_HOME` and removes temp directory on drop.
     ///
     /// Details:
+    /// - Clears `XDG_CONFIG_HOME` while active so `config_dir` and resolvers cannot use the
+    ///   developer's real XDG config tree.
     /// - Provides panic-safe cleanup for tests mutating process-wide environment.
     struct HomeTestGuard {
         orig_home: Option<std::ffi::OsString>,
+        orig_xdg: Option<std::ffi::OsString>,
         base: std::path::PathBuf,
     }
 
@@ -231,12 +234,20 @@ mod tests {
         /// - Initialized `HomeTestGuard`.
         ///
         /// Details:
-        /// - Captures original HOME and applies test HOME immediately.
+        /// - Captures original `HOME` and `XDG_CONFIG_HOME`, applies test `HOME`, and unsets XDG.
         fn new(base: std::path::PathBuf) -> Self {
             let orig_home = std::env::var_os("HOME");
+            let orig_xdg = std::env::var_os("XDG_CONFIG_HOME");
             let _ = std::fs::create_dir_all(&base);
-            unsafe { std::env::set_var("HOME", base.display().to_string()) };
-            Self { orig_home, base }
+            unsafe {
+                std::env::set_var("HOME", base.display().to_string());
+                std::env::remove_var("XDG_CONFIG_HOME");
+            }
+            Self {
+                orig_home,
+                orig_xdg,
+                base,
+            }
         }
     }
 
@@ -247,6 +258,11 @@ mod tests {
                     std::env::set_var("HOME", v);
                 } else {
                     std::env::remove_var("HOME");
+                }
+                if let Some(v) = self.orig_xdg.as_ref() {
+                    std::env::set_var("XDG_CONFIG_HOME", v);
+                } else {
+                    std::env::remove_var("XDG_CONFIG_HOME");
                 }
             }
             let _ = std::fs::remove_dir_all(&self.base);
@@ -263,7 +279,8 @@ mod tests {
     /// - `config_dir`, `logs_dir`, and `lists_dir` end with `pacsea`, `logs`, and `lists` respectively.
     ///
     /// Details:
-    /// - Restores the original `HOME` afterwards to avoid polluting the real configuration tree.
+    /// - Restores the original `HOME` and `XDG_CONFIG_HOME` afterwards to avoid polluting the real
+    ///   configuration tree.
     fn paths_config_lists_logs_under_home() {
         let _guard = crate::theme::test_mutex()
             .lock()
@@ -283,5 +300,44 @@ mod tests {
         assert!(cfg.ends_with("pacsea"));
         assert!(logs.ends_with("logs"));
         assert!(lists.ends_with("lists"));
+    }
+
+    #[test]
+    /// What: Ensure `config_dir` stays under the test `HOME` when `XDG_CONFIG_HOME` was set in the environment.
+    ///
+    /// Inputs:
+    /// - A bogus `XDG_CONFIG_HOME` set before `HomeTestGuard` (simulates a developer shell).
+    ///
+    /// Output:
+    /// - `config_dir` is a path under the temporary home root.
+    ///
+    /// Details:
+    /// - Guards against regressions where only `HOME` is overridden and the XDG fallback or other
+    ///   helpers could still target the real config tree.
+    fn paths_config_stays_under_temp_home_when_xdg_config_home_was_set() {
+        let _guard = crate::theme::test_mutex()
+            .lock()
+            .expect("Test mutex poisoned");
+        let base = std::env::temp_dir().join(format!(
+            "pacsea_test_paths_xdg_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("System time is before UNIX epoch")
+                .as_nanos()
+        ));
+        let home_root = base.clone();
+        unsafe {
+            std::env::set_var(
+                "XDG_CONFIG_HOME",
+                "/nonexistent/pacsea_test_xdg_decoy_must_not_be_used",
+            );
+        }
+        let _home_guard = HomeTestGuard::new(base);
+        let cfg = super::config_dir();
+        assert!(
+            cfg.starts_with(&home_root),
+            "config_dir should resolve under test HOME, not decoy XDG_CONFIG_HOME; got {cfg:?}"
+        );
     }
 }

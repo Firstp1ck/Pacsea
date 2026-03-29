@@ -83,6 +83,7 @@ impl Default for AppState {
             results_filter_show_artix_world,
             results_filter_show_artix_system,
             results_filter_show_blackarch,
+            results_filter_show_manjaro,
             filter_rects,
         ) = defaults::default_filters();
         let [
@@ -100,6 +101,7 @@ impl Default for AppState {
             results_filter_artix_world_rect,
             results_filter_artix_system_rect,
             results_filter_blackarch_rect,
+            results_filter_manjaro_rect,
         ] = filter_rects;
 
         let (
@@ -611,7 +613,7 @@ impl Default for AppState {
             results_filter_show_artix_world,
             results_filter_show_artix_system,
             results_filter_show_blackarch,
-            results_filter_show_manjaro: true,
+            results_filter_show_manjaro,
             results_filter_aur_rect,
             results_filter_core_rect,
             results_filter_extra_rect,
@@ -626,7 +628,7 @@ impl Default for AppState {
             results_filter_artix_world_rect,
             results_filter_artix_system_rect,
             results_filter_blackarch_rect,
-            results_filter_manjaro_rect: None,
+            results_filter_manjaro_rect,
             fuzzy_indicator_rect: None,
             refresh_installed_until,
             next_installed_refresh_at,
