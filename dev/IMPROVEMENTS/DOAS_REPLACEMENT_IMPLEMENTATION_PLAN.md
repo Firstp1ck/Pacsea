@@ -1,5 +1,14 @@
 # Doas Replacement Implementation Plan
 
+## Progress todos (2026-03-30)
+
+**Implementation on branch:** feature work is implemented in-tree (`src/logic/privilege.rs`, `privilege_tool` setting, migrated executors/modals/CLI). **Release:** not yet on `origin/main` / not in `CHANGELOG.md` for a stable tag at last review.
+
+- [x] Phases 0–5: abstraction, settings, executor/modal/CLI migration, tests, hardening (see checklist below)
+- [ ] Merge `feature/doas-sudo-replacement` → `main` and cut release
+- [ ] Add `CHANGELOG.md` entry (`privilege_tool`, auto/explicit doas/sudo, doas limitations vs sudo)
+- [ ] Post-merge: grep audit for unintended hardcoded `sudo` in production paths; update docs/wiki only if you maintain them elsewhere
+
 ## Goal
 
 Implement support for `doas` as a replacement for `sudo` in privileged package operations while preserving current behavior, security guarantees, and graceful fallbacks.
@@ -14,13 +23,9 @@ Implement support for `doas` as a replacement for `sudo` in privileged package o
 
 ## Current State Snapshot
 
-`sudo` is hardcoded in multiple areas, especially:
+**Implemented (this branch):** `src/logic/privilege.rs` centralizes `sudo`/`doas` resolution, command builders, and capability flags; settings include `privilege_tool = auto|sudo|doas`; call sites use the abstraction instead of hardcoded `sudo` for privileged operations.
 
-- Runtime command execution and askpass handling in `src/app/runtime/workers/executor.rs`
-- Install/downgrade flows and password modal logic in `src/events/modals/handlers.rs`
-- Integration tests under `tests/downgrade`, `tests/install`, and `tests/passwordless_sudo`
-
-There is currently no `doas` usage in the repository.
+**Pre-refactor baseline (historical):** `sudo` was hardcoded across the runtime executor, install/remove/update builders, modals, and tests. That layout motivated the phases below.
 
 ## Design Strategy
 
@@ -150,17 +155,15 @@ Update and add tests:
   - `cargo check`
   - `cargo test -- --test-threads=1`
 
-## Rollout Checklist
+## Rollout Checklist (branch — done)
 
-- [ ] Phase 0 capability spike documented in code comments.
-- [ ] Privilege tool setting added and parsed.
-- [ ] `executor` and modal handlers migrated.
-- [ ] Tests generalized and passing.
-- [ ] No remaining hardcoded `sudo` strings in production paths (except intentional logs/messages).
-- [ ] Dry-run output validated for both tools.
-- [ ] Quality gate commands pass.
-
-
+- [x] Phase 0 capability spike documented in code comments.
+- [x] Privilege tool setting added and parsed.
+- [x] `executor` and modal handlers migrated.
+- [x] Tests generalized and passing.
+- [x] Hardcoded `sudo` in production paths removed except intentional messages (minor exceptions noted in implementation notes).
+- [x] Dry-run output validated for both tools (tests use active tool binary name).
+- [x] Quality gate commands pass.
 
 ## Implementation Status (updated 2026-03-29)
 
@@ -226,10 +229,5 @@ Update and add tests:
 - [x] `events/distro.rs` test assertions made tool-agnostic
 
 ### Rollout Checklist
-- [x] Phase 0 capability spike documented in code comments
-- [x] Privilege tool setting added and parsed
-- [x] `executor` and modal handlers migrated
-- [x] Tests generalized and passing (967 tests, 0 failures)
-- [x] Most hardcoded `sudo` strings replaced in production paths (minor cosmetic exceptions deferred)
-- [x] Dry-run output validated for both tools (tests use `active_tool().binary_name()`)
-- [x] Quality gate commands pass (all phases, 967 tests)
+
+Same items as **“Rollout Checklist (branch — done)”** earlier in this document; all checked on the feature branch. Outstanding items are under **Progress todos** at the top (merge, changelog, post-merge audit).
