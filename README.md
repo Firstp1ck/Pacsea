@@ -20,6 +20,7 @@ Pacsea is a TUI application for browsing and installing Arch and AUR packages. I
 | [![CachyOS](https://img.shields.io/badge/CachyOS-1793D1?logo=arch-linux&logoColor=white)](https://cachyos.org/) | [![Hungarian](https://img.shields.io/badge/Hungarian-1793D1)](https://github.com/Firstp1ck/Pacsea) |
 | [![Manjaro](https://img.shields.io/badge/Manjaro-35BF5C?logo=manjaro&logoColor=white)](https://manjaro.org/) | |
 | [![Artix](https://img.shields.io/badge/Artix-1793D1?logo=arch-linux&logoColor=white)](https://artixlinux.org/) | |
+| [![BlackArch](https://img.shields.io/badge/BlackArch-000000?logo=blackarch&logoColor=white)](https://blackarch.org/) | |
 
 
 ### Main app view
