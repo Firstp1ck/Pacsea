@@ -2,8 +2,27 @@
 
 This document evaluates duplicate code patterns and refactoring opportunities in the Pacsea codebase, prioritized by impact and effort.
 
-**Last Updated:** 2025-12-01  
-**Codebase Version:** feat/integrated-process branch
+**Last Updated:** 2026-03-30  
+**Codebase Version:** post–integrated-process / ongoing mainline
+
+## Progress todos (2026-03-30)
+
+**Priority 1 (high impact)**
+
+- [ ] **1.1** Unify `Command::new` / execution paths (`CommandRunner`, `run_command`, `run_pacman`, `args/package.rs` inline spawns)
+- [ ] **1.2** Consolidate duplicated cache patterns across `deps_cache`, `files_cache`, `sandbox_cache`, `services_cache` (shared helpers or generic cache module)
+
+**Priority 2**
+
+- [ ] **2.1** Deduplicate package validation in `args/package.rs` (six similar validators → shared helpers)
+- [ ] **2.2** Adopt or remove `util/config.rs` string helpers vs 13 files with inline parsing
+
+**Priority 3+ (see document body)**
+
+- [ ] Modal/handler structure and event-routing cleanup (Priority 3–4 sections in this doc)
+- [ ] Lower-effort appendix items: JSON load/save helpers, temp path test utility, handler HashSet extraction, etc., as time allows
+
+**Note:** Privilege escalation refactoring (sudo/doas) is tracked in `DOAS_REPLACEMENT_IMPLEMENTATION_PLAN.md`, not here.
 
 ## Executive Summary
 
