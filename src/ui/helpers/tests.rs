@@ -155,6 +155,10 @@ fn init_results_translations(translations: &mut std::collections::HashMap<String
         "SYSTEM".to_string(),
     );
     translations.insert(
+        "app.results.filters.blackarch".to_string(),
+        "BlackArch".to_string(),
+    );
+    translations.insert(
         "app.results.filters.manjaro".to_string(),
         "Manjaro".to_string(),
     );

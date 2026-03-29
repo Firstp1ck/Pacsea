@@ -36,9 +36,9 @@ use i18n::build_title_i18n_strings;
 use layout::calculate_title_layout_info;
 use rects::record_title_rects;
 use rendering::{
-    render_artix_filter, render_artix_specific_filters, render_core_filters, render_manjaro_filter,
-    render_optional_eos_cachyos_filters, render_right_aligned_buttons, render_sort_button,
-    render_title_prefix,
+    render_artix_filter, render_artix_specific_filters, render_blackarch_filter,
+    render_core_filters, render_manjaro_filter, render_optional_eos_cachyos_filters,
+    render_right_aligned_buttons, render_sort_button, render_title_prefix,
 };
 
 /// What: Build title spans with Sort button, filter toggles, and right-aligned buttons.
@@ -131,6 +131,11 @@ fn build_title_spans_from_values(
             filter_states,
         ));
     }
+    title_spans.extend(render_blackarch_filter(
+        &i18n,
+        optional_repos,
+        filter_states,
+    ));
     title_spans.extend(render_manjaro_filter(&i18n, optional_repos, filter_states));
     title_spans.extend(render_right_aligned_buttons(
         &i18n,

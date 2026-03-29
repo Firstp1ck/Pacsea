@@ -73,6 +73,7 @@ pacsea
 | **Security Scan for AUR Packages** | Comprehensive security scanning workflow with multiple tools (ClamAV, Trivy, Semgrep, ShellCheck, VirusTotal, custom patterns, aur-sleuth) and detailed scan summaries |
 | **Fuzzy Search** | Toggle flexible fuzzy search mode to find packages even without exact names |
 | **Unified search** | Fast results across official repos and the AUR |
+| **BlackArch (optional)** | If the BlackArch repo is enabled in pacman, those packages are indexed like other sync databases, labeled in results, and toggled with a title-bar filter chip; Preflight uses the same badge styling as other special repos. Pacsea does not configure BlackArch for you |
 | **Package Update Availability** | Automatic background checks with detailed version comparison view |
 | **Keyboard‑first** | Minimal keystrokes, Vim‑friendly navigation; numpad Enter works for submit in prompts and modals |
 | **Queue & install** | Add packages to queue and confirm installs. Run security scans for AUR packages before installing |

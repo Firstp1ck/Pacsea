@@ -412,6 +412,12 @@ fn handle_simple_filter_toggles(mx: u16, my: u16, app: &mut AppState) -> bool {
     ) || try_toggle_simple_filter(
         mx,
         my,
+        app.results_filter_blackarch_rect,
+        |a| a.results_filter_show_blackarch = !a.results_filter_show_blackarch,
+        app,
+    ) || try_toggle_simple_filter(
+        mx,
+        my,
         app.results_filter_manjaro_rect,
         |a| a.results_filter_show_manjaro = !a.results_filter_show_manjaro,
         app,

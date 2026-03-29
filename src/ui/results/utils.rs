@@ -9,16 +9,23 @@ use crate::state::{AppState, Source};
 /// - `app`: Application state providing `all_results`
 ///
 /// Output:
-/// - Tuple `(has_eos, has_cachyos, has_artix, has_artix_repos, has_manjaro)` indicating which repo chips to show.
+/// - Tuple `(has_eos, has_cachyos, has_artix, has_artix_repos, has_blackarch, has_manjaro)` indicating which repo chips to show.
 ///   `has_artix_repos` is a tuple of (omniverse, universe, lib32, galaxy, world, system) booleans.
 ///
 /// Details:
-/// - Scans official result sources and package names to infer EOS/CachyOS/Artix/Manjaro presence, short
+/// - Scans official result sources and package names to infer EOS/CachyOS/Artix/BlackArch/Manjaro presence, short
 ///   circuiting once all are detected.
 #[allow(clippy::type_complexity)]
 pub fn detect_optional_repos(
     app: &AppState,
-) -> (bool, bool, bool, (bool, bool, bool, bool, bool, bool), bool) {
+) -> (
+    bool,
+    bool,
+    bool,
+    (bool, bool, bool, bool, bool, bool),
+    bool,
+    bool,
+) {
     let mut eos = false;
     let mut cach = false;
     let mut artix = false;
@@ -28,6 +35,7 @@ pub fn detect_optional_repos(
     let mut artix_galaxy = false;
     let mut artix_world = false;
     let mut artix_system = false;
+    let mut blackarch = false;
     let mut manj = false;
     for it in &app.all_results {
         if let Source::Official { repo, .. } = &it.source {
@@ -59,6 +67,9 @@ pub fn detect_optional_repos(
             if !artix_system && crate::index::is_artix_system(&r) {
                 artix_system = true;
             }
+            if !blackarch && crate::index::is_blackarch_repo(&r) {
+                blackarch = true;
+            }
         }
         // Treat presence by name prefix rather than repo value
         if !manj && crate::index::is_name_manjaro(&it.name) {
@@ -67,6 +78,7 @@ pub fn detect_optional_repos(
         if eos
             && cach
             && artix
+            && blackarch
             && manj
             && artix_omniverse
             && artix_universe
@@ -90,6 +102,7 @@ pub fn detect_optional_repos(
             artix_world,
             artix_system,
         ),
+        blackarch,
         manj,
     )
 }
@@ -151,7 +164,7 @@ pub fn center_selection(app: &mut AppState, area: Rect) {
 /// - Reduces data flow complexity by extracting all needed values in a single function call
 ///   instead of multiple individual field accesses.
 pub fn extract_render_context(app: &AppState) -> RenderContext {
-    let (has_eos, has_cachyos, has_artix, has_artix_repos, has_manjaro) =
+    let (has_eos, has_cachyos, has_artix, has_artix_repos, has_blackarch, has_manjaro) =
         detect_optional_repos(app);
     let (
         has_artix_omniverse,
@@ -174,6 +187,7 @@ pub fn extract_render_context(app: &AppState) -> RenderContext {
             has_artix_galaxy,
             has_artix_world,
             has_artix_system,
+            has_blackarch,
             has_manjaro,
         },
         menu_states: MenuStates {
@@ -197,6 +211,7 @@ pub fn extract_render_context(app: &AppState) -> RenderContext {
             show_artix_galaxy: app.results_filter_show_artix_galaxy,
             show_artix_world: app.results_filter_show_artix_world,
             show_artix_system: app.results_filter_show_artix_system,
+            show_blackarch: app.results_filter_show_blackarch,
             show_manjaro: app.results_filter_show_manjaro,
         },
     }
@@ -223,4 +238,65 @@ pub fn record_results_rect(app: &mut AppState, area: Rect) {
         area.width.saturating_sub(2),
         area.height.saturating_sub(2),
     ));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::types::PackageItem;
+
+    fn make_official(name: &str, repo: &str) -> PackageItem {
+        PackageItem {
+            name: name.to_string(),
+            version: "1.0".to_string(),
+            description: String::new(),
+            source: Source::Official {
+                repo: repo.to_string(),
+                arch: "x86_64".to_string(),
+            },
+            popularity: None,
+            out_of_date: None,
+            orphaned: false,
+        }
+    }
+
+    #[test]
+    /// What: Verify `detect_optional_repos` detects `BlackArch` packages.
+    ///
+    /// Inputs:
+    /// - `app.all_results` containing a package from the "blackarch" repo.
+    ///
+    /// Output:
+    /// - `has_blackarch` is `true`.
+    ///
+    /// Details:
+    /// - Confirms the `BlackArch` detection branch works correctly.
+    fn detect_blackarch_from_official_source() {
+        let app = AppState {
+            all_results: vec![make_official("nmap", "blackarch")],
+            ..Default::default()
+        };
+        let (_eos, _cach, _artix, _artix_repos, blackarch, _manj) = detect_optional_repos(&app);
+        assert!(blackarch);
+    }
+
+    #[test]
+    /// What: Verify `detect_optional_repos` returns false for `BlackArch` when absent.
+    ///
+    /// Inputs:
+    /// - `app.all_results` containing only core packages.
+    ///
+    /// Output:
+    /// - `has_blackarch` is `false`.
+    ///
+    /// Details:
+    /// - Ensures no false positive when `BlackArch` packages are not present.
+    fn detect_no_blackarch_when_absent() {
+        let app = AppState {
+            all_results: vec![make_official("glibc", "core")],
+            ..Default::default()
+        };
+        let (_eos, _cach, _artix, _artix_repos, blackarch, _manj) = detect_optional_repos(&app);
+        assert!(!blackarch);
+    }
 }

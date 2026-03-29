@@ -151,6 +151,7 @@ fn get_source_badge(source: &DependencySource) -> (String, ratatui::style::Color
             let repo_lower = repo.to_lowercase();
             let color = if crate::index::is_eos_repo(&repo_lower)
                 || crate::index::is_cachyos_repo(&repo_lower)
+                || crate::index::is_blackarch_repo(&repo_lower)
             {
                 th.sapphire
             } else {
