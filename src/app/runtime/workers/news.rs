@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use rand::Rng;
+use rand::RngExt;
 use tokio::{sync::mpsc, sync::oneshot, time::Duration};
 
 use crate::index as pkgindex;

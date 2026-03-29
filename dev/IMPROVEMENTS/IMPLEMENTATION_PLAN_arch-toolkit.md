@@ -1,8 +1,19 @@
 # Implementation Plan: Migrating Pacsea to Use arch-toolkit
 
 **Created:** 2025-01-XX  
-**Status:** Planning  
+**Status:** Planning (see **Progress todos** at top — dependency not added yet)  
 **Target:** Replace custom AUR implementation with `arch-toolkit` crate
+
+## Progress todos (2026-03-30)
+
+**Status:** Not started — `arch-toolkit` is not a dependency in `Cargo.toml`; Pacsea still uses in-tree AUR search, comments, and PKGBUILD fetch.
+
+- [ ] **Phase 1:** Add `arch-toolkit` to `Cargo.toml` (pin current crates.io version), construct shared `ArchClient`, thread through runtime / `src/sources`
+- [ ] **Phase 2:** Replace AUR search in `src/sources/search.rs` with client; map errors to existing `(Vec, Vec<String>)` or agreed `Result` boundary
+- [ ] **Phase 3:** Replace AUR comments in `src/sources/comments.rs`; verify `AurComment` / UX parity vs current HTML path
+- [ ] **Phase 4:** Route AUR PKGBUILD fetch through `client.aur().pkgbuild()`; keep yay/paru cache + official GitLab path in Pacsea
+- [ ] **Phase 5 (optional):** Enable arch-toolkit memory/disk cache with TTL policy and tests
+- [ ] **Phase 6:** Remove dead code, drop unused deps if safe (`scraper` only if nothing else needs it), full `fmt` / `clippy` / `test` gate
 
 ## Overview
 
