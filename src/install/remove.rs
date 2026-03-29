@@ -184,7 +184,13 @@ pub fn spawn_remove_all(names: &[String], dry_run: bool, cascade_mode: CascadeMo
     );
     let flag = cascade_mode.flag();
     let hold_tail = "; echo; echo 'Finished.'; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
-    let tool = crate::logic::privilege::active_tool();
+    let tool = match crate::logic::privilege::active_tool() {
+        Ok(t) => t,
+        Err(err) => {
+            tracing::error!(error = %err, "privilege tool resolution failed for removal");
+            return;
+        }
+    };
     let base = format!("pacman {flag} --noconfirm {}", names.join(" "));
     let cmd_str = if dry_run {
         let cmd = format!(

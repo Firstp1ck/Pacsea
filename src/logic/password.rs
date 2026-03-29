@@ -19,7 +19,7 @@
 /// - Uses the resolved privilege tool (sudo or doas) based on settings.
 /// - Both sudo and doas support `-n true` for non-interactive checking.
 pub fn check_passwordless_sudo_available() -> Result<bool, String> {
-    let tool = crate::logic::privilege::active_tool();
+    let tool = crate::logic::privilege::active_tool()?;
     tool.check_passwordless()
 }
 
@@ -55,7 +55,16 @@ pub fn should_use_passwordless_sudo(settings: &crate::theme::Settings) -> bool {
         return val == "1";
     }
 
-    let tool = crate::logic::privilege::active_tool();
+    let tool = match crate::logic::privilege::active_tool() {
+        Ok(t) => t,
+        Err(err) => {
+            tracing::warn!(
+                error = %err,
+                "Could not resolve privilege tool; treating as password prompt required"
+            );
+            return false;
+        }
+    };
     if !tool.capabilities().supports_stdin_password {
         tracing::debug!(
             tool = %tool,
@@ -108,7 +117,7 @@ pub fn should_use_passwordless_sudo(settings: &crate::theme::Settings) -> bool {
 /// - Only works for tools that support stdin password piping (currently sudo).
 /// - For doas, returns an error since doas cannot validate passwords via stdin.
 pub fn validate_sudo_password(password: &str) -> Result<bool, String> {
-    let tool = crate::logic::privilege::active_tool();
+    let tool = crate::logic::privilege::active_tool()?;
     crate::logic::privilege::validate_password(tool, password)
 }
 

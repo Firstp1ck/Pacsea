@@ -1052,7 +1052,16 @@ pub(super) fn handle_gnome_terminal_prompt(ke: KeyEvent, app: &mut AppState) -> 
         KeyCode::Enter | KeyCode::Char('\n' | '\r') => {
             // Install GNOME Terminal, then close the prompt
 
-            let bin = crate::logic::privilege::active_tool().binary_name();
+            let bin = match crate::logic::privilege::active_tool() {
+                Ok(tool) => tool.binary_name(),
+                Err(msg) => {
+                    app.toast_message = Some(msg);
+                    app.toast_expires_at =
+                        Some(std::time::Instant::now() + std::time::Duration::from_secs(8));
+                    app.modal = crate::state::Modal::None;
+                    return false;
+                }
+            };
             let cmd = format!(
                 "({bin} pacman -S --needed --noconfirm gnome-terminal) || ({bin} pacman -S --needed --noconfirm gnome-console) || ({bin} pacman -S --needed --noconfirm kgx)"
             );
