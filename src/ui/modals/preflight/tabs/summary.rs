@@ -904,10 +904,13 @@ fn render_removal_plan(
     let plan_header_style = Style::default()
         .fg(th.overlay1)
         .add_modifier(Modifier::BOLD);
-    let mut plan_command = format!(
-        "sudo pacman {} --noconfirm {}",
-        cascade_mode.flag(),
-        removal_names.join(" ")
+    let mut plan_command = crate::logic::privilege::build_privilege_command(
+        crate::logic::privilege::active_tool(),
+        &format!(
+            "pacman {} --noconfirm {}",
+            cascade_mode.flag(),
+            removal_names.join(" ")
+        ),
     );
     if app.dry_run {
         plan_command = i18n::t_fmt1(

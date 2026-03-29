@@ -47,9 +47,13 @@ fn build_batch_install_command(
             let quoted = shell_single_quote(&cmd);
             format!("echo DRY RUN: {quoted}")
         } else if !official.is_empty() {
+            let tool = crate::logic::privilege::active_tool();
             let cmd = format!(
-                "sudo pacman -S --needed --noconfirm {n}{hold}",
-                n = official.join(" "),
+                "{}{hold}",
+                crate::logic::privilege::build_privilege_command(
+                    tool,
+                    &format!("pacman -S --needed --noconfirm {}", official.join(" "))
+                ),
                 hold = hold_tail
             );
             let quoted = shell_single_quote(&cmd);
@@ -74,17 +78,21 @@ fn build_batch_install_command(
             matches!(item.source, Source::Official { .. }) && crate::index::is_installed(&item.name)
         });
 
+        let tool = crate::logic::privilege::active_tool();
         if has_versions && reinstall_any {
-            // Coming from updates window - sync database first, then install
             format!(
-                "sudo bash -c 'pacman -Sy --noconfirm && pacman -S --noconfirm {n}'{hold}",
+                "{} bash -c 'pacman -Sy --noconfirm && pacman -S --noconfirm {n}'{hold}",
+                tool.binary_name(),
                 n = official.join(" "),
                 hold = hold_tail
             )
         } else {
             format!(
-                "sudo pacman -S --needed --noconfirm {n}{hold}",
-                n = official.join(" "),
+                "{}{hold}",
+                crate::logic::privilege::build_privilege_command(
+                    tool,
+                    &format!("pacman -S --needed --noconfirm {}", official.join(" "))
+                ),
                 hold = hold_tail
             )
         }

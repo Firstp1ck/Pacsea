@@ -120,7 +120,8 @@ fn install_official_packages(packages: &[String]) {
     }
 
     tracing::info!(packages = ?packages, "Installing official packages");
-    let status = Command::new("sudo")
+    let tool = pacsea::logic::privilege::active_tool();
+    let status = Command::new(tool.binary_name())
         .arg("pacman")
         .arg("-S")
         .args(packages)

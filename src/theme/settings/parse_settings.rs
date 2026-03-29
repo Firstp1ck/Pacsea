@@ -350,6 +350,12 @@ fn parse_misc_settings(key: &str, val: &str, settings: &mut Settings) -> bool {
             settings.use_passwordless_sudo = parse_bool(val);
             true
         }
+        "privilege_tool" | "privilege_mode" | "priv_tool" => {
+            if let Some(mode) = crate::logic::privilege::PrivilegeMode::from_config_key(val) {
+                settings.privilege_mode = mode;
+            }
+            true
+        }
         "use_terminal_theme" | "terminal_theme" => {
             settings.use_terminal_theme = parse_bool(val);
             true

@@ -50,6 +50,7 @@ pub fn build_install_command(
 ) -> (String, bool) {
     match &item.source {
         Source::Official { .. } => {
+            let tool = crate::logic::privilege::active_tool();
             let reinstall = crate::index::is_installed(&item.name);
             let base_cmd = if reinstall {
                 format!("pacman -S --noconfirm {}", item.name)
@@ -58,19 +59,27 @@ pub fn build_install_command(
             };
             let hold_tail = "; echo; echo 'Finished.'; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
             if dry_run {
-                let cmd = format!("sudo {base_cmd}{hold_tail}");
+                let cmd = format!(
+                    "{}{hold_tail}",
+                    crate::logic::privilege::build_privilege_command(tool, &base_cmd)
+                );
                 let quoted = shell_single_quote(&cmd);
                 let bash = format!("echo DRY RUN: {quoted}");
                 return (bash, true);
             }
             let pass = password.unwrap_or("");
             if pass.is_empty() {
-                let bash = format!("sudo {base_cmd}{hold_tail}");
+                let bash = format!(
+                    "{}{hold_tail}",
+                    crate::logic::privilege::build_privilege_command(tool, &base_cmd)
+                );
                 (bash, true)
             } else {
-                let escaped = shell_single_quote(pass);
-                let pipe = format!("echo {escaped} | ");
-                let bash = format!("{pipe}sudo -S {base_cmd}{hold_tail}");
+                let piped = crate::logic::privilege::build_password_pipe(tool, pass, &base_cmd);
+                let priv_cmd = piped.unwrap_or_else(|| {
+                    crate::logic::privilege::build_privilege_command(tool, &base_cmd)
+                });
+                let bash = format!("{priv_cmd}{hold_tail}");
                 (bash, true)
             }
         }
@@ -108,7 +117,8 @@ mod tests {
     use super::*;
 
     #[test]
-    /// What: Check the pacman command builder for official packages handles sudo, password prompts, and dry-run mode.
+    /// What: Check the pacman command builder for official packages handles privilege tool,
+    /// password prompts, and dry-run mode.
     ///
     /// Inputs:
     /// - Official package metadata.
@@ -116,11 +126,16 @@ mod tests {
     /// - Dry-run flag toggled between `false` and `true`.
     ///
     /// Output:
-    /// - Returns commands containing the expected pacman flags, optional `sudo -S` echo, and dry-run prefix.
+    /// - Returns commands containing the expected pacman flags, optional piped password,
+    ///   and dry-run prefix.
     ///
     /// Details:
     /// - Ensures the hold-tail message persists and the helper flags remain in sync with UI behaviour.
+    /// - Uses privilege abstraction so output adapts to active tool (sudo or doas).
     fn install_build_install_command_official_variants() {
+        let tool = crate::logic::privilege::active_tool();
+        let bin = tool.binary_name();
+
         let pkg = PackageItem {
             name: "ripgrep".into(),
             version: "14".into(),
@@ -136,19 +151,33 @@ mod tests {
 
         let (cmd1, uses_sudo1) = build_install_command(&pkg, None, false);
         assert!(uses_sudo1);
-        assert!(cmd1.contains("sudo pacman -S --needed --noconfirm ripgrep"));
+        assert!(
+            cmd1.contains(&format!("{bin} pacman -S --needed --noconfirm ripgrep")),
+            "expected '{bin} pacman -S --needed --noconfirm ripgrep' in: {cmd1}"
+        );
         assert!(cmd1.contains("Press any key to close"));
 
         let (cmd2, uses_sudo2) = build_install_command(&pkg, Some("pa's"), false);
         assert!(uses_sudo2);
-        assert!(cmd2.contains("echo "));
-        assert!(cmd2.contains("sudo -S pacman -S --needed --noconfirm ripgrep"));
+        if tool.capabilities().supports_stdin_password {
+            assert!(
+                cmd2.contains(&format!("{bin} -S pacman -S --needed --noconfirm ripgrep")),
+                "expected '{bin} -S pacman ...' in: {cmd2}"
+            );
+        } else {
+            assert!(
+                cmd2.contains(&format!("{bin} pacman -S --needed --noconfirm ripgrep")),
+                "doas fallback should use plain command: {cmd2}"
+            );
+        }
 
         let (cmd3, uses_sudo3) = build_install_command(&pkg, None, true);
         assert!(uses_sudo3);
-        // Dry-run commands are now properly quoted to avoid syntax errors
         assert!(cmd3.starts_with("echo DRY RUN: '"));
-        assert!(cmd3.contains("sudo pacman -S --needed --noconfirm ripgrep"));
+        assert!(
+            cmd3.contains(&format!("{bin} pacman -S --needed --noconfirm ripgrep")),
+            "expected '{bin} pacman ...' in dry-run: {cmd3}"
+        );
     }
 
     #[test]

@@ -169,6 +169,11 @@ pub struct Settings {
     /// If `true`, passwordless sudo is used when available, skipping the password prompt.
     /// This acts as an additional safety barrier requiring explicit opt-in.
     pub use_passwordless_sudo: bool,
+    /// Privilege escalation tool selection mode.
+    /// Controls which tool (sudo/doas) is used for privileged operations.
+    /// `Auto` (default): prefer doas if available, fall back to sudo.
+    /// `Sudo`: always use sudo. `Doas`: always use doas.
+    pub privilege_mode: crate::logic::privilege::PrivilegeMode,
     /// Whether to use the terminal's theme colors instead of theme.conf.
     /// If `true`, Pacsea queries the terminal for foreground/background colors via OSC 10/11.
     /// If `false` (default), uses theme.conf colors.
@@ -241,7 +246,8 @@ impl Default for Settings {
             installed_packages_mode: crate::state::InstalledPackagesMode::LeafOnly,
             get_announcement: true, // Default to fetching remote announcements
             use_passwordless_sudo: false, // Default to always showing password prompt (safety barrier)
-            use_terminal_theme: false,    // Default to using theme.conf colors
+            privilege_mode: crate::logic::privilege::PrivilegeMode::Auto, // Default to auto-detect (prefer doas, fallback sudo)
+            use_terminal_theme: false, // Default to using theme.conf colors
         }
     }
 }
