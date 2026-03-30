@@ -32,11 +32,9 @@ pub fn check_passwordless_sudo_available() -> Result<bool, String> {
 /// - `true` if passwordless execution should be used, `false` otherwise.
 ///
 /// Details:
-/// - First checks tool capabilities: tools without stdin-password support (e.g. doas)
-///   bypass the in-app modal and return `true`.
-/// - For stdin-capable tools (sudo), checks if `use_passwordless_sudo` is enabled
-///   in settings (safety barrier).
-/// - If not enabled for stdin-capable tools, returns `false` immediately.
+/// - Resolves the active privilege tool for logging and error handling.
+/// - Checks if `use_passwordless_sudo` is enabled in settings (safety barrier).
+/// - If not enabled, returns `false` immediately.
 /// - If enabled, checks if passwordless execution is actually available on the system.
 /// - Returns `true` only if both conditions are met.
 /// - Test overrides flow through [`check_passwordless_sudo_available`] → privilege module.
@@ -65,16 +63,11 @@ pub fn should_use_passwordless_sudo(settings: &crate::theme::Settings) -> bool {
             return false;
         }
     };
-    if !tool.capabilities().supports_stdin_password {
+    if !settings.use_passwordless_sudo {
         tracing::debug!(
             tool = %tool,
-            "Active privilege tool does not support stdin password; skipping in-app password prompt"
+            "Passwordless privilege disabled in settings, requiring password prompt"
         );
-        return true;
-    }
-
-    if !settings.use_passwordless_sudo {
-        tracing::debug!("Passwordless privilege disabled in settings, requiring password prompt");
         return false;
     }
 
@@ -114,7 +107,7 @@ pub fn should_use_passwordless_sudo(settings: &crate::theme::Settings) -> bool {
 ///
 /// Details:
 /// - Delegates to [`crate::logic::privilege::validate_password`].
-/// - Works for sudo (via `-S` stdin pipe) and doas (via `script` PTY wrapper).
+/// - Works for sudo (via `-S` stdin pipe) and doas (via native `portable-pty` probe).
 pub fn validate_sudo_password(password: &str) -> Result<bool, String> {
     let tool = crate::logic::privilege::active_tool()?;
     crate::logic::privilege::validate_password(tool, password)
