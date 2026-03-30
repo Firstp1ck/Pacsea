@@ -586,6 +586,9 @@ fn validate_doas_password(password: &str, bin: &str) -> Result<bool, String> {
 fn run_doas_pty_probe(password: &str, bin: &str, args: &[&str]) -> Result<Option<bool>, String> {
     use portable_pty::{CommandBuilder, PtySize, native_pty_system};
     use std::io::{Read, Write};
+    use std::sync::mpsc;
+    use std::thread;
+    use std::time::{Duration, Instant};
 
     let pty_system = native_pty_system();
     let pty = pty_system
@@ -607,6 +610,11 @@ fn run_doas_pty_probe(password: &str, bin: &str, args: &[&str]) -> Result<Option
         .spawn_command(cmd_builder)
         .map_err(|e| format!("Failed to execute {bin} validation: {e}"))?;
 
+    let mut reader = pty
+        .master
+        .try_clone_reader()
+        .map_err(|e| format!("Failed to open PTY reader for {bin} validation: {e}"))?;
+
     {
         let mut writer = pty
             .master
@@ -623,16 +631,37 @@ fn run_doas_pty_probe(password: &str, bin: &str, args: &[&str]) -> Result<Option
             .map_err(|e| format!("Failed to flush {bin} PTY writer: {e}"))?;
     }
 
-    let status = child
-        .wait()
-        .map_err(|e| format!("Failed to wait for {bin} validation: {e}"))?;
+    let wait_timeout = Duration::from_secs(5);
+    let poll_interval = Duration::from_millis(25);
+    let started = Instant::now();
 
-    let mut reader = pty
-        .master
-        .try_clone_reader()
-        .map_err(|e| format!("Failed to open PTY reader for {bin} validation: {e}"))?;
-    let mut output_buf = Vec::new();
-    let _ = reader.read_to_end(&mut output_buf);
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) => {
+                if started.elapsed() >= wait_timeout {
+                    return Err(format!(
+                        "{bin} validation timed out after {}s. \
+                         Check /etc/doas.conf and retry.",
+                        wait_timeout.as_secs()
+                    ));
+                }
+                thread::sleep(poll_interval);
+            }
+            Err(e) => return Err(format!("Failed while waiting for {bin} validation: {e}")),
+        }
+    };
+
+    let (tx, rx) = mpsc::channel();
+    thread::spawn(move || {
+        let mut output_buf = Vec::new();
+        let _ = reader.read_to_end(&mut output_buf);
+        let _ = tx.send(output_buf);
+    });
+
+    let output_buf = rx
+        .recv_timeout(Duration::from_millis(200))
+        .unwrap_or_default();
     let combined = String::from_utf8_lossy(&output_buf);
 
     if status.success() {
