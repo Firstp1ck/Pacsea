@@ -12,16 +12,14 @@
 //! | Non-interactive check | `sudo -n true` | `doas -n true` |
 //! | Direct command execution | `sudo <cmd>` | `doas <cmd>` |
 //! | Passwordless execution | sudoers `NOPASSWD` | `permit nopass` in `/etc/doas.conf` |
-//! | Password via stdin | `sudo -S` reads stdin | **NOT supported** |
+//! | Password via stdin | `sudo -S` reads stdin | `doas -S` reads stdin |
 //! | Credential refresh | `sudo -v` | **NOT supported** |
 //! | Credential invalidation | `sudo -k` | **NOT supported** |
 //! | Askpass env var | `SUDO_ASKPASS` | **NOT supported** |
 //!
 //! ## Implications for Pacsea
 //!
-//! - When doas requires a password, it prompts via its own terminal interaction.
-//! - The in-app password modal **cannot** be used with doas (no stdin pipe support).
-//! - Pacsea skips the password modal for doas and lets the spawned terminal handle prompting.
+//! - When doas requires a password, Pacsea can pipe it from the in-app password modal via `-S`.
 //! - Credential warm-up (`sudo -S -v`) is unavailable for doas.
 //! - `doas -n true` works identically to `sudo -n true` for passwordless detection.
 
@@ -37,13 +35,13 @@ use std::process::Command;
 /// Details:
 /// - `Sudo` uses the standard sudo binary with full feature support
 ///   (stdin password, credential caching, askpass).
-/// - `Doas` uses the `OpenDoas` binary with limited feature support
-///   (no stdin password, no credential caching).
+/// - `Doas` uses the `OpenDoas` binary with partial feature support
+///   (stdin password supported, no credential caching).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PrivilegeTool {
     /// Standard sudo — full feature support.
     Sudo,
-    /// `OpenDoas` — limited feature support (no stdin password pipe, no credential caching).
+    /// `OpenDoas` — partial feature support (stdin password pipe, no credential caching).
     Doas,
 }
 
@@ -76,8 +74,8 @@ pub enum PrivilegeMode {
 ///
 /// Details:
 /// - sudo supports all capabilities.
-/// - doas supports none of these optional capabilities.
-/// - Used to route behavior: e.g. skip password modal when stdin pipe is unsupported.
+/// - doas supports stdin password, but not credential cache operations.
+/// - Used to route behavior: e.g. disable warm-up paths for tools without cache refresh support.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct PrivilegeCapabilities {
@@ -119,7 +117,7 @@ impl PrivilegeTool {
     ///
     /// Details:
     /// - sudo: all capabilities enabled.
-    /// - doas: all capabilities disabled (see module-level docs for rationale).
+    /// - doas: stdin password enabled, credential cache features disabled.
     #[must_use]
     pub const fn capabilities(self) -> PrivilegeCapabilities {
         match self {
@@ -130,7 +128,7 @@ impl PrivilegeTool {
                 supports_askpass: true,
             },
             Self::Doas => PrivilegeCapabilities {
-                supports_stdin_password: false,
+                supports_stdin_password: true,
                 supports_credential_refresh: false,
                 supports_credential_invalidation: false,
                 supports_askpass: false,
@@ -500,8 +498,9 @@ pub fn build_credential_invalidation(tool: PrivilegeTool) -> Option<String> {
 /// - Returns `Err` if the validation command cannot be executed.
 ///
 /// Details:
-/// - Only works for tools with `supports_stdin_password` (currently sudo only).
-/// - First invalidates cached credentials, then tests the password.
+/// - Works for tools with `supports_stdin_password` (sudo, doas).
+/// - sudo: invalidates cached credentials and validates with `sudo -S -v`.
+/// - doas: validates by executing `doas -S true`.
 pub fn validate_password(tool: PrivilegeTool, password: &str) -> Result<bool, String> {
     if !tool.capabilities().supports_stdin_password {
         return Err(format!(
@@ -512,7 +511,10 @@ pub fn validate_password(tool: PrivilegeTool, password: &str) -> Result<bool, St
 
     let escaped = crate::install::shell_single_quote(password);
     let bin = tool.binary_name();
-    let cmd = format!("{bin} -k ; printf '%s\\n' {escaped} | {bin} -S -v 2>&1");
+    let cmd = match tool {
+        PrivilegeTool::Sudo => format!("{bin} -k ; printf '%s\\n' {escaped} | {bin} -S -v 2>&1"),
+        PrivilegeTool::Doas => format!("printf '%s\\n' {escaped} | {bin} -S true 2>&1"),
+    };
 
     let output = Command::new("sh")
         .arg("-c")
@@ -586,9 +588,9 @@ mod tests {
     }
 
     #[test]
-    fn doas_capabilities_all_disabled() {
+    fn doas_capabilities_partial_support() {
         let caps = PrivilegeTool::Doas.capabilities();
-        assert!(!caps.supports_stdin_password);
+        assert!(caps.supports_stdin_password);
         assert!(!caps.supports_credential_refresh);
         assert!(!caps.supports_credential_invalidation);
         assert!(!caps.supports_askpass);
@@ -802,9 +804,10 @@ mod tests {
     }
 
     #[test]
-    fn build_password_pipe_doas_returns_none() {
+    fn build_password_pipe_doas_returns_some() {
         let result = build_password_pipe(PrivilegeTool::Doas, "secret", "pacman -S foo");
-        assert!(result.is_none());
+        let cmd = result.expect("doas should support password pipe");
+        assert!(cmd.contains("doas -S pacman -S foo"));
     }
 
     #[test]
@@ -836,10 +839,15 @@ mod tests {
     // -- Password validation -------------------------------------------------
 
     #[test]
-    fn validate_password_doas_returns_err() {
+    fn validate_password_doas_executes_validation_command() {
         let result = validate_password(PrivilegeTool::Doas, "any");
-        let err = result.expect_err("doas should not support password validation");
-        assert!(err.contains("does not support"));
+        // On systems without doas this may be Err; when available it should be Ok(bool).
+        if let Err(err) = result {
+            assert!(
+                err.contains("Failed to execute doas validation"),
+                "unexpected error message: {err}"
+            );
+        }
     }
 
     // -- Availability (env-controlled) ---------------------------------------
@@ -1022,8 +1030,10 @@ mod tests {
     }
 
     #[test]
-    fn doas_password_pipe_returns_none() {
-        assert!(build_password_pipe(PrivilegeTool::Doas, "pw", "cmd").is_none());
+    fn doas_password_pipe_returns_some() {
+        let result = build_password_pipe(PrivilegeTool::Doas, "pw", "cmd");
+        let cmd = result.expect("doas should support password piping with -S");
+        assert!(cmd.contains("doas -S cmd"));
     }
 
     #[test]
@@ -1086,18 +1096,6 @@ mod tests {
     // -- Validate password ---------------------------------------------------
 
     #[test]
-    fn validate_password_doas_returns_unsupported() {
-        let result = validate_password(PrivilegeTool::Doas, "any");
-        let err = result.expect_err("doas should not support password validation");
-        assert!(
-            err.contains("does not support"),
-            "unexpected error message: {err}"
-        );
-    }
-
-    // -- Tool symmetry -------------------------------------------------------
-
-    #[test]
     fn both_tools_produce_distinct_commands() {
         let sudo_cmd = build_privilege_command(PrivilegeTool::Sudo, "pacman -S foo");
         let doas_cmd = build_privilege_command(PrivilegeTool::Doas, "pacman -S foo");
@@ -1111,8 +1109,8 @@ mod tests {
         let sudo_caps = PrivilegeTool::Sudo.capabilities();
         let doas_caps = PrivilegeTool::Doas.capabilities();
         assert_ne!(
-            sudo_caps.supports_stdin_password, doas_caps.supports_stdin_password,
-            "sudo and doas should differ on stdin password support"
+            sudo_caps.supports_credential_refresh, doas_caps.supports_credential_refresh,
+            "sudo and doas should differ on credential refresh support"
         );
     }
 }

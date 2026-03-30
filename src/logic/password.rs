@@ -110,12 +110,11 @@ pub fn should_use_passwordless_sudo(settings: &crate::theme::Settings) -> bool {
 /// # Errors
 ///
 /// - Returns `Err` if the validation command cannot be executed (e.g., tool not available).
-/// - Returns `Err` if the active tool does not support password validation (e.g., doas).
+/// - Returns `Err` if the active tool does not support stdin password validation.
 ///
 /// Details:
 /// - Delegates to [`crate::logic::privilege::validate_password`].
-/// - Only works for tools that support stdin password piping (currently sudo).
-/// - For doas, returns an error since doas cannot validate passwords via stdin.
+/// - Works for active tools that support stdin password piping (sudo/doas).
 pub fn validate_sudo_password(password: &str) -> Result<bool, String> {
     let tool = crate::logic::privilege::active_tool()?;
     crate::logic::privilege::validate_password(tool, password)
@@ -159,19 +158,20 @@ mod tests {
     }
 
     #[test]
-    /// What: Ensure doas skips in-app password prompt decision.
+    /// What: Ensure doas does not implicitly skip the in-app password prompt.
     ///
     /// Inputs:
     /// - Integration test env forcing only doas availability.
-    /// - Default settings with `use_passwordless_sudo = false`.
+    /// - Settings with `use_passwordless_sudo = false`.
     ///
     /// Output:
-    /// - Returns `true` from `should_use_passwordless_sudo`.
+    /// - Returns `false` from `should_use_passwordless_sudo`.
     ///
     /// Details:
-    /// - doas cannot validate stdin passwords in-app.
-    /// - Pacsea must skip the modal and let terminal doas prompt directly.
-    fn test_should_use_passwordless_sudo_true_for_doas_without_stdin_support() {
+    /// - Regression guard for doas flow:
+    ///   selecting doas must still show the same in-app password popup unless
+    ///   passwordless mode is explicitly active.
+    fn test_should_use_passwordless_sudo_false_for_doas_when_passwordless_disabled() {
         let _guard = crate::global_test_mutex_lock();
         unsafe {
             std::env::set_var("PACSEA_INTEGRATION_TEST", "1");
@@ -190,8 +190,8 @@ mod tests {
         }
 
         assert!(
-            should_skip_prompt,
-            "doas should bypass in-app password prompt"
+            !should_skip_prompt,
+            "doas should not skip in-app password prompt when passwordless is disabled"
         );
     }
 
