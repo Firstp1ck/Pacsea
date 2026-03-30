@@ -12,7 +12,7 @@
 //! | Non-interactive check | `sudo -n true` | `doas -n true` |
 //! | Direct command execution | `sudo <cmd>` | `doas <cmd>` |
 //! | Passwordless execution | sudoers `NOPASSWD` | `permit nopass` in `/etc/doas.conf` |
-//! | Password via stdin | `sudo -S` reads stdin | **No `-S` flag**; uses `script` PTY wrapper |
+//! | Password via stdin | `sudo -S` reads stdin | **NOT supported** (uses PTY validation path) |
 //! | Credential refresh | `sudo -v` | **NOT supported** |
 //! | Credential invalidation | `sudo -k` | **NOT supported** |
 //! | Askpass env var | `SUDO_ASKPASS` | **NOT supported** |
@@ -20,8 +20,8 @@
 //! ## Implications for Pacsea
 //!
 //! - `OpenDoas` reads the password from `/dev/tty`, not stdin — it has no `-S` flag.
-//!   Pacsea wraps doas commands with `script -qec` (from `util-linux`, always present
-//!   on Arch) to create a PTY so piped passwords reach doas via the TTY.
+//! - Pacsea validates doas credentials through a native PTY session (`portable-pty`)
+//!   and then executes plain `doas <cmd>`.
 //! - Credential warm-up (`sudo -S -v`) is unavailable for doas.
 //! - `doas -n true` works identically to `sudo -n true` for passwordless detection.
 
@@ -38,12 +38,12 @@ use std::process::Command;
 /// - `Sudo` uses the standard sudo binary with full feature support
 ///   (stdin password, credential caching, askpass).
 /// - `Doas` uses the `OpenDoas` binary with partial feature support
-///   (password piped via PTY wrapper, no credential caching).
+///   (PTY-based validation, no stdin password flag, no credential cache APIs).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PrivilegeTool {
     /// Standard sudo — full feature support.
     Sudo,
-    /// `OpenDoas` — partial feature support (password via PTY wrapper, no credential caching).
+    /// `OpenDoas` — partial feature support (PTY validation, no `-S`, no credential cache APIs).
     Doas,
 }
 
@@ -76,12 +76,12 @@ pub enum PrivilegeMode {
 ///
 /// Details:
 /// - sudo supports all capabilities.
-/// - doas supports password piping (via PTY wrapper), but not credential cache operations.
+/// - doas does not support stdin password piping (`-S`), and lacks credential cache APIs.
 /// - Used to route behavior: e.g. disable warm-up paths for tools without cache refresh support.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct PrivilegeCapabilities {
-    /// Tool supports programmatic password entry (`sudo -S` or PTY wrapper for doas).
+    /// Tool supports direct stdin password entry (`sudo -S`).
     pub supports_stdin_password: bool,
     /// Tool supports credential validation/refresh without running a command (`sudo -v`).
     pub supports_credential_refresh: bool,
@@ -119,7 +119,7 @@ impl PrivilegeTool {
     ///
     /// Details:
     /// - sudo: all capabilities enabled.
-    /// - doas: password piping enabled (via PTY wrapper), credential cache features disabled.
+    /// - doas: stdin password disabled, credential cache features disabled.
     #[must_use]
     pub const fn capabilities(self) -> PrivilegeCapabilities {
         match self {
@@ -130,7 +130,7 @@ impl PrivilegeTool {
                 supports_askpass: true,
             },
             Self::Doas => PrivilegeCapabilities {
-                supports_stdin_password: true,
+                supports_stdin_password: false,
                 supports_credential_refresh: false,
                 supports_credential_invalidation: false,
                 supports_askpass: false,
@@ -421,14 +421,13 @@ pub fn build_privilege_command(tool: PrivilegeTool, command: &str) -> String {
 /// - `command`: The unprivileged command to wrap.
 ///
 /// Output:
-/// - `Some(cmd)` for tools that support programmatic password entry.
+/// - `Some(cmd)` for tools that support stdin password entry.
 /// - `None` for tools that do not.
 ///
 /// Details:
 /// - Uses `shell_single_quote` for safe password escaping.
 /// - sudo: pipes password via `-S` flag (`printf … | sudo -S <cmd>`).
-/// - doas: wraps in a `script` PTY so the piped password reaches `/dev/tty`
-///   (`printf … | script -qec 'doas <cmd>' /dev/null`). Requires `util-linux`.
+/// - doas: returns `None` because `OpenDoas` has no stdin password flag (`-S`).
 #[must_use]
 pub fn build_password_pipe(tool: PrivilegeTool, password: &str, command: &str) -> Option<String> {
     if !tool.capabilities().supports_stdin_password {
@@ -436,14 +435,7 @@ pub fn build_password_pipe(tool: PrivilegeTool, password: &str, command: &str) -
     }
     let escaped = crate::install::shell_single_quote(password);
     let bin = tool.binary_name();
-    Some(match tool {
-        PrivilegeTool::Sudo => {
-            format!("printf '%s\\n' {escaped} | {bin} -S {command}")
-        }
-        PrivilegeTool::Doas => {
-            format!("printf '%s\\n' {escaped} | script -qec \"{bin} {command}\" /dev/null")
-        }
-    })
+    Some(format!("printf '%s\\n' {escaped} | {bin} -S {command}"))
 }
 
 /// What: Build a credential warm-up command that caches the password.
@@ -499,21 +491,23 @@ pub fn build_credential_invalidation(tool: PrivilegeTool) -> Option<String> {
 ///
 /// Output:
 /// - `Ok(true)` if valid, `Ok(false)` if invalid.
-/// - `Err` if the tool doesn't support stdin password or the check fails.
+/// - `Err` if the tool doesn't support password validation or the check fails.
 ///
 /// # Errors
 ///
-/// - Returns `Err` if the tool does not support stdin password validation.
+/// - Returns `Err` if the tool does not support password validation.
 /// - Returns `Err` if the validation command cannot be executed.
 /// - Returns `Err` if doas policy denies all probe commands.
 ///
 /// Details:
-/// - Works for tools with `supports_stdin_password` (sudo, doas).
 /// - sudo: invalidates cached credentials and validates with `sudo -S -v`.
-/// - doas: probes via PTY wrapper (`script -qec 'doas true'`), falling back
-///   to `doas pacman -V` if policy denies `true`. Distinguishes auth failure
-///   from policy denial via stderr analysis (see [`validate_doas_password`]).
+/// - doas: uses native PTY probes (`doas true`, fallback `doas pacman -V`)
+///   to distinguish auth failure from policy denial (see [`validate_doas_password`]).
 pub fn validate_password(tool: PrivilegeTool, password: &str) -> Result<bool, String> {
+    if tool == PrivilegeTool::Doas {
+        return validate_doas_password(password, tool.binary_name());
+    }
+
     if !tool.capabilities().supports_stdin_password {
         return Err(format!(
             "{tool} does not support password validation via stdin. \
@@ -523,10 +517,6 @@ pub fn validate_password(tool: PrivilegeTool, password: &str) -> Result<bool, St
 
     let escaped = crate::install::shell_single_quote(password);
     let bin = tool.binary_name();
-
-    if tool == PrivilegeTool::Doas {
-        return validate_doas_password(&escaped, bin);
-    }
 
     let cmd = format!("{bin} -k ; printf '%s\\n' {escaped} | {bin} -S -v 2>&1");
 
@@ -542,10 +532,10 @@ pub fn validate_password(tool: PrivilegeTool, password: &str) -> Result<bool, St
 /// `OpenDoas` stderr marker emitted on authentication failure (wrong password).
 const DOAS_AUTH_FAILED: &str = "Authentication failed";
 
-/// What: Validate a password specifically for doas using a PTY wrapper and stderr analysis.
+/// What: Validate a password specifically for doas using native PTY probes.
 ///
 /// Inputs:
-/// - `escaped_password`: Shell-escaped password string (via [`shell_single_quote`]).
+/// - `password`: Plain password input from the modal.
 /// - `bin`: Binary name (`"doas"`).
 ///
 /// Output:
@@ -555,23 +545,18 @@ const DOAS_AUTH_FAILED: &str = "Authentication failed";
 ///
 /// Details:
 /// - doas has no `sudo -v` equivalent — every invocation requires a real command.
-/// - doas has no `-S` flag — it reads the password from `/dev/tty`, not stdin.
-///   We use `script -qec` (from `util-linux`) to create a PTY so piped input
-///   reaches doas via the TTY.
+/// - doas has no `-S` flag — it reads from `/dev/tty`, not stdin.
+/// - We spawn doas in a pseudo-terminal and write `password\n` to the PTY master.
 /// - `OpenDoas` checks policy **before** authentication, so a policy denial means
 ///   the password was never tested and we must try a different command.
 /// - Primary probe: `doas true` (minimal, no side effects).
 /// - Fallback probe: `doas pacman -V` (read-only, safe for a pacman frontend).
-fn validate_doas_password(escaped_password: &str, bin: &str) -> Result<bool, String> {
-    let primary =
-        format!("printf '%s\\n' {escaped_password} | script -qec '{bin} true' /dev/null 2>&1");
-    if let Some(result) = run_doas_probe(&primary, bin)? {
+fn validate_doas_password(password: &str, bin: &str) -> Result<bool, String> {
+    if let Some(result) = run_doas_pty_probe(password, bin, &["true"])? {
         return Ok(result);
     }
 
-    let fallback =
-        format!("printf '%s\\n' {escaped_password} | script -qec '{bin} pacman -V' /dev/null 2>&1");
-    if let Some(result) = run_doas_probe(&fallback, bin)? {
+    if let Some(result) = run_doas_pty_probe(password, bin, &["pacman", "-V"])? {
         return Ok(result);
     }
 
@@ -581,11 +566,12 @@ fn validate_doas_password(escaped_password: &str, bin: &str) -> Result<bool, Str
     ))
 }
 
-/// What: Execute a single doas probe command (via PTY wrapper) and classify the outcome.
+/// What: Execute a single doas probe command in a pseudo-terminal and classify outcome.
 ///
 /// Inputs:
-/// - `cmd`: Full shell command string (e.g. `printf … | script -qec 'doas true' /dev/null 2>&1`).
+/// - `password`: Plain password to write to the doas prompt.
 /// - `bin`: Binary name for error messages (`"doas"`).
+/// - `args`: Command arguments to pass to doas (e.g. `["true"]`).
 ///
 /// Output:
 /// - `Ok(Some(true))` — command succeeded, password is valid.
@@ -594,20 +580,65 @@ fn validate_doas_password(escaped_password: &str, bin: &str) -> Result<bool, Str
 /// - `Err` — the shell command could not be spawned at all.
 ///
 /// Details:
-/// - Distinguishes auth failure from policy denial by checking whether the
-///   combined output (stdout+stderr via `2>&1`) contains [`DOAS_AUTH_FAILED`].
-fn run_doas_probe(cmd: &str, bin: &str) -> Result<Option<bool>, String> {
-    let output = Command::new("sh")
-        .arg("-c")
-        .arg(cmd)
-        .output()
+/// - Uses `portable-pty` so doas can read from `/dev/tty` as designed.
+/// - Writes `password\n` to the PTY master, then reads output for diagnostics.
+/// - Distinguishes auth failure from policy denial via [`DOAS_AUTH_FAILED`].
+fn run_doas_pty_probe(password: &str, bin: &str, args: &[&str]) -> Result<Option<bool>, String> {
+    use portable_pty::{CommandBuilder, PtySize, native_pty_system};
+    use std::io::{Read, Write};
+
+    let pty_system = native_pty_system();
+    let pty = pty_system
+        .openpty(PtySize {
+            rows: 24,
+            cols: 80,
+            pixel_width: 0,
+            pixel_height: 0,
+        })
+        .map_err(|e| format!("Failed to create PTY for {bin} validation: {e}"))?;
+
+    let mut cmd_builder = CommandBuilder::new(bin);
+    for arg in args {
+        cmd_builder.arg(arg);
+    }
+
+    let mut child = pty
+        .slave
+        .spawn_command(cmd_builder)
         .map_err(|e| format!("Failed to execute {bin} validation: {e}"))?;
 
-    if output.status.success() {
+    {
+        let mut writer = pty
+            .master
+            .take_writer()
+            .map_err(|e| format!("Failed to open PTY writer for {bin} validation: {e}"))?;
+        writer
+            .write_all(password.as_bytes())
+            .map_err(|e| format!("Failed to write password to {bin} PTY: {e}"))?;
+        writer
+            .write_all(b"\n")
+            .map_err(|e| format!("Failed to write newline to {bin} PTY: {e}"))?;
+        writer
+            .flush()
+            .map_err(|e| format!("Failed to flush {bin} PTY writer: {e}"))?;
+    }
+
+    let status = child
+        .wait()
+        .map_err(|e| format!("Failed to wait for {bin} validation: {e}"))?;
+
+    let mut reader = pty
+        .master
+        .try_clone_reader()
+        .map_err(|e| format!("Failed to open PTY reader for {bin} validation: {e}"))?;
+    let mut output_buf = Vec::new();
+    let _ = reader.read_to_end(&mut output_buf);
+    let combined = String::from_utf8_lossy(&output_buf);
+
+    if status.success() {
         return Ok(Some(true));
     }
 
-    let combined = String::from_utf8_lossy(&output.stdout);
     if combined.contains(DOAS_AUTH_FAILED) {
         Ok(Some(false))
     } else {
@@ -680,7 +711,7 @@ mod tests {
     #[test]
     fn doas_capabilities_partial_support() {
         let caps = PrivilegeTool::Doas.capabilities();
-        assert!(caps.supports_stdin_password);
+        assert!(!caps.supports_stdin_password);
         assert!(!caps.supports_credential_refresh);
         assert!(!caps.supports_credential_invalidation);
         assert!(!caps.supports_askpass);
@@ -894,11 +925,9 @@ mod tests {
     }
 
     #[test]
-    fn build_password_pipe_doas_returns_some() {
+    fn build_password_pipe_doas_returns_none() {
         let result = build_password_pipe(PrivilegeTool::Doas, "secret", "pacman -S foo");
-        let cmd = result.expect("doas should support password pipe");
-        assert!(cmd.contains("script -qec"));
-        assert!(cmd.contains("doas pacman -S foo"));
+        assert!(result.is_none());
     }
 
     #[test]
@@ -933,10 +962,10 @@ mod tests {
     fn validate_password_doas_runs_probe_or_reports_policy() {
         let result = validate_password(PrivilegeTool::Doas, "any");
         // Depending on system: Ok(bool) if doas is installed and policy permits,
-        // Err if doas is missing or policy blocks all probes.
+        // Err if doas is missing, PTY setup fails, or policy blocks all probes.
         if let Err(err) = result {
             assert!(
-                err.contains("Failed to execute doas validation")
+                err.contains("doas validation")
                     || err.contains("policy does not permit probe commands"),
                 "unexpected error message: {err}"
             );
@@ -1135,15 +1164,9 @@ mod tests {
     }
 
     #[test]
-    fn doas_password_pipe_uses_script_pty_wrapper() {
+    fn doas_password_pipe_returns_none() {
         let result = build_password_pipe(PrivilegeTool::Doas, "pw", "cmd");
-        let cmd = result.expect("doas should support password piping via PTY");
-        assert!(cmd.contains("script -qec"));
-        assert!(cmd.contains("doas cmd"));
-        assert!(
-            !cmd.contains("-S"),
-            "doas has no -S flag; must use PTY wrapper"
-        );
+        assert!(result.is_none());
     }
 
     #[test]
@@ -1219,8 +1242,8 @@ mod tests {
         let sudo_caps = PrivilegeTool::Sudo.capabilities();
         let doas_caps = PrivilegeTool::Doas.capabilities();
         assert_ne!(
-            sudo_caps.supports_credential_refresh, doas_caps.supports_credential_refresh,
-            "sudo and doas should differ on credential refresh support"
+            sudo_caps.supports_stdin_password, doas_caps.supports_stdin_password,
+            "sudo and doas should differ on stdin password support"
         );
     }
 }
