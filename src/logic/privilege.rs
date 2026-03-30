@@ -531,6 +531,8 @@ pub fn validate_password(tool: PrivilegeTool, password: &str) -> Result<bool, St
 
 /// `OpenDoas` stderr marker emitted on authentication failure (wrong password).
 const DOAS_AUTH_FAILED: &str = "Authentication failed";
+/// `OpenDoas` stderr marker for policy denial.
+const DOAS_POLICY_DENIED: &str = "Operation not permitted";
 
 /// What: Validate a password specifically for doas using native PTY probes.
 ///
@@ -610,69 +612,110 @@ fn run_doas_pty_probe(password: &str, bin: &str, args: &[&str]) -> Result<Option
         .spawn_command(cmd_builder)
         .map_err(|e| format!("Failed to execute {bin} validation: {e}"))?;
 
-    let mut reader = pty
+    let reader = pty
         .master
         .try_clone_reader()
         .map_err(|e| format!("Failed to open PTY reader for {bin} validation: {e}"))?;
 
-    {
-        let mut writer = pty
-            .master
-            .take_writer()
-            .map_err(|e| format!("Failed to open PTY writer for {bin} validation: {e}"))?;
-        writer
-            .write_all(password.as_bytes())
-            .map_err(|e| format!("Failed to write password to {bin} PTY: {e}"))?;
-        writer
-            .write_all(b"\n")
-            .map_err(|e| format!("Failed to write newline to {bin} PTY: {e}"))?;
-        writer
-            .flush()
-            .map_err(|e| format!("Failed to flush {bin} PTY writer: {e}"))?;
-    }
+    let mut writer = pty
+        .master
+        .take_writer()
+        .map_err(|e| format!("Failed to open PTY writer for {bin} validation: {e}"))?;
 
     let wait_timeout = Duration::from_secs(5);
     let poll_interval = Duration::from_millis(25);
     let started = Instant::now();
 
-    let status = loop {
-        match child.try_wait() {
-            Ok(Some(status)) => break status,
-            Ok(None) => {
-                if started.elapsed() >= wait_timeout {
-                    return Err(format!(
-                        "{bin} validation timed out after {}s. \
-                         Check /etc/doas.conf and retry.",
-                        wait_timeout.as_secs()
-                    ));
-                }
-                thread::sleep(poll_interval);
-            }
-            Err(e) => return Err(format!("Failed while waiting for {bin} validation: {e}")),
-        }
-    };
-
     let (tx, rx) = mpsc::channel();
     thread::spawn(move || {
-        let mut output_buf = Vec::new();
-        let _ = reader.read_to_end(&mut output_buf);
-        let _ = tx.send(output_buf);
+        let mut local_reader = reader;
+        let mut buf = [0_u8; 512];
+        loop {
+            match local_reader.read(&mut buf) {
+                Ok(0) | Err(_) => break,
+                Ok(n) => {
+                    if tx.send(buf[..n].to_vec()).is_err() {
+                        break;
+                    }
+                }
+            }
+        }
     });
 
-    let output_buf = rx
-        .recv_timeout(Duration::from_millis(200))
-        .unwrap_or_default();
-    let combined = String::from_utf8_lossy(&output_buf);
+    let mut combined = String::new();
+    let mut password_sent = false;
 
-    if status.success() {
-        return Ok(Some(true));
-    }
+    loop {
+        while let Ok(chunk) = rx.try_recv() {
+            combined.push_str(&String::from_utf8_lossy(&chunk));
+        }
 
-    if combined.contains(DOAS_AUTH_FAILED) {
-        Ok(Some(false))
-    } else {
-        Ok(None)
+        if !password_sent && contains_password_prompt(&combined) {
+            writer
+                .write_all(password.as_bytes())
+                .map_err(|e| format!("Failed to write password to {bin} PTY: {e}"))?;
+            writer
+                .write_all(b"\n")
+                .map_err(|e| format!("Failed to write newline to {bin} PTY: {e}"))?;
+            writer
+                .flush()
+                .map_err(|e| format!("Failed to flush {bin} PTY writer: {e}"))?;
+            password_sent = true;
+        }
+
+        if combined.contains(DOAS_AUTH_FAILED) {
+            let _ = child.kill();
+            return Ok(Some(false));
+        }
+
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                if status.success() {
+                    return Ok(Some(true));
+                }
+                if combined.contains(DOAS_POLICY_DENIED) {
+                    return Ok(None);
+                }
+                if combined.contains(DOAS_AUTH_FAILED) {
+                    return Ok(Some(false));
+                }
+                return Ok(None);
+            }
+            Ok(None) => {}
+            Err(e) => return Err(format!("Failed while waiting for {bin} validation: {e}")),
+        }
+
+        if started.elapsed() >= wait_timeout {
+            let _ = child.kill();
+            let timeout_hint = if password_sent {
+                "doas did not complete after password input"
+            } else {
+                "no password prompt detected"
+            };
+            return Err(format!(
+                "{bin} validation timed out after {}s ({timeout_hint}). \
+                 Check /etc/doas.conf and retry.",
+                wait_timeout.as_secs()
+            ));
+        }
+
+        thread::sleep(poll_interval);
     }
+}
+
+/// What: Detect whether the accumulated doas PTY output contains a password prompt.
+///
+/// Inputs:
+/// - `output`: Accumulated PTY output as UTF-8 string.
+///
+/// Output:
+/// - `true` if a known password prompt marker is present.
+///
+/// Details:
+/// - Matches common prompt fragments case-insensitively (`password`, `passwort`).
+fn contains_password_prompt(output: &str) -> bool {
+    let lowercase = output.to_ascii_lowercase();
+    lowercase.contains("password") || lowercase.contains("passwort")
 }
 
 // ---------------------------------------------------------------------------
