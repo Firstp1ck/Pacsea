@@ -685,8 +685,8 @@ fn send_finish_message(
 /// - Strips ANSI escape codes from output using `strip-ansi-escapes` crate
 /// - Sends Finished message when command completes
 /// - When `password` is `Some`, monitors output for privilege prompts and
-///   writes the password each time one is detected (with a 1 s cooldown to
-///   avoid re-triggering on the same prompt).  Prompt lines are suppressed.
+///   writes the password each time one is detected.  The `line_buffer` is
+///   cleared after each write so the same prompt cannot re-trigger.
 #[cfg(not(target_os = "windows"))]
 #[allow(clippy::needless_pass_by_value)] // Pass by value needed for move into closure
 fn execute_command_pty(
@@ -697,7 +697,6 @@ fn execute_command_pty(
     use portable_pty::{CommandBuilder, PtySize, native_pty_system};
     use std::io::Write;
     use std::sync::mpsc as std_mpsc;
-    use std::time::Instant;
 
     tracing::debug!("[PTY] Starting execute_command_pty");
     tracing::debug!("[PTY] Command length: {} chars", cmd.len());
@@ -754,11 +753,6 @@ fn execute_command_pty(
     let mut byte_buffer = Vec::new();
     let mut line_buffer = String::new();
     let mut lines_sent: usize = 0;
-    let mut last_password_write: Option<Instant> = if password.is_none() {
-        Some(Instant::now())
-    } else {
-        None
-    };
 
     tracing::debug!("[PTY] Entering main processing loop");
     loop {
@@ -799,10 +793,7 @@ fn execute_command_pty(
             Ok(data) => {
                 byte_buffer.extend_from_slice(&data);
                 lines_sent += process_byte_buffer_utf8(&mut byte_buffer, &mut line_buffer, &res_tx);
-                let cooldown_ok = last_password_write
-                    .is_none_or(|t| t.elapsed() >= std::time::Duration::from_secs(1));
-                if cooldown_ok
-                    && let (Some(writer), Some(pass)) = (&mut pty_writer, &password)
+                if let (Some(writer), Some(pass)) = (&mut pty_writer, &password)
                     && crate::logic::privilege::contains_password_prompt(&line_buffer)
                 {
                     if let Err(e) = writer.write_all(pass.as_bytes()) {
@@ -812,7 +803,6 @@ fn execute_command_pty(
                         let _ = writer.flush();
                         tracing::debug!("[PTY] Password written to PTY for privilege prompt");
                     }
-                    last_password_write = Some(Instant::now());
                     line_buffer.clear();
                 }
             }
