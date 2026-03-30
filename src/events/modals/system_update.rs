@@ -182,12 +182,28 @@ fn handle_system_update_enter(
         };
         crate::theme::save_selected_countries(countries_arg);
         crate::theme::save_mirror_count(mirror_count);
-        cmds.push(distro::mirror_update_command(countries_arg, mirror_count));
+        match distro::mirror_update_command(countries_arg, mirror_count) {
+            Ok(cmd) => cmds.push(cmd),
+            Err(msg) => {
+                app.modal = crate::state::Modal::Alert { message: msg };
+                return;
+            }
+        }
     }
     if do_pacman {
         // Use -Syyu (force sync) or -Syu (normal sync) based on user selection
         let sync_flag = if force_sync { "-Syyu" } else { "-Syu" };
-        cmds.push(format!("sudo pacman {sync_flag} --noconfirm"));
+        let tool = match crate::logic::privilege::active_tool() {
+            Ok(t) => t,
+            Err(msg) => {
+                app.modal = crate::state::Modal::Alert { message: msg };
+                return;
+            }
+        };
+        cmds.push(crate::logic::privilege::build_privilege_command(
+            tool,
+            &format!("pacman {sync_flag} --noconfirm"),
+        ));
     }
 
     // Build AUR command separately - will be executed conditionally if pacman fails
@@ -223,8 +239,19 @@ fn handle_system_update_enter(
         }
     }
     if do_cache {
-        cmds.push("sudo pacman -Sc --noconfirm".to_string());
-        cmds.push("((command -v paru >/dev/null 2>&1 || sudo pacman -Qi paru >/dev/null 2>&1) && paru -Sc --noconfirm) || ((command -v yay >/dev/null 2>&1 || sudo pacman -Qi yay >/dev/null 2>&1) && yay -Sc --noconfirm) || true".to_string());
+        let tool = match crate::logic::privilege::active_tool() {
+            Ok(t) => t,
+            Err(msg) => {
+                app.modal = crate::state::Modal::Alert { message: msg };
+                return;
+            }
+        };
+        let bin = tool.binary_name();
+        cmds.push(crate::logic::privilege::build_privilege_command(
+            tool,
+            "pacman -Sc --noconfirm",
+        ));
+        cmds.push(format!("((command -v paru >/dev/null 2>&1 || {bin} pacman -Qi paru >/dev/null 2>&1) && paru -Sc --noconfirm) || ((command -v yay >/dev/null 2>&1 || {bin} pacman -Qi yay >/dev/null 2>&1) && yay -Sc --noconfirm) || true"));
     }
     if cmds.is_empty() {
         app.modal = crate::state::Modal::Alert {

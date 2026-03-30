@@ -232,6 +232,15 @@ skip_preflight = false\n\
 # To use this feature, you must also have passwordless sudo configured in /etc/sudoers or /etc/sudoers.d/\n\
 use_passwordless_sudo = false\n\
 \n\
+# Privilege tool\n\
+# Which privilege escalation tool to use for install/remove/downgrade operations.\n\
+# Allowed values: auto | sudo | doas\n\
+# - auto (default): prefer doas if available, fall back to sudo\n\
+# - sudo: always use sudo\n\
+# - doas: always use doas (requires opendoas package)\n\
+# Note: doas does not support in-app password prompts; the terminal handles password entry.\n\
+privilege_tool = auto\n\
+\n\
 # Mirrors\n\
 # Select one or more countries (comma-separated). Example: \"Switzerland, Germany, Austria\"\n\
 selected_countries = Worldwide\n\

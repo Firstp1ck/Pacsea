@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant};
 
-use rand::Rng;
+use rand::RngExt;
 use tracing::{debug, warn};
 
 use super::Result;

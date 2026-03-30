@@ -1,3 +1,16 @@
+## Progress todos (2026-03-30)
+
+Recommendations from **Recommendations** / **Conclusion** — none are mandated; treat as incremental backlog.
+
+- [ ] **Short-term:** Split `AppState` into domain substates (`search`, `install`, `preflight`, `ui`, …) without breaking runtime/message flow
+- [ ] **Short-term:** Group related preflight channels into a struct to reduce channel sprawl
+- [ ] **Short-term:** Extract pure business logic from fat handlers into testable modules
+- [ ] **Medium-term:** Introduce explicit user-action `Command` enum and route mutations through it (undo/macro-friendly)
+- [ ] **Medium-term:** Query layer / computed properties with memoization where hot
+- [ ] **Long-term (optional):** Revisit TEA vs CQRS-lite only if a large refactor is approved — event sourcing / full Redux / component framework remain **not recommended** per comparison below
+
+---
+
 ## Alternative Architectures
 
 ### Alternative 1: Elm Architecture (TEA)

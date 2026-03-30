@@ -2,6 +2,31 @@
 
 > Generated based on analysis of the current codebase architecture, user impact, and implementation complexity.
 
+## Progress todos (2026-03-30)
+
+**Shipped (recent releases — use as baseline, version table below is stale for 0.7.x):**
+
+- [x] **v0.6.0** — Integrated TUI execution (PTY, password modal, live logs)
+- [x] **v0.7.0** — Extended News Mode (multi-source feed, caching, background retry, filters/sort)
+- [x] **v0.7.1** — News/search UX (separate search fields, mark-read in normal mode, toasts)
+- [x] **v0.7.2** — Security/dep updates, CodeQL-related fixes, i18n tweaks
+- [x] **v0.7.3** — Passwordless sudo in TUI (where safe), `$VISUAL`/`$EDITOR` for config files, numpad Enter (#119), terminal theme via OSC 10/11 + `use_terminal_theme`
+
+**Still open (aligned with tier list below; not exhaustive):**
+
+- [ ] Adjustable vertical pane heights (Tier 1 #2)
+- [ ] CLI `--update` fully respects mirror/AUR-helper and related `settings.conf` fields (Tier 1 #3)
+- [ ] PKGBUILD inline ShellCheck / namcap in details pane (Tier 1 #4)
+- [ ] Button/focus tooltips (Tier 2 #5)
+- [ ] AUR SSH voting (Tier 2 #6)
+- [ ] Distro-specific news feeds (Tier 2 #7)
+- [ ] Rearrange pane order / locations (Tier 2 #8)
+- [ ] Accessibility themes (Tier 3 #9)
+- [ ] Package-scoped news/comments monitoring (Tier 3 #10)
+- [ ] Mirror browser / search UI (Tier 3 #11)
+- [ ] Update grouping by criticality (Tier 3 #12)
+- [ ] Tier 4+ items (extra repos, custom repos, conflict wizard, multi-PM, etc.)
+
 ---
 
 ## Quick Version Reference
@@ -474,6 +499,6 @@
 
 ---
 
-*Last updated: 2025-12-03*
-*Based on Pacsea v0.6.0 codebase analysis*
+*Last updated: 2026-03-30 (progress todos added; quick-reference table still reflects original roadmap targets)*  
+*Based on Pacsea v0.6.0 roadmap; several 0.7.x items shipped out of original version order*
 

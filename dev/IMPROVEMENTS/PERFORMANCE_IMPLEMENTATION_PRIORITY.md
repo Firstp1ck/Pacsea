@@ -2,6 +2,20 @@
 
 This document tracks the status of performance suggestions from `PREFORMANCE_SUGGESTIONS.md` and prioritizes remaining optimizations.
 
+## Progress todos (2026-03-30)
+
+**Done (see sections below):** name index `HashMap`, install/remove/downgrade list `HashSet`s, search result memoization, sort-cache O(n) reordering, LRU recent searches, PKGBUILD parse disk LRU, incremental PKGBUILD highlighting, ring prefetch, rate limits on PKGBUILD fetch.
+
+**Still open:**
+
+- [ ] **AUR/repo sync:** Move away from `OfficialIndex.pkgs: Vec` + repeated sorts if profiling shows benefit; consider map/B-tree keyed structure
+- [ ] **AUR/repo sync:** Stream or progressively expose search results to UI (currently collect-then-render)
+- [ ] **AUR/repo sync:** Stronger lazy/on-demand loading (beyond “load from disk when empty”)
+- [ ] **Installed/removal lists:** Tighten remaining `.iter().any()` / retain patterns where still partial
+- [ ] **Fuzzy search:** Optional trie/BK-tree (low priority — `SkimMatcherV2` acceptable for now)
+- [ ] **UI:** Incremental/dirty-region rendering (architectural)
+- [ ] **Tooling:** Add `criterion` benches per “Benchmarking Approach” section when optimizing hot paths
+
 ---
 
 ## Status Legend

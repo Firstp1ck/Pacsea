@@ -405,22 +405,22 @@ fn run_command_with_logging(
         std::env::temp_dir().join(format!("pacsea_update_output_{}.txt", std::process::id()));
     let temp_output_str = temp_output.to_string_lossy();
 
-    // Build the command with optional password piping for sudo
-    // When program is "sudo", we need to handle it specially:
-    // - With password: echo 'password' | sudo -S pacman args...
-    // - Without password: sudo pacman args...
-    // When program is not "sudo" (e.g., paru/yay), use it directly
-    let full_command = if program == "sudo" {
+    // Build the command with optional password piping for privilege tools.
+    // When program is the active privilege tool, handle password piping.
+    // When program is not a privilege tool (e.g., paru/yay), use directly.
+    let tool = pacsea::logic::privilege::active_tool().map_err(std::io::Error::other)?;
+    let full_command = if program == tool.binary_name() {
         password.map_or_else(
-            || format!("sudo {args_str}"),
+            || pacsea::logic::privilege::build_privilege_command(tool, &args_str),
             |pass| {
-                // Use shell_single_quote for consistent password escaping
-                let escaped = shell_single_quote(pass);
-                // args[0] is the actual command (e.g., "pacman"), args[1..] are its arguments
                 args.first().map_or_else(
-                    || format!("echo {escaped} | sudo -S {args_str}"),
+                    || {
+                        pacsea::logic::privilege::build_password_pipe(tool, pass, &args_str)
+                            .unwrap_or_else(|| {
+                                pacsea::logic::privilege::build_privilege_command(tool, &args_str)
+                            })
+                    },
                     |cmd| {
-                        // Escape cmd for shell safety, even though currently only trusted values are passed
                         let cmd_escaped = shell_single_quote(cmd);
                         let cmd_args = &args[1..];
                         let cmd_args_str = cmd_args
@@ -428,18 +428,20 @@ fn run_command_with_logging(
                             .map(|a| shell_single_quote(a))
                             .collect::<Vec<_>>()
                             .join(" ");
-                        if cmd_args_str.is_empty() {
-                            format!("echo {escaped} | sudo -S {cmd_escaped}")
+                        let base = if cmd_args_str.is_empty() {
+                            cmd_escaped
                         } else {
-                            format!("echo {escaped} | sudo -S {cmd_escaped} {cmd_args_str}")
-                        }
+                            format!("{cmd_escaped} {cmd_args_str}")
+                        };
+                        pacsea::logic::privilege::build_password_pipe(tool, pass, &base)
+                            .unwrap_or_else(|| {
+                                pacsea::logic::privilege::build_privilege_command(tool, &base)
+                            })
                     },
                 )
             },
         )
     } else {
-        // Non-sudo command (e.g., paru, yay), use directly
-        // Escape program for shell safety, even though currently only trusted values are passed
         let program_escaped = shell_single_quote(program);
         format!("{program_escaped} {args_str}")
     };
@@ -455,10 +457,10 @@ fn run_command_with_logging(
         "set -o pipefail; stdbuf -oL -eL {full_command} 2>&1 | tee -a {log_file_escaped} | tee {temp_output_escaped} {tty_redirect}"
     );
 
-    let shell_cmd_log = if program == "sudo" && password.is_some() {
-        // Avoid logging the inlined password; show the sudo command shape instead.
+    let shell_cmd_log = if program == tool.binary_name() && password.is_some() {
+        let bin = tool.binary_name();
         format!(
-            "set -o pipefail; stdbuf -oL -eL sudo {args_str} 2>&1 | tee -a {log_file_escaped} | tee {temp_output_escaped} {tty_redirect}"
+            "set -o pipefail; stdbuf -oL -eL {bin} {args_str} 2>&1 | tee -a {log_file_escaped} | tee {temp_output_escaped} {tty_redirect}"
         )
     } else {
         shell_cmd.clone()
@@ -713,8 +715,25 @@ fn run_pacman_update(
     );
     write_log("Starting system update: pacman -Syu --noconfirm");
 
+    let tool = match pacsea::logic::privilege::active_tool() {
+        Ok(t) => t,
+        Err(err) => {
+            println!(
+                "{}",
+                error_color(&i18n::t("app.cli.update.pacman_exec_failed"), no_color)
+            );
+            eprintln!("{}", error_color(&err, no_color));
+            write_log(&format!("FAILED: Could not resolve privilege tool: {err}"));
+            state.all_succeeded = false;
+            state
+                .failed_commands
+                .push("pacman -Syu --noconfirm".to_string());
+            state.pacman_succeeded = Some(false);
+            return;
+        }
+    };
     let pacman_result = run_command_with_logging(
-        "sudo",
+        tool.binary_name(),
         &["pacman", "-Syu", "--noconfirm"],
         log_file_path,
         password,
@@ -785,16 +804,22 @@ fn refresh_sudo_timestamp(password: Option<&str>, write_log: &(dyn Fn(&str) + Se
     use std::process::Command;
 
     if let Some(pass) = password {
-        let escaped = shell_single_quote(pass);
-        let refresh_cmd = format!("echo {escaped} | sudo -S -v");
-        let _ = Command::new("bash")
-            .arg("-c")
-            .arg(&refresh_cmd)
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status();
-        write_log("Refreshed sudo timestamp for AUR helper");
+        let Ok(tool) = pacsea::logic::privilege::active_tool() else {
+            return;
+        };
+        if let Some(warmup) = pacsea::logic::privilege::build_credential_warmup(tool, pass) {
+            let _ = Command::new("bash")
+                .arg("-c")
+                .arg(&warmup)
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status();
+            write_log(&format!(
+                "Refreshed {} credential timestamp for AUR helper",
+                tool.binary_name()
+            ));
+        }
     }
 }
 

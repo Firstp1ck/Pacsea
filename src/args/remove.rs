@@ -78,7 +78,14 @@ pub fn handle_remove(packages: &[String]) -> ! {
 
     // Execute sudo pacman -Rns
     tracing::info!(packages = ?package_names, "Removing packages");
-    let status = Command::new("sudo")
+    let tool = match pacsea::logic::privilege::active_tool() {
+        Ok(t) => t,
+        Err(err) => {
+            eprintln!("{err}");
+            std::process::exit(1);
+        }
+    };
+    let status = Command::new(tool.binary_name())
         .arg("pacman")
         .arg("-Rns")
         .args(&package_names)

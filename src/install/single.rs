@@ -141,7 +141,13 @@ pub fn spawn_install(item: &PackageItem, password: Option<&str>, dry_run: bool) 
         return;
     }
 
-    let (cmd_str, uses_sudo) = build_install_command(item, password, dry_run);
+    let (cmd_str, uses_sudo) = match build_install_command(item, password, dry_run) {
+        Ok(v) => v,
+        Err(err) => {
+            tracing::error!(error = %err, names = %item.name, "privilege tool resolution failed for install");
+            return;
+        }
+    };
     let src = match item.source {
         Source::Official { .. } => "official",
         Source::Aur => "aur",
@@ -314,7 +320,13 @@ mod tests {
 pub fn spawn_install(item: &PackageItem, password: Option<&str>, dry_run: bool) {
     #[cfg(not(test))]
     {
-        let (cmd_str, _uses_sudo) = build_install_command(item, password, dry_run);
+        let (cmd_str, _uses_sudo) = match build_install_command(item, password, dry_run) {
+            Ok(v) => v,
+            Err(err) => {
+                tracing::error!(error = %err, "privilege tool resolution failed for install");
+                return;
+            }
+        };
 
         if dry_run && super::utils::is_powershell_available() {
             // Use PowerShell to simulate the install operation

@@ -44,7 +44,7 @@ pub fn add_pattern_exports(cmds: &mut Vec<String>) {
 pub fn add_clamav_scan(cmds: &mut Vec<String>) {
     cmds.push("echo '--- ClamAV scan (optional) ---'".to_string());
     cmds.push("echo -e '\\033[1;34m[🔍] ClamAV scan (optional)\\033[0m'".to_string());
-    cmds.push("(if [ \"${PACSEA_SCAN_DO_CLAMAV:-1}\" = \"1\" ]; then ((command -v clamscan >/dev/null 2>&1 || sudo pacman -Qi clamav >/dev/null 2>&1) && { if find /var/lib/clamav -maxdepth 1 -type f \\( -name '*.cvd' -o -name '*.cld' \\) 2>/dev/null | grep -q .; then clamscan -r . | tee ./.pacsea_scan_clamav.txt; else echo 'ClamAV found but no signature database in /var/lib/clamav'; echo 'Tip: run: sudo freshclam  (or start the updater: sudo systemctl start clamav-freshclam)'; fi; } || echo 'ClamAV (clamscan) encountered an error; skipping') || echo 'ClamAV not found; skipping'; else echo 'ClamAV: skipped by config'; fi)".to_string());
+    cmds.push("(if [ \"${PACSEA_SCAN_DO_CLAMAV:-1}\" = \"1\" ]; then ((command -v clamscan >/dev/null 2>&1 || pacman -Qi clamav >/dev/null 2>&1) && { if find /var/lib/clamav -maxdepth 1 -type f \\( -name '*.cvd' -o -name '*.cld' \\) 2>/dev/null | grep -q .; then clamscan -r . | tee ./.pacsea_scan_clamav.txt; else echo 'ClamAV found but no signature database in /var/lib/clamav'; echo 'Tip: run: sudo freshclam  (or start the updater: sudo systemctl start clamav-freshclam)'; fi; } || echo 'ClamAV (clamscan) encountered an error; skipping') || echo 'ClamAV not found; skipping'; else echo 'ClamAV: skipped by config'; fi)".to_string());
 }
 
 /// What: Add Trivy filesystem scan commands to command vector.
@@ -62,7 +62,7 @@ pub fn add_clamav_scan(cmds: &mut Vec<String>) {
 pub fn add_trivy_scan(cmds: &mut Vec<String>) {
     cmds.push("echo '--- Trivy filesystem scan (optional) ---'".to_string());
     cmds.push("echo -e '\\033[1;34m[🧰] Trivy filesystem scan (optional)\\033[0m'".to_string());
-    cmds.push("(if [ \"${PACSEA_SCAN_DO_TRIVY:-1}\" = \"1\" ]; then ((command -v trivy >/dev/null 2>&1 || sudo pacman -Qi trivy >/dev/null 2>&1) && (trivy fs --quiet --format json . > ./.pacsea_scan_trivy.json || trivy fs --quiet . | tee ./.pacsea_scan_trivy.txt) || echo 'Trivy not found or failed; skipping'); else echo 'Trivy: skipped by config'; fi)".to_string());
+    cmds.push("(if [ \"${PACSEA_SCAN_DO_TRIVY:-1}\" = \"1\" ]; then ((command -v trivy >/dev/null 2>&1 || pacman -Qi trivy >/dev/null 2>&1) && (trivy fs --quiet --format json . > ./.pacsea_scan_trivy.json || trivy fs --quiet . | tee ./.pacsea_scan_trivy.txt) || echo 'Trivy not found or failed; skipping'); else echo 'Trivy: skipped by config'; fi)".to_string());
 }
 
 /// What: Add Semgrep static analysis commands to command vector.
@@ -80,7 +80,7 @@ pub fn add_trivy_scan(cmds: &mut Vec<String>) {
 pub fn add_semgrep_scan(cmds: &mut Vec<String>) {
     cmds.push("echo '--- Semgrep static analysis (optional) ---'".to_string());
     cmds.push("echo -e '\\033[1;34m[🧪] Semgrep static analysis (optional)\\033[0m'".to_string());
-    cmds.push("(if [ \"${PACSEA_SCAN_DO_SEMGREP:-1}\" = \"1\" ]; then ((command -v semgrep >/dev/null 2>&1 || sudo pacman -Qi semgrep >/dev/null 2>&1) && (semgrep --config=auto --json . > ./.pacsea_scan_semgrep.json || semgrep --config=auto . | tee ./.pacsea_scan_semgrep.txt) || echo 'Semgrep not found; skipping'); else echo 'Semgrep: skipped by config'; fi)".to_string());
+    cmds.push("(if [ \"${PACSEA_SCAN_DO_SEMGREP:-1}\" = \"1\" ]; then ((command -v semgrep >/dev/null 2>&1 || pacman -Qi semgrep >/dev/null 2>&1) && (semgrep --config=auto --json . > ./.pacsea_scan_semgrep.json || semgrep --config=auto . | tee ./.pacsea_scan_semgrep.txt) || echo 'Semgrep not found; skipping'); else echo 'Semgrep: skipped by config'; fi)".to_string());
 }
 
 /// What: Add aur-sleuth audit commands to command vector.
@@ -209,7 +209,7 @@ fi)"#
 pub fn add_shellcheck_scan(cmds: &mut Vec<String>) {
     cmds.push("echo '--- ShellCheck lint (optional) ---'".to_string());
     cmds.push("echo -e '\\033[1;34m[🧹] ShellCheck lint (optional)\\033[0m'".to_string());
-    cmds.push("(if [ \"${PACSEA_SCAN_DO_SHELLCHECK:-1}\" = \"1\" ]; then if command -v shellcheck >/dev/null 2>&1 || sudo pacman -Qi shellcheck >/dev/null 2>&1; then if [ -f PKGBUILD ]; then echo \"[shellcheck] Analyzing: PKGBUILD (bash, -e SC2034)\"; (shellcheck -s bash -x -e SC2034 -f json PKGBUILD > ./.pacsea_shellcheck_pkgbuild.json || shellcheck -s bash -x -e SC2034 PKGBUILD | tee ./.pacsea_shellcheck_pkgbuild.txt || true); fi; inst_files=(); while IFS= read -r -d '' f; do inst_files+=(\"$f\"); done < <(find . -maxdepth 1 -type f -name \"*.install\" -print0); if [ \"${#inst_files[@]}\" -gt 0 ]; then echo \"[shellcheck] Analyzing: ${inst_files[*]} (bash)\"; (shellcheck -s bash -x -f json \"${inst_files[@]}\" > ./.pacsea_shellcheck_install.json || shellcheck -s bash -x \"${inst_files[@]}\" | tee ./.pacsea_shellcheck_install.txt || true); fi; else echo 'ShellCheck not found; skipping'; fi; else echo 'ShellCheck: skipped by config'; fi)".to_string());
+    cmds.push("(if [ \"${PACSEA_SCAN_DO_SHELLCHECK:-1}\" = \"1\" ]; then if command -v shellcheck >/dev/null 2>&1 || pacman -Qi shellcheck >/dev/null 2>&1; then if [ -f PKGBUILD ]; then echo \"[shellcheck] Analyzing: PKGBUILD (bash, -e SC2034)\"; (shellcheck -s bash -x -e SC2034 -f json PKGBUILD > ./.pacsea_shellcheck_pkgbuild.json || shellcheck -s bash -x -e SC2034 PKGBUILD | tee ./.pacsea_shellcheck_pkgbuild.txt || true); fi; inst_files=(); while IFS= read -r -d '' f; do inst_files+=(\"$f\"); done < <(find . -maxdepth 1 -type f -name \"*.install\" -print0); if [ \"${#inst_files[@]}\" -gt 0 ]; then echo \"[shellcheck] Analyzing: ${inst_files[*]} (bash)\"; (shellcheck -s bash -x -f json \"${inst_files[@]}\" > ./.pacsea_shellcheck_install.json || shellcheck -s bash -x \"${inst_files[@]}\" | tee ./.pacsea_shellcheck_install.txt || true); fi; else echo 'ShellCheck not found; skipping'; fi; else echo 'ShellCheck: skipped by config'; fi)".to_string());
 }
 
 /// What: Add `ShellCheck` risk evaluation commands to command vector.

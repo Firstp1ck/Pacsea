@@ -85,7 +85,7 @@ fn add_setup_commands(cmds: &mut Vec<String>, pkg: &str) {
     cmds.push("echo \"Pacsea: scanning AUR package '$pkg'\"".to_string());
     cmds.push("echo \"Working directory: $work\"".to_string());
     cmds.push("cd \"$work\" && { export PACSEA_DEBUG_LOG=\"$(pwd)/.pacsea_debug.log\"; exec > >(tee -a \"$PACSEA_DEBUG_LOG\") 2>&1; exec 9>>\"$PACSEA_DEBUG_LOG\"; export BASH_XTRACEFD=9; set -x; echo \"Pacsea debug: $(date) start scan for '$pkg' in $PWD\"; trap 'code=$?; echo; echo \"Pacsea debug: exit code=$code\"; echo \"Log: $PACSEA_DEBUG_LOG\"; echo \"Press any key to close...\"; read -rn1 -s _' EXIT; }".to_string());
-    cmds.push("if command -v git >/dev/null 2>&1 || sudo pacman -Qi git >/dev/null 2>&1; then :; else echo 'git not found. Cannot clone AUR repo.'; false; fi".to_string());
+    cmds.push("if command -v git >/dev/null 2>&1 || pacman -Qi git >/dev/null 2>&1; then :; else echo 'git not found. Cannot clone AUR repo.'; false; fi".to_string());
 }
 
 /// What: Add repository fetching commands to command vector.

@@ -735,7 +735,18 @@ pub fn handle_tick(
                     error: None,
                 };
                 // Store the command to execute after password is provided
-                app.pending_custom_command = Some("sudo pacman -Fy".to_string());
+                match crate::logic::privilege::active_tool() {
+                    Ok(tool) => {
+                        app.pending_custom_command = Some(
+                            crate::logic::privilege::build_privilege_command(tool, "pacman -Fy"),
+                        );
+                    }
+                    Err(msg) => {
+                        app.toast_message = Some(msg);
+                        app.toast_expires_at =
+                            Some(std::time::Instant::now() + std::time::Duration::from_secs(8));
+                    }
+                }
                 app.pending_exec_header_chips =
                     Some(crate::state::modal::PreflightHeaderChips::default());
             }
