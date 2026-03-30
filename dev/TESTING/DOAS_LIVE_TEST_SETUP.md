@@ -20,32 +20,74 @@ Confirm the binary:
 
 ```bash
 command -v doas
-doas -h
 ```
+
+OpenDoas does not support `-h` for help (`doas: invalid option -- 'h'`). Use `man doas` for flags.
 
 ---
 
 ## Step 2 — Configure `/etc/doas.conf`
 
-Edit as root (e.g. `sudo visudo` has no direct doas twin; use `sudoedit /etc/doas.conf` or an editor as root).
+On Arch, **`opendoas` does not ship a usable `/etc/doas.conf`**. The file may be **missing** until you create it. If you run `sudoedit /etc/doas.conf` and the editor is **empty**, that is **normal** — you are creating the policy file from scratch.
 
-**Minimal interactive rule** (replace `YOURUSER` with your login name):
+**Important:** Lines like `permit persist …` are **configuration syntax**, not shell commands. They belong **in** `/etc/doas.conf`. If you paste them at a **fish/bash** prompt, the shell will report an unknown command.
 
-```conf
-permit persist YOURUSER as root
-```
+### Walkthrough (first-time setup)
 
-- With **`persist`**, you enter the password once per session (OpenDoas behavior depends on build; typical use is repeat prompts until satisfied).
+1. **Pick your login name** (must match the rule exactly):
+
+   ```bash
+   whoami
+   ```
+
+2. **Edit the config as root** (either works):
+
+   ```bash
+   sudoedit /etc/doas.conf
+   ```
+
+   or, for example:
+
+   ```bash
+   sudo nano /etc/doas.conf
+   ```
+
+3. **Add a rule** in the file (replace `YOURUSER` with the output of `whoami`, e.g. `firstpick`):
+
+   ```conf
+   permit persist YOURUSER as root
+   ```
+
+   End the file with a newline. Save and exit the editor.
+
+4. **Set ownership and permissions** (especially if you just created the file):
+
+   ```bash
+   sudo chown root:root /etc/doas.conf
+   sudo chmod 0400 /etc/doas.conf
+   ```
+
+5. **Validate syntax** (optional but useful):
+
+   ```bash
+   doas -C /etc/doas.conf && echo config_ok || echo config_error
+   ```
+
+6. **Smoke test as your normal user** (do **not** prefix with `sudo`; you want to test unprivileged → root):
+
+   ```bash
+   doas true && echo ok
+   ```
+
+   Expected when the rule works: `doas` asks for **your** password, then prints `ok`.
+
+### Rule reference
+
+- With **`persist`**, you enter the password when doas requires it (OpenDoas session behavior depends on build; you may see repeat prompts until satisfied).
 - For **passwordless testing only** (narrow the rule in production):
 
 ```conf
 permit nopass YOURUSER as root
-```
-
-**Syntax check** (optional): after saving, try a trivial command:
-
-```bash
-doas true && echo ok
 ```
 
 **Non-interactive probe** (what Pacsea uses for “passwordless available”):
@@ -145,6 +187,8 @@ Run these only when you accept real package changes on the machine.
 | Symptom | What to check |
 |---------|----------------|
 | `doas: not found` or resolution errors | `pacman -S opendoas`, `privilege_tool`, and `$PATH`. |
+| `doas: Operation not permitted` | Empty or missing `/etc/doas.conf`, rule username does not match `whoami`, no matching `permit` line, or a rule restricts `cmd` so the command you run is not allowed. Fix the file, then re-test with `doas true` as your user — **not** `sudo doas …`. |
+| Shell: `Unknown command: permit` | You typed a `permit` line at the prompt; open `/etc/doas.conf` in an editor as root and put the line **in the file** instead. |
 | `doas: auth failed` / operation denied | `/etc/doas.conf` user, typo, or missing `cmd`/`args` if you used restricted rules. |
 | Still see `sudo` in previews | `privilege_tool` not saved, wrong config file path, or `auto` with sudo only on PATH. |
 | AUR build fails on sudo | Helper configuration; not always fixed by Pacsea’s `privilege_tool` alone. |

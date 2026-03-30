@@ -1,0 +1,581 @@
+
+2026-03-30-T01:38:33  INFO logging initialized path=/home/firstpick/.config/pacsea/logs/pacsea.log
+2026-03-30-T01:38:33  INFO Pacsea starting dry_run=false
+2026-03-30-T01:38:33 DEBUG [Config] Loaded settings.conf path=/home/firstpick/.config/pacsea/settings.conf bytes=6565
+2026-03-30-T01:38:33 DEBUG [Config] Loaded keybinds.conf path=/home/firstpick/.config/pacsea/keybinds.conf bytes=2623
+2026-03-30-T01:38:33  INFO Using theme from theme.conf
+2026-03-30-T01:38:33  INFO startup timestamp tracking previous=Some("20260330:033203") current=20260330:033833
+2026-03-30-T01:38:33  INFO resolved state file paths recent=/home/firstpick/.config/pacsea/lists/recent_searches.json install=/home/firstpick/.config/pacsea/lists/install_list.json details_cache=/home/firstpick/.config/pacsea/lists/details_cache.json index=/home/firstpick/.config/pacsea/lists/official_index.json news_read=/home/firstpick/.config/pacsea/lists/news_read_urls.json news_read_ids=/home/firstpick/.config/pacsea/lists/news_read_ids.json announcement_read=/home/firstpick/.config/pacsea/lists/announcement_read.json
+2026-03-30-T01:38:33 DEBUG Loaded 9 fallback mappings from i18n.yml: ["de-CH", "ja", "de", "hu", "fr", "en", "ch", "es", "ar"]
+2026-03-30-T01:38:33 DEBUG Loaded 7 available locales from i18n.yml: ["es-ES", "ja-JP", "hu-HU", "en-US", "de-DE", "ar-SA", "fr-FR"]
+2026-03-30-T01:38:33 DEBUG Resolving locale 'de-CH' with 9 fallbacks available
+2026-03-30-T01:38:33 DEBUG Locale 'de-CH' has fallback: de-DE
+2026-03-30-T01:38:33 DEBUG Locale 'de-DE' has no fallback but is available, using it directly
+2026-03-30-T01:38:33 DEBUG Locale 'de-CH' resolved to 'de-DE' via fallback chain
+2026-03-30-T01:38:33  INFO Resolved locale: 'de-DE' (from settings: '<auto-detect>')
+2026-03-30-T01:38:33 DEBUG Loaded locale 'en-US' with 670 translation keys
+2026-03-30-T01:38:33 DEBUG Loaded English fallback translations (670 keys)
+2026-03-30-T01:38:33 DEBUG Loaded locale 'de-DE' with 670 translation keys
+2026-03-30-T01:38:33  INFO Loaded translations for locale 'de-DE' (670 keys)
+2026-03-30-T01:38:33 DEBUG   ✓ Key 'app.details.footer.search_hint' found in translations
+2026-03-30-T01:38:33 DEBUG   ✓ Key 'app.details.footer.confirm_installation' found in translations
+2026-03-30-T01:38:33  INFO loaded details cache path=/home/firstpick/.config/pacsea/lists/details_cache.json
+2026-03-30-T01:38:33  INFO loaded announcement read IDs path=/home/firstpick/.config/pacsea/lists/announcement_read.json count=2
+2026-03-30-T01:38:33  INFO version announcement already marked as read current_version="0.7.3" base_version=0.7.3
+2026-03-30-T01:38:33  INFO attempted to load official index from disk path=/home/firstpick/.config/pacsea/lists/official_index.json
+2026-03-30-T01:38:33  INFO auxiliary workers starting headless=false get_announcement=true updates_refresh_interval=60
+2026-03-30-T01:38:33  INFO queueing startup news fetch (startup) read_ids=0 read_urls=0 last_startup=Some("20260330:033203")
+2026-03-30-T01:38:33  INFO queueing combined news feed fetch (startup) installed_names=0
+2026-03-30-T01:38:33  INFO [Runtime] Dependency worker started, waiting for requests...
+2026-03-30-T01:38:33  INFO [Runtime] Executor worker started, waiting for requests...
+2026-03-30-T01:38:33  INFO fetching remote announcement url=https://gist.githubusercontent.com/Firstp1ck/d2e6016b8d7a90f813a582078208e9bd/raw/announcement.json
+2026-03-30-T01:38:33  INFO staggering startup news fetch jitter_ms=452
+2026-03-30-T01:38:33  INFO waiting for startup news fetch to complete before starting aggregated feed fetch
+2026-03-30-T01:38:33  INFO refreshing official index in background
+2026-03-30-T01:38:33 DEBUG executing pacman command command="pacman" args=["-Qq"]
+2026-03-30-T01:38:33 DEBUG executing pacman command command="pacman" args=["-Sl", "core"]
+2026-03-30-T01:38:33 DEBUG Starting update check
+2026-03-30-T01:38:33 DEBUG pacman command completed successfully command="pacman" args=["-Qq"] status=ExitStatus(unix_wait_status(0)) status_code=0 stdout_len=11630 stderr_len=0
+2026-03-30-T01:38:33 DEBUG executing pacman command command="pacman" args=["-Qetq"]
+2026-03-30-T01:38:33 DEBUG pacman command completed successfully command="pacman" args=["-Sl", "core"] status=ExitStatus(unix_wait_status(0)) status_code=0 stdout_len=10688 stderr_len=0
+2026-03-30-T01:38:33 DEBUG executing pacman command command="pacman" args=["-Sl", "extra"]
+2026-03-30-T01:38:33 DEBUG Using yay to check for AUR updates
+2026-03-30-T01:38:33 DEBUG fakeroot is available, setting up temp database
+2026-03-30-T01:38:33 DEBUG Syncing temporary database at "/tmp/pacsea-db-1000"
+2026-03-30-T01:38:33 DEBUG Loaded 145 CA root certificates from the system
+2026-03-30-T01:38:33 DEBUG starting new connection: https://gist.githubusercontent.com/
+2026-03-30-T01:38:33 DEBUG pacman command completed successfully command="pacman" args=["-Qetq"] status=ExitStatus(unix_wait_status(0)) status_code=0 stdout_len=965 stderr_len=0
+2026-03-30-T01:38:33 DEBUG connecting to 185.199.109.133:443
+2026-03-30-T01:38:33  WARN Temp database sync failed (exit code: Some(1)): Fehler: restricting filesystem access failed because the Landlock ruleset could not be applied: Die Operation ist nicht erlaubt
+Fehler: switching to sandbox user 'alpm' failed!
+Fehler: Keine Datenbank konnte synchronisiert werden (Konnte manche Dateien nicht übertragen)
+2026-03-30-T01:38:33 DEBUG connected to 185.199.109.133:443
+2026-03-30-T01:38:33  WARN Temp database sync failed
+2026-03-30-T01:38:33  INFO Temp database sync failed, trying checkupdates as fallback
+2026-03-30-T01:38:33  INFO Executing: checkupdates (automatically syncs database)
+2026-03-30-T01:38:33 DEBUG binding client connection
+2026-03-30-T01:38:33 DEBUG client connection bound
+2026-03-30-T01:38:33 DEBUG send frame=Settings { flags: (0x0), enable_push: 0, initial_window_size: 2097152, max_frame_size: 16384, max_header_list_size: 16384 }
+2026-03-30-T01:38:33 DEBUG Connection{peer=Client}: send frame=WindowUpdate { stream_id: StreamId(0), size_increment: 5177345 }
+2026-03-30-T01:38:33 DEBUG pooling idle connection for ("https", gist.githubusercontent.com)
+2026-03-30-T01:38:33 DEBUG Connection{peer=Client}: send frame=Headers { stream_id: StreamId(1), flags: (0x5: END_HEADERS | END_STREAM) }
+2026-03-30-T01:38:33 DEBUG Connection{peer=Client}: received frame=Settings { flags: (0x0), max_concurrent_streams: 100 }
+2026-03-30-T01:38:33 DEBUG Connection{peer=Client}: send frame=Settings { flags: (0x1: ACK) }
+2026-03-30-T01:38:33 DEBUG Connection{peer=Client}: received frame=WindowUpdate { stream_id: StreamId(0), size_increment: 16711681 }
+2026-03-30-T01:38:33 DEBUG Connection{peer=Client}: received frame=Settings { flags: (0x1: ACK) }
+2026-03-30-T01:38:33 DEBUG Connection{peer=Client}: received settings ACK; applying Settings { flags: (0x0), enable_push: 0, initial_window_size: 2097152, max_frame_size: 16384, max_header_list_size: 16384 }
+2026-03-30-T01:38:33 DEBUG executing pacman command command="pacman" args=["-Si", "brotli", "archlinux-keyring", "base-devel", "b43-fwcutter", "curl", "base", "db", "autoconf", "attr", "cracklib", "audit", "ca-certificates", "acl", "bash", "ca-certificates-mozilla", "cryptsetup", "db5.3", "bison", "coreutils", "dash", "dbus-broker", "audispd-plugins-zos", "dbus", "btrfs-progs", "bzip2", "ca-certificates-utils", "automake", "binutils", "brotli-testdata", "amd-ucode", "audispd-plugins"]
+2026-03-30-T01:38:34 DEBUG pacman command completed successfully command="pacman" args=["-Sl", "extra"] status=ExitStatus(unix_wait_status(0)) status_code=0 stdout_len=443673 stderr_len=0
+2026-03-30-T01:38:34 DEBUG executing pacman command command="pacman" args=["-Sl", "multilib"]
+2026-03-30-T01:38:34 DEBUG Connection{peer=Client}: received frame=Headers { stream_id: StreamId(1), flags: (0x4: END_HEADERS) }
+2026-03-30-T01:38:34 DEBUG Connection{peer=Client}: received frame=Data { stream_id: StreamId(1), flags: (0x1: END_STREAM) }
+2026-03-30-T01:38:34 DEBUG announcement fetch response received status=200
+2026-03-30-T01:38:34  INFO announcement fetched successfully id=2025-12-20-nvidia-590-pascal-support
+2026-03-30-T01:38:34 DEBUG Connection{peer=Client}: send frame=GoAway { error_code: NO_ERROR, last_stream_id: StreamId(0) }
+2026-03-30-T01:38:34 DEBUG Connection{peer=Client}: Connection::poll; connection error error=GoAway(b"", NO_ERROR, Library)
+2026-03-30-T01:38:34  INFO remote announcement already marked as read id=2025-12-20-nvidia-590-pascal-support
+2026-03-30-T01:38:34 DEBUG pacman command completed successfully command="pacman" args=["-Sl", "multilib"] status=ExitStatus(unix_wait_status(0)) status_code=0 stdout_len=9322 stderr_len=0
+2026-03-30-T01:38:34 DEBUG executing pacman command command="pacman" args=["-Sl", "endeavouros"]
+2026-03-30-T01:38:34 DEBUG pacman command completed successfully command="pacman" args=["-Sl", "endeavouros"] status=ExitStatus(unix_wait_status(0)) status_code=0 stdout_len=2395 stderr_len=0
+2026-03-30-T01:38:34 DEBUG executing pacman command command="pacman" args=["-Sl", "cachyos"]
+2026-03-30-T01:38:34  WARN pacman exited with non-zero status command="pacman" args=["-Sl", "cachyos"] status=ExitStatus(unix_wait_status(256)) status_code=1 stdout_len=0 stderr_len=59
+2026-03-30-T01:38:34 DEBUG executing pacman command command="pacman" args=["-Sl", "cachyos-core"]
+2026-03-30-T01:38:34  INFO startup news fetch task started
+2026-03-30-T01:38:34  INFO recent startup detected, using minimal fetch window hours_since_last=0
+2026-03-30-T01:38:34 DEBUG executing pacman command command="pacman" args=["-Qq"]
+2026-03-30-T01:38:34  WARN pacman exited with non-zero status command="pacman" args=["-Sl", "cachyos-core"] status=ExitStatus(unix_wait_status(256)) status_code=1 stdout_len=0 stderr_len=64
+2026-03-30-T01:38:34 DEBUG executing pacman command command="pacman" args=["-Sl", "cachyos-extra"]
+2026-03-30-T01:38:34  WARN pacman exited with non-zero status command="pacman" args=["-Sl", "cachyos-extra"] status=ExitStatus(unix_wait_status(256)) status_code=1 stdout_len=0 stderr_len=65
+2026-03-30-T01:38:34 DEBUG executing pacman command command="pacman" args=["-Sl", "cachyos-v3"]
+2026-03-30-T01:38:34 DEBUG pacman command completed successfully command="pacman" args=["-Qq"] status=ExitStatus(unix_wait_status(0)) status_code=0 stdout_len=11630 stderr_len=0
+2026-03-30-T01:38:34 DEBUG executing pacman command command="pacman" args=["-Qeq"]
+2026-03-30-T01:38:34  WARN pacman exited with non-zero status command="pacman" args=["-Sl", "cachyos-v3"] status=ExitStatus(unix_wait_status(256)) status_code=1 stdout_len=0 stderr_len=62
+2026-03-30-T01:38:34 DEBUG executing pacman command command="pacman" args=["-Sl", "cachyos-core-v3"]
+2026-03-30-T01:38:34  WARN pacman exited with non-zero status command="pacman" args=["-Sl", "cachyos-core-v3"] status=ExitStatus(unix_wait_status(256)) status_code=1 stdout_len=0 stderr_len=67
+2026-03-30-T01:38:34 DEBUG executing pacman command command="pacman" args=["-Sl", "cachyos-extra-v3"]
+2026-03-30-T01:38:34 DEBUG pacman command completed successfully command="pacman" args=["-Qeq"] status=ExitStatus(unix_wait_status(0)) status_code=0 stdout_len=2403 stderr_len=0
+2026-03-30-T01:38:34  INFO starting startup news fetch limit=40 include_arch_news=true include_advisories=true include_pkg_updates=true include_aur_comments=true configured_max_age=Some(7) optimized_max_age=Some(1) installed_count=210
+2026-03-30-T01:38:34  INFO fetch_news_feed start limit=40 include_arch_news=true include_advisories=true include_pkg_updates=true include_aur_comments=true installed_only=false installed_filter=true sort_mode=DateDesc max_age_days=1
+2026-03-30-T01:38:34  INFO starting fetch: arch_news=true, advisories=true, pkg_updates=true, aur_comments=true
+2026-03-30-T01:38:34  INFO fetching package updates: installed_count=210, limit=40
+2026-03-30-T01:38:34 DEBUG fetch_installed_updates: starting, installed_count=210, limit=40, force_emit_all=true
+2026-03-30-T01:38:34 DEBUG fetch_installed_updates: processing 210 installed packages
+2026-03-30-T01:38:34  WARN pacman exited with non-zero status command="pacman" args=["-Sl", "cachyos-extra-v3"] status=ExitStatus(unix_wait_status(256)) status_code=1 stdout_len=0 stderr_len=68
+2026-03-30-T01:38:34 DEBUG executing pacman command command="pacman" args=["-Sl", "cachyos-v4"]
+2026-03-30-T01:38:34  INFO fetch_installed_updates: official scan complete, new_packages=0, updated_packages=0, baseline_only=168
+2026-03-30-T01:38:34 DEBUG fetch_installed_updates: fetching dates for 40 official packages (rate-limited)
+2026-03-30-T01:38:34 DEBUG rate limiting archlinux.org request with jitter delay_ms=468 jitter_ms=343 total_ms=811
+2026-03-30-T01:38:34  INFO fetching AUR comments: installed_count=210, limit=40
+2026-03-30-T01:38:34  WARN pacman exited with non-zero status command="pacman" args=["-Sl", "cachyos-v4"] status=ExitStatus(unix_wait_status(256)) status_code=1 stdout_len=0 stderr_len=62
+2026-03-30-T01:38:34 DEBUG executing pacman command command="pacman" args=["-Sl", "cachyos-core-v4"]
+2026-03-30-T01:38:34  WARN pacman exited with non-zero status command="pacman" args=["-Sl", "cachyos-core-v4"] status=ExitStatus(unix_wait_status(256)) status_code=1 stdout_len=0 stderr_len=67
+2026-03-30-T01:38:34 DEBUG executing pacman command command="pacman" args=["-Sl", "cachyos-extra-v4"]
+2026-03-30-T01:38:34  WARN pacman exited with non-zero status command="pacman" args=["-Sl", "cachyos-extra-v4"] status=ExitStatus(unix_wait_status(256)) status_code=1 stdout_len=0 stderr_len=68
+2026-03-30-T01:38:34 DEBUG executing pacman command command="pacman" args=["-Sl", "omniverse"]
+2026-03-30-T01:38:34  WARN pacman exited with non-zero status command="pacman" args=["-Sl", "omniverse"] status=ExitStatus(unix_wait_status(256)) status_code=1 stdout_len=0 stderr_len=61
+2026-03-30-T01:38:34 DEBUG executing pacman command command="pacman" args=["-Sl", "universe"]
+2026-03-30-T01:38:34  WARN pacman exited with non-zero status command="pacman" args=["-Sl", "universe"] status=ExitStatus(unix_wait_status(256)) status_code=1 stdout_len=0 stderr_len=60
+2026-03-30-T01:38:34 DEBUG executing pacman command command="pacman" args=["-Sl", "lib32"]
+2026-03-30-T01:38:34 DEBUG Executing: yay -Qua (AUR updates)
+2026-03-30-T01:38:34 DEBUG Loaded 145 CA root certificates from the system
+2026-03-30-T01:38:34 DEBUG starting new connection: https://aur.archlinux.org/
+2026-03-30-T01:38:34  INFO fetching arch news...
+2026-03-30-T01:38:34 DEBUG connecting to 209.126.35.78:443
+2026-03-30-T01:38:34  WARN pacman exited with non-zero status command="pacman" args=["-Sl", "lib32"] status=ExitStatus(unix_wait_status(256)) status_code=1 stdout_len=0 stderr_len=57
+2026-03-30-T01:38:34 DEBUG executing pacman command command="pacman" args=["-Sl", "galaxy"]
+2026-03-30-T01:38:34 DEBUG connected to 209.126.35.78:443
+2026-03-30-T01:38:34  WARN pacman exited with non-zero status command="pacman" args=["-Sl", "galaxy"] status=ExitStatus(unix_wait_status(256)) status_code=1 stdout_len=0 stderr_len=58
+2026-03-30-T01:38:34 DEBUG executing pacman command command="pacman" args=["-Sl", "world"]
+2026-03-30-T01:38:34  WARN pacman exited with non-zero status command="pacman" args=["-Sl", "world"] status=ExitStatus(unix_wait_status(256)) status_code=1 stdout_len=0 stderr_len=57
+2026-03-30-T01:38:34 DEBUG executing pacman command command="pacman" args=["-Sl", "system"]
+2026-03-30-T01:38:34  WARN pacman exited with non-zero status command="pacman" args=["-Sl", "system"] status=ExitStatus(unix_wait_status(256)) status_code=1 stdout_len=0 stderr_len=58
+2026-03-30-T01:38:34 DEBUG executing pacman command command="pacman" args=["-Sl", "blackarch"]
+2026-03-30-T01:38:34  WARN pacman exited with non-zero status command="pacman" args=["-Sl", "blackarch"] status=ExitStatus(unix_wait_status(256)) status_code=1 stdout_len=0 stderr_len=61
+2026-03-30-T01:38:34 DEBUG pacman command completed successfully command="pacman" args=["-Si", "brotli", "archlinux-keyring", "base-devel", "b43-fwcutter", "curl", "base", "db", "autoconf", "attr", "cracklib", "audit", "ca-certificates", "acl", "bash", "ca-certificates-mozilla", "cryptsetup", "db5.3", "bison", "coreutils", "dash", "dbus-broker", "audispd-plugins-zos", "dbus", "btrfs-progs", "bzip2", "ca-certificates-utils", "automake", "binutils", "brotli-testdata", "amd-ucode", "audispd-plugins"] status=ExitStatus(unix_wait_status(0)) status_code=0 stdout_len=26890 stderr_len=0
+2026-03-30-T01:38:34 DEBUG binding client connection
+2026-03-30-T01:38:34 DEBUG client connection bound
+2026-03-30-T01:38:34 DEBUG send frame=Settings { flags: (0x0), enable_push: 0, initial_window_size: 2097152, max_frame_size: 16384, max_header_list_size: 16384 }
+2026-03-30-T01:38:34 DEBUG pooling idle connection for ("https", aur.archlinux.org)
+2026-03-30-T01:38:34 DEBUG Connection{peer=Client}: send frame=WindowUpdate { stream_id: StreamId(0), size_increment: 5177345 }
+2026-03-30-T01:38:34 DEBUG Connection{peer=Client}: send frame=Headers { stream_id: StreamId(1), flags: (0x5: END_HEADERS | END_STREAM) }
+2026-03-30-T01:38:34 DEBUG Connection{peer=Client}: received frame=Settings { flags: (0x0), max_concurrent_streams: 128, initial_window_size: 65536, max_frame_size: 16777215 }
+2026-03-30-T01:38:34 DEBUG Connection{peer=Client}: send frame=Settings { flags: (0x1: ACK) }
+2026-03-30-T01:38:34 DEBUG Connection{peer=Client}: received frame=WindowUpdate { stream_id: StreamId(0), size_increment: 2147418112 }
+2026-03-30-T01:38:34 DEBUG Connection{peer=Client}: received frame=Settings { flags: (0x1: ACK) }
+2026-03-30-T01:38:34 DEBUG Connection{peer=Client}: received settings ACK; applying Settings { flags: (0x0), enable_push: 0, initial_window_size: 2097152, max_frame_size: 16384, max_header_list_size: 16384 }
+2026-03-30-T01:38:34  INFO Successfully saved index to disk path=/home/firstpick/.config/pacsea/lists/official_index.json package_count=15363
+2026-03-30-T01:38:34  INFO official index up-to-date (no name changes) count=15363
+2026-03-30-T01:38:34 DEBUG Connection{peer=Client}: received frame=Headers { stream_id: StreamId(1), flags: (0x4: END_HEADERS) }
+2026-03-30-T01:38:34 DEBUG Connection{peer=Client}: received frame=Data { stream_id: StreamId(1) }
+2026-03-30-T01:38:34 DEBUG Connection{peer=Client}: received frame=Data { stream_id: StreamId(1) }
+2026-03-30-T01:38:34 DEBUG Connection{peer=Client}: received frame=Data { stream_id: StreamId(1) }
+2026-03-30-T01:38:34 DEBUG Connection{peer=Client}: received frame=Data { stream_id: StreamId(1) }
+2026-03-30-T01:38:34 DEBUG Connection{peer=Client}: received frame=Data { stream_id: StreamId(1), flags: (0x1: END_STREAM) }
+2026-03-30-T01:38:34 DEBUG Connection{peer=Client}: send frame=GoAway { error_code: NO_ERROR, last_stream_id: StreamId(0) }
+2026-03-30-T01:38:34 DEBUG Connection{peer=Client}: Connection::poll; connection error error=GoAway(b"", NO_ERROR, Library)
+2026-03-30-T01:38:34 DEBUG Loaded 145 CA root certificates from the system
+2026-03-30-T01:38:34 DEBUG starting new connection: https://aur.archlinux.org/
+2026-03-30-T01:38:34 DEBUG connecting to 209.126.35.78:443
+2026-03-30-T01:38:34 DEBUG connected to 209.126.35.78:443
+2026-03-30-T01:38:34 DEBUG binding client connection
+2026-03-30-T01:38:34 DEBUG client connection bound
+2026-03-30-T01:38:34 DEBUG send frame=Settings { flags: (0x0), enable_push: 0, initial_window_size: 2097152, max_frame_size: 16384, max_header_list_size: 16384 }
+2026-03-30-T01:38:34 DEBUG pooling idle connection for ("https", aur.archlinux.org)
+2026-03-30-T01:38:34 DEBUG Connection{peer=Client}: send frame=WindowUpdate { stream_id: StreamId(0), size_increment: 5177345 }
+2026-03-30-T01:38:34 DEBUG Connection{peer=Client}: send frame=Headers { stream_id: StreamId(1), flags: (0x5: END_HEADERS | END_STREAM) }
+2026-03-30-T01:38:34  WARN checkupdates command failed with exit code: Some(2), stderr: 
+2026-03-30-T01:38:34 DEBUG yay -Qua returned exit code 1 (no updates available in AUR)
+2026-03-30-T01:38:34  INFO Update check completed: found 0 total available updates (after deduplication)
+2026-03-30-T01:38:34 DEBUG Saved updates list to "/home/firstpick/.config/pacsea/lists/available_updates.txt"
+2026-03-30-T01:38:34 DEBUG Connection{peer=Client}: received frame=Settings { flags: (0x0), max_concurrent_streams: 128, initial_window_size: 65536, max_frame_size: 16777215 }
+2026-03-30-T01:38:34 DEBUG Connection{peer=Client}: send frame=Settings { flags: (0x1: ACK) }
+2026-03-30-T01:38:34 DEBUG Connection{peer=Client}: received frame=WindowUpdate { stream_id: StreamId(0), size_increment: 2147418112 }
+2026-03-30-T01:38:34 DEBUG Connection{peer=Client}: received frame=Settings { flags: (0x1: ACK) }
+2026-03-30-T01:38:34 DEBUG Connection{peer=Client}: received settings ACK; applying Settings { flags: (0x0), enable_push: 0, initial_window_size: 2097152, max_frame_size: 16384, max_header_list_size: 16384 }
+2026-03-30-T01:38:34 DEBUG Connection{peer=Client}: received frame=Headers { stream_id: StreamId(1), flags: (0x4: END_HEADERS) }
+2026-03-30-T01:38:34 DEBUG Connection{peer=Client}: received frame=Data { stream_id: StreamId(1) }
+2026-03-30-T01:38:34 DEBUG Connection{peer=Client}: received frame=Data { stream_id: StreamId(1) }
+2026-03-30-T01:38:34 DEBUG Connection{peer=Client}: received frame=Data { stream_id: StreamId(1) }
+2026-03-30-T01:38:34 DEBUG Connection{peer=Client}: received frame=Data { stream_id: StreamId(1), flags: (0x1: END_STREAM) }
+2026-03-30-T01:38:34 DEBUG installed AUR comments feed built candidates=2 emitted=12 baseline_only=0
+2026-03-30-T01:38:34  INFO AUR comments fetch completed: items=12
+2026-03-30-T01:38:34 DEBUG Connection{peer=Client}: send frame=GoAway { error_code: NO_ERROR, last_stream_id: StreamId(0) }
+2026-03-30-T01:38:34 DEBUG Connection{peer=Client}: Connection::poll; connection error error=GoAway(b"", NO_ERROR, Library)
+2026-03-30-T01:38:35 DEBUG successfully fetched package JSON package=accountsservice repo=extra arch=x86_64
+2026-03-30-T01:38:35 DEBUG package not found at this URL, trying next candidate package=alsa-firmware repo=extra arch=x86_64
+2026-03-30-T01:38:35 DEBUG successfully fetched package JSON package=alsa-firmware repo=extra arch=any
+2026-03-30-T01:38:35 DEBUG rate limiting archlinux.org request with jitter delay_ms=187 jitter_ms=168 total_ms=355
+2026-03-30-T01:38:36 DEBUG successfully fetched package JSON package=alsa-plugins repo=extra arch=x86_64
+2026-03-30-T01:38:36 DEBUG successfully fetched package JSON package=alsa-utils repo=extra arch=x86_64
+2026-03-30-T01:38:36 DEBUG rate limiting archlinux.org request with jitter delay_ms=347 jitter_ms=33 total_ms=380
+2026-03-30-T01:38:36 DEBUG successfully fetched package JSON package=ark repo=extra arch=x86_64
+2026-03-30-T01:38:36  INFO fetched arch news feed bytes=18612
+2026-03-30-T01:38:36  INFO parsed arch news feed count=0
+2026-03-30-T01:38:36  INFO arch news fetch completed: items=0
+2026-03-30-T01:38:36  INFO fetching advisories...
+2026-03-30-T01:38:36 DEBUG rate limiting archlinux.org request with jitter delay_ms=332 jitter_ms=269 total_ms=601
+2026-03-30-T01:38:37 DEBUG Loaded 145 CA root certificates from the system
+2026-03-30-T01:38:37 DEBUG starting new connection: https://security.archlinux.org/
+2026-03-30-T01:38:37 DEBUG connecting to 95.217.239.55:443
+2026-03-30-T01:38:37 DEBUG connected to 95.217.239.55:443
+2026-03-30-T01:38:37 DEBUG binding client connection
+2026-03-30-T01:38:37 DEBUG client connection bound
+2026-03-30-T01:38:37 DEBUG send frame=Settings { flags: (0x0), enable_push: 0, initial_window_size: 2097152, max_frame_size: 16384, max_header_list_size: 16384 }
+2026-03-30-T01:38:37 DEBUG pooling idle connection for ("https", security.archlinux.org)
+2026-03-30-T01:38:37 DEBUG Connection{peer=Client}: send frame=WindowUpdate { stream_id: StreamId(0), size_increment: 5177345 }
+2026-03-30-T01:38:37 DEBUG Connection{peer=Client}: send frame=Headers { stream_id: StreamId(1), flags: (0x5: END_HEADERS | END_STREAM) }
+2026-03-30-T01:38:37 DEBUG Connection{peer=Client}: received frame=Settings { flags: (0x0), max_concurrent_streams: 128, initial_window_size: 65536, max_frame_size: 16777215 }
+2026-03-30-T01:38:37 DEBUG Connection{peer=Client}: send frame=Settings { flags: (0x1: ACK) }
+2026-03-30-T01:38:37 DEBUG Connection{peer=Client}: received frame=WindowUpdate { stream_id: StreamId(0), size_increment: 2147418112 }
+2026-03-30-T01:38:37 DEBUG Connection{peer=Client}: received frame=Settings { flags: (0x1: ACK) }
+2026-03-30-T01:38:37 DEBUG Connection{peer=Client}: received settings ACK; applying Settings { flags: (0x0), enable_push: 0, initial_window_size: 2097152, max_frame_size: 16384, max_header_list_size: 16384 }
+2026-03-30-T01:38:37 DEBUG Connection{peer=Client}: received frame=Headers { stream_id: StreamId(1), flags: (0x4: END_HEADERS) }
+2026-03-30-T01:38:37 DEBUG Connection{peer=Client}: received frame=Data { stream_id: StreamId(1) }
+2026-03-30-T01:38:37 DEBUG Connection{peer=Client}: received frame=Data { stream_id: StreamId(1) }
+2026-03-30-T01:38:37 DEBUG Connection{peer=Client}: received frame=Data { stream_id: StreamId(1) }
+2026-03-30-T01:38:37 DEBUG Connection{peer=Client}: received frame=Data { stream_id: StreamId(1) }
+2026-03-30-T01:38:37 DEBUG Connection{peer=Client}: received frame=Data { stream_id: StreamId(1) }
+2026-03-30-T01:38:37 DEBUG Connection{peer=Client}: received frame=Data { stream_id: StreamId(1), flags: (0x1: END_STREAM) }
+2026-03-30-T01:38:37  INFO fetched advisories feed status=200 bytes=43444
+2026-03-30-T01:38:37  INFO parsed advisories feed count=0
+2026-03-30-T01:38:37  INFO advisories fetch completed: items=0
+2026-03-30-T01:38:37 DEBUG successfully fetched package JSON package=aspell repo=extra arch=x86_64
+2026-03-30-T01:38:37 DEBUG Connection{peer=Client}: send frame=GoAway { error_code: NO_ERROR, last_stream_id: StreamId(0) }
+2026-03-30-T01:38:37 DEBUG Connection{peer=Client}: Connection::poll; connection error error=GoAway(b"", NO_ERROR, Library)
+2026-03-30-T01:38:37 DEBUG successfully fetched package JSON package=aspell-de repo=extra arch=x86_64
+2026-03-30-T01:38:37 DEBUG rate limiting archlinux.org request with jitter delay_ms=337 jitter_ms=75 total_ms=412
+2026-03-30-T01:38:38 DEBUG successfully fetched package JSON package=b43-fwcutter repo=core arch=x86_64
+2026-03-30-T01:38:38 DEBUG package not found at this URL, trying next candidate package=base repo=core arch=x86_64
+2026-03-30-T01:38:38 DEBUG successfully fetched package JSON package=base repo=core arch=any
+2026-03-30-T01:38:38 DEBUG rate limiting archlinux.org request with jitter delay_ms=208 jitter_ms=161 total_ms=369
+2026-03-30-T01:38:39 DEBUG package not found at this URL, trying next candidate package=base-devel repo=core arch=x86_64
+2026-03-30-T01:38:39 DEBUG successfully fetched package JSON package=base-devel repo=core arch=any
+2026-03-30-T01:38:39 DEBUG package not found at this URL, trying next candidate package=bash-completion repo=extra arch=x86_64
+2026-03-30-T01:38:39 DEBUG successfully fetched package JSON package=bash-completion repo=extra arch=any
+2026-03-30-T01:38:39 DEBUG rate limiting archlinux.org request with jitter delay_ms=205 jitter_ms=361 total_ms=566
+2026-03-30-T01:38:40 DEBUG successfully fetched package JSON package=bind repo=extra arch=x86_64
+2026-03-30-T01:38:40 DEBUG successfully fetched package JSON package=bluedevil repo=extra arch=x86_64
+2026-03-30-T01:38:40 DEBUG rate limiting archlinux.org request with jitter delay_ms=345 jitter_ms=3 total_ms=348
+2026-03-30-T01:38:41 DEBUG successfully fetched package JSON package=bluez repo=extra arch=x86_64
+2026-03-30-T01:38:41 DEBUG successfully fetched package JSON package=bluez-utils repo=extra arch=x86_64
+2026-03-30-T01:38:41 DEBUG rate limiting archlinux.org request with jitter delay_ms=348 jitter_ms=452 total_ms=800
+2026-03-30-T01:38:42 DEBUG package not found at this URL, trying next candidate package=breeze-gtk repo=extra arch=x86_64
+2026-03-30-T01:38:42 DEBUG successfully fetched package JSON package=breeze-gtk repo=extra arch=any
+2026-03-30-T01:38:42  WARN increased archlinux.org backoff delay consecutive_failures=1 backoff_ms=1000
+2026-03-30-T01:38:42  WARN failed to fetch official package date package=btrfs-progs error=curl failed with exit code 35
+2026-03-30-T01:38:42 DEBUG rate limiting archlinux.org request with jitter delay_ms=974 jitter_ms=426 total_ms=1400
+2026-03-30-T01:38:43 DEBUG package not found at this URL, trying next candidate package=cantarell-fonts repo=extra arch=x86_64
+2026-03-30-T01:38:43 DEBUG successfully fetched package JSON package=cantarell-fonts repo=extra arch=any
+2026-03-30-T01:38:43 DEBUG resetting archlinux.org backoff after successful request previous_failures=1 previous_backoff_ms=1000
+2026-03-30-T01:38:43 DEBUG circuit breaker: request succeeded, resetting to Closed endpoint_pattern="/packages/*/json/"
+2026-03-30-T01:38:44 DEBUG successfully fetched package JSON package=cryptsetup repo=core arch=x86_64
+2026-03-30-T01:38:44 DEBUG circuit breaker: request succeeded, resetting to Closed endpoint_pattern="/packages/*/json/"
+2026-03-30-T01:38:44 DEBUG rate limiting archlinux.org request with jitter delay_ms=328 jitter_ms=326 total_ms=654
+2026-03-30-T01:38:44 DEBUG successfully fetched package JSON package=device-mapper repo=core arch=x86_64
+2026-03-30-T01:38:44 DEBUG circuit breaker: request succeeded, resetting to Closed endpoint_pattern="/packages/*/json/"
+2026-03-30-T01:38:45  WARN increased archlinux.org backoff delay consecutive_failures=1 backoff_ms=1000
+2026-03-30-T01:38:45  WARN failed to fetch official package date package=diffutils error=curl failed with exit code 35
+2026-03-30-T01:38:45 DEBUG rate limiting archlinux.org request with jitter delay_ms=975 jitter_ms=341 total_ms=1316
+2026-03-30-T01:38:46 DEBUG successfully fetched package JSON package=dmidecode repo=extra arch=x86_64
+2026-03-30-T01:38:46 DEBUG resetting archlinux.org backoff after successful request previous_failures=1 previous_backoff_ms=1000
+2026-03-30-T01:38:46 DEBUG circuit breaker: request succeeded, resetting to Closed endpoint_pattern="/packages/*/json/"
+2026-03-30-T01:38:46 DEBUG successfully fetched package JSON package=dmraid repo=core arch=x86_64
+2026-03-30-T01:38:46 DEBUG circuit breaker: request succeeded, resetting to Closed endpoint_pattern="/packages/*/json/"
+2026-03-30-T01:38:46 DEBUG rate limiting archlinux.org request with jitter delay_ms=354 jitter_ms=198 total_ms=552
+2026-03-30-T01:38:47 DEBUG successfully fetched package JSON package=dnsmasq repo=extra arch=x86_64
+2026-03-30-T01:38:47 DEBUG circuit breaker: request succeeded, resetting to Closed endpoint_pattern="/packages/*/json/"
+2026-03-30-T01:38:47 DEBUG successfully fetched package JSON package=dolphin repo=extra arch=x86_64
+2026-03-30-T01:38:47 DEBUG circuit breaker: request succeeded, resetting to Closed endpoint_pattern="/packages/*/json/"
+2026-03-30-T01:38:47 DEBUG rate limiting archlinux.org request with jitter delay_ms=341 jitter_ms=133 total_ms=474
+2026-03-30-T01:38:48 DEBUG successfully fetched package JSON package=dolphin-plugins repo=extra arch=x86_64
+2026-03-30-T01:38:48 DEBUG circuit breaker: request succeeded, resetting to Closed endpoint_pattern="/packages/*/json/"
+2026-03-30-T01:38:48 DEBUG successfully fetched package JSON package=dosfstools repo=core arch=x86_64
+2026-03-30-T01:38:48 DEBUG circuit breaker: request succeeded, resetting to Closed endpoint_pattern="/packages/*/json/"
+2026-03-30-T01:38:48 DEBUG rate limiting archlinux.org request with jitter delay_ms=350 jitter_ms=274 total_ms=624
+2026-03-30-T01:38:49 DEBUG package not found at this URL, trying next candidate package=downgrade repo=endeavouros arch=x86_64
+2026-03-30-T01:38:49 DEBUG package not found at this URL, trying next candidate package=downgrade repo=endeavouros arch=any
+2026-03-30-T01:38:49 DEBUG package not found at this URL, trying next candidate package=downgrade repo=extra arch=x86_64
+2026-03-30-T01:38:49 DEBUG package not found at this URL, trying next candidate package=downgrade repo=extra arch=any
+2026-03-30-T01:38:49 DEBUG package not found at this URL, trying next candidate package=downgrade repo=core arch=x86_64
+2026-03-30-T01:38:49  WARN increased archlinux.org backoff delay consecutive_failures=1 backoff_ms=1000
+2026-03-30-T01:38:49  WARN failed to fetch official package date package=downgrade error=curl failed with exit code 35
+2026-03-30-T01:38:49  WARN increased archlinux.org backoff delay consecutive_failures=2 backoff_ms=2000
+2026-03-30-T01:38:49  WARN failed to fetch official package date package=dracut error=curl failed with exit code 35
+2026-03-30-T01:38:49 DEBUG rate limiting archlinux.org request with jitter delay_ms=1975 jitter_ms=238 total_ms=2213
+2026-03-30-T01:38:52 DEBUG successfully fetched package JSON package=duf repo=extra arch=x86_64
+2026-03-30-T01:38:52 DEBUG resetting archlinux.org backoff after successful request previous_failures=2 previous_backoff_ms=2000
+2026-03-30-T01:38:52 DEBUG circuit breaker: request succeeded, resetting to Closed endpoint_pattern="/packages/*/json/"
+2026-03-30-T01:38:52 DEBUG successfully fetched package JSON package=e2fsprogs repo=core arch=x86_64
+2026-03-30-T01:38:52 DEBUG circuit breaker: request succeeded, resetting to Closed endpoint_pattern="/packages/*/json/"
+2026-03-30-T01:38:52 DEBUG rate limiting archlinux.org request with jitter delay_ms=349 jitter_ms=292 total_ms=641
+2026-03-30-T01:38:52 DEBUG successfully fetched package JSON package=efibootmgr repo=core arch=x86_64
+2026-03-30-T01:38:52 DEBUG circuit breaker: request succeeded, resetting to Closed endpoint_pattern="/packages/*/json/"
+2026-03-30-T01:38:53 DEBUG successfully fetched package JSON package=efitools repo=extra arch=x86_64
+2026-03-30-T01:38:53 DEBUG circuit breaker: request succeeded, resetting to Closed endpoint_pattern="/packages/*/json/"
+2026-03-30-T01:38:53 DEBUG rate limiting archlinux.org request with jitter delay_ms=343 jitter_ms=400 total_ms=743
+2026-03-30-T01:38:54 DEBUG package not found at this URL, trying next candidate package=endeavouros-branding repo=endeavouros arch=x86_64
+2026-03-30-T01:38:54 DEBUG package not found at this URL, trying next candidate package=endeavouros-branding repo=endeavouros arch=any
+2026-03-30-T01:38:54 DEBUG package not found at this URL, trying next candidate package=endeavouros-branding repo=extra arch=x86_64
+2026-03-30-T01:38:54 DEBUG package not found at this URL, trying next candidate package=endeavouros-branding repo=extra arch=any
+2026-03-30-T01:38:54 DEBUG package not found at this URL, trying next candidate package=endeavouros-branding repo=core arch=x86_64
+2026-03-30-T01:38:54 DEBUG package not found at this URL, trying next candidate package=endeavouros-branding repo=core arch=any
+2026-03-30-T01:38:54 DEBUG package not found in any repository JSON API (may be a virtual package) package=endeavouros-branding
+2026-03-30-T01:38:54 DEBUG circuit breaker: request succeeded, resetting to Closed endpoint_pattern="/packages/*/json/"
+2026-03-30-T01:38:54  WARN increased archlinux.org backoff delay consecutive_failures=1 backoff_ms=1000
+2026-03-30-T01:38:54  WARN failed to fetch official package date package=endeavouros-keyring error=curl failed with exit code 35
+2026-03-30-T01:38:54 DEBUG rate limiting archlinux.org request with jitter delay_ms=974 jitter_ms=233 total_ms=1207
+2026-03-30-T01:38:56 DEBUG package not found at this URL, trying next candidate package=endeavouros-mirrorlist repo=endeavouros arch=x86_64
+2026-03-30-T01:38:56 DEBUG package not found at this URL, trying next candidate package=endeavouros-mirrorlist repo=endeavouros arch=any
+2026-03-30-T01:38:56  WARN increased archlinux.org backoff delay consecutive_failures=2 backoff_ms=2000
+2026-03-30-T01:38:56  WARN failed to fetch official package date package=endeavouros-mirrorlist error=curl failed with exit code 35
+2026-03-30-T01:38:56 DEBUG rate limiting archlinux.org request with jitter delay_ms=499 jitter_ms=5 total_ms=504
+2026-03-30-T01:38:56  WARN increased archlinux.org backoff delay consecutive_failures=3 backoff_ms=4000
+2026-03-30-T01:38:56  WARN failed to fetch official package date package=eos-apps-info error=curl failed with exit code 35
+2026-03-30-T01:38:56  WARN circuit breaker opened due to high failure rate endpoint_pattern="/packages/*/json/" failure_count=5 total=10 failure_percentage=50
+2026-03-30-T01:38:56 DEBUG rate limiting archlinux.org request with jitter delay_ms=3469 jitter_ms=383 total_ms=3852
+2026-03-30-T01:39:00 DEBUG package not found at this URL, trying next candidate package=eos-breeze-sddm repo=endeavouros arch=x86_64
+2026-03-30-T01:39:00 DEBUG package not found at this URL, trying next candidate package=eos-breeze-sddm repo=endeavouros arch=any
+2026-03-30-T01:39:01 DEBUG package not found at this URL, trying next candidate package=eos-breeze-sddm repo=extra arch=x86_64
+2026-03-30-T01:39:01 DEBUG [InsertMode] Enter pressed, opening preflight for package: brotli-testdata
+2026-03-30-T01:39:01 DEBUG [UI] Deps tab: cache is empty, will auto-resolve, items=["brotli-testdata"]
+2026-03-30-T01:39:01 DEBUG service cache signature mismatch, ignoring path=/home/firstpick/.config/pacsea/lists/services_cache.json
+2026-03-30-T01:39:01 DEBUG [UI] render_incomplete_data_indicator: preflight_deps_resolving=false, deps_resolving=false, computed_deps_resolving=false, files_resolving=false/false, sandbox_resolving=false/false, deps_incomplete=true, items=1, packages_with_deps=0, dependency_info=0, show_deps_indicator=true, show_files_indicator=false, show_sandbox_indicator=false
+2026-03-30-T01:39:01 DEBUG package not found at this URL, trying next candidate package=eos-breeze-sddm repo=extra arch=any
+2026-03-30-T01:39:01 DEBUG [UI] Deps tab: cache is empty, will auto-resolve, items=["brotli-testdata"]
+2026-03-30-T01:39:01 DEBUG service cache signature mismatch, ignoring path=/home/firstpick/.config/pacsea/lists/services_cache.json
+2026-03-30-T01:39:01 DEBUG package not found at this URL, trying next candidate package=eos-breeze-sddm repo=core arch=x86_64
+2026-03-30-T01:39:01 DEBUG [UI] Deps tab: cache is empty, will auto-resolve, items=["brotli-testdata"]
+2026-03-30-T01:39:01 DEBUG service cache signature mismatch, ignoring path=/home/firstpick/.config/pacsea/lists/services_cache.json
+2026-03-30-T01:39:01 DEBUG package not found at this URL, trying next candidate package=eos-breeze-sddm repo=core arch=any
+2026-03-30-T01:39:01 DEBUG package not found in any repository JSON API (may be a virtual package) package=eos-breeze-sddm
+2026-03-30-T01:39:01 DEBUG circuit breaker: request succeeded, resetting to Closed endpoint_pattern="/packages/*/json/"
+2026-03-30-T01:39:01 DEBUG package not found at this URL, trying next candidate package=eos-dracut repo=endeavouros arch=x86_64
+2026-03-30-T01:39:01 DEBUG [UI] Deps tab: cache is empty, will auto-resolve, items=["brotli-testdata"]
+2026-03-30-T01:39:01 DEBUG service cache signature mismatch, ignoring path=/home/firstpick/.config/pacsea/lists/services_cache.json
+2026-03-30-T01:39:01 DEBUG package not found at this URL, trying next candidate package=eos-dracut repo=endeavouros arch=any
+2026-03-30-T01:39:01 DEBUG [UI] Deps tab: cache is empty, will auto-resolve, items=["brotli-testdata"]
+2026-03-30-T01:39:01 DEBUG service cache signature mismatch, ignoring path=/home/firstpick/.config/pacsea/lists/services_cache.json
+2026-03-30-T01:39:01 DEBUG package not found at this URL, trying next candidate package=eos-dracut repo=extra arch=x86_64
+2026-03-30-T01:39:02 DEBUG package not found at this URL, trying next candidate package=eos-dracut repo=extra arch=any
+2026-03-30-T01:39:02 DEBUG [UI] Deps tab: cache is empty, will auto-resolve, items=["brotli-testdata"]
+2026-03-30-T01:39:02 DEBUG service cache signature mismatch, ignoring path=/home/firstpick/.config/pacsea/lists/services_cache.json
+2026-03-30-T01:39:02 DEBUG package not found at this URL, trying next candidate package=eos-dracut repo=core arch=x86_64
+2026-03-30-T01:39:02 DEBUG [UI] Deps tab: cache is empty, will auto-resolve, items=["brotli-testdata"]
+2026-03-30-T01:39:02 DEBUG service cache signature mismatch, ignoring path=/home/firstpick/.config/pacsea/lists/services_cache.json
+2026-03-30-T01:39:02 DEBUG package not found at this URL, trying next candidate package=eos-dracut repo=core arch=any
+2026-03-30-T01:39:02 DEBUG package not found in any repository JSON API (may be a virtual package) package=eos-dracut
+2026-03-30-T01:39:02 DEBUG circuit breaker: request succeeded, resetting to Closed endpoint_pattern="/packages/*/json/"
+2026-03-30-T01:39:02 DEBUG rate limiting archlinux.org request with jitter delay_ms=3177 jitter_ms=487 total_ms=3664
+2026-03-30-T01:39:02 DEBUG [UI] Deps tab: cache is empty, will auto-resolve, items=["brotli-testdata"]
+2026-03-30-T01:39:02 DEBUG service cache signature mismatch, ignoring path=/home/firstpick/.config/pacsea/lists/services_cache.json
+2026-03-30-T01:39:02 DEBUG [UI] Deps tab: cache is empty, will auto-resolve, items=["brotli-testdata"]
+2026-03-30-T01:39:02 DEBUG service cache signature mismatch, ignoring path=/home/firstpick/.config/pacsea/lists/services_cache.json
+2026-03-30-T01:39:02 DEBUG [UI] Deps tab: cache is empty, will auto-resolve, items=["brotli-testdata"]
+2026-03-30-T01:39:02 DEBUG service cache signature mismatch, ignoring path=/home/firstpick/.config/pacsea/lists/services_cache.json
+2026-03-30-T01:39:02  INFO [Preflight] Keyboard tab switch: Updated tab field from Summary to Deps
+2026-03-30-T01:39:02  INFO [Preflight] switch_preflight_tab: Switching to Deps, items=1, action=Install
+2026-03-30-T01:39:02 DEBUG [Preflight] switch_preflight_tab: Tab field updated from Deps to Deps
+2026-03-30-T01:39:02 DEBUG [Preflight] switch_preflight_tab: Deps tab - dependency_info.len()=0, cache.len()=0, resolving=false
+2026-03-30-T01:39:02  INFO [Preflight] handle_deps_tab_switch: dependency_info.len()=0, action=Install, items=1
+2026-03-30-T01:39:02  INFO [Preflight] handle_deps_tab_switch: dependency_info is empty, will trigger resolution
+2026-03-30-T01:39:02  INFO [Preflight] switch_preflight_tab: Deps - Found 0 cached deps (filtered from 0 total), items={"brotli-testdata"}
+2026-03-30-T01:39:02 DEBUG [Preflight] Triggering background dependency resolution for 1 packages
+2026-03-30-T01:39:02  INFO [Preflight] switch_preflight_tab: Setting preflight_deps_items with 1 items, action=Install, setting preflight_deps_resolving=true
+2026-03-30-T01:39:03 DEBUG [UI] Deps tab: background resolution in progress, items=["brotli-testdata"]
+2026-03-30-T01:39:03 DEBUG service cache signature mismatch, ignoring path=/home/firstpick/.config/pacsea/lists/services_cache.json
+2026-03-30-T01:39:03 DEBUG [UI] compute_is_resolving: preflight_deps_resolving=true, deps_resolving=false, is_resolving=true, total_deps=0, items=1, deps=0
+2026-03-30-T01:39:03 DEBUG [UI] render_empty_state: action=Install, items=1, is_resolving=true, deps_error=false, preflight_deps_resolving=true, deps_resolving=false
+2026-03-30-T01:39:03  INFO [Runtime] check_and_trigger_deps_resolution: preflight_deps_items=1, preflight_deps_resolving=true, deps_resolving=false
+2026-03-30-T01:39:03  INFO [Runtime] Tick: Triggering dependency resolution for 1 preflight items (action=Install, preflight_deps_resolving=true, deps_resolving=false)
+2026-03-30-T01:39:03  INFO [Runtime] Tick: deps_req_tx.send result: true
+2026-03-30-T01:39:03  INFO [Runtime] Dependency worker received request: 1 items, action=Install
+2026-03-30-T01:39:03  INFO [Runtime] Resolving forward dependencies for 1 packages
+2026-03-30-T01:39:03 DEBUG [UI] Deps tab: background resolution in progress, items=["brotli-testdata"]
+2026-03-30-T01:39:03 DEBUG service cache signature mismatch, ignoring path=/home/firstpick/.config/pacsea/lists/services_cache.json
+2026-03-30-T01:39:03 DEBUG [UI] compute_is_resolving: preflight_deps_resolving=true, deps_resolving=true, is_resolving=true, total_deps=0, items=1, deps=0
+2026-03-30-T01:39:03 DEBUG [UI] render_empty_state: action=Install, items=1, is_resolving=true, deps_error=false, preflight_deps_resolving=true, deps_resolving=true
+2026-03-30-T01:39:03  INFO [Preflight] Keyboard tab switch: Updated tab field from Deps to Files
+2026-03-30-T01:39:03  INFO [Preflight] switch_preflight_tab: Switching to Files, items=1, action=Install
+2026-03-30-T01:39:03 DEBUG [Preflight] switch_preflight_tab: Tab field updated from Files to Files
+2026-03-30-T01:39:03 DEBUG [Preflight] switch_preflight_tab: Files tab - file_info.len()=0, cache.len()=0, resolving=false, action=Install
+2026-03-30-T01:39:03  INFO [Preflight] switch_preflight_tab: Files - Found 0 cached files (filtered from 0 total), items={"brotli-testdata"}
+2026-03-30-T01:39:03 DEBUG [Preflight] Triggering background file resolution for 1 packages
+2026-03-30-T01:39:03  INFO resolve_dependencies{stage="dependencies" item_count=1}: Fetching list of installed packages...
+2026-03-30-T01:39:03 DEBUG resolve_dependencies{stage="dependencies" item_count=1}: Running: pacman -Qq
+2026-03-30-T01:39:03 DEBUG resolve_dependencies{stage="dependencies" item_count=1}: Successfully retrieved 1071 installed packages
+2026-03-30-T01:39:03  INFO resolve_dependencies{stage="dependencies" item_count=1}: Found 1071 installed packages
+2026-03-30-T01:39:03 DEBUG resolve_dependencies{stage="dependencies" item_count=1}: Provides will be checked lazily on-demand (not building full set for performance)
+2026-03-30-T01:39:03 DEBUG resolve_dependencies{stage="dependencies" item_count=1}: Running: pacman -Qu
+2026-03-30-T01:39:03 DEBUG [UI] Deps tab: background resolution in progress, items=["brotli-testdata"]
+2026-03-30-T01:39:03 DEBUG [UI] sync_files: Cache lookup - items=["brotli-testdata"], cache_has=[], missing_from_cache=["brotli-testdata"], matched=[]
+2026-03-30-T01:39:03 DEBUG [UI] sync_files: Creating empty entry for 'brotli-testdata' (not found in cache map)
+2026-03-30-T01:39:03 DEBUG [UI] sync_files: items=1, cache_size=0, cached_matching=0, modal_size=0, complete=1, resolving=true/false
+2026-03-30-T01:39:03  INFO [UI] sync_files: Found 0 cached file entries, 1 missing (creating empty entries), modal had 0, updating...
+2026-03-30-T01:39:03 DEBUG [UI] sync_files: Package 'brotli-testdata' - no file info yet (empty entry)
+2026-03-30-T01:39:03 DEBUG [UI] sync_files: Syncing 1 file infos (0 with data, 1 empty) to Preflight modal
+2026-03-30-T01:39:03  INFO [UI] sync_files: Successfully synced, modal now has 1 file entries (was 0)
+2026-03-30-T01:39:03 DEBUG service cache signature mismatch, ignoring path=/home/firstpick/.config/pacsea/lists/services_cache.json
+2026-03-30-T01:39:03 DEBUG [UI] render_files_tab: items=1, file_info=1, file_selected=0, expanded=0, resolving=true/false, error=false, packages=[brotli-testdata: total=0, new=0, changed=0, removed=0, config=0, files=0]
+2026-03-30-T01:39:03  INFO [Runtime] check_and_trigger_deps_resolution: preflight_deps_items=0, preflight_deps_resolving=true, deps_resolving=true
+2026-03-30-T01:39:03 DEBUG [Runtime] Tick: Triggering file resolution for 1 preflight items with action=Install (preflight_files_resolving=true, files_resolving=false)
+2026-03-30-T01:39:03  INFO [Runtime] File worker received request: 1 items, action=Install
+2026-03-30-T01:39:03 DEBUG resolve_file_changes{stage="files" item_count=1}: Cannot determine file database timestamp, attempting sync...
+2026-03-30-T01:39:03  WARN resolve_file_changes{stage="files" item_count=1}: File database sync failed: error: you cannot perform this operation unless you are root.
+
+2026-03-30-T01:39:03  WARN resolve_file_changes{stage="files" item_count=1}: File database sync failed: File database sync failed: error: you cannot perform this operation unless you are root.
+ (continuing without sync)
+2026-03-30-T01:39:03  INFO resolve_file_changes{stage="files" item_count=1}: [1/1] Resolving files for package: brotli-testdata (Official { repo: "core", arch: "" })
+2026-03-30-T01:39:03 DEBUG resolve_file_changes{stage="files" item_count=1}: Running: pacman -Fl brotli-testdata
+2026-03-30-T01:39:03 DEBUG [UI] Deps tab: background resolution in progress, items=["brotli-testdata"]
+2026-03-30-T01:39:03 DEBUG [UI] sync_files: Cache lookup - items=["brotli-testdata"], cache_has=[], missing_from_cache=["brotli-testdata"], matched=[]
+2026-03-30-T01:39:03 DEBUG [UI] sync_files: Creating empty entry for 'brotli-testdata' (not found in cache map)
+2026-03-30-T01:39:03 DEBUG [UI] sync_files: items=1, cache_size=0, cached_matching=0, modal_size=1, complete=1, resolving=true/true
+2026-03-30-T01:39:03 DEBUG [UI] sync_files: Background resolution in progress, items=["brotli-testdata"]
+2026-03-30-T01:39:03 DEBUG [UI] sync_files: No update needed, file_info already in sync (modal=1, items=1, complete=1)
+2026-03-30-T01:39:03 DEBUG service cache signature mismatch, ignoring path=/home/firstpick/.config/pacsea/lists/services_cache.json
+2026-03-30-T01:39:03 DEBUG [UI] render_files_tab: items=1, file_info=1, file_selected=0, expanded=0, resolving=true/true, error=false, packages=[brotli-testdata: total=0, new=0, changed=0, removed=0, config=0, files=0]
+2026-03-30-T01:39:03  WARN resolve_file_changes{stage="files" item_count=1}: File database not synced for brotli-testdata (pacman -Fy requires root). Skipping file list.
+2026-03-30-T01:39:03 DEBUG resolve_file_changes{stage="files" item_count=1}: Running: pacman -Ql brotli-testdata
+2026-03-30-T01:39:03 DEBUG resolve_file_changes{stage="files" item_count=1}: Package brotli-testdata is not installed
+2026-03-30-T01:39:03 DEBUG resolve_file_changes{stage="files" item_count=1}: Running: pacman -Qii brotli-testdata
+2026-03-30-T01:39:03 DEBUG resolve_file_changes{stage="files" item_count=1}: Package brotli-testdata is not installed
+2026-03-30-T01:39:03  INFO resolve_dependencies{stage="dependencies" item_count=1}: Found 0 upgradable packages
+2026-03-30-T01:39:03  INFO resolve_dependencies{stage="dependencies" item_count=1}: Checking conflicts for 1 package(s)
+2026-03-30-T01:39:03 DEBUG resolve_dependencies{stage="dependencies" item_count=1}: Running: pacman -Si brotli-testdata (conflicts)
+2026-03-30-T01:39:03  INFO [Preflight] Keyboard tab switch: Updated tab field from Files to Deps
+2026-03-30-T01:39:03  INFO [Preflight] switch_preflight_tab: Switching to Deps, items=1, action=Install
+2026-03-30-T01:39:03 DEBUG [Preflight] switch_preflight_tab: Tab field updated from Deps to Deps
+2026-03-30-T01:39:03 DEBUG [Preflight] switch_preflight_tab: Deps tab - dependency_info.len()=0, cache.len()=0, resolving=true
+2026-03-30-T01:39:03  INFO [Preflight] handle_deps_tab_switch: dependency_info.len()=0, action=Install, items=1
+2026-03-30-T01:39:03  INFO [Preflight] handle_deps_tab_switch: dependency_info is empty, will trigger resolution
+2026-03-30-T01:39:03  INFO [Preflight] switch_preflight_tab: Deps - Found 0 cached deps (filtered from 0 total), items={"brotli-testdata"}
+2026-03-30-T01:39:03 DEBUG [Preflight] Triggering background dependency resolution for 1 packages
+2026-03-30-T01:39:03  INFO [Preflight] switch_preflight_tab: Setting preflight_deps_items with 1 items, action=Install, setting preflight_deps_resolving=true
+2026-03-30-T01:39:03 DEBUG [UI] Deps tab: background resolution in progress, items=["brotli-testdata"]
+2026-03-30-T01:39:03 DEBUG service cache signature mismatch, ignoring path=/home/firstpick/.config/pacsea/lists/services_cache.json
+2026-03-30-T01:39:03 DEBUG [UI] compute_is_resolving: preflight_deps_resolving=true, deps_resolving=true, is_resolving=true, total_deps=0, items=1, deps=0
+2026-03-30-T01:39:03 DEBUG [UI] render_empty_state: action=Install, items=1, is_resolving=true, deps_error=false, preflight_deps_resolving=true, deps_resolving=true
+2026-03-30-T01:39:03  INFO [Runtime] check_and_trigger_deps_resolution: preflight_deps_items=1, preflight_deps_resolving=true, deps_resolving=true
+2026-03-30-T01:39:03 DEBUG [UI] Deps tab: background resolution in progress, items=["brotli-testdata"]
+2026-03-30-T01:39:03 DEBUG service cache signature mismatch, ignoring path=/home/firstpick/.config/pacsea/lists/services_cache.json
+2026-03-30-T01:39:03 DEBUG [UI] compute_is_resolving: preflight_deps_resolving=true, deps_resolving=true, is_resolving=true, total_deps=0, items=1, deps=0
+2026-03-30-T01:39:03 DEBUG [UI] render_empty_state: action=Install, items=1, is_resolving=true, deps_error=false, preflight_deps_resolving=true, deps_resolving=true
+2026-03-30-T01:39:03  INFO [Preflight] Keyboard tab switch: Updated tab field from Deps to Summary
+2026-03-30-T01:39:03  INFO [Preflight] switch_preflight_tab: Switching to Summary, items=1, action=Install
+2026-03-30-T01:39:03 DEBUG [Preflight] switch_preflight_tab: Tab field updated from Summary to Summary
+2026-03-30-T01:39:03 DEBUG [UI] Deps tab: background resolution in progress, items=["brotli-testdata"]
+2026-03-30-T01:39:03 DEBUG service cache signature mismatch, ignoring path=/home/firstpick/.config/pacsea/lists/services_cache.json
+2026-03-30-T01:39:03 DEBUG [UI] render_incomplete_data_indicator: preflight_deps_resolving=true, deps_resolving=true, computed_deps_resolving=true, files_resolving=true/true, sandbox_resolving=false/false, deps_incomplete=false, items=1, packages_with_deps=0, dependency_info=0, show_deps_indicator=true, show_files_indicator=true, show_sandbox_indicator=false
+2026-03-30-T01:39:03 DEBUG resolve_file_changes{stage="files" item_count=1}: Fetching PKGBUILD from AUR: https://aur.archlinux.org/cgit/aur.git/plain/PKGBUILD?h=brotli-testdata
+2026-03-30-T01:39:03  INFO [Runtime] check_and_trigger_deps_resolution: preflight_deps_items=0, preflight_deps_resolving=true, deps_resolving=true
+2026-03-30-T01:39:03 DEBUG [UI] Deps tab: background resolution in progress, items=["brotli-testdata"]
+2026-03-30-T01:39:03 DEBUG service cache signature mismatch, ignoring path=/home/firstpick/.config/pacsea/lists/services_cache.json
+2026-03-30-T01:39:03 DEBUG resolve_file_changes{stage="files" item_count=1}: Fetching PKGBUILD from GitLab main: https://gitlab.archlinux.org/archlinux/packaging/packages/brotli-testdata/-/raw/main/PKGBUILD
+2026-03-30-T01:39:03 DEBUG [UI] Deps tab: background resolution in progress, items=["brotli-testdata"]
+2026-03-30-T01:39:03 DEBUG service cache signature mismatch, ignoring path=/home/firstpick/.config/pacsea/lists/services_cache.json
+2026-03-30-T01:39:03 DEBUG resolve_dependencies{stage="dependencies" item_count=1}: Resolving direct dependencies for brotli-testdata (source: Official { repo: "core", arch: "" })
+2026-03-30-T01:39:03 DEBUG resolve_dependencies{stage="dependencies" item_count=1}:   Found 0 dependencies for brotli-testdata
+2026-03-30-T01:39:03  INFO resolve_dependencies{stage="dependencies" item_count=1}: Total unique dependencies found: 0
+2026-03-30-T01:39:03  INFO resolve_dependencies{stage="dependencies" item_count=1}: Dependency resolution complete stage="dependencies" item_count=1 result_count=0 duration_ms=846
+2026-03-30-T01:39:03  INFO [Runtime] Dependency resolution done, sending 0 deps to result channel
+2026-03-30-T01:39:03  INFO [Runtime] deps_res_tx.send result: true
+2026-03-30-T01:39:03 DEBUG [Runtime] handle_dependency_result: Clearing flags - was_preflight=true, deps_resolving=true, preflight_deps_resolving=true, cancelled=false
+2026-03-30-T01:39:03 DEBUG [Runtime] Dependency resolution task completed
+2026-03-30-T01:39:03 DEBUG [Runtime] handle_dependency_result: Resolution incomplete - missing deps for: ["brotli-testdata"]
+2026-03-30-T01:39:03  INFO [Runtime] dependencies resolution worker completed stage="dependencies" result_count=0 was_preflight=true
+2026-03-30-T01:39:03  INFO [Runtime] sync_to_modal: action=Install, results=0, items=1, was_preflight=true
+2026-03-30-T01:39:03  INFO [Runtime] sync_to_modal: filtered 0 deps from 0 results (items={"brotli-testdata"})
+2026-03-30-T01:39:03  INFO [Runtime] No matching dependencies to sync (results=0, items={"brotli-testdata"})
+2026-03-30-T01:39:03 DEBUG [UI] Deps tab: background resolution in progress, items=["brotli-testdata"]
+2026-03-30-T01:39:03 DEBUG service cache signature mismatch, ignoring path=/home/firstpick/.config/pacsea/lists/services_cache.json
+2026-03-30-T01:39:03 DEBUG [UI] render_incomplete_data_indicator: preflight_deps_resolving=false, deps_resolving=true, computed_deps_resolving=true, files_resolving=true/true, sandbox_resolving=false/false, deps_incomplete=false, items=1, packages_with_deps=0, dependency_info=0, show_deps_indicator=true, show_files_indicator=true, show_sandbox_indicator=false
+2026-03-30-T01:39:03 DEBUG [Persist] Writing empty dependency cache because install list is empty path=/home/firstpick/.config/pacsea/lists/install_deps_cache.json
+2026-03-30-T01:39:03 DEBUG saved dependency cache path=/home/firstpick/.config/pacsea/lists/install_deps_cache.json count=0
+2026-03-30-T01:39:03  INFO [Runtime] check_and_trigger_deps_resolution: preflight_deps_items=0, preflight_deps_resolving=false, deps_resolving=true
+2026-03-30-T01:39:03  WARN resolve_file_changes{stage="files" item_count=1}: GitLab main returned invalid PKGBUILD (likely HTML): first 200 chars: "<!DOCTYPE html>\n<html class=\"html-devise-layout gl-system\" lang=\"en\">\n<head prefix=\"og: http://ogp.me/ns#\">\n<meta charset=\"utf-8\">\n<meta content=\"IE=edge\" http-equiv=\"X-UA-Compatible\">\n<meta content=\""
+2026-03-30-T01:39:03 DEBUG resolve_file_changes{stage="files" item_count=1}: Fetching PKGBUILD from GitLab master: https://gitlab.archlinux.org/archlinux/packaging/packages/brotli-testdata/-/raw/master/PKGBUILD
+2026-03-30-T01:39:03 DEBUG [UI] Deps tab: background resolution in progress, items=["brotli-testdata"]
+2026-03-30-T01:39:03 DEBUG service cache signature mismatch, ignoring path=/home/firstpick/.config/pacsea/lists/services_cache.json
+2026-03-30-T01:39:04 DEBUG Running: pacman -Qq
+2026-03-30-T01:39:04 DEBUG Successfully retrieved 1071 installed packages
+2026-03-30-T01:39:04 DEBUG Running: pacman -Qu
+2026-03-30-T01:39:04  WARN resolve_file_changes{stage="files" item_count=1}: GitLab master returned HTML instead of PKGBUILD: first 200 chars: "<!DOCTYPE html>\n<html class=\"html-devise-layout gl-system\" lang=\"en\">\n<head prefix=\"og: http://ogp.me/ns#\">\n<meta charset=\"utf-8\">\n<meta content=\"IE=edge\" http-equiv=\"X-UA-Compatible\">\n<meta content=\""
+2026-03-30-T01:39:04 DEBUG resolve_file_changes{stage="files" item_count=1}: Failed to fetch PKGBUILD for brotli-testdata: GitLab returned HTML page instead of PKGBUILD
+2026-03-30-T01:39:04  INFO resolve_file_changes{stage="files" item_count=1}:   Found 0 files for brotli-testdata (0 new, 0 changed, 0 removed)
+2026-03-30-T01:39:04  INFO resolve_file_changes{stage="files" item_count=1}: File resolution complete stage="files" item_count=1 result_count=1 duration_ms=800
+2026-03-30-T01:39:04 DEBUG [Background] Sending file result: 1 entries for packages: ["brotli-testdata"]
+2026-03-30-T01:39:04 DEBUG [Background] Package 'brotli-testdata' - total=0, new=0, changed=0, removed=0, config=0
+2026-03-30-T01:39:04 DEBUG [Background] Successfully sent file result
+2026-03-30-T01:39:04 DEBUG Running: pacman -Qu
+2026-03-30-T01:39:04  INFO Selected privilege tool tool="doas" reason="explicit config"
+2026-03-30-T01:39:04 DEBUG Passwordless privilege disabled in settings, requiring password prompt tool=doas
+2026-03-30-T01:39:04 DEBUG [Runtime] Received file result: 1 entries for packages: ["brotli-testdata"]
+2026-03-30-T01:39:04 DEBUG [Runtime] Package 'brotli-testdata' - total=0, new=0, changed=0, removed=0, config=0
+2026-03-30-T01:39:04 DEBUG [Runtime] handle_file_result: Clearing flags - was_preflight=true, files_resolving=true, preflight_files_resolving=true, cancelled=true
+2026-03-30-T01:39:04 DEBUG [Runtime] Ignoring files result (preflight cancelled)
+2026-03-30-T01:39:06 DEBUG package not found at this URL, trying next candidate package=eos-hooks repo=endeavouros arch=x86_64
+2026-03-30-T01:39:06 DEBUG package not found at this URL, trying next candidate package=eos-hooks repo=endeavouros arch=any
+2026-03-30-T01:39:06 DEBUG package not found at this URL, trying next candidate package=eos-hooks repo=extra arch=x86_64
+2026-03-30-T01:39:06 DEBUG package not found at this URL, trying next candidate package=eos-hooks repo=extra arch=any
+2026-03-30-T01:39:06 DEBUG package not found at this URL, trying next candidate package=eos-hooks repo=core arch=x86_64
+2026-03-30-T01:39:06 DEBUG package not found at this URL, trying next candidate package=eos-hooks repo=core arch=any
+2026-03-30-T01:39:06 DEBUG package not found in any repository JSON API (may be a virtual package) package=eos-hooks
+2026-03-30-T01:39:06 DEBUG circuit breaker: request succeeded, resetting to Closed endpoint_pattern="/packages/*/json/"
+2026-03-30-T01:39:06 DEBUG package needs retry, using today's date and queuing for background retry package=downgrade
+2026-03-30-T01:39:06 DEBUG package needs retry, using today's date and queuing for background retry package=endeavouros-keyring
+2026-03-30-T01:39:06 DEBUG package needs retry, using today's date and queuing for background retry package=endeavouros-mirrorlist
+2026-03-30-T01:39:06 DEBUG package needs retry, using today's date and queuing for background retry package=eos-apps-info
+2026-03-30-T01:39:06  INFO spawning background retry task for 4 packages
+2026-03-30-T01:39:06 DEBUG fetch_installed_updates: official packages processed, items=40, aur_candidates=2, remaining=0
+2026-03-30-T01:39:06 DEBUG fetch_installed_updates: fetching AUR versions for 2 candidates
+2026-03-30-T01:39:06  INFO background retry task started with 4 packages
+2026-03-30-T01:39:06  INFO background retry: waiting before attempt package=downgrade retry_attempt=1 queue_remaining=3 delay_ms=10000
+2026-03-30-T01:39:07 DEBUG saved AUR JSON cache path="/home/firstpick/.config/pacsea/lists/aur_json_cache/cursor-bin,maliit-keyboard.json"
+2026-03-30-T01:39:07 DEBUG fetch_installed_updates: fetched 2 AUR package versions
+2026-03-30-T01:39:07  INFO installed update feed built emitted=42 new_packages=0 updated_packages=0 aur_new_packages=0 aur_updated_packages=0 baseline_only=168 installed_total=210 aur_candidates=2
+2026-03-30-T01:39:07  INFO package updates fetch completed: items=42
+2026-03-30-T01:39:07  INFO fetch completed, combining results...
+2026-03-30-T01:39:07  INFO fetch_news_feed success total=54 arch=0 advisories=0 updates=42 aur_comments=12
+2026-03-30-T01:39:07  INFO startup news fetch completed successfully total_items=54
+2026-03-30-T01:39:07  INFO sending startup news items to channel unread_count=10
+2026-03-30-T01:39:07  INFO startup news items sent to channel successfully
+2026-03-30-T01:39:07  INFO additional delay after startup fetch completion additional_delay_ms=1016
+2026-03-30-T01:39:07  INFO received news items from channel items_count=10 news_loading_before=true
+2026-03-30-T01:39:07  INFO handle_news called items_count=10 current_modal=PasswordPrompt { purpose: Install, items: [PackageItem { name: "brotli-testdata", version: "1.2.0-1", description: "", source: Official { repo: "core", arch: "" }, popularity: None, out_of_date: None, orphaned: false }], input: "Ikmcfr", cursor: 6, error: None } news_loading=true
+2026-03-30-T01:39:07  INFO news items available, marking as ready
+2026-03-30-T01:39:07  INFO handle_news completed news_loading_after=true modal=PasswordPrompt { purpose: Install, items: [PackageItem { name: "brotli-testdata", version: "1.2.0-1", description: "", source: Official { repo: "core", arch: "" }, popularity: None, out_of_date: None, orphaned: false }], input: "Ikmcfr", cursor: 6, error: None }
+2026-03-30-T01:39:08  INFO Selected privilege tool tool="doas" reason="explicit config"
+2026-03-30-T01:39:08 DEBUG executing pacman command command="pacman" args=["-Qq"]
+2026-03-30-T01:39:08 DEBUG pacman command completed successfully command="pacman" args=["-Qq"] status=ExitStatus(unix_wait_status(0)) status_code=0 stdout_len=11630 stderr_len=0
+2026-03-30-T01:39:08 DEBUG executing pacman command command="pacman" args=["-Qeq"]
+2026-03-30-T01:39:08 DEBUG pacman command completed successfully command="pacman" args=["-Qeq"] status=ExitStatus(unix_wait_status(0)) status_code=0 stdout_len=2403 stderr_len=0
+2026-03-30-T01:39:08  INFO fetch_news_feed start limit=50 include_arch_news=true include_advisories=true include_pkg_updates=true include_aur_comments=true installed_only=false installed_filter=true sort_mode=DateDesc
+2026-03-30-T01:39:08  INFO starting fetch: arch_news=true, advisories=true, pkg_updates=true, aur_comments=true
+2026-03-30-T01:39:08 DEBUG resetting archlinux.org backoff after successful request previous_failures=3 previous_backoff_ms=4000
+2026-03-30-T01:39:08  INFO fetching package updates: installed_count=210, limit=50
+2026-03-30-T01:39:08  INFO fetch_installed_updates: using cached results (age=1s, items=42)
+2026-03-30-T01:39:08  INFO package updates fetch completed: items=42
+2026-03-30-T01:39:08  INFO fetching AUR comments: installed_count=210, limit=50
+2026-03-30-T01:39:08  INFO fetch_installed_aur_comments: using cached results (age=33s, items=12)
+2026-03-30-T01:39:08  INFO AUR comments fetch completed: items=12
+2026-03-30-T01:39:08  INFO fetching arch news...
+2026-03-30-T01:39:08  INFO loaded from disk cache source="arch_news" items=10 age_hours=1 ttl_days=14
+2026-03-30-T01:39:08  INFO arch news fetch completed: items=10
+2026-03-30-T01:39:08  INFO fetching advisories...
+2026-03-30-T01:39:08  INFO loaded from disk cache source="advisories" items=15 age_hours=1 ttl_days=14
+2026-03-30-T01:39:08  INFO advisories fetch completed: items=15
+2026-03-30-T01:39:08  INFO fetch completed, combining results...
+2026-03-30-T01:39:08  INFO fetch_news_feed success total=79 arch=10 advisories=15 updates=42 aur_comments=12
+2026-03-30-T01:39:08  INFO news feed fetched total=79 arch=10 advisories=15 installed_names=210
+2026-03-30-T01:39:08  INFO sending aggregated news feed payload to channel items_count=79
+2026-03-30-T01:39:08  INFO aggregated news feed payload sent successfully
+2026-03-30-T01:39:08  INFO starting news continuation worker initial_count=79
+2026-03-30-T01:39:10  INFO starting continuation fetch installed_count=210 initial_count=79
+2026-03-30-T01:39:10  INFO fetch_installed_updates: using cached results (age=3s, items=42)
+2026-03-30-T01:39:10  INFO fetch_installed_aur_comments: using cached results (age=35s, items=12)
+2026-03-30-T01:39:10  INFO fetching arch news...
+2026-03-30-T01:39:10  INFO using in-memory cached arch news
+2026-03-30-T01:39:10  INFO arch news fetch completed: items=10
+2026-03-30-T01:39:10  INFO fetching advisories...
+2026-03-30-T01:39:10  INFO using in-memory cached advisories
+2026-03-30-T01:39:10  INFO advisories fetch completed: items=15
+2026-03-30-T01:39:10  INFO continuation fetch complete total=0 arch=0 advisories=0 updates=0
+2026-03-30-T01:39:10  INFO continuation worker received items to send count=0
+2026-03-30-T01:39:10  INFO news continuation worker completed
+2026-03-30-T01:39:13  INFO received aggregated news feed payload in event loop items_count=79
+2026-03-30-T01:39:13  INFO news feed updated fetched=79 visible=26 max_age_days=30 installed_only=false arch_on=true advisories_on=true
+2026-03-30-T01:39:13 DEBUG [Persist] Writing news seen package versions to disk path=/home/firstpick/.config/pacsea/lists/news_seen_pkg_updates.json bytes=5129
+2026-03-30-T01:39:13 DEBUG [Persist] News seen package versions persisted path=/home/firstpick/.config/pacsea/lists/news_seen_pkg_updates.json
+2026-03-30-T01:39:13 DEBUG [Persist] Writing news seen AUR comments to disk path=/home/firstpick/.config/pacsea/lists/news_seen_aur_comments.json bytes=68
+2026-03-30-T01:39:13 DEBUG [Persist] News seen AUR comments persisted path=/home/firstpick/.config/pacsea/lists/news_seen_aur_comments.json
+2026-03-30-T01:39:17  WARN increased archlinux.org backoff delay consecutive_failures=1 backoff_ms=1000
+2026-03-30-T01:39:17 DEBUG background retry: fetch failed package=downgrade error=HTTP 404: Resource not found (package may not exist in repository)
+2026-03-30-T01:39:17 DEBUG background retry failed, adding back to end of queue package=downgrade retry_attempt=1
+2026-03-30-T01:39:17  INFO background retry: waiting before attempt package=endeavouros-keyring retry_attempt=1 queue_remaining=3 delay_ms=10000
+2026-03-30-T01:39:27  WARN increased archlinux.org backoff delay consecutive_failures=2 backoff_ms=2000
+2026-03-30-T01:39:27  WARN circuit breaker opened due to high failure rate endpoint_pattern="/packages/*/json/" failure_count=5 total=10 failure_percentage=50
+2026-03-30-T01:39:27 DEBUG background retry: fetch failed package=endeavouros-keyring error=HTTP 404: Resource not found (package may not exist in repository)
+2026-03-30-T01:39:27 DEBUG background retry failed, adding back to end of queue package=endeavouros-keyring retry_attempt=1
+2026-03-30-T01:39:27  INFO background retry: waiting before attempt package=endeavouros-mirrorlist retry_attempt=1 queue_remaining=3 delay_ms=10000
+2026-03-30-T01:39:31 DEBUG [Runtime] Main loop exited, resetting resolution flags
+2026-03-30-T01:39:31 DEBUG [Runtime] Cancelling preflight operations and resetting flags
