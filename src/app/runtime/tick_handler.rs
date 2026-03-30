@@ -760,9 +760,10 @@ pub fn handle_tick(
             }
             Err(_e) => {
                 let command = match crate::logic::privilege::active_tool() {
-                    Ok(tool) => {
-                        Some(crate::logic::privilege::build_privilege_command(tool, "pacman -Fy"))
-                    }
+                    Ok(tool) => Some(crate::logic::privilege::build_privilege_command(
+                        tool,
+                        "pacman -Fy",
+                    )),
                     Err(msg) => {
                         app.toast_message = Some(msg);
                         app.toast_expires_at =
