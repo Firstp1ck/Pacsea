@@ -152,7 +152,9 @@ pub fn should_use_passwordless_sudo(settings: &crate::theme::Settings) -> bool {
             return false;
         }
     };
-    if !settings.use_passwordless_sudo {
+    let auth_mode = resolve_auth_mode(settings);
+    let require_legacy_toggle = auth_mode != AuthMode::PasswordlessOnly;
+    if require_legacy_toggle && !settings.use_passwordless_sudo {
         tracing::debug!(
             tool = %tool,
             "Passwordless privilege disabled in settings, requiring password prompt"

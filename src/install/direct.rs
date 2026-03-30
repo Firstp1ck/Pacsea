@@ -171,12 +171,14 @@ pub fn start_integrated_install_all(app: &mut AppState, items: &[PackageItem], d
 /// - `cascade_mode`: Cascade removal mode
 ///
 /// Output:
-/// - Transitions to `PasswordPrompt` (remove always needs sudo)
+/// - In interactive mode: Proceeds directly to `PreflightExec` without password modal.
+/// - Otherwise: Transitions to `PasswordPrompt`.
 ///
 /// Details:
-/// - Remove operations always need sudo, so always show `PasswordPrompt`.
-/// - Remove is intentionally never passwordless (even when `use_passwordless_sudo` is true)
-///   for safety; only install/update can skip the password prompt.
+/// - Remove operations always need privilege escalation.
+/// - In `auth_mode = interactive`, Pacsea performs terminal handoff auth and then starts
+///   execution without collecting a password in-app.
+/// - Outside interactive mode, remove keeps using the in-app password prompt.
 /// - Uses `ExecutorRequest::Remove` for execution.
 pub fn start_integrated_remove_all(
     app: &mut AppState,
@@ -184,6 +186,7 @@ pub fn start_integrated_remove_all(
     dry_run: bool,
     cascade_mode: CascadeMode,
 ) {
+    use crate::events::start_execution;
     use crate::state::modal::PreflightHeaderChips;
 
     app.dry_run = dry_run;
@@ -218,7 +221,33 @@ pub fn start_integrated_remove_all(
         };
         return;
     }
-    // Always show password prompt - user can press Enter if passwordless sudo is configured
+    let header_chips = PreflightHeaderChips::default();
+    let settings = crate::theme::settings();
+    if crate::logic::password::resolve_auth_mode(&settings)
+        == crate::logic::privilege::AuthMode::Interactive
+    {
+        match crate::events::try_interactive_auth_handoff() {
+            Ok(true) => {
+                start_execution(
+                    app,
+                    &items,
+                    crate::state::PreflightAction::Remove,
+                    header_chips,
+                    None,
+                );
+            }
+            Ok(false) => {
+                app.modal = crate::state::Modal::Alert {
+                    message: crate::i18n::t(app, "app.errors.authentication_failed"),
+                };
+            }
+            Err(e) => {
+                app.modal = crate::state::Modal::Alert { message: e };
+            }
+        }
+        return;
+    }
+
     app.modal = crate::state::Modal::PasswordPrompt {
         purpose: crate::state::modal::PasswordPurpose::Remove,
         items,
@@ -226,5 +255,5 @@ pub fn start_integrated_remove_all(
         cursor: 0,
         error: None,
     };
-    app.pending_exec_header_chips = Some(PreflightHeaderChips::default());
+    app.pending_exec_header_chips = Some(header_chips);
 }

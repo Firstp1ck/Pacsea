@@ -199,6 +199,50 @@ fn integration_install_direct_all_interactive_auth() {
     });
 }
 
+#[test]
+/// What: Direct remove with interactive auth mode skips password prompt.
+///
+/// Details:
+/// - Remove keeps its safety confirmation, but interactive auth should still bypass
+///   in-app password collection and execute with `password: None`.
+fn integration_remove_direct_interactive_auth() {
+    with_interactive_auth_env(|| {
+        let names = vec!["pkg-a".to_string(), "pkg-b".to_string()];
+        let mut app = new_dry_run_app();
+
+        pacsea::install::start_integrated_remove_all(
+            &mut app,
+            &names,
+            true,
+            pacsea::state::modal::CascadeMode::Basic,
+        );
+
+        verify_no_password_prompt(&app);
+
+        match &app.modal {
+            Modal::PreflightExec { items, .. } => {
+                assert_eq!(items.len(), 2);
+                assert_eq!(items[0].name, "pkg-a");
+                assert_eq!(items[1].name, "pkg-b");
+            }
+            _ => {
+                assert!(
+                    app.pending_executor_request.is_some(),
+                    "Expected PreflightExec modal or pending executor request, got {:?}",
+                    app.modal
+                );
+            }
+        }
+
+        if let Some(ExecutorRequest::Remove { password, .. }) = &app.pending_executor_request {
+            assert!(
+                password.is_none(),
+                "Interactive auth should not embed password in remove request"
+            );
+        }
+    });
+}
+
 // =============================================================================
 // AuthMode default fallback (no test env)
 // =============================================================================
