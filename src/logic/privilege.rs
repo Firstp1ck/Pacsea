@@ -262,8 +262,9 @@ impl fmt::Display for PrivilegeMode {
 /// Output: Controls how Pacsea handles authentication before privileged operations.
 ///
 /// Details:
-/// - `Prompt` (default): Pacsea shows its own password modal/prompt, then pipes the
-///   password to the privilege tool (`sudo -S` or doas PTY injection).
+/// - `Prompt` (default): Pacsea shows its own password modal/prompt and uses stdin password
+///   piping (`sudo -S`) for stdin-capable tools.
+///   For tools without stdin support (doas), resolver logic coerces this mode to `Interactive`.
 /// - `PasswordlessOnly`: Skip password prompt only when `{tool} -n true` succeeds;
 ///   fall back to `Prompt` otherwise.
 /// - `Interactive`: Skip Pacsea's password capture entirely and let the privilege
@@ -271,7 +272,7 @@ impl fmt::Display for PrivilegeMode {
 ///   Works with both sudo and doas when PAM is configured.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum AuthMode {
-    /// Pacsea captures the password and pipes it to the privilege tool.
+    /// Pacsea captures the password for stdin-capable tools; non-stdin tools are coerced to interactive.
     #[default]
     Prompt,
     /// Skip password prompt only when passwordless escalation is available.

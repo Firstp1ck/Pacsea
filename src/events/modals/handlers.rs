@@ -271,50 +271,44 @@ pub(super) fn handle_confirm_batch_update_modal(
                 let header_chips = app.pending_exec_header_chips.take().unwrap_or_default();
 
                 let settings = crate::theme::settings();
-                match crate::logic::password::resolve_auth_mode(&settings) {
-                    crate::logic::privilege::AuthMode::Interactive => {
-                        match crate::events::try_interactive_auth_handoff() {
-                            Ok(true) => crate::events::preflight::start_execution(
-                                app,
-                                &items_clone,
-                                crate::state::PreflightAction::Install,
-                                header_chips,
-                                None,
-                            ),
-                            Ok(false) => {
-                                app.modal = crate::state::Modal::Alert {
-                                    message: crate::i18n::t(
-                                        app,
-                                        "app.errors.authentication_failed",
-                                    ),
-                                };
-                            }
-                            Err(e) => {
-                                app.modal = crate::state::Modal::Alert { message: e };
-                            }
-                        }
-                    }
-                    crate::logic::privilege::AuthMode::PasswordlessOnly
-                        if crate::logic::password::should_use_passwordless_sudo(&settings) =>
-                    {
-                        crate::events::preflight::start_execution(
+                if crate::logic::password::should_use_interactive_auth_handoff(&settings) {
+                    match crate::events::try_interactive_auth_handoff() {
+                        Ok(true) => crate::events::preflight::start_execution(
                             app,
                             &items_clone,
                             crate::state::PreflightAction::Install,
                             header_chips,
                             None,
-                        );
+                        ),
+                        Ok(false) => {
+                            app.modal = crate::state::Modal::Alert {
+                                message: crate::i18n::t(app, "app.errors.authentication_failed"),
+                            };
+                        }
+                        Err(e) => {
+                            app.modal = crate::state::Modal::Alert { message: e };
+                        }
                     }
-                    _ => {
-                        app.modal = crate::state::Modal::PasswordPrompt {
-                            purpose: crate::state::modal::PasswordPurpose::Install,
-                            items: items_clone,
-                            input: String::new(),
-                            cursor: 0,
-                            error: None,
-                        };
-                        app.pending_exec_header_chips = Some(header_chips);
-                    }
+                } else if crate::logic::password::resolve_auth_mode(&settings)
+                    == crate::logic::privilege::AuthMode::PasswordlessOnly
+                    && crate::logic::password::should_use_passwordless_sudo(&settings)
+                {
+                    crate::events::preflight::start_execution(
+                        app,
+                        &items_clone,
+                        crate::state::PreflightAction::Install,
+                        header_chips,
+                        None,
+                    );
+                } else {
+                    app.modal = crate::state::Modal::PasswordPrompt {
+                        purpose: crate::state::modal::PasswordPurpose::Install,
+                        items: items_clone,
+                        input: String::new(),
+                        cursor: 0,
+                        error: None,
+                    };
+                    app.pending_exec_header_chips = Some(header_chips);
                 }
                 return true;
             }
@@ -437,60 +431,48 @@ pub(super) fn handle_confirm_reinstall_modal(
                     }
 
                     let settings = crate::theme::settings();
-                    match crate::logic::password::resolve_auth_mode(&settings) {
-                        crate::logic::privilege::AuthMode::Interactive => {
-                            match crate::events::try_interactive_auth_handoff() {
-                                Ok(true) => crate::events::preflight::start_execution(
-                                    app,
-                                    &items_clone,
-                                    crate::state::PreflightAction::Install,
-                                    header_chips_clone,
-                                    None,
-                                ),
-                                Ok(false) => {
-                                    app.modal = crate::state::Modal::Alert {
-                                        message: crate::i18n::t(
-                                            app,
-                                            "app.errors.authentication_failed",
-                                        ),
-                                    };
-                                }
-                                Err(e) => {
-                                    app.modal = crate::state::Modal::Alert { message: e };
-                                }
-                            }
-                        }
-                        crate::logic::privilege::AuthMode::PasswordlessOnly
-                            if crate::logic::password::should_use_passwordless_sudo(&settings) =>
-                        {
-                            crate::events::preflight::start_execution(
+                    if crate::logic::password::should_use_interactive_auth_handoff(&settings) {
+                        match crate::events::try_interactive_auth_handoff() {
+                            Ok(true) => crate::events::preflight::start_execution(
                                 app,
                                 &items_clone,
                                 crate::state::PreflightAction::Install,
                                 header_chips_clone,
                                 None,
-                            );
+                            ),
+                            Ok(false) => {
+                                app.modal = crate::state::Modal::Alert {
+                                    message: crate::i18n::t(
+                                        app,
+                                        "app.errors.authentication_failed",
+                                    ),
+                                };
+                            }
+                            Err(e) => {
+                                app.modal = crate::state::Modal::Alert { message: e };
+                            }
                         }
-                        _ => {
-                            app.modal = crate::state::Modal::PasswordPrompt {
-                                purpose: crate::state::modal::PasswordPurpose::Install,
-                                items: items_clone,
-                                input: String::new(),
-                                cursor: 0,
-                                error: None,
-                            };
-                            app.pending_exec_header_chips = Some(header_chips_clone);
-                        }
+                    } else if crate::logic::password::resolve_auth_mode(&settings)
+                        == crate::logic::privilege::AuthMode::PasswordlessOnly
+                        && crate::logic::password::should_use_passwordless_sudo(&settings)
+                    {
+                        crate::events::preflight::start_execution(
+                            app,
+                            &items_clone,
+                            crate::state::PreflightAction::Install,
+                            header_chips_clone,
+                            None,
+                        );
+                    } else {
+                        app.modal = crate::state::Modal::PasswordPrompt {
+                            purpose: crate::state::modal::PasswordPurpose::Install,
+                            items: items_clone,
+                            input: String::new(),
+                            cursor: 0,
+                            error: None,
+                        };
+                        app.pending_exec_header_chips = Some(header_chips_clone);
                     }
-                } else {
-                    // Password already obtained, go directly to execution
-                    crate::events::preflight::start_execution(
-                        app,
-                        &items_clone,
-                        crate::state::PreflightAction::Install,
-                        header_chips_clone,
-                        password,
-                    );
                 }
                 return true;
             }

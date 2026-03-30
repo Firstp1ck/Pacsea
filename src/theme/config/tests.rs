@@ -74,32 +74,13 @@ mod tests {
         let _guard = crate::theme::test_mutex()
             .lock()
             .expect("Test mutex poisoned");
-        let orig_home = std::env::var_os("HOME");
-        let base = std::env::temp_dir().join(format!(
-            "pacsea_test_ensure_theme_{}_{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .expect("System time is before UNIX epoch")
-                .as_nanos()
-        ));
-        let pacsea = base.join(".config").join("pacsea");
-        fs::create_dir_all(&pacsea).expect("create pacsea config dir");
-        let theme_path = pacsea.join("theme.conf");
+        let env_guard = SettingsEnvGuard::new();
+        let theme_path = env_guard.cfg_dir.join("theme.conf");
         fs::write(&theme_path, "base = #111111\n").expect("write partial theme");
 
-        unsafe { std::env::set_var("HOME", base.display().to_string()) };
         ensure_theme_keys_present();
         try_load_theme_with_diagnostics(&theme_path).expect("theme should load after ensure");
-
-        unsafe {
-            if let Some(v) = orig_home {
-                std::env::set_var("HOME", v);
-            } else {
-                std::env::remove_var("HOME");
-            }
-        }
-        let _ = fs::remove_dir_all(&base);
+        drop(env_guard);
     }
 
     #[test]

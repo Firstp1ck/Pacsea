@@ -176,7 +176,8 @@ pub struct Settings {
     pub privilege_mode: crate::logic::privilege::PrivilegeMode,
     /// Authentication mode for privilege escalation.
     /// Controls how Pacsea handles password/authentication before privileged operations.
-    /// `Prompt` (default): Pacsea captures the password and pipes it to sudo/doas.
+    /// `Prompt` (default): Pacsea captures password only for stdin-capable tools (sudo).
+    /// For doas, prompt mode is coerced to `Interactive` because doas cannot read stdin passwords.
     /// `PasswordlessOnly`: Skip prompt only when `{tool} -n true` succeeds.
     /// `Interactive`: Let the privilege tool handle auth directly (fingerprint via PAM, etc.).
     pub auth_mode: crate::logic::privilege::AuthMode,

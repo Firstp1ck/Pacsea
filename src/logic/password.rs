@@ -22,11 +22,14 @@ use crate::logic::privilege::AuthMode;
 ///   `auth_mode` wins and a deprecation warning is logged.
 #[must_use]
 pub fn resolve_auth_mode(settings: &crate::theme::Settings) -> AuthMode {
+    static WARNED_LEGACY_PASSWORDLESS_MAPPING: std::sync::Once = std::sync::Once::new();
+    static WARNED_LEGACY_PASSWORDLESS_CONFLICT: std::sync::Once = std::sync::Once::new();
+
     if crate::logic::privilege::is_integration_test() {
         if let Ok(val) = std::env::var("PACSEA_TEST_AUTH_MODE") {
             tracing::debug!(val = %val, "Using test override for resolve_auth_mode");
             if let Some(mode) = AuthMode::from_config_key(&val) {
-                return mode;
+                return coerce_prompt_mode_for_tool_capabilities(mode);
             }
         }
         if std::env::var("PACSEA_TEST_SUDO_PASSWORDLESS")
@@ -35,33 +38,116 @@ pub fn resolve_auth_mode(settings: &crate::theme::Settings) -> AuthMode {
             == Some("1")
         {
             tracing::debug!("Legacy test env PACSEA_TEST_SUDO_PASSWORDLESS=1 → PasswordlessOnly");
-            return AuthMode::PasswordlessOnly;
+            return coerce_prompt_mode_for_tool_capabilities(AuthMode::PasswordlessOnly);
         }
     }
 
     let explicit_auth_mode = settings.auth_mode;
     let legacy_passwordless = settings.use_passwordless_sudo;
 
-    match (explicit_auth_mode, legacy_passwordless) {
+    let resolved = match (explicit_auth_mode, legacy_passwordless) {
         (AuthMode::Prompt, true) => {
-            tracing::warn!(
-                "Deprecated: 'use_passwordless_sudo = true' is active. \
-                 Mapping to auth_mode = passwordless_only. \
-                 Please migrate to 'auth_mode = passwordless_only' in settings.conf."
-            );
+            WARNED_LEGACY_PASSWORDLESS_MAPPING.call_once(|| {
+                tracing::warn!(
+                    "Deprecated: 'use_passwordless_sudo = true' is active. \
+                     Mapping to auth_mode = passwordless_only. \
+                     Please migrate to 'auth_mode = passwordless_only' in settings.conf."
+                );
+            });
             AuthMode::PasswordlessOnly
         }
         (mode, true) if mode != AuthMode::Prompt => {
-            tracing::warn!(
-                auth_mode = %mode,
-                "Deprecated: 'use_passwordless_sudo' is set alongside 'auth_mode'. \
-                 'auth_mode = {mode}' takes precedence. \
-                 Please remove 'use_passwordless_sudo' from settings.conf."
-            );
+            WARNED_LEGACY_PASSWORDLESS_CONFLICT.call_once(|| {
+                tracing::warn!(
+                    auth_mode = %mode,
+                    "Deprecated: 'use_passwordless_sudo' is set alongside 'auth_mode'. \
+                     'auth_mode = {mode}' takes precedence. \
+                     Please remove 'use_passwordless_sudo' from settings.conf."
+                );
+            });
             mode
         }
         (mode, _) => mode,
+    };
+
+    coerce_prompt_mode_for_tool_capabilities(resolved)
+}
+
+/// What: Ensure auth mode is compatible with the active privilege tool.
+///
+/// Inputs:
+/// - `mode`: Resolved auth mode from settings and legacy compatibility logic.
+///
+/// Output:
+/// - Compatible auth mode for the active privilege tool.
+///
+/// Details:
+/// - If `mode` is `Prompt` and the active tool cannot read passwords from stdin
+///   (e.g. doas), this coerces to `Interactive`.
+/// - This avoids entering in-app password validation paths that can never succeed.
+/// - If the active tool cannot be resolved, returns the original mode so regular
+///   tool-resolution errors can be surfaced by callers later.
+fn coerce_prompt_mode_for_tool_capabilities(mode: AuthMode) -> AuthMode {
+    if mode != AuthMode::Prompt {
+        return mode;
     }
+
+    let tool = match crate::logic::privilege::active_tool() {
+        Ok(tool) => tool,
+        Err(err) => {
+            tracing::debug!(
+                error = %err,
+                "Could not resolve active privilege tool while resolving auth mode; leaving mode unchanged"
+            );
+            return mode;
+        }
+    };
+
+    if tool.capabilities().supports_stdin_password {
+        return mode;
+    }
+
+    tracing::warn!(
+        tool = %tool,
+        configured_mode = %mode,
+        forced_mode = %AuthMode::Interactive,
+        "Auth mode 'prompt' is incompatible with the active privilege tool; forcing interactive auth"
+    );
+    AuthMode::Interactive
+}
+
+/// What: Determine whether Pacsea should perform interactive auth handoff.
+///
+/// Inputs:
+/// - `settings`: Reference to the application settings.
+///
+/// Output:
+/// - `true` when resolved auth mode is `Interactive`, otherwise `false`.
+///
+/// Details:
+/// - Uses [`resolve_auth_mode`] so capability-based coercions are respected.
+/// - Covers both explicit `auth_mode = interactive` and compatibility fallbacks
+///   (for example, `doas + prompt` coercion).
+#[must_use]
+pub fn should_use_interactive_auth_handoff(settings: &crate::theme::Settings) -> bool {
+    resolve_auth_mode(settings) == AuthMode::Interactive
+}
+
+/// What: Determine whether interactive handoff is being forced by compatibility fallback.
+///
+/// Inputs:
+/// - `settings`: Reference to the application settings.
+///
+/// Output:
+/// - `true` when resolved mode is `Interactive` but configured mode is not explicitly interactive.
+///
+/// Details:
+/// - Useful for diagnostics/UX messaging that differentiates explicit user intent
+///   from forced compatibility behavior.
+#[must_use]
+pub fn should_force_interactive_auth_handoff(settings: &crate::theme::Settings) -> bool {
+    resolve_auth_mode(settings) == AuthMode::Interactive
+        && settings.auth_mode != AuthMode::Interactive
 }
 
 /// What: Determine whether the Pacsea password modal should be skipped.
@@ -121,14 +207,15 @@ pub fn check_passwordless_sudo_available() -> Result<bool, String> {
 /// - `true` if passwordless execution should be used, `false` otherwise.
 ///
 /// Details:
-/// - First checks tool capabilities: tools without stdin-password support (e.g. doas)
-///   bypass the in-app modal and return `true`.
-/// - For stdin-capable tools (sudo), checks if `use_passwordless_sudo` is enabled
-///   in settings (safety barrier).
-/// - If not enabled for stdin-capable tools, returns `false` immediately.
+/// - This function is strictly about passwordless availability (`{tool} -n true`).
+/// - For non-`PasswordlessOnly` modes, checks if `use_passwordless_sudo` is enabled
+///   in settings (legacy safety barrier).
+/// - If legacy toggle is required but disabled, returns `false` immediately.
 /// - If enabled, checks if passwordless execution is actually available on the system.
 /// - Returns `true` only if both conditions are met.
-/// - Test overrides flow through [`check_passwordless_sudo_available`] → privilege module.
+/// - Tool capability constraints (for example: doas lacking stdin password support) are
+///   handled separately via [`should_use_interactive_auth_handoff`].
+/// - Test overrides flow through [`check_passwordless_sudo_available`] via privilege module.
 #[must_use]
 pub fn should_use_passwordless_sudo(settings: &crate::theme::Settings) -> bool {
     // In integration test context, honor the test override directly.
@@ -142,24 +229,6 @@ pub fn should_use_passwordless_sudo(settings: &crate::theme::Settings) -> bool {
             "Using test override for should_use_passwordless_sudo"
         );
         return val == "1";
-    }
-
-    let tool = match crate::logic::privilege::active_tool() {
-        Ok(t) => t,
-        Err(err) => {
-            tracing::warn!(
-                error = %err,
-                "Could not resolve privilege tool; treating as password prompt required"
-            );
-            return false;
-        }
-    };
-    if !tool.capabilities().supports_stdin_password {
-        tracing::debug!(
-            tool = %tool,
-            "Active privilege tool does not support stdin password; skipping in-app password prompt"
-        );
-        return true;
     }
 
     let auth_mode = resolve_auth_mode(settings);
@@ -244,36 +313,85 @@ mod tests {
     /// - Verifies the function returns a valid result (either true or false).
     /// - Does not assert on the actual value since it depends on system configuration.
     fn test_check_passwordless_sudo_available() {
+        let _guard = crate::global_test_mutex_lock();
+        unsafe {
+            std::env::set_var("PACSEA_INTEGRATION_TEST", "1");
+            std::env::set_var("PACSEA_TEST_PRIVILEGE_AVAILABLE", "sudo");
+            std::env::set_var("PACSEA_TEST_SUDO_PASSWORDLESS", "1");
+        }
+
         let result = check_passwordless_sudo_available();
-        // Should return Ok with either true or false, depending on system config
-        assert!(result.is_ok());
+
+        unsafe {
+            std::env::remove_var("PACSEA_TEST_SUDO_PASSWORDLESS");
+            std::env::remove_var("PACSEA_TEST_PRIVILEGE_AVAILABLE");
+            std::env::remove_var("PACSEA_INTEGRATION_TEST");
+        }
+
+        assert_eq!(result, Ok(true));
     }
 
     #[test]
-    /// What: Ensure doas skips in-app password prompt decision.
+    /// What: Ensure doas no longer implies passwordless execution by capability alone.
     ///
     /// Inputs:
     /// - Integration test env forcing only doas availability.
-    /// - Default settings with `use_passwordless_sudo = false`.
+    /// - Passwordless override set to disabled.
+    /// - Explicit `auth_mode = passwordless_only`.
     ///
     /// Output:
-    /// - Returns `true` from `should_use_passwordless_sudo`.
+    /// - Returns `false` from `should_use_passwordless_sudo`.
     ///
     /// Details:
-    /// - doas cannot validate stdin passwords in-app.
-    /// - Pacsea must skip the modal and let terminal doas prompt directly.
-    fn test_should_use_passwordless_sudo_true_for_doas_without_stdin_support() {
+    /// - Ensures `PasswordlessOnly` strictly follows `{tool} -n true` availability.
+    /// - Prevents capability-based auto-pass for doas.
+    fn test_should_use_passwordless_sudo_false_for_doas_when_passwordless_unavailable() {
         let _guard = crate::global_test_mutex_lock();
         unsafe {
             std::env::set_var("PACSEA_INTEGRATION_TEST", "1");
             std::env::set_var("PACSEA_TEST_PRIVILEGE_AVAILABLE", "doas");
+            std::env::set_var("PACSEA_TEST_AUTH_MODE", "passwordless_only");
+            std::env::set_var("PACSEA_TEST_SUDO_PASSWORDLESS", "0");
         }
 
-        let settings = crate::theme::Settings {
-            use_passwordless_sudo: false,
-            ..crate::theme::Settings::default()
-        };
+        let settings = crate::theme::Settings::default();
         let should_skip_prompt = should_use_passwordless_sudo(&settings);
+
+        unsafe {
+            std::env::remove_var("PACSEA_TEST_SUDO_PASSWORDLESS");
+            std::env::remove_var("PACSEA_TEST_AUTH_MODE");
+            std::env::remove_var("PACSEA_TEST_PRIVILEGE_AVAILABLE");
+            std::env::remove_var("PACSEA_INTEGRATION_TEST");
+        }
+
+        assert!(
+            !should_skip_prompt,
+            "doas should not be treated as passwordless when -n check fails"
+        );
+    }
+
+    #[test]
+    /// What: Prompt mode with doas forces interactive auth handoff.
+    ///
+    /// Inputs:
+    /// - Integration test env forcing doas availability.
+    /// - Default settings (`auth_mode = prompt`).
+    ///
+    /// Output:
+    /// - Returns `true` from `should_use_interactive_auth_handoff`.
+    ///
+    /// Details:
+    /// - doas cannot support in-app stdin password validation.
+    fn test_should_use_interactive_auth_handoff_true_for_prompt_doas() {
+        let _guard = crate::global_test_mutex_lock();
+        unsafe {
+            std::env::set_var("PACSEA_INTEGRATION_TEST", "1");
+            std::env::set_var("PACSEA_TEST_PRIVILEGE_AVAILABLE", "doas");
+            std::env::remove_var("PACSEA_TEST_AUTH_MODE");
+        }
+
+        let settings = crate::theme::Settings::default();
+        let result = should_use_interactive_auth_handoff(&settings);
 
         unsafe {
             std::env::remove_var("PACSEA_TEST_PRIVILEGE_AVAILABLE");
@@ -281,8 +399,8 @@ mod tests {
         }
 
         assert!(
-            should_skip_prompt,
-            "doas should bypass in-app password prompt"
+            result,
+            "doas + prompt should force interactive auth handoff"
         );
     }
 
@@ -313,6 +431,37 @@ mod tests {
         }
 
         assert_eq!(mode, AuthMode::Prompt);
+    }
+
+    #[test]
+    /// What: Prompt mode is coerced to interactive for doas.
+    ///
+    /// Inputs:
+    /// - Integration test env forcing doas as the only available tool.
+    /// - Default settings (`auth_mode = Prompt`).
+    ///
+    /// Output: `AuthMode::Interactive`.
+    ///
+    /// Details:
+    /// - doas does not support stdin password validation.
+    /// - This ensures prompt-mode password modal flow cannot be reached with doas.
+    fn test_resolve_auth_mode_prompt_for_doas_forces_interactive() {
+        let _guard = crate::global_test_mutex_lock();
+        unsafe {
+            std::env::set_var("PACSEA_INTEGRATION_TEST", "1");
+            std::env::set_var("PACSEA_TEST_PRIVILEGE_AVAILABLE", "doas");
+            std::env::remove_var("PACSEA_TEST_AUTH_MODE");
+        }
+
+        let settings = crate::theme::Settings::default();
+        let mode = resolve_auth_mode(&settings);
+
+        unsafe {
+            std::env::remove_var("PACSEA_TEST_PRIVILEGE_AVAILABLE");
+            std::env::remove_var("PACSEA_INTEGRATION_TEST");
+        }
+
+        assert_eq!(mode, AuthMode::Interactive);
     }
 
     #[test]

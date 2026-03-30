@@ -330,47 +330,44 @@ pub(super) fn handle_proceed_install(
     }
 
     let settings = crate::theme::settings();
-    match crate::logic::password::resolve_auth_mode(&settings) {
-        crate::logic::privilege::AuthMode::Interactive => {
-            match crate::events::try_interactive_auth_handoff() {
-                Ok(true) => super::start_execution(
-                    app,
-                    &packages,
-                    crate::state::PreflightAction::Install,
-                    header_chips,
-                    None,
-                ),
-                Ok(false) => {
-                    app.modal = crate::state::Modal::Alert {
-                        message: crate::i18n::t(app, "app.errors.authentication_failed"),
-                    };
-                }
-                Err(e) => {
-                    app.modal = crate::state::Modal::Alert { message: e };
-                }
-            }
-        }
-        crate::logic::privilege::AuthMode::PasswordlessOnly
-            if crate::logic::password::should_use_passwordless_sudo(&settings) =>
-        {
-            super::start_execution(
+    if crate::logic::password::should_use_interactive_auth_handoff(&settings) {
+        match crate::events::try_interactive_auth_handoff() {
+            Ok(true) => super::start_execution(
                 app,
                 &packages,
                 crate::state::PreflightAction::Install,
                 header_chips,
                 None,
-            );
+            ),
+            Ok(false) => {
+                app.modal = crate::state::Modal::Alert {
+                    message: crate::i18n::t(app, "app.errors.authentication_failed"),
+                };
+            }
+            Err(e) => {
+                app.modal = crate::state::Modal::Alert { message: e };
+            }
         }
-        _ => {
-            app.modal = crate::state::Modal::PasswordPrompt {
-                purpose: crate::state::modal::PasswordPurpose::Install,
-                items: packages,
-                input: String::new(),
-                cursor: 0,
-                error: None,
-            };
-            app.pending_exec_header_chips = Some(header_chips);
-        }
+    } else if crate::logic::password::resolve_auth_mode(&settings)
+        == crate::logic::privilege::AuthMode::PasswordlessOnly
+        && crate::logic::password::should_use_passwordless_sudo(&settings)
+    {
+        super::start_execution(
+            app,
+            &packages,
+            crate::state::PreflightAction::Install,
+            header_chips,
+            None,
+        );
+    } else {
+        app.modal = crate::state::Modal::PasswordPrompt {
+            purpose: crate::state::modal::PasswordPurpose::Install,
+            items: packages,
+            input: String::new(),
+            cursor: 0,
+            error: None,
+        };
+        app.pending_exec_header_chips = Some(header_chips);
     }
     false
 }
@@ -407,9 +404,7 @@ pub(super) fn handle_proceed_remove(
         return false;
     }
     let settings = crate::theme::settings();
-    if crate::logic::password::resolve_auth_mode(&settings)
-        == crate::logic::privilege::AuthMode::Interactive
-    {
+    if crate::logic::password::should_use_interactive_auth_handoff(&settings) {
         match crate::events::try_interactive_auth_handoff() {
             Ok(true) => super::start_execution(
                 app,
@@ -628,9 +623,7 @@ pub(super) fn handle_p_key(app: &mut AppState) -> bool {
             return false;
         }
         let settings = crate::theme::settings();
-        if crate::logic::password::resolve_auth_mode(&settings)
-            == crate::logic::privilege::AuthMode::Interactive
-        {
+        if crate::logic::password::should_use_interactive_auth_handoff(&settings) {
             crate::events::spawn_downgrade_in_terminal(app, &items);
         } else {
             app.modal = crate::state::Modal::PasswordPrompt {

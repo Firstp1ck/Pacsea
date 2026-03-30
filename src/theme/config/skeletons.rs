@@ -244,7 +244,8 @@ privilege_tool = auto\n\
 # Authentication mode\n\
 # How Pacsea handles authentication before privileged operations (works with both sudo and doas).\n\
 # Allowed values: prompt | passwordless_only | interactive\n\
-# - prompt (default): Pacsea captures your password and pipes it to the privilege tool\n\
+# - prompt (default): Pacsea captures your password for stdin-capable tools (sudo)\n\
+#   and is automatically coerced to interactive when doas is active\n\
 # - passwordless_only: skip password prompt only when the tool allows passwordless execution\n\
 # - interactive: let the privilege tool handle auth directly (supports fingerprint via PAM)\n\
 # Note: if you have fingerprint auth configured in PAM, use 'interactive' to enable it.\n\

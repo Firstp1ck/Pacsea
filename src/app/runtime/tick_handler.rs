@@ -773,44 +773,38 @@ pub fn handle_tick(
                 };
                 if let Some(command) = command {
                     let settings = crate::theme::settings();
-                    match crate::logic::password::resolve_auth_mode(&settings) {
-                        crate::logic::privilege::AuthMode::Interactive => {
-                            match crate::events::try_interactive_auth_handoff() {
-                                Ok(true) => {
-                                    queue_file_sync_command_without_password(app, command);
-                                }
-                                Ok(false) => {
-                                    app.modal = crate::state::Modal::Alert {
-                                        message: crate::i18n::t(
-                                            app,
-                                            "app.errors.authentication_failed",
-                                        ),
-                                    };
-                                }
-                                Err(err) => {
-                                    app.modal = crate::state::Modal::Alert { message: err };
-                                }
+                    if crate::logic::password::should_use_interactive_auth_handoff(&settings) {
+                        match crate::events::try_interactive_auth_handoff() {
+                            Ok(true) => {
+                                queue_file_sync_command_without_password(app, command);
+                            }
+                            Ok(false) => {
+                                app.modal = crate::state::Modal::Alert {
+                                    message: crate::i18n::t(
+                                        app,
+                                        "app.errors.authentication_failed",
+                                    ),
+                                };
+                            }
+                            Err(err) => {
+                                app.modal = crate::state::Modal::Alert { message: err };
                             }
                         }
-                        crate::logic::privilege::AuthMode::PasswordlessOnly
-                            if crate::logic::password::should_skip_password_modal(&settings) =>
-                        {
-                            queue_file_sync_command_without_password(app, command);
-                        }
-                        _ => {
-                            // Sync failed, show password prompt
-                            app.modal = crate::state::Modal::PasswordPrompt {
-                                purpose: crate::state::modal::PasswordPurpose::FileSync,
-                                items: Vec::new(), // No packages involved in file sync
-                                input: String::new(),
-                                cursor: 0,
-                                error: None,
-                            };
-                            // Store the command to execute after password is provided
-                            app.pending_custom_command = Some(command);
-                            app.pending_exec_header_chips =
-                                Some(crate::state::modal::PreflightHeaderChips::default());
-                        }
+                    } else if crate::logic::password::should_use_passwordless_sudo(&settings) {
+                        queue_file_sync_command_without_password(app, command);
+                    } else {
+                        // Sync failed, show password prompt
+                        app.modal = crate::state::Modal::PasswordPrompt {
+                            purpose: crate::state::modal::PasswordPurpose::FileSync,
+                            items: Vec::new(), // No packages involved in file sync
+                            input: String::new(),
+                            cursor: 0,
+                            error: None,
+                        };
+                        // Store the command to execute after password is provided
+                        app.pending_custom_command = Some(command);
+                        app.pending_exec_header_chips =
+                            Some(crate::state::modal::PreflightHeaderChips::default());
                     }
                 }
             }
@@ -1340,6 +1334,91 @@ mod tests {
                 assert!(
                     password.is_none(),
                     "Interactive file sync command must not carry a password"
+                );
+            }
+            other => {
+                panic!("Expected CustomCommand executor request, got {other:?}");
+            }
+        }
+
+        unsafe {
+            std::env::remove_var("PACSEA_TEST_HEADLESS");
+            std::env::remove_var("PACSEA_TEST_PRIVILEGE_AVAILABLE");
+            std::env::remove_var("PACSEA_TEST_AUTH_MODE");
+            std::env::remove_var("PACSEA_INTEGRATION_TEST");
+        }
+    }
+
+    #[test]
+    /// What: Verify file-sync auth failure bypasses in-app prompt for doas in prompt mode.
+    ///
+    /// Inputs:
+    /// - `AppState` containing a failed `pending_file_sync_result`.
+    /// - Integration test env with `PACSEA_TEST_AUTH_MODE=prompt`,
+    ///   `PACSEA_TEST_PRIVILEGE_AVAILABLE=doas`, and `PACSEA_TEST_HEADLESS=1`.
+    ///
+    /// Output:
+    /// - Sets `PreflightExec` modal.
+    /// - Queues `ExecutorRequest::CustomCommand` with `password: None`.
+    ///
+    /// Details:
+    /// - Regression test: doas cannot validate stdin passwords, so prompt mode must not
+    ///   route through `PasswordPrompt`.
+    fn handle_tick_file_sync_failure_prompt_doas_queues_tool_managed_auth_command() {
+        unsafe {
+            std::env::set_var("PACSEA_INTEGRATION_TEST", "1");
+            std::env::set_var("PACSEA_TEST_AUTH_MODE", "prompt");
+            std::env::set_var("PACSEA_TEST_PRIVILEGE_AVAILABLE", "doas");
+            std::env::set_var("PACSEA_TEST_HEADLESS", "1");
+        }
+
+        let mut app = new_app();
+        app.dry_run = true;
+        app.pending_file_sync_result = Some(std::sync::Arc::new(std::sync::Mutex::new(Some(Err(
+            "permission denied".to_string(),
+        )))));
+
+        let (query_tx, _query_rx) = mpsc::unbounded_channel();
+        let (details_tx, _details_rx) = mpsc::unbounded_channel();
+        let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel();
+        let (deps_tx, _deps_rx) = mpsc::unbounded_channel();
+        let (files_tx, _files_rx) = mpsc::unbounded_channel();
+        let (services_tx, _services_rx) = mpsc::unbounded_channel();
+        let (sandbox_tx, _sandbox_rx) = mpsc::unbounded_channel();
+        let (summary_tx, _summary_rx) = mpsc::unbounded_channel();
+        let (updates_tx, _updates_rx) = mpsc::unbounded_channel();
+        let (executor_req_tx, _executor_req_rx) = mpsc::unbounded_channel();
+        let (post_summary_req_tx, _post_summary_req_rx) = mpsc::unbounded_channel();
+        let (news_content_req_tx, _news_content_req_rx) = mpsc::unbounded_channel();
+
+        handle_tick(
+            &mut app,
+            &query_tx,
+            &details_tx,
+            &pkgb_tx,
+            &deps_tx,
+            &files_tx,
+            &services_tx,
+            &sandbox_tx,
+            &summary_tx,
+            &updates_tx,
+            &executor_req_tx,
+            &post_summary_req_tx,
+            &news_content_req_tx,
+        );
+
+        assert!(
+            matches!(app.modal, Modal::PreflightExec { .. }),
+            "Prompt mode with doas should not open PasswordPrompt"
+        );
+        match &app.pending_executor_request {
+            Some(ExecutorRequest::CustomCommand {
+                command, password, ..
+            }) => {
+                assert!(command.contains("doas pacman -Fy"));
+                assert!(
+                    password.is_none(),
+                    "doas file sync command must not carry a password"
                 );
             }
             other => {

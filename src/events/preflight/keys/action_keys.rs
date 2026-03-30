@@ -141,9 +141,7 @@ pub(super) fn handle_enter_key(app: &mut AppState) -> bool {
                     return false;
                 }
                 let settings = crate::theme::settings();
-                if crate::logic::password::resolve_auth_mode(&settings)
-                    == crate::logic::privilege::AuthMode::Interactive
-                {
+                if crate::logic::password::should_use_interactive_auth_handoff(&settings) {
                     crate::events::spawn_downgrade_in_terminal(app, &items_clone);
                 } else {
                     app.modal = crate::state::Modal::PasswordPrompt {

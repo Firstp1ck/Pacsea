@@ -260,36 +260,33 @@ fn handle_optional_deps_enter(
                         });
                 };
 
-            match crate::logic::password::resolve_auth_mode(&settings) {
-                crate::logic::privilege::AuthMode::Interactive => {
-                    match crate::events::try_interactive_auth_handoff() {
-                        Ok(true) => proceed_no_password(app, item, cmd, header_chips),
-                        Ok(false) => {
-                            app.modal = crate::state::Modal::Alert {
-                                message: crate::i18n::t(app, "app.errors.authentication_failed"),
-                            };
-                        }
-                        Err(e) => {
-                            app.modal = crate::state::Modal::Alert { message: e };
-                        }
+            if crate::logic::password::should_use_interactive_auth_handoff(&settings) {
+                match crate::events::try_interactive_auth_handoff() {
+                    Ok(true) => proceed_no_password(app, item, cmd, header_chips),
+                    Ok(false) => {
+                        app.modal = crate::state::Modal::Alert {
+                            message: crate::i18n::t(app, "app.errors.authentication_failed"),
+                        };
+                    }
+                    Err(e) => {
+                        app.modal = crate::state::Modal::Alert { message: e };
                     }
                 }
-                crate::logic::privilege::AuthMode::PasswordlessOnly
-                    if crate::logic::password::should_use_passwordless_sudo(&settings) =>
-                {
-                    proceed_no_password(app, item, cmd, header_chips);
-                }
-                _ => {
-                    app.modal = crate::state::Modal::PasswordPrompt {
-                        purpose: crate::state::modal::PasswordPurpose::Install,
-                        items: vec![item],
-                        input: String::new(),
-                        cursor: 0,
-                        error: None,
-                    };
-                    app.pending_custom_command = Some(cmd);
-                    app.pending_exec_header_chips = Some(header_chips);
-                }
+            } else if crate::logic::password::resolve_auth_mode(&settings)
+                == crate::logic::privilege::AuthMode::PasswordlessOnly
+                && crate::logic::password::should_use_passwordless_sudo(&settings)
+            {
+                proceed_no_password(app, item, cmd, header_chips);
+            } else {
+                app.modal = crate::state::Modal::PasswordPrompt {
+                    purpose: crate::state::modal::PasswordPurpose::Install,
+                    items: vec![item],
+                    input: String::new(),
+                    cursor: 0,
+                    error: None,
+                };
+                app.pending_custom_command = Some(cmd);
+                app.pending_exec_header_chips = Some(header_chips);
             }
 
             return (app.modal.clone(), false);
