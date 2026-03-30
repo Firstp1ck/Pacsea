@@ -110,11 +110,11 @@ pub fn should_use_passwordless_sudo(settings: &crate::theme::Settings) -> bool {
 /// # Errors
 ///
 /// - Returns `Err` if the validation command cannot be executed (e.g., tool not available).
-/// - Returns `Err` if the active tool does not support stdin password validation.
+/// - Returns `Err` if the active tool does not support programmatic password validation.
 ///
 /// Details:
 /// - Delegates to [`crate::logic::privilege::validate_password`].
-/// - Works for active tools that support stdin password piping (sudo/doas).
+/// - Works for sudo (via `-S` stdin pipe) and doas (via `script` PTY wrapper).
 pub fn validate_sudo_password(password: &str) -> Result<bool, String> {
     let tool = crate::logic::privilege::active_tool()?;
     crate::logic::privilege::validate_password(tool, password)
