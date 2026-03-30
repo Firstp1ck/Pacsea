@@ -46,11 +46,20 @@ pub fn render_password_prompt(
         u16::try_from(items.len().min(4) + 2).unwrap_or(6)
     };
     let error_lines = if error.is_some() { 2u16 } else { 0u16 };
-    let required_height = base_height + package_lines + error_lines;
+    let fingerprint_hint_lines = if matches!(
+        crate::logic::password::resolve_auth_mode(&crate::theme::settings()),
+        crate::logic::privilege::AuthMode::Prompt
+    ) && crate::logic::privilege::is_fingerprint_available()
+    {
+        2u16 // hint text + empty line
+    } else {
+        0u16
+    };
+    let required_height = base_height + package_lines + error_lines + fingerprint_hint_lines;
     let h = area
         .height
         .saturating_sub(6)
-        .min(required_height.clamp(8, 14));
+        .min(required_height.clamp(8, 16));
     let w = area.width.saturating_sub(6).min(65);
     let x = area.x + (area.width.saturating_sub(w)) / 2;
     let y = area.y + (area.height.saturating_sub(h)) / 2;
@@ -130,6 +139,19 @@ pub fn render_password_prompt(
         lines.push(Line::from(Span::styled(
             format!("⚠ {err}"),
             Style::default().fg(th.red).add_modifier(Modifier::BOLD),
+        )));
+        lines.push(Line::from(""));
+    }
+
+    // Fingerprint hint (only in Prompt mode when fingerprint is detected)
+    if matches!(
+        crate::logic::password::resolve_auth_mode(&crate::theme::settings()),
+        crate::logic::privilege::AuthMode::Prompt
+    ) && crate::logic::privilege::is_fingerprint_available()
+    {
+        lines.push(Line::from(Span::styled(
+            crate::i18n::t(app, "app.modals.password_prompt.fingerprint_hint"),
+            Style::default().fg(th.yellow),
         )));
         lines.push(Line::from(""));
     }

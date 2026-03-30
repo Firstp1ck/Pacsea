@@ -4,4 +4,5 @@
 //! works correctly across all workflows (install, update, remove, downgrade, filesync).
 
 mod helpers;
+mod interactive_auth_integration;
 mod passwordless_sudo_integration;

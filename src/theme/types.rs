@@ -174,6 +174,12 @@ pub struct Settings {
     /// `Auto` (default): prefer doas if available, fall back to sudo.
     /// `Sudo`: always use sudo. `Doas`: always use doas.
     pub privilege_mode: crate::logic::privilege::PrivilegeMode,
+    /// Authentication mode for privilege escalation.
+    /// Controls how Pacsea handles password/authentication before privileged operations.
+    /// `Prompt` (default): Pacsea captures the password and pipes it to sudo/doas.
+    /// `PasswordlessOnly`: Skip prompt only when `{tool} -n true` succeeds.
+    /// `Interactive`: Let the privilege tool handle auth directly (fingerprint via PAM, etc.).
+    pub auth_mode: crate::logic::privilege::AuthMode,
     /// Whether to use the terminal's theme colors instead of theme.conf.
     /// If `true`, Pacsea queries the terminal for foreground/background colors via OSC 10/11.
     /// If `false` (default), uses theme.conf colors.
@@ -247,6 +253,7 @@ impl Default for Settings {
             get_announcement: true, // Default to fetching remote announcements
             use_passwordless_sudo: false, // Default to always showing password prompt (safety barrier)
             privilege_mode: crate::logic::privilege::PrivilegeMode::Auto, // Default to auto-detect (prefer doas, fallback sudo)
+            auth_mode: crate::logic::privilege::AuthMode::Prompt, // Default to Pacsea password modal
             use_terminal_theme: false, // Default to using theme.conf colors
         }
     }

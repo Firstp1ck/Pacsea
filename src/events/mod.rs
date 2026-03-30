@@ -27,6 +27,90 @@ pub use search::open_preflight_modal;
 // Re-export start_execution for use in install/direct.rs and other modules
 pub use preflight::start_execution;
 
+/// What: Perform interactive privilege-tool authentication with a TUI terminal handoff.
+///
+/// Inputs:
+/// - None (resolves the active privilege tool from settings).
+///
+/// Output:
+/// - `Ok(true)` if the user authenticated successfully.
+/// - `Ok(false)` if authentication was denied or cancelled.
+///
+/// # Errors
+///
+/// Returns `Err` if the terminal cannot be restored/setup or the tool cannot be resolved.
+///
+/// Details:
+/// - Temporarily restores the terminal (leave alternate screen, disable raw mode)
+///   so the user can interact with the privilege tool's native prompt (password, fingerprint).
+/// - For sudo: runs `sudo -v` which refreshes the credential cache.
+/// - For doas: runs `doas true`; works seamlessly with `persist` in `doas.conf`.
+///   Without `persist`, the initial auth succeeds but subsequent PTY commands may re-prompt.
+/// - Re-enters TUI (alternate screen, raw mode) regardless of auth outcome.
+pub fn try_interactive_auth_handoff() -> Result<bool, String> {
+    let tool = crate::logic::privilege::active_tool()?;
+
+    crate::app::terminal::restore_terminal()
+        .map_err(|e| format!("Failed to restore terminal for interactive auth: {e}"))?;
+
+    let auth_result = crate::logic::privilege::run_interactive_auth(tool);
+
+    if let Err(e) = crate::app::terminal::setup_terminal() {
+        tracing::error!(error = %e, "Failed to re-setup terminal after interactive auth");
+        return Err(format!("Failed to re-setup terminal: {e}"));
+    }
+
+    auth_result
+}
+
+/// What: Spawn the `downgrade` tool in an external terminal without Pacsea-managed password piping.
+///
+/// Inputs:
+/// - `app`: Mutable application state.
+/// - `items`: Packages to downgrade.
+///
+/// Output:
+/// - `true` if the downgrade was spawned (or an error modal shown); `false` otherwise.
+///
+/// Details:
+/// - Used in interactive auth mode where the external terminal handles privilege authentication.
+/// - Builds a `{tool} downgrade <packages>` command (no password piping).
+/// - Clears downgrade state and shows a toast message.
+pub fn spawn_downgrade_in_terminal(app: &mut AppState, items: &[PackageItem]) -> bool {
+    let names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
+    let joined = names.join(" ");
+
+    let tool = match crate::logic::privilege::active_tool() {
+        Ok(t) => t,
+        Err(msg) => {
+            app.modal = crate::state::Modal::Alert { message: msg };
+            return true;
+        }
+    };
+
+    let downgrade_cmd =
+        crate::logic::privilege::build_privilege_command(tool, &format!("downgrade {joined}"));
+    let cmd = if app.dry_run {
+        let quoted = crate::install::shell_single_quote(&downgrade_cmd);
+        format!("echo DRY RUN: {quoted}")
+    } else {
+        format!(
+            "if (command -v downgrade >/dev/null 2>&1) || pacman -Qi downgrade >/dev/null 2>&1; then {downgrade_cmd}; else echo 'downgrade tool not found. Install \"downgrade\" package.'; fi"
+        )
+    };
+
+    app.downgrade_list.clear();
+    app.downgrade_list_names.clear();
+    app.downgrade_state.select(None);
+
+    crate::install::spawn_shell_commands_in_terminal(&[cmd]);
+
+    app.toast_message = Some(crate::i18n::t(app, "app.toasts.downgrade_started"));
+    app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
+
+    true
+}
+
 /// What: Dispatch a single terminal event (keyboard/mouse) and mutate the [`AppState`].
 ///
 /// Inputs:

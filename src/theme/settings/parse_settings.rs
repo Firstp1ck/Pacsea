@@ -356,6 +356,12 @@ fn parse_misc_settings(key: &str, val: &str, settings: &mut Settings) -> bool {
             }
             true
         }
+        "auth_mode" | "sudo_auth_mode" | "authentication_mode" => {
+            if let Some(mode) = crate::logic::privilege::AuthMode::from_config_key(val) {
+                settings.auth_mode = mode;
+            }
+            true
+        }
         "use_terminal_theme" | "terminal_theme" => {
             settings.use_terminal_theme = parse_bool(val);
             true

@@ -252,6 +252,92 @@ impl fmt::Display for PrivilegeMode {
 }
 
 // ---------------------------------------------------------------------------
+// AuthMode
+// ---------------------------------------------------------------------------
+
+/// What: Authentication strategy for privilege escalation.
+///
+/// Inputs: None (enum variant selection).
+///
+/// Output: Controls how Pacsea handles authentication before privileged operations.
+///
+/// Details:
+/// - `Prompt` (default): Pacsea shows its own password modal/prompt, then pipes the
+///   password to the privilege tool (`sudo -S` or doas PTY injection).
+/// - `PasswordlessOnly`: Skip password prompt only when `{tool} -n true` succeeds;
+///   fall back to `Prompt` otherwise.
+/// - `Interactive`: Skip Pacsea's password capture entirely and let the privilege
+///   tool handle authentication directly (fingerprint via PAM, terminal password, etc.).
+///   Works with both sudo and doas when PAM is configured.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum AuthMode {
+    /// Pacsea captures the password and pipes it to the privilege tool.
+    #[default]
+    Prompt,
+    /// Skip password prompt only when passwordless escalation is available.
+    PasswordlessOnly,
+    /// Let the privilege tool handle authentication interactively (PAM fingerprint, etc.).
+    Interactive,
+}
+
+impl AuthMode {
+    /// What: Parse a config file value into an `AuthMode`.
+    ///
+    /// Inputs:
+    /// - `val`: Raw config string (e.g. `"prompt"`, `"passwordless_only"`, `"interactive"`).
+    ///
+    /// Output: `Some(mode)` on recognized value, `None` otherwise.
+    ///
+    /// Details: Case-insensitive matching after trim; accepts underscores and hyphens.
+    #[must_use]
+    pub fn from_config_key(val: &str) -> Option<Self> {
+        match val.trim().to_ascii_lowercase().replace('-', "_").as_str() {
+            "prompt" => Some(Self::Prompt),
+            "passwordless_only" | "passwordless" => Some(Self::PasswordlessOnly),
+            "interactive" => Some(Self::Interactive),
+            _ => None,
+        }
+    }
+
+    /// What: Return the canonical config key string for this mode.
+    ///
+    /// Inputs: None.
+    ///
+    /// Output: `"prompt"`, `"passwordless_only"`, or `"interactive"`.
+    ///
+    /// Details: Inverse of [`from_config_key`](Self::from_config_key).
+    #[must_use]
+    pub const fn as_config_key(self) -> &'static str {
+        match self {
+            Self::Prompt => "prompt",
+            Self::PasswordlessOnly => "passwordless_only",
+            Self::Interactive => "interactive",
+        }
+    }
+
+    /// What: Whether this mode skips Pacsea's password modal entirely.
+    ///
+    /// Inputs: None.
+    ///
+    /// Output: `true` for `Interactive`, `false` for `Prompt` and `PasswordlessOnly`.
+    ///
+    /// Details:
+    /// - `PasswordlessOnly` does not unconditionally skip — it still needs a runtime
+    ///   `{tool} -n true` check before skipping.
+    /// - `Interactive` always skips the modal because the tool handles auth directly.
+    #[must_use]
+    pub const fn always_skips_password_modal(self) -> bool {
+        matches!(self, Self::Interactive)
+    }
+}
+
+impl fmt::Display for AuthMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_config_key())
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Resolver
 // ---------------------------------------------------------------------------
 
@@ -393,6 +479,171 @@ fn active_tool_for_mode(mode: PrivilegeMode) -> Result<PrivilegeTool, String> {
 pub fn active_tool() -> Result<PrivilegeTool, String> {
     let settings = crate::theme::settings();
     active_tool_for_mode(settings.privilege_mode)
+}
+
+// ---------------------------------------------------------------------------
+// Interactive authentication
+// ---------------------------------------------------------------------------
+
+/// What: Run the privilege tool interactively to let the user authenticate.
+///
+/// Inputs:
+/// - `tool`: Resolved privilege tool (sudo or doas).
+///
+/// Output:
+/// - `Ok(true)` if authentication succeeded, `Ok(false)` if it failed.
+///
+/// # Errors
+///
+/// Returns `Err` if the tool binary cannot be executed.
+///
+/// Details:
+/// - For sudo: runs `sudo -v` which validates credentials without executing a command.
+///   On success, the credential cache is refreshed so subsequent `sudo` calls don't re-prompt.
+/// - For doas: runs `doas true` (a no-op command) to trigger authentication.
+///   If `persist` is configured in `doas.conf`, subsequent `doas` calls won't re-prompt.
+///   Without `persist`, each `doas` invocation will re-prompt (known limitation).
+/// - The caller is responsible for ensuring the terminal is in a state where the user
+///   can interact with the prompt (e.g. not in TUI raw mode).
+pub fn run_interactive_auth(tool: PrivilegeTool) -> Result<bool, String> {
+    if is_integration_test_context() {
+        tracing::debug!(tool = %tool, "Skipping interactive auth in integration test context");
+        return Ok(true);
+    }
+
+    let mut cmd = Command::new(tool.binary_name());
+    if tool.capabilities().supports_credential_refresh {
+        cmd.arg("-v");
+    } else {
+        cmd.arg("true");
+    }
+
+    let status = cmd.status().map_err(|e| {
+        format!(
+            "Failed to run {} for interactive authentication: {e}",
+            tool.binary_name()
+        )
+    })?;
+
+    Ok(status.success())
+}
+
+// ---------------------------------------------------------------------------
+// Fingerprint / PAM detection
+// ---------------------------------------------------------------------------
+
+/// What: Detect whether the active privilege tool's PAM configuration includes `pam_fprintd`.
+///
+/// Inputs:
+/// - `tool`: Resolved privilege tool (sudo or doas).
+///
+/// Output:
+/// - `true` if `/etc/pam.d/{tool}` exists and contains a reference to `pam_fprintd`.
+///
+/// Details:
+/// - Reads `/etc/pam.d/sudo` or `/etc/pam.d/doas` and checks for `pam_fprintd.so`.
+/// - Also checks `/etc/pam.d/system-auth` and `/etc/pam.d/system-local-login` as common
+///   include targets where `pam_fprintd` may be configured instead of the tool-specific file.
+/// - Informational only — never blocks execution.
+/// - Returns `false` on any I/O error (missing file, permission denied).
+pub fn detect_pam_fingerprint(tool: PrivilegeTool) -> bool {
+    use std::fs;
+
+    let tool_pam_path = format!("/etc/pam.d/{}", tool.binary_name());
+    let pam_files = [
+        tool_pam_path.as_str(),
+        "/etc/pam.d/system-auth",
+        "/etc/pam.d/system-local-login",
+    ];
+
+    for path in &pam_files {
+        if let Ok(contents) = fs::read_to_string(path)
+            && contents.contains("pam_fprintd")
+        {
+            tracing::debug!(path = %path, "Detected pam_fprintd in PAM configuration");
+            return true;
+        }
+    }
+
+    false
+}
+
+/// What: Check whether a fingerprint reader is enrolled via `fprintd-list`.
+///
+/// Inputs:
+/// - None.
+///
+/// Output:
+/// - `true` if `fprintd-list` reports at least one enrolled finger.
+///
+/// Details:
+/// - Runs `fprintd-list $USER` and checks the output for enrolled fingerprint entries.
+/// - Returns `false` if `fprintd-list` is not installed, the command fails, or no fingers
+///   are enrolled.
+/// - Does not require root; `fprintd-list` reads enrollment data via D-Bus.
+/// - Informational only — never blocks execution.
+pub fn detect_fprintd_enrolled() -> bool {
+    let username = std::env::var("USER").unwrap_or_default();
+    if username.is_empty() {
+        return false;
+    }
+
+    let output = Command::new("fprintd-list").arg(&username).output();
+
+    match output {
+        Ok(out) if out.status.success() => {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            let has_finger = stdout.lines().any(|line| {
+                let trimmed = line.trim().to_lowercase();
+                trimmed.contains("left-") || trimmed.contains("right-")
+            });
+            if has_finger {
+                tracing::debug!("fprintd-list reports enrolled fingerprint(s)");
+            }
+            has_finger
+        }
+        _ => false,
+    }
+}
+
+/// What: Cached result of fingerprint availability detection.
+///
+/// Details:
+/// - Combines PAM configuration check and `fprintd-list` enrollment check.
+/// - Cached via `OnceLock` since fingerprint availability doesn't change during a session.
+static FINGERPRINT_AVAILABLE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+
+/// What: Check whether fingerprint authentication appears to be available.
+///
+/// Inputs:
+/// - None (uses the active privilege tool from settings).
+///
+/// Output:
+/// - `true` if both PAM fingerprint integration and an enrolled finger are detected.
+///
+/// Details:
+/// - Result is cached for the lifetime of the process (checked once, never re-checked).
+/// - Requires both `pam_fprintd` in the tool's PAM stack AND at least one enrolled finger.
+/// - Informational only — used to show a hint in the password modal, never gates execution.
+#[must_use]
+pub fn is_fingerprint_available() -> bool {
+    *FINGERPRINT_AVAILABLE.get_or_init(|| {
+        let Ok(tool) = active_tool() else {
+            return false;
+        };
+
+        let pam_configured = detect_pam_fingerprint(tool);
+        if !pam_configured {
+            tracing::debug!(tool = %tool, "No pam_fprintd in PAM config for tool");
+            return false;
+        }
+
+        let enrolled = detect_fprintd_enrolled();
+        if !enrolled {
+            tracing::debug!("pam_fprintd configured but no enrolled fingerprints found");
+        }
+        enrolled
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -862,6 +1113,99 @@ mod tests {
         assert_eq!(format!("{}", PrivilegeMode::Doas), "doas");
     }
 
+    // -- AuthMode -------------------------------------------------------
+
+    #[test]
+    fn auth_mode_from_config_key_valid() {
+        assert_eq!(AuthMode::from_config_key("prompt"), Some(AuthMode::Prompt));
+        assert_eq!(
+            AuthMode::from_config_key("passwordless_only"),
+            Some(AuthMode::PasswordlessOnly)
+        );
+        assert_eq!(
+            AuthMode::from_config_key("interactive"),
+            Some(AuthMode::Interactive)
+        );
+    }
+
+    #[test]
+    fn auth_mode_from_config_key_case_insensitive() {
+        assert_eq!(AuthMode::from_config_key("PROMPT"), Some(AuthMode::Prompt));
+        assert_eq!(
+            AuthMode::from_config_key("Interactive"),
+            Some(AuthMode::Interactive)
+        );
+        assert_eq!(
+            AuthMode::from_config_key("PASSWORDLESS_ONLY"),
+            Some(AuthMode::PasswordlessOnly)
+        );
+    }
+
+    #[test]
+    fn auth_mode_from_config_key_hyphen_alias() {
+        assert_eq!(
+            AuthMode::from_config_key("passwordless-only"),
+            Some(AuthMode::PasswordlessOnly)
+        );
+    }
+
+    #[test]
+    fn auth_mode_from_config_key_short_alias() {
+        assert_eq!(
+            AuthMode::from_config_key("passwordless"),
+            Some(AuthMode::PasswordlessOnly)
+        );
+    }
+
+    #[test]
+    fn auth_mode_from_config_key_with_whitespace() {
+        assert_eq!(
+            AuthMode::from_config_key("  interactive  "),
+            Some(AuthMode::Interactive)
+        );
+    }
+
+    #[test]
+    fn auth_mode_from_config_key_invalid() {
+        assert_eq!(AuthMode::from_config_key(""), None);
+        assert_eq!(AuthMode::from_config_key("fingerprint"), None);
+        assert_eq!(AuthMode::from_config_key("password"), None);
+    }
+
+    #[test]
+    fn auth_mode_as_config_key_roundtrip() {
+        for mode in [
+            AuthMode::Prompt,
+            AuthMode::PasswordlessOnly,
+            AuthMode::Interactive,
+        ] {
+            let key = mode.as_config_key();
+            assert_eq!(AuthMode::from_config_key(key), Some(mode));
+        }
+    }
+
+    #[test]
+    fn auth_mode_default_is_prompt() {
+        assert_eq!(AuthMode::default(), AuthMode::Prompt);
+    }
+
+    #[test]
+    fn auth_mode_display() {
+        assert_eq!(format!("{}", AuthMode::Prompt), "prompt");
+        assert_eq!(
+            format!("{}", AuthMode::PasswordlessOnly),
+            "passwordless_only"
+        );
+        assert_eq!(format!("{}", AuthMode::Interactive), "interactive");
+    }
+
+    #[test]
+    fn auth_mode_always_skips_password_modal() {
+        assert!(!AuthMode::Prompt.always_skips_password_modal());
+        assert!(!AuthMode::PasswordlessOnly.always_skips_password_modal());
+        assert!(AuthMode::Interactive.always_skips_password_modal());
+    }
+
     // -- Resolver (env-controlled) -------------------------------------------
 
     #[test]
@@ -1317,5 +1661,29 @@ mod tests {
             sudo_caps.supports_stdin_password, doas_caps.supports_stdin_password,
             "sudo and doas should differ on stdin password support"
         );
+    }
+
+    // -- Fingerprint detection ------------------------------------------------
+
+    #[test]
+    fn detect_pam_fingerprint_sudo_does_not_panic() {
+        // Returns true only if /etc/pam.d/sudo (or system-auth) has pam_fprintd.
+        // In CI or most test machines this is false; we verify no panic.
+        let _result = detect_pam_fingerprint(PrivilegeTool::Sudo);
+    }
+
+    #[test]
+    fn detect_pam_fingerprint_doas_does_not_panic() {
+        let _result = detect_pam_fingerprint(PrivilegeTool::Doas);
+    }
+
+    #[test]
+    fn detect_fprintd_enrolled_does_not_panic() {
+        let _result = detect_fprintd_enrolled();
+    }
+
+    #[test]
+    fn is_fingerprint_available_does_not_panic() {
+        let _result = is_fingerprint_available();
     }
 }

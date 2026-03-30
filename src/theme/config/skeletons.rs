@@ -241,6 +241,19 @@ use_passwordless_sudo = false\n\
 # Note: doas does not support in-app password prompts; the terminal handles password entry.\n\
 privilege_tool = auto\n\
 \n\
+# Authentication mode\n\
+# How Pacsea handles authentication before privileged operations (works with both sudo and doas).\n\
+# Allowed values: prompt | passwordless_only | interactive\n\
+# - prompt (default): Pacsea captures your password and pipes it to the privilege tool\n\
+# - passwordless_only: skip password prompt only when the tool allows passwordless execution\n\
+# - interactive: let the privilege tool handle auth directly (supports fingerprint via PAM)\n\
+# Note: if you have fingerprint auth configured in PAM, use 'interactive' to enable it.\n\
+# Known limitation: 'prompt' mode uses sudo -S which may stall if pam_fprintd runs before\n\
+#   pam_unix in /etc/pam.d/sudo. If you experience stalls, switch to auth_mode = interactive.\n\
+# doas + interactive: works best with 'persist' enabled in /etc/doas.conf. Without 'persist',\n\
+#   each doas invocation re-prompts (the initial auth succeeds but PTY commands may re-prompt).\n\
+auth_mode = prompt\n\
+\n\
 # Mirrors\n\
 # Select one or more countries (comma-separated). Example: \"Switzerland, Germany, Austria\"\n\
 selected_countries = Worldwide\n\

@@ -2,6 +2,95 @@
 //!
 //! Delegates to [`crate::logic::privilege`] for tool-aware checks.
 
+use crate::logic::privilege::AuthMode;
+
+/// What: Resolve the effective authentication mode from settings.
+///
+/// Inputs:
+/// - `settings`: Reference to the application settings.
+///
+/// Output:
+/// - The resolved [`AuthMode`] to use for privilege escalation.
+///
+/// Details:
+/// - If `auth_mode` is explicitly set to something other than the default (`Prompt`),
+///   it takes precedence.
+/// - If `auth_mode` is `Prompt` (the default) and the legacy `use_passwordless_sudo`
+///   is `true`, maps to `PasswordlessOnly` for backward compatibility and logs a
+///   deprecation warning.
+/// - When both `auth_mode != Prompt` and `use_passwordless_sudo = true` are set,
+///   `auth_mode` wins and a deprecation warning is logged.
+#[must_use]
+pub fn resolve_auth_mode(settings: &crate::theme::Settings) -> AuthMode {
+    if crate::logic::privilege::is_integration_test() {
+        if let Ok(val) = std::env::var("PACSEA_TEST_AUTH_MODE") {
+            tracing::debug!(val = %val, "Using test override for resolve_auth_mode");
+            if let Some(mode) = AuthMode::from_config_key(&val) {
+                return mode;
+            }
+        }
+        if std::env::var("PACSEA_TEST_SUDO_PASSWORDLESS")
+            .ok()
+            .as_deref()
+            == Some("1")
+        {
+            tracing::debug!("Legacy test env PACSEA_TEST_SUDO_PASSWORDLESS=1 → PasswordlessOnly");
+            return AuthMode::PasswordlessOnly;
+        }
+    }
+
+    let explicit_auth_mode = settings.auth_mode;
+    let legacy_passwordless = settings.use_passwordless_sudo;
+
+    match (explicit_auth_mode, legacy_passwordless) {
+        (AuthMode::Prompt, true) => {
+            tracing::warn!(
+                "Deprecated: 'use_passwordless_sudo = true' is active. \
+                 Mapping to auth_mode = passwordless_only. \
+                 Please migrate to 'auth_mode = passwordless_only' in settings.conf."
+            );
+            AuthMode::PasswordlessOnly
+        }
+        (mode, true) if mode != AuthMode::Prompt => {
+            tracing::warn!(
+                auth_mode = %mode,
+                "Deprecated: 'use_passwordless_sudo' is set alongside 'auth_mode'. \
+                 'auth_mode = {mode}' takes precedence. \
+                 Please remove 'use_passwordless_sudo' from settings.conf."
+            );
+            mode
+        }
+        (mode, _) => mode,
+    }
+}
+
+/// What: Determine whether the Pacsea password modal should be skipped.
+///
+/// Inputs:
+/// - `settings`: Reference to the application settings.
+///
+/// Output:
+/// - `true` if the password modal should be skipped, `false` if it should be shown.
+///
+/// Details:
+/// - Resolves the effective [`AuthMode`] via [`resolve_auth_mode`].
+/// - `Interactive` always skips the modal.
+/// - `PasswordlessOnly` skips only when `{tool} -n true` succeeds on the system.
+/// - `Prompt` never skips the modal.
+/// - Tool-agnostic: works identically for sudo and doas.
+#[must_use]
+pub fn should_skip_password_modal(settings: &crate::theme::Settings) -> bool {
+    let mode = resolve_auth_mode(settings);
+    match mode {
+        AuthMode::Interactive => {
+            tracing::info!("Auth mode is 'interactive'; skipping Pacsea password modal");
+            true
+        }
+        AuthMode::PasswordlessOnly => should_use_passwordless_sudo(settings),
+        AuthMode::Prompt => false,
+    }
+}
+
 /// What: Check if passwordless privilege escalation is available for the current user.
 ///
 /// Inputs:
@@ -186,6 +275,246 @@ mod tests {
             !should_skip_prompt,
             "doas should not skip in-app password prompt when passwordless is disabled"
         );
+    }
+
+    // -- resolve_auth_mode ---------------------------------------------------
+
+    #[test]
+    /// What: Default settings resolve to `Prompt` auth mode.
+    ///
+    /// Inputs: Default settings (`auth_mode` = Prompt, `use_passwordless_sudo` = false).
+    ///
+    /// Output: `AuthMode::Prompt`.
+    ///
+    /// Details: Ensures no accidental legacy mapping fires for default config.
+    fn test_resolve_auth_mode_default_is_prompt() {
+        let _guard = crate::global_test_mutex_lock();
+        unsafe {
+            std::env::set_var("PACSEA_INTEGRATION_TEST", "1");
+            std::env::set_var("PACSEA_TEST_PRIVILEGE_AVAILABLE", "sudo");
+            std::env::remove_var("PACSEA_TEST_AUTH_MODE");
+        }
+
+        let settings = crate::theme::Settings::default();
+        let mode = resolve_auth_mode(&settings);
+
+        unsafe {
+            std::env::remove_var("PACSEA_TEST_PRIVILEGE_AVAILABLE");
+            std::env::remove_var("PACSEA_INTEGRATION_TEST");
+        }
+
+        assert_eq!(mode, AuthMode::Prompt);
+    }
+
+    #[test]
+    /// What: Explicit `auth_mode = interactive` takes effect.
+    ///
+    /// Inputs: Settings with `auth_mode = Interactive`.
+    ///
+    /// Output: `AuthMode::Interactive`.
+    ///
+    /// Details: Verifies direct setting without legacy fallback.
+    fn test_resolve_auth_mode_explicit_interactive() {
+        let _guard = crate::global_test_mutex_lock();
+        unsafe {
+            std::env::set_var("PACSEA_INTEGRATION_TEST", "1");
+            std::env::set_var("PACSEA_TEST_PRIVILEGE_AVAILABLE", "sudo");
+            std::env::remove_var("PACSEA_TEST_AUTH_MODE");
+        }
+
+        let settings = crate::theme::Settings {
+            auth_mode: AuthMode::Interactive,
+            ..crate::theme::Settings::default()
+        };
+        let mode = resolve_auth_mode(&settings);
+
+        unsafe {
+            std::env::remove_var("PACSEA_TEST_PRIVILEGE_AVAILABLE");
+            std::env::remove_var("PACSEA_INTEGRATION_TEST");
+        }
+
+        assert_eq!(mode, AuthMode::Interactive);
+    }
+
+    #[test]
+    /// What: Legacy `use_passwordless_sudo = true` maps to `PasswordlessOnly`.
+    ///
+    /// Inputs: Settings with `auth_mode = Prompt` (default) and `use_passwordless_sudo = true`.
+    ///
+    /// Output: `AuthMode::PasswordlessOnly`.
+    ///
+    /// Details: Backward compatibility mapping fires when `auth_mode` is still default.
+    fn test_resolve_auth_mode_legacy_passwordless_maps() {
+        let _guard = crate::global_test_mutex_lock();
+        unsafe {
+            std::env::set_var("PACSEA_INTEGRATION_TEST", "1");
+            std::env::set_var("PACSEA_TEST_PRIVILEGE_AVAILABLE", "sudo");
+            std::env::remove_var("PACSEA_TEST_AUTH_MODE");
+        }
+
+        let settings = crate::theme::Settings {
+            use_passwordless_sudo: true,
+            ..crate::theme::Settings::default()
+        };
+        let mode = resolve_auth_mode(&settings);
+
+        unsafe {
+            std::env::remove_var("PACSEA_TEST_PRIVILEGE_AVAILABLE");
+            std::env::remove_var("PACSEA_INTEGRATION_TEST");
+        }
+
+        assert_eq!(mode, AuthMode::PasswordlessOnly);
+    }
+
+    #[test]
+    /// What: Explicit `auth_mode = interactive` wins over legacy `use_passwordless_sudo`.
+    ///
+    /// Inputs: `auth_mode = Interactive` and `use_passwordless_sudo = true`.
+    ///
+    /// Output: `AuthMode::Interactive` (explicit `auth_mode` wins).
+    ///
+    /// Details: When both keys are set, `auth_mode` takes precedence over legacy.
+    fn test_resolve_auth_mode_explicit_wins_over_legacy() {
+        let _guard = crate::global_test_mutex_lock();
+        unsafe {
+            std::env::set_var("PACSEA_INTEGRATION_TEST", "1");
+            std::env::set_var("PACSEA_TEST_PRIVILEGE_AVAILABLE", "sudo");
+            std::env::remove_var("PACSEA_TEST_AUTH_MODE");
+        }
+
+        let settings = crate::theme::Settings {
+            auth_mode: AuthMode::Interactive,
+            use_passwordless_sudo: true,
+            ..crate::theme::Settings::default()
+        };
+        let mode = resolve_auth_mode(&settings);
+
+        unsafe {
+            std::env::remove_var("PACSEA_TEST_PRIVILEGE_AVAILABLE");
+            std::env::remove_var("PACSEA_INTEGRATION_TEST");
+        }
+
+        assert_eq!(mode, AuthMode::Interactive);
+    }
+
+    #[test]
+    /// What: Test override env var controls resolved auth mode.
+    ///
+    /// Inputs: `PACSEA_TEST_AUTH_MODE=interactive` with default settings.
+    ///
+    /// Output: `AuthMode::Interactive`.
+    ///
+    /// Details: Integration test override should bypass settings entirely.
+    fn test_resolve_auth_mode_env_override() {
+        let _guard = crate::global_test_mutex_lock();
+        unsafe {
+            std::env::set_var("PACSEA_INTEGRATION_TEST", "1");
+            std::env::set_var("PACSEA_TEST_PRIVILEGE_AVAILABLE", "sudo");
+            std::env::set_var("PACSEA_TEST_AUTH_MODE", "interactive");
+        }
+
+        let settings = crate::theme::Settings::default();
+        let mode = resolve_auth_mode(&settings);
+
+        unsafe {
+            std::env::remove_var("PACSEA_TEST_AUTH_MODE");
+            std::env::remove_var("PACSEA_TEST_PRIVILEGE_AVAILABLE");
+            std::env::remove_var("PACSEA_INTEGRATION_TEST");
+        }
+
+        assert_eq!(mode, AuthMode::Interactive);
+    }
+
+    // -- should_skip_password_modal ------------------------------------------
+
+    #[test]
+    /// What: `should_skip_password_modal` returns true for interactive mode.
+    ///
+    /// Inputs: Settings with `auth_mode = Interactive`.
+    ///
+    /// Output: `true`.
+    ///
+    /// Details: Interactive always skips the modal, regardless of tool availability.
+    fn test_should_skip_password_modal_interactive() {
+        let _guard = crate::global_test_mutex_lock();
+        unsafe {
+            std::env::set_var("PACSEA_INTEGRATION_TEST", "1");
+            std::env::set_var("PACSEA_TEST_PRIVILEGE_AVAILABLE", "sudo");
+            std::env::remove_var("PACSEA_TEST_AUTH_MODE");
+        }
+
+        let settings = crate::theme::Settings {
+            auth_mode: AuthMode::Interactive,
+            ..crate::theme::Settings::default()
+        };
+        let skip = should_skip_password_modal(&settings);
+
+        unsafe {
+            std::env::remove_var("PACSEA_TEST_PRIVILEGE_AVAILABLE");
+            std::env::remove_var("PACSEA_INTEGRATION_TEST");
+        }
+
+        assert!(skip, "Interactive mode should always skip password modal");
+    }
+
+    #[test]
+    /// What: `should_skip_password_modal` returns true for interactive mode with doas.
+    ///
+    /// Inputs: Settings with `auth_mode = Interactive` and only doas available.
+    ///
+    /// Output: `true`.
+    ///
+    /// Details: Interactive mode is tool-agnostic — must skip for doas too.
+    fn test_should_skip_password_modal_interactive_doas() {
+        let _guard = crate::global_test_mutex_lock();
+        unsafe {
+            std::env::set_var("PACSEA_INTEGRATION_TEST", "1");
+            std::env::set_var("PACSEA_TEST_PRIVILEGE_AVAILABLE", "doas");
+            std::env::remove_var("PACSEA_TEST_AUTH_MODE");
+        }
+
+        let settings = crate::theme::Settings {
+            auth_mode: AuthMode::Interactive,
+            ..crate::theme::Settings::default()
+        };
+        let skip = should_skip_password_modal(&settings);
+
+        unsafe {
+            std::env::remove_var("PACSEA_TEST_PRIVILEGE_AVAILABLE");
+            std::env::remove_var("PACSEA_INTEGRATION_TEST");
+        }
+
+        assert!(
+            skip,
+            "Interactive mode should skip password modal for doas too"
+        );
+    }
+
+    #[test]
+    /// What: `should_skip_password_modal` returns false for default prompt mode.
+    ///
+    /// Inputs: Default settings.
+    ///
+    /// Output: `false`.
+    ///
+    /// Details: Prompt mode always shows the modal.
+    fn test_should_skip_password_modal_prompt() {
+        let _guard = crate::global_test_mutex_lock();
+        unsafe {
+            std::env::set_var("PACSEA_INTEGRATION_TEST", "1");
+            std::env::set_var("PACSEA_TEST_PRIVILEGE_AVAILABLE", "sudo");
+            std::env::remove_var("PACSEA_TEST_AUTH_MODE");
+        }
+
+        let settings = crate::theme::Settings::default();
+        let skip = should_skip_password_modal(&settings);
+
+        unsafe {
+            std::env::remove_var("PACSEA_TEST_PRIVILEGE_AVAILABLE");
+            std::env::remove_var("PACSEA_INTEGRATION_TEST");
+        }
+
+        assert!(!skip, "Prompt mode should always show password modal");
     }
 
     #[test]
