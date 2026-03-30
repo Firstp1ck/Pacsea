@@ -496,11 +496,14 @@ pub fn build_credential_invalidation(tool: PrivilegeTool) -> Option<String> {
 ///
 /// - Returns `Err` if the tool does not support stdin password validation.
 /// - Returns `Err` if the validation command cannot be executed.
+/// - Returns `Err` if doas policy denies all probe commands.
 ///
 /// Details:
 /// - Works for tools with `supports_stdin_password` (sudo, doas).
 /// - sudo: invalidates cached credentials and validates with `sudo -S -v`.
-/// - doas: validates by executing `doas -S true`.
+/// - doas: probes with `doas -S true`, falling back to `doas -S pacman -V`
+///   if policy denies `true`. Distinguishes auth failure from policy denial
+///   via stderr analysis (see [`validate_doas_password`]).
 pub fn validate_password(tool: PrivilegeTool, password: &str) -> Result<bool, String> {
     if !tool.capabilities().supports_stdin_password {
         return Err(format!(
@@ -511,10 +514,12 @@ pub fn validate_password(tool: PrivilegeTool, password: &str) -> Result<bool, St
 
     let escaped = crate::install::shell_single_quote(password);
     let bin = tool.binary_name();
-    let cmd = match tool {
-        PrivilegeTool::Sudo => format!("{bin} -k ; printf '%s\\n' {escaped} | {bin} -S -v 2>&1"),
-        PrivilegeTool::Doas => format!("printf '%s\\n' {escaped} | {bin} -S true 2>&1"),
-    };
+
+    if tool == PrivilegeTool::Doas {
+        return validate_doas_password(&escaped, bin);
+    }
+
+    let cmd = format!("{bin} -k ; printf '%s\\n' {escaped} | {bin} -S -v 2>&1");
 
     let output = Command::new("sh")
         .arg("-c")
@@ -523,6 +528,77 @@ pub fn validate_password(tool: PrivilegeTool, password: &str) -> Result<bool, St
         .map_err(|e| format!("Failed to execute {bin} validation: {e}"))?;
 
     Ok(output.status.success())
+}
+
+/// `OpenDoas` stderr marker emitted on authentication failure (wrong password).
+const DOAS_AUTH_FAILED: &str = "Authentication failed";
+
+/// What: Validate a password specifically for doas using stderr analysis.
+///
+/// Inputs:
+/// - `escaped_password`: Shell-escaped password string (via [`shell_single_quote`]).
+/// - `bin`: Binary name (`"doas"`).
+///
+/// Output:
+/// - `Ok(true)` if the password is valid.
+/// - `Ok(false)` if the password is wrong (doas emitted "Authentication failed").
+/// - `Err` if neither probe command is permitted by policy.
+///
+/// Details:
+/// - doas has no `sudo -v` equivalent — every invocation requires a real command.
+/// - `OpenDoas` checks policy **before** authentication, so a policy denial means
+///   the password was never tested and we must try a different command.
+/// - Primary probe: `doas -S true` (minimal, no side effects).
+/// - Fallback probe: `doas -S pacman -V` (read-only, safe for a pacman frontend).
+fn validate_doas_password(escaped_password: &str, bin: &str) -> Result<bool, String> {
+    let primary = format!("printf '%s\\n' {escaped_password} | {bin} -S true 2>&1");
+    if let Some(result) = run_doas_probe(&primary, bin)? {
+        return Ok(result);
+    }
+
+    let fallback = format!("printf '%s\\n' {escaped_password} | {bin} -S pacman -V 2>&1");
+    if let Some(result) = run_doas_probe(&fallback, bin)? {
+        return Ok(result);
+    }
+
+    Err(format!(
+        "Cannot validate password: {bin} policy does not permit probe commands (true, pacman). \
+         Add a matching rule in /etc/doas.conf or configure passwordless doas."
+    ))
+}
+
+/// What: Execute a single doas probe command and classify the outcome.
+///
+/// Inputs:
+/// - `cmd`: Full shell command string (e.g. `printf … | doas -S true 2>&1`).
+/// - `bin`: Binary name for error messages (`"doas"`).
+///
+/// Output:
+/// - `Ok(Some(true))` — command succeeded, password is valid.
+/// - `Ok(Some(false))` — authentication failed (wrong password).
+/// - `Ok(None)` — policy denied the command (password was never checked).
+/// - `Err` — the shell command could not be spawned at all.
+///
+/// Details:
+/// - Distinguishes auth failure from policy denial by checking whether the
+///   merged stdout+stderr (via `2>&1`) contains [`DOAS_AUTH_FAILED`].
+fn run_doas_probe(cmd: &str, bin: &str) -> Result<Option<bool>, String> {
+    let output = Command::new("sh")
+        .arg("-c")
+        .arg(cmd)
+        .output()
+        .map_err(|e| format!("Failed to execute {bin} validation: {e}"))?;
+
+    if output.status.success() {
+        return Ok(Some(true));
+    }
+
+    let combined = String::from_utf8_lossy(&output.stdout);
+    if combined.contains(DOAS_AUTH_FAILED) {
+        Ok(Some(false))
+    } else {
+        Ok(None)
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -839,15 +915,29 @@ mod tests {
     // -- Password validation -------------------------------------------------
 
     #[test]
-    fn validate_password_doas_executes_validation_command() {
+    fn validate_password_doas_runs_probe_or_reports_policy() {
         let result = validate_password(PrivilegeTool::Doas, "any");
-        // On systems without doas this may be Err; when available it should be Ok(bool).
+        // Depending on system: Ok(bool) if doas is installed and policy permits,
+        // Err if doas is missing or policy blocks all probes.
         if let Err(err) = result {
             assert!(
-                err.contains("Failed to execute doas validation"),
+                err.contains("Failed to execute doas validation")
+                    || err.contains("policy does not permit probe commands"),
                 "unexpected error message: {err}"
             );
         }
+    }
+
+    #[test]
+    fn run_doas_probe_auth_failed_detection() {
+        let combined_output = "doas: Authentication failed\n";
+        assert!(combined_output.contains(DOAS_AUTH_FAILED));
+    }
+
+    #[test]
+    fn run_doas_probe_policy_denied_detection() {
+        let combined_output = "doas: Operation not permitted\n";
+        assert!(!combined_output.contains(DOAS_AUTH_FAILED));
     }
 
     // -- Availability (env-controlled) ---------------------------------------
