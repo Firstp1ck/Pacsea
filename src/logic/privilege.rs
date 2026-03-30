@@ -713,7 +713,7 @@ fn run_doas_pty_probe(password: &str, bin: &str, args: &[&str]) -> Result<Option
 ///
 /// Details:
 /// - Matches common prompt fragments case-insensitively (`password`, `passwort`).
-fn contains_password_prompt(output: &str) -> bool {
+pub(crate) fn contains_password_prompt(output: &str) -> bool {
     let lowercase = output.to_ascii_lowercase();
     lowercase.contains("password") || lowercase.contains("passwort")
 }

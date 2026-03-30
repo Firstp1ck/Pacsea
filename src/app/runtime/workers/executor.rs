@@ -84,9 +84,17 @@ fn handle_install_request(
         cmd
     };
 
+    let pty_password = if dry_run {
+        None
+    } else {
+        crate::logic::privilege::active_tool()
+            .ok()
+            .filter(|t| !t.capabilities().supports_stdin_password)
+            .and(password)
+    };
     let res_tx_clone = res_tx;
     tokio::task::spawn_blocking(move || {
-        execute_command_pty(&final_cmd, None, res_tx_clone);
+        execute_command_pty(&final_cmd, pty_password, res_tx_clone);
     });
 }
 
@@ -120,9 +128,17 @@ fn handle_remove_request(
             return;
         }
     };
+    let pty_password = if dry_run {
+        None
+    } else {
+        crate::logic::privilege::active_tool()
+            .ok()
+            .filter(|t| !t.capabilities().supports_stdin_password)
+            .and(password)
+    };
     let res_tx_clone = res_tx;
     tokio::task::spawn_blocking(move || {
-        execute_command_pty(&cmd, None, res_tx_clone);
+        execute_command_pty(&cmd, pty_password, res_tx_clone);
     });
 }
 
@@ -153,9 +169,17 @@ fn handle_downgrade_request(
             return;
         }
     };
+    let pty_password = if dry_run {
+        None
+    } else {
+        crate::logic::privilege::active_tool()
+            .ok()
+            .filter(|t| !t.capabilities().supports_stdin_password)
+            .and(password)
+    };
     let res_tx_clone = res_tx;
     tokio::task::spawn_blocking(move || {
-        execute_command_pty(&cmd, None, res_tx_clone);
+        execute_command_pty(&cmd, pty_password, res_tx_clone);
     });
 }
 
@@ -187,10 +211,18 @@ fn handle_update_request(
         }
     };
     tracing::debug!("[Runtime] Built update command (length={})", cmd.len());
+    let pty_password = if dry_run {
+        None
+    } else {
+        crate::logic::privilege::active_tool()
+            .ok()
+            .filter(|t| !t.capabilities().supports_stdin_password)
+            .and(password)
+    };
     let res_tx_clone = res_tx;
     tokio::task::spawn_blocking(move || {
         tracing::debug!("[Runtime] spawn_blocking started for update command");
-        execute_command_pty(&cmd, None, res_tx_clone);
+        execute_command_pty(&cmd, pty_password, res_tx_clone);
         tracing::debug!("[Runtime] spawn_blocking completed for update command");
     });
 }
@@ -642,7 +674,9 @@ fn send_finish_message(
 ///
 /// Inputs:
 /// - `cmd`: Command string to execute
-/// - `_password`: Optional password (currently unused - password is handled in command builder)
+/// - `password`: Optional password for tools that prompt on the TTY (e.g. doas).
+///   For sudo the password is embedded in the command via `build_password_pipe`;
+///   for doas this function detects the prompt and writes the password to the PTY.
 /// - `res_tx`: Channel sender for output lines
 ///
 /// Details:
@@ -650,15 +684,17 @@ fn send_finish_message(
 /// - Reads output line by line and sends via channel
 /// - Strips ANSI escape codes from output using `strip-ansi-escapes` crate
 /// - Sends Finished message when command completes
-/// - Note: Password is handled in command builder (piped for official packages, credential caching for AUR)
+/// - When `password` is `Some`, monitors output for a privilege prompt and
+///   writes the password once detected (prompt line is suppressed from output).
 #[cfg(not(target_os = "windows"))]
 #[allow(clippy::needless_pass_by_value)] // Pass by value needed for move into closure
 fn execute_command_pty(
     cmd: &str,
-    _password: Option<String>,
+    password: Option<String>,
     res_tx: mpsc::UnboundedSender<ExecutorOutput>,
 ) {
     use portable_pty::{CommandBuilder, PtySize, native_pty_system};
+    use std::io::Write;
     use std::sync::mpsc as std_mpsc;
 
     tracing::debug!("[PTY] Starting execute_command_pty");
@@ -703,6 +739,11 @@ fn execute_command_pty(
         .master
         .try_clone_reader()
         .expect("Failed to clone reader");
+    let mut pty_writer = if password.is_some() {
+        pty.master.take_writer().ok()
+    } else {
+        None
+    };
     let _master = pty.master; // Keep master alive
     let (data_tx, data_rx) = std_mpsc::channel::<Vec<u8>>();
     spawn_pty_reader_thread(reader, data_tx);
@@ -711,6 +752,7 @@ fn execute_command_pty(
     let mut byte_buffer = Vec::new();
     let mut line_buffer = String::new();
     let mut lines_sent: usize = 0;
+    let mut password_sent = password.is_none();
 
     tracing::debug!("[PTY] Entering main processing loop");
     loop {
@@ -751,6 +793,20 @@ fn execute_command_pty(
             Ok(data) => {
                 byte_buffer.extend_from_slice(&data);
                 lines_sent += process_byte_buffer_utf8(&mut byte_buffer, &mut line_buffer, &res_tx);
+                if !password_sent
+                    && let (Some(writer), Some(pass)) = (&mut pty_writer, &password)
+                    && crate::logic::privilege::contains_password_prompt(&line_buffer)
+                {
+                    if let Err(e) = writer.write_all(pass.as_bytes()) {
+                        tracing::warn!("[PTY] Failed to write password to PTY: {e}");
+                    } else {
+                        let _ = writer.write_all(b"\n");
+                        let _ = writer.flush();
+                        tracing::debug!("[PTY] Password written to PTY for privilege prompt");
+                    }
+                    password_sent = true;
+                    line_buffer.clear();
+                }
             }
             Err(std_mpsc::RecvTimeoutError::Timeout) => {}
             Err(std_mpsc::RecvTimeoutError::Disconnected) => {
