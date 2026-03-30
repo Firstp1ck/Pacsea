@@ -50,6 +50,19 @@
 - [x] Expanded `sudo -S` stalling + doas `persist` documentation in `config/settings.conf` and `skeletons.rs`
 - [ ] Manual testing — fingerprint + fallback (sudo & doas), terminal emulators (alacritty, kitty, konsole, wezterm), `privilege_tool = auto` cross-tool (requires manual execution)
 
+## Progress todos (2026-03-30)
+
+**Status:** Not implemented. No `sudo_auth_mode` (or equivalent) in settings; TUI/CLI still follow existing password modal + passwordless `sudo -n` logic.
+
+- [ ] **Milestone 1 (CLI MVP):** Add `sudo_auth_mode` (`prompt` / `passwordless_only` / `interactive`), parser, skeleton, `settings_ensure`, legacy `use_passwordless_sudo` mapping + deprecation warning
+- [ ] **Milestone 1 (CLI MVP):** Resolver in `src/logic/password.rs` (`resolve_sudo_auth_mode`, `should_skip_password_modal`, etc.)
+- [ ] **Milestone 1 (CLI MVP):** `src/args/update.rs` — interactive mode skips `rpassword`, no `sudo -S` piping, stdin not `null()` on that path
+- [ ] **Milestone 1:** Unit tests for parse, resolver, legacy mapping
+- [ ] **Milestone 2 (TUI):** Interactive mode via `restore_terminal()` / `setup_terminal()` (or external terminal where already used); wire all strategy call sites (install, preflight, modals, optional deps, direct install)
+- [ ] **Milestone 2:** Ensure PTY executor paths do not assume interactive sudo without input passthrough
+- [ ] **Milestone 3:** Optional password-modal hints + `en-US` / `de-DE` / `hu-HU` strings
+- [ ] **Milestone 4:** Changelog, manual tests (fingerprint + fallback), multiple terminals
+
 ## Goal
 
 Add support for users who authenticate via fingerprint (or other PAM-based interactive methods) instead of typing a password into Pacsea's password modal — covering **sudo**, **doas**, and **sudoless** (no privilege escalation) scenarios.
