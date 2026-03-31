@@ -69,7 +69,7 @@ pacsea
 
 | Feature | Description |
 |---------|-------------|
-| **Integrated Process Execution** | All operations execute directly within the TUI with real-time output streaming, progress bars, and inline password prompts — no external terminals. Supports passwordless sudo for install/update/downgrade when configured; remove always asks for password |
+| **Integrated Process Execution** | Operations execute within the TUI with real-time output streaming and progress bars. Supports configurable privilege escalation (`sudo`/`doas`/auto), passwordless mode when available, and an optional interactive authentication handoff so sudo/doas can prompt in the terminal when needed (password or PAM/fingerprint via fprintd, when configured) |
 | **News feed & advisories** | Unified news feed combining Arch news, security advisories, package update notifications, and AUR package comments. Includes offline access with automatic caching, filtering by source or date, search with history, bookmarking, read/unread tracking, and background updates |
 | **Security Scan for AUR Packages** | Comprehensive security scanning workflow with multiple tools (ClamAV, Trivy, Semgrep, ShellCheck, VirusTotal, custom patterns, aur-sleuth) and detailed scan summaries |
 | **Fuzzy Search** | Toggle flexible fuzzy search mode to find packages even without exact names |
@@ -154,6 +154,8 @@ Pacsea uses three configuration files located in `~/.config/pacsea/`:
 - `keybinds.conf` — keyboard shortcuts
 
 Opening any of these from the app uses your `VISUAL` or `EDITOR` environment variable.
+
+Privilege/auth behavior is configurable via `privilege_tool` (`auto` | `sudo` | `doas`) and `auth_mode` (`prompt` | `passwordless_only` | `interactive`) in `settings.conf`.
 
 For complete configuration documentation, including all available settings, theme customization, and keybind configuration, see the [Configuration](https://github.com/Firstp1ck/Pacsea/wiki/Configuration) wiki page.
 

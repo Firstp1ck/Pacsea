@@ -1,8 +1,8 @@
 ## What's New
 
-- TUI install/update/downgrade operations can use passwordless sudo when configured
-- Same behavior as CLI: no password prompt when sudo allows it
-- Remove operations always ask for password for safety
-- Opening config files now uses your `VISUAL` or `EDITOR` environment variable
-- Edit settings, theme, and keybinds in your preferred editor
+- New `privilege_tool` setting: `auto` | `sudo` | `doas`
+- Commands now run through the selected tool (or auto-detected one) instead of always using sudo
+- New `auth_mode` setting: `prompt` | `passwordless_only` | `interactive`
+- Interactive mode hands off to the terminal so sudo/doas can handle PAM prompts directly (including fingerprint via fprintd, when configured)
+- Detects the `blackarch` repo and adds a toggle/filter in results when available
 

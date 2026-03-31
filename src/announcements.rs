@@ -69,6 +69,11 @@ pub const VERSION_ANNOUNCEMENTS: &[VersionAnnouncement] = &[
         title: "Version 0.7.3",
         content: "## What's New\n\n- TUI install/update/downgrade operations can use passwordless sudo when configured\n- Same behavior as CLI: no password prompt when sudo allows it\n- Remove operations always ask for password for safety\n- Opening config files now uses your `VISUAL` or `EDITOR` environment variable\n- Edit settings, theme, and keybinds in your preferred editor\n\n",
     },
+    VersionAnnouncement {
+        version: "0.7.4",
+        title: "Version 0.7.4",
+        content: "## What's New\n\n- New `privilege_tool` setting: `auto` | `sudo` | `doas`\n- Commands now run through the selected tool (or auto-detected one) instead of always using sudo\n- New `auth_mode` setting: `prompt` | `passwordless_only` | `interactive`\n- Interactive mode hands off to the terminal so sudo/doas can handle PAM prompts directly (including fingerprint via fprintd, when configured)\n- Detects the `blackarch` repo and adds a toggle/filter in results when available\n\n",
+    },
 ];
 
 /// What: Remote announcement fetched from GitHub Gist.
