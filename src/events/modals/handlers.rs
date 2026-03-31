@@ -270,21 +270,37 @@ pub(super) fn handle_confirm_batch_update_modal(
                 // Get header_chips if available from pending_exec_header_chips, otherwise use default
                 let header_chips = app.pending_exec_header_chips.take().unwrap_or_default();
 
-                // Check passwordless sudo availability (requires setting enabled AND system configured)
-                // All installs need sudo (official and AUR both need sudo)
-                // but password may not be needed if passwordless sudo is configured and enabled
                 let settings = crate::theme::settings();
-                if crate::logic::password::should_use_passwordless_sudo(&settings) {
-                    // Passwordless sudo enabled and available - skip password prompt and proceed directly
+                if crate::logic::password::should_use_interactive_auth_handoff(&settings) {
+                    match crate::events::try_interactive_auth_handoff() {
+                        Ok(true) => crate::events::preflight::start_execution(
+                            app,
+                            &items_clone,
+                            crate::state::PreflightAction::Install,
+                            header_chips,
+                            None,
+                        ),
+                        Ok(false) => {
+                            app.modal = crate::state::Modal::Alert {
+                                message: crate::i18n::t(app, "app.errors.authentication_failed"),
+                            };
+                        }
+                        Err(e) => {
+                            app.modal = crate::state::Modal::Alert { message: e };
+                        }
+                    }
+                } else if crate::logic::password::resolve_auth_mode(&settings)
+                    == crate::logic::privilege::AuthMode::PasswordlessOnly
+                    && crate::logic::password::should_use_passwordless_sudo(&settings)
+                {
                     crate::events::preflight::start_execution(
                         app,
                         &items_clone,
                         crate::state::PreflightAction::Install,
                         header_chips,
-                        None, // No password needed
+                        None,
                     );
                 } else {
-                    // Passwordless sudo not enabled or not available - show password prompt
                     app.modal = crate::state::Modal::PasswordPrompt {
                         purpose: crate::state::modal::PasswordPurpose::Install,
                         items: items_clone,
@@ -414,19 +430,40 @@ pub(super) fn handle_confirm_reinstall_modal(
                         return true;
                     }
 
-                    // Check passwordless sudo availability (requires setting enabled AND system configured)
                     let settings = crate::theme::settings();
-                    if crate::logic::password::should_use_passwordless_sudo(&settings) {
-                        // Passwordless sudo enabled and available - skip password prompt and proceed directly
+                    if crate::logic::password::should_use_interactive_auth_handoff(&settings) {
+                        match crate::events::try_interactive_auth_handoff() {
+                            Ok(true) => crate::events::preflight::start_execution(
+                                app,
+                                &items_clone,
+                                crate::state::PreflightAction::Install,
+                                header_chips_clone,
+                                None,
+                            ),
+                            Ok(false) => {
+                                app.modal = crate::state::Modal::Alert {
+                                    message: crate::i18n::t(
+                                        app,
+                                        "app.errors.authentication_failed",
+                                    ),
+                                };
+                            }
+                            Err(e) => {
+                                app.modal = crate::state::Modal::Alert { message: e };
+                            }
+                        }
+                    } else if crate::logic::password::resolve_auth_mode(&settings)
+                        == crate::logic::privilege::AuthMode::PasswordlessOnly
+                        && crate::logic::password::should_use_passwordless_sudo(&settings)
+                    {
                         crate::events::preflight::start_execution(
                             app,
                             &items_clone,
                             crate::state::PreflightAction::Install,
                             header_chips_clone,
-                            None, // No password needed
+                            None,
                         );
                     } else {
-                        // Passwordless sudo not enabled or not available - show password prompt
                         app.modal = crate::state::Modal::PasswordPrompt {
                             purpose: crate::state::modal::PasswordPurpose::Install,
                             items: items_clone,
@@ -436,15 +473,6 @@ pub(super) fn handle_confirm_reinstall_modal(
                         };
                         app.pending_exec_header_chips = Some(header_chips_clone);
                     }
-                } else {
-                    // Password already obtained, go directly to execution
-                    crate::events::preflight::start_execution(
-                        app,
-                        &items_clone,
-                        crate::state::PreflightAction::Install,
-                        header_chips_clone,
-                        password,
-                    );
                 }
                 return true;
             }

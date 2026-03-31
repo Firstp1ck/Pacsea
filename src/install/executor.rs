@@ -837,12 +837,18 @@ mod tests {
                 "expected '{} -S' in: {cmd}",
                 tool.binary_name()
             );
+            // Password should be quoted/escaped when injected into a shell command.
+            assert!(
+                cmd.contains('\'') || cmd.contains('"'),
+                "password must be shell-escaped in: {cmd}"
+            );
+        } else {
+            // Tools without stdin password support (e.g. doas) must never embed the password.
+            assert!(
+                !cmd.contains(password),
+                "password must not be embedded for non-stdin tools: {cmd}"
+            );
         }
-        // Password should be properly quoted regardless of tool
-        assert!(
-            cmd.contains('\'') || cmd.contains('"'),
-            "password must be shell-escaped in: {cmd}"
-        );
     }
 
     #[test]

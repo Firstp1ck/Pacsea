@@ -74,22 +74,13 @@ mod tests {
         let _guard = crate::theme::test_mutex()
             .lock()
             .expect("Test mutex poisoned");
-        let base = std::env::temp_dir().join(format!(
-            "pacsea_test_ensure_theme_{}_{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .expect("System time is before UNIX epoch")
-                .as_nanos()
-        ));
-        let pacsea = base.join(".config").join("pacsea");
-        fs::create_dir_all(&pacsea).expect("create pacsea config dir");
-        let theme_path = pacsea.join("theme.conf");
+        let env_guard = SettingsEnvGuard::new();
+        let theme_path = env_guard.cfg_dir.join("theme.conf");
         fs::write(&theme_path, "base = #111111\n").expect("write partial theme");
 
-        let _home_guard = HomeTestGuard::new(base);
         ensure_theme_keys_present();
         try_load_theme_with_diagnostics(&theme_path).expect("theme should load after ensure");
+        drop(env_guard);
     }
 
     #[test]
@@ -439,69 +430,6 @@ mod tests {
                 || content.contains(&format!("{key}={value}")),
             "{test_context} should persist {key}"
         );
-    }
-
-    /// What: Manage temporary HOME override and cleanup for theme config tests.
-    ///
-    /// Inputs:
-    /// - `base`: Temporary HOME root path created by the test.
-    ///
-    /// Output:
-    /// - Guard object that restores `HOME` and `XDG_CONFIG_HOME` and removes the temp directory on drop.
-    ///
-    /// Details:
-    /// - Clears `XDG_CONFIG_HOME` while active so path resolution cannot read the developer's real
-    ///   config tree (same approach as `SettingsEnvGuard`).
-    /// - Ensures panic-safe cleanup so environment state is restored even during unwinding.
-    struct HomeTestGuard {
-        orig_home: Option<std::ffi::OsString>,
-        orig_xdg: Option<std::ffi::OsString>,
-        base: std::path::PathBuf,
-    }
-
-    impl HomeTestGuard {
-        /// What: Create a guard that points `HOME` at a temporary directory.
-        ///
-        /// Inputs:
-        /// - `base`: Temporary directory path to use as `HOME`.
-        ///
-        /// Output:
-        /// - Initialized `HomeTestGuard`.
-        ///
-        /// Details:
-        /// - Captures original `HOME` and `XDG_CONFIG_HOME` for restoration in `Drop`.
-        /// - Removes `XDG_CONFIG_HOME` so theme/settings resolution follows the test `HOME`.
-        fn new(base: std::path::PathBuf) -> Self {
-            let orig_home = std::env::var_os("HOME");
-            let orig_xdg = std::env::var_os("XDG_CONFIG_HOME");
-            unsafe {
-                std::env::set_var("HOME", base.display().to_string());
-                std::env::remove_var("XDG_CONFIG_HOME");
-            }
-            Self {
-                orig_home,
-                orig_xdg,
-                base,
-            }
-        }
-    }
-
-    impl Drop for HomeTestGuard {
-        fn drop(&mut self) {
-            unsafe {
-                if let Some(v) = self.orig_home.as_ref() {
-                    std::env::set_var("HOME", v);
-                } else {
-                    std::env::remove_var("HOME");
-                }
-                if let Some(v) = self.orig_xdg.as_ref() {
-                    std::env::set_var("XDG_CONFIG_HOME", v);
-                } else {
-                    std::env::remove_var("XDG_CONFIG_HOME");
-                }
-            }
-            let _ = std::fs::remove_dir_all(&self.base);
-        }
     }
 
     /// What: Manage temporary HOME/XDG overrides and cleanup for settings tests.

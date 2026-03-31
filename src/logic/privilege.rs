@@ -12,16 +12,16 @@
 //! | Non-interactive check | `sudo -n true` | `doas -n true` |
 //! | Direct command execution | `sudo <cmd>` | `doas <cmd>` |
 //! | Passwordless execution | sudoers `NOPASSWD` | `permit nopass` in `/etc/doas.conf` |
-//! | Password via stdin | `sudo -S` reads stdin | **NOT supported** (uses PTY validation path) |
+//! | Password via stdin | `sudo -S` reads stdin | **NOT supported** |
 //! | Credential refresh | `sudo -v` | **NOT supported** |
 //! | Credential invalidation | `sudo -k` | **NOT supported** |
 //! | Askpass env var | `SUDO_ASKPASS` | **NOT supported** |
 //!
 //! ## Implications for Pacsea
 //!
-//! - `OpenDoas` reads the password from `/dev/tty`, not stdin — it has no `-S` flag.
-//! - Pacsea validates doas credentials through a native PTY session (`portable-pty`)
-//!   and then executes plain `doas <cmd>`.
+//! - When doas requires a password, it prompts via its own terminal interaction.
+//! - The in-app password modal **cannot** be used with doas (no stdin pipe support).
+//! - Pacsea skips the password modal for doas and lets the spawned terminal handle prompting.
 //! - Credential warm-up (`sudo -S -v`) is unavailable for doas.
 //! - `doas -n true` works identically to `sudo -n true` for passwordless detection.
 
@@ -37,13 +37,13 @@ use std::process::Command;
 /// Details:
 /// - `Sudo` uses the standard sudo binary with full feature support
 ///   (stdin password, credential caching, askpass).
-/// - `Doas` uses the `OpenDoas` binary with partial feature support
-///   (PTY-based validation, no stdin password flag, no credential cache APIs).
+/// - `Doas` uses the `OpenDoas` binary with limited feature support
+///   (no stdin password, no credential caching).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PrivilegeTool {
     /// Standard sudo — full feature support.
     Sudo,
-    /// `OpenDoas` — partial feature support (PTY validation, no `-S`, no credential cache APIs).
+    /// `OpenDoas` — limited feature support (no stdin password pipe, no credential caching).
     Doas,
 }
 
@@ -76,12 +76,12 @@ pub enum PrivilegeMode {
 ///
 /// Details:
 /// - sudo supports all capabilities.
-/// - doas does not support stdin password piping (`-S`), and lacks credential cache APIs.
-/// - Used to route behavior: e.g. disable warm-up paths for tools without cache refresh support.
+/// - doas supports none of these optional capabilities.
+/// - Used to route behavior: e.g. skip password modal when stdin pipe is unsupported.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct PrivilegeCapabilities {
-    /// Tool supports direct stdin password entry (`sudo -S`).
+    /// Tool supports reading password from stdin (`sudo -S`).
     pub supports_stdin_password: bool,
     /// Tool supports credential validation/refresh without running a command (`sudo -v`).
     pub supports_credential_refresh: bool,
@@ -119,7 +119,7 @@ impl PrivilegeTool {
     ///
     /// Details:
     /// - sudo: all capabilities enabled.
-    /// - doas: stdin password disabled, credential cache features disabled.
+    /// - doas: all capabilities disabled (see module-level docs for rationale).
     #[must_use]
     pub const fn capabilities(self) -> PrivilegeCapabilities {
         match self {
@@ -246,6 +246,93 @@ impl PrivilegeMode {
 }
 
 impl fmt::Display for PrivilegeMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_config_key())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// AuthMode
+// ---------------------------------------------------------------------------
+
+/// What: Authentication strategy for privilege escalation.
+///
+/// Inputs: None (enum variant selection).
+///
+/// Output: Controls how Pacsea handles authentication before privileged operations.
+///
+/// Details:
+/// - `Prompt` (default): Pacsea shows its own password modal/prompt and uses stdin password
+///   piping (`sudo -S`) for stdin-capable tools.
+///   For tools without stdin support (doas), resolver logic coerces this mode to `Interactive`.
+/// - `PasswordlessOnly`: Skip password prompt only when `{tool} -n true` succeeds;
+///   fall back to `Prompt` otherwise.
+/// - `Interactive`: Skip Pacsea's password capture entirely and let the privilege
+///   tool handle authentication directly (fingerprint via PAM, terminal password, etc.).
+///   Works with both sudo and doas when PAM is configured.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum AuthMode {
+    /// Pacsea captures the password for stdin-capable tools; non-stdin tools are coerced to interactive.
+    #[default]
+    Prompt,
+    /// Skip password prompt only when passwordless escalation is available.
+    PasswordlessOnly,
+    /// Let the privilege tool handle authentication interactively (PAM fingerprint, etc.).
+    Interactive,
+}
+
+impl AuthMode {
+    /// What: Parse a config file value into an `AuthMode`.
+    ///
+    /// Inputs:
+    /// - `val`: Raw config string (e.g. `"prompt"`, `"passwordless_only"`, `"interactive"`).
+    ///
+    /// Output: `Some(mode)` on recognized value, `None` otherwise.
+    ///
+    /// Details: Case-insensitive matching after trim; accepts underscores and hyphens.
+    #[must_use]
+    pub fn from_config_key(val: &str) -> Option<Self> {
+        match val.trim().to_ascii_lowercase().replace('-', "_").as_str() {
+            "prompt" => Some(Self::Prompt),
+            "passwordless_only" | "passwordless" => Some(Self::PasswordlessOnly),
+            "interactive" => Some(Self::Interactive),
+            _ => None,
+        }
+    }
+
+    /// What: Return the canonical config key string for this mode.
+    ///
+    /// Inputs: None.
+    ///
+    /// Output: `"prompt"`, `"passwordless_only"`, or `"interactive"`.
+    ///
+    /// Details: Inverse of [`from_config_key`](Self::from_config_key).
+    #[must_use]
+    pub const fn as_config_key(self) -> &'static str {
+        match self {
+            Self::Prompt => "prompt",
+            Self::PasswordlessOnly => "passwordless_only",
+            Self::Interactive => "interactive",
+        }
+    }
+
+    /// What: Whether this mode skips Pacsea's password modal entirely.
+    ///
+    /// Inputs: None.
+    ///
+    /// Output: `true` for `Interactive`, `false` for `Prompt` and `PasswordlessOnly`.
+    ///
+    /// Details:
+    /// - `PasswordlessOnly` does not unconditionally skip — it still needs a runtime
+    ///   `{tool} -n true` check before skipping.
+    /// - `Interactive` always skips the modal because the tool handles auth directly.
+    #[must_use]
+    pub const fn always_skips_password_modal(self) -> bool {
+        matches!(self, Self::Interactive)
+    }
+}
+
+impl fmt::Display for AuthMode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_config_key())
     }
@@ -396,6 +483,171 @@ pub fn active_tool() -> Result<PrivilegeTool, String> {
 }
 
 // ---------------------------------------------------------------------------
+// Interactive authentication
+// ---------------------------------------------------------------------------
+
+/// What: Run the privilege tool interactively to let the user authenticate.
+///
+/// Inputs:
+/// - `tool`: Resolved privilege tool (sudo or doas).
+///
+/// Output:
+/// - `Ok(true)` if authentication succeeded, `Ok(false)` if it failed.
+///
+/// # Errors
+///
+/// Returns `Err` if the tool binary cannot be executed.
+///
+/// Details:
+/// - For sudo: runs `sudo -v` which validates credentials without executing a command.
+///   On success, the credential cache is refreshed so subsequent `sudo` calls don't re-prompt.
+/// - For doas: runs `doas true` (a no-op command) to trigger authentication.
+///   If `persist` is configured in `doas.conf`, subsequent `doas` calls won't re-prompt.
+///   Without `persist`, each `doas` invocation will re-prompt (known limitation).
+/// - The caller is responsible for ensuring the terminal is in a state where the user
+///   can interact with the prompt (e.g. not in TUI raw mode).
+pub fn run_interactive_auth(tool: PrivilegeTool) -> Result<bool, String> {
+    if is_integration_test_context() {
+        tracing::debug!(tool = %tool, "Skipping interactive auth in integration test context");
+        return Ok(true);
+    }
+
+    let mut cmd = Command::new(tool.binary_name());
+    if tool.capabilities().supports_credential_refresh {
+        cmd.arg("-v");
+    } else {
+        cmd.arg("true");
+    }
+
+    let status = cmd.status().map_err(|e| {
+        format!(
+            "Failed to run {} for interactive authentication: {e}",
+            tool.binary_name()
+        )
+    })?;
+
+    Ok(status.success())
+}
+
+// ---------------------------------------------------------------------------
+// Fingerprint / PAM detection
+// ---------------------------------------------------------------------------
+
+/// What: Detect whether the active privilege tool's PAM configuration includes `pam_fprintd`.
+///
+/// Inputs:
+/// - `tool`: Resolved privilege tool (sudo or doas).
+///
+/// Output:
+/// - `true` if `/etc/pam.d/{tool}` exists and contains a reference to `pam_fprintd`.
+///
+/// Details:
+/// - Reads `/etc/pam.d/sudo` or `/etc/pam.d/doas` and checks for `pam_fprintd.so`.
+/// - Also checks `/etc/pam.d/system-auth` and `/etc/pam.d/system-local-login` as common
+///   include targets where `pam_fprintd` may be configured instead of the tool-specific file.
+/// - Informational only — never blocks execution.
+/// - Returns `false` on any I/O error (missing file, permission denied).
+pub fn detect_pam_fingerprint(tool: PrivilegeTool) -> bool {
+    use std::fs;
+
+    let tool_pam_path = format!("/etc/pam.d/{}", tool.binary_name());
+    let pam_files = [
+        tool_pam_path.as_str(),
+        "/etc/pam.d/system-auth",
+        "/etc/pam.d/system-local-login",
+    ];
+
+    for path in &pam_files {
+        if let Ok(contents) = fs::read_to_string(path)
+            && contents.contains("pam_fprintd")
+        {
+            tracing::debug!(path = %path, "Detected pam_fprintd in PAM configuration");
+            return true;
+        }
+    }
+
+    false
+}
+
+/// What: Check whether a fingerprint reader is enrolled via `fprintd-list`.
+///
+/// Inputs:
+/// - None.
+///
+/// Output:
+/// - `true` if `fprintd-list` reports at least one enrolled finger.
+///
+/// Details:
+/// - Runs `fprintd-list $USER` and checks the output for enrolled fingerprint entries.
+/// - Returns `false` if `fprintd-list` is not installed, the command fails, or no fingers
+///   are enrolled.
+/// - Does not require root; `fprintd-list` reads enrollment data via D-Bus.
+/// - Informational only — never blocks execution.
+pub fn detect_fprintd_enrolled() -> bool {
+    let username = std::env::var("USER").unwrap_or_default();
+    if username.is_empty() {
+        return false;
+    }
+
+    let output = Command::new("fprintd-list").arg(&username).output();
+
+    match output {
+        Ok(out) if out.status.success() => {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            let has_finger = stdout.lines().any(|line| {
+                let trimmed = line.trim().to_lowercase();
+                trimmed.contains("left-") || trimmed.contains("right-")
+            });
+            if has_finger {
+                tracing::debug!("fprintd-list reports enrolled fingerprint(s)");
+            }
+            has_finger
+        }
+        _ => false,
+    }
+}
+
+/// What: Cached result of fingerprint availability detection.
+///
+/// Details:
+/// - Combines PAM configuration check and `fprintd-list` enrollment check.
+/// - Cached via `OnceLock` since fingerprint availability doesn't change during a session.
+static FINGERPRINT_AVAILABLE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+
+/// What: Check whether fingerprint authentication appears to be available.
+///
+/// Inputs:
+/// - None (uses the active privilege tool from settings).
+///
+/// Output:
+/// - `true` if both PAM fingerprint integration and an enrolled finger are detected.
+///
+/// Details:
+/// - Result is cached for the lifetime of the process (checked once, never re-checked).
+/// - Requires both `pam_fprintd` in the tool's PAM stack AND at least one enrolled finger.
+/// - Informational only — used to show a hint in the password modal, never gates execution.
+#[must_use]
+pub fn is_fingerprint_available() -> bool {
+    *FINGERPRINT_AVAILABLE.get_or_init(|| {
+        let Ok(tool) = active_tool() else {
+            return false;
+        };
+
+        let pam_configured = detect_pam_fingerprint(tool);
+        if !pam_configured {
+            tracing::debug!(tool = %tool, "No pam_fprintd in PAM config for tool");
+            return false;
+        }
+
+        let enrolled = detect_fprintd_enrolled();
+        if !enrolled {
+            tracing::debug!("pam_fprintd configured but no enrolled fingerprints found");
+        }
+        enrolled
+    })
+}
+
+// ---------------------------------------------------------------------------
 // Command builders
 // ---------------------------------------------------------------------------
 
@@ -421,21 +673,22 @@ pub fn build_privilege_command(tool: PrivilegeTool, command: &str) -> String {
 /// - `command`: The unprivileged command to wrap.
 ///
 /// Output:
-/// - `Some(cmd)` for tools that support stdin password entry.
-/// - `None` for tools that do not.
+/// - `Some(cmd)` for tools that support stdin password (sudo).
+/// - `None` for tools that do not (doas).
 ///
 /// Details:
 /// - Uses `shell_single_quote` for safe password escaping.
-/// - sudo: pipes password via `-S` flag (`printf … | sudo -S <cmd>`).
-/// - doas: returns `None` because `OpenDoas` has no stdin password flag (`-S`).
+/// - Only sudo supports `-S` (read password from stdin).
 #[must_use]
 pub fn build_password_pipe(tool: PrivilegeTool, password: &str, command: &str) -> Option<String> {
     if !tool.capabilities().supports_stdin_password {
         return None;
     }
     let escaped = crate::install::shell_single_quote(password);
-    let bin = tool.binary_name();
-    Some(format!("printf '%s\\n' {escaped} | {bin} -S {command}"))
+    Some(format!(
+        "printf '%s\\n' {escaped} | {} -S {command}",
+        tool.binary_name()
+    ))
 }
 
 /// What: Build a credential warm-up command that caches the password.
@@ -491,23 +744,17 @@ pub fn build_credential_invalidation(tool: PrivilegeTool) -> Option<String> {
 ///
 /// Output:
 /// - `Ok(true)` if valid, `Ok(false)` if invalid.
-/// - `Err` if the tool doesn't support password validation or the check fails.
+/// - `Err` if the tool doesn't support stdin password or the check fails.
 ///
 /// # Errors
 ///
-/// - Returns `Err` if the tool does not support password validation.
+/// - Returns `Err` if the tool does not support stdin password validation.
 /// - Returns `Err` if the validation command cannot be executed.
-/// - Returns `Err` if doas policy denies all probe commands.
 ///
 /// Details:
-/// - sudo: invalidates cached credentials and validates with `sudo -S -v`.
-/// - doas: uses native PTY probes (`doas true`, fallback `doas pacman -V`)
-///   to distinguish auth failure from policy denial (see [`validate_doas_password`]).
+/// - Only works for tools with `supports_stdin_password` (currently sudo only).
+/// - First invalidates cached credentials, then tests the password.
 pub fn validate_password(tool: PrivilegeTool, password: &str) -> Result<bool, String> {
-    if tool == PrivilegeTool::Doas {
-        return validate_doas_password(password, tool.binary_name());
-    }
-
     if !tool.capabilities().supports_stdin_password {
         return Err(format!(
             "{tool} does not support password validation via stdin. \
@@ -517,7 +764,6 @@ pub fn validate_password(tool: PrivilegeTool, password: &str) -> Result<bool, St
 
     let escaped = crate::install::shell_single_quote(password);
     let bin = tool.binary_name();
-
     let cmd = format!("{bin} -k ; printf '%s\\n' {escaped} | {bin} -S -v 2>&1");
 
     let output = Command::new("sh")
@@ -527,195 +773,6 @@ pub fn validate_password(tool: PrivilegeTool, password: &str) -> Result<bool, St
         .map_err(|e| format!("Failed to execute {bin} validation: {e}"))?;
 
     Ok(output.status.success())
-}
-
-/// `OpenDoas` stderr marker emitted on authentication failure (wrong password).
-const DOAS_AUTH_FAILED: &str = "Authentication failed";
-/// `OpenDoas` stderr marker for policy denial.
-const DOAS_POLICY_DENIED: &str = "Operation not permitted";
-
-/// What: Validate a password specifically for doas using native PTY probes.
-///
-/// Inputs:
-/// - `password`: Plain password input from the modal.
-/// - `bin`: Binary name (`"doas"`).
-///
-/// Output:
-/// - `Ok(true)` if the password is valid.
-/// - `Ok(false)` if the password is wrong (doas emitted "Authentication failed").
-/// - `Err` if neither probe command is permitted by policy.
-///
-/// Details:
-/// - doas has no `sudo -v` equivalent — every invocation requires a real command.
-/// - doas has no `-S` flag — it reads from `/dev/tty`, not stdin.
-/// - We spawn doas in a pseudo-terminal and write `password\n` to the PTY master.
-/// - `OpenDoas` checks policy **before** authentication, so a policy denial means
-///   the password was never tested and we must try a different command.
-/// - Primary probe: `doas true` (minimal, no side effects).
-/// - Fallback probe: `doas pacman -V` (read-only, safe for a pacman frontend).
-fn validate_doas_password(password: &str, bin: &str) -> Result<bool, String> {
-    if let Some(result) = run_doas_pty_probe(password, bin, &["true"])? {
-        return Ok(result);
-    }
-
-    if let Some(result) = run_doas_pty_probe(password, bin, &["pacman", "-V"])? {
-        return Ok(result);
-    }
-
-    Err(format!(
-        "Cannot validate password: {bin} policy does not permit probe commands (true, pacman). \
-         Add a matching rule in /etc/doas.conf or configure passwordless doas."
-    ))
-}
-
-/// What: Execute a single doas probe command in a pseudo-terminal and classify outcome.
-///
-/// Inputs:
-/// - `password`: Plain password to write to the doas prompt.
-/// - `bin`: Binary name for error messages (`"doas"`).
-/// - `args`: Command arguments to pass to doas (e.g. `["true"]`).
-///
-/// Output:
-/// - `Ok(Some(true))` — command succeeded, password is valid.
-/// - `Ok(Some(false))` — authentication failed (wrong password).
-/// - `Ok(None)` — policy denied the command (password was never checked).
-/// - `Err` — the shell command could not be spawned at all.
-///
-/// Details:
-/// - Uses `portable-pty` so doas can read from `/dev/tty` as designed.
-/// - Writes `password\n` to the PTY master, then reads output for diagnostics.
-/// - Distinguishes auth failure from policy denial via [`DOAS_AUTH_FAILED`].
-fn run_doas_pty_probe(password: &str, bin: &str, args: &[&str]) -> Result<Option<bool>, String> {
-    use portable_pty::{CommandBuilder, PtySize, native_pty_system};
-    use std::io::{Read, Write};
-    use std::sync::mpsc;
-    use std::thread;
-    use std::time::{Duration, Instant};
-
-    let pty_system = native_pty_system();
-    let pty = pty_system
-        .openpty(PtySize {
-            rows: 24,
-            cols: 80,
-            pixel_width: 0,
-            pixel_height: 0,
-        })
-        .map_err(|e| format!("Failed to create PTY for {bin} validation: {e}"))?;
-
-    let mut cmd_builder = CommandBuilder::new(bin);
-    for arg in args {
-        cmd_builder.arg(arg);
-    }
-
-    let mut child = pty
-        .slave
-        .spawn_command(cmd_builder)
-        .map_err(|e| format!("Failed to execute {bin} validation: {e}"))?;
-
-    let reader = pty
-        .master
-        .try_clone_reader()
-        .map_err(|e| format!("Failed to open PTY reader for {bin} validation: {e}"))?;
-
-    let mut writer = pty
-        .master
-        .take_writer()
-        .map_err(|e| format!("Failed to open PTY writer for {bin} validation: {e}"))?;
-
-    let wait_timeout = Duration::from_secs(5);
-    let poll_interval = Duration::from_millis(25);
-    let started = Instant::now();
-
-    let (tx, rx) = mpsc::channel();
-    thread::spawn(move || {
-        let mut local_reader = reader;
-        let mut buf = [0_u8; 512];
-        loop {
-            match local_reader.read(&mut buf) {
-                Ok(0) | Err(_) => break,
-                Ok(n) => {
-                    if tx.send(buf[..n].to_vec()).is_err() {
-                        break;
-                    }
-                }
-            }
-        }
-    });
-
-    let mut combined = String::new();
-    let mut password_sent = false;
-
-    loop {
-        while let Ok(chunk) = rx.try_recv() {
-            combined.push_str(&String::from_utf8_lossy(&chunk));
-        }
-
-        if !password_sent && contains_password_prompt(&combined) {
-            writer
-                .write_all(password.as_bytes())
-                .map_err(|e| format!("Failed to write password to {bin} PTY: {e}"))?;
-            writer
-                .write_all(b"\n")
-                .map_err(|e| format!("Failed to write newline to {bin} PTY: {e}"))?;
-            writer
-                .flush()
-                .map_err(|e| format!("Failed to flush {bin} PTY writer: {e}"))?;
-            password_sent = true;
-        }
-
-        if combined.contains(DOAS_AUTH_FAILED) {
-            let _ = child.kill();
-            return Ok(Some(false));
-        }
-
-        match child.try_wait() {
-            Ok(Some(status)) => {
-                if status.success() {
-                    return Ok(Some(true));
-                }
-                if combined.contains(DOAS_POLICY_DENIED) {
-                    return Ok(None);
-                }
-                if combined.contains(DOAS_AUTH_FAILED) {
-                    return Ok(Some(false));
-                }
-                return Ok(None);
-            }
-            Ok(None) => {}
-            Err(e) => return Err(format!("Failed while waiting for {bin} validation: {e}")),
-        }
-
-        if started.elapsed() >= wait_timeout {
-            let _ = child.kill();
-            let timeout_hint = if password_sent {
-                "doas did not complete after password input"
-            } else {
-                "no password prompt detected"
-            };
-            return Err(format!(
-                "{bin} validation timed out after {}s ({timeout_hint}). \
-                 Check /etc/doas.conf and retry.",
-                wait_timeout.as_secs()
-            ));
-        }
-
-        thread::sleep(poll_interval);
-    }
-}
-
-/// What: Detect whether the accumulated doas PTY output contains a password prompt.
-///
-/// Inputs:
-/// - `output`: Accumulated PTY output as UTF-8 string.
-///
-/// Output:
-/// - `true` if a known password prompt marker is present.
-///
-/// Details:
-/// - Matches common prompt fragments case-insensitively (`password`, `passwort`).
-pub(crate) fn contains_password_prompt(output: &str) -> bool {
-    let lowercase = output.to_ascii_lowercase();
-    lowercase.contains("password") || lowercase.contains("passwort")
 }
 
 // ---------------------------------------------------------------------------
@@ -781,7 +838,7 @@ mod tests {
     }
 
     #[test]
-    fn doas_capabilities_partial_support() {
+    fn doas_capabilities_all_disabled() {
         let caps = PrivilegeTool::Doas.capabilities();
         assert!(!caps.supports_stdin_password);
         assert!(!caps.supports_credential_refresh);
@@ -860,6 +917,99 @@ mod tests {
         assert_eq!(format!("{}", PrivilegeMode::Auto), "auto");
         assert_eq!(format!("{}", PrivilegeMode::Sudo), "sudo");
         assert_eq!(format!("{}", PrivilegeMode::Doas), "doas");
+    }
+
+    // -- AuthMode -------------------------------------------------------
+
+    #[test]
+    fn auth_mode_from_config_key_valid() {
+        assert_eq!(AuthMode::from_config_key("prompt"), Some(AuthMode::Prompt));
+        assert_eq!(
+            AuthMode::from_config_key("passwordless_only"),
+            Some(AuthMode::PasswordlessOnly)
+        );
+        assert_eq!(
+            AuthMode::from_config_key("interactive"),
+            Some(AuthMode::Interactive)
+        );
+    }
+
+    #[test]
+    fn auth_mode_from_config_key_case_insensitive() {
+        assert_eq!(AuthMode::from_config_key("PROMPT"), Some(AuthMode::Prompt));
+        assert_eq!(
+            AuthMode::from_config_key("Interactive"),
+            Some(AuthMode::Interactive)
+        );
+        assert_eq!(
+            AuthMode::from_config_key("PASSWORDLESS_ONLY"),
+            Some(AuthMode::PasswordlessOnly)
+        );
+    }
+
+    #[test]
+    fn auth_mode_from_config_key_hyphen_alias() {
+        assert_eq!(
+            AuthMode::from_config_key("passwordless-only"),
+            Some(AuthMode::PasswordlessOnly)
+        );
+    }
+
+    #[test]
+    fn auth_mode_from_config_key_short_alias() {
+        assert_eq!(
+            AuthMode::from_config_key("passwordless"),
+            Some(AuthMode::PasswordlessOnly)
+        );
+    }
+
+    #[test]
+    fn auth_mode_from_config_key_with_whitespace() {
+        assert_eq!(
+            AuthMode::from_config_key("  interactive  "),
+            Some(AuthMode::Interactive)
+        );
+    }
+
+    #[test]
+    fn auth_mode_from_config_key_invalid() {
+        assert_eq!(AuthMode::from_config_key(""), None);
+        assert_eq!(AuthMode::from_config_key("fingerprint"), None);
+        assert_eq!(AuthMode::from_config_key("password"), None);
+    }
+
+    #[test]
+    fn auth_mode_as_config_key_roundtrip() {
+        for mode in [
+            AuthMode::Prompt,
+            AuthMode::PasswordlessOnly,
+            AuthMode::Interactive,
+        ] {
+            let key = mode.as_config_key();
+            assert_eq!(AuthMode::from_config_key(key), Some(mode));
+        }
+    }
+
+    #[test]
+    fn auth_mode_default_is_prompt() {
+        assert_eq!(AuthMode::default(), AuthMode::Prompt);
+    }
+
+    #[test]
+    fn auth_mode_display() {
+        assert_eq!(format!("{}", AuthMode::Prompt), "prompt");
+        assert_eq!(
+            format!("{}", AuthMode::PasswordlessOnly),
+            "passwordless_only"
+        );
+        assert_eq!(format!("{}", AuthMode::Interactive), "interactive");
+    }
+
+    #[test]
+    fn auth_mode_always_skips_password_modal() {
+        assert!(!AuthMode::Prompt.always_skips_password_modal());
+        assert!(!AuthMode::PasswordlessOnly.always_skips_password_modal());
+        assert!(AuthMode::Interactive.always_skips_password_modal());
     }
 
     // -- Resolver (env-controlled) -------------------------------------------
@@ -1031,29 +1181,10 @@ mod tests {
     // -- Password validation -------------------------------------------------
 
     #[test]
-    fn validate_password_doas_runs_probe_or_reports_policy() {
+    fn validate_password_doas_returns_err() {
         let result = validate_password(PrivilegeTool::Doas, "any");
-        // Depending on system: Ok(bool) if doas is installed and policy permits,
-        // Err if doas is missing, PTY setup fails, or policy blocks all probes.
-        if let Err(err) = result {
-            assert!(
-                err.contains("doas validation")
-                    || err.contains("policy does not permit probe commands"),
-                "unexpected error message: {err}"
-            );
-        }
-    }
-
-    #[test]
-    fn run_doas_probe_auth_failed_detection() {
-        let combined_output = "doas: Authentication failed\n";
-        assert!(combined_output.contains(DOAS_AUTH_FAILED));
-    }
-
-    #[test]
-    fn run_doas_probe_policy_denied_detection() {
-        let combined_output = "doas: Operation not permitted\n";
-        assert!(!combined_output.contains(DOAS_AUTH_FAILED));
+        let err = result.expect_err("doas should not support password validation");
+        assert!(err.contains("does not support"));
     }
 
     // -- Availability (env-controlled) ---------------------------------------
@@ -1237,8 +1368,7 @@ mod tests {
 
     #[test]
     fn doas_password_pipe_returns_none() {
-        let result = build_password_pipe(PrivilegeTool::Doas, "pw", "cmd");
-        assert!(result.is_none());
+        assert!(build_password_pipe(PrivilegeTool::Doas, "pw", "cmd").is_none());
     }
 
     #[test]
@@ -1301,6 +1431,18 @@ mod tests {
     // -- Validate password ---------------------------------------------------
 
     #[test]
+    fn validate_password_doas_returns_unsupported() {
+        let result = validate_password(PrivilegeTool::Doas, "any");
+        let err = result.expect_err("doas should not support password validation");
+        assert!(
+            err.contains("does not support"),
+            "unexpected error message: {err}"
+        );
+    }
+
+    // -- Tool symmetry -------------------------------------------------------
+
+    #[test]
     fn both_tools_produce_distinct_commands() {
         let sudo_cmd = build_privilege_command(PrivilegeTool::Sudo, "pacman -S foo");
         let doas_cmd = build_privilege_command(PrivilegeTool::Doas, "pacman -S foo");
@@ -1317,5 +1459,29 @@ mod tests {
             sudo_caps.supports_stdin_password, doas_caps.supports_stdin_password,
             "sudo and doas should differ on stdin password support"
         );
+    }
+
+    // -- Fingerprint detection ------------------------------------------------
+
+    #[test]
+    fn detect_pam_fingerprint_sudo_does_not_panic() {
+        // Returns true only if /etc/pam.d/sudo (or system-auth) has pam_fprintd.
+        // In CI or most test machines this is false; we verify no panic.
+        let _result = detect_pam_fingerprint(PrivilegeTool::Sudo);
+    }
+
+    #[test]
+    fn detect_pam_fingerprint_doas_does_not_panic() {
+        let _result = detect_pam_fingerprint(PrivilegeTool::Doas);
+    }
+
+    #[test]
+    fn detect_fprintd_enrolled_does_not_panic() {
+        let _result = detect_fprintd_enrolled();
+    }
+
+    #[test]
+    fn is_fingerprint_available_does_not_panic() {
+        let _result = is_fingerprint_available();
     }
 }

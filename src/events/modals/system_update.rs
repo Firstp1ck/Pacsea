@@ -268,10 +268,64 @@ fn handle_system_update_enter(
         return;
     }
 
-    // Store update commands for processing after password prompt
+    let settings = crate::theme::settings();
+    if crate::logic::password::should_use_interactive_auth_handoff(&settings) {
+        match crate::events::try_interactive_auth_handoff() {
+            Ok(true) => {
+                app.modal = crate::state::Modal::PreflightExec {
+                    items: Vec::new(),
+                    action: crate::state::PreflightAction::Install,
+                    tab: crate::state::PreflightTab::Summary,
+                    verbose: false,
+                    log_lines: Vec::new(),
+                    abortable: false,
+                    header_chips: crate::state::modal::PreflightHeaderChips::default(),
+                    success: None,
+                };
+                app.pending_executor_request = Some(crate::install::ExecutorRequest::Update {
+                    commands: cmds,
+                    password: None,
+                    dry_run: app.dry_run,
+                });
+            }
+            Ok(false) => {
+                app.modal = crate::state::Modal::Alert {
+                    message: crate::i18n::t(app, "app.errors.authentication_failed"),
+                };
+            }
+            Err(e) => {
+                app.modal = crate::state::Modal::Alert { message: e };
+            }
+        }
+        return;
+    }
+
+    if crate::logic::password::resolve_auth_mode(&settings)
+        == crate::logic::privilege::AuthMode::PasswordlessOnly
+        && crate::logic::password::should_use_passwordless_sudo(&settings)
+    {
+        app.modal = crate::state::Modal::PreflightExec {
+            items: Vec::new(),
+            action: crate::state::PreflightAction::Install,
+            tab: crate::state::PreflightTab::Summary,
+            verbose: false,
+            log_lines: Vec::new(),
+            abortable: false,
+            header_chips: crate::state::modal::PreflightHeaderChips::default(),
+            success: None,
+        };
+        app.pending_executor_request = Some(crate::install::ExecutorRequest::Update {
+            commands: cmds,
+            password: None,
+            dry_run: app.dry_run,
+        });
+        return;
+    }
+
+    // Store update commands for processing after password prompt.
     app.pending_update_commands = Some(cmds);
 
-    // Show password prompt - user can press Enter if passwordless sudo is configured
+    // Prompt mode with stdin-capable tools still uses in-app password entry.
     app.modal = crate::state::Modal::PasswordPrompt {
         purpose: crate::state::modal::PasswordPurpose::Update,
         items: Vec::new(), // System update doesn't have package items

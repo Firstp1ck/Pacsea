@@ -359,6 +359,9 @@ fn extract_failed_packages(output: &str, helper: &str) -> Vec<String> {
 /// - `args`: Command arguments.
 /// - `log_file_path`: Path to the log file where output should be written.
 /// - `password`: Optional sudo password; when provided, uses `sudo -S` with password piping.
+/// - `interactive_auth`: When true, inherits stdin so the privilege tool can handle
+///   authentication directly (PAM fingerprint, terminal password prompt, etc.).
+///   When false, stdin is `/dev/null` to prevent unintended interactive prompts.
 ///
 /// Output:
 /// - `Ok((status, output))` if command executed, `Err(e)` if execution failed.
@@ -371,13 +374,14 @@ fn extract_failed_packages(output: &str, helper: &str) -> Vec<String> {
 /// - Sets `LC_ALL=C` and `LANG=C` for consistent English output.
 /// - Handles TTY detection and falls back to stdout if no TTY available.
 /// - Uses `set -o pipefail` for reliable exit status capture.
-/// - Configures stdin/stdout/stderr explicitly to prevent interactive prompts.
+/// - Configures stdin/stdout/stderr explicitly; inherits stdin for interactive auth.
 #[cfg(not(target_os = "windows"))]
 fn run_command_with_logging(
     program: &str,
     args: &[&str],
     log_file_path: &Path,
     password: Option<&str>,
+    interactive_auth: bool,
 ) -> Result<(std::process::ExitStatus, String), std::io::Error> {
     use std::io::IsTerminal;
     use std::process::{Command, Stdio};
@@ -477,12 +481,18 @@ fn run_command_with_logging(
         "executing update command with logging"
     );
 
+    let stdin_cfg = if interactive_auth {
+        Stdio::inherit()
+    } else {
+        Stdio::null()
+    };
+
     let status = Command::new("bash")
         .arg("-c")
         .arg(&shell_cmd)
         .env("LC_ALL", "C")
         .env("LANG", "C")
-        .stdin(Stdio::null())
+        .stdin(stdin_cfg)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .status()
@@ -590,21 +600,33 @@ impl UpdateState {
 /// - Exits the process with code 1 if password is empty or cannot be read.
 ///
 /// Details:
-/// - Respects `use_passwordless_sudo` from settings (aligned with TUI). Skips password prompt
-///   only when both the setting is enabled and `sudo -n true` succeeds.
-/// - Prompts user for password using `rpassword::prompt_password`.
+/// - Uses [`pacsea::logic::password::resolve_auth_mode`] to determine auth strategy.
+/// - `Interactive` mode: returns `None` (privilege tool handles auth directly via PAM).
+/// - `PasswordlessOnly` mode: returns `None` if `{tool} -n true` succeeds.
+/// - `Prompt` mode: prompts user for password using `rpassword::prompt_password`.
 /// - Validates that password is not empty (after trimming whitespace).
 /// - Empty passwords are rejected early to prevent sudo failures.
 #[cfg(not(target_os = "windows"))]
 fn prompt_and_validate_password(write_log: &(dyn Fn(&str) + Send + Sync)) -> Option<String> {
     use std::io::IsTerminal;
 
-    // Only skip password prompt when use_passwordless_sudo is enabled in settings AND
-    // passwordless sudo is available on the system (aligned with TUI behavior).
     let settings = theme::settings();
-    if pacsea::logic::password::should_use_passwordless_sudo(&settings) {
-        write_log("Passwordless sudo enabled in settings and available, skipping password prompt");
-        return None;
+    let auth_mode = pacsea::logic::password::resolve_auth_mode(&settings);
+
+    match auth_mode {
+        pacsea::logic::privilege::AuthMode::Interactive => {
+            write_log(
+                "Auth mode is 'interactive'; skipping password prompt (privilege tool handles auth)",
+            );
+            return None;
+        }
+        pacsea::logic::privilege::AuthMode::PasswordlessOnly => {
+            if pacsea::logic::password::should_use_passwordless_sudo(&settings) {
+                write_log("Passwordless privilege enabled and available, skipping password prompt");
+                return None;
+            }
+        }
+        pacsea::logic::privilege::AuthMode::Prompt => {}
     }
 
     // Password required, but check if stdin is available for interactive input
@@ -691,6 +713,7 @@ fn setup_log_file(log_file_path: &std::path::Path) -> Box<dyn Fn(&str) + Send + 
 /// - `log_file_path`: Path to the log file.
 /// - `password`: Optional sudo password.
 /// - `no_color`: If true, disables colored output.
+/// - `interactive_auth`: Whether to use interactive auth (stdin inherited for PAM).
 /// - `write_log`: Function to write log messages.
 ///
 /// Output:
@@ -707,6 +730,7 @@ fn run_pacman_update(
     log_file_path: &Path,
     password: Option<&str>,
     no_color: bool,
+    interactive_auth: bool,
     write_log: &(dyn Fn(&str) + Send + Sync),
 ) {
     println!(
@@ -737,6 +761,7 @@ fn run_pacman_update(
         &["pacman", "-Syu", "--noconfirm"],
         log_file_path,
         password,
+        interactive_auth,
     );
 
     match pacman_result {
@@ -840,11 +865,14 @@ fn refresh_sudo_timestamp(password: Option<&str>, write_log: &(dyn Fn(&str) + Se
 /// - Updates state with success/failure status and failed packages.
 /// - If no AUR helper is available, logs a warning and skips the update.
 /// - Extracts failed package names from command output on failure.
+/// - In interactive auth mode, stdin is inherited so the AUR helper's internal
+///   sudo/doas can prompt via PAM.
 #[cfg(not(target_os = "windows"))]
 fn run_aur_update(
     state: &mut UpdateState,
     log_file_path: &Path,
     no_color: bool,
+    interactive_auth: bool,
     write_log: &(dyn Fn(&str) + Send + Sync),
 ) {
     let aur_helper = utils::get_aur_helper();
@@ -864,6 +892,7 @@ fn run_aur_update(
             &["-Sua", "--noconfirm"],
             log_file_path,
             None, // AUR helpers handle sudo internally, no password needed
+            interactive_auth,
         );
 
         match aur_result {
@@ -1109,6 +1138,11 @@ pub fn handle_update(no_color: bool) -> ! {
     // Prompt for password and validate it
     let password = prompt_and_validate_password(&*write_log);
 
+    // Resolve whether we're in interactive auth mode (fingerprint / PAM direct)
+    let settings = theme::settings();
+    let interactive_auth = pacsea::logic::password::resolve_auth_mode(&settings)
+        == pacsea::logic::privilege::AuthMode::Interactive;
+
     // Initialize update state
     let mut state = UpdateState::new();
 
@@ -1118,15 +1152,25 @@ pub fn handle_update(no_color: bool) -> ! {
         &log_file_path,
         password.as_deref(),
         no_color,
+        interactive_auth,
         &*write_log,
     );
 
     // Refresh sudo timestamp after pacman command so AUR helper can use it
-    refresh_sudo_timestamp(password.as_deref(), &*write_log);
+    // Skip in interactive mode — the privilege tool manages its own credential cache.
+    if !interactive_auth {
+        refresh_sudo_timestamp(password.as_deref(), &*write_log);
+    }
 
     // Step 2: Update AUR packages (yay/paru -Sua --noconfirm) only if pacman succeeded
     if state.pacman_succeeded == Some(true) {
-        run_aur_update(&mut state, &log_file_path, no_color, &*write_log);
+        run_aur_update(
+            &mut state,
+            &log_file_path,
+            no_color,
+            interactive_auth,
+            &*write_log,
+        );
     } else {
         println!(
             "\n{}",

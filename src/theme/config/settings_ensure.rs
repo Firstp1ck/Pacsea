@@ -102,6 +102,7 @@ fn get_app_value(key: &str, prefs: &Settings) -> Option<String> {
         "locale" => Some(prefs.locale.clone()),
         "preferred_terminal" => Some(prefs.preferred_terminal.clone()),
         "privilege_tool" => Some(prefs.privilege_mode.as_config_key().to_string()),
+        "auth_mode" => Some(prefs.auth_mode.as_config_key().to_string()),
         "use_terminal_theme" => Some(bool_to_string(prefs.use_terminal_theme)),
         _ => None,
     }

@@ -144,6 +144,8 @@ en-US:
       cascade_mode_enabled: "Cascade mode enabled"
       cascade_mode_disabled: "Cascade mode disabled"
       gnome_terminal_warning: "Continuing without gnome-terminal may cause unexpected behavior"
+    errors:
+      authentication_failed: "Authentication failed or was cancelled. Operation aborted."
     updates_button:
       available: "Updates available ({})"
       none: "No updates available"
@@ -364,6 +366,7 @@ en-US:
         incorrect_password: "Incorrect password. Please try again."
         incorrect_password_attempts: "Incorrect password. {} attempts remaining."
         validation_failed: "Failed to validate password: {}"
+        fingerprint_hint: "Tip: Fingerprint auth detected. Set auth_mode = interactive in settings.conf"
       confirm_install:
         title: " Confirm Install "
         heading: "Confirm installation"

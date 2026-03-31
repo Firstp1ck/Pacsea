@@ -235,32 +235,49 @@ fn handle_optional_deps_enter(
                 risk_level: crate::state::modal::RiskLevel::Low,
             };
 
-            // Check passwordless sudo availability (requires setting enabled AND system configured)
             let settings = crate::theme::settings();
-            if crate::logic::password::should_use_passwordless_sudo(&settings) {
-                // Passwordless sudo enabled and available - skip password prompt and proceed directly
-                // Store the custom command for execution
-                app.pending_custom_command = Some(cmd);
-                // Transition to PreflightExec for custom command
-                app.modal = crate::state::Modal::PreflightExec {
-                    items: vec![item],
-                    action: crate::state::PreflightAction::Install,
-                    tab: crate::state::PreflightTab::Summary,
-                    verbose: false,
-                    log_lines: Vec::new(),
-                    abortable: false,
-                    header_chips,
-                    success: None,
+            let proceed_no_password =
+                |app: &mut AppState,
+                 item: PackageItem,
+                 cmd: String,
+                 header_chips: crate::state::modal::PreflightHeaderChips| {
+                    app.pending_custom_command = Some(cmd);
+                    app.modal = crate::state::Modal::PreflightExec {
+                        items: vec![item],
+                        action: crate::state::PreflightAction::Install,
+                        tab: crate::state::PreflightTab::Summary,
+                        verbose: false,
+                        log_lines: Vec::new(),
+                        abortable: false,
+                        header_chips,
+                        success: None,
+                    };
+                    app.pending_executor_request =
+                        Some(crate::install::ExecutorRequest::CustomCommand {
+                            command: app.pending_custom_command.take().unwrap_or_default(),
+                            password: None,
+                            dry_run: app.dry_run,
+                        });
                 };
-                // Store executor request with no password
-                app.pending_executor_request =
-                    Some(crate::install::ExecutorRequest::CustomCommand {
-                        command: app.pending_custom_command.take().unwrap_or_default(),
-                        password: None,
-                        dry_run: app.dry_run,
-                    });
+
+            if crate::logic::password::should_use_interactive_auth_handoff(&settings) {
+                match crate::events::try_interactive_auth_handoff() {
+                    Ok(true) => proceed_no_password(app, item, cmd, header_chips),
+                    Ok(false) => {
+                        app.modal = crate::state::Modal::Alert {
+                            message: crate::i18n::t(app, "app.errors.authentication_failed"),
+                        };
+                    }
+                    Err(e) => {
+                        app.modal = crate::state::Modal::Alert { message: e };
+                    }
+                }
+            } else if crate::logic::password::resolve_auth_mode(&settings)
+                == crate::logic::privilege::AuthMode::PasswordlessOnly
+                && crate::logic::password::should_use_passwordless_sudo(&settings)
+            {
+                proceed_no_password(app, item, cmd, header_chips);
             } else {
-                // Passwordless sudo not enabled or not available - show password prompt
                 app.modal = crate::state::Modal::PasswordPrompt {
                     purpose: crate::state::modal::PasswordPurpose::Install,
                     items: vec![item],
@@ -268,7 +285,6 @@ fn handle_optional_deps_enter(
                     cursor: 0,
                     error: None,
                 };
-                // Store the custom command and header chips for after password prompt
                 app.pending_custom_command = Some(cmd);
                 app.pending_exec_header_chips = Some(header_chips);
             }

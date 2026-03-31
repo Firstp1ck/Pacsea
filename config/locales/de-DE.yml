@@ -144,6 +144,8 @@ de-DE:
       cascade_mode_enabled: "Kaskadenmodus aktiviert"
       cascade_mode_disabled: "Kaskadenmodus deaktiviert"
       gnome_terminal_warning: "Fortsetzen ohne gnome-terminal kann zu unerwartetem Verhalten führen"
+    errors:
+      authentication_failed: "Authentifizierung fehlgeschlagen oder abgebrochen. Vorgang abgebrochen."
     updates_button:
       available: "Updates verfügbar ({})"
       none: "Keine Updates verfügbar"
@@ -364,6 +366,7 @@ de-DE:
         incorrect_password: "Falsches Passwort. Bitte versuchen Sie es erneut."
         incorrect_password_attempts: "Falsches Passwort. {} Versuche verbleibend."
         validation_failed: "Passwort-Validierung fehlgeschlagen: {}"
+        fingerprint_hint: "Tipp: Fingerabdruck-Auth erkannt. Setze auth_mode = interactive in settings.conf"
       confirm_install:
         title: " Installation bestätigen "
         heading: "Installation bestätigen"

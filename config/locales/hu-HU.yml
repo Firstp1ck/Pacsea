@@ -147,6 +147,9 @@ hu-HU:
       cascade_mode_enabled: "Lépcsőzetes mód engedélyezve"
       cascade_mode_disabled: "Lépcsőzetes mód letiltva"
       gnome_terminal_warning: "Gnome Terminál nélkül a program váratlanul viselkedhet"
+    errors:
+      # TODO: translate to hungarian
+      authentication_failed: "Authentication failed or was cancelled. Operation aborted."
     updates_button:
       available: "({}) frissítés érhető el"
       none: "Nincsenek elérhető frissítések"
@@ -367,6 +370,8 @@ hu-HU:
         incorrect_password: "Helytelen jelszó. Próbálja újra."
         incorrect_password_attempts: "Helytelen jelszó. {} próbálkozás maradt."
         validation_failed: "Nem sikerült ellenőrizni a jelszót: {}"
+        # TODO: translate to hungarian
+        fingerprint_hint: "Tip: Fingerprint auth detected. Set auth_mode = interactive in settings.conf"
       confirm_install:
         title: " Telepítés megerősítése "
         heading: "Telepítés megerősítése"

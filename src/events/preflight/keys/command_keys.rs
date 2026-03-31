@@ -329,21 +329,37 @@ pub(super) fn handle_proceed_install(
         return false;
     }
 
-    // Check passwordless sudo availability (requires setting enabled AND system configured)
-    // Both official packages (sudo pacman) and AUR packages (paru/yay need sudo for final step)
-    // require sudo, but password may not be needed if passwordless sudo is configured and enabled
     let settings = crate::theme::settings();
-    if crate::logic::password::should_use_passwordless_sudo(&settings) {
-        // Passwordless sudo enabled and available - skip password prompt and proceed directly
+    if crate::logic::password::should_use_interactive_auth_handoff(&settings) {
+        match crate::events::try_interactive_auth_handoff() {
+            Ok(true) => super::start_execution(
+                app,
+                &packages,
+                crate::state::PreflightAction::Install,
+                header_chips,
+                None,
+            ),
+            Ok(false) => {
+                app.modal = crate::state::Modal::Alert {
+                    message: crate::i18n::t(app, "app.errors.authentication_failed"),
+                };
+            }
+            Err(e) => {
+                app.modal = crate::state::Modal::Alert { message: e };
+            }
+        }
+    } else if crate::logic::password::resolve_auth_mode(&settings)
+        == crate::logic::privilege::AuthMode::PasswordlessOnly
+        && crate::logic::password::should_use_passwordless_sudo(&settings)
+    {
         super::start_execution(
             app,
             &packages,
             crate::state::PreflightAction::Install,
             header_chips,
-            None, // No password needed
+            None,
         );
     } else {
-        // Passwordless sudo not enabled or not available - show password prompt
         app.modal = crate::state::Modal::PasswordPrompt {
             purpose: crate::state::modal::PasswordPurpose::Install,
             items: packages,
@@ -353,7 +369,7 @@ pub(super) fn handle_proceed_install(
         };
         app.pending_exec_header_chips = Some(header_chips);
     }
-    false // Keep TUI open
+    false
 }
 
 /// What: Handle proceed action for remove targets.
@@ -387,16 +403,36 @@ pub(super) fn handle_proceed_remove(
         };
         return false;
     }
-    // Always show password prompt - user can press Enter if passwordless sudo is configured
-    app.modal = crate::state::Modal::PasswordPrompt {
-        purpose: crate::state::modal::PasswordPurpose::Remove,
-        items,
-        input: String::new(),
-        cursor: 0,
-        error: None,
-    };
-    app.pending_exec_header_chips = Some(header_chips);
-    false // Keep TUI open
+    let settings = crate::theme::settings();
+    if crate::logic::password::should_use_interactive_auth_handoff(&settings) {
+        match crate::events::try_interactive_auth_handoff() {
+            Ok(true) => super::start_execution(
+                app,
+                &items,
+                crate::state::PreflightAction::Remove,
+                header_chips,
+                None,
+            ),
+            Ok(false) => {
+                app.modal = crate::state::Modal::Alert {
+                    message: crate::i18n::t(app, "app.errors.authentication_failed"),
+                };
+            }
+            Err(e) => {
+                app.modal = crate::state::Modal::Alert { message: e };
+            }
+        }
+    } else {
+        app.modal = crate::state::Modal::PasswordPrompt {
+            purpose: crate::state::modal::PasswordPurpose::Remove,
+            items,
+            input: String::new(),
+            cursor: 0,
+            error: None,
+        };
+        app.pending_exec_header_chips = Some(header_chips);
+    }
+    false
 }
 
 /// What: Handle p key - proceed with install/remove.
@@ -586,15 +622,19 @@ pub(super) fn handle_p_key(app: &mut AppState) -> bool {
             };
             return false;
         }
-        // Show password prompt for downgrade
-        app.modal = crate::state::Modal::PasswordPrompt {
-            purpose: crate::state::modal::PasswordPurpose::Downgrade,
-            items,
-            input: String::new(),
-            cursor: 0,
-            error: None,
-        };
-        app.pending_exec_header_chips = Some(header_chips);
+        let settings = crate::theme::settings();
+        if crate::logic::password::should_use_interactive_auth_handoff(&settings) {
+            crate::events::spawn_downgrade_in_terminal(app, &items);
+        } else {
+            app.modal = crate::state::Modal::PasswordPrompt {
+                purpose: crate::state::modal::PasswordPurpose::Downgrade,
+                items,
+                input: String::new(),
+                cursor: 0,
+                error: None,
+            };
+            app.pending_exec_header_chips = Some(header_chips);
+        }
         return false;
     }
 

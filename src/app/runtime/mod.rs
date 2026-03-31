@@ -60,7 +60,7 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>
 pub async fn run(dry_run_flag: bool) -> Result<()> {
     let headless = std::env::var("PACSEA_TEST_HEADLESS").ok().as_deref() == Some("1");
 
-    // Run startup config preflight once before first theme resolution.
+    // Migrate legacy configs, fill missing keys, and return the resolved settings snapshot.
     let prefs = run_startup_config_preflight();
 
     // Force theme resolution BEFORE terminal setup.

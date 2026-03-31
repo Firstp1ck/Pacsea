@@ -16,7 +16,7 @@ mod runtime;
 pub mod sandbox_cache;
 pub mod services_cache;
 /// Terminal setup and restoration utilities.
-mod terminal;
+pub mod terminal;
 
 // Re-export the public entrypoint so callers keep using `app::run(...)`.
 pub use runtime::run;
