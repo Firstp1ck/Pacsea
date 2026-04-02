@@ -419,7 +419,18 @@ get_announcement = true\n\
 # Note: Terminal theme is also used automatically when theme.conf is missing/invalid\n\
 # and the terminal is supported (alacritty, kitty, konsole, ghostty, wezterm,\n\
 # wezterm-gui, xterm, gnome-terminal, xfce-terminal, tilix, mate-terminal).\n\
-use_terminal_theme = false\n";
+use_terminal_theme = false\n\
+\n\
+# AUR Voting via SSH\n\
+# Vote/unvote AUR packages directly from Pacsea using SSH.\n\
+# Requires your SSH public key to be uploaded to your AUR account:\n\
+#   https://aur.archlinux.org/account\n\
+# Enable AUR voting (default: false)\n\
+aur_vote_enabled = false\n\
+# SSH connect timeout in seconds (default: 10)\n\
+aur_vote_ssh_timeout_seconds = 10\n\
+# SSH binary to use (default: ssh). Override for non-standard setups.\n\
+aur_vote_ssh_command = ssh\n";
 
 /// Standalone keybinds skeleton used when initializing a separate keybinds.conf
 pub const KEYBINDS_SKELETON_CONTENT: &str = "# Pacsea keybindings configuration\n\

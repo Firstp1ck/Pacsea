@@ -2,6 +2,8 @@
 
 /// Security advisories fetching.
 mod advisories;
+/// AUR package voting via SSH.
+mod aur_vote;
 /// AUR comments fetching.
 mod comments;
 /// Package details fetching.
@@ -27,6 +29,7 @@ pub mod status;
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 pub use advisories::fetch_security_advisories;
+pub use aur_vote::{AurVoteContext, AurVoteError, AurVoteOutcome, VoteAction, aur_vote};
 pub use comments::fetch_aur_comments;
 pub use details::fetch_details;
 pub use feeds::{
