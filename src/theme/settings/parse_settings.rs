@@ -305,6 +305,38 @@ fn parse_search_settings(key: &str, val: &str, settings: &mut Settings) -> bool 
     }
 }
 
+/// What: Parse AUR voting settings.
+///
+/// Inputs:
+/// - `key`: Normalized config key
+/// - `val`: Config value
+/// - `settings`: Mutable settings to update
+///
+/// Output:
+/// - `true` if key was handled, `false` otherwise
+///
+/// Details:
+/// - Handles `aur_vote_enabled`, `aur_vote_ssh_timeout_seconds`, `aur_vote_ssh_command`.
+fn parse_aur_vote_settings(key: &str, val: &str, settings: &mut Settings) -> bool {
+    match key {
+        "aur_vote_enabled" | "aur_vote" => {
+            settings.aur_vote_enabled = parse_bool(val);
+            true
+        }
+        "aur_vote_ssh_timeout_seconds" | "aur_vote_ssh_timeout" | "aur_vote_timeout" => {
+            if let Ok(v) = val.parse::<u32>() {
+                settings.aur_vote_ssh_timeout_seconds = v.max(1);
+            }
+            true
+        }
+        "aur_vote_ssh_command" | "aur_vote_ssh" => {
+            settings.aur_vote_ssh_command = val.to_string();
+            true
+        }
+        _ => false,
+    }
+}
+
 /// What: Parse miscellaneous settings.
 ///
 /// Inputs:
@@ -314,6 +346,9 @@ fn parse_search_settings(key: &str, val: &str, settings: &mut Settings) -> bool 
 ///
 /// Output:
 /// - `true` if key was handled, `false` otherwise
+///
+/// Details:
+/// - Handles terminal, locale, updates interval, privilege, and terminal theme settings.
 fn parse_misc_settings(key: &str, val: &str, settings: &mut Settings) -> bool {
     match key {
         "preferred_terminal" | "terminal_preferred" | "terminal" => {
@@ -407,6 +442,7 @@ pub fn parse_settings(content: &str, _settings_path: &Path, settings: &mut Setti
             || parse_mirror_settings(&key, val, settings)
             || parse_news_settings(&key, val, settings)
             || parse_search_settings(&key, val, settings)
+            || parse_aur_vote_settings(&key, val, settings)
             || parse_misc_settings(&key, val, settings);
     }
 }

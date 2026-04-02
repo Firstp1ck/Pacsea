@@ -379,6 +379,59 @@ pub(super) fn handle_confirm_aur_update_modal(
     false
 }
 
+/// What: Handle key events for `ConfirmAurVote` modal.
+///
+/// Inputs:
+/// - `ke`: Key event.
+/// - `app`: Mutable application state.
+/// - `modal`: `ConfirmAurVote` modal variant.
+///
+/// Output:
+/// - `true` if modal was closed or transitioned, `false` otherwise.
+///
+/// Details:
+/// - Enter/y confirms and queues the request for tick-handler dispatch.
+/// - Esc/q/n cancels the intent and closes the modal.
+pub(super) fn handle_confirm_aur_vote_modal(
+    ke: KeyEvent,
+    app: &mut AppState,
+    modal: &Modal,
+) -> bool {
+    if let Modal::ConfirmAurVote {
+        pkgbase, action, ..
+    } = modal
+    {
+        match ke.code {
+            KeyCode::Esc | KeyCode::Char('q' | 'Q' | 'n' | 'N') => {
+                app.pending_aur_vote_intent = None;
+                app.modal = crate::state::Modal::None;
+                app.toast_message =
+                    Some(format!("Cancelled AUR {action} request for '{pkgbase}'."));
+                app.toast_expires_at =
+                    Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
+                return true;
+            }
+            KeyCode::Enter | KeyCode::Char('\n' | '\r' | 'y' | 'Y') => {
+                app.pending_aur_vote_intent = None;
+                app.pending_aur_vote_request = Some((pkgbase.clone(), *action));
+                let action_label = match action {
+                    crate::sources::VoteAction::Vote => "vote",
+                    crate::sources::VoteAction::Unvote => "unvote",
+                };
+                app.toast_message = Some(format!(
+                    "Queued AUR {action_label} request for '{pkgbase}'."
+                ));
+                app.toast_expires_at =
+                    Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
+                app.modal = crate::state::Modal::None;
+                return true;
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
 /// What: Handle key events for `ConfirmReinstall` modal.
 ///
 /// Inputs:
@@ -641,6 +694,43 @@ pub(super) fn handle_optional_deps_modal(
             Modal::OptionalDeps {
                 rows: rows.clone(),
                 selected: *selected,
+            },
+        );
+    }
+    false
+}
+
+/// What: Handle key events for `SshAurSetup` modal, including restoration logic.
+///
+/// Inputs:
+/// - `ke`: Key event.
+/// - `app`: Mutable application state.
+/// - `modal`: `SshAurSetup` modal variant.
+///
+/// Output:
+/// - `true` if event propagation should stop, otherwise `false`.
+pub(super) fn handle_ssh_setup_modal(ke: KeyEvent, app: &mut AppState, mut modal: Modal) -> bool {
+    if let Modal::SshAurSetup {
+        ref mut step,
+        ref mut status_lines,
+        ref mut existing_host_block,
+    } = modal
+    {
+        let result = super::optional_deps::handle_ssh_setup_modal(
+            ke,
+            app,
+            step,
+            status_lines,
+            existing_host_block,
+        );
+        return restore::restore_if_not_closed_with_option_result(
+            app,
+            &ke,
+            result,
+            Modal::SshAurSetup {
+                step: *step,
+                status_lines: status_lines.clone(),
+                existing_host_block: existing_host_block.clone(),
             },
         );
     }

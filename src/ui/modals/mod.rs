@@ -99,6 +99,18 @@ mod tests {
         })
         .expect("Failed to render ConfirmInstall modal");
 
+        // ConfirmAurVote
+        app.modal = crate::state::Modal::ConfirmAurVote {
+            pkgbase: "pacsea-bin".to_string(),
+            action: crate::sources::VoteAction::Vote,
+            message: "Confirm AUR vote".to_string(),
+        };
+        term.draw(|f| {
+            let area = f.area();
+            super::render_modals(f, &mut app, area);
+        })
+        .expect("Failed to render ConfirmAurVote modal");
+
         // ConfirmRemove with core warn
         app.modal = crate::state::Modal::ConfirmRemove {
             items: vec![crate::state::PackageItem {

@@ -85,6 +85,33 @@ fn render_confirm_aur_update_modal(
     }
 }
 
+/// What: Render `ConfirmAurVote` modal and return reconstructed state.
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `app`: Application state
+/// - `area`: Full screen area
+/// - `ctx`: Context struct containing all `ConfirmAurVote` fields (taken by value)
+///
+/// Output:
+/// - Returns reconstructed `Modal::ConfirmAurVote` variant
+///
+/// Details:
+/// - Delegates to `confirm::render_confirm_aur_vote` and reconstructs the modal variant.
+fn render_confirm_aur_vote_modal(
+    f: &mut Frame,
+    app: &AppState,
+    area: Rect,
+    ctx: ConfirmAurVoteContext,
+) -> Modal {
+    confirm::render_confirm_aur_vote(f, app, area, ctx.action, &ctx.message);
+    Modal::ConfirmAurVote {
+        pkgbase: ctx.pkgbase,
+        action: ctx.action,
+        message: ctx.message,
+    }
+}
+
 /// What: Context struct grouping `PreflightExec` modal fields to reduce data flow complexity.
 ///
 /// Inputs: None (constructed from Modal variant).
@@ -267,6 +294,22 @@ struct ConfirmAurUpdateContext {
     message: String,
 }
 
+/// What: Context struct grouping `ConfirmAurVote` modal fields to reduce data flow complexity.
+///
+/// Inputs: None (constructed from Modal variant).
+///
+/// Output: Groups related fields together for passing to render functions.
+///
+/// Details: Reduces individual field extractions and uses, lowering data flow complexity.
+struct ConfirmAurVoteContext {
+    /// AUR package base targeted by the pending action.
+    pkgbase: String,
+    /// Pending vote action awaiting confirmation.
+    action: crate::sources::VoteAction,
+    /// Confirmation message text to display to the user.
+    message: String,
+}
+
 /// What: Context struct grouping News modal fields to reduce data flow complexity.
 ///
 /// Inputs: None (constructed from Modal variant).
@@ -329,6 +372,16 @@ struct OptionalDepsContext {
     rows: Vec<OptionalDepRow>,
     /// Currently selected row index.
     selected: usize,
+}
+
+/// What: Context struct grouping `SshAurSetup` modal fields.
+struct SshAurSetupContext {
+    /// Current setup step.
+    step: crate::state::SshSetupStep,
+    /// Status/instruction lines.
+    status_lines: Vec<String>,
+    /// Existing host block shown for overwrite confirmation.
+    existing_host_block: Option<String>,
 }
 
 /// What: Context struct grouping `VirusTotalSetup` modal fields to reduce data flow complexity.
@@ -501,6 +554,18 @@ impl ModalRenderer for Modal {
                 let ctx = ConfirmAurUpdateContext { message };
                 render_confirm_aur_update_modal(f, app, area, ctx)
             }
+            Self::ConfirmAurVote {
+                pkgbase,
+                action,
+                message,
+            } => {
+                let ctx = ConfirmAurVoteContext {
+                    pkgbase,
+                    action,
+                    message,
+                };
+                render_confirm_aur_vote_modal(f, app, area, ctx)
+            }
             Self::SystemUpdate {
                 do_mirrors,
                 do_pacman,
@@ -567,6 +632,18 @@ impl ModalRenderer for Modal {
             Self::OptionalDeps { rows, selected } => {
                 let ctx = OptionalDepsContext { rows, selected };
                 render_optional_deps_modal(f, area, ctx, app)
+            }
+            Self::SshAurSetup {
+                step,
+                status_lines,
+                existing_host_block,
+            } => {
+                let ctx = SshAurSetupContext {
+                    step,
+                    status_lines,
+                    existing_host_block,
+                };
+                render_ssh_setup_modal(f, area, ctx)
             }
             Self::ScanConfig {
                 do_clamav,
@@ -963,6 +1040,22 @@ fn render_optional_deps_modal(
     Modal::OptionalDeps {
         rows: ctx.rows,
         selected: ctx.selected,
+    }
+}
+
+/// What: Render `SshAurSetup` modal and return reconstructed state.
+fn render_ssh_setup_modal(f: &mut Frame, area: Rect, ctx: SshAurSetupContext) -> Modal {
+    misc::render_ssh_aur_setup(
+        f,
+        area,
+        ctx.step,
+        &ctx.status_lines,
+        ctx.existing_host_block.as_deref(),
+    );
+    Modal::SshAurSetup {
+        step: ctx.step,
+        status_lines: ctx.status_lines,
+        existing_host_block: ctx.existing_host_block,
     }
 }
 

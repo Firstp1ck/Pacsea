@@ -221,6 +221,154 @@ fn handle_updates_list(app: &mut AppState, count: usize, list: Vec<String>) {
     }
 }
 
+/// What: Handle AUR vote worker response and update UI feedback.
+///
+/// Inputs:
+/// - `app`: Application state.
+/// - `response`: Vote worker response with typed success/failure result.
+///
+/// Output:
+/// - None (modifies app state in place).
+///
+/// Details:
+/// - Success is surfaced as a short-lived toast.
+/// - State-aligned failures (`AlreadyVoted`, `NotVoted`) sync local cache and show toast.
+/// - Other actionable failures open `Modal::Alert` with guidance.
+fn handle_aur_vote_response(
+    app: &mut AppState,
+    response: crate::app::runtime::workers::aur_vote::AurVoteResponse,
+) {
+    match response.result {
+        Ok(outcome) => {
+            let state = match outcome.action {
+                crate::sources::VoteAction::Vote => crate::state::app_state::AurVoteStateUi::Voted,
+                crate::sources::VoteAction::Unvote => {
+                    crate::state::app_state::AurVoteStateUi::NotVoted
+                }
+            };
+            if !outcome.dry_run {
+                app.aur_vote_state_by_pkgbase
+                    .insert(outcome.pkgbase.clone(), state);
+                app.aur_vote_state_dirty = true;
+            }
+            app.toast_message = Some(outcome.message());
+            app.toast_expires_at =
+                Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
+        }
+        Err(error) => match error {
+            crate::sources::AurVoteError::AlreadyVoted(pkgbase) => {
+                app.aur_vote_state_by_pkgbase.insert(
+                    pkgbase.clone(),
+                    crate::state::app_state::AurVoteStateUi::Voted,
+                );
+                app.aur_vote_state_dirty = true;
+                app.toast_message = Some(format!(
+                    "Already voted for '{pkgbase}'. Local vote state synced."
+                ));
+                app.toast_expires_at =
+                    Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
+            }
+            crate::sources::AurVoteError::NotVoted(pkgbase) => {
+                app.aur_vote_state_by_pkgbase.insert(
+                    pkgbase.clone(),
+                    crate::state::app_state::AurVoteStateUi::NotVoted,
+                );
+                app.aur_vote_state_dirty = true;
+                app.toast_message = Some(format!(
+                    "No vote exists for '{pkgbase}'. Local vote state synced."
+                ));
+                app.toast_expires_at =
+                    Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
+            }
+            other_error => {
+                let guidance = match &other_error {
+                    crate::sources::AurVoteError::NotFound(_) => {
+                        "Verify the selected package base name."
+                    }
+                    crate::sources::AurVoteError::AuthFailed(_) => {
+                        "Upload your SSH public key to https://aur.archlinux.org/account and retry."
+                    }
+                    crate::sources::AurVoteError::Maintenance => {
+                        "Wait for AUR maintenance to end and retry later."
+                    }
+                    crate::sources::AurVoteError::Banned => {
+                        "Your IP is blocked from the SSH interface. Contact AUR support."
+                    }
+                    crate::sources::AurVoteError::Timeout(_)
+                    | crate::sources::AurVoteError::NetworkError(_) => {
+                        "Check network connectivity and SSH reachability."
+                    }
+                    crate::sources::AurVoteError::SshNotFound(_) => {
+                        "Install openssh or configure aur_vote_ssh_command in settings.conf."
+                    }
+                    crate::sources::AurVoteError::Unexpected(_) => {
+                        "Retry once, then inspect logs if the issue persists."
+                    }
+                    crate::sources::AurVoteError::AlreadyVoted(_)
+                    | crate::sources::AurVoteError::NotVoted(_) => {
+                        "Use the opposite action or leave as-is."
+                    }
+                };
+                app.modal = crate::state::Modal::Alert {
+                    message: format!("AUR vote failed: {other_error}\n\nNext step: {guidance}"),
+                };
+            }
+        },
+    }
+}
+
+/// What: Handle AUR vote-state worker responses and update cached UI state.
+///
+/// Inputs:
+/// - `app`: Application state.
+/// - `response`: Vote-state worker response with pkgbase and typed result.
+///
+/// Output:
+/// - None (modifies app state in place).
+///
+/// Details:
+/// - Success updates package cache to `Voted`/`NotVoted`.
+/// - Failure stores a short error marker for inline rendering in results/details.
+fn handle_aur_vote_state_response(
+    app: &mut AppState,
+    response: crate::app::runtime::workers::aur_vote::AurVoteStateResponse,
+) {
+    let pkgbase = response.pkgbase;
+    let next_state = match response.result {
+        Ok(crate::sources::AurPackageVoteState::Voted) => {
+            crate::state::app_state::AurVoteStateUi::Voted
+        }
+        Ok(crate::sources::AurPackageVoteState::NotVoted) => {
+            crate::state::app_state::AurVoteStateUi::NotVoted
+        }
+        Err(error) => {
+            if crate::sources::is_vote_state_unsupported_error(&error) {
+                app.aur_vote_state_lookup_supported = false;
+                match app.aur_vote_state_by_pkgbase.get(&pkgbase) {
+                    Some(crate::state::app_state::AurVoteStateUi::Voted) => {
+                        crate::state::app_state::AurVoteStateUi::Voted
+                    }
+                    Some(crate::state::app_state::AurVoteStateUi::NotVoted) => {
+                        crate::state::app_state::AurVoteStateUi::NotVoted
+                    }
+                    _ => crate::state::app_state::AurVoteStateUi::Unknown,
+                }
+            } else {
+                crate::state::app_state::AurVoteStateUi::Error(format!("{error}"))
+            }
+        }
+    };
+    let should_persist = matches!(
+        next_state,
+        crate::state::app_state::AurVoteStateUi::Voted
+            | crate::state::app_state::AurVoteStateUi::NotVoted
+    );
+    app.aur_vote_state_by_pkgbase.insert(pkgbase, next_state);
+    if should_persist {
+        app.aur_vote_state_dirty = true;
+    }
+}
+
 /// What: Apply filters and sorting to news feed items.
 ///
 /// Inputs:
@@ -488,6 +636,8 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
                 &channels.sandbox_req_tx,
                 &channels.summary_req_tx,
                 &channels.updates_tx,
+                &channels.aur_vote_req_tx,
+                &channels.aur_vote_state_req_tx,
                 &channels.executor_req_tx,
                 &channels.post_summary_req_tx,
                 &channels.news_content_req_tx,
@@ -516,10 +666,9 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
             handle_status(app, &txt, color);
             false
         }
-        Some((count, list)) = channels.updates_rx.recv() => {
-            handle_updates_list(app, count, list);
-            false
-        }
+        Some((count, list)) = channels.updates_rx.recv() => { handle_updates_list(app, count, list); false }
+        Some(aur_vote_response) = channels.aur_vote_res_rx.recv() => { handle_aur_vote_response(app, aur_vote_response); false }
+        Some(aur_vote_state_response) = channels.aur_vote_state_res_rx.recv() => { handle_aur_vote_state_response(app, aur_vote_state_response); false }
         Some(executor_output) = channels.executor_res_rx.recv() => {
             handle_executor_output(app, executor_output);
             false
@@ -1137,6 +1286,8 @@ pub async fn run_event_loop(
 
 #[cfg(test)]
 mod tests {
+    use super::handle_aur_vote_response;
+    use super::handle_aur_vote_state_response;
     use super::handle_news_content;
     use crate::state::AppState;
     use crate::state::types::{NewsFeedItem, NewsFeedSource};
@@ -1219,5 +1370,260 @@ mod tests {
         assert!(!app.news_content_loading);
         assert_eq!(app.news_content, Some("payload".to_string()));
         assert!(app.news_content_cache.contains_key("https://example.com/a"));
+    }
+
+    #[test]
+    /// What: Ensure successful AUR vote responses are surfaced as toasts.
+    ///
+    /// Inputs:
+    /// - `AppState` default and a synthetic success vote response.
+    ///
+    /// Output:
+    /// - Toast message and expiration are set.
+    ///
+    /// Details:
+    /// - Confirms UI-safe success feedback path from runtime worker results.
+    fn handle_aur_vote_response_success_sets_toast() {
+        let mut app = AppState::default();
+        let response = crate::app::runtime::workers::aur_vote::AurVoteResponse {
+            result: Ok(crate::sources::AurVoteOutcome {
+                action: crate::sources::VoteAction::Vote,
+                pkgbase: "pacsea-bin".to_string(),
+                dry_run: false,
+            }),
+        };
+
+        handle_aur_vote_response(&mut app, response);
+
+        let toast = app
+            .toast_message
+            .as_ref()
+            .expect("success vote should set a toast");
+        assert!(toast.contains("Voted for"));
+        assert!(app.toast_expires_at.is_some());
+    }
+
+    #[test]
+    /// What: Ensure dry-run vote responses do not persist local vote state.
+    ///
+    /// Inputs:
+    /// - `AppState` default and a synthetic dry-run success vote response.
+    ///
+    /// Output:
+    /// - Vote-state cache remains unchanged and dirty flag stays false.
+    ///
+    /// Details:
+    /// - Dry-run must not mark package votes as changed because no remote mutation occurred.
+    fn handle_aur_vote_response_dry_run_does_not_mark_cache_dirty() {
+        let mut app = AppState::default();
+        let before_vote_state = app.aur_vote_state_by_pkgbase.clone();
+        let before_dirty = app.aur_vote_state_dirty;
+        let response = crate::app::runtime::workers::aur_vote::AurVoteResponse {
+            result: Ok(crate::sources::AurVoteOutcome {
+                action: crate::sources::VoteAction::Vote,
+                pkgbase: "pacsea-bin".to_string(),
+                dry_run: true,
+            }),
+        };
+
+        handle_aur_vote_response(&mut app, response);
+
+        assert_eq!(app.aur_vote_state_by_pkgbase, before_vote_state);
+        assert_eq!(app.aur_vote_state_dirty, before_dirty);
+        let toast = app
+            .toast_message
+            .as_ref()
+            .expect("dry-run vote should set a toast");
+        assert!(toast.contains("[dry-run]"));
+        assert!(app.toast_expires_at.is_some());
+    }
+
+    #[test]
+    /// What: Ensure failed AUR vote responses are surfaced as actionable alerts.
+    ///
+    /// Inputs:
+    /// - `AppState` default and synthetic auth failure response.
+    ///
+    /// Output:
+    /// - Modal transitions to `Modal::Alert` with actionable guidance.
+    ///
+    /// Details:
+    /// - Verifies runtime failure mapping reaches user-visible guidance text.
+    fn handle_aur_vote_response_auth_failure_sets_alert() {
+        let mut app = AppState::default();
+        let response = crate::app::runtime::workers::aur_vote::AurVoteResponse {
+            result: Err(crate::sources::AurVoteError::AuthFailed(
+                "Permission denied".to_string(),
+            )),
+        };
+
+        handle_aur_vote_response(&mut app, response);
+
+        match app.modal {
+            crate::state::Modal::Alert { message } => {
+                assert!(message.contains("AUR vote failed"));
+                assert!(message.contains("Upload your SSH public key"));
+            }
+            other => panic!("expected alert modal, got {other:?}"),
+        }
+    }
+
+    #[test]
+    /// What: Ensure `AlreadyVoted` syncs local vote cache without blocking alert.
+    ///
+    /// Inputs:
+    /// - `AppState` default and synthetic `AlreadyVoted` response for one pkgbase.
+    ///
+    /// Output:
+    /// - Vote-state cache is set to `Voted`, persistence dirty flag is set, and toast is shown.
+    ///
+    /// Details:
+    /// - Keeps local state aligned with AUR when duplicate vote attempts occur.
+    fn handle_aur_vote_response_already_voted_syncs_cache() {
+        let mut app = AppState::default();
+        let response = crate::app::runtime::workers::aur_vote::AurVoteResponse {
+            result: Err(crate::sources::AurVoteError::AlreadyVoted(
+                "pacsea-bin".to_string(),
+            )),
+        };
+
+        handle_aur_vote_response(&mut app, response);
+
+        assert!(matches!(
+            app.aur_vote_state_by_pkgbase.get("pacsea-bin"),
+            Some(crate::state::app_state::AurVoteStateUi::Voted)
+        ));
+        assert!(app.aur_vote_state_dirty);
+        assert!(matches!(app.modal, crate::state::Modal::None));
+        assert!(
+            app.toast_message
+                .as_ref()
+                .is_some_and(|msg| msg.contains("Already voted"))
+        );
+    }
+
+    #[test]
+    /// What: Ensure `NotVoted` syncs local vote cache without blocking alert.
+    ///
+    /// Inputs:
+    /// - `AppState` default and synthetic `NotVoted` response for one pkgbase.
+    ///
+    /// Output:
+    /// - Vote-state cache is set to `NotVoted`, persistence dirty flag is set, and toast is shown.
+    ///
+    /// Details:
+    /// - Keeps local state aligned with AUR when duplicate unvote attempts occur.
+    fn handle_aur_vote_response_not_voted_syncs_cache() {
+        let mut app = AppState::default();
+        let response = crate::app::runtime::workers::aur_vote::AurVoteResponse {
+            result: Err(crate::sources::AurVoteError::NotVoted(
+                "pacsea-bin".to_string(),
+            )),
+        };
+
+        handle_aur_vote_response(&mut app, response);
+
+        assert!(matches!(
+            app.aur_vote_state_by_pkgbase.get("pacsea-bin"),
+            Some(crate::state::app_state::AurVoteStateUi::NotVoted)
+        ));
+        assert!(app.aur_vote_state_dirty);
+        assert!(matches!(app.modal, crate::state::Modal::None));
+        assert!(
+            app.toast_message
+                .as_ref()
+                .is_some_and(|msg| msg.contains("No vote exists"))
+        );
+    }
+
+    #[test]
+    /// What: Ensure vote-state worker responses update the app vote-state cache.
+    ///
+    /// Inputs:
+    /// - `AppState` default and a synthetic `Voted` vote-state response.
+    ///
+    /// Output:
+    /// - Vote-state cache stores `AurVoteStateUi::Voted` for pkgbase.
+    ///
+    /// Details:
+    /// - Verifies event-loop mapping for live check responses.
+    fn handle_aur_vote_state_response_updates_cache() {
+        let mut app = AppState::default();
+        let response = crate::app::runtime::workers::aur_vote::AurVoteStateResponse {
+            pkgbase: "pacsea-bin".to_string(),
+            result: Ok(crate::sources::AurPackageVoteState::Voted),
+        };
+
+        handle_aur_vote_state_response(&mut app, response);
+
+        assert!(matches!(
+            app.aur_vote_state_by_pkgbase.get("pacsea-bin"),
+            Some(crate::state::app_state::AurVoteStateUi::Voted)
+        ));
+    }
+
+    #[test]
+    /// What: Ensure unsupported vote-state command errors degrade to `Unknown`.
+    ///
+    /// Inputs:
+    /// - `AppState` default and synthetic unsupported-command vote-state response.
+    ///
+    /// Output:
+    /// - Vote-state cache stores `AurVoteStateUi::Unknown` for pkgbase.
+    ///
+    /// Details:
+    /// - Prevents noisy inline error rendering when upstream SSH endpoint
+    ///   does not expose `list-votes`.
+    fn handle_aur_vote_state_response_unsupported_maps_to_unknown() {
+        let mut app = AppState::default();
+        let pkgbase = "pkg-unsupported-unknown-test";
+        let response = crate::app::runtime::workers::aur_vote::AurVoteStateResponse {
+            pkgbase: pkgbase.to_string(),
+            result: Err(crate::sources::AurVoteError::Unexpected(
+                "AUR SSH server does not support vote-state lookup.".to_string(),
+            )),
+        };
+
+        handle_aur_vote_state_response(&mut app, response);
+
+        assert!(matches!(
+            app.aur_vote_state_by_pkgbase.get(pkgbase),
+            Some(crate::state::app_state::AurVoteStateUi::Unknown)
+        ));
+        assert!(!app.aur_vote_state_lookup_supported);
+    }
+
+    #[test]
+    /// What: Ensure unsupported live lookup does not override stable persisted vote-state.
+    ///
+    /// Inputs:
+    /// - Existing `Voted` cache entry and unsupported-command vote-state response.
+    ///
+    /// Output:
+    /// - Cache remains `Voted` and live lookup is disabled for the runtime session.
+    ///
+    /// Details:
+    /// - Prevents "Loading..." followed by losing the visible vote-state when `list-votes`
+    ///   is unavailable upstream.
+    fn handle_aur_vote_state_response_unsupported_keeps_stable_cache() {
+        let mut app = AppState::default();
+        app.aur_vote_state_by_pkgbase.insert(
+            "pacsea-bin".to_string(),
+            crate::state::app_state::AurVoteStateUi::Voted,
+        );
+        let response = crate::app::runtime::workers::aur_vote::AurVoteStateResponse {
+            pkgbase: "pacsea-bin".to_string(),
+            result: Err(crate::sources::AurVoteError::Unexpected(
+                "AUR SSH server does not support vote-state lookup.".to_string(),
+            )),
+        };
+
+        handle_aur_vote_state_response(&mut app, response);
+
+        assert!(matches!(
+            app.aur_vote_state_by_pkgbase.get("pacsea-bin"),
+            Some(crate::state::app_state::AurVoteStateUi::Voted)
+        ));
+        assert!(!app.aur_vote_state_lookup_supported);
     }
 }

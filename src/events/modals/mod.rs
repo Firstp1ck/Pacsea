@@ -56,11 +56,13 @@ pub(super) fn handle_modal_key(
         Modal::ConfirmAurUpdate { .. } => {
             handlers::handle_confirm_aur_update_modal(ke, app, &modal)
         }
+        Modal::ConfirmAurVote { .. } => handlers::handle_confirm_aur_vote_modal(ke, app, &modal),
         Modal::Help => handlers::handle_help_modal(ke, app, modal),
         Modal::News { .. } => handlers::handle_news_modal(ke, app, modal),
         Modal::Announcement { .. } => handlers::handle_announcement_modal(ke, app, modal),
         Modal::Updates { .. } => handlers::handle_updates_modal(ke, app, modal),
         Modal::OptionalDeps { .. } => handlers::handle_optional_deps_modal(ke, app, modal),
+        Modal::SshAurSetup { .. } => handlers::handle_ssh_setup_modal(ke, app, modal),
         Modal::ScanConfig { .. } => handlers::handle_scan_config_modal(ke, app, modal),
         Modal::VirusTotalSetup { .. } => handlers::handle_virustotal_setup_modal(ke, app, modal),
         Modal::NewsSetup { .. } => handlers::handle_news_setup_modal(ke, app, modal),

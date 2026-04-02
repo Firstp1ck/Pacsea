@@ -1,7 +1,8 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use tokio::sync::mpsc;
 
-use crate::logic::{move_sel_cached, send_query};
+use crate::logic::send_query;
+use crate::sources::VoteAction;
 use crate::state::{AppState, PackageItem, QueryInput};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -9,7 +10,9 @@ use std::hash::{Hash, Hasher};
 use super::super::utils::matches_any;
 use super::helpers::navigate_pane;
 use super::preflight_helpers::open_preflight_modal;
-use crate::events::utils::{byte_index_for_char, char_count, refresh_install_details};
+use crate::events::utils::{
+    byte_index_for_char, char_count, move_sel_cached_with_vote_state, refresh_install_details,
+};
 
 /// What: Handle numeric selection (1-9) for config menu items.
 ///
@@ -307,7 +310,7 @@ fn handle_navigation(
         if matches!(app.app_mode, crate::state::types::AppMode::News) {
             crate::events::utils::move_news_selection(app, -1);
         } else {
-            move_sel_cached(app, -1, details_tx, comments_tx);
+            move_sel_cached_with_vote_state(app, -1, details_tx, comments_tx);
         }
         return true;
     }
@@ -315,7 +318,7 @@ fn handle_navigation(
         if matches!(app.app_mode, crate::state::types::AppMode::News) {
             crate::events::utils::move_news_selection(app, 1);
         } else {
-            move_sel_cached(app, 1, details_tx, comments_tx);
+            move_sel_cached_with_vote_state(app, 1, details_tx, comments_tx);
         }
         return true;
     }
@@ -323,7 +326,7 @@ fn handle_navigation(
         if matches!(app.app_mode, crate::state::types::AppMode::News) {
             crate::events::utils::move_news_selection(app, -10);
         } else {
-            move_sel_cached(app, -10, details_tx, comments_tx);
+            move_sel_cached_with_vote_state(app, -10, details_tx, comments_tx);
         }
         return true;
     }
@@ -331,7 +334,7 @@ fn handle_navigation(
         if matches!(app.app_mode, crate::state::types::AppMode::News) {
             crate::events::utils::move_news_selection(app, 10);
         } else {
-            move_sel_cached(app, 10, details_tx, comments_tx);
+            move_sel_cached_with_vote_state(app, 10, details_tx, comments_tx);
         }
         return true;
     }
@@ -342,7 +345,7 @@ fn handle_navigation(
             if matches!(app.app_mode, crate::state::types::AppMode::News) {
                 crate::events::utils::move_news_selection(app, 1);
             } else {
-                move_sel_cached(app, 1, details_tx, comments_tx);
+                move_sel_cached_with_vote_state(app, 1, details_tx, comments_tx);
             }
             true
         }
@@ -350,16 +353,16 @@ fn handle_navigation(
             if matches!(app.app_mode, crate::state::types::AppMode::News) {
                 crate::events::utils::move_news_selection(app, -1);
             } else {
-                move_sel_cached(app, -1, details_tx, comments_tx);
+                move_sel_cached_with_vote_state(app, -1, details_tx, comments_tx);
             }
             true
         }
         (KeyCode::Char('d'), KeyModifiers::CONTROL) => {
-            move_sel_cached(app, 10, details_tx, comments_tx);
+            move_sel_cached_with_vote_state(app, 10, details_tx, comments_tx);
             true
         }
         (KeyCode::Char('u'), KeyModifiers::CONTROL) => {
-            move_sel_cached(app, -10, details_tx, comments_tx);
+            move_sel_cached_with_vote_state(app, -10, details_tx, comments_tx);
             true
         }
         _ => false,
@@ -750,6 +753,90 @@ fn handle_keymap_actions(
     false
 }
 
+/// What: Handle AUR vote key actions in Search normal mode.
+///
+/// Inputs:
+/// - `ke`: Key event from terminal.
+/// - `app`: Mutable application state.
+///
+/// Output:
+/// - `true` when key was consumed for vote flow; otherwise `false`.
+///
+/// Details:
+/// - `Ctrl+e` opens a vote/unvote confirmation based on current cached vote-state.
+/// - Only available in package mode and for selected AUR items.
+/// - Uses app runtime dry-run indicator in confirmation content.
+fn handle_aur_vote_action(ke: &KeyEvent, app: &mut AppState) -> bool {
+    if matches!(app.app_mode, crate::state::types::AppMode::News) {
+        return false;
+    }
+
+    let trigger_pressed = match (ke.code, ke.modifiers) {
+        (KeyCode::Char('e' | 'E'), mods)
+            if mods.contains(KeyModifiers::CONTROL) && !mods.contains(KeyModifiers::ALT) =>
+        {
+            !mods.contains(KeyModifiers::SHIFT)
+        }
+        _ => false,
+    };
+    if !trigger_pressed {
+        return false;
+    }
+
+    let Some(item) = app.results.get(app.selected) else {
+        return true;
+    };
+    if !matches!(item.source, crate::state::Source::Aur) {
+        app.toast_message = Some("AUR vote is only available for AUR packages.".to_string());
+        app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
+        return true;
+    }
+    let action = match app.aur_vote_state_by_pkgbase.get(&item.name) {
+        Some(crate::state::app_state::AurVoteStateUi::Voted) => VoteAction::Unvote,
+        _ => VoteAction::Vote,
+    };
+
+    let settings = crate::theme::settings();
+    if !settings.aur_vote_enabled {
+        app.modal = crate::state::Modal::Alert {
+            message: "AUR voting is disabled. Enable aur_vote_enabled in settings.conf."
+                .to_string(),
+        };
+        return true;
+    }
+
+    if app.pending_aur_vote_request.is_some() {
+        app.toast_message = Some("An AUR vote request is already queued.".to_string());
+        app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
+        return true;
+    }
+    if app.pending_aur_vote_intent.is_some() {
+        app.toast_message = Some("An AUR vote confirmation is already open.".to_string());
+        app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
+        return true;
+    }
+
+    let action_label = match action {
+        VoteAction::Vote => "vote",
+        VoteAction::Unvote => "unvote",
+    };
+    let dry_run_line = if app.dry_run {
+        "Dry-run enabled: no remote mutation will be performed."
+    } else {
+        "This action will contact aur.archlinux.org over SSH."
+    };
+    app.pending_aur_vote_intent = Some((item.name.clone(), action));
+    app.modal = crate::state::Modal::ConfirmAurVote {
+        pkgbase: item.name.clone(),
+        action,
+        message: format!(
+            "Confirm AUR {action_label} for '{}'?\n\n{dry_run_line}\n\nPress Enter to continue, Esc/q to cancel.",
+            item.name
+        ),
+    };
+    true
+}
+
 /// What: Handle key events in Normal mode for the Search pane.
 ///
 /// Inputs:
@@ -804,6 +891,11 @@ pub fn handle_normal_mode(
 
     // Handle keymap-based actions
     if handle_keymap_actions(&ke, app, query_tx) {
+        return false;
+    }
+
+    // Handle AUR vote/unvote action keys.
+    if handle_aur_vote_action(&ke, app) {
         return false;
     }
 

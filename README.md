@@ -88,6 +88,7 @@ pacsea
 | **Distro-aware updates** | Automatic detection and use of appropriate mirror tools for Manjaro, EndeavourOS, CachyOS, Artix, and standard Arch |
 | **Updates modal** | View available updates with Preflight integration for safe installation |
 | **Helpful tools** | System update dialog with Force Sync mode (-Syyu), AUR update confirmation when pacman fails, distro-aware mirror management, and Arch News popup |
+| **AUR package voting (SSH)** | Vote and unvote AUR packages directly from search results through an SSH-based workflow, including guided setup and connection checks |
 | **Announcements** | Version-specific and remote announcements shown at startup with clickable URLs and persistent read status |
 
 ## Security-first approach for AUR Packages
@@ -157,6 +158,8 @@ Opening any of these from the app uses your `VISUAL` or `EDITOR` environment var
 
 Privilege/auth behavior is configurable via `privilege_tool` (`auto` | `sudo` | `doas`) and `auth_mode` (`prompt` | `passwordless_only` | `interactive`) in `settings.conf`.
 
+AUR voting over SSH is configurable in `settings.conf` with `aur_vote_enabled`, `aur_vote_ssh_timeout_seconds`, and `aur_vote_ssh_command`.
+
 For complete configuration documentation, including all available settings, theme customization, and keybind configuration, see the [Configuration](https://github.com/Firstp1ck/Pacsea/wiki/Configuration) wiki page.
 
 Example configuration files are available in the [`config/`](config/) directory.
@@ -207,7 +210,6 @@ For troubleshooting common issues, solutions, and diagnostic information, see th
 Longer specs for tracked items live in [`dev/ROADMAP/`](https://github.com/Firstp1ck/Pacsea/tree/main/dev/ROADMAP).
 
 ### Community Suggestions: Priority Features
-- **Vote for AUR packages via SSH connection** ([#137](https://github.com/Firstp1ck/Pacsea/issues/137))
 - **Adjustable Height of the "Results", "Package Info" and "Search" panes** ([#135](https://github.com/Firstp1ck/Pacsea/issues/135))
 - **Add possibility to switch locations of Top/Center/Bottom panes** ([#136](https://github.com/Firstp1ck/Pacsea/issues/136))
 

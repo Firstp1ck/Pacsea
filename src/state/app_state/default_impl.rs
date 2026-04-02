@@ -52,6 +52,25 @@ impl Default for AppState {
                 .ok()
                 .and_then(|s| serde_json::from_str(&s).ok())
                 .unwrap_or_default();
+        let aur_vote_state_path = crate::theme::lists_dir().join("aur_vote_state.json");
+        let aur_vote_state_by_pkgbase: HashMap<String, crate::state::app_state::AurVoteStateUi> =
+            std::fs::read_to_string(&aur_vote_state_path)
+                .ok()
+                .and_then(|s| serde_json::from_str::<HashMap<String, bool>>(&s).ok())
+                .map(|persisted| {
+                    persisted
+                        .into_iter()
+                        .map(|(pkgbase, voted)| {
+                            let state = if voted {
+                                crate::state::app_state::AurVoteStateUi::Voted
+                            } else {
+                                crate::state::app_state::AurVoteStateUi::NotVoted
+                            };
+                            (pkgbase, state)
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
 
         // Load last startup timestamp and save current timestamp
         let last_startup_path = crate::theme::lists_dir().join("last_startup.txt");
@@ -669,6 +688,13 @@ impl Default for AppState {
             preflight_sandbox_resolving,
             last_logged_preflight_deps_state,
             preflight_cancelled,
+            pending_aur_vote_intent: None,
+            pending_aur_vote_request: None,
+            aur_vote_state_by_pkgbase,
+            aur_vote_state_path,
+            aur_vote_state_dirty: false,
+            aur_vote_state_lookup_supported: true,
+            pending_aur_vote_state_request: None,
             pending_executor_request: None,
             pending_exec_header_chips: None,
             pending_post_summary_items: None,
@@ -677,6 +703,7 @@ impl Default for AppState {
             pending_aur_update_command: None,
             pending_executor_password: None,
             pending_file_sync_result: None,
+            pending_aur_ssh_help_check_result: None,
         }
     }
 }

@@ -82,6 +82,25 @@ fn handle_optional_deps_enter(
     use crate::state::{PackageItem, Source};
 
     // Setup flows need interactive terminal, keep as-is
+    if row.package == "aur-ssh-setup" {
+        return (
+            crate::state::Modal::SshAurSetup {
+                step: crate::state::SshSetupStep::Intro,
+                status_lines: vec![
+                    "This setup will create '~/.ssh/aur_key' if missing.".to_string(),
+                    "It will add/update Host aur.archlinux.org in '~/.ssh/config'.".to_string(),
+                    "Then it validates with: ssh aur@aur.archlinux.org help".to_string(),
+                    format!(
+                        "After setup, upload '~/.ssh/aur_key.pub' to {}",
+                        crate::logic::ssh_setup::AUR_ACCOUNT_URL
+                    ),
+                    "Press Enter to run, O to open account page, Esc to cancel.".to_string(),
+                ],
+                existing_host_block: None,
+            },
+            false,
+        );
+    }
     if row.package == "virustotal-setup" {
         let current = crate::theme::settings().virustotal_api_key;
         let cur_len = current.len();
@@ -345,6 +364,91 @@ fn handle_optional_deps_enter(
     }
 
     (crate::state::Modal::None, false)
+}
+
+/// What: Handle key events for `SshAurSetup` modal.
+///
+/// Inputs:
+/// - `ke`: Key event from terminal.
+/// - `app`: Mutable application state.
+/// - `step`: Current setup step.
+/// - `status_lines`: Mutable status lines shown in modal.
+/// - `existing_host_block`: Mutable optional conflicting host block text.
+///
+/// Output:
+/// - `Some(true)` when event is handled and should stop propagation.
+/// - `Some(false)` when handled without stop.
+/// - `None` when event is not handled.
+pub(super) fn handle_ssh_setup_modal(
+    ke: KeyEvent,
+    app: &mut AppState,
+    step: &mut crate::state::SshSetupStep,
+    status_lines: &mut Vec<String>,
+    existing_host_block: &mut Option<String>,
+) -> Option<bool> {
+    match (*step, ke.code) {
+        (_, KeyCode::Char('o' | 'O')) => {
+            crate::util::open_url(crate::logic::ssh_setup::AUR_ACCOUNT_URL);
+            Some(false)
+        }
+        (crate::state::SshSetupStep::Intro, KeyCode::Esc | KeyCode::Char('q'))
+        | (
+            crate::state::SshSetupStep::Result,
+            KeyCode::Esc | KeyCode::Char('q' | '\n' | '\r') | KeyCode::Enter,
+        ) => {
+            app.modal = crate::state::Modal::None;
+            Some(false)
+        }
+        (crate::state::SshSetupStep::Intro, KeyCode::Enter | KeyCode::Char('\n' | '\r')) => {
+            let ssh_command = crate::theme::settings().aur_vote_ssh_command;
+            match crate::logic::ssh_setup::run_aur_ssh_setup(false, &ssh_command) {
+                crate::logic::ssh_setup::AurSshSetupResult::Completed(report) => {
+                    *step = crate::state::SshSetupStep::Result;
+                    *status_lines = report.lines;
+                    *existing_host_block = None;
+                }
+                crate::logic::ssh_setup::AurSshSetupResult::NeedsOverwrite {
+                    existing_block,
+                    lines,
+                } => {
+                    *step = crate::state::SshSetupStep::ConfirmOverwrite;
+                    *status_lines = lines;
+                    *existing_host_block = Some(existing_block);
+                }
+            }
+            Some(true)
+        }
+        (
+            crate::state::SshSetupStep::ConfirmOverwrite,
+            KeyCode::Char('n' | 'N' | 'q') | KeyCode::Esc,
+        ) => {
+            app.modal = crate::state::Modal::None;
+            app.toast_message = Some("SSH setup cancelled (existing config kept).".to_string());
+            app.toast_expires_at =
+                Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
+            Some(false)
+        }
+        (
+            crate::state::SshSetupStep::ConfirmOverwrite,
+            KeyCode::Char('y' | 'Y' | '\n' | '\r') | KeyCode::Enter,
+        ) => {
+            let ssh_command = crate::theme::settings().aur_vote_ssh_command;
+            let report = match crate::logic::ssh_setup::run_aur_ssh_setup(true, &ssh_command) {
+                crate::logic::ssh_setup::AurSshSetupResult::Completed(report) => report,
+                crate::logic::ssh_setup::AurSshSetupResult::NeedsOverwrite { lines, .. } => {
+                    crate::logic::ssh_setup::AurSshSetupReport {
+                        success: false,
+                        lines,
+                    }
+                }
+            };
+            *step = crate::state::SshSetupStep::Result;
+            *status_lines = report.lines;
+            *existing_host_block = None;
+            Some(true)
+        }
+        _ => None,
+    }
 }
 
 #[cfg(test)]

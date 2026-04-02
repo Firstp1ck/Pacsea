@@ -4,6 +4,9 @@ use std::sync::atomic::AtomicBool;
 use crossterm::event::Event as CEvent;
 use tokio::sync::mpsc;
 
+use crate::app::runtime::workers::aur_vote::{
+    AurVoteRequest, AurVoteResponse, AurVoteStateRequest, AurVoteStateResponse,
+};
 use crate::state::types::NewsFeedPayload;
 use crate::state::{ArchStatusColor, PackageDetails, PackageItem, QueryInput, SearchResults};
 
@@ -130,6 +133,14 @@ pub struct Channels {
     pub executor_req_tx: mpsc::UnboundedSender<crate::install::ExecutorRequest>,
     /// Receiver for executor responses in the main event loop.
     pub executor_res_rx: mpsc::UnboundedReceiver<crate::install::ExecutorOutput>,
+    /// Sender for AUR vote requests (vote/unvote operations).
+    pub aur_vote_req_tx: mpsc::UnboundedSender<AurVoteRequest>,
+    /// Receiver for AUR vote responses in the main event loop.
+    pub aur_vote_res_rx: mpsc::UnboundedReceiver<AurVoteResponse>,
+    /// Sender for AUR vote-state requests.
+    pub aur_vote_state_req_tx: mpsc::UnboundedSender<AurVoteStateRequest>,
+    /// Receiver for AUR vote-state responses in the main event loop.
+    pub aur_vote_state_res_rx: mpsc::UnboundedReceiver<AurVoteStateResponse>,
     /// Sender for post-summary computation requests (packages, success flag).
     pub post_summary_req_tx: mpsc::UnboundedSender<(Vec<PackageItem>, Option<bool>)>,
     /// Receiver for post-summary computation results in the main event loop.
@@ -299,6 +310,22 @@ struct UtilityChannels {
     executor_res_tx: mpsc::UnboundedSender<crate::install::ExecutorOutput>,
     /// Receiver for executor responses.
     executor_res_rx: mpsc::UnboundedReceiver<crate::install::ExecutorOutput>,
+    /// Sender for AUR vote requests.
+    aur_vote_req_tx: mpsc::UnboundedSender<AurVoteRequest>,
+    /// Receiver for AUR vote requests.
+    aur_vote_req_rx: mpsc::UnboundedReceiver<AurVoteRequest>,
+    /// Sender for AUR vote responses.
+    aur_vote_res_tx: mpsc::UnboundedSender<AurVoteResponse>,
+    /// Receiver for AUR vote responses.
+    aur_vote_res_rx: mpsc::UnboundedReceiver<AurVoteResponse>,
+    /// Sender for AUR vote-state requests.
+    aur_vote_state_req_tx: mpsc::UnboundedSender<AurVoteStateRequest>,
+    /// Receiver for AUR vote-state requests.
+    aur_vote_state_req_rx: mpsc::UnboundedReceiver<AurVoteStateRequest>,
+    /// Sender for AUR vote-state responses.
+    aur_vote_state_res_tx: mpsc::UnboundedSender<AurVoteStateResponse>,
+    /// Receiver for AUR vote-state responses.
+    aur_vote_state_res_rx: mpsc::UnboundedReceiver<AurVoteStateResponse>,
     /// Sender for post-summary computation requests.
     post_summary_req_tx: mpsc::UnboundedSender<(Vec<PackageItem>, Option<bool>)>,
     /// Receiver for post-summary computation requests.
@@ -426,6 +453,12 @@ fn create_utility_channels() -> UtilityChannels {
         mpsc::unbounded_channel::<crate::install::ExecutorRequest>();
     let (executor_res_tx, executor_res_rx) =
         mpsc::unbounded_channel::<crate::install::ExecutorOutput>();
+    let (aur_vote_req_tx, aur_vote_req_rx) = mpsc::unbounded_channel::<AurVoteRequest>();
+    let (aur_vote_res_tx, aur_vote_res_rx) = mpsc::unbounded_channel::<AurVoteResponse>();
+    let (aur_vote_state_req_tx, aur_vote_state_req_rx) =
+        mpsc::unbounded_channel::<AurVoteStateRequest>();
+    let (aur_vote_state_res_tx, aur_vote_state_res_rx) =
+        mpsc::unbounded_channel::<AurVoteStateResponse>();
     let (post_summary_req_tx, post_summary_req_rx) =
         mpsc::unbounded_channel::<(Vec<PackageItem>, Option<bool>)>();
     let (post_summary_res_tx, post_summary_res_rx) =
@@ -469,6 +502,14 @@ fn create_utility_channels() -> UtilityChannels {
         executor_req_rx,
         executor_res_tx,
         executor_res_rx,
+        aur_vote_req_tx,
+        aur_vote_req_rx,
+        aur_vote_res_tx,
+        aur_vote_res_rx,
+        aur_vote_state_req_tx,
+        aur_vote_state_req_rx,
+        aur_vote_state_res_tx,
+        aur_vote_state_res_rx,
         post_summary_req_tx,
         post_summary_req_rx,
         post_summary_res_tx,
@@ -539,6 +580,14 @@ impl Channels {
             utility_channels.executor_req_rx,
             utility_channels.executor_res_tx.clone(),
         );
+        crate::app::runtime::workers::aur_vote::spawn_aur_vote_worker(
+            utility_channels.aur_vote_req_rx,
+            utility_channels.aur_vote_res_tx.clone(),
+        );
+        crate::app::runtime::workers::aur_vote::spawn_aur_vote_state_worker(
+            utility_channels.aur_vote_state_req_rx,
+            utility_channels.aur_vote_state_res_tx.clone(),
+        );
         spawn_post_summary_worker(
             utility_channels.post_summary_req_rx,
             utility_channels.post_summary_res_tx.clone(),
@@ -600,6 +649,10 @@ impl Channels {
             summary_res_rx: preflight_channels.summary_res_rx,
             executor_req_tx: utility_channels.executor_req_tx,
             executor_res_rx: utility_channels.executor_res_rx,
+            aur_vote_req_tx: utility_channels.aur_vote_req_tx,
+            aur_vote_res_rx: utility_channels.aur_vote_res_rx,
+            aur_vote_state_req_tx: utility_channels.aur_vote_state_req_tx,
+            aur_vote_state_res_rx: utility_channels.aur_vote_state_res_rx,
             post_summary_req_tx: utility_channels.post_summary_req_tx,
             post_summary_res_rx: utility_channels.post_summary_res_rx,
             query_tx: search_channels.query_tx,

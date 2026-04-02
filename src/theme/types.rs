@@ -188,6 +188,14 @@ pub struct Settings {
     /// and the terminal is on the supported list (alacritty, kitty, konsole, ghostty, xterm,
     /// gnome-terminal, xfce4-terminal, tilix, mate-terminal, wezterm-gui, `WezTerm`).
     pub use_terminal_theme: bool,
+    /// Whether AUR voting via SSH is enabled.
+    /// Requires an SSH key uploaded to the user's AUR account.
+    pub aur_vote_enabled: bool,
+    /// SSH connect timeout in seconds for AUR vote commands.
+    pub aur_vote_ssh_timeout_seconds: u32,
+    /// SSH binary path or name for AUR vote commands.
+    /// Defaults to `"ssh"`. Override for non-standard SSH setups.
+    pub aur_vote_ssh_command: String,
 }
 
 impl Default for Settings {
@@ -256,6 +264,9 @@ impl Default for Settings {
             privilege_mode: crate::logic::privilege::PrivilegeMode::Auto, // Default to auto-detect (prefer doas, fallback sudo)
             auth_mode: crate::logic::privilege::AuthMode::Prompt, // Default to Pacsea password modal
             use_terminal_theme: false, // Default to using theme.conf colors
+            aur_vote_enabled: true,    // Enabled by default; requires SSH key configured on AUR
+            aur_vote_ssh_timeout_seconds: 10,
+            aur_vote_ssh_command: "ssh".to_string(),
         }
     }
 }

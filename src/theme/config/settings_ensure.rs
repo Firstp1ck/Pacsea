@@ -104,6 +104,9 @@ fn get_app_value(key: &str, prefs: &Settings) -> Option<String> {
         "privilege_tool" => Some(prefs.privilege_mode.as_config_key().to_string()),
         "auth_mode" => Some(prefs.auth_mode.as_config_key().to_string()),
         "use_terminal_theme" => Some(bool_to_string(prefs.use_terminal_theme)),
+        "aur_vote_enabled" => Some(bool_to_string(prefs.aur_vote_enabled)),
+        "aur_vote_ssh_timeout_seconds" => Some(prefs.aur_vote_ssh_timeout_seconds.to_string()),
+        "aur_vote_ssh_command" => Some(prefs.aur_vote_ssh_command.clone()),
         _ => None,
     }
 }

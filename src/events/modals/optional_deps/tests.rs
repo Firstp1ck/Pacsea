@@ -187,3 +187,45 @@ fn optional_deps_enter_virustotal_setup() {
         _ => panic!("Expected VirusTotalSetup modal"),
     }
 }
+
+#[test]
+/// What: Verify `OptionalDeps` Enter on AUR SSH setup opens setup modal.
+fn optional_deps_enter_aur_ssh_setup_opens_modal() {
+    let mut app = AppState::default();
+    let rows = vec![create_test_row("aur-ssh-setup", false, true)];
+    app.modal = crate::state::Modal::OptionalDeps {
+        rows: rows.clone(),
+        selected: 0,
+    };
+    let mut selected = 0;
+    let ke = KeyEvent::new(KeyCode::Enter, KeyModifiers::empty());
+    let result = handle_optional_deps(ke, &mut app, &rows, &mut selected);
+
+    assert_eq!(result, Some(false));
+    match app.modal {
+        crate::state::Modal::SshAurSetup { step, .. } => {
+            assert_eq!(step, crate::state::SshSetupStep::Intro);
+        }
+        _ => panic!("Expected SshAurSetup modal"),
+    }
+}
+
+#[test]
+/// What: Verify SSH setup overwrite confirmation can be cancelled safely.
+fn ssh_setup_confirm_overwrite_cancel_closes_modal() {
+    let mut app = AppState::default();
+    let mut step = crate::state::SshSetupStep::ConfirmOverwrite;
+    let mut status_lines = vec!["Existing host block requires confirmation.".to_string()];
+    let mut existing_host_block = Some("Host aur.archlinux.org\n  User aur\n".to_string());
+
+    let result = super::handle_ssh_setup_modal(
+        KeyEvent::new(KeyCode::Char('n'), KeyModifiers::empty()),
+        &mut app,
+        &mut step,
+        &mut status_lines,
+        &mut existing_host_block,
+    );
+
+    assert_eq!(result, Some(false));
+    assert!(matches!(app.modal, crate::state::Modal::None));
+}

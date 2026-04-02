@@ -1,5 +1,6 @@
 //! Modal dialog state for the UI.
 
+use crate::sources::VoteAction;
 use crate::state::types::{OptionalDepRow, PackageItem, Source};
 use std::collections::HashSet;
 
@@ -76,6 +77,17 @@ pub enum CascadeMode {
     Cascade,
     /// `pacman -Rns` – cascade removal and prune configuration files.
     CascadeWithConfigs,
+}
+
+/// What: Step identifier for the guided AUR SSH setup workflow.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SshSetupStep {
+    /// Intro/instructions step before executing the setup flow.
+    Intro,
+    /// Confirmation step shown when an existing host block needs overwrite approval.
+    ConfirmOverwrite,
+    /// Result step containing final status lines.
+    Result,
 }
 
 impl CascadeMode {
@@ -497,6 +509,15 @@ pub enum Modal {
         /// Message explaining the situation.
         message: String,
     },
+    /// Confirmation dialog for AUR vote/unvote actions.
+    ConfirmAurVote {
+        /// AUR package base the action targets.
+        pkgbase: String,
+        /// Vote action to execute on confirmation.
+        action: VoteAction,
+        /// Confirmation message shown to the user.
+        message: String,
+    },
     /// Preflight summary before executing any action.
     Preflight {
         /// Packages selected for the operation.
@@ -652,6 +673,15 @@ pub enum Modal {
         /// Selected row index.
         selected: usize,
     },
+    /// Guided SSH setup workflow for AUR voting.
+    SshAurSetup {
+        /// Active setup step in the wizard-like flow.
+        step: SshSetupStep,
+        /// Status and instruction lines shown in the modal body.
+        status_lines: Vec<String>,
+        /// Existing `Host aur.archlinux.org` block shown when overwrite confirmation is required.
+        existing_host_block: Option<String>,
+    },
     /// Select which scans to run before executing the AUR scan.
     ScanConfig {
         /// Whether to run `ClamAV` (clamscan).
@@ -752,6 +782,11 @@ mod tests {
             mirror_count: 20,
             cursor: 0,
         };
+        let _ = super::Modal::ConfirmAurVote {
+            pkgbase: "pacsea-bin".into(),
+            action: crate::sources::VoteAction::Vote,
+            message: "confirm".into(),
+        };
         let _ = super::Modal::News {
             items: Vec::new(),
             selected: 0,
@@ -760,6 +795,11 @@ mod tests {
         let _ = super::Modal::OptionalDeps {
             rows: Vec::new(),
             selected: 0,
+        };
+        let _ = super::Modal::SshAurSetup {
+            step: super::SshSetupStep::Intro,
+            status_lines: Vec::new(),
+            existing_host_block: None,
         };
         let _ = super::Modal::GnomeTerminalPrompt;
         let _ = super::Modal::VirusTotalSetup {

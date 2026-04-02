@@ -1,3 +1,5 @@
+/// AUR vote execution worker.
+pub mod aur_vote;
 /// Auxiliary background workers (status, news, tick, index updates).
 pub mod auxiliary;
 /// AUR comments fetching worker.
