@@ -156,8 +156,10 @@ fn handle_options_system_update(app: &mut AppState) {
 fn handle_options_optional_deps(app: &mut AppState) {
     let rows = crate::events::mouse::menu_options::build_optional_deps_rows(app);
     app.modal = crate::state::Modal::OptionalDeps { rows, selected: 0 };
-    app.pending_aur_ssh_help_check_result =
-        Some(crate::logic::ssh_setup::spawn_aur_ssh_help_check());
+    let ssh_command = crate::theme::settings().aur_vote_ssh_command;
+    app.pending_aur_ssh_help_check_result = Some(
+        crate::logic::ssh_setup::spawn_aur_ssh_help_check(ssh_command),
+    );
 }
 
 /// What: Handle panels menu numeric selection.

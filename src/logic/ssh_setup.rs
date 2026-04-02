@@ -79,6 +79,7 @@ pub fn is_aur_ssh_setup_configured() -> bool {
 ///
 /// Inputs:
 /// - `overwrite_existing_host`: Whether to overwrite a conflicting existing host block.
+/// - `ssh_command`: SSH binary path or name used for validation command execution.
 ///
 /// Output:
 /// - `AurSshSetupResult` with either completion report or explicit overwrite request.
@@ -89,7 +90,7 @@ pub fn is_aur_ssh_setup_configured() -> bool {
 /// - Writes/updates minimal `Host aur.archlinux.org` block.
 /// - Validates with `ssh -o BatchMode=yes -o ConnectTimeout=10 aur@aur.archlinux.org help`.
 #[must_use]
-pub fn run_aur_ssh_setup(overwrite_existing_host: bool) -> AurSshSetupResult {
+pub fn run_aur_ssh_setup(overwrite_existing_host: bool, ssh_command: &str) -> AurSshSetupResult {
     let mut lines = Vec::new();
     let Some(home) = home_dir() else {
         return AurSshSetupResult::Completed(AurSshSetupReport {
@@ -175,7 +176,7 @@ pub fn run_aur_ssh_setup(overwrite_existing_host: bool) -> AurSshSetupResult {
         }
     }
 
-    let validation = Command::new("ssh")
+    let validation = Command::new(ssh_command)
         .args(["-o", "BatchMode=yes", "-o", "ConnectTimeout=10"])
         .arg("aur@aur.archlinux.org")
         .arg("help")
@@ -223,19 +224,21 @@ pub fn run_aur_ssh_setup(overwrite_existing_host: bool) -> AurSshSetupResult {
 
 /// What: Spawn a background SSH validation check for AUR endpoint readiness.
 ///
-/// Inputs: None.
+/// Inputs:
+/// - `ssh_command`: SSH binary path or name used for the endpoint check.
 ///
 /// Output:
 /// - Shared handle containing `Some(true/false)` when finished, or `None` while running.
 ///
 /// Details:
-/// - Runs `ssh -o BatchMode=yes -o ConnectTimeout=8 aur@aur.archlinux.org help` on a worker thread.
+/// - Runs `{ssh_command} -o BatchMode=yes -o ConnectTimeout=8 aur@aur.archlinux.org help`
+///   on a worker thread.
 #[must_use]
-pub fn spawn_aur_ssh_help_check() -> Arc<Mutex<Option<bool>>> {
+pub fn spawn_aur_ssh_help_check(ssh_command: String) -> Arc<Mutex<Option<bool>>> {
     let result = Arc::new(Mutex::new(None));
     let result_clone = Arc::clone(&result);
     std::thread::spawn(move || {
-        let ok = Command::new("ssh")
+        let ok = Command::new(&ssh_command)
             .args(["-o", "BatchMode=yes", "-o", "ConnectTimeout=8"])
             .arg("aur@aur.archlinux.org")
             .arg("help")

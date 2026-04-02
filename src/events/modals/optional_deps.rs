@@ -400,7 +400,8 @@ pub(super) fn handle_ssh_setup_modal(
             Some(false)
         }
         (crate::state::SshSetupStep::Intro, KeyCode::Enter | KeyCode::Char('\n' | '\r')) => {
-            match crate::logic::ssh_setup::run_aur_ssh_setup(false) {
+            let ssh_command = crate::theme::settings().aur_vote_ssh_command;
+            match crate::logic::ssh_setup::run_aur_ssh_setup(false, &ssh_command) {
                 crate::logic::ssh_setup::AurSshSetupResult::Completed(report) => {
                     *step = crate::state::SshSetupStep::Result;
                     *status_lines = report.lines;
@@ -431,7 +432,8 @@ pub(super) fn handle_ssh_setup_modal(
             crate::state::SshSetupStep::ConfirmOverwrite,
             KeyCode::Char('y' | 'Y' | '\n' | '\r') | KeyCode::Enter,
         ) => {
-            let report = match crate::logic::ssh_setup::run_aur_ssh_setup(true) {
+            let ssh_command = crate::theme::settings().aur_vote_ssh_command;
+            let report = match crate::logic::ssh_setup::run_aur_ssh_setup(true, &ssh_command) {
                 crate::logic::ssh_setup::AurSshSetupResult::Completed(report) => report,
                 crate::logic::ssh_setup::AurSshSetupResult::NeedsOverwrite { lines, .. } => {
                     crate::logic::ssh_setup::AurSshSetupReport {

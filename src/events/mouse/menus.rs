@@ -602,8 +602,10 @@ fn handle_system_update_option(app: &mut AppState) {
 fn handle_optional_deps_option(app: &mut AppState) {
     let rows = menu_options::build_optional_deps_rows(app);
     app.modal = crate::state::Modal::OptionalDeps { rows, selected: 0 };
-    app.pending_aur_ssh_help_check_result =
-        Some(crate::logic::ssh_setup::spawn_aur_ssh_help_check());
+    let ssh_command = crate::theme::settings().aur_vote_ssh_command;
+    app.pending_aur_ssh_help_check_result = Some(
+        crate::logic::ssh_setup::spawn_aur_ssh_help_check(ssh_command),
+    );
 }
 
 /// Handle click inside config menu.

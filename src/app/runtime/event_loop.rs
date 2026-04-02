@@ -246,9 +246,11 @@ fn handle_aur_vote_response(
                     crate::state::app_state::AurVoteStateUi::NotVoted
                 }
             };
-            app.aur_vote_state_by_pkgbase
-                .insert(outcome.pkgbase.clone(), state);
-            app.aur_vote_state_dirty = true;
+            if !outcome.dry_run {
+                app.aur_vote_state_by_pkgbase
+                    .insert(outcome.pkgbase.clone(), state);
+                app.aur_vote_state_dirty = true;
+            }
             app.toast_message = Some(outcome.message());
             app.toast_expires_at =
                 Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
@@ -1398,6 +1400,39 @@ mod tests {
             .as_ref()
             .expect("success vote should set a toast");
         assert!(toast.contains("Voted for"));
+        assert!(app.toast_expires_at.is_some());
+    }
+
+    #[test]
+    /// What: Ensure dry-run vote responses do not persist local vote state.
+    ///
+    /// Inputs:
+    /// - `AppState` default and a synthetic dry-run success vote response.
+    ///
+    /// Output:
+    /// - Vote-state cache remains unchanged and dirty flag stays false.
+    ///
+    /// Details:
+    /// - Dry-run must not mark package votes as changed because no remote mutation occurred.
+    fn handle_aur_vote_response_dry_run_does_not_mark_cache_dirty() {
+        let mut app = AppState::default();
+        let response = crate::app::runtime::workers::aur_vote::AurVoteResponse {
+            result: Ok(crate::sources::AurVoteOutcome {
+                action: crate::sources::VoteAction::Vote,
+                pkgbase: "pacsea-bin".to_string(),
+                dry_run: true,
+            }),
+        };
+
+        handle_aur_vote_response(&mut app, response);
+
+        assert!(!app.aur_vote_state_by_pkgbase.contains_key("pacsea-bin"));
+        assert!(!app.aur_vote_state_dirty);
+        let toast = app
+            .toast_message
+            .as_ref()
+            .expect("dry-run vote should set a toast");
+        assert!(toast.contains("[dry-run]"));
         assert!(app.toast_expires_at.is_some());
     }
 
