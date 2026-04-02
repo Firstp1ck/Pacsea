@@ -448,6 +448,8 @@ keybind_reload_config = CTRL+R\n\
 keybind_exit = CTRL+Q\n\
 keybind_show_pkgbuild = CTRL+X\n\
 keybind_comments_toggle = CTRL+T\n\
+# Run PKGBUILD checks; same setting as keybind_pkgbuild_checks / keybind_toggle_pkgbuild_checks\n\
+keybind_run_pkgbuild_checks = CTRL+K\n\
 keybind_cycle_pkgbuild_sections = CTRL+D\n\
 \n\
 # GLOBAL — Pane switching\n\

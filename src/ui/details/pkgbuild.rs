@@ -9,10 +9,35 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::i18n;
 use crate::state::AppState;
+use crate::state::app_state::PkgbuildCheckTool;
 use crate::theme::Theme;
 use crate::theme::theme;
 
 use super::pkgbuild_highlight;
+
+/// What: Tell whether a checker was skipped because its binary was not found on `PATH`.
+///
+/// Inputs:
+/// - `missing_tools`: Worker hints copied into [`AppState::pkgb_check_missing_tools`].
+/// - `tool`: Subsection being rendered (`Shellcheck` or `Namcap`).
+///
+/// Output:
+/// - `true` when `missing_tools` includes the hint for that tool.
+///
+/// Details:
+/// - Matches the prefix of strings produced when a checker binary is absent (`shellcheck missing:` /
+///   `namcap missing:` in the PKGBUILD check worker), compared ASCII-case-insensitively.
+fn pkgbuild_check_tool_missing_on_path(missing_tools: &[String], tool: PkgbuildCheckTool) -> bool {
+    let lower_prefix = match tool {
+        PkgbuildCheckTool::Shellcheck => "shellcheck missing",
+        PkgbuildCheckTool::Namcap => "namcap missing",
+    };
+    missing_tools.iter().any(|hint| {
+        hint.trim_start()
+            .to_ascii_lowercase()
+            .starts_with(lower_prefix)
+    })
+}
 
 /// What: Line indices for jumping between PKGBUILD body and per-tool static-check subsections.
 ///
@@ -55,7 +80,7 @@ fn append_pkgbuild_raw_output_lines(
     all_lines.push(Line::from(""));
     all_lines.push(Line::from("Raw output:"));
     for raw in raw_results {
-        if matches!(raw.tool, crate::state::app_state::PkgbuildCheckTool::Namcap)
+        if matches!(raw.tool, PkgbuildCheckTool::Namcap)
             && raw.stdout.trim().is_empty()
             && raw.stderr.trim().is_empty()
         {
@@ -123,10 +148,7 @@ pub fn build_pkgbuild_all_lines(
         all_lines.push(Line::from("─── ShellCheck ───"));
         let mut any_shellcheck = false;
         for finding in &app.pkgb_check_findings {
-            if !matches!(
-                finding.tool,
-                crate::state::app_state::PkgbuildCheckTool::Shellcheck
-            ) {
+            if !matches!(finding.tool, PkgbuildCheckTool::Shellcheck) {
                 continue;
             }
             any_shellcheck = true;
@@ -139,16 +161,21 @@ pub fn build_pkgbuild_all_lines(
             )));
         }
         if !any_shellcheck {
-            all_lines.push(Line::from("  (no findings)"));
+            let line = if pkgbuild_check_tool_missing_on_path(
+                &app.pkgb_check_missing_tools,
+                PkgbuildCheckTool::Shellcheck,
+            ) {
+                "  shellcheck not installed"
+            } else {
+                "  (no findings)"
+            };
+            all_lines.push(Line::from(line));
         }
         anchors.namcap_line = Some(all_lines.len());
         all_lines.push(Line::from("─── Namcap ───"));
         let mut any_namcap = false;
         for finding in &app.pkgb_check_findings {
-            if !matches!(
-                finding.tool,
-                crate::state::app_state::PkgbuildCheckTool::Namcap
-            ) {
+            if !matches!(finding.tool, PkgbuildCheckTool::Namcap) {
                 continue;
             }
             any_namcap = true;
@@ -161,7 +188,15 @@ pub fn build_pkgbuild_all_lines(
             )));
         }
         if !any_namcap {
-            all_lines.push(Line::from("  (no findings)"));
+            let line = if pkgbuild_check_tool_missing_on_path(
+                &app.pkgb_check_missing_tools,
+                PkgbuildCheckTool::Namcap,
+            ) {
+                "  namcap not installed"
+            } else {
+                "  (no findings)"
+            };
+            all_lines.push(Line::from(line));
         }
         if app.pkgb_check_show_raw_output
             && crate::theme::settings().pkgbuild_checks_show_raw_output
@@ -396,6 +431,51 @@ mod tests {
     fn pkgbuild_scroll_max_idle_falls_back_to_clamp() {
         let j = resolve_pkgbuild_clamped_scroll(u16::MAX, 19, 20, 10, PkgbuildCheckStatus::Idle);
         assert_eq!(j, 19);
+    }
+
+    #[test]
+    /// What: A missing checker shows `not installed` under that subsection instead of `(no findings)`.
+    ///
+    /// Inputs:
+    /// - `AppState` with completed checks, no parsed findings, and `pkgb_check_missing_tools` listing
+    ///   only `shellcheck`.
+    ///
+    /// Output:
+    /// - Rendered lines include `shellcheck not installed` and do not claim no `ShellCheck` findings.
+    ///
+    /// Details:
+    /// - Ensures missing binaries are not confused with a clean `ShellCheck` run.
+    fn pkgbuild_subsection_shows_not_installed_when_tool_missing() {
+        let app = AppState {
+            pkgb_text: Some("pkgname=demo\npkgver=1\n".into()),
+            pkgb_check_status: PkgbuildCheckStatus::Complete,
+            pkgb_check_missing_tools: vec![
+                "shellcheck missing: install package `shellcheck`".into(),
+            ],
+            ..Default::default()
+        };
+        let th = theme();
+        let (lines, _) = build_pkgbuild_all_lines(&app, &th);
+        let flat: Vec<String> = lines.iter().map(ToString::to_string).collect();
+        let sc_start = flat
+            .iter()
+            .position(|s| s.contains("─── ShellCheck ───"))
+            .expect("ShellCheck header");
+        let nc_start = flat
+            .iter()
+            .position(|s| s.contains("─── Namcap ───"))
+            .expect("Namcap header");
+        let shellcheck_body = &flat[sc_start + 1..nc_start];
+        assert!(
+            shellcheck_body
+                .iter()
+                .any(|s| s.contains("shellcheck not installed")),
+            "expected shellcheck missing line, got {shellcheck_body:?}"
+        );
+        assert!(
+            !shellcheck_body.iter().any(|s| s.contains("(no findings)")),
+            "shellcheck subsection must not claim no findings when the tool did not run: {shellcheck_body:?}"
+        );
     }
 
     #[test]
