@@ -5,6 +5,7 @@ use tokio::sync::mpsc;
 use tokio::time::Duration;
 
 use crate::logic::send_query;
+use crate::state::app_state::{PkgbuildCheckStatus, PkgbuildCheckTool};
 use crate::state::{AppState, ArchStatusColor, PackageItem, QueryInput};
 
 use super::super::persist::{
@@ -85,6 +86,61 @@ pub fn handle_pkgbuild_result(
         // Clear any pending debounce request since we've successfully loaded
         app.pkgb_reload_requested_at = None;
         app.pkgb_reload_requested_for = None;
+    }
+    let _ = tick_tx.send(());
+}
+
+/// What: Handle PKGBUILD checks result event.
+pub fn handle_pkgbuild_check_result(
+    app: &mut AppState,
+    response: crate::state::PkgbuildCheckResponse,
+    tick_tx: &mpsc::UnboundedSender<()>,
+) {
+    let warning_count = response
+        .findings
+        .iter()
+        .filter(|finding| {
+            matches!(
+                finding.severity,
+                crate::state::app_state::PkgbuildCheckSeverity::Warning
+            )
+        })
+        .count();
+    let error_count = response
+        .findings
+        .iter()
+        .filter(|finding| {
+            matches!(
+                finding.severity,
+                crate::state::app_state::PkgbuildCheckSeverity::Error
+            )
+        })
+        .count();
+    app.pkgb_check_status = PkgbuildCheckStatus::Complete;
+    app.pkgb_check_last_package_name = Some(response.package_name);
+    app.pkgb_check_findings = response.findings;
+    app.pkgb_check_raw_results = response.raw_results;
+    app.pkgb_check_missing_tools = response.missing_tools;
+    app.pkgb_check_last_error = response.last_error;
+    app.pkgb_check_last_run_at = Some(Instant::now());
+    app.pkgb_check_scroll = 0;
+    app.pkgb_check_raw_scroll = 0;
+    app.pkgb_check_show_raw_output = true;
+    app.toast_message = Some(format!(
+        "PKGBUILD checks finished: {error_count} error(s), {warning_count} warning(s)"
+    ));
+    app.toast_expires_at = Some(Instant::now() + Duration::from_secs(4));
+
+    if app.pkgb_check_raw_results.is_empty() && !app.pkgb_check_missing_tools.is_empty() {
+        for hint in app.pkgb_check_missing_tools.clone() {
+            app.pkgb_check_findings
+                .push(crate::state::app_state::PkgbuildCheckFinding {
+                    tool: PkgbuildCheckTool::Shellcheck,
+                    severity: crate::state::app_state::PkgbuildCheckSeverity::Info,
+                    line: None,
+                    message: hint,
+                });
+        }
     }
     let _ = tick_tx.send(());
 }

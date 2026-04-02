@@ -10,7 +10,7 @@
 use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 use tokio::sync::mpsc;
 
-use crate::state::{AppState, PackageItem, QueryInput};
+use crate::state::{AppState, PackageItem, PkgbuildCheckRequest, QueryInput};
 
 mod details;
 mod filters;
@@ -59,7 +59,34 @@ mod tests;
 /// - Import/Export buttons: Import opens a system file picker to enqueue names; Export writes the
 ///   current Install list to a timestamped file and shows a toast.
 #[allow(clippy::too_many_arguments)]
+#[allow(dead_code)]
 pub fn handle_mouse_event(
+    m: MouseEvent,
+    app: &mut AppState,
+    details_tx: &mpsc::UnboundedSender<PackageItem>,
+    preview_tx: &mpsc::UnboundedSender<PackageItem>,
+    add_tx: &mpsc::UnboundedSender<PackageItem>,
+    pkgb_tx: &mpsc::UnboundedSender<PackageItem>,
+    comments_tx: &mpsc::UnboundedSender<String>,
+    query_tx: &mpsc::UnboundedSender<QueryInput>,
+) -> bool {
+    let (pkgb_check_tx, _pkgb_check_rx) = mpsc::unbounded_channel::<PkgbuildCheckRequest>();
+    handle_mouse_event_with_pkgbuild_checks(
+        m,
+        app,
+        details_tx,
+        preview_tx,
+        add_tx,
+        pkgb_tx,
+        comments_tx,
+        query_tx,
+        &pkgb_check_tx,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+/// What: Extended mouse handler variant that accepts PKGBUILD checks channel.
+pub fn handle_mouse_event_with_pkgbuild_checks(
     m: MouseEvent,
     app: &mut AppState,
     details_tx: &mpsc::UnboundedSender<PackageItem>,
@@ -68,6 +95,7 @@ pub fn handle_mouse_event(
     pkgb_tx: &mpsc::UnboundedSender<PackageItem>,
     comments_tx: &mpsc::UnboundedSender<String>,
     query_tx: &mpsc::UnboundedSender<QueryInput>,
+    pkgb_check_tx: &mpsc::UnboundedSender<PkgbuildCheckRequest>,
 ) -> bool {
     // Ensure mouse capture is enabled (important after external terminal processes)
     crate::util::ensure_mouse_capture();
@@ -105,6 +133,7 @@ pub fn handle_mouse_event(
         app,
         pkgb_tx,
         comments_tx,
+        pkgb_check_tx,
     ) {
         return handled;
     }

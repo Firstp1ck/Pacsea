@@ -6,7 +6,7 @@ use tokio::sync::mpsc;
 use crate::app::{apply_settings_to_app_state, initialize_locale_system};
 use crate::events::mouse::menus::{handle_mode_toggle, handle_news_age_toggle};
 use crate::events::utils;
-use crate::state::{AppState, PackageItem};
+use crate::state::{AppState, PackageItem, PkgbuildCheckRequest};
 use crate::theme::{reload_theme, settings};
 
 /// What: Close all open dropdown menus when ESC is pressed.
@@ -412,6 +412,7 @@ fn handle_toggle_pkgbuild(
         app.pkgb_text = None;
         app.pkgb_package_name = None;
         app.pkgb_scroll = 0;
+        app.pkgb_section_cycle = 0;
         app.pkgb_rect = None;
     } else {
         app.pkgb_visible = true;
@@ -421,6 +422,62 @@ fn handle_toggle_pkgbuild(
             let _ = pkgb_tx.send(item);
         }
     }
+    false
+}
+
+/// What: Handle PKGBUILD checks keybind.
+fn handle_run_pkgbuild_checks(
+    app: &mut AppState,
+    pkgb_check_tx: &mpsc::UnboundedSender<PkgbuildCheckRequest>,
+) -> bool {
+    let Some(text) = app.pkgb_text.clone() else {
+        app.toast_message = Some(crate::i18n::t(app, "app.toasts.pkgbuild_not_loaded"));
+        app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
+        return false;
+    };
+    let package_name = app
+        .results
+        .get(app.selected)
+        .map_or_else(String::new, |item| item.name.clone());
+    app.pkgb_check_status = crate::state::app_state::PkgbuildCheckStatus::Running;
+    app.pkgb_check_findings.clear();
+    app.pkgb_check_raw_results.clear();
+    app.pkgb_check_missing_tools.clear();
+    app.pkgb_check_last_error = None;
+    app.pkgb_check_scroll = 0;
+    app.pkgb_check_raw_scroll = 0;
+    // Jump toward the bottom so the appended checks section is immediately visible.
+    app.pkgb_scroll = u16::MAX;
+    app.toast_message = Some("Running PKGBUILD checks...".to_string());
+    app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(2));
+    if let Err(err) = pkgb_check_tx.send(PkgbuildCheckRequest {
+        package_name,
+        pkgbuild_text: text,
+        dry_run: app.dry_run,
+    }) {
+        app.pkgb_check_status = crate::state::app_state::PkgbuildCheckStatus::Complete;
+        app.pkgb_check_last_error = Some(format!("failed to queue PKGBUILD checks: {err}"));
+        app.toast_message = Some("Failed to start PKGBUILD checks".to_string());
+        app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
+    }
+    false
+}
+
+/// What: Cycle PKGBUILD viewer scroll between body, `ShellCheck`, and `Namcap` subsections.
+///
+/// Inputs:
+/// - `app`: Mutable application state (requires [`AppState::pkgb_visible`])
+///
+/// Output:
+/// - `false` (does not exit the app)
+///
+/// Details:
+/// - Delegates to [`crate::ui::cycle_pkgbuild_view_section`].
+fn handle_cycle_pkgbuild_sections(app: &mut AppState) -> bool {
+    if !app.pkgb_visible {
+        return false;
+    }
+    crate::ui::cycle_pkgbuild_view_section(app);
     false
 }
 
@@ -695,6 +752,7 @@ fn handle_global_keybinds(
     pkgb_tx: &mpsc::UnboundedSender<PackageItem>,
     comments_tx: &mpsc::UnboundedSender<String>,
     query_tx: &mpsc::UnboundedSender<crate::state::QueryInput>,
+    pkgb_check_tx: &mpsc::UnboundedSender<PkgbuildCheckRequest>,
 ) -> Option<bool> {
     let km = &app.keymap;
 
@@ -749,6 +807,16 @@ fn handle_global_keybinds(
     // PKGBUILD toggle (only if no modal is active - modals should handle their own keys)
     if matches!(app.modal, crate::state::Modal::None) && matches_keybind(ke, &km.show_pkgbuild) {
         return Some(handle_toggle_pkgbuild(app, pkgb_tx));
+    }
+    if matches!(app.modal, crate::state::Modal::None)
+        && matches_keybind(ke, &km.run_pkgbuild_checks)
+    {
+        return Some(handle_run_pkgbuild_checks(app, pkgb_check_tx));
+    }
+    if matches!(app.modal, crate::state::Modal::None)
+        && matches_keybind(ke, &km.cycle_pkgbuild_sections)
+    {
+        return Some(handle_cycle_pkgbuild_sections(app));
     }
 
     // Sort change (only if no modal is active - modals should handle their own keys)
@@ -824,6 +892,7 @@ pub(super) fn handle_global_key(
     pkgb_tx: &mpsc::UnboundedSender<PackageItem>,
     comments_tx: &mpsc::UnboundedSender<String>,
     query_tx: &mpsc::UnboundedSender<crate::state::QueryInput>,
+    pkgb_check_tx: &mpsc::UnboundedSender<PkgbuildCheckRequest>,
 ) -> Option<bool> {
     // First: handle ESC to close dropdown menus
     if ke.code == KeyCode::Esc
@@ -833,9 +902,15 @@ pub(super) fn handle_global_key(
     }
 
     // Second: handle global keybinds (help, theme reload, exit, PKGBUILD, comments, sort)
-    if let Some(result) =
-        handle_global_keybinds(&ke, app, details_tx, pkgb_tx, comments_tx, query_tx)
-    {
+    if let Some(result) = handle_global_keybinds(
+        &ke,
+        app,
+        details_tx,
+        pkgb_tx,
+        comments_tx,
+        query_tx,
+        pkgb_check_tx,
+    ) {
         return Some(result);
     }
 
@@ -884,6 +959,8 @@ mod tests {
         let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
         let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
         let (query_tx, _query_rx) = mpsc::unbounded_channel::<crate::state::QueryInput>();
+        let (pkgb_check_tx, _pkgb_check_rx) =
+            mpsc::unbounded_channel::<crate::state::PkgbuildCheckRequest>();
 
         let exit = handle_global_key(
             KeyEvent::new(KeyCode::Esc, KeyModifiers::empty()),
@@ -892,6 +969,7 @@ mod tests {
             &pkgb_tx,
             &comments_tx,
             &query_tx,
+            &pkgb_check_tx,
         );
 
         assert_eq!(exit, Some(false));
@@ -919,6 +997,8 @@ mod tests {
         let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
         let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
         let (query_tx, _query_rx) = mpsc::unbounded_channel::<crate::state::QueryInput>();
+        let (pkgb_check_tx, _pkgb_check_rx) =
+            mpsc::unbounded_channel::<crate::state::PkgbuildCheckRequest>();
 
         let exit = handle_global_key(
             KeyEvent::new(KeyCode::F(1), KeyModifiers::empty()),
@@ -927,6 +1007,7 @@ mod tests {
             &pkgb_tx,
             &comments_tx,
             &query_tx,
+            &pkgb_check_tx,
         );
 
         assert_eq!(exit, Some(false));
@@ -962,6 +1043,8 @@ mod tests {
         let (pkgb_tx, mut pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
         let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
         let (query_tx, _query_rx) = mpsc::unbounded_channel::<crate::state::QueryInput>();
+        let (pkgb_check_tx, _pkgb_check_rx) =
+            mpsc::unbounded_channel::<crate::state::PkgbuildCheckRequest>();
 
         let exit = handle_global_key(
             KeyEvent::new(KeyCode::Char('x'), KeyModifiers::CONTROL),
@@ -970,6 +1053,7 @@ mod tests {
             &pkgb_tx,
             &comments_tx,
             &query_tx,
+            &pkgb_check_tx,
         );
 
         assert_eq!(exit, Some(false));
@@ -996,6 +1080,8 @@ mod tests {
         let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
         let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
         let (query_tx, _query_rx) = mpsc::unbounded_channel::<crate::state::QueryInput>();
+        let (pkgb_check_tx, _pkgb_check_rx) =
+            mpsc::unbounded_channel::<crate::state::PkgbuildCheckRequest>();
 
         let exit = handle_global_key(
             KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL),
@@ -1004,6 +1090,7 @@ mod tests {
             &pkgb_tx,
             &comments_tx,
             &query_tx,
+            &pkgb_check_tx,
         );
 
         assert_eq!(exit, Some(true));

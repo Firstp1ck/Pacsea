@@ -8,7 +8,10 @@ use crate::app::runtime::workers::aur_vote::{
     AurVoteRequest, AurVoteResponse, AurVoteStateRequest, AurVoteStateResponse,
 };
 use crate::state::types::NewsFeedPayload;
-use crate::state::{ArchStatusColor, PackageDetails, PackageItem, QueryInput, SearchResults};
+use crate::state::{
+    ArchStatusColor, PackageDetails, PackageItem, PkgbuildCheckRequest, PkgbuildCheckResponse,
+    QueryInput, SearchResults,
+};
 
 /// What: Channel definitions for runtime communication.
 ///
@@ -59,6 +62,10 @@ pub struct Channels {
     pub pkgb_res_tx: mpsc::UnboundedSender<(String, String)>,
     /// Receiver for PKGBUILD content responses in the main event loop.
     pub pkgb_res_rx: mpsc::UnboundedReceiver<(String, String)>,
+    /// Sender for PKGBUILD static check requests.
+    pub pkgb_check_req_tx: mpsc::UnboundedSender<PkgbuildCheckRequest>,
+    /// Receiver for PKGBUILD static check responses.
+    pub pkgb_check_res_rx: mpsc::UnboundedReceiver<PkgbuildCheckResponse>,
     /// Sender for AUR comments requests (package name).
     pub comments_req_tx: mpsc::UnboundedSender<String>,
     /// Sender for AUR comments responses (package name, comments or error).
@@ -260,6 +267,14 @@ struct UtilityChannels {
     pkgb_res_tx: mpsc::UnboundedSender<(String, String)>,
     /// Receiver for PKGBUILD responses.
     pkgb_res_rx: mpsc::UnboundedReceiver<(String, String)>,
+    /// Sender for PKGBUILD check requests.
+    pkgb_check_req_tx: mpsc::UnboundedSender<PkgbuildCheckRequest>,
+    /// Receiver for PKGBUILD check requests.
+    pkgb_check_req_rx: mpsc::UnboundedReceiver<PkgbuildCheckRequest>,
+    /// Sender for PKGBUILD check responses.
+    pkgb_check_res_tx: mpsc::UnboundedSender<PkgbuildCheckResponse>,
+    /// Receiver for PKGBUILD check responses.
+    pkgb_check_res_rx: mpsc::UnboundedReceiver<PkgbuildCheckResponse>,
     /// Sender for AUR comments requests.
     comments_req_tx: mpsc::UnboundedSender<String>,
     /// Receiver for AUR comments requests.
@@ -436,6 +451,8 @@ fn create_utility_channels() -> UtilityChannels {
     let (index_notify_tx, index_notify_rx) = mpsc::unbounded_channel::<()>();
     let (pkgb_req_tx, pkgb_req_rx) = mpsc::unbounded_channel::<PackageItem>();
     let (pkgb_res_tx, pkgb_res_rx) = mpsc::unbounded_channel::<(String, String)>();
+    let (pkgb_check_req_tx, pkgb_check_req_rx) = mpsc::unbounded_channel::<PkgbuildCheckRequest>();
+    let (pkgb_check_res_tx, pkgb_check_res_rx) = mpsc::unbounded_channel::<PkgbuildCheckResponse>();
     let (comments_req_tx, comments_req_rx) = mpsc::unbounded_channel::<String>();
     let (comments_res_tx, comments_res_rx) =
         mpsc::unbounded_channel::<(String, Result<Vec<crate::state::types::AurComment>, String>)>();
@@ -478,6 +495,10 @@ fn create_utility_channels() -> UtilityChannels {
         pkgb_req_rx,
         pkgb_res_tx,
         pkgb_res_rx,
+        pkgb_check_req_tx,
+        pkgb_check_req_rx,
+        pkgb_check_res_tx,
+        pkgb_check_res_rx,
         comments_req_tx,
         comments_req_rx,
         comments_res_tx,
@@ -541,6 +562,10 @@ impl Channels {
         crate::app::runtime::workers::details::spawn_pkgbuild_worker(
             utility_channels.pkgb_req_rx,
             utility_channels.pkgb_res_tx.clone(),
+        );
+        crate::app::runtime::workers::details::spawn_pkgbuild_checks_worker(
+            utility_channels.pkgb_check_req_rx,
+            utility_channels.pkgb_check_res_tx.clone(),
         );
         crate::app::runtime::workers::comments::spawn_comments_worker(
             utility_channels.comments_req_rx,
@@ -615,6 +640,8 @@ impl Channels {
             pkgb_req_tx: utility_channels.pkgb_req_tx,
             pkgb_res_tx: utility_channels.pkgb_res_tx,
             pkgb_res_rx: utility_channels.pkgb_res_rx,
+            pkgb_check_req_tx: utility_channels.pkgb_check_req_tx,
+            pkgb_check_res_rx: utility_channels.pkgb_check_res_rx,
             comments_req_tx: utility_channels.comments_req_tx,
             comments_res_tx: utility_channels.comments_res_tx,
             comments_res_rx: utility_channels.comments_res_rx,

@@ -11,6 +11,7 @@ use crate::theme::types::Settings;
 /// Details:
 /// - Ensures `mirror_count` is between 1 and 200 (defaults to 20 if 0).
 /// - Normalizes `selected_countries` by trimming and formatting comma-separated values.
+/// - Normalizes `pkgbuild_shellcheck_exclude` the same way (comma-separated `ShellCheck` rule IDs).
 /// - Trims whitespace from `VirusTotal` API key.
 pub fn normalize(settings: &mut Settings) {
     // Normalize mirror settings parsed from settings.conf
@@ -23,6 +24,15 @@ pub fn normalize(settings: &mut Settings) {
     if !settings.selected_countries.is_empty() {
         settings.selected_countries = settings
             .selected_countries
+            .split(',')
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join(", ");
+    }
+    if !settings.pkgbuild_shellcheck_exclude.is_empty() {
+        settings.pkgbuild_shellcheck_exclude = settings
+            .pkgbuild_shellcheck_exclude
             .split(',')
             .map(str::trim)
             .filter(|s| !s.is_empty())

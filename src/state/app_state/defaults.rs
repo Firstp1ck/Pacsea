@@ -338,7 +338,19 @@ pub(super) type DefaultPkgbuildState = (
     Option<Instant>,
     Option<String>,
     u16,
+    u8,
     Option<(u16, u16, u16, u16)>,
+    Option<(u16, u16, u16, u16)>,
+    super::PkgbuildCheckStatus,
+    Vec<super::PkgbuildCheckFinding>,
+    Vec<super::PkgbuildToolRawResult>,
+    Vec<String>,
+    bool,
+    u16,
+    u16,
+    Option<String>,
+    Option<Instant>,
+    Option<String>,
 );
 
 /// Type alias for default comments state tuple.
@@ -695,7 +707,30 @@ pub(super) fn default_clickable_rects_state() -> DefaultClickableRectsState {
 /// Details:
 /// - PKGBUILD viewer is hidden by default, all rectangles start as None.
 pub(super) const fn default_pkgbuild_state() -> DefaultPkgbuildState {
-    (None, None, None, false, None, None, None, None, 0, None)
+    (
+        None,
+        None,
+        None,
+        false,
+        None,
+        None,
+        None,
+        None,
+        0,
+        0,
+        None,
+        None,
+        super::PkgbuildCheckStatus::Idle,
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+        false,
+        0,
+        0,
+        None,
+        None,
+        None,
+    )
 }
 
 /// What: Create default comments state.

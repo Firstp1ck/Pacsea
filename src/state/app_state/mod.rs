@@ -45,6 +45,69 @@ pub enum AurVoteStateUi {
     Error(String),
 }
 
+/// What: Execution status for PKGBUILD static checks in the preview panel.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PkgbuildCheckStatus {
+    /// No checks have been requested yet.
+    Idle,
+    /// Checks are currently running in a background worker.
+    Running,
+    /// Checks completed and data is available for rendering.
+    Complete,
+}
+
+/// What: Supported static checker tool names for PKGBUILD preview checks.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PkgbuildCheckTool {
+    /// `shellcheck` output.
+    Shellcheck,
+    /// `namcap` output.
+    Namcap,
+}
+
+/// What: Severity of a parsed PKGBUILD check finding.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PkgbuildCheckSeverity {
+    /// High-confidence error that should be fixed.
+    Error,
+    /// Warning that likely needs manual review.
+    Warning,
+    /// Informational note from checker output.
+    Info,
+}
+
+/// What: Parsed finding line for PKGBUILD static check output.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PkgbuildCheckFinding {
+    /// Tool that produced the finding.
+    pub tool: PkgbuildCheckTool,
+    /// Parsed severity level.
+    pub severity: PkgbuildCheckSeverity,
+    /// Optional line number in PKGBUILD, if parseable.
+    pub line: Option<u32>,
+    /// User-facing message to show in the findings list.
+    pub message: String,
+}
+
+/// What: Raw execution result for an individual PKGBUILD checker tool.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PkgbuildToolRawResult {
+    /// Tool name.
+    pub tool: PkgbuildCheckTool,
+    /// Whether the tool binary was available on `PATH`.
+    pub available: bool,
+    /// Exit code when executed.
+    pub exit_code: Option<i32>,
+    /// Whether execution timed out.
+    pub timed_out: bool,
+    /// Exact command string executed (or would be executed in dry-run).
+    pub command: String,
+    /// Captured stdout.
+    pub stdout: String,
+    /// Captured stderr.
+    pub stderr: String,
+}
+
 /// Global application state shared by the event, networking, and UI layers.
 ///
 /// This structure is mutated frequently in response to input and background
@@ -383,8 +446,32 @@ pub struct AppState {
     pub pkgb_reload_requested_for: Option<String>,
     /// Scroll offset (lines) for the PKGBUILD viewer.
     pub pkgb_scroll: u16,
+    /// Active subsection for `Ctrl+D` rotation: 0 = PKGBUILD body, 1 = `ShellCheck`, 2 = `Namcap`.
+    pub pkgb_section_cycle: u8,
     /// Content rectangle of the PKGBUILD viewer (x, y, w, h) when visible.
     pub pkgb_rect: Option<(u16, u16, u16, u16)>,
+    /// Rectangle of the clickable "Run checks" button in PKGBUILD title.
+    pub pkgb_run_checks_button_rect: Option<(u16, u16, u16, u16)>,
+    /// Current status of PKGBUILD checks in preview panel.
+    pub pkgb_check_status: PkgbuildCheckStatus,
+    /// Parsed findings from latest PKGBUILD check run.
+    pub pkgb_check_findings: Vec<PkgbuildCheckFinding>,
+    /// Raw per-tool outputs from latest PKGBUILD check run.
+    pub pkgb_check_raw_results: Vec<PkgbuildToolRawResult>,
+    /// Missing tool hints shown when ShellCheck/namcap are unavailable.
+    pub pkgb_check_missing_tools: Vec<String>,
+    /// Whether raw output panel is expanded in PKGBUILD preview.
+    pub pkgb_check_show_raw_output: bool,
+    /// Scroll offset for parsed findings list.
+    pub pkgb_check_scroll: u16,
+    /// Scroll offset for raw output panel.
+    pub pkgb_check_raw_scroll: u16,
+    /// Last package name for which checks were run.
+    pub pkgb_check_last_package_name: Option<String>,
+    /// Last completion timestamp for checks.
+    pub pkgb_check_last_run_at: Option<Instant>,
+    /// Last error text for check execution path.
+    pub pkgb_check_last_error: Option<String>,
 
     // AUR comments viewer state
     /// Rectangle of the clickable "Show comments" / "Hide comments" button in terminal cell coordinates.

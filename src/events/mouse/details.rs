@@ -4,7 +4,7 @@ use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 use crossterm::execute;
 use tokio::sync::mpsc;
 
-use crate::state::{AppState, PackageItem};
+use crate::state::{AppState, PackageItem, PkgbuildCheckRequest};
 
 /// Check if a point is within a rectangle.
 ///
@@ -303,6 +303,49 @@ fn handle_reload_pkgb_click(mx: u16, my: u16, app: &mut AppState) -> bool {
     true
 }
 
+/// Handle run PKGBUILD checks button click.
+fn handle_run_pkgb_checks_click(
+    mx: u16,
+    my: u16,
+    app: &mut AppState,
+    pkgb_check_tx: &mpsc::UnboundedSender<PkgbuildCheckRequest>,
+) -> bool {
+    if !is_point_in_rect(mx, my, app.pkgb_run_checks_button_rect) {
+        return false;
+    }
+    let Some(text) = app.pkgb_text.clone() else {
+        app.toast_message = Some(crate::i18n::t(app, "app.toasts.pkgbuild_not_loaded"));
+        app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
+        return true;
+    };
+    let package_name = app
+        .results
+        .get(app.selected)
+        .map_or_else(String::new, |item| item.name.clone());
+    app.pkgb_check_status = crate::state::app_state::PkgbuildCheckStatus::Running;
+    app.pkgb_check_findings.clear();
+    app.pkgb_check_raw_results.clear();
+    app.pkgb_check_missing_tools.clear();
+    app.pkgb_check_last_error = None;
+    app.pkgb_check_scroll = 0;
+    app.pkgb_check_raw_scroll = 0;
+    // Jump toward the bottom so the appended checks section is immediately visible.
+    app.pkgb_scroll = u16::MAX;
+    app.toast_message = Some("Running PKGBUILD checks...".to_string());
+    app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(2));
+    if let Err(err) = pkgb_check_tx.send(PkgbuildCheckRequest {
+        package_name,
+        pkgbuild_text: text,
+        dry_run: app.dry_run,
+    }) {
+        app.pkgb_check_status = crate::state::app_state::PkgbuildCheckStatus::Complete;
+        app.pkgb_check_last_error = Some(format!("failed to queue PKGBUILD checks: {err}"));
+        app.toast_message = Some("Failed to start PKGBUILD checks".to_string());
+        app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
+    }
+    true
+}
+
 /// Handle mouse scroll events in the details pane.
 ///
 /// What: Updates details scroll position when mouse wheel is used within the details rectangle.
@@ -500,6 +543,7 @@ pub(super) fn handle_details_mouse(
     app: &mut AppState,
     pkgb_tx: &mpsc::UnboundedSender<PackageItem>,
     comments_tx: &mpsc::UnboundedSender<String>,
+    pkgb_check_tx: &mpsc::UnboundedSender<PkgbuildCheckRequest>,
 ) -> Option<bool> {
     // In news mode, allow simple left-click on URL (no Ctrl+Shift needed)
     if is_left_down
@@ -556,6 +600,9 @@ pub(super) fn handle_details_mouse(
             return Some(false);
         }
         if handle_reload_pkgb_click(mx, my, app) {
+            return Some(false);
+        }
+        if handle_run_pkgb_checks_click(mx, my, app, pkgb_check_tx) {
             return Some(false);
         }
     }

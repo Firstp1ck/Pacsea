@@ -276,6 +276,8 @@ mod tests {
             "scan_do_virustotal",
             "scan_do_custom",
             "scan_do_sleuth",
+            "pkgbuild_shellcheck_exclude",
+            "pkgbuild_checks_show_raw_output",
             "news_read_symbol",
             "news_unread_symbol",
             "preferred_terminal",
@@ -305,6 +307,59 @@ mod tests {
                 "Missing key '{key}' in {context}"
             );
         }
+    }
+
+    /// What: Verify scan toggles and PKGBUILD static-check settings match defaults.
+    ///
+    /// Inputs:
+    /// - `loaded`: Settings after loading from config.
+    /// - `defaults`: Baseline `Settings::default()`.
+    ///
+    /// Output:
+    /// - None (panics with field-specific message on mismatch).
+    ///
+    /// Details:
+    /// - Extracted from `assert_settings_match_defaults` to keep cognitive complexity within lint limits.
+    fn assert_scan_and_pkgbuild_settings_match_defaults(
+        loaded: &crate::theme::types::Settings,
+        defaults: &crate::theme::types::Settings,
+    ) {
+        assert_eq!(
+            loaded.scan_do_clamav, defaults.scan_do_clamav,
+            "scan_do_clamav should match default"
+        );
+        assert_eq!(
+            loaded.scan_do_trivy, defaults.scan_do_trivy,
+            "scan_do_trivy should match default"
+        );
+        assert_eq!(
+            loaded.scan_do_semgrep, defaults.scan_do_semgrep,
+            "scan_do_semgrep should match default"
+        );
+        assert_eq!(
+            loaded.scan_do_shellcheck, defaults.scan_do_shellcheck,
+            "scan_do_shellcheck should match default"
+        );
+        assert_eq!(
+            loaded.scan_do_virustotal, defaults.scan_do_virustotal,
+            "scan_do_virustotal should match default"
+        );
+        assert_eq!(
+            loaded.scan_do_custom, defaults.scan_do_custom,
+            "scan_do_custom should match default"
+        );
+        assert_eq!(
+            loaded.scan_do_sleuth, defaults.scan_do_sleuth,
+            "scan_do_sleuth should match default"
+        );
+        assert_eq!(
+            loaded.pkgbuild_shellcheck_exclude, defaults.pkgbuild_shellcheck_exclude,
+            "pkgbuild_shellcheck_exclude should match default"
+        );
+        assert_eq!(
+            loaded.pkgbuild_checks_show_raw_output, defaults.pkgbuild_checks_show_raw_output,
+            "pkgbuild_checks_show_raw_output should match default"
+        );
     }
 
     /// What: Verify that loaded settings match default settings.
@@ -369,34 +424,7 @@ mod tests {
             loaded.virustotal_api_key, defaults.virustotal_api_key,
             "virustotal_api_key should match default"
         );
-        assert_eq!(
-            loaded.scan_do_clamav, defaults.scan_do_clamav,
-            "scan_do_clamav should match default"
-        );
-        assert_eq!(
-            loaded.scan_do_trivy, defaults.scan_do_trivy,
-            "scan_do_trivy should match default"
-        );
-        assert_eq!(
-            loaded.scan_do_semgrep, defaults.scan_do_semgrep,
-            "scan_do_semgrep should match default"
-        );
-        assert_eq!(
-            loaded.scan_do_shellcheck, defaults.scan_do_shellcheck,
-            "scan_do_shellcheck should match default"
-        );
-        assert_eq!(
-            loaded.scan_do_virustotal, defaults.scan_do_virustotal,
-            "scan_do_virustotal should match default"
-        );
-        assert_eq!(
-            loaded.scan_do_custom, defaults.scan_do_custom,
-            "scan_do_custom should match default"
-        );
-        assert_eq!(
-            loaded.scan_do_sleuth, defaults.scan_do_sleuth,
-            "scan_do_sleuth should match default"
-        );
+        assert_scan_and_pkgbuild_settings_match_defaults(loaded, defaults);
         assert_eq!(
             loaded.news_read_symbol, defaults.news_read_symbol,
             "news_read_symbol should match default"
@@ -759,7 +787,7 @@ mod tests {
 
         // Test 3: All parameters are loaded with defaults when missing
         fs::remove_file(&settings_path).expect("Failed to remove test settings file");
-        let loaded_settings = crate::theme::settings::settings();
+        let loaded_settings = crate::theme::settings();
         let default_settings = crate::theme::types::Settings::default();
         assert_settings_match_defaults(&loaded_settings, &default_settings);
 

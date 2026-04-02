@@ -6,7 +6,7 @@
 use crossterm::event::{Event as CEvent, KeyCode, KeyEventKind, KeyModifiers};
 use tokio::sync::mpsc;
 
-use crate::state::{AppState, Focus, PackageItem, QueryInput};
+use crate::state::{AppState, Focus, PackageItem, PkgbuildCheckRequest, QueryInput};
 
 mod distro;
 mod global;
@@ -140,6 +140,33 @@ pub fn handle_event(
     pkgb_tx: &mpsc::UnboundedSender<PackageItem>,
     comments_tx: &mpsc::UnboundedSender<String>,
 ) -> bool {
+    let (pkgb_check_tx, _pkgb_check_rx) = mpsc::unbounded_channel::<PkgbuildCheckRequest>();
+    handle_event_with_pkgbuild_checks(
+        ev,
+        app,
+        query_tx,
+        details_tx,
+        preview_tx,
+        add_tx,
+        pkgb_tx,
+        comments_tx,
+        &pkgb_check_tx,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+/// What: Event dispatcher variant that includes PKGBUILD checks channel wiring.
+pub fn handle_event_with_pkgbuild_checks(
+    ev: &CEvent,
+    app: &mut AppState,
+    query_tx: &mpsc::UnboundedSender<QueryInput>,
+    details_tx: &mpsc::UnboundedSender<PackageItem>,
+    preview_tx: &mpsc::UnboundedSender<PackageItem>,
+    add_tx: &mpsc::UnboundedSender<PackageItem>,
+    pkgb_tx: &mpsc::UnboundedSender<PackageItem>,
+    comments_tx: &mpsc::UnboundedSender<String>,
+    pkgb_check_tx: &mpsc::UnboundedSender<PkgbuildCheckRequest>,
+) -> bool {
     if let CEvent::Key(ke) = ev {
         if ke.kind != KeyEventKind::Press {
             return false;
@@ -158,9 +185,15 @@ pub fn handle_event(
 
         // Check for global keybinds first (even when preflight is open)
         // This allows global shortcuts like Ctrl+T to work regardless of modal state
-        if let Some(should_exit) =
-            global::handle_global_key(*ke, app, details_tx, pkgb_tx, comments_tx, query_tx)
-        {
+        if let Some(should_exit) = global::handle_global_key(
+            *ke,
+            app,
+            details_tx,
+            pkgb_tx,
+            comments_tx,
+            query_tx,
+            pkgb_check_tx,
+        ) {
             if ke.code == KeyCode::Char('t') && ke.modifiers.contains(KeyModifiers::CONTROL) {
                 tracing::debug!(
                     "[Event] Global handler returned should_exit={}",
@@ -230,7 +263,7 @@ pub fn handle_event(
 
     // Mouse handling delegated
     if let CEvent::Mouse(m) = ev {
-        return mouse::handle_mouse_event(
+        return mouse::handle_mouse_event_with_pkgbuild_checks(
             *m,
             app,
             details_tx,
@@ -239,6 +272,7 @@ pub fn handle_event(
             pkgb_tx,
             comments_tx,
             query_tx,
+            pkgb_check_tx,
         );
     }
     false

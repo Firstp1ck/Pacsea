@@ -206,6 +206,20 @@ fn build_globals_section(
     );
     add_keybind_entry(
         &mut spans,
+        km.run_pkgbuild_checks.first(),
+        key_style,
+        "Run PKGBUILD checks",
+        sep_style,
+    );
+    add_keybind_entry(
+        &mut spans,
+        km.cycle_pkgbuild_sections.first(),
+        key_style,
+        &i18n::t(app, "app.actions.cycle_pkgbuild_sections"),
+        sep_style,
+    );
+    add_keybind_entry(
+        &mut spans,
         km.change_sort.first(),
         key_style,
         &i18n::t(app, "app.actions.change_sort_mode"),

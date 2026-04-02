@@ -88,6 +88,18 @@ fn apply_global_keybind(key: &str, chord: Option<KeyChord>, settings: &mut Setti
             assign_keybind(chord, &mut settings.keymap.comments_toggle);
             true
         }
+        "keybind_run_pkgbuild_checks"
+        | "keybind_pkgbuild_checks"
+        | "keybind_toggle_pkgbuild_checks" => {
+            assign_keybind(chord, &mut settings.keymap.run_pkgbuild_checks);
+            true
+        }
+        "keybind_cycle_pkgbuild_sections"
+        | "keybind_pkgbuild_section_cycle"
+        | "keybind_pkgbuild_next_section" => {
+            assign_keybind(chord, &mut settings.keymap.cycle_pkgbuild_sections);
+            true
+        }
         "keybind_change_sort" | "keybind_sort" => {
             assign_keybind(chord, &mut settings.keymap.change_sort);
             true
@@ -914,6 +926,19 @@ keybind_news_mark_all_read = CTRL+R
                 .contains(KeyModifiers::CONTROL)
         );
         assert_eq!(settings.keymap.news_mark_all_read[0].label(), "Ctrl+R");
+    }
+
+    #[test]
+    /// What: Ensure PKGBUILD checks keybind aliases are parsed correctly.
+    fn test_parse_pkgbuild_checks_keybind() {
+        let mut settings = Settings::default();
+        let content = "keybind_run_pkgbuild_checks = Ctrl+K";
+        parse_keybinds(content, &mut settings);
+        assert_eq!(settings.keymap.run_pkgbuild_checks.len(), 1);
+        assert_eq!(
+            settings.keymap.run_pkgbuild_checks[0].label(),
+            "Ctrl+K".to_string()
+        );
     }
 
     #[test]

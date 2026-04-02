@@ -327,6 +327,32 @@ pub struct SearchResults {
     pub items: Vec<PackageItem>,
 }
 
+/// What: Request payload to run PKGBUILD static checks.
+#[derive(Clone, Debug)]
+pub struct PkgbuildCheckRequest {
+    /// Selected package name.
+    pub package_name: String,
+    /// Current PKGBUILD text shown in preview.
+    pub pkgbuild_text: String,
+    /// Global dry-run flag.
+    pub dry_run: bool,
+}
+
+/// What: Response payload for PKGBUILD static checks.
+#[derive(Clone, Debug)]
+pub struct PkgbuildCheckResponse {
+    /// Package name tied to this run.
+    pub package_name: String,
+    /// Parsed findings for list rendering.
+    pub findings: Vec<crate::state::app_state::PkgbuildCheckFinding>,
+    /// Raw per-tool outputs from latest PKGBUILD check run.
+    pub raw_results: Vec<crate::state::app_state::PkgbuildToolRawResult>,
+    /// User-facing missing tool hints.
+    pub missing_tools: Vec<String>,
+    /// Optional high-level execution error.
+    pub last_error: Option<String>,
+}
+
 /// Sorting mode for the Results list.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SortMode {

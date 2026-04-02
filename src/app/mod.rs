@@ -12,7 +12,7 @@ mod persist;
 /// Recent queries and history management.
 mod recent;
 /// Runtime event loop and background workers.
-mod runtime;
+pub(crate) mod runtime;
 pub mod sandbox_cache;
 pub mod services_cache;
 /// Terminal setup and restoration utilities.

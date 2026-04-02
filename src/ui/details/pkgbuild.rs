@@ -9,9 +9,234 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::i18n;
 use crate::state::AppState;
+use crate::theme::Theme;
 use crate::theme::theme;
 
 use super::pkgbuild_highlight;
+
+/// What: Line indices for jumping between PKGBUILD body and per-tool static-check subsections.
+///
+/// Inputs: Built by [`build_pkgbuild_all_lines`].
+///
+/// Output:
+/// - `checks_start_line` is the first line after the PKGBUILD body (blank separator when checks exist).
+/// - `shellcheck_line` / `namcap_line` point at subsection headers when `has_checks_block`.
+///
+/// Details:
+/// - When `has_checks_block` is false, only the PKGBUILD body is present; cycle falls back to top.
+#[derive(Clone, Copy, Debug)]
+pub struct PkgbuildScrollAnchors {
+    /// First line index of the static-checks block (after PKGBUILD body).
+    pub checks_start_line: usize,
+    /// Line index of the `ShellCheck` subsection header, if static checks are shown.
+    pub shellcheck_line: Option<usize>,
+    /// Line index of the `Namcap` subsection header, if static checks are shown.
+    pub namcap_line: Option<usize>,
+    /// Whether the static-checks appendix is rendered at all.
+    pub has_checks_block: bool,
+}
+
+/// What: Append per-tool raw check output lines to the PKGBUILD details pane.
+///
+/// Inputs:
+/// - `all_lines`: Output line buffer to append into.
+/// - `raw_results`: Captured raw command results from static checks.
+///
+/// Output:
+/// - None (mutates `all_lines`).
+///
+/// Details:
+/// - Emits a friendly success line when `namcap` produced no stdout/stderr.
+/// - Otherwise prints the command preview and any stdout/stderr lines.
+fn append_pkgbuild_raw_output_lines(
+    all_lines: &mut Vec<Line<'static>>,
+    raw_results: &[crate::state::app_state::PkgbuildToolRawResult],
+) {
+    all_lines.push(Line::from(""));
+    all_lines.push(Line::from("Raw output:"));
+    for raw in raw_results {
+        if matches!(raw.tool, crate::state::app_state::PkgbuildCheckTool::Namcap)
+            && raw.stdout.trim().is_empty()
+            && raw.stderr.trim().is_empty()
+        {
+            all_lines.push(Line::from("  Namcap check executed - No issues found"));
+            continue;
+        }
+        all_lines.push(Line::from(format!("  {:?} cmd: {}", raw.tool, raw.command)));
+        if !raw.stdout.trim().is_empty() {
+            for line in raw.stdout.lines() {
+                all_lines.push(Line::from(format!("    {line}")));
+            }
+        }
+        if !raw.stderr.trim().is_empty() {
+            for line in raw.stderr.lines() {
+                all_lines.push(Line::from(format!("    [stderr] {line}")));
+            }
+        }
+    }
+}
+
+/// What: Build full PKGBUILD pane lines plus scroll anchors for section cycling.
+///
+/// Inputs:
+/// - `app`: Application state (PKGBUILD text, check results).
+/// - `th`: Theme for syntax highlighting.
+///
+/// Output:
+/// - All lines to render and [`PkgbuildScrollAnchors`] for `Ctrl+D` jumps.
+///
+/// Details:
+/// - Mirrors [`render_pkgbuild`] content: body, then `Static checks` + `ShellCheck` + `Namcap` subsections, optional raw block.
+pub fn build_pkgbuild_all_lines(
+    app: &AppState,
+    th: &Theme,
+) -> (Vec<Line<'static>>, PkgbuildScrollAnchors) {
+    let loading_text = i18n::t(app, "app.details.loading_pkgb");
+    let pkgb_text = app.pkgb_text.as_deref().unwrap_or(&loading_text);
+    let mut anchors = PkgbuildScrollAnchors {
+        checks_start_line: 0,
+        shellcheck_line: None,
+        namcap_line: None,
+        has_checks_block: false,
+    };
+    let mut all_lines = if pkgb_text == loading_text {
+        vec![Line::from(loading_text)]
+    } else {
+        pkgbuild_highlight::highlight_pkgbuild(pkgb_text, th)
+    };
+    anchors.checks_start_line = all_lines.len();
+    let show_checks = !matches!(
+        app.pkgb_check_status,
+        crate::state::app_state::PkgbuildCheckStatus::Idle
+    ) || !app.pkgb_check_findings.is_empty()
+        || !app.pkgb_check_missing_tools.is_empty()
+        || !app.pkgb_check_raw_results.is_empty();
+    if show_checks {
+        anchors.has_checks_block = true;
+        all_lines.push(Line::from(""));
+        all_lines.push(Line::from("─── Static checks ───"));
+        all_lines.push(Line::from(format!("Status: {:?}", app.pkgb_check_status)));
+        for missing in &app.pkgb_check_missing_tools {
+            all_lines.push(Line::from(format!("[missing] {missing}")));
+        }
+        anchors.shellcheck_line = Some(all_lines.len());
+        all_lines.push(Line::from("─── ShellCheck ───"));
+        let mut any_shellcheck = false;
+        for finding in &app.pkgb_check_findings {
+            if !matches!(
+                finding.tool,
+                crate::state::app_state::PkgbuildCheckTool::Shellcheck
+            ) {
+                continue;
+            }
+            any_shellcheck = true;
+            let line_ref = finding
+                .line
+                .map_or_else(String::new, |line| format!("L{line} "));
+            all_lines.push(Line::from(format!(
+                "[{:?}] {}{:?}: {}",
+                finding.tool, line_ref, finding.severity, finding.message
+            )));
+        }
+        if !any_shellcheck {
+            all_lines.push(Line::from("  (no findings)"));
+        }
+        anchors.namcap_line = Some(all_lines.len());
+        all_lines.push(Line::from("─── Namcap ───"));
+        let mut any_namcap = false;
+        for finding in &app.pkgb_check_findings {
+            if !matches!(
+                finding.tool,
+                crate::state::app_state::PkgbuildCheckTool::Namcap
+            ) {
+                continue;
+            }
+            any_namcap = true;
+            let line_ref = finding
+                .line
+                .map_or_else(String::new, |line| format!("L{line} "));
+            all_lines.push(Line::from(format!(
+                "[{:?}] {}{:?}: {}",
+                finding.tool, line_ref, finding.severity, finding.message
+            )));
+        }
+        if !any_namcap {
+            all_lines.push(Line::from("  (no findings)"));
+        }
+        if app.pkgb_check_show_raw_output
+            && crate::theme::settings().pkgbuild_checks_show_raw_output
+        {
+            append_pkgbuild_raw_output_lines(&mut all_lines, &app.pkgb_check_raw_results);
+        }
+    }
+    (all_lines, anchors)
+}
+
+/// What: Advance PKGBUILD pane scroll to the next section in rotation: body → `ShellCheck` → `Namcap` → body.
+///
+/// Inputs:
+/// - `app`: Application state; uses [`AppState::pkgb_section_cycle`] and updates [`AppState::pkgb_scroll`].
+///
+/// Output:
+/// - None.
+///
+/// Details:
+/// - No-op when the PKGBUILD appendix is absent beyond the body (scroll stays at top).
+/// - Uses [`build_pkgbuild_all_lines`] so anchors stay aligned with rendering.
+pub fn cycle_pkgbuild_view_section(app: &mut AppState) {
+    let th = theme();
+    let (lines, anchors) = build_pkgbuild_all_lines(app, &th);
+    let max_scroll = lines.len().saturating_sub(1);
+    app.pkgb_section_cycle = (app.pkgb_section_cycle + 1) % 3;
+    if !anchors.has_checks_block {
+        app.pkgb_scroll = 0;
+        return;
+    }
+    let shell_line = anchors.shellcheck_line.unwrap_or(anchors.checks_start_line);
+    let namcap_line = anchors.namcap_line.unwrap_or(shell_line);
+    let target = match app.pkgb_section_cycle {
+        1 => shell_line,
+        2 => namcap_line,
+        _ => 0usize,
+    };
+    app.pkgb_scroll = u16::try_from(target.min(max_scroll)).unwrap_or(0);
+}
+
+/// What: Combine the `Run checks` jump sentinel with clamping to the document end.
+///
+/// Inputs:
+/// - `raw_scroll`: Current [`AppState::pkgb_scroll`] before this frame.
+/// - `max_scroll`: Last valid zero-based line index (`line_count.saturating_sub(1)`).
+/// - `all_lines_len`: `line_count` for the PKGBUILD pane (`max_scroll.saturating_add(1)` when non-empty).
+/// - `checks_start_line`: First line index of the static-checks appendix (from [`build_pkgbuild_all_lines`]).
+/// - `check_status`: PKGBUILD check lifecycle state.
+///
+/// Output:
+/// - Scroll index in `0..=max_scroll` (or `checks_start_line` when jumping to the appendix).
+///
+/// Details:
+/// - Mouse wheel updates use unbounded `saturating_add`; without storing the clamped index, the offset
+///   sticks at a huge value so every frame displays only the tail lines (often hiding `ShellCheck` /
+///   `Namcap` findings above the viewport).
+fn resolve_pkgbuild_clamped_scroll(
+    raw_scroll: u16,
+    max_scroll: usize,
+    all_lines_len: usize,
+    checks_start_line: usize,
+    check_status: crate::state::app_state::PkgbuildCheckStatus,
+) -> usize {
+    if raw_scroll == u16::MAX
+        && checks_start_line < all_lines_len
+        && !matches!(
+            check_status,
+            crate::state::app_state::PkgbuildCheckStatus::Idle
+        )
+    {
+        checks_start_line
+    } else {
+        usize::min(usize::from(raw_scroll), max_scroll)
+    }
+}
 
 /// What: Render the PKGBUILD viewer pane with scroll support and action buttons.
 ///
@@ -26,11 +251,13 @@ use super::pkgbuild_highlight;
 /// Details:
 /// - Applies scroll offset, records the scrollable inner region, and toggles presence of the reload
 ///   button when the cached PKGBUILD belongs to a different package.
+/// - Writes the clamped scroll index back to [`AppState::pkgb_scroll`] so wheel deltas cannot strand
+///   the view on the tail of the buffer.
 pub fn render_pkgbuild(f: &mut Frame, app: &mut AppState, pkgb_area: Rect) {
     let th = theme();
+    let (all_lines, anchors) = build_pkgbuild_all_lines(app, &th);
+    let checks_start_line = anchors.checks_start_line;
 
-    let loading_text = i18n::t(app, "app.details.loading_pkgb");
-    let pkgb_text = app.pkgb_text.as_deref().unwrap_or(&loading_text);
     // Remember PKGBUILD rect for mouse interactions (scrolling)
     app.pkgb_rect = Some((
         pkgb_area.x + 1,
@@ -39,21 +266,17 @@ pub fn render_pkgbuild(f: &mut Frame, app: &mut AppState, pkgb_area: Rect) {
         pkgb_area.height.saturating_sub(2),
     ));
 
-    // Apply vertical scroll offset by trimming top lines
-    // First, get all lines (highlighted or plain)
-    let all_lines = if pkgb_text == loading_text {
-        // For loading text, use plain text
-        vec![Line::from(loading_text)]
-    } else {
-        // Apply syntax highlighting
-        pkgbuild_highlight::highlight_pkgbuild(pkgb_text, &th)
-    };
-
-    // Apply scroll offset
-    let visible_lines: Vec<Line> = all_lines
-        .into_iter()
-        .skip(app.pkgb_scroll as usize)
-        .collect();
+    let all_lines_len = all_lines.len();
+    let max_scroll = all_lines_len.saturating_sub(1);
+    let clamped_scroll = resolve_pkgbuild_clamped_scroll(
+        app.pkgb_scroll,
+        max_scroll,
+        all_lines_len,
+        checks_start_line,
+        app.pkgb_check_status,
+    );
+    app.pkgb_scroll = u16::try_from(clamped_scroll).unwrap_or(u16::MAX);
+    let visible_lines: Vec<Line> = all_lines.into_iter().skip(clamped_scroll).collect();
     // Title with clickable "Copy PKGBUILD" button and optional "Reload PKGBUILD" button
     let check_button_label = i18n::t(app, "app.details.copy_pkgbuild");
     let pkgb_title_text = i18n::t(app, "app.titles.pkgb");
@@ -61,6 +284,21 @@ pub fn render_pkgbuild(f: &mut Frame, app: &mut AppState, pkgb_area: Rect) {
         pkgb_title_text.clone(),
         Style::default().fg(th.overlay1),
     )];
+    if !matches!(
+        app.pkgb_check_status,
+        crate::state::app_state::PkgbuildCheckStatus::Idle
+    ) {
+        let status_text = match app.pkgb_check_status {
+            crate::state::app_state::PkgbuildCheckStatus::Idle => "idle",
+            crate::state::app_state::PkgbuildCheckStatus::Running => "running",
+            crate::state::app_state::PkgbuildCheckStatus::Complete => "complete",
+        };
+        pkgb_title_spans.push(Span::raw(" "));
+        pkgb_title_spans.push(Span::styled(
+            format!("[checks: {status_text}]"),
+            Style::default().fg(th.yellow).add_modifier(Modifier::BOLD),
+        ));
+    }
     pkgb_title_spans.push(Span::raw("  "));
     let check_btn_style = Style::default()
         .fg(th.mauve)
@@ -100,6 +338,20 @@ pub fn render_pkgbuild(f: &mut Frame, app: &mut AppState, pkgb_area: Rect) {
         let reload_btn_w = u16::try_from(reload_button_label.width()).unwrap_or(u16::MAX);
         app.pkgb_reload_button_rect = Some((reload_btn_x, btn_y, reload_btn_w, 1));
     }
+    pkgb_title_spans.push(Span::raw("  "));
+    let run_checks_button_label = "Run checks";
+    pkgb_title_spans.push(Span::styled(run_checks_button_label, check_btn_style));
+    let run_checks_x = if let Some((reload_x, _, reload_w, _)) = app.pkgb_reload_button_rect {
+        reload_x.saturating_add(reload_w).saturating_add(2)
+    } else {
+        btn_x.saturating_add(btn_w).saturating_add(2)
+    };
+    app.pkgb_run_checks_button_rect = Some((
+        run_checks_x,
+        btn_y,
+        u16::try_from(run_checks_button_label.width()).unwrap_or(u16::MAX),
+        1,
+    ));
 
     let pkgb = Paragraph::new(visible_lines)
         .style(Style::default().fg(th.text).bg(th.base))
@@ -112,4 +364,84 @@ pub fn render_pkgbuild(f: &mut Frame, app: &mut AppState, pkgb_area: Rect) {
                 .border_style(Style::default().fg(th.surface2)),
         );
     f.render_widget(pkgb, pkgb_area);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        build_pkgbuild_all_lines, cycle_pkgbuild_view_section, resolve_pkgbuild_clamped_scroll,
+    };
+    use crate::state::AppState;
+    use crate::state::app_state::{PkgbuildCheckSeverity, PkgbuildCheckStatus, PkgbuildCheckTool};
+    use crate::theme::theme;
+
+    #[test]
+    /// What: Oversized scroll values clamp to the last line so earlier appendix lines stay reachable.
+    fn pkgbuild_scroll_clamps_wheel_overflow() {
+        let scrolled =
+            resolve_pkgbuild_clamped_scroll(50_000, 12, 13, 10, PkgbuildCheckStatus::Complete);
+        assert_eq!(scrolled, 12);
+    }
+
+    #[test]
+    /// What: `u16::MAX` scroll jumps to the checks appendix while a run is active or results are shown.
+    fn pkgbuild_scroll_max_sentinel_jumps_to_checks() {
+        let j =
+            resolve_pkgbuild_clamped_scroll(u16::MAX, 99, 100, 80, PkgbuildCheckStatus::Running);
+        assert_eq!(j, 80);
+    }
+
+    #[test]
+    /// What: `u16::MAX` scroll does not jump when checks are idle; clamp to last line instead.
+    fn pkgbuild_scroll_max_idle_falls_back_to_clamp() {
+        let j = resolve_pkgbuild_clamped_scroll(u16::MAX, 19, 20, 10, PkgbuildCheckStatus::Idle);
+        assert_eq!(j, 19);
+    }
+
+    #[test]
+    /// What: Section anchors point at `ShellCheck` / `Namcap` headers when checks are present.
+    fn pkgbuild_anchors_track_subsections() {
+        let app = AppState {
+            pkgb_text: Some("pkgname=x\npkgver=1\n".into()),
+            pkgb_check_status: crate::state::app_state::PkgbuildCheckStatus::Complete,
+            pkgb_check_findings: vec![
+                crate::state::app_state::PkgbuildCheckFinding {
+                    tool: PkgbuildCheckTool::Shellcheck,
+                    severity: PkgbuildCheckSeverity::Warning,
+                    line: Some(1),
+                    message: "sc".into(),
+                },
+                crate::state::app_state::PkgbuildCheckFinding {
+                    tool: PkgbuildCheckTool::Namcap,
+                    severity: PkgbuildCheckSeverity::Info,
+                    line: None,
+                    message: "na".into(),
+                },
+            ],
+            ..Default::default()
+        };
+        let th = theme();
+        let (_lines, a) = build_pkgbuild_all_lines(&app, &th);
+        assert!(a.has_checks_block);
+        let sc = a.shellcheck_line.expect("shellcheck header");
+        let na = a.namcap_line.expect("namcap header");
+        assert!(na > sc);
+    }
+
+    #[test]
+    /// What: `cycle_pkgbuild_view_section` rotates scroll between body and tool headers.
+    fn pkgbuild_cycle_updates_scroll() {
+        let mut app = AppState {
+            pkgb_text: Some("a\nb\n".into()),
+            pkgb_check_status: crate::state::app_state::PkgbuildCheckStatus::Complete,
+            pkgb_section_cycle: 2,
+            ..Default::default()
+        };
+        cycle_pkgbuild_view_section(&mut app);
+        assert_eq!(app.pkgb_section_cycle, 0);
+        assert_eq!(app.pkgb_scroll, 0);
+        cycle_pkgbuild_view_section(&mut app);
+        assert_eq!(app.pkgb_section_cycle, 1);
+        assert!(app.pkgb_scroll > 0);
+    }
 }

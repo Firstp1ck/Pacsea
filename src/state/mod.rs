@@ -12,7 +12,8 @@ pub use app_state::AppState;
 pub use modal::{Modal, PreflightAction, PreflightTab, SshSetupStep};
 pub use types::{
     ArchStatusColor, Focus, InstalledPackagesMode, NewsItem, PackageDetails, PackageItem,
-    QueryInput, RightPaneFocus, SearchResults, SortMode, Source,
+    PkgbuildCheckRequest, PkgbuildCheckResponse, QueryInput, RightPaneFocus, SearchResults,
+    SortMode, Source,
 };
 
 #[cfg(test)]
