@@ -2,27 +2,28 @@
 
 > Generated based on analysis of the current codebase architecture, user impact, and implementation complexity.
 
-## Progress todos (2026-03-30)
+## Progress todos (2026-04-03)
 
-**Shipped (recent releases — use as baseline, version table below is stale for 0.7.x):**
+**Shipped (recent releases — baseline for in-tree `Cargo.toml` / changelog):**
 
 - [x] **v0.6.0** — Integrated TUI execution (PTY, password modal, live logs)
 - [x] **v0.7.0** — Extended News Mode (multi-source feed, caching, background retry, filters/sort)
 - [x] **v0.7.1** — News/search UX (separate search fields, mark-read in normal mode, toasts)
 - [x] **v0.7.2** — Security/dep updates, CodeQL-related fixes, i18n tweaks
 - [x] **v0.7.3** — Passwordless sudo in TUI (where safe), `$VISUAL`/`$EDITOR` for config files, numpad Enter (#119), terminal theme via OSC 10/11 + `use_terminal_theme`
+- [x] **v0.7.4** — `privilege_tool` (sudo/doas), `auth_mode` (prompt / passwordless-only / interactive PAM), BlackArch repo detection + results filter, theme skeleton preflight
 
 **Still open (aligned with tier list below; not exhaustive):**
 
 - [ ] Adjustable vertical pane heights (Tier 1 #2)
 - [ ] CLI `--update` fully respects mirror/AUR-helper and related `settings.conf` fields (Tier 1 #3)
-- [ ] PKGBUILD inline ShellCheck / namcap in details pane (Tier 1 #4)
+- [x] PKGBUILD inline ShellCheck / namcap in details pane (Tier 1 #4)
 - [ ] Button/focus tooltips (Tier 2 #5)
-- [ ] AUR SSH voting (Tier 2 #6)
+- [x] AUR SSH voting (Tier 2 #6)
 - [ ] Distro-specific news feeds (Tier 2 #7)
 - [ ] Rearrange pane order / locations (Tier 2 #8)
 - [ ] Accessibility themes (Tier 3 #9)
-- [ ] Package-scoped news/comments monitoring (Tier 3 #10)
+- [x] Package-scoped news/comments in News Mode (Tier 3 #10; not separate background notifier)
 - [ ] Mirror browser / search UI (Tier 3 #11)
 - [ ] Update grouping by criticality (Tier 3 #12)
 - [ ] Tier 4+ items (extra repos, custom repos, conflict wizard, multi-PM, etc.)
@@ -31,25 +32,29 @@
 
 ## Quick Version Reference
 
-| Version | Key Feature(s) |
-|---------|---------------|
-| `v0.6.0` | ✅ **Render actions in TUI (no terminal spawn)** - **COMPLETED** |
-| `v0.6.1` | 🔴 Adjustable pane heights |
-| `v0.6.2` | 🔴 CLI `--update` respects TUI settings |
-| `v0.7.0` | 🔴 PKGBUILD ShellCheck/namcap |
-| `v0.7.1` | 🟠 Button tooltips |
-| `v0.7.2` | 🟠 Distro news (EOS, Manjaro, etc.) |
-| `v0.7.3` | 🟠 Switch pane locations |
-| `v0.8.0` | 🟡 Accessibility themes |
-| `v0.8.1` | 🟡 Mirror search UI |
-| `v0.8.2` | 🟡 Update grouping by criticality |
-| `v0.9.0` | 🟠 AUR SSH voting |
-| `v0.9.1` | 🟡 Package-based news/comments |
-| `v1.0.0` | 🎉 **Stable Release** |
-| `v1.1.0` | 🟢 Chaotic AUR / Garuda repos |
-| `v1.2.0` | 🟢 Custom repository support |
-| `v1.3.0` | 🟢 Dependency conflict resolution |
-| `v1.4.0` | 🟢 AUR maintenance tools |
+**Released (as shipped):**
+
+| Version | Key feature(s) |
+|---------|----------------|
+| `v0.6.0` | Integrated TUI execution (PTY, live logs, sudo modal) |
+| `v0.7.0`–`v0.7.1` | Extended News Mode + search/mark-read UX |
+| `v0.7.2` | Security/dependency updates, CodeQL fixes, i18n |
+| `v0.7.3` | Passwordless sudo path, `$VISUAL`/`$EDITOR`, numpad Enter, OSC terminal theme |
+| `v0.7.4` | `privilege_tool`, `auth_mode`, BlackArch repo filter |
+| *(in tree)* | PKGBUILD ShellCheck/namcap in details pane, AUR SSH voting, installed/AUR items in News (see tier checklist above) — landed across 0.7.x, not tied to the old per-version roadmap labels |
+
+**Roadmap targets (original labels — not strict release commitments):**
+
+| Target | Item |
+|--------|------|
+| Next | 🔴 Adjustable pane heights |
+| Next | 🔴 CLI `--update` respects mirror + AUR-helper settings from `settings.conf` |
+| Next | 🟠 Button/focus tooltips |
+| Next | 🟠 Distro-specific news (EOS, Manjaro, Garuda, CachyOS, …) |
+| Next | 🟠 Rearrange pane order / locations |
+| `v0.8.x` | 🟡 Accessibility themes, mirror browser UI, update-by-criticality grouping |
+| `v1.0.0` | 🎉 Stable release (polish) |
+| `v1.1.0`+ | 🟢 Extra repos (Chaotic/Garuda, etc.), custom repos, conflict wizard, AUR maint tools |
 | `v2.0.0` | 🔵 Multi-PM (apt, dnf, Flatpak) |
 
 ---
@@ -139,8 +144,8 @@
 
 ---
 
-### 4. PKGBUILD Preview with ShellCheck and Namcap Integration
-**Target Version: `v0.7.0`** | **Community Request** | **Impact: ⭐⭐⭐⭐** | **Complexity: Medium**
+### 4. PKGBUILD Preview with ShellCheck and Namcap Integration ✅ **COMPLETED**
+**Shipped in 0.7.x (details pane + worker)** | **Community Request** | **Impact: ⭐⭐⭐⭐** | **Complexity: Medium**
 
 **What:** In the PKGBUILD preview pane, show inline linting warnings from ShellCheck and namcap for AUR packages.
 
@@ -180,8 +185,8 @@
 
 ---
 
-### 6. Vote for AUR Packages via SSH Connection
-**Target Version: `v0.9.0`** | **Community Request** | **Impact: ⭐⭐⭐** | **Complexity: Medium-High**
+### 6. Vote for AUR Packages via SSH Connection ✅ **COMPLETED**
+**Shipped in 0.7.x** | **Community Request** | **Impact: ⭐⭐⭐** | **Complexity: Medium-High**
 
 **What:** Allow users to vote for AUR packages directly from Pacsea using their AUR SSH key.
 
@@ -256,8 +261,8 @@
 
 ---
 
-### 10. News Based on Installed Packages (Including AUR Comments)
-**Target Version: `v0.9.1`** | **Community Request** | **Impact: ⭐⭐⭐** | **Complexity: Medium-High**
+### 10. News Based on Installed Packages (Including AUR Comments) ✅ **COMPLETED** *(News Mode)*
+**Shipped in 0.7.x** (feed items for installed/AUR updates + AUR comments; not a separate background monitor) | **Community Request** | **Impact: ⭐⭐⭐** | **Complexity: Medium-High**
 
 **What:** Watch for news, updates, and new AUR comments for your installed packages.
 
@@ -313,6 +318,8 @@
 ---
 
 ## 🟢 Tier 4 - Future Consideration
+
+**Progress note:** BlackArch repository detection and a results filter/toggle shipped in **`v0.7.4`** (orthogonal to Chaotic/Garuda items below).
 
 ### 13. Chaotic AUR and Garuda Repository Support
 **Target Version: `v1.1.0`** | **Impact: ⭐⭐** | **Complexity: Medium**
@@ -407,15 +414,15 @@
 | Render in TUI (no terminal spawn) | `v0.6.0` ✅ | ⭐⭐⭐⭐⭐ | High | None | 🔴 1 |
 | Adjustable pane heights | `v0.6.1` | ⭐⭐⭐⭐ | Medium | None | 🔴 1 |
 | CLI update respects settings | `v0.6.2` | ⭐⭐⭐⭐ | Low | None | 🔴 1 |
-| PKGBUILD ShellCheck/namcap | `v0.7.0` | ⭐⭐⭐⭐ | Medium | ShellCheck, namcap | 🔴 1 |
+| PKGBUILD ShellCheck/namcap | `v0.7.x` ✅ | ⭐⭐⭐⭐ | Medium | ShellCheck, namcap | 🔴 1 |
 | Button tooltips | `v0.7.1` | ⭐⭐⭐ | Medium | None | 🟠 2 |
 | Distro news | `v0.7.2` | ⭐⭐⭐ | Low-Medium | RSS feeds | 🟠 2 |
 | Switch pane locations | `v0.7.3` | ⭐⭐⭐ | Medium | None | 🟠 2 |
 | Accessibility themes | `v0.8.0` | ⭐⭐⭐ | Medium | None | 🟡 3 |
 | Mirror search UI | `v0.8.1` | ⭐⭐⭐ | Medium | None | 🟡 3 |
 | Update criticality grouping | `v0.8.2` | ⭐⭐⭐ | Medium | None | 🟡 3 |
-| AUR SSH voting | `v0.9.0` | ⭐⭐⭐ | Medium-High | SSH key, AUR account | 🟠 2 |
-| Package-based news | `v0.9.1` | ⭐⭐⭐ | Medium-High | None | 🟡 3 |
+| AUR SSH voting | `v0.7.x` ✅ | ⭐⭐⭐ | Medium-High | SSH key, AUR account | 🟠 2 |
+| Package-based news | `v0.7.x` ✅ | ⭐⭐⭐ | Medium-High | None | 🟡 3 |
 | **v1.0.0 Release** | `v1.0.0` | — | — | Stability & polish | — |
 | Chaotic AUR/Garuda | `v1.1.0` | ⭐⭐ | Medium | External repos | 🟢 4 |
 | Custom upgrade commands | `v1.1.1` | ⭐⭐ | Low | None | 🟢 4 |
@@ -430,8 +437,8 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  v0.6.0 (current) ✅                                                        │
-│  ✅ Render actions in TUI (PTY-based executor with live output streaming)  │
+│  v0.7.4 (current in repo) ✅                                                 │
+│  ✅ TUI executor, extended News Mode, PKGBUILD checks, AUR vote, BlackArch   │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -445,12 +452,11 @@
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  v0.7.x Series - Security & Discoverability                                 │
+│  v0.7.x Series — shipped vs still open                                      │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│  v0.7.0  │ PKGBUILD ShellCheck/namcap integration                           │
-│  v0.7.1  │ Button tooltips/hover hints                                      │
-│  v0.7.2  │ Distro-specific news (EOS, Manjaro, Garuda, CachyOS)             │
-│  v0.7.3  │ Switch pane locations                                            │
+│  ✅ Done │ v0.7.0–v0.7.4: News stack, PKGBUILD ShellCheck/namcap, AUR vote,   │
+│          │ privilege/auth modes, BlackArch filter, OSC theme, editor open    │
+│  🔴 Open │ Button tooltips, distro RSS (EOS/Manjaro/…), pane rearrange       │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -466,8 +472,8 @@
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  v0.9.x Series - AUR Power User Features                                    │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│  v0.9.0  │ Vote for AUR packages via SSH                                    │
-│  v0.9.1  │ Package-based news/comments watching                             │
+│  v0.9.0  │ ✅ AUR SSH voting (shipped earlier — see 0.7.x)                    │
+│  v0.9.1  │ ✅ Package/news/comments in News Mode (shipped — see 0.7.x)      │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -499,6 +505,6 @@
 
 ---
 
-*Last updated: 2026-03-30 (progress todos added; quick-reference table still reflects original roadmap targets)*  
-*Based on Pacsea v0.6.0 roadmap; several 0.7.x items shipped out of original version order*
+*Last updated: 2026-04-03 — progress todos, quick reference, summary matrix, and diagram synced to repo `v0.7.4` / changelog*  
+*Several features originally mapped to later version labels shipped in the 0.7.x series*
 
