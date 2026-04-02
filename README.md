@@ -214,7 +214,7 @@ Longer specs for tracked items live in [`dev/ROADMAP/`](https://github.com/First
 - **Add possibility to switch locations of Top/Center/Bottom panes** ([#136](https://github.com/Firstp1ck/Pacsea/issues/136))
 
 ### Other Potential Features
-- **Show with Hover over button, what the button does** ([#133](https://github.com/Firstp1ck/Pacsea/issues/133))
+- **Show with Hover over button, what the button does** ([#140](https://github.com/Firstp1ck/Pacsea/issues/140))
 - **Add PKGBUILD Preview shellcheck and namcap** ([#133](https://github.com/Firstp1ck/Pacsea/issues/133))
 - **Mirror Search and extensive Mirror Selection** ([#132](https://github.com/Firstp1ck/Pacsea/issues/132))
 - **Add Chaotic AUR setup and add Garuda Repository Support** ([#132](https://github.com/Firstp1ck/Pacsea/issues/132))
