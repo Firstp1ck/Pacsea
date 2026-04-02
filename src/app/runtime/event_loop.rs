@@ -1416,6 +1416,8 @@ mod tests {
     /// - Dry-run must not mark package votes as changed because no remote mutation occurred.
     fn handle_aur_vote_response_dry_run_does_not_mark_cache_dirty() {
         let mut app = AppState::default();
+        let before_vote_state = app.aur_vote_state_by_pkgbase.clone();
+        let before_dirty = app.aur_vote_state_dirty;
         let response = crate::app::runtime::workers::aur_vote::AurVoteResponse {
             result: Ok(crate::sources::AurVoteOutcome {
                 action: crate::sources::VoteAction::Vote,
@@ -1426,8 +1428,8 @@ mod tests {
 
         handle_aur_vote_response(&mut app, response);
 
-        assert!(!app.aur_vote_state_by_pkgbase.contains_key("pacsea-bin"));
-        assert!(!app.aur_vote_state_dirty);
+        assert_eq!(app.aur_vote_state_by_pkgbase, before_vote_state);
+        assert_eq!(app.aur_vote_state_dirty, before_dirty);
         let toast = app
             .toast_message
             .as_ref()
