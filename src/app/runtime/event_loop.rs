@@ -15,8 +15,8 @@ use super::handlers::{
     handle_service_result,
 };
 use super::tick_handler::{
-    handle_comments_result, handle_news, handle_pkgbuild_result, handle_status,
-    handle_summary_result, handle_tick,
+    handle_comments_result, handle_news, handle_pkgbuild_check_result, handle_pkgbuild_result,
+    handle_status, handle_summary_result, handle_tick,
 };
 
 /// What: Parse updates entries from the `available_updates.txt` file.
@@ -528,11 +528,11 @@ fn handle_news_content(app: &mut AppState, url: &str, content: String) {
 /// - Waits for and processes a single message from any channel
 /// - Returns `true` when an event handler indicates exit (e.g., quit command)
 /// - Uses select! to wait on multiple channels concurrently
-#[allow(clippy::cognitive_complexity)]
+#[allow(clippy::cognitive_complexity, clippy::too_many_lines)]
 async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -> bool {
     select! {
         Some(ev) = channels.event_rx.recv() => {
-            crate::events::handle_event(
+            crate::events::handle_event_with_pkgbuild_checks(
                 &ev,
                 app,
                 &channels.query_tx,
@@ -541,6 +541,7 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
                 &channels.add_tx,
                 &channels.pkgb_req_tx,
                 &channels.comments_req_tx,
+                &channels.pkgb_check_req_tx,
             )
         }
         Some(()) = channels.index_notify_rx.recv() => {
@@ -593,6 +594,10 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
         }
         Some((pkgname, result)) = channels.comments_res_rx.recv() => {
             handle_comments_result(app, pkgname, result, &channels.tick_tx);
+            false
+        }
+        Some(response) = channels.pkgb_check_res_rx.recv() => {
+            handle_pkgbuild_check_result(app, response, &channels.tick_tx);
             false
         }
         Some(feed) = channels.news_feed_rx.recv() => {

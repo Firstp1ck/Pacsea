@@ -144,6 +144,18 @@ fn parse_scan_settings(key: &str, val: &str, settings: &mut Settings) -> bool {
             settings.scan_do_sleuth = parse_bool(val);
             true
         }
+        "pkgbuild_shellcheck_exclude"
+        | "pkgbuild_shellcheck_ignores"
+        | "shellcheck_pkgbuild_exclude" => {
+            settings.pkgbuild_shellcheck_exclude = val.to_string();
+            true
+        }
+        "pkgbuild_checks_show_raw_output"
+        | "pkgbuild_check_show_raw_output"
+        | "show_pkgbuild_checks_raw_output" => {
+            settings.pkgbuild_checks_show_raw_output = parse_bool(val);
+            true
+        }
         "virustotal_api_key" | "vt_api_key" | "virustotal" => {
             // VirusTotal API key; stored as-is and trimmed later
             settings.virustotal_api_key = val.to_string();

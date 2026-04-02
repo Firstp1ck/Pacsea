@@ -36,6 +36,21 @@ mod results;
 /// Updates pane rendering module.
 mod updates;
 
+/// What: Advance the PKGBUILD viewer to the next section (body, `ShellCheck`, `Namcap`) and align scroll.
+///
+/// Inputs:
+/// - `app`: Mutable application state (`pkgb_visible` should be true when the user triggers this).
+///
+/// Output:
+/// - Updates `pkgb_section_cycle` and `pkgb_scroll` in `app`.
+///
+/// Details:
+/// - Forwards into the details-pane PKGBUILD renderer so event handlers do not reach into private
+///   `details` submodules directly.
+pub fn cycle_pkgbuild_view_section(app: &mut AppState) {
+    details::cycle_pkgbuild_view_section(app);
+}
+
 /// What: Layout height constraints for UI panes.
 ///
 /// Inputs: None (struct definition)

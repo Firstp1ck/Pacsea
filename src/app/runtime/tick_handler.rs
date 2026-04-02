@@ -4,7 +4,8 @@ use std::time::Instant;
 use tokio::sync::mpsc;
 use tokio::time::Duration;
 
-use crate::logic::send_query;
+use crate::logic::{pkgbuild_check_response_matches_selection, send_query};
+use crate::state::app_state::PkgbuildCheckStatus;
 use crate::state::{AppState, ArchStatusColor, PackageItem, QueryInput};
 
 use super::super::persist::{
@@ -86,6 +87,64 @@ pub fn handle_pkgbuild_result(
         app.pkgb_reload_requested_at = None;
         app.pkgb_reload_requested_for = None;
     }
+    let _ = tick_tx.send(());
+}
+
+/// What: Apply a completed PKGBUILD static-check worker response to the UI when it matches selection.
+///
+/// Inputs:
+/// - `app`: Application state; receives findings, raw output, missing-tool hints, and metadata.
+/// - `response`: Parsed check outcome from the details worker.
+/// - `tick_tx`: Sender used to request a redraw.
+///
+/// Output:
+/// - Updates check panels and toast, or returns early when the response targets another package.
+///
+/// Details:
+/// - Missing tools are stored only in [`AppState::pkgb_check_missing_tools`]; the PKGBUILD pane
+///   renders them under `[missing]` and must not duplicate them as synthetic `ShellCheck` findings.
+pub fn handle_pkgbuild_check_result(
+    app: &mut AppState,
+    response: crate::state::PkgbuildCheckResponse,
+    tick_tx: &mpsc::UnboundedSender<()>,
+) {
+    if !pkgbuild_check_response_matches_selection(app, response.package_name.as_str()) {
+        return;
+    }
+    let warning_count = response
+        .findings
+        .iter()
+        .filter(|finding| {
+            matches!(
+                finding.severity,
+                crate::state::app_state::PkgbuildCheckSeverity::Warning
+            )
+        })
+        .count();
+    let error_count = response
+        .findings
+        .iter()
+        .filter(|finding| {
+            matches!(
+                finding.severity,
+                crate::state::app_state::PkgbuildCheckSeverity::Error
+            )
+        })
+        .count();
+    app.pkgb_check_status = PkgbuildCheckStatus::Complete;
+    app.pkgb_check_last_package_name = Some(response.package_name);
+    app.pkgb_check_findings = response.findings;
+    app.pkgb_check_raw_results = response.raw_results;
+    app.pkgb_check_missing_tools = response.missing_tools;
+    app.pkgb_check_last_error = response.last_error;
+    app.pkgb_check_last_run_at = Some(Instant::now());
+    app.pkgb_check_scroll = 0;
+    app.pkgb_check_raw_scroll = 0;
+    app.pkgb_check_show_raw_output = true;
+    app.toast_message = Some(format!(
+        "PKGBUILD checks finished: {error_count} error(s), {warning_count} warning(s)"
+    ));
+    app.toast_expires_at = Some(Instant::now() + Duration::from_secs(4));
     let _ = tick_tx.send(());
 }
 
@@ -1633,6 +1692,100 @@ mod tests {
         // Pending request should be cleared
         assert!(app.pkgb_reload_requested_at.is_none());
         assert!(app.pkgb_reload_requested_for.is_none());
+    }
+
+    #[test]
+    /// What: Verify PKGBUILD check results are ignored when the user selected another package.
+    ///
+    /// Inputs:
+    /// - `AppState` with results list and selection pointing at `other`, plus prior idle check state.
+    /// - A `PkgbuildCheckResponse` whose `package_name` is `stale-pkg`.
+    ///
+    /// Output:
+    /// - Check state stays idle and findings stay empty.
+    ///
+    /// Details:
+    /// - Prevents a late worker completion from repopulating the panel after navigation.
+    fn handle_pkgbuild_check_result_ignores_wrong_package() {
+        let mut app = new_app();
+        app.results = vec![crate::state::PackageItem {
+            name: "other".to_string(),
+            version: "1".to_string(),
+            description: String::new(),
+            source: crate::state::Source::Aur,
+            popularity: None,
+            out_of_date: None,
+            orphaned: false,
+        }];
+        app.selected = 0;
+        app.details_focus = Some("other".to_string());
+
+        let (tick_tx, _tick_rx) = mpsc::unbounded_channel();
+
+        handle_pkgbuild_check_result(
+            &mut app,
+            crate::state::PkgbuildCheckResponse {
+                package_name: "stale-pkg".to_string(),
+                findings: vec![crate::state::app_state::PkgbuildCheckFinding {
+                    tool: crate::state::app_state::PkgbuildCheckTool::Shellcheck,
+                    severity: crate::state::app_state::PkgbuildCheckSeverity::Warning,
+                    line: Some(2),
+                    message: "should not apply".to_string(),
+                }],
+                raw_results: vec![],
+                missing_tools: vec![],
+                last_error: None,
+            },
+            &tick_tx,
+        );
+
+        assert_eq!(app.pkgb_check_status, PkgbuildCheckStatus::Idle);
+        assert!(app.pkgb_check_findings.is_empty());
+    }
+
+    #[test]
+    /// What: Missing checker hints stay out of `pkgb_check_findings` so the pane lists them once.
+    ///
+    /// Inputs:
+    /// - `AppState` with selection matching the response package, empty findings and raw output, and
+    ///   non-empty `missing_tools`.
+    ///
+    /// Output:
+    /// - `pkgb_check_findings` remains empty; `pkgb_check_missing_tools` holds the worker strings.
+    ///
+    /// Details:
+    /// - Avoids duplicating `[missing]` lines under the `ShellCheck` findings list with the wrong tool tag.
+    fn handle_pkgbuild_check_result_keeps_missing_tools_out_of_findings() {
+        let mut app = new_app();
+        app.results = vec![crate::state::PackageItem {
+            name: "demo".to_string(),
+            version: "1".to_string(),
+            description: String::new(),
+            source: crate::state::Source::Aur,
+            popularity: None,
+            out_of_date: None,
+            orphaned: false,
+        }];
+        app.selected = 0;
+        app.details_focus = Some("demo".to_string());
+
+        let (tick_tx, _tick_rx) = mpsc::unbounded_channel();
+        let missing = "shellcheck missing: install package `shellcheck`".to_string();
+        handle_pkgbuild_check_result(
+            &mut app,
+            crate::state::PkgbuildCheckResponse {
+                package_name: "demo".to_string(),
+                findings: vec![],
+                raw_results: vec![],
+                missing_tools: vec![missing.clone()],
+                last_error: None,
+            },
+            &tick_tx,
+        );
+
+        assert_eq!(app.pkgb_check_status, PkgbuildCheckStatus::Complete);
+        assert!(app.pkgb_check_findings.is_empty());
+        assert_eq!(app.pkgb_check_missing_tools, vec![missing]);
     }
 
     #[test]

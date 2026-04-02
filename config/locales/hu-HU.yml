@@ -167,6 +167,9 @@ hu-HU:
       reload_config: "Konfiguráció újratöltése"
       show_hide_pkgbuild: "PKGBUILD megjelenítése/elrejtése"
       show_hide_comments: "Megjegyzések megjelenítése/elrejtése"
+      # TODO: translate to hungarian
+      run_pkgbuild_checks: "Run PKGBUILD checks"
+      cycle_pkgbuild_sections: "Cycle PKGBUILD / ShellCheck / Namcap"
       change_sort_mode: "Rendezési szempont módosítása"
       import: "Importálás"
       export: "Exportálás"
@@ -449,6 +452,8 @@ hu-HU:
           focus_right: "Fókuszálás jobbra"
           show_pkgbuild: "PKGBUILD megjelenítése"
           show_comments: "Megjegyzések megjelenítése"
+          # TODO: translate to hungarian
+          cycle_pkgbuild_sections: "Cycle PKGBUILD sections"
           change_sorting: "Rendezési szempont módosítása"
           move: "  Mozgás"
           page: "  Lapozás"

@@ -51,6 +51,7 @@ pub fn handle_search_results(
         });
         if let Some(item) = app.results.get(app.selected).cloned() {
             app.details_focus = Some(item.name.clone());
+            crate::logic::clear_stale_pkgbuild_checks_for_selection(app, item.name.as_str());
             if let Some(cached) = app.details_cache.get(&item.name).cloned() {
                 app.details = cached;
             } else {
@@ -119,6 +120,7 @@ pub fn handle_search_results(
     });
     if let Some(item) = app.results.get(app.selected).cloned() {
         app.details_focus = Some(item.name.clone());
+        crate::logic::clear_stale_pkgbuild_checks_for_selection(app, item.name.as_str());
         if let Some(cached) = app.details_cache.get(&item.name).cloned() {
             app.details = cached;
         } else {

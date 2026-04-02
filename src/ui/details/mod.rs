@@ -12,6 +12,8 @@ mod layout;
 mod package_info;
 /// PKGBUILD viewer rendering.
 mod pkgbuild;
+
+pub use pkgbuild::cycle_pkgbuild_view_section;
 /// PKGBUILD syntax highlighting.
 mod pkgbuild_highlight;
 

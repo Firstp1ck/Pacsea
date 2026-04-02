@@ -95,7 +95,7 @@ pub use executor::{
 };
 pub use shell::spawn_shell_commands_in_terminal;
 pub use single::spawn_install;
-pub use utils::command_on_path;
 #[cfg(not(target_os = "windows"))]
 pub use utils::editor_open_config_command;
 pub use utils::shell_single_quote;
+pub use utils::{command_on_path, resolve_command_on_path};

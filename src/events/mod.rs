@@ -6,7 +6,7 @@
 use crossterm::event::{Event as CEvent, KeyCode, KeyEventKind, KeyModifiers};
 use tokio::sync::mpsc;
 
-use crate::state::{AppState, Focus, PackageItem, QueryInput};
+use crate::state::{AppState, Focus, PackageItem, PkgbuildCheckRequest, QueryInput};
 
 mod distro;
 mod global;
@@ -121,11 +121,14 @@ pub fn spawn_downgrade_in_terminal(app: &mut AppState, items: &[PackageItem]) ->
 /// - `preview_tx`: Channel to request preview details for Recent
 /// - `add_tx`: Channel to enqueue items into the install list
 /// - `pkgb_tx`: Channel to request PKGBUILD content for the current selection
+/// - `comments_tx`: Channel to request AUR comments for the current selection
+/// - `pkgb_check_tx`: Channel to enqueue PKGBUILD check requests (must match a long-lived receiver, e.g. the runtime worker)
 ///
 /// Output:
 /// - `true` to signal the application should exit; otherwise `false`.
 ///
 /// Details:
+/// - Thin wrapper around [`handle_event_with_pkgbuild_checks`]; callers must pass the same `pkgb_check_tx` wired to the consumer as the interactive app uses.
 /// - Handles active modal interactions first (Alert/SystemUpdate/ConfirmInstall/ConfirmRemove/Help/News).
 /// - Supports global shortcuts (help overlay, theme reload, exit, PKGBUILD viewer toggle, change sort).
 /// - Delegates pane-specific handling to `search`, `recent`, and `install` submodules.
@@ -139,6 +142,33 @@ pub fn handle_event(
     add_tx: &mpsc::UnboundedSender<PackageItem>,
     pkgb_tx: &mpsc::UnboundedSender<PackageItem>,
     comments_tx: &mpsc::UnboundedSender<String>,
+    pkgb_check_tx: &mpsc::UnboundedSender<PkgbuildCheckRequest>,
+) -> bool {
+    handle_event_with_pkgbuild_checks(
+        ev,
+        app,
+        query_tx,
+        details_tx,
+        preview_tx,
+        add_tx,
+        pkgb_tx,
+        comments_tx,
+        pkgb_check_tx,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+/// What: Event dispatcher variant that includes PKGBUILD checks channel wiring.
+pub fn handle_event_with_pkgbuild_checks(
+    ev: &CEvent,
+    app: &mut AppState,
+    query_tx: &mpsc::UnboundedSender<QueryInput>,
+    details_tx: &mpsc::UnboundedSender<PackageItem>,
+    preview_tx: &mpsc::UnboundedSender<PackageItem>,
+    add_tx: &mpsc::UnboundedSender<PackageItem>,
+    pkgb_tx: &mpsc::UnboundedSender<PackageItem>,
+    comments_tx: &mpsc::UnboundedSender<String>,
+    pkgb_check_tx: &mpsc::UnboundedSender<PkgbuildCheckRequest>,
 ) -> bool {
     if let CEvent::Key(ke) = ev {
         if ke.kind != KeyEventKind::Press {
@@ -158,9 +188,15 @@ pub fn handle_event(
 
         // Check for global keybinds first (even when preflight is open)
         // This allows global shortcuts like Ctrl+T to work regardless of modal state
-        if let Some(should_exit) =
-            global::handle_global_key(*ke, app, details_tx, pkgb_tx, comments_tx, query_tx)
-        {
+        if let Some(should_exit) = global::handle_global_key(
+            *ke,
+            app,
+            details_tx,
+            pkgb_tx,
+            comments_tx,
+            query_tx,
+            pkgb_check_tx,
+        ) {
             if ke.code == KeyCode::Char('t') && ke.modifiers.contains(KeyModifiers::CONTROL) {
                 tracing::debug!(
                     "[Event] Global handler returned should_exit={}",
@@ -230,7 +266,7 @@ pub fn handle_event(
 
     // Mouse handling delegated
     if let CEvent::Mouse(m) = ev {
-        return mouse::handle_mouse_event(
+        return mouse::handle_mouse_event_with_pkgbuild_checks(
             *m,
             app,
             details_tx,
@@ -239,6 +275,7 @@ pub fn handle_event(
             pkgb_tx,
             comments_tx,
             query_tx,
+            pkgb_check_tx,
         );
     }
     false
@@ -309,6 +346,7 @@ mod tests {
         let (ptx, _prx) = mpsc::unbounded_channel();
         let (atx, _arx) = mpsc::unbounded_channel();
         let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel();
+        let (pkgb_check_tx, _pkgb_check_rx) = mpsc::unbounded_channel::<PkgbuildCheckRequest>();
         app.options_button_rect = Some((5, 5, 10, 1));
         let click_options = CEvent::Mouse(MouseEvent {
             kind: MouseEventKind::Down(MouseButton::Left),
@@ -326,6 +364,7 @@ mod tests {
             &atx,
             &pkgb_tx,
             &comments_tx,
+            &pkgb_check_tx,
         );
         assert!(app.options_menu_open);
         app.options_menu_rect = Some((5, 6, 20, 3));
@@ -345,6 +384,7 @@ mod tests {
             &atx,
             &pkgb_tx,
             &comments_tx,
+            &pkgb_check_tx,
         );
         let enter = CEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()));
         let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
@@ -357,6 +397,7 @@ mod tests {
             &atx,
             &pkgb_tx,
             &comments_tx,
+            &pkgb_check_tx,
         );
         // Wait for file to be created with retries
         let mut attempts = 0;
@@ -485,7 +526,7 @@ mod tests {
 
     /// Type alias for application communication channels tuple.
     ///
-    /// Contains 6 `UnboundedSender` channels for query, details, preview, add, pkgbuild, and comments operations.
+    /// Contains 7 `UnboundedSender` channels for query, details, preview, add, pkgbuild, comments, and PKGBUILD checks.
     type AppChannels = (
         tokio::sync::mpsc::UnboundedSender<QueryInput>,
         tokio::sync::mpsc::UnboundedSender<PackageItem>,
@@ -493,6 +534,7 @@ mod tests {
         tokio::sync::mpsc::UnboundedSender<PackageItem>,
         tokio::sync::mpsc::UnboundedSender<PackageItem>,
         tokio::sync::mpsc::UnboundedSender<String>,
+        tokio::sync::mpsc::UnboundedSender<PkgbuildCheckRequest>,
     );
 
     /// Type alias for setup app result tuple.
@@ -541,7 +583,11 @@ mod tests {
         let (atx, _arx) = mpsc::unbounded_channel();
         let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel();
         let (comments_tx, _comments_rx) = mpsc::unbounded_channel();
-        (app, (qtx, dtx, ptx, atx, pkgb_tx, comments_tx))
+        let (pkgb_check_tx, _pkgb_check_rx) = mpsc::unbounded_channel::<PkgbuildCheckRequest>();
+        (
+            app,
+            (qtx, dtx, ptx, atx, pkgb_tx, comments_tx, pkgb_check_tx),
+        )
     }
 
     /// What: Open optional deps modal via UI interactions.
@@ -571,6 +617,7 @@ mod tests {
             &channels.3,
             &channels.4,
             &channels.5,
+            &channels.6,
         );
         assert!(app.options_menu_open);
 
@@ -590,6 +637,7 @@ mod tests {
             &channels.3,
             &channels.4,
             &channels.5,
+            &channels.6,
         );
     }
 
@@ -739,6 +787,7 @@ mod tests {
         let (ptx, _prx) = mpsc::unbounded_channel();
         let (atx, _arx) = mpsc::unbounded_channel();
         let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel();
+        let (pkgb_check_tx, _pkgb_check_rx) = mpsc::unbounded_channel::<PkgbuildCheckRequest>();
 
         // Open Options via click
         app.options_button_rect = Some((5, 5, 12, 1));
@@ -758,6 +807,7 @@ mod tests {
             &atx,
             &pkgb_tx,
             &comments_tx,
+            &pkgb_check_tx,
         );
         assert!(app.options_menu_open);
 
@@ -776,6 +826,7 @@ mod tests {
             &atx,
             &pkgb_tx,
             &comments_tx,
+            &pkgb_check_tx,
         );
 
         match &app.modal {

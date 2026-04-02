@@ -1,4 +1,20 @@
 #[cfg(target_os = "windows")]
+/// What: Resolve an executable on `PATH` (Windows).
+///
+/// Input:
+/// - `cmd`: Executable name to probe.
+///
+/// Output:
+/// - `Some(path)` when `which` resolves the command; otherwise `None`.
+///
+/// Details:
+/// - Uses the `which` crate so `PATHEXT` and Windows search rules match `command_on_path`.
+#[must_use]
+pub fn resolve_command_on_path(cmd: &str) -> Option<std::path::PathBuf> {
+    which::which(cmd).ok()
+}
+
+#[cfg(target_os = "windows")]
 /// What: Determine whether a command is available on the Windows `PATH`.
 ///
 /// Input:
@@ -8,10 +24,10 @@
 /// - `true` when the command resolves via the `which` crate; otherwise `false`.
 ///
 /// Details:
-/// - Leverages `which::which`, inheriting its support for PATHEXT resolution.
+/// - Delegates to `resolve_command_on_path` so presence matches actual resolution.
 #[must_use]
 pub fn command_on_path(cmd: &str) -> bool {
-    which::which(cmd).is_ok()
+    resolve_command_on_path(cmd).is_some()
 }
 
 #[cfg(target_os = "windows")]
@@ -27,6 +43,65 @@ pub fn is_powershell_available() -> bool {
 }
 
 #[cfg(not(target_os = "windows"))]
+/// What: Return whether `p` is a regular file with at least one executable bit set (Unix).
+///
+/// Input:
+/// - `p`: Filesystem path to inspect.
+///
+/// Output:
+/// - `true` when the path is a file and mode includes any execute bit; otherwise `false`.
+///
+/// Details:
+/// - Used by `resolve_command_on_path` and terminal discovery so “on PATH” matches the shell.
+#[must_use]
+fn path_is_executable(p: &std::path::Path) -> bool {
+    if !p.is_file() {
+        return false;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::metadata(p)
+            .map(|meta| meta.permissions().mode() & 0o111 != 0)
+            .unwrap_or(false)
+    }
+    #[cfg(not(unix))]
+    {
+        true
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+/// What: Resolve an executable on `PATH` or by explicit path (Unix).
+///
+/// Input:
+/// - `cmd`: Program basename or path containing `MAIN_SEPARATOR`.
+///
+/// Output:
+/// - `Some(path)` for the first executable match; otherwise `None`.
+///
+/// Details:
+/// - Honour Unix permission bits so a non-executable file on `PATH` is not treated as a tool.
+#[must_use]
+pub fn resolve_command_on_path(cmd: &str) -> Option<std::path::PathBuf> {
+    use std::path::Path;
+
+    if cmd.contains(std::path::MAIN_SEPARATOR) {
+        let p = Path::new(cmd);
+        return path_is_executable(p).then(|| p.to_path_buf());
+    }
+
+    let paths = std::env::var_os("PATH")?;
+    for dir in std::env::split_paths(&paths) {
+        let candidate = dir.join(cmd);
+        if path_is_executable(&candidate) {
+            return Some(candidate);
+        }
+    }
+    None
+}
+
+#[cfg(not(target_os = "windows"))]
 /// What: Determine whether a command is available on the Unix `PATH`.
 ///
 /// Input:
@@ -36,54 +111,10 @@ pub fn is_powershell_available() -> bool {
 /// - `true` when an executable file is found and marked executable.
 ///
 /// Details:
-/// - Accepts explicit paths (containing path separators) and honours Unix permission bits.
-/// - Falls back to scanning `PATH`, and on Windows builds respects `PATHEXT` as well.
+/// - Same rules as `resolve_command_on_path`; kept as a convenience for boolean checks.
 #[must_use]
 pub fn command_on_path(cmd: &str) -> bool {
-    use std::path::Path;
-
-    fn is_exec(p: &std::path::Path) -> bool {
-        if !p.is_file() {
-            return false;
-        }
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            if let Ok(meta) = std::fs::metadata(p) {
-                return meta.permissions().mode() & 0o111 != 0;
-            }
-            false
-        }
-        #[cfg(not(unix))]
-        {
-            true
-        }
-    }
-
-    if cmd.contains(std::path::MAIN_SEPARATOR) {
-        return is_exec(Path::new(cmd));
-    }
-
-    if let Some(paths) = std::env::var_os("PATH") {
-        for dir in std::env::split_paths(&paths) {
-            let candidate = dir.join(cmd);
-            if is_exec(&candidate) {
-                return true;
-            }
-            #[cfg(windows)]
-            {
-                if let Some(pathext) = std::env::var_os("PATHEXT") {
-                    for ext in pathext.to_string_lossy().split(';') {
-                        let candidate = dir.join(format!("{cmd}{ext}"));
-                        if candidate.is_file() {
-                            return true;
-                        }
-                    }
-                }
-            }
-        }
-    }
-    false
+    resolve_command_on_path(cmd).is_some()
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -98,15 +129,11 @@ pub fn command_on_path(cmd: &str) -> bool {
 /// Details:
 /// - Iterates directories in `PATH`, favouring the earliest match respecting executable bits.
 pub fn choose_terminal_index_prefer_path(terms: &[(&str, &[&str], bool)]) -> Option<usize> {
-    use std::os::unix::fs::PermissionsExt;
     if let Some(paths) = std::env::var_os("PATH") {
         for dir in std::env::split_paths(&paths) {
             for (i, (name, _args, _hold)) in terms.iter().enumerate() {
                 let candidate = dir.join(name);
-                if candidate.is_file()
-                    && let Ok(meta) = std::fs::metadata(&candidate)
-                    && meta.permissions().mode() & 0o111 != 0
-                {
+                if path_is_executable(&candidate) {
                     return Some(i);
                 }
             }
@@ -225,7 +252,61 @@ mod tests {
         let orig_path = std::env::var_os("PATH");
         unsafe { std::env::set_var("PATH", dir.display().to_string()) };
         assert!(super::command_on_path("mycmd"));
+        assert_eq!(
+            super::resolve_command_on_path("mycmd").as_deref(),
+            Some(cmd_path.as_path())
+        );
         assert!(!super::command_on_path("notexist"));
+        assert!(super::resolve_command_on_path("notexist").is_none());
+        unsafe {
+            if let Some(v) = orig_path {
+                std::env::set_var("PATH", v);
+            } else {
+                std::env::remove_var("PATH");
+            }
+        }
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    /// What: Ensure a non-executable file on `PATH` is not resolved as a command.
+    ///
+    /// Inputs:
+    /// - Temporary directory with a `stub` file mode `0o644` prepended to `PATH`.
+    ///
+    /// Output:
+    /// - `command_on_path` is `false` and `resolve_command_on_path` is `None`.
+    ///
+    /// Details:
+    /// - Guards parity with shell behaviour for PKGBUILD check tool discovery.
+    fn utils_resolve_command_on_path_skips_non_executable_file() {
+        use std::fs;
+        use std::os::unix::fs::PermissionsExt;
+        use std::path::PathBuf;
+
+        let mut dir: PathBuf = std::env::temp_dir();
+        dir.push(format!(
+            "pacsea_test_utils_notexec_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("System time is before UNIX epoch")
+                .as_nanos()
+        ));
+        let _ = fs::create_dir_all(&dir);
+        let mut stub = dir.clone();
+        stub.push("stub");
+        fs::write(&stub, b"not runnable\n").expect("Failed to write stub file");
+        let mut perms = fs::metadata(&stub)
+            .expect("Failed to read stub metadata")
+            .permissions();
+        perms.set_mode(0o644);
+        fs::set_permissions(&stub, perms).expect("Failed to set non-executable permissions");
+
+        let orig_path = std::env::var_os("PATH");
+        unsafe { std::env::set_var("PATH", dir.display().to_string()) };
+        assert!(!super::command_on_path("stub"));
+        assert!(super::resolve_command_on_path("stub").is_none());
         unsafe {
             if let Some(v) = orig_path {
                 std::env::set_var("PATH", v);

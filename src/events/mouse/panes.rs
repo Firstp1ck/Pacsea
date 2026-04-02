@@ -88,6 +88,11 @@ fn handle_results_pane(
             if idx < app.results.len() {
                 app.selected = idx;
                 app.list_state.select(Some(idx));
+                let selected_name = app.results[app.selected].name.clone();
+                crate::logic::clear_stale_pkgbuild_checks_for_selection(
+                    app,
+                    selected_name.as_str(),
+                );
             }
         }
 

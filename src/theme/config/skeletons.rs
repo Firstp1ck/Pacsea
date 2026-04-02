@@ -345,6 +345,10 @@ scan_do_shellcheck = true\n\
 scan_do_virustotal = true\n\
 scan_do_custom = true\n\
 scan_do_sleuth = true\n\
+# Comma-separated ShellCheck rule IDs for PKGBUILD preview checks (--exclude). Empty disables --exclude.\n\
+pkgbuild_shellcheck_exclude = SC2034,SC2164,SC2148,SC2154\n\
+# Show Raw output block for PKGBUILD static checks (shellcheck/namcap)\n\
+pkgbuild_checks_show_raw_output = false\n\
 \n\
 # News\n\
 # Symbols for read/unread indicators in the News popup\n\
@@ -444,6 +448,9 @@ keybind_reload_config = CTRL+R\n\
 keybind_exit = CTRL+Q\n\
 keybind_show_pkgbuild = CTRL+X\n\
 keybind_comments_toggle = CTRL+T\n\
+# Run PKGBUILD checks; same setting as keybind_pkgbuild_checks / keybind_toggle_pkgbuild_checks\n\
+keybind_run_pkgbuild_checks = CTRL+K\n\
+keybind_cycle_pkgbuild_sections = CTRL+D\n\
 \n\
 # GLOBAL — Pane switching\n\
 keybind_pane_left = Left\n\

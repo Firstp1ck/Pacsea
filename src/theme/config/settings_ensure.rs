@@ -205,6 +205,27 @@ fn get_scan_value(key: &str, _prefs: &Settings) -> Option<String> {
     }
 }
 
+/// What: Get PKGBUILD static-check related setting values for `ensure_settings_keys_present`.
+///
+/// Inputs:
+/// - `key`: Normalized key name
+/// - `prefs`: Current in-memory settings
+///
+/// Output:
+/// - Some(value) when the key is handled, else None
+///
+/// Details:
+/// - Used when appending missing keys so user prefs override skeleton defaults.
+fn get_pkgbuild_static_check_value(key: &str, prefs: &Settings) -> Option<String> {
+    match key {
+        "pkgbuild_shellcheck_exclude" => Some(prefs.pkgbuild_shellcheck_exclude.clone()),
+        "pkgbuild_checks_show_raw_output" => {
+            Some(bool_to_string(prefs.pkgbuild_checks_show_raw_output))
+        }
+        _ => None,
+    }
+}
+
 /// What: Get the value for a setting key, preferring prefs over skeleton default.
 ///
 /// Inputs:
@@ -225,6 +246,7 @@ fn get_setting_value(key: &str, skeleton_value: String, prefs: &Settings) -> Str
         .or_else(|| get_news_value(key, prefs))
         .or_else(|| get_updates_value(key, prefs))
         .or_else(|| get_scan_value(key, prefs))
+        .or_else(|| get_pkgbuild_static_check_value(key, prefs))
         .unwrap_or(skeleton_value)
 }
 
