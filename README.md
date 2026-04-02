@@ -215,7 +215,6 @@ Longer specs for tracked items live in [`dev/ROADMAP/`](https://github.com/First
 
 ### Other Potential Features
 - **Show with Hover over button, what the button does** ([#140](https://github.com/Firstp1ck/Pacsea/issues/140))
-- **Add PKGBUILD Preview shellcheck and namcap** ([#133](https://github.com/Firstp1ck/Pacsea/issues/133))
 - **Mirror Search and extensive Mirror Selection** ([#132](https://github.com/Firstp1ck/Pacsea/issues/132))
 - **Add Chaotic AUR setup and add Garuda Repository Support** ([#132](https://github.com/Firstp1ck/Pacsea/issues/132))
 - **Add possibility to view News for the respective Distro: EndeavourOS, Manjaro, Garuda and CachyOS** ([#131](https://github.com/Firstp1ck/Pacsea/issues/131))
