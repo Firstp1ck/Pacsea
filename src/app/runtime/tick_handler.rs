@@ -4,7 +4,7 @@ use std::time::Instant;
 use tokio::sync::mpsc;
 use tokio::time::Duration;
 
-use crate::logic::send_query;
+use crate::logic::{pkgbuild_check_response_matches_selection, send_query};
 use crate::state::app_state::{PkgbuildCheckStatus, PkgbuildCheckTool};
 use crate::state::{AppState, ArchStatusColor, PackageItem, QueryInput};
 
@@ -96,6 +96,9 @@ pub fn handle_pkgbuild_check_result(
     response: crate::state::PkgbuildCheckResponse,
     tick_tx: &mpsc::UnboundedSender<()>,
 ) {
+    if !pkgbuild_check_response_matches_selection(app, response.package_name.as_str()) {
+        return;
+    }
     let warning_count = response
         .findings
         .iter()
@@ -1689,6 +1692,55 @@ mod tests {
         // Pending request should be cleared
         assert!(app.pkgb_reload_requested_at.is_none());
         assert!(app.pkgb_reload_requested_for.is_none());
+    }
+
+    #[test]
+    /// What: Verify PKGBUILD check results are ignored when the user selected another package.
+    ///
+    /// Inputs:
+    /// - `AppState` with results list and selection pointing at `other`, plus prior idle check state.
+    /// - A `PkgbuildCheckResponse` whose `package_name` is `stale-pkg`.
+    ///
+    /// Output:
+    /// - Check state stays idle and findings stay empty.
+    ///
+    /// Details:
+    /// - Prevents a late worker completion from repopulating the panel after navigation.
+    fn handle_pkgbuild_check_result_ignores_wrong_package() {
+        let mut app = new_app();
+        app.results = vec![crate::state::PackageItem {
+            name: "other".to_string(),
+            version: "1".to_string(),
+            description: String::new(),
+            source: crate::state::Source::Aur,
+            popularity: None,
+            out_of_date: None,
+            orphaned: false,
+        }];
+        app.selected = 0;
+        app.details_focus = Some("other".to_string());
+
+        let (tick_tx, _tick_rx) = mpsc::unbounded_channel();
+
+        handle_pkgbuild_check_result(
+            &mut app,
+            crate::state::PkgbuildCheckResponse {
+                package_name: "stale-pkg".to_string(),
+                findings: vec![crate::state::app_state::PkgbuildCheckFinding {
+                    tool: PkgbuildCheckTool::Shellcheck,
+                    severity: crate::state::app_state::PkgbuildCheckSeverity::Warning,
+                    line: Some(2),
+                    message: "should not apply".to_string(),
+                }],
+                raw_results: vec![],
+                missing_tools: vec![],
+                last_error: None,
+            },
+            &tick_tx,
+        );
+
+        assert_eq!(app.pkgb_check_status, PkgbuildCheckStatus::Idle);
+        assert!(app.pkgb_check_findings.is_empty());
     }
 
     #[test]

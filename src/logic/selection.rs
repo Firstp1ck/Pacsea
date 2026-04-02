@@ -46,6 +46,7 @@ pub fn move_sel_cached(
     if let Some(item) = app.results.get(app.selected).cloned() {
         // Focus details on the currently selected item only
         app.details_focus = Some(item.name.clone());
+        crate::logic::clear_stale_pkgbuild_checks_for_selection(app, item.name.as_str());
 
         // Update details pane immediately with a placeholder reflecting the selection
         app.details.name.clone_from(&item.name);

@@ -8,6 +8,7 @@ pub mod filter;
 pub mod gating;
 pub mod lists;
 pub mod password;
+pub mod pkgbuild_checks;
 pub mod prefetch;
 pub mod preflight;
 pub mod privilege;
@@ -23,6 +24,9 @@ pub mod summary;
 pub use filter::apply_filters_and_sort_preserve_selection;
 pub use gating::{is_allowed, set_allowed_only_selected, set_allowed_ring};
 pub use lists::{add_to_downgrade_list, add_to_install_list, add_to_remove_list};
+pub use pkgbuild_checks::{
+    clear_stale_pkgbuild_checks_for_selection, pkgbuild_check_response_matches_selection,
+};
 pub use prefetch::ring_prefetch_from_selected;
 pub use query::send_query;
 pub use selection::move_sel_cached;

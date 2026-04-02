@@ -439,6 +439,7 @@ fn handle_run_pkgbuild_checks(
         .results
         .get(app.selected)
         .map_or_else(String::new, |item| item.name.clone());
+    app.pkgb_check_last_package_name = Some(package_name.clone());
     app.pkgb_check_status = crate::state::app_state::PkgbuildCheckStatus::Running;
     app.pkgb_check_findings.clear();
     app.pkgb_check_raw_results.clear();
