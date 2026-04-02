@@ -595,7 +595,7 @@ mod tests {
         // OPTION 4: PROGRESSIVE - Prevent new extremely complex functions
         // This is more useful in CI/CD to prevent regression
         // Fail if any function exceeds a "hard limit" (e.g., 100+)
-        // NOTE: Your project currently has handle_mouse_event with complexity 220
+        // NOTE: Your project currently has handle_mouse_event_with_pkgbuild_checks with high complexity
         // Consider refactoring before enabling this, or set threshold higher (e.g., 250)
         /*
         const HARD_LIMIT_COMPLEXITY: u32 = 100;
@@ -640,13 +640,13 @@ mod tests {
         // Based on current metrics:
         // - Average complexity: 6.00 (excellent, well below threshold)
         // - Very high complexity functions: 21 (5.1% of total, reasonable)
-        // - Most complex function: handle_mouse_event (220) - consider refactoring
+        // - Most complex function: handle_mouse_event_with_pkgbuild_checks - consider refactoring
         //
         // Suggested approach:
         // 1. Start with OPTION 3 (average complexity) - already passes, prevents regression
         // 2. Enable OPTION 2 (limit very high complexity) with threshold 25-30
         // 3. For new code, consider OPTION 4 with threshold 250+ to prevent new extreme cases
-        // 4. Refactor handle_mouse_event (220) and other functions > 100 when possible
+        // 4. Refactor handle_mouse_event_with_pkgbuild_checks and other functions > 100 when possible
         //
         // Uncomment the assertions above that match your project's needs.
         // For a new project, start with OPTION 1 (strict) and OPTION 4 (hard limit).

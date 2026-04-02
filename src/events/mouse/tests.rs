@@ -3,8 +3,8 @@
 use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 use tokio::sync::mpsc;
 
-use super::handle_mouse_event;
-use crate::state::{AppState, PackageItem, QueryInput};
+use super::handle_mouse_event_with_pkgbuild_checks;
+use crate::state::{AppState, PackageItem, PkgbuildCheckRequest, QueryInput};
 
 /// What: Provide a fresh `AppState` tailored for mouse-event tests without repeated boilerplate.
 ///
@@ -55,13 +55,24 @@ fn click_pkgb_toggle_opens() {
     let (pkgb_tx, mut pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
     let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
     let (qtx, _qrx) = mpsc::unbounded_channel::<QueryInput>();
+    let (pkgb_check_tx, _pkgb_check_rx) = mpsc::unbounded_channel::<PkgbuildCheckRequest>();
     let ev = MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
         column: 11,
         row: 10,
         modifiers: KeyModifiers::empty(),
     };
-    let _ = handle_mouse_event(ev, &mut app, &dtx, &ptx, &atx, &pkgb_tx, &comments_tx, &qtx);
+    let _ = handle_mouse_event_with_pkgbuild_checks(
+        ev,
+        &mut app,
+        &dtx,
+        &ptx,
+        &atx,
+        &pkgb_tx,
+        &comments_tx,
+        &qtx,
+        &pkgb_check_tx,
+    );
     assert!(app.pkgb_visible);
     assert!(pkgb_rx.try_recv().ok().is_some());
 }
@@ -103,6 +114,7 @@ fn click_pkgb_toggle_closes_and_resets() {
     let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
     let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
     let (qtx, _qrx) = mpsc::unbounded_channel::<QueryInput>();
+    let (pkgb_check_tx, _pkgb_check_rx) = mpsc::unbounded_channel::<PkgbuildCheckRequest>();
     // Click inside the toggle area to hide
     let ev = MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
@@ -110,7 +122,17 @@ fn click_pkgb_toggle_closes_and_resets() {
         row: 10,
         modifiers: KeyModifiers::empty(),
     };
-    let _ = handle_mouse_event(ev, &mut app, &dtx, &ptx, &atx, &pkgb_tx, &comments_tx, &qtx);
+    let _ = handle_mouse_event_with_pkgbuild_checks(
+        ev,
+        &mut app,
+        &dtx,
+        &ptx,
+        &atx,
+        &pkgb_tx,
+        &comments_tx,
+        &qtx,
+        &pkgb_check_tx,
+    );
 
     assert!(!app.pkgb_visible);
     assert!(app.pkgb_text.is_none());
@@ -141,6 +163,7 @@ fn click_aur_filter_toggles() {
     let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
     let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
     let (qtx, _qrx) = mpsc::unbounded_channel::<QueryInput>();
+    let (pkgb_check_tx, _pkgb_check_rx) = mpsc::unbounded_channel::<PkgbuildCheckRequest>();
 
     let ev = MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
@@ -149,7 +172,17 @@ fn click_aur_filter_toggles() {
         modifiers: KeyModifiers::empty(),
     };
 
-    let _ = handle_mouse_event(ev, &mut app, &dtx, &ptx, &atx, &pkgb_tx, &comments_tx, &qtx);
+    let _ = handle_mouse_event_with_pkgbuild_checks(
+        ev,
+        &mut app,
+        &dtx,
+        &ptx,
+        &atx,
+        &pkgb_tx,
+        &comments_tx,
+        &qtx,
+        &pkgb_check_tx,
+    );
     assert!(app.results_filter_show_aur);
 }
 
@@ -184,6 +217,7 @@ fn click_artix_filter_all_on_turns_all_off() {
     let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
     let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
     let (qtx, _qrx) = mpsc::unbounded_channel::<QueryInput>();
+    let (pkgb_check_tx, _pkgb_check_rx) = mpsc::unbounded_channel::<PkgbuildCheckRequest>();
 
     let ev = MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
@@ -192,7 +226,17 @@ fn click_artix_filter_all_on_turns_all_off() {
         modifiers: KeyModifiers::empty(),
     };
 
-    let _ = handle_mouse_event(ev, &mut app, &dtx, &ptx, &atx, &pkgb_tx, &comments_tx, &qtx);
+    let _ = handle_mouse_event_with_pkgbuild_checks(
+        ev,
+        &mut app,
+        &dtx,
+        &ptx,
+        &atx,
+        &pkgb_tx,
+        &comments_tx,
+        &qtx,
+        &pkgb_check_tx,
+    );
     assert!(!app.results_filter_show_artix_omniverse);
     assert!(!app.results_filter_show_artix_universe);
     assert!(!app.results_filter_show_artix_lib32);
@@ -233,6 +277,7 @@ fn click_artix_filter_some_off_turns_all_on() {
     let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
     let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
     let (qtx, _qrx) = mpsc::unbounded_channel::<QueryInput>();
+    let (pkgb_check_tx, _pkgb_check_rx) = mpsc::unbounded_channel::<PkgbuildCheckRequest>();
 
     let ev = MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
@@ -241,7 +286,17 @@ fn click_artix_filter_some_off_turns_all_on() {
         modifiers: KeyModifiers::empty(),
     };
 
-    let _ = handle_mouse_event(ev, &mut app, &dtx, &ptx, &atx, &pkgb_tx, &comments_tx, &qtx);
+    let _ = handle_mouse_event_with_pkgbuild_checks(
+        ev,
+        &mut app,
+        &dtx,
+        &ptx,
+        &atx,
+        &pkgb_tx,
+        &comments_tx,
+        &qtx,
+        &pkgb_check_tx,
+    );
     assert!(app.results_filter_show_artix_omniverse);
     assert!(app.results_filter_show_artix_universe);
     assert!(app.results_filter_show_artix_lib32);
@@ -277,6 +332,7 @@ fn click_artix_filter_toggles_dropdown() {
     let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
     let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
     let (qtx, _qrx) = mpsc::unbounded_channel::<QueryInput>();
+    let (pkgb_check_tx, _pkgb_check_rx) = mpsc::unbounded_channel::<PkgbuildCheckRequest>();
 
     let ev = MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
@@ -285,6 +341,16 @@ fn click_artix_filter_toggles_dropdown() {
         modifiers: KeyModifiers::empty(),
     };
 
-    let _ = handle_mouse_event(ev, &mut app, &dtx, &ptx, &atx, &pkgb_tx, &comments_tx, &qtx);
+    let _ = handle_mouse_event_with_pkgbuild_checks(
+        ev,
+        &mut app,
+        &dtx,
+        &ptx,
+        &atx,
+        &pkgb_tx,
+        &comments_tx,
+        &qtx,
+        &pkgb_check_tx,
+    );
     assert!(app.artix_filter_menu_open);
 }

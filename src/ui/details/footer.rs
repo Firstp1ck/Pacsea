@@ -208,7 +208,7 @@ fn build_globals_section(
         &mut spans,
         km.run_pkgbuild_checks.first(),
         key_style,
-        "Run PKGBUILD checks",
+        &i18n::t(app, "app.actions.run_pkgbuild_checks"),
         sep_style,
     );
     add_keybind_entry(

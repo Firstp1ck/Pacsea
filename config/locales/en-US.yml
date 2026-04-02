@@ -163,6 +163,7 @@ en-US:
       reload_config: "Reload configuration"
       show_hide_pkgbuild: "Show/Hide PKGBUILD"
       show_hide_comments: "Show/Hide Comments"
+      run_pkgbuild_checks: "Run PKGBUILD checks"
       cycle_pkgbuild_sections: "Cycle PKGBUILD / ShellCheck / Namcap"
       change_sort_mode: "Change Sort Mode"
       import: "Import"

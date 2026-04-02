@@ -22,19 +22,8 @@ mod panes;
 #[cfg(test)]
 mod tests;
 
-/// Handle a single mouse event and update the [`AppState`].
-///
-/// Returns `true` to request application exit (never used here), `false` otherwise.
-///
-/// Behavior summary:
-/// - Clickable URL in the details pane with Ctrl+Shift+LeftClick (opens via `xdg-open`).
-/// - Clickable "Show/Hide PKGBUILD" action in the details content.
-/// - Clickable "Copy PKGBUILD" button in the PKGBUILD title (copies to clipboard).
-/// - Clickable Sort button and filter toggles in the Results title.
-/// - Click-to-select in Results; mouse wheel scroll moves selection in Results/Recent/Install.
-/// - Mouse wheel scroll within the PKGBUILD viewer scrolls the content.
-///
-/// What: Handle a single mouse event and update application state and UI accordingly.
+#[allow(clippy::too_many_arguments)]
+/// What: Handle a single mouse event and update the [`AppState`] and UI accordingly.
 ///
 /// Inputs:
 /// - `m`: Mouse event including position, button, and modifiers
@@ -43,12 +32,20 @@ mod tests;
 /// - `preview_tx`: Channel to request preview details for Recent pane interactions
 /// - `_add_tx`: Channel for adding items (used by Import button handler)
 /// - `pkgb_tx`: Channel to request PKGBUILD content for the current selection
+/// - `comments_tx`: Channel for AUR comments requests from the details pane
 /// - `query_tx`: Channel to send search queries (for fuzzy toggle)
+/// - `pkgb_check_tx`: Sender for PKGBUILD check jobs; must be the runtime worker channel (or a test
+///   harness paired with a live receiver). Do not substitute a throwaway channel with no consumer.
 ///
 /// Output:
 /// - `true` to request application exit (never used here); otherwise `false`.
 ///
 /// Details:
+/// - Returns `true` to request application exit (never used here), `false` otherwise.
+/// - Behavior summary: Clickable URL in the details pane with Ctrl+Shift+LeftClick (opens via
+///   `xdg-open`); "Show/Hide PKGBUILD" and "Copy PKGBUILD"; Sort and filter toggles in the Results
+///   title; click-to-select and wheel scroll in Results/Recent/Install; wheel scroll in the PKGBUILD
+///   viewer; "Run checks" and related actions use `pkgb_check_tx`.
 /// - Modal-first: When Help or News is open, clicks/scroll are handled within modal bounds
 ///   (close on outside click), consuming the event.
 /// - Details area: Ctrl+Shift+LeftClick opens URL; PKGBUILD toggle and copy button respond to clicks;
@@ -58,34 +55,6 @@ mod tests;
 /// - Recent/Install/Remove/Downgrade panes: Scroll moves selection; click focuses/sets selection.
 /// - Import/Export buttons: Import opens a system file picker to enqueue names; Export writes the
 ///   current Install list to a timestamped file and shows a toast.
-#[allow(clippy::too_many_arguments)]
-#[allow(dead_code)]
-pub fn handle_mouse_event(
-    m: MouseEvent,
-    app: &mut AppState,
-    details_tx: &mpsc::UnboundedSender<PackageItem>,
-    preview_tx: &mpsc::UnboundedSender<PackageItem>,
-    add_tx: &mpsc::UnboundedSender<PackageItem>,
-    pkgb_tx: &mpsc::UnboundedSender<PackageItem>,
-    comments_tx: &mpsc::UnboundedSender<String>,
-    query_tx: &mpsc::UnboundedSender<QueryInput>,
-) -> bool {
-    let (pkgb_check_tx, _pkgb_check_rx) = mpsc::unbounded_channel::<PkgbuildCheckRequest>();
-    handle_mouse_event_with_pkgbuild_checks(
-        m,
-        app,
-        details_tx,
-        preview_tx,
-        add_tx,
-        pkgb_tx,
-        comments_tx,
-        query_tx,
-        &pkgb_check_tx,
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
-/// What: Extended mouse handler variant that accepts PKGBUILD checks channel.
 pub fn handle_mouse_event_with_pkgbuild_checks(
     m: MouseEvent,
     app: &mut AppState,

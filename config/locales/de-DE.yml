@@ -163,6 +163,7 @@ de-DE:
       reload_config: "Konfiguration neu laden"
       show_hide_pkgbuild: "PKGBUILD anzeigen/verbergen"
       show_hide_comments: "Kommentare anzeigen/verbergen"
+      run_pkgbuild_checks: "PKGBUILD-Prüfungen ausführen"
       cycle_pkgbuild_sections: "PKGBUILD / ShellCheck / Namcap durchschalten"
       change_sort_mode: "Sortiermodus ändern"
       import: "Importieren"

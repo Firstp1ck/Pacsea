@@ -1,6 +1,7 @@
 use tokio::sync::mpsc;
-use tokio::time::{Duration, sleep};
+use tokio::time::{Duration, sleep, timeout};
 
+use crate::install::resolve_command_on_path;
 use crate::sources;
 use crate::sources::fetch_details;
 use crate::state::app_state::{
@@ -116,15 +117,6 @@ pub fn spawn_pkgbuild_checks_worker(
     });
 }
 
-/// What: Resolve executable path by scanning `PATH`.
-fn resolve_tool_on_path(tool: &str) -> Option<std::path::PathBuf> {
-    std::env::var_os("PATH").and_then(|path_var| {
-        std::env::split_paths(&path_var)
-            .map(|dir| dir.join(tool))
-            .find(|candidate| candidate.is_file())
-    })
-}
-
 /// What: Try to find a cached extracted PKGBUILD file for a package.
 fn find_cached_pkgbuild_path(package_name: &str) -> Option<std::path::PathBuf> {
     let home = std::env::var_os("HOME").map(std::path::PathBuf::from)?;
@@ -218,7 +210,28 @@ fn shellcheck_exclude_flag_from_settings_list(raw: &str) -> Option<String> {
     }
 }
 
-/// What: Execute one checker command with timeout and output capture.
+/// Duration limit for each PKGBUILD checker subprocess (`ShellCheck` / namcap).
+///
+/// Enforced with `tokio::time::timeout` around `spawn_blocking` so we do not depend on the
+/// coreutils `timeout` binary. The process may keep running in the thread pool until it exits
+/// after this limit fires; the UI still reports a timeout via `timed_out`.
+const PKGBUILD_CHECK_TOOL_TIMEOUT: Duration = Duration::from_secs(8);
+
+/// What: Execute one checker command with async wall-clock timeout and output capture.
+///
+/// Inputs:
+/// - `tool`: Which checker produced the result
+/// - `tool_path`: Resolved absolute path to the checker binary
+/// - `args`: Arguments passed after the program name
+/// - `working_dir`: Current directory for the subprocess
+/// - `dry_run`: When true, returns a preview without spawning
+///
+/// Output:
+/// - `PkgbuildToolRawResult` with stdout/stderr, exit status, and `timed_out` when the limit elapses
+///
+/// Details:
+/// - Uses `tokio::time::timeout` plus `spawn_blocking(|| Command::output())` on the checker itself,
+///   not an external `timeout` helper, so a missing coreutils `timeout` cannot mask the real tool.
 async fn run_tool_with_timeout(
     tool: PkgbuildCheckTool,
     tool_path: &std::path::Path,
@@ -239,30 +252,32 @@ async fn run_tool_with_timeout(
         };
     }
 
-    let mut command = std::process::Command::new("timeout");
-    command
-        .args(["8s"])
-        .arg(tool_path)
-        .args(args)
-        .current_dir(working_dir)
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped());
+    let tool_path_owned = tool_path.to_path_buf();
+    let args_owned: Vec<String> = args.iter().map(|s| (*s).to_string()).collect();
+    let working_dir_owned = working_dir.to_path_buf();
 
-    match tokio::task::spawn_blocking(move || command.output()).await {
-        Ok(Ok(output)) => {
-            let timed_out = output.status.code() == Some(124);
-            PkgbuildToolRawResult {
-                tool,
-                available: true,
-                exit_code: output.status.code(),
-                timed_out,
-                command: cmd_preview,
-                stdout: String::from_utf8_lossy(&output.stdout).to_string(),
-                stderr: String::from_utf8_lossy(&output.stderr).to_string(),
-            }
-        }
-        Ok(Err(err)) => PkgbuildToolRawResult {
+    let join = tokio::task::spawn_blocking(move || {
+        let mut command = std::process::Command::new(tool_path_owned);
+        command
+            .args(&args_owned)
+            .current_dir(working_dir_owned)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped());
+        command.output()
+    });
+
+    match timeout(PKGBUILD_CHECK_TOOL_TIMEOUT, join).await {
+        Ok(Ok(Ok(output))) => PkgbuildToolRawResult {
+            tool,
+            available: true,
+            exit_code: output.status.code(),
+            timed_out: false,
+            command: cmd_preview,
+            stdout: String::from_utf8_lossy(&output.stdout).to_string(),
+            stderr: String::from_utf8_lossy(&output.stderr).to_string(),
+        },
+        Ok(Ok(Err(err))) => PkgbuildToolRawResult {
             tool,
             available: true,
             exit_code: None,
@@ -271,7 +286,7 @@ async fn run_tool_with_timeout(
             stdout: String::new(),
             stderr: format!("failed to execute tool: {err}"),
         },
-        Err(err) => PkgbuildToolRawResult {
+        Ok(Err(err)) => PkgbuildToolRawResult {
             tool,
             available: true,
             exit_code: None,
@@ -280,13 +295,22 @@ async fn run_tool_with_timeout(
             stdout: String::new(),
             stderr: format!("failed waiting for tool result: {err}"),
         },
+        Err(_elapsed) => PkgbuildToolRawResult {
+            tool,
+            available: true,
+            exit_code: None,
+            timed_out: true,
+            command: cmd_preview,
+            stdout: String::new(),
+            stderr: String::new(),
+        },
     }
 }
 
 /// What: Run `ShellCheck` + `namcap` checks for PKGBUILD preview.
 async fn run_pkgbuild_checks(req: PkgbuildCheckRequest) -> PkgbuildCheckResponse {
-    let shellcheck_path = resolve_tool_on_path("shellcheck");
-    let namcap_path = resolve_tool_on_path("namcap");
+    let shellcheck_path = resolve_command_on_path("shellcheck");
+    let namcap_path = resolve_command_on_path("namcap");
 
     let mut missing_tools = Vec::new();
     if shellcheck_path.is_none() {
@@ -345,11 +369,13 @@ async fn run_pkgbuild_checks(req: PkgbuildCheckRequest) -> PkgbuildCheckResponse
         );
     }
     if let Some(path) = namcap_path.as_ref() {
+        let path_owned = pkgbuild_path.to_string_lossy().into_owned();
+        let namcap_args: Vec<&str> = vec![path_owned.as_str()];
         raw_results.push(
             run_tool_with_timeout(
                 PkgbuildCheckTool::Namcap,
                 path,
-                &[pkgbuild_path.to_string_lossy().as_ref()],
+                &namcap_args,
                 &working_dir,
                 req.dry_run,
             )
@@ -404,7 +430,7 @@ async fn run_pkgbuild_checks(req: PkgbuildCheckRequest) -> PkgbuildCheckResponse
 #[cfg(test)]
 mod tests {
     use super::{
-        parse_namcap_findings, parse_shellcheck_findings,
+        parse_namcap_findings, parse_shellcheck_findings, run_tool_with_timeout,
         shellcheck_exclude_flag_from_settings_list,
     };
     use crate::state::app_state::{PkgbuildCheckSeverity, PkgbuildCheckTool};
@@ -432,6 +458,23 @@ mod tests {
         assert_eq!(findings[0].tool, PkgbuildCheckTool::Shellcheck);
         assert_eq!(findings[0].line, Some(12));
         assert_eq!(findings[0].severity, PkgbuildCheckSeverity::Warning);
+    }
+
+    #[tokio::test]
+    /// What: Checker runs use the resolved binary directly, not a `timeout` wrapper.
+    async fn run_tool_with_timeout_invokes_binary_without_coreutils_timeout() {
+        let result = run_tool_with_timeout(
+            PkgbuildCheckTool::Shellcheck,
+            std::path::Path::new("/bin/true"),
+            &[],
+            std::path::Path::new("/"),
+            false,
+        )
+        .await;
+        assert!(result.available);
+        assert_eq!(result.exit_code, Some(0));
+        assert!(!result.timed_out);
+        assert!(result.stderr.is_empty());
     }
 
     #[test]
