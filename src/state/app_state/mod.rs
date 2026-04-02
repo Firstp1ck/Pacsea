@@ -756,4 +756,6 @@ pub struct AppState {
     pub pending_executor_password: Option<String>,
     /// File database sync result from background thread (checked in tick handler).
     pub pending_file_sync_result: Option<FileSyncResult>,
+    /// Background AUR SSH validation result handle for Optional Deps status refresh.
+    pub pending_aur_ssh_help_check_result: Option<std::sync::Arc<std::sync::Mutex<Option<bool>>>>,
 }

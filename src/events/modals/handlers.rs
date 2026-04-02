@@ -700,6 +700,43 @@ pub(super) fn handle_optional_deps_modal(
     false
 }
 
+/// What: Handle key events for `SshAurSetup` modal, including restoration logic.
+///
+/// Inputs:
+/// - `ke`: Key event.
+/// - `app`: Mutable application state.
+/// - `modal`: `SshAurSetup` modal variant.
+///
+/// Output:
+/// - `true` if event propagation should stop, otherwise `false`.
+pub(super) fn handle_ssh_setup_modal(ke: KeyEvent, app: &mut AppState, mut modal: Modal) -> bool {
+    if let Modal::SshAurSetup {
+        ref mut step,
+        ref mut status_lines,
+        ref mut existing_host_block,
+    } = modal
+    {
+        let result = super::optional_deps::handle_ssh_setup_modal(
+            ke,
+            app,
+            step,
+            status_lines,
+            existing_host_block,
+        );
+        return restore::restore_if_not_closed_with_option_result(
+            app,
+            &ke,
+            result,
+            Modal::SshAurSetup {
+                step: *step,
+                status_lines: status_lines.clone(),
+                existing_host_block: existing_host_block.clone(),
+            },
+        );
+    }
+    false
+}
+
 /// What: Handle key events for `ScanConfig` modal, including restoration logic.
 ///
 /// Inputs:

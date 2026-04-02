@@ -490,6 +490,17 @@ fn build_security_scanner_rows(
         sleuth_installed,
         Some("Setup".to_string()),
     ));
+
+    // AUR SSH setup helper for vote/unvote flow.
+    let ssh_setup_ready = crate::logic::ssh_setup::is_aur_ssh_setup_configured();
+    rows.push(create_optional_dep_row(
+        app,
+        "app.optional_deps.categories.security",
+        "AUR SSH setup",
+        "aur-ssh-setup".to_string(),
+        ssh_setup_ready,
+        Some("Setup".to_string()),
+    ));
 }
 
 /// What: Build downgrade package row for the optional deps modal.

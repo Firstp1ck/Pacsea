@@ -374,6 +374,16 @@ struct OptionalDepsContext {
     selected: usize,
 }
 
+/// What: Context struct grouping `SshAurSetup` modal fields.
+struct SshAurSetupContext {
+    /// Current setup step.
+    step: crate::state::SshSetupStep,
+    /// Status/instruction lines.
+    status_lines: Vec<String>,
+    /// Existing host block shown for overwrite confirmation.
+    existing_host_block: Option<String>,
+}
+
 /// What: Context struct grouping `VirusTotalSetup` modal fields to reduce data flow complexity.
 ///
 /// Inputs: None (constructed from Modal variant).
@@ -622,6 +632,18 @@ impl ModalRenderer for Modal {
             Self::OptionalDeps { rows, selected } => {
                 let ctx = OptionalDepsContext { rows, selected };
                 render_optional_deps_modal(f, area, ctx, app)
+            }
+            Self::SshAurSetup {
+                step,
+                status_lines,
+                existing_host_block,
+            } => {
+                let ctx = SshAurSetupContext {
+                    step,
+                    status_lines,
+                    existing_host_block,
+                };
+                render_ssh_setup_modal(f, area, ctx)
             }
             Self::ScanConfig {
                 do_clamav,
@@ -1018,6 +1040,22 @@ fn render_optional_deps_modal(
     Modal::OptionalDeps {
         rows: ctx.rows,
         selected: ctx.selected,
+    }
+}
+
+/// What: Render `SshAurSetup` modal and return reconstructed state.
+fn render_ssh_setup_modal(f: &mut Frame, area: Rect, ctx: SshAurSetupContext) -> Modal {
+    misc::render_ssh_aur_setup(
+        f,
+        area,
+        ctx.step,
+        &ctx.status_lines,
+        ctx.existing_host_block.as_deref(),
+    );
+    Modal::SshAurSetup {
+        step: ctx.step,
+        status_lines: ctx.status_lines,
+        existing_host_block: ctx.existing_host_block,
     }
 }
 

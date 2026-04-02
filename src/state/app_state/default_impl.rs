@@ -703,6 +703,7 @@ impl Default for AppState {
             pending_aur_update_command: None,
             pending_executor_password: None,
             pending_file_sync_result: None,
+            pending_aur_ssh_help_check_result: None,
         }
     }
 }

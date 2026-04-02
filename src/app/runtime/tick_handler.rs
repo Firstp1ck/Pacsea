@@ -852,6 +852,27 @@ pub fn handle_tick(
         }
     }
 
+    // Check background AUR SSH validation result and refresh OptionalDeps row if open.
+    if let Some(check_result_arc) = app.pending_aur_ssh_help_check_result.take() {
+        if let Ok(mut check_result) = check_result_arc.lock()
+            && let Some(is_ready) = check_result.take()
+        {
+            if let crate::state::Modal::OptionalDeps { rows, .. } = &mut app.modal
+                && let Some(row) = rows.iter_mut().find(|row| row.package == "aur-ssh-setup")
+            {
+                row.installed = is_ready;
+                row.selectable = !is_ready;
+                row.note = Some(if is_ready {
+                    "Validated".to_string()
+                } else {
+                    "Setup".to_string()
+                });
+            }
+        } else {
+            app.pending_aur_ssh_help_check_result = Some(check_result_arc);
+        }
+    }
+
     handle_pkgbuild_reload_debounce(app, pkgb_req_tx);
 
     handle_installed_cache_polling(app, query_tx);

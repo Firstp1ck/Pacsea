@@ -93,6 +93,104 @@ pub fn render_optional_deps(
     );
 }
 
+/// What: Render the guided AUR SSH setup modal.
+///
+/// Inputs:
+/// - `f`: Frame to render into.
+/// - `area`: Full screen area used to center the modal.
+/// - `step`: Current SSH setup step.
+/// - `status_lines`: Current status/instruction lines.
+/// - `existing_host_block`: Existing host block shown during overwrite confirmation.
+///
+/// Output:
+/// - Draws the SSH setup modal content.
+#[allow(clippy::many_single_char_names)]
+pub fn render_ssh_aur_setup(
+    f: &mut Frame,
+    area: Rect,
+    step: crate::state::SshSetupStep,
+    status_lines: &[String],
+    existing_host_block: Option<&str>,
+) {
+    let th = theme();
+    let w = area.width.saturating_sub(8).min(100);
+    let h = area.height.saturating_sub(6).min(24);
+    let x = area.x + (area.width.saturating_sub(w)) / 2;
+    let y = area.y + (area.height.saturating_sub(h)) / 2;
+    let rect = Rect {
+        x,
+        y,
+        width: w,
+        height: h,
+    };
+    f.render_widget(Clear, rect);
+
+    let (title, accent, footer) = match step {
+        crate::state::SshSetupStep::Intro => (
+            "AUR SSH Setup",
+            th.mauve,
+            "Enter: run setup  |  O: open AUR account page  |  Esc: cancel",
+        ),
+        crate::state::SshSetupStep::ConfirmOverwrite => (
+            "AUR SSH Setup: Confirm Overwrite",
+            th.yellow,
+            "Y/Enter: overwrite block  |  N/Esc: keep existing config  |  O: open account page",
+        ),
+        crate::state::SshSetupStep::Result => (
+            "AUR SSH Setup: Result",
+            th.green,
+            "Enter/Esc: close  |  O: open account page",
+        ),
+    };
+
+    let mut lines: Vec<Line<'static>> = Vec::new();
+    for line in status_lines {
+        lines.push(Line::from(Span::styled(
+            line.clone(),
+            Style::default().fg(th.text),
+        )));
+    }
+    if let Some(block) = existing_host_block {
+        lines.push(Line::from(""));
+        lines.push(Line::from(Span::styled(
+            "Existing Host aur.archlinux.org block:",
+            Style::default().fg(th.yellow).add_modifier(Modifier::BOLD),
+        )));
+        for line in block.lines() {
+            lines.push(Line::from(Span::styled(
+                format!("  {line}"),
+                Style::default().fg(th.subtext1),
+            )));
+        }
+    }
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        format!(
+            "AUR account page: {}",
+            crate::logic::ssh_setup::AUR_ACCOUNT_URL
+        ),
+        Style::default().fg(th.sapphire),
+    )));
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        footer,
+        Style::default().fg(th.overlay1),
+    )));
+
+    let paragraph = Paragraph::new(lines).wrap(Wrap { trim: true }).block(
+        Block::default()
+            .title(Span::styled(
+                title,
+                Style::default().fg(accent).add_modifier(Modifier::BOLD),
+            ))
+            .borders(Borders::ALL)
+            .border_type(BorderType::Double)
+            .border_style(Style::default().fg(accent))
+            .style(Style::default().bg(th.mantle)),
+    );
+    f.render_widget(paragraph, rect);
+}
+
 #[allow(clippy::too_many_arguments)]
 /// What: Render the scan configuration modal listing security tools to toggle.
 ///

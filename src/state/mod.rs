@@ -9,7 +9,7 @@ pub mod types;
 
 // Public re-exports to keep existing paths working
 pub use app_state::AppState;
-pub use modal::{Modal, PreflightAction, PreflightTab};
+pub use modal::{Modal, PreflightAction, PreflightTab, SshSetupStep};
 pub use types::{
     ArchStatusColor, Focus, InstalledPackagesMode, NewsItem, PackageDetails, PackageItem,
     QueryInput, RightPaneFocus, SearchResults, SortMode, Source,
