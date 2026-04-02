@@ -4,6 +4,7 @@ use lru::LruCache;
 use ratatui::widgets::ListState;
 use std::{collections::HashMap, collections::HashSet, path::PathBuf, time::Instant};
 
+use crate::sources::VoteAction;
 use crate::state::modal::{CascadeMode, Modal, PreflightAction, ServiceImpact};
 use crate::state::types::{
     AppMode, ArchStatusColor, Focus, InstalledPackagesMode, NewsFeedItem, NewsReadFilter,
@@ -21,6 +22,28 @@ mod methods;
 mod tests;
 
 pub use constants::{FileSyncResult, RECENT_CAPACITY, recent_capacity};
+
+/// What: UI-facing live vote-state for an AUR package.
+///
+/// Details:
+/// - `Unknown`: no live check requested yet.
+/// - `Loading`: background check is currently in flight.
+/// - `Voted`: current user has voted for the package.
+/// - `NotVoted`: current user has not voted for the package.
+/// - `Error`: last check failed with a short user-facing reason.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum AurVoteStateUi {
+    /// No vote-state has been requested yet.
+    Unknown,
+    /// Vote-state request is currently running in background.
+    Loading,
+    /// Current user has voted for the package.
+    Voted,
+    /// Current user has not voted for the package.
+    NotVoted,
+    /// Vote-state request failed.
+    Error(String),
+}
 
 /// Global application state shared by the event, networking, and UI layers.
 ///
@@ -699,6 +722,24 @@ pub struct AppState {
     pub preflight_cancelled: std::sync::Arc<std::sync::atomic::AtomicBool>,
 
     // Executor integration
+    /// Pending AUR vote intent (pkgbase and action) awaiting user confirmation.
+    pub pending_aur_vote_intent: Option<(String, VoteAction)>,
+    /// Pending AUR vote request (pkgbase and action) to be sent by the runtime tick handler.
+    pub pending_aur_vote_request: Option<(String, VoteAction)>,
+    /// Live AUR vote-state cache keyed by pkgbase/package name.
+    pub aur_vote_state_by_pkgbase: HashMap<String, AurVoteStateUi>,
+    /// Path where persisted AUR vote-state cache is stored as JSON.
+    pub aur_vote_state_path: PathBuf,
+    /// Dirty flag indicating `aur_vote_state_by_pkgbase` needs to be saved.
+    pub aur_vote_state_dirty: bool,
+    /// Whether live AUR vote-state lookup is available in current runtime session.
+    ///
+    /// Details:
+    /// - Set to `false` after first unsupported `list-votes` response to avoid repeatedly
+    ///   replacing stable cached states with transient `Loading`/`Unknown`.
+    pub aur_vote_state_lookup_supported: bool,
+    /// Pending AUR vote-state check request (pkgbase) to be sent by the runtime tick handler.
+    pub pending_aur_vote_state_request: Option<String>,
     /// Pending executor request to be sent when `PreflightExec` modal is ready.
     pub pending_executor_request: Option<crate::install::ExecutorRequest>,
     /// Pending post-summary computation request (items and success flag to compute summary for).

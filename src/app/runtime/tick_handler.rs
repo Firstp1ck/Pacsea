@@ -8,15 +8,17 @@ use crate::logic::send_query;
 use crate::state::{AppState, ArchStatusColor, PackageItem, QueryInput};
 
 use super::super::persist::{
-    maybe_flush_announcement_read, maybe_flush_cache, maybe_flush_deps_cache,
-    maybe_flush_files_cache, maybe_flush_install, maybe_flush_news_bookmarks,
-    maybe_flush_news_content_cache, maybe_flush_news_read, maybe_flush_news_read_ids,
-    maybe_flush_news_recent, maybe_flush_news_seen_aur_comments, maybe_flush_news_seen_versions,
-    maybe_flush_pkgbuild_parse_cache, maybe_flush_recent, maybe_flush_sandbox_cache,
-    maybe_flush_services_cache,
+    maybe_flush_announcement_read, maybe_flush_aur_vote_state, maybe_flush_cache,
+    maybe_flush_deps_cache, maybe_flush_files_cache, maybe_flush_install,
+    maybe_flush_news_bookmarks, maybe_flush_news_content_cache, maybe_flush_news_read,
+    maybe_flush_news_read_ids, maybe_flush_news_recent, maybe_flush_news_seen_aur_comments,
+    maybe_flush_news_seen_versions, maybe_flush_pkgbuild_parse_cache, maybe_flush_recent,
+    maybe_flush_sandbox_cache, maybe_flush_services_cache,
 };
 use super::super::recent::{maybe_save_news_recent, maybe_save_recent};
+use super::workers::aur_vote::{AurVoteRequest, AurVoteStateRequest};
 use crate::install::ExecutorRequest;
+use crate::sources::VoteAction;
 
 /// What: Queue AUR update after system update success when pacman + AUR were both selected.
 ///
@@ -619,6 +621,8 @@ pub fn handle_tick(
         crate::state::modal::PreflightAction,
     )>,
     updates_tx: &mpsc::UnboundedSender<(usize, Vec<String>)>,
+    aur_vote_req_tx: &mpsc::UnboundedSender<AurVoteRequest>,
+    aur_vote_state_req_tx: &mpsc::UnboundedSender<AurVoteStateRequest>,
     executor_req_tx: &mpsc::UnboundedSender<crate::install::ExecutorRequest>,
     post_summary_req_tx: &mpsc::UnboundedSender<(Vec<PackageItem>, Option<bool>)>,
     news_content_req_tx: &mpsc::UnboundedSender<String>,
@@ -628,6 +632,7 @@ pub fn handle_tick(
     static LAST_FAILLOCK_CHECK: std::sync::OnceLock<std::sync::Mutex<Instant>> =
         std::sync::OnceLock::new();
     maybe_save_recent(app);
+    maybe_flush_aur_vote_state(app);
     maybe_save_news_recent(app);
     maybe_flush_cache(app);
     maybe_flush_recent(app);
@@ -724,6 +729,42 @@ pub fn handle_tick(
     );
 
     maybe_queue_aur_after_system_update_success(app);
+
+    // Send pending AUR vote request.
+    if let Some((pkgbase, action)) = app.pending_aur_vote_request.take() {
+        let settings = crate::theme::settings();
+        let request = AurVoteRequest {
+            pkgbase,
+            action,
+            dry_run: app.dry_run,
+            ssh_timeout_secs: settings.aur_vote_ssh_timeout_seconds,
+            ssh_command: settings.aur_vote_ssh_command,
+        };
+        if let Err(err) = aur_vote_req_tx.send(request) {
+            let action_label = match action {
+                VoteAction::Vote => "vote",
+                VoteAction::Unvote => "unvote",
+            };
+            app.modal = crate::state::Modal::Alert {
+                message: format!("Failed to queue AUR {action_label} request: {err}"),
+            };
+        }
+    }
+
+    // Send pending AUR vote-state check request.
+    if let Some(pkgbase) = app.pending_aur_vote_state_request.take() {
+        let settings = crate::theme::settings();
+        let request = AurVoteStateRequest {
+            pkgbase: pkgbase.clone(),
+            ssh_timeout_secs: settings.aur_vote_ssh_timeout_seconds,
+            ssh_command: settings.aur_vote_ssh_command,
+        };
+        if let Err(err) = aur_vote_state_req_tx.send(request) {
+            app.modal = crate::state::Modal::Alert {
+                message: format!("Failed to queue AUR vote-state request for '{pkgbase}': {err}"),
+            };
+        }
+    }
 
     // Send pending executor request if PreflightExec modal is active
     if let Some(request) = app.pending_executor_request.take()
@@ -947,6 +988,8 @@ mod tests {
         let (sandbox_tx, _sandbox_rx) = mpsc::unbounded_channel();
         let (summary_tx, _summary_rx) = mpsc::unbounded_channel();
         let (updates_tx, _updates_rx) = mpsc::unbounded_channel();
+        let (aur_vote_req_tx, _aur_vote_req_rx) = mpsc::unbounded_channel();
+        let (aur_vote_state_req_tx, _aur_vote_state_req_rx) = mpsc::unbounded_channel();
         let (executor_req_tx, _executor_req_rx) = mpsc::unbounded_channel();
         let (post_summary_req_tx, _post_summary_req_rx) = mpsc::unbounded_channel();
         let (news_content_req_tx, _news_content_req_rx) = mpsc::unbounded_channel();
@@ -963,6 +1006,8 @@ mod tests {
             &sandbox_tx,
             &summary_tx,
             &updates_tx,
+            &aur_vote_req_tx,
+            &aur_vote_state_req_tx,
             &executor_req_tx,
             &post_summary_req_tx,
             &news_content_req_tx,
@@ -1014,6 +1059,8 @@ mod tests {
         let (sandbox_tx, _sandbox_rx) = mpsc::unbounded_channel();
         let (summary_tx, _summary_rx) = mpsc::unbounded_channel();
         let (updates_tx, _updates_rx) = mpsc::unbounded_channel();
+        let (aur_vote_req_tx, _aur_vote_req_rx) = mpsc::unbounded_channel();
+        let (aur_vote_state_req_tx, _aur_vote_state_req_rx) = mpsc::unbounded_channel();
         let (executor_req_tx, _executor_req_rx) = mpsc::unbounded_channel();
         let (post_summary_req_tx, _post_summary_req_rx) = mpsc::unbounded_channel();
         let (news_content_req_tx, _news_content_req_rx) = mpsc::unbounded_channel();
@@ -1029,6 +1076,8 @@ mod tests {
             &sandbox_tx,
             &summary_tx,
             &updates_tx,
+            &aur_vote_req_tx,
+            &aur_vote_state_req_tx,
             &executor_req_tx,
             &post_summary_req_tx,
             &news_content_req_tx,
@@ -1080,6 +1129,8 @@ mod tests {
         let (sandbox_tx, _sandbox_rx) = mpsc::unbounded_channel();
         let (summary_tx, _summary_rx) = mpsc::unbounded_channel();
         let (updates_tx, _updates_rx) = mpsc::unbounded_channel();
+        let (aur_vote_req_tx, _aur_vote_req_rx) = mpsc::unbounded_channel();
+        let (aur_vote_state_req_tx, _aur_vote_state_req_rx) = mpsc::unbounded_channel();
         let (executor_req_tx, mut executor_req_rx) = mpsc::unbounded_channel();
         let (post_summary_tx, _post_summary_rx) = mpsc::unbounded_channel();
         let (news_content_tx, _news_content_rx) = mpsc::unbounded_channel();
@@ -1095,6 +1146,8 @@ mod tests {
             &sandbox_tx,
             &summary_tx,
             &updates_tx,
+            &aur_vote_req_tx,
+            &aur_vote_state_req_tx,
             &executor_req_tx,
             &post_summary_tx,
             &news_content_tx,
@@ -1171,6 +1224,8 @@ mod tests {
         let (sandbox_tx, _sandbox_rx) = mpsc::unbounded_channel();
         let (summary_tx, _summary_rx) = mpsc::unbounded_channel();
         let (updates_tx, _updates_rx) = mpsc::unbounded_channel();
+        let (aur_vote_req_tx, _aur_vote_req_rx) = mpsc::unbounded_channel();
+        let (aur_vote_state_req_tx, _aur_vote_state_req_rx) = mpsc::unbounded_channel();
         let (executor_req_tx, _executor_req_rx) = mpsc::unbounded_channel();
         let (post_summary_req_tx, _post_summary_req_rx) = mpsc::unbounded_channel();
         let (news_content_req_tx, _news_content_req_rx) = mpsc::unbounded_channel();
@@ -1186,6 +1241,8 @@ mod tests {
             &sandbox_tx,
             &summary_tx,
             &updates_tx,
+            &aur_vote_req_tx,
+            &aur_vote_state_req_tx,
             &executor_req_tx,
             &post_summary_req_tx,
             &news_content_req_tx,
@@ -1196,6 +1253,61 @@ mod tests {
         // Pending request should be cleared
         assert!(app.pkgb_reload_requested_at.is_none());
         assert!(app.pkgb_reload_requested_for.is_none());
+    }
+
+    #[test]
+    /// What: Verify that `handle_tick` dispatches pending AUR vote-state requests.
+    ///
+    /// Inputs:
+    /// - `AppState` with `pending_aur_vote_state_request` set.
+    ///
+    /// Output:
+    /// - Vote-state request is sent to worker channel and pending request is cleared.
+    ///
+    /// Details:
+    /// - Ensures tick-based runtime dispatch for live vote-state checks.
+    fn handle_tick_dispatches_pending_aur_vote_state_request() {
+        let mut app = new_app();
+        app.pending_aur_vote_state_request = Some("pacsea-bin".to_string());
+
+        let (query_tx, _query_rx) = mpsc::unbounded_channel();
+        let (details_tx, _details_rx) = mpsc::unbounded_channel();
+        let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel();
+        let (deps_tx, _deps_rx) = mpsc::unbounded_channel();
+        let (files_tx, _files_rx) = mpsc::unbounded_channel();
+        let (services_tx, _services_rx) = mpsc::unbounded_channel();
+        let (sandbox_tx, _sandbox_rx) = mpsc::unbounded_channel();
+        let (summary_tx, _summary_rx) = mpsc::unbounded_channel();
+        let (updates_tx, _updates_rx) = mpsc::unbounded_channel();
+        let (aur_vote_req_tx, _aur_vote_req_rx) = mpsc::unbounded_channel();
+        let (aur_vote_state_req_tx, mut aur_vote_state_req_rx) = mpsc::unbounded_channel();
+        let (executor_req_tx, _executor_req_rx) = mpsc::unbounded_channel();
+        let (post_summary_req_tx, _post_summary_req_rx) = mpsc::unbounded_channel();
+        let (news_content_req_tx, _news_content_req_rx) = mpsc::unbounded_channel();
+
+        handle_tick(
+            &mut app,
+            &query_tx,
+            &details_tx,
+            &pkgb_tx,
+            &deps_tx,
+            &files_tx,
+            &services_tx,
+            &sandbox_tx,
+            &summary_tx,
+            &updates_tx,
+            &aur_vote_req_tx,
+            &aur_vote_state_req_tx,
+            &executor_req_tx,
+            &post_summary_req_tx,
+            &news_content_req_tx,
+        );
+
+        assert!(app.pending_aur_vote_state_request.is_none());
+        let request = aur_vote_state_req_rx
+            .try_recv()
+            .expect("vote-state request should be sent");
+        assert_eq!(request.pkgbase, "pacsea-bin");
     }
 
     #[test]
@@ -1302,6 +1414,8 @@ mod tests {
         let (sandbox_tx, _sandbox_rx) = mpsc::unbounded_channel();
         let (summary_tx, _summary_rx) = mpsc::unbounded_channel();
         let (updates_tx, _updates_rx) = mpsc::unbounded_channel();
+        let (aur_vote_req_tx, _aur_vote_req_rx) = mpsc::unbounded_channel();
+        let (aur_vote_state_req_tx, _aur_vote_state_req_rx) = mpsc::unbounded_channel();
         let (executor_req_tx, _executor_req_rx) = mpsc::unbounded_channel();
         let (post_summary_req_tx, _post_summary_req_rx) = mpsc::unbounded_channel();
         let (news_content_req_tx, _news_content_req_rx) = mpsc::unbounded_channel();
@@ -1317,6 +1431,8 @@ mod tests {
             &sandbox_tx,
             &summary_tx,
             &updates_tx,
+            &aur_vote_req_tx,
+            &aur_vote_state_req_tx,
             &executor_req_tx,
             &post_summary_req_tx,
             &news_content_req_tx,
@@ -1387,6 +1503,8 @@ mod tests {
         let (sandbox_tx, _sandbox_rx) = mpsc::unbounded_channel();
         let (summary_tx, _summary_rx) = mpsc::unbounded_channel();
         let (updates_tx, _updates_rx) = mpsc::unbounded_channel();
+        let (aur_vote_req_tx, _aur_vote_req_rx) = mpsc::unbounded_channel();
+        let (aur_vote_state_req_tx, _aur_vote_state_req_rx) = mpsc::unbounded_channel();
         let (executor_req_tx, _executor_req_rx) = mpsc::unbounded_channel();
         let (post_summary_req_tx, _post_summary_req_rx) = mpsc::unbounded_channel();
         let (news_content_req_tx, _news_content_req_rx) = mpsc::unbounded_channel();
@@ -1402,6 +1520,8 @@ mod tests {
             &sandbox_tx,
             &summary_tx,
             &updates_tx,
+            &aur_vote_req_tx,
+            &aur_vote_state_req_tx,
             &executor_req_tx,
             &post_summary_req_tx,
             &news_content_req_tx,

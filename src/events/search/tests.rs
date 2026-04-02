@@ -548,3 +548,336 @@ fn search_normal_mode_navigation() {
     );
     assert_eq!(app.selected, 0);
 }
+
+#[test]
+/// What: Ensure AUR vote action is rejected for non-AUR packages.
+///
+/// Inputs:
+/// - Search normal mode with selected official package and `Ctrl+e` key press.
+///
+/// Output:
+/// - Vote request is not queued and a toast explains availability.
+///
+/// Details:
+/// - Guards phase-3 vote action from running on non-AUR selections.
+fn search_normal_mode_vote_rejects_non_aur_package() {
+    let mut app = new_app();
+    app.search_normal_mode = true;
+    app.results = vec![crate::state::PackageItem {
+        name: "ripgrep".to_string(),
+        version: "14.1.0".to_string(),
+        description: String::new(),
+        source: crate::state::Source::Official {
+            repo: "extra".to_string(),
+            arch: "x86_64".to_string(),
+        },
+        popularity: None,
+        out_of_date: None,
+        orphaned: false,
+    }];
+    let (qtx, _qrx) = mpsc::unbounded_channel::<QueryInput>();
+    let (dtx, _drx) = mpsc::unbounded_channel::<PackageItem>();
+    let (atx, _arx) = mpsc::unbounded_channel::<PackageItem>();
+    let (ptx, _prx) = mpsc::unbounded_channel::<PackageItem>();
+    let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
+
+    let _ = handle_search_key(
+        KeyEvent::new(KeyCode::Char('e'), KeyModifiers::CONTROL),
+        &mut app,
+        &qtx,
+        &dtx,
+        &atx,
+        &ptx,
+        &comments_tx,
+    );
+
+    assert!(app.pending_aur_vote_intent.is_none());
+    assert!(app.pending_aur_vote_request.is_none());
+    let toast = app
+        .toast_message
+        .as_ref()
+        .expect("non-AUR vote should produce toast");
+    assert!(toast.contains("only available for AUR packages"));
+}
+
+#[test]
+/// What: Ensure AUR vote action opens confirmation flow when feature is enabled.
+///
+/// Inputs:
+/// - Search normal mode with selected AUR package and `Ctrl+e` key press.
+///
+/// Output:
+/// - Vote intent is stored and confirm modal is shown.
+///
+/// Details:
+/// - Default settings enable AUR voting, so action should enter confirmation flow.
+fn search_normal_mode_vote_opens_confirmation_when_enabled() {
+    let mut app = new_app();
+    app.search_normal_mode = true;
+    let pkgbase = "pkg-vote-default-normal";
+    app.results = vec![crate::state::PackageItem {
+        name: pkgbase.to_string(),
+        version: "1.0.0".to_string(),
+        description: String::new(),
+        source: crate::state::Source::Aur,
+        popularity: None,
+        out_of_date: None,
+        orphaned: false,
+    }];
+    let (qtx, _qrx) = mpsc::unbounded_channel::<QueryInput>();
+    let (dtx, _drx) = mpsc::unbounded_channel::<PackageItem>();
+    let (atx, _arx) = mpsc::unbounded_channel::<PackageItem>();
+    let (ptx, _prx) = mpsc::unbounded_channel::<PackageItem>();
+    let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
+
+    let _ = handle_search_key(
+        KeyEvent::new(KeyCode::Char('e'), KeyModifiers::CONTROL),
+        &mut app,
+        &qtx,
+        &dtx,
+        &atx,
+        &ptx,
+        &comments_tx,
+    );
+
+    assert_eq!(
+        app.pending_aur_vote_intent,
+        Some((pkgbase.to_string(), crate::sources::VoteAction::Vote))
+    );
+    assert!(app.pending_aur_vote_request.is_none());
+    match app.modal {
+        crate::state::Modal::ConfirmAurVote {
+            pkgbase, action, ..
+        } => {
+            assert_eq!(pkgbase, "pkg-vote-default-normal");
+            assert_eq!(action, crate::sources::VoteAction::Vote);
+        }
+        other => panic!("expected confirm modal, got {other:?}"),
+    }
+}
+
+#[test]
+/// What: Ensure AUR vote key works in insert mode and opens confirmation.
+///
+/// Inputs:
+/// - Search insert mode with selected AUR package and `Ctrl+e` key press.
+///
+/// Output:
+/// - Vote intent is stored and confirm modal is shown.
+///
+/// Details:
+/// - Guards against silent no-op behavior in insert mode.
+fn search_insert_mode_vote_opens_confirmation_when_enabled() {
+    let mut app = new_app();
+    app.search_normal_mode = false;
+    let pkgbase = "pkg-vote-default-insert";
+    app.results = vec![crate::state::PackageItem {
+        name: pkgbase.to_string(),
+        version: "1.0.0".to_string(),
+        description: String::new(),
+        source: crate::state::Source::Aur,
+        popularity: None,
+        out_of_date: None,
+        orphaned: false,
+    }];
+    let (qtx, _qrx) = mpsc::unbounded_channel::<QueryInput>();
+    let (dtx, _drx) = mpsc::unbounded_channel::<PackageItem>();
+    let (atx, _arx) = mpsc::unbounded_channel::<PackageItem>();
+    let (ptx, _prx) = mpsc::unbounded_channel::<PackageItem>();
+    let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
+
+    let _ = handle_search_key(
+        KeyEvent::new(KeyCode::Char('e'), KeyModifiers::CONTROL),
+        &mut app,
+        &qtx,
+        &dtx,
+        &atx,
+        &ptx,
+        &comments_tx,
+    );
+
+    assert_eq!(
+        app.pending_aur_vote_intent,
+        Some((pkgbase.to_string(), crate::sources::VoteAction::Vote))
+    );
+    assert!(app.pending_aur_vote_request.is_none());
+    match app.modal {
+        crate::state::Modal::ConfirmAurVote {
+            pkgbase, action, ..
+        } => {
+            assert_eq!(pkgbase, "pkg-vote-default-insert");
+            assert_eq!(action, crate::sources::VoteAction::Vote);
+        }
+        other => panic!("expected confirm modal, got {other:?}"),
+    }
+}
+
+#[test]
+/// What: Ensure `Ctrl+e` toggles to unvote when cache says package is already voted.
+///
+/// Inputs:
+/// - Search normal mode with selected AUR package and cached `Voted` state.
+///
+/// Output:
+/// - Confirmation intent/modal uses `VoteAction::Unvote`.
+///
+/// Details:
+/// - Verifies single-keybind toggle behavior from persisted vote-state.
+fn search_normal_mode_vote_toggles_to_unvote_when_cached_voted() {
+    let mut app = new_app();
+    app.search_normal_mode = true;
+    app.results = vec![crate::state::PackageItem {
+        name: "pacsea-bin".to_string(),
+        version: "1.0.0".to_string(),
+        description: String::new(),
+        source: crate::state::Source::Aur,
+        popularity: None,
+        out_of_date: None,
+        orphaned: false,
+    }];
+    app.aur_vote_state_by_pkgbase.insert(
+        "pacsea-bin".to_string(),
+        crate::state::app_state::AurVoteStateUi::Voted,
+    );
+    let (qtx, _qrx) = mpsc::unbounded_channel::<QueryInput>();
+    let (dtx, _drx) = mpsc::unbounded_channel::<PackageItem>();
+    let (atx, _arx) = mpsc::unbounded_channel::<PackageItem>();
+    let (ptx, _prx) = mpsc::unbounded_channel::<PackageItem>();
+    let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
+
+    let _ = handle_search_key(
+        KeyEvent::new(KeyCode::Char('e'), KeyModifiers::CONTROL),
+        &mut app,
+        &qtx,
+        &dtx,
+        &atx,
+        &ptx,
+        &comments_tx,
+    );
+
+    assert_eq!(
+        app.pending_aur_vote_intent,
+        Some(("pacsea-bin".to_string(), crate::sources::VoteAction::Unvote))
+    );
+}
+
+#[test]
+/// What: Ensure selecting an AUR package queues live checks when feature is enabled.
+///
+/// Inputs:
+/// - Insert mode with two AUR results and Down key navigation.
+///
+/// Output:
+/// - `pending_aur_vote_state_request` is queued for the selected package.
+///
+/// Details:
+/// - Default settings enable AUR voting, so live vote-state checks should activate.
+fn search_selection_vote_state_check_queues_when_feature_enabled() {
+    let mut app = new_app();
+    app.results = vec![
+        crate::state::PackageItem {
+            name: "pkg-a".to_string(),
+            version: "1.0.0".to_string(),
+            description: String::new(),
+            source: crate::state::Source::Aur,
+            popularity: None,
+            out_of_date: None,
+            orphaned: false,
+        },
+        crate::state::PackageItem {
+            name: "pkg-b".to_string(),
+            version: "1.0.0".to_string(),
+            description: String::new(),
+            source: crate::state::Source::Aur,
+            popularity: None,
+            out_of_date: None,
+            orphaned: false,
+        },
+    ];
+    app.selected = 0;
+    let (qtx, _qrx) = mpsc::unbounded_channel::<QueryInput>();
+    let (dtx, _drx) = mpsc::unbounded_channel::<PackageItem>();
+    let (atx, _arx) = mpsc::unbounded_channel::<PackageItem>();
+    let (ptx, _prx) = mpsc::unbounded_channel::<PackageItem>();
+    let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
+
+    let _ = handle_search_key(
+        KeyEvent::new(KeyCode::Down, KeyModifiers::empty()),
+        &mut app,
+        &qtx,
+        &dtx,
+        &atx,
+        &ptx,
+        &comments_tx,
+    );
+
+    assert_eq!(app.selected, 1);
+    assert_eq!(
+        app.pending_aur_vote_state_request,
+        Some("pkg-b".to_string())
+    );
+    assert!(matches!(
+        app.aur_vote_state_by_pkgbase.get("pkg-b"),
+        Some(crate::state::app_state::AurVoteStateUi::Loading)
+    ));
+}
+
+#[test]
+/// What: Ensure selecting a non-AUR package does not queue vote-state checks.
+///
+/// Inputs:
+/// - Insert mode with official package selection and Down key navigation.
+///
+/// Output:
+/// - `pending_aur_vote_state_request` remains `None`.
+///
+/// Details:
+/// - Guards live check behavior so only AUR sources trigger SSH requests.
+fn search_selection_does_not_queue_vote_state_check_for_official_package() {
+    let mut app = new_app();
+    app.results = vec![
+        crate::state::PackageItem {
+            name: "pkg-a".to_string(),
+            version: "1.0.0".to_string(),
+            description: String::new(),
+            source: crate::state::Source::Official {
+                repo: "core".to_string(),
+                arch: "x86_64".to_string(),
+            },
+            popularity: None,
+            out_of_date: None,
+            orphaned: false,
+        },
+        crate::state::PackageItem {
+            name: "pkg-b".to_string(),
+            version: "1.0.0".to_string(),
+            description: String::new(),
+            source: crate::state::Source::Official {
+                repo: "extra".to_string(),
+                arch: "x86_64".to_string(),
+            },
+            popularity: None,
+            out_of_date: None,
+            orphaned: false,
+        },
+    ];
+    app.selected = 0;
+    let (qtx, _qrx) = mpsc::unbounded_channel::<QueryInput>();
+    let (dtx, _drx) = mpsc::unbounded_channel::<PackageItem>();
+    let (atx, _arx) = mpsc::unbounded_channel::<PackageItem>();
+    let (ptx, _prx) = mpsc::unbounded_channel::<PackageItem>();
+    let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
+
+    let _ = handle_search_key(
+        KeyEvent::new(KeyCode::Down, KeyModifiers::empty()),
+        &mut app,
+        &qtx,
+        &dtx,
+        &atx,
+        &ptx,
+        &comments_tx,
+    );
+
+    assert_eq!(app.selected, 1);
+    assert!(app.pending_aur_vote_state_request.is_none());
+}

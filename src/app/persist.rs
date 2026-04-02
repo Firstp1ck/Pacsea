@@ -80,6 +80,60 @@ pub fn maybe_flush_recent(app: &mut AppState) {
     }
 }
 
+/// What: Persist stable AUR vote-state cache to disk if marked dirty.
+///
+/// Inputs:
+/// - `app`: Application state containing `aur_vote_state_by_pkgbase` and `aur_vote_state_path`.
+///
+/// Output:
+/// - Writes a compact JSON map (`pkgbase -> bool voted`) and clears the dirty flag.
+///
+/// Details:
+/// - Only stable states are persisted:
+///   - `Voted` => `true`
+///   - `NotVoted` => `false`
+/// - Transient states (`Loading`, `Unknown`, `Error`) are intentionally skipped.
+pub fn maybe_flush_aur_vote_state(app: &mut AppState) {
+    if !app.aur_vote_state_dirty {
+        return;
+    }
+    let persisted: std::collections::HashMap<String, bool> = app
+        .aur_vote_state_by_pkgbase
+        .iter()
+        .filter_map(|(pkgbase, state)| match state {
+            crate::state::app_state::AurVoteStateUi::Voted => Some((pkgbase.clone(), true)),
+            crate::state::app_state::AurVoteStateUi::NotVoted => Some((pkgbase.clone(), false)),
+            crate::state::app_state::AurVoteStateUi::Loading
+            | crate::state::app_state::AurVoteStateUi::Unknown
+            | crate::state::app_state::AurVoteStateUi::Error(_) => None,
+        })
+        .collect();
+    if let Ok(s) = serde_json::to_string(&persisted) {
+        tracing::debug!(
+            path = %app.aur_vote_state_path.display(),
+            bytes = s.len(),
+            entries = persisted.len(),
+            "[Persist] Writing AUR vote-state cache to disk"
+        );
+        match fs::write(&app.aur_vote_state_path, &s) {
+            Ok(()) => {
+                tracing::debug!(
+                    path = %app.aur_vote_state_path.display(),
+                    "[Persist] AUR vote-state cache persisted"
+                );
+            }
+            Err(e) => {
+                tracing::warn!(
+                    path = %app.aur_vote_state_path.display(),
+                    error = %e,
+                    "[Persist] Failed to write AUR vote-state cache"
+                );
+            }
+        }
+        app.aur_vote_state_dirty = false;
+    }
+}
+
 /// What: Persist the news search history to disk if marked dirty.
 ///
 /// Inputs:
@@ -692,6 +746,65 @@ mod tests {
             std::fs::read_to_string(&app.recent_path).expect("Failed to read test recent file");
         assert!(body.contains("rg") && body.contains("fd"));
         let _ = std::fs::remove_file(&app.recent_path);
+    }
+
+    #[test]
+    /// What: Verify stable AUR vote-state entries are persisted and transient ones are skipped.
+    ///
+    /// Inputs:
+    /// - `AppState` with mixed vote states and `aur_vote_state_dirty = true`.
+    ///
+    /// Output:
+    /// - Persisted JSON contains only `Voted`/`NotVoted` entries and clears dirty flag.
+    ///
+    /// Details:
+    /// - Uses a temporary path and removes it afterwards.
+    fn flush_aur_vote_state_writes_stable_entries_only() {
+        let mut app = new_app();
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "pacsea_aur_vote_state_{}_{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("System time is before UNIX epoch")
+                .as_nanos()
+        ));
+        app.aur_vote_state_path = path.clone();
+        app.aur_vote_state_by_pkgbase.insert(
+            "pkg-voted".to_string(),
+            crate::state::app_state::AurVoteStateUi::Voted,
+        );
+        app.aur_vote_state_by_pkgbase.insert(
+            "pkg-unvoted".to_string(),
+            crate::state::app_state::AurVoteStateUi::NotVoted,
+        );
+        app.aur_vote_state_by_pkgbase.insert(
+            "pkg-loading".to_string(),
+            crate::state::app_state::AurVoteStateUi::Loading,
+        );
+        app.aur_vote_state_by_pkgbase.insert(
+            "pkg-unknown".to_string(),
+            crate::state::app_state::AurVoteStateUi::Unknown,
+        );
+        app.aur_vote_state_by_pkgbase.insert(
+            "pkg-error".to_string(),
+            crate::state::app_state::AurVoteStateUi::Error("boom".to_string()),
+        );
+        app.aur_vote_state_dirty = true;
+
+        maybe_flush_aur_vote_state(&mut app);
+        assert!(!app.aur_vote_state_dirty);
+        let body = std::fs::read_to_string(&app.aur_vote_state_path)
+            .expect("Failed to read test AUR vote-state file");
+        let persisted: std::collections::HashMap<String, bool> =
+            serde_json::from_str(&body).expect("Failed to parse persisted vote-state JSON");
+        assert_eq!(persisted.get("pkg-voted"), Some(&true));
+        assert_eq!(persisted.get("pkg-unvoted"), Some(&false));
+        assert!(!persisted.contains_key("pkg-loading"));
+        assert!(!persisted.contains_key("pkg-unknown"));
+        assert!(!persisted.contains_key("pkg-error"));
+        let _ = std::fs::remove_file(&app.aur_vote_state_path);
     }
 
     #[test]

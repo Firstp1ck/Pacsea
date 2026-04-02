@@ -1,5 +1,6 @@
 //! Modal dialog state for the UI.
 
+use crate::sources::VoteAction;
 use crate::state::types::{OptionalDepRow, PackageItem, Source};
 use std::collections::HashSet;
 
@@ -497,6 +498,15 @@ pub enum Modal {
         /// Message explaining the situation.
         message: String,
     },
+    /// Confirmation dialog for AUR vote/unvote actions.
+    ConfirmAurVote {
+        /// AUR package base the action targets.
+        pkgbase: String,
+        /// Vote action to execute on confirmation.
+        action: VoteAction,
+        /// Confirmation message shown to the user.
+        message: String,
+    },
     /// Preflight summary before executing any action.
     Preflight {
         /// Packages selected for the operation.
@@ -751,6 +761,11 @@ mod tests {
             countries: vec!["US".into()],
             mirror_count: 20,
             cursor: 0,
+        };
+        let _ = super::Modal::ConfirmAurVote {
+            pkgbase: "pacsea-bin".into(),
+            action: crate::sources::VoteAction::Vote,
+            message: "confirm".into(),
         };
         let _ = super::Modal::News {
             items: Vec::new(),

@@ -379,6 +379,59 @@ pub(super) fn handle_confirm_aur_update_modal(
     false
 }
 
+/// What: Handle key events for `ConfirmAurVote` modal.
+///
+/// Inputs:
+/// - `ke`: Key event.
+/// - `app`: Mutable application state.
+/// - `modal`: `ConfirmAurVote` modal variant.
+///
+/// Output:
+/// - `true` if modal was closed or transitioned, `false` otherwise.
+///
+/// Details:
+/// - Enter/y confirms and queues the request for tick-handler dispatch.
+/// - Esc/q/n cancels the intent and closes the modal.
+pub(super) fn handle_confirm_aur_vote_modal(
+    ke: KeyEvent,
+    app: &mut AppState,
+    modal: &Modal,
+) -> bool {
+    if let Modal::ConfirmAurVote {
+        pkgbase, action, ..
+    } = modal
+    {
+        match ke.code {
+            KeyCode::Esc | KeyCode::Char('q' | 'Q' | 'n' | 'N') => {
+                app.pending_aur_vote_intent = None;
+                app.modal = crate::state::Modal::None;
+                app.toast_message =
+                    Some(format!("Cancelled AUR {action} request for '{pkgbase}'."));
+                app.toast_expires_at =
+                    Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
+                return true;
+            }
+            KeyCode::Enter | KeyCode::Char('\n' | '\r' | 'y' | 'Y') => {
+                app.pending_aur_vote_intent = None;
+                app.pending_aur_vote_request = Some((pkgbase.clone(), *action));
+                let action_label = match action {
+                    crate::sources::VoteAction::Vote => "vote",
+                    crate::sources::VoteAction::Unvote => "unvote",
+                };
+                app.toast_message = Some(format!(
+                    "Queued AUR {action_label} request for '{pkgbase}'."
+                ));
+                app.toast_expires_at =
+                    Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
+                app.modal = crate::state::Modal::None;
+                return true;
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
 /// What: Handle key events for `ConfirmReinstall` modal.
 ///
 /// Inputs:

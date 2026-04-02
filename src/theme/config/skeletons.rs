@@ -425,8 +425,8 @@ use_terminal_theme = false\n\
 # Vote/unvote AUR packages directly from Pacsea using SSH.\n\
 # Requires your SSH public key to be uploaded to your AUR account:\n\
 #   https://aur.archlinux.org/account\n\
-# Enable AUR voting (default: false)\n\
-aur_vote_enabled = false\n\
+# Enable AUR voting (default: true)\n\
+aur_vote_enabled = true\n\
 # SSH connect timeout in seconds (default: 10)\n\
 aur_vote_ssh_timeout_seconds = 10\n\
 # SSH binary to use (default: ssh). Override for non-standard setups.\n\

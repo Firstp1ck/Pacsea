@@ -172,7 +172,83 @@ pub fn refresh_selected_details(
         } else {
             let _ = details_tx.send(item);
         }
+        queue_selected_aur_vote_state_check(app);
     }
+}
+
+/// What: Queue a live AUR vote-state check for the currently selected result.
+///
+/// Inputs:
+/// - `app`: Mutable application state with current results selection.
+///
+/// Output:
+/// - None (updates vote-state cache and pending request fields).
+///
+/// Details:
+/// - Only queues checks for selected AUR packages when AUR voting is enabled.
+/// - Marks selected package as `Loading` and stores a single pending request.
+/// - Replaces an older pending request when selection changes rapidly.
+pub fn queue_selected_aur_vote_state_check(app: &mut AppState) {
+    let settings = crate::theme::settings();
+    if !settings.aur_vote_enabled {
+        return;
+    }
+    if !app.aur_vote_state_lookup_supported {
+        return;
+    }
+    let Some(item) = app.results.get(app.selected) else {
+        return;
+    };
+    if !matches!(item.source, crate::state::Source::Aur) {
+        return;
+    }
+
+    let pkgbase = item.name.clone();
+    if let Some(previous) = app.pending_aur_vote_state_request.replace(pkgbase.clone())
+        && previous != pkgbase
+        && matches!(
+            app.aur_vote_state_by_pkgbase.get(&previous),
+            Some(crate::state::app_state::AurVoteStateUi::Loading)
+        )
+    {
+        app.aur_vote_state_by_pkgbase
+            .insert(previous, crate::state::app_state::AurVoteStateUi::Unknown);
+    }
+    let should_mark_loading = !matches!(
+        app.aur_vote_state_by_pkgbase.get(&pkgbase),
+        Some(
+            crate::state::app_state::AurVoteStateUi::Voted
+                | crate::state::app_state::AurVoteStateUi::NotVoted
+        )
+    );
+    if should_mark_loading {
+        app.aur_vote_state_by_pkgbase
+            .insert(pkgbase, crate::state::app_state::AurVoteStateUi::Loading);
+    }
+}
+
+/// What: Move selection and queue live AUR vote-state check for selected package.
+///
+/// Inputs:
+/// - `app`: Mutable application state.
+/// - `delta`: Signed selection movement.
+/// - `details_tx`: Channel for async details requests.
+/// - `comments_tx`: Channel for async AUR comments requests.
+///
+/// Output:
+/// - None (mutates selection/details state and queues optional vote-state check).
+///
+/// Details:
+/// - Uses existing `logic::move_sel_cached` for selection/details coordination.
+/// - Then schedules live vote-state check for selected AUR package.
+pub fn move_sel_cached_with_vote_state(
+    app: &mut AppState,
+    delta: isize,
+    details_tx: &mpsc::UnboundedSender<PackageItem>,
+    comments_tx: &mpsc::UnboundedSender<String>,
+) {
+    crate::logic::move_sel_cached(app, delta, details_tx, comments_tx);
+    queue_selected_aur_vote_state_check(app);
 }
 
 /// Move news selection by delta, keeping it in view.
@@ -606,5 +682,84 @@ mod tests {
         refresh_selected_details(&mut app, &tx);
         let got = rx.try_recv().ok();
         assert!(got.is_some());
+    }
+
+    #[test]
+    /// What: Ensure vote-state checks are skipped when live lookup is unsupported.
+    ///
+    /// Inputs:
+    /// - A selected AUR package with cached `Voted` state and lookup support disabled.
+    ///
+    /// Output:
+    /// - No pending request is queued and cached state remains unchanged.
+    ///
+    /// Details:
+    /// - Prevents replacing persisted stable vote-state with transient loading state
+    ///   after the runtime detects unsupported `list-votes`.
+    fn queue_vote_state_check_skips_when_lookup_unsupported() {
+        let mut app = new_app();
+        app.results = vec![crate::state::PackageItem {
+            name: "pacsea-bin".into(),
+            version: "1".into(),
+            description: String::new(),
+            source: crate::state::Source::Aur,
+            popularity: None,
+            out_of_date: None,
+            orphaned: false,
+        }];
+        app.selected = 0;
+        app.aur_vote_state_lookup_supported = false;
+        app.aur_vote_state_by_pkgbase.insert(
+            "pacsea-bin".into(),
+            crate::state::app_state::AurVoteStateUi::Voted,
+        );
+
+        queue_selected_aur_vote_state_check(&mut app);
+
+        assert!(app.pending_aur_vote_state_request.is_none());
+        assert!(matches!(
+            app.aur_vote_state_by_pkgbase.get("pacsea-bin"),
+            Some(crate::state::app_state::AurVoteStateUi::Voted)
+        ));
+    }
+
+    #[test]
+    /// What: Ensure queuing live vote-state checks does not overwrite stable cached state.
+    ///
+    /// Inputs:
+    /// - Selected AUR package with existing `Voted` cache.
+    ///
+    /// Output:
+    /// - Request is queued, but cached state stays `Voted` instead of switching to `Loading`.
+    ///
+    /// Details:
+    /// - Prevents stable persisted state from disappearing during transient live checks.
+    fn queue_vote_state_check_preserves_stable_cached_state() {
+        let mut app = new_app();
+        app.results = vec![crate::state::PackageItem {
+            name: "pacsea-bin".into(),
+            version: "1".into(),
+            description: String::new(),
+            source: crate::state::Source::Aur,
+            popularity: None,
+            out_of_date: None,
+            orphaned: false,
+        }];
+        app.selected = 0;
+        app.aur_vote_state_by_pkgbase.insert(
+            "pacsea-bin".into(),
+            crate::state::app_state::AurVoteStateUi::Voted,
+        );
+
+        queue_selected_aur_vote_state_check(&mut app);
+
+        assert_eq!(
+            app.pending_aur_vote_state_request,
+            Some("pacsea-bin".to_string())
+        );
+        assert!(matches!(
+            app.aur_vote_state_by_pkgbase.get("pacsea-bin"),
+            Some(crate::state::app_state::AurVoteStateUi::Voted)
+        ));
     }
 }

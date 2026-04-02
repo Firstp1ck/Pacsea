@@ -327,6 +327,11 @@ fn build_search_section(
             sep_style,
         );
     }
+    spans.extend([
+        Span::styled("[Ctrl+E]", key_style),
+        Span::raw(" Toggle AUR vote for selected package"),
+        Span::styled("  |  ", sep_style),
+    ]);
 
     spans
 }

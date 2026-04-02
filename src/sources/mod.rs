@@ -29,7 +29,10 @@ pub mod status;
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 pub use advisories::fetch_security_advisories;
-pub use aur_vote::{AurVoteContext, AurVoteError, AurVoteOutcome, VoteAction, aur_vote};
+pub use aur_vote::{
+    AurPackageVoteState, AurVoteContext, AurVoteError, AurVoteOutcome, VoteAction, aur_vote,
+    aur_vote_state, is_vote_state_unsupported_error,
+};
 pub use comments::fetch_aur_comments;
 pub use details::fetch_details;
 pub use feeds::{

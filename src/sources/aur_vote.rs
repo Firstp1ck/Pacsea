@@ -67,6 +67,19 @@ impl fmt::Display for VoteAction {
     }
 }
 
+/// What: Live vote-state of the current user for one AUR package base.
+///
+/// Details:
+/// - `Voted` means the account currently has an active vote.
+/// - `NotVoted` means no vote exists for the package base.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AurPackageVoteState {
+    /// User has voted for this package base.
+    Voted,
+    /// User has not voted for this package base.
+    NotVoted,
+}
+
 /// What: Successful outcome of an AUR vote operation.
 ///
 /// Details:
@@ -281,6 +294,8 @@ impl SshVoteTransport for RealSshTransport {
 
 /// SSH exit code 255 indicates an SSH-level failure (auth, connection, etc.).
 const SSH_ERROR_EXIT_CODE: i32 = 255;
+/// aurweb stderr fragment indicating unsupported `list-votes` command.
+const LIST_VOTES_UNSUPPORTED_PATTERN: &str = "invalid command: list-votes";
 
 /// What: Parse SSH subprocess output into a typed result.
 ///
@@ -356,6 +371,67 @@ fn parse_ssh_result(
     Err(AurVoteError::Unexpected(sanitize_stderr(stderr_trimmed)))
 }
 
+/// What: Parse `list-votes` SSH output into a package vote-state result.
+///
+/// Inputs:
+/// - `output`: Captured process output for `ssh aur@aur.archlinux.org list-votes`.
+/// - `pkgbase`: Package base to resolve against the returned vote list.
+///
+/// Output:
+/// - `Ok(AurPackageVoteState::Voted)` when `pkgbase` appears in the vote list.
+/// - `Ok(AurPackageVoteState::NotVoted)` when command succeeds but package is absent.
+/// - `Err(AurVoteError)` for auth/network/maintenance and other failures.
+///
+/// Details:
+/// - Successful `list-votes` output is parsed as whitespace-delimited package names.
+/// - Error mapping reuses existing vote-flow error variants for consistent UX handling.
+fn parse_list_votes_result(
+    output: &Output,
+    pkgbase: &str,
+) -> Result<AurPackageVoteState, AurVoteError> {
+    let exit_code = output.status.code().unwrap_or(-1);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stderr_trimmed = stderr.trim();
+
+    if exit_code == 0 {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let is_voted = stdout.split_whitespace().any(|name| name == pkgbase);
+        return Ok(if is_voted {
+            AurPackageVoteState::Voted
+        } else {
+            AurPackageVoteState::NotVoted
+        });
+    }
+
+    if stderr_trimmed.contains("AUR is down due to maintenance") {
+        return Err(AurVoteError::Maintenance);
+    }
+    if stderr_trimmed.contains(LIST_VOTES_UNSUPPORTED_PATTERN) {
+        return Err(AurVoteError::Unexpected(
+            "AUR SSH server does not support vote-state lookup.".to_string(),
+        ));
+    }
+    if stderr_trimmed.contains("SSH interface is disabled") {
+        return Err(AurVoteError::Banned);
+    }
+    if stderr_trimmed.contains("Connection timed out")
+        || stderr_trimmed.contains("Connection refused")
+    {
+        return Err(AurVoteError::Timeout(sanitize_stderr(stderr_trimmed)));
+    }
+    if stderr_trimmed.contains("Could not resolve hostname")
+        || stderr_trimmed.contains("Network is unreachable")
+        || stderr_trimmed.contains("No route to host")
+    {
+        return Err(AurVoteError::NetworkError(sanitize_stderr(stderr_trimmed)));
+    }
+    if exit_code == SSH_ERROR_EXIT_CODE {
+        return Err(AurVoteError::AuthFailed(sanitize_stderr(stderr_trimmed)));
+    }
+
+    Err(AurVoteError::Unexpected(sanitize_stderr(stderr_trimmed)))
+}
+
 /// What: Sanitize SSH stderr output before including in user-facing errors.
 ///
 /// Inputs:
@@ -414,6 +490,70 @@ pub fn aur_vote(
     ctx: &AurVoteContext,
 ) -> Result<AurVoteOutcome, AurVoteError> {
     aur_vote_with_transport(&RealSshTransport, pkgbase, action, ctx)
+}
+
+/// What: Check whether the current AUR account has voted for a package base.
+///
+/// Inputs:
+/// - `pkgbase`: Target AUR package base name.
+/// - `ctx`: SSH execution context (timeout and SSH command).
+///
+/// Output:
+/// - `Ok(AurPackageVoteState)` on successful state retrieval.
+/// - `Err(AurVoteError)` for SSH/auth/network/maintenance and unexpected failures.
+///
+/// Details:
+/// - Uses `ssh aur@aur.archlinux.org list-votes` and checks membership client-side.
+/// - This is read-only and does not mutate vote state.
+///
+/// # Errors
+///
+/// Returns `AurVoteError` when SSH command execution fails, authentication is
+/// invalid, network connectivity fails, AUR is in maintenance mode, the caller
+/// IP is blocked, or upstream output cannot be mapped.
+pub fn aur_vote_state(
+    pkgbase: &str,
+    ctx: &AurVoteContext,
+) -> Result<AurPackageVoteState, AurVoteError> {
+    let timeout_arg = format!("ConnectTimeout={}", ctx.ssh_timeout_secs);
+    let output = Command::new(&ctx.ssh_command)
+        .args([
+            "-o",
+            &timeout_arg,
+            "-o",
+            "BatchMode=yes",
+            AUR_SSH_HOST,
+            "list-votes",
+        ])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .map_err(|e| match e.kind() {
+            std::io::ErrorKind::NotFound => AurVoteError::SshNotFound(ctx.ssh_command.clone()),
+            _ => AurVoteError::NetworkError(e.to_string()),
+        })?;
+
+    parse_list_votes_result(&output, pkgbase)
+}
+
+/// What: Determine whether a vote-state error indicates unsupported upstream command.
+///
+/// Inputs:
+/// - `error`: Typed vote error returned by `aur_vote_state`.
+///
+/// Output:
+/// - `true` if the upstream SSH endpoint rejected `list-votes` as invalid.
+///
+/// Details:
+/// - Used by UI event-loop mapping to degrade gracefully to `Unknown` instead of
+///   showing persistent inline errors for unsupported read-only lookups.
+#[must_use]
+pub fn is_vote_state_unsupported_error(error: &AurVoteError) -> bool {
+    match error {
+        AurVoteError::Unexpected(detail) => detail.contains("does not support vote-state lookup"),
+        _ => false,
+    }
 }
 
 /// What: Internal entry point parameterised on transport for testability.
@@ -742,5 +882,77 @@ mod tests {
         assert!(!ctx.dry_run);
         assert_eq!(ctx.ssh_timeout_secs, 10);
         assert_eq!(ctx.ssh_command, "ssh");
+    }
+
+    #[test]
+    fn test_parse_list_votes_result_voted() {
+        let output = Output {
+            status: ExitStatus::from_raw(0),
+            stdout: b"pacsea-bin\nyay-bin\n".to_vec(),
+            stderr: Vec::new(),
+        };
+        let state = parse_list_votes_result(&output, "pacsea-bin")
+            .expect("list-votes parsing should succeed");
+        assert_eq!(state, AurPackageVoteState::Voted);
+    }
+
+    #[test]
+    fn test_parse_list_votes_result_not_voted() {
+        let output = Output {
+            status: ExitStatus::from_raw(0),
+            stdout: b"yay-bin\nparu-bin\n".to_vec(),
+            stderr: Vec::new(),
+        };
+        let state = parse_list_votes_result(&output, "pacsea-bin")
+            .expect("list-votes parsing should succeed");
+        assert_eq!(state, AurPackageVoteState::NotVoted);
+    }
+
+    #[test]
+    fn test_parse_list_votes_result_auth_failed() {
+        let output = Output {
+            status: ExitStatus::from_raw(255 << 8),
+            stdout: Vec::new(),
+            stderr: b"Permission denied (publickey).".to_vec(),
+        };
+        let result = parse_list_votes_result(&output, "pacsea-bin");
+        match result {
+            Err(AurVoteError::AuthFailed(detail)) => {
+                assert!(detail.contains("Permission denied"));
+            }
+            other => panic!("expected AuthFailed, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_parse_list_votes_result_unsupported_command() {
+        let output = Output {
+            status: ExitStatus::from_raw(1 << 8),
+            stdout: Vec::new(),
+            stderr: b"list-votes: invalid command: list-votes".to_vec(),
+        };
+        let result = parse_list_votes_result(&output, "pacsea-bin");
+        match result {
+            Err(AurVoteError::Unexpected(detail)) => {
+                assert!(detail.contains("does not support vote-state lookup"));
+            }
+            other => panic!("expected Unexpected unsupported-command error, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_aur_vote_state_missing_ssh_binary_error() {
+        let ctx = AurVoteContext {
+            dry_run: false,
+            ssh_timeout_secs: 10,
+            ssh_command: "__pacsea_missing_ssh__".to_string(),
+        };
+        let result = aur_vote_state("pacsea-bin", &ctx);
+        match result {
+            Err(AurVoteError::SshNotFound(cmd)) => {
+                assert_eq!(cmd, "__pacsea_missing_ssh__");
+            }
+            other => panic!("expected SshNotFound, got {other:?}"),
+        }
     }
 }

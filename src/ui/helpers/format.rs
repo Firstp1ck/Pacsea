@@ -10,6 +10,33 @@ use ratatui::{
 
 use crate::{i18n, state::AppState, theme::Theme};
 
+/// What: Build the AUR vote-state display text for the selected package.
+///
+/// Inputs:
+/// - `app`: Application state containing selected result and vote-state cache.
+///
+/// Output:
+/// - `Some(String)` when selected package is AUR, otherwise `None`.
+///
+/// Details:
+/// - Maps `AurVoteStateUi` cache entries to short details-pane labels.
+fn selected_aur_vote_state_text(app: &AppState) -> Option<String> {
+    let selected = app.results.get(app.selected)?;
+    if !matches!(selected.source, crate::state::Source::Aur) {
+        return None;
+    }
+    let pkgbase = &selected.name;
+    Some(match app.aur_vote_state_by_pkgbase.get(pkgbase) {
+        Some(crate::state::app_state::AurVoteStateUi::Loading) => "Loading...".to_string(),
+        Some(crate::state::app_state::AurVoteStateUi::Voted) => "Voted".to_string(),
+        Some(crate::state::app_state::AurVoteStateUi::NotVoted) => "Not voted".to_string(),
+        Some(crate::state::app_state::AurVoteStateUi::Error(message)) => {
+            format!("Error ({message})")
+        }
+        _ => return None,
+    })
+}
+
 /// What: Format the current [`AppState::details`] into themed `ratatui` lines.
 ///
 /// Inputs:
@@ -163,11 +190,8 @@ pub fn format_details_lines(app: &AppState, _area_width: u16, th: &Theme) -> Vec
     )]));
 
     // Add a clickable helper line to Show/Hide Comments below PKGBUILD button (AUR packages only)
-    let is_aur = app
-        .results
-        .get(app.selected)
-        .is_some_and(|item| matches!(item.source, crate::state::Source::Aur));
-    if is_aur {
+    if let Some(vote_state_text) = selected_aur_vote_state_text(app) {
+        lines.push(kv("AUR vote state", vote_state_text, th));
         let comments_label = if app.comments_visible {
             i18n::t(app, "app.details.hide_comments")
         } else {

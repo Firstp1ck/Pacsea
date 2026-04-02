@@ -57,6 +57,7 @@ pub fn handle_search_results(
                 let _ = details_req_tx.send(item);
             }
         }
+        crate::events::utils::queue_selected_aur_vote_state_check(app);
         crate::logic::set_allowed_ring(app, 30);
         if !app.need_ring_prefetch {
             crate::logic::ring_prefetch_from_selected(app, details_req_tx);
@@ -124,6 +125,7 @@ pub fn handle_search_results(
             let _ = details_req_tx.send(item);
         }
     }
+    crate::events::utils::queue_selected_aur_vote_state_check(app);
     crate::logic::set_allowed_ring(app, 30);
     if app.need_ring_prefetch {
         /* defer */

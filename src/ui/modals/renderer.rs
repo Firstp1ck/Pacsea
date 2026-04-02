@@ -85,6 +85,33 @@ fn render_confirm_aur_update_modal(
     }
 }
 
+/// What: Render `ConfirmAurVote` modal and return reconstructed state.
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `app`: Application state
+/// - `area`: Full screen area
+/// - `ctx`: Context struct containing all `ConfirmAurVote` fields (taken by value)
+///
+/// Output:
+/// - Returns reconstructed `Modal::ConfirmAurVote` variant
+///
+/// Details:
+/// - Delegates to `confirm::render_confirm_aur_vote` and reconstructs the modal variant.
+fn render_confirm_aur_vote_modal(
+    f: &mut Frame,
+    app: &AppState,
+    area: Rect,
+    ctx: ConfirmAurVoteContext,
+) -> Modal {
+    confirm::render_confirm_aur_vote(f, app, area, ctx.action, &ctx.message);
+    Modal::ConfirmAurVote {
+        pkgbase: ctx.pkgbase,
+        action: ctx.action,
+        message: ctx.message,
+    }
+}
+
 /// What: Context struct grouping `PreflightExec` modal fields to reduce data flow complexity.
 ///
 /// Inputs: None (constructed from Modal variant).
@@ -263,6 +290,22 @@ struct ConfirmBatchUpdateContext {
 ///
 /// Details: Reduces individual field extractions and uses, lowering data flow complexity.
 struct ConfirmAurUpdateContext {
+    /// Confirmation message text to display to the user.
+    message: String,
+}
+
+/// What: Context struct grouping `ConfirmAurVote` modal fields to reduce data flow complexity.
+///
+/// Inputs: None (constructed from Modal variant).
+///
+/// Output: Groups related fields together for passing to render functions.
+///
+/// Details: Reduces individual field extractions and uses, lowering data flow complexity.
+struct ConfirmAurVoteContext {
+    /// AUR package base targeted by the pending action.
+    pkgbase: String,
+    /// Pending vote action awaiting confirmation.
+    action: crate::sources::VoteAction,
     /// Confirmation message text to display to the user.
     message: String,
 }
@@ -500,6 +543,18 @@ impl ModalRenderer for Modal {
             Self::ConfirmAurUpdate { message } => {
                 let ctx = ConfirmAurUpdateContext { message };
                 render_confirm_aur_update_modal(f, app, area, ctx)
+            }
+            Self::ConfirmAurVote {
+                pkgbase,
+                action,
+                message,
+            } => {
+                let ctx = ConfirmAurVoteContext {
+                    pkgbase,
+                    action,
+                    message,
+                };
+                render_confirm_aur_vote_modal(f, app, area, ctx)
             }
             Self::SystemUpdate {
                 do_mirrors,

@@ -264,7 +264,7 @@ impl Default for Settings {
             privilege_mode: crate::logic::privilege::PrivilegeMode::Auto, // Default to auto-detect (prefer doas, fallback sudo)
             auth_mode: crate::logic::privilege::AuthMode::Prompt, // Default to Pacsea password modal
             use_terminal_theme: false, // Default to using theme.conf colors
-            aur_vote_enabled: false,   // Disabled until user configures SSH key
+            aur_vote_enabled: true,    // Enabled by default; requires SSH key configured on AUR
             aur_vote_ssh_timeout_seconds: 10,
             aur_vote_ssh_command: "ssh".to_string(),
         }

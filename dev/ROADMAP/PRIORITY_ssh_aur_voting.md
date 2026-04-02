@@ -1,7 +1,7 @@
 # Roadmap: [FEATURE] Vote for AUR packages via SSH connection (#137)
 
 **Created:** 2026-04-02  
-**Status:** Phases 0, 1+2, 5 (config), 6 (unit tests) complete; ready for Phase 3  
+**Status:** Phases 0, 1+2, 3, 4 (action + confirmation flow), 5 complete; Phase 6 UI flow tests in progress  
 **Target:** `v0.9.0` (aligned with `dev/IMPROVEMENTS/FEATURE_PRIORITY.md`)  
 **Scope:** In-app AUR package voting with secure SSH authentication, actionable errors, and strict dry-run behavior
 
@@ -50,29 +50,36 @@
     - [x] stderr from SSH is captured but sanitized before user display
   - [x] **Done:** module wired via `src/sources/mod.rs`, all types exported, all quality gates pass
 
-- [ ] **Phase 3: Runtime worker integration (async + UI-safe)**
-  - [ ] Add a runtime request/response path for vote execution (pattern-match existing workers)
-  - [ ] Ensure vote execution never blocks the TUI render loop
-  - [ ] Ensure result is returned to UI layer as:
-    - [ ] toast for success
-    - [ ] alert/modal for actionable failures (as appropriate)
-  - [ ] Ensure `dry_run` wiring uses the app’s `app.dry_run` field (no duplicated flags)
-  - [ ] **Done when:** the app can execute a vote in the background and surface a result message reliably
+- [x] **Phase 3: Runtime worker integration (async + UI-safe)** -- COMPLETED 2026-04-02
+  - [x] Add a runtime request/response path for vote execution (pattern-match existing workers)
+  - [x] Ensure vote execution never blocks the TUI render loop
+  - [x] Ensure result is returned to UI layer as:
+    - [x] toast for success
+    - [x] alert/modal for actionable failures (as appropriate)
+  - [x] Ensure `dry_run` wiring uses the app’s `app.dry_run` field (no duplicated flags)
+  - [x] **Done when:** the app can execute a vote in the background and surface a result message reliably
 
-- [ ] **Phase 4: TUI action + confirmation flow**
-  - [ ] Decide interaction surface:
-    - [ ] keybind-only action
-  - [ ] Add UI affordance for:
-    - [ ] Vote (add vote for package)
-    - [ ] Unvote (remove existing vote)
-  - [ ] Add confirm modal:
-    - [ ] shows pkg name + effect
-    - [ ] shows dry-run indicator when enabled
-    - [ ] requires explicit confirmation (no accidental voting)
-  - [ ] Guardrails:
-    - [ ] action only available for `Source::Aur`
-    - [ ] non-AUR selection yields clear “not available” message
-  - [ ] **Done when:** a user can trigger vote from the TUI for an AUR package and gets a confirm + completion message
+- [x] **Phase 4: TUI action + confirmation flow** -- COMPLETED 2026-04-02
+  - [x] **Phase 4.1: Live voted indicator (results + details)** -- COMPLETED 2026-04-02
+    - [x] Add source-level vote-state contract/check API (`aur_vote_state`)
+    - [x] Add runtime vote-state worker + request/response channels
+    - [x] Trigger non-blocking vote-state checks on AUR selection changes
+    - [x] Render vote-state indicator in both results row and details pane
+    - [x] Add tests for trigger/runtime/event-loop vote-state handling
+    - [x] Validate quality gates (`fmt`, `clippy -D warnings`, `check`, `test --test-threads=1`)
+  - [x] Decide interaction surface:
+    - [x] keybind-only action ("Ctrl + e" default vote, "Ctrl + Shift + e" default unvote)
+  - [x] Add UI affordance for:
+    - [x] Vote (add vote for package)
+    - [x] Unvote (remove existing vote)
+  - [x] Add confirm modal:
+    - [x] shows pkg name + effect
+    - [x] shows dry-run indicator when enabled
+    - [x] requires explicit confirmation (no accidental voting)
+  - [x] Guardrails:
+    - [x] action only available for `Source::Aur`
+    - [x] non-AUR selection yields clear “not available” message
+  - [x] **Done when:** a user can trigger vote from the TUI for an AUR package and gets a confirm + completion message
 
 - [x] **Phase 5: Settings/config keys (only after contract is final)** -- COMPLETED 2026-04-02
   - [x] Minimal config keys for SSH transport:
@@ -102,9 +109,9 @@
     - [x] redaction tests: no SSH key paths appear in user-facing error strings
     - [x] stderr truncation test: long output is bounded
     - [x] Display impls + context defaults
-  - [ ] UI flow tests (where feasible in current test harness):
-    - [ ] action unavailable for non-AUR packages
-    - [ ] confirm modal shows correct package/effect
+  - [ ] UI flow tests (where feasible in current test harness): -- PARTIAL 2026-04-02
+    - [x] action unavailable for non-AUR packages
+    - [x] confirm modal shows correct package/effect
   - [ ] Integration test (env-gated, not in CI by default):
     - [ ] only runs when env var is set + credentials present
     - [ ] verifies one real vote round-trip (or a non-mutating validation if contract supports it)
@@ -405,7 +412,7 @@ Examples:
 1. ~~Is AUR vote currently API-supported for non-browser clients?~~ **YES** -- SSH command interface: `ssh aur@aur.archlinux.org vote <pkgbase>`
 2. ~~If HTTP session is required, what is the safest credential bootstrap flow?~~ **N/A** -- SSH key auth, zero credential storage
 3. ~~Should Pacsea support only upvote initially?~~ **NO** -- both `vote` and `unvote` supported from day one via SSH
-4. ~~Should vote state be shown inline?~~ **Deferred** -- v0.9.0 uses toast confirmation; inline state is a follow-up
+4. ~~Should vote state be shown inline?~~ **Implemented as follow-up (Phase 4.1)** -- live vote-state indicator now shown in results + details
 
 ## 7) Minimal implementation order (recommended)
 

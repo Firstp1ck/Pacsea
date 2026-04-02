@@ -181,6 +181,52 @@ pub fn build_package_marker_item(
     }
 }
 
+/// What: Build optional inline vote-state spans for AUR package rows.
+///
+/// Inputs:
+/// - `package`: Package currently rendered in results list.
+/// - `app`: Application state containing vote-state cache.
+/// - `theme`: Theme colors.
+///
+/// Output:
+/// - Optional vector of spans to append when package is AUR.
+///
+/// Details:
+/// - Renders compact states: `Loading`, `Voted`, `Not voted`, `Error`.
+fn aur_vote_state_spans(
+    package: &PackageItem,
+    app: &AppState,
+    theme: &Theme,
+) -> Option<Vec<Span<'static>>> {
+    if !matches!(package.source, Source::Aur) {
+        return None;
+    }
+    let state = app
+        .aur_vote_state_by_pkgbase
+        .get(&package.name)
+        .unwrap_or(&crate::state::app_state::AurVoteStateUi::Unknown);
+    let (label, color, bold) = match state {
+        crate::state::app_state::AurVoteStateUi::Unknown => return None,
+        crate::state::app_state::AurVoteStateUi::Loading => {
+            ("[Vote: loading]", theme.overlay1, false)
+        }
+        crate::state::app_state::AurVoteStateUi::Voted => ("[Vote: voted]", theme.green, true),
+        crate::state::app_state::AurVoteStateUi::NotVoted => {
+            ("[Vote: not voted]", theme.overlay1, false)
+        }
+        crate::state::app_state::AurVoteStateUi::Error(_) => ("[Vote: error]", theme.red, true),
+    };
+    let style = if bold {
+        Style::default().fg(color).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(color)
+    };
+    Some(vec![
+        Span::raw("  "),
+        Span::styled(label.to_string(), style),
+    ])
+}
+
 /// What: Build a `ListItem` for a package in the results list.
 ///
 /// Inputs:
@@ -266,6 +312,9 @@ pub fn build_list_item(
                 .fg(theme.green)
                 .add_modifier(Modifier::BOLD),
         ));
+    }
+    if let Some(vote_spans) = aur_vote_state_spans(package, app, theme) {
+        segs.extend(vote_spans);
     }
 
     // Check if package is in any lists and apply markers if needed

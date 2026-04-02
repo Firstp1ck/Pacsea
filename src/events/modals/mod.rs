@@ -56,6 +56,7 @@ pub(super) fn handle_modal_key(
         Modal::ConfirmAurUpdate { .. } => {
             handlers::handle_confirm_aur_update_modal(ke, app, &modal)
         }
+        Modal::ConfirmAurVote { .. } => handlers::handle_confirm_aur_vote_modal(ke, app, &modal),
         Modal::Help => handlers::handle_help_modal(ke, app, modal),
         Modal::News { .. } => handlers::handle_news_modal(ke, app, modal),
         Modal::Announcement { .. } => handlers::handle_announcement_modal(ke, app, modal),

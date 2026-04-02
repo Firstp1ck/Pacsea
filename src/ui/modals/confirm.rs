@@ -320,6 +320,66 @@ pub fn render_confirm_aur_update(f: &mut Frame, app: &AppState, area: Rect, mess
     f.render_widget(paragraph, rect);
 }
 
+/// What: Render the confirmation modal for AUR vote/unvote actions.
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `app`: Application state
+/// - `area`: Full screen area used to center the modal
+/// - `action`: Pending vote action (`Vote` or `Unvote`)
+/// - `message`: Confirmation text including package/effect and dry-run hint
+///
+/// Output:
+/// - Draws the confirmation dialog requesting explicit user confirmation.
+///
+/// Details:
+/// - Uses distinct title/cue colors for vote vs unvote to avoid ambiguous prompts.
+#[allow(clippy::many_single_char_names)]
+pub fn render_confirm_aur_vote(
+    f: &mut Frame,
+    _app: &AppState,
+    area: Rect,
+    action: crate::sources::VoteAction,
+    message: &str,
+) {
+    let th = theme();
+    let w = area.width.saturating_sub(6).min(90);
+    let h = area.height.saturating_sub(6).min(20);
+    let x = area.x + (area.width.saturating_sub(w)) / 2;
+    let y = area.y + (area.height.saturating_sub(h)) / 2;
+    let rect = Rect {
+        x,
+        y,
+        width: w,
+        height: h,
+    };
+
+    f.render_widget(Clear, rect);
+
+    let lines: Vec<Line> = message
+        .lines()
+        .map(|line| Line::from(Span::styled(line, Style::default().fg(th.text))))
+        .collect();
+
+    let (title, accent) = match action {
+        crate::sources::VoteAction::Vote => ("Confirm AUR Vote", th.yellow),
+        crate::sources::VoteAction::Unvote => ("Confirm AUR Unvote", th.red),
+    };
+    let paragraph = Paragraph::new(lines).wrap(Wrap { trim: true }).block(
+        Block::default()
+            .title(Span::styled(
+                title,
+                Style::default().fg(accent).add_modifier(Modifier::BOLD),
+            ))
+            .borders(Borders::ALL)
+            .border_type(BorderType::Double)
+            .border_style(Style::default().fg(accent))
+            .style(Style::default().bg(th.mantle)),
+    );
+
+    f.render_widget(paragraph, rect);
+}
+
 /// What: Render the confirmation modal for reinstalling already installed packages.
 ///
 /// Inputs:
