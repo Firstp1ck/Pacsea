@@ -551,8 +551,8 @@ en-US:
           mkdir_failed: "Could not create the Pacsea config directory for repos.conf."
           create_failed: "Could not create repos.conf in your config directory."
           started: "Opening {} in your editor…"
-        setup_example_missing: "repos.conf example was not found in this build tree."
-        setup_example_started: "Opening repos.conf example in your editor…"
+        setup_example_started: "Opening {} in your editor…"
+        setup_example_write_failed: "Could not write the repos.conf example to your Pacsea config directory."
         refresh_key:
           unsupported_platform: "Key refresh is only available on Linux."
         footer_hint: "Enter: apply  •  o: edit repos.conf  •  r: refresh key  •  s: example  •  Nav  •  Esc/Q"

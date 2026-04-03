@@ -433,7 +433,8 @@ hu-HU:
           mouse: "Egér:"
           system_update_dialog: "Rendszerfrissítési párbeszédablak:"
           news_dialog: "Hírek párbeszédablak:"
-          repositories_modal: "Repositories modal (EN)" # TODO: translate to hungarian
+          # TODO: translate to hungarian
+          repositories_modal: "Repositories modal (EN)"
         mouse_lines:
           - "  • Listák (találatok/legutóbbi/telepítés) és PKGBUILD görgetése egérgörgővel"
           - "  • PKGBUILD be/ki: kattintson a „PKGBUILD megjelenítése” gombra a részleteknél"
@@ -441,14 +442,16 @@ hu-HU:
           - "  • Részletek webcímének megnyitása: Ctrl+Shift+Bal kattintás a webcímre"
           - "  • Találati címsor: kattintson a Rendezés/Beállítások/Panelek/Konfiguráció gombra a menük megnyitásához"
           - "  • Szűrők be/ki (AUR/core/extra/multilib/EOS/cachyos/Artix): kattintson a címkéjükre"
-          - "  • Custom repos.conf filters: click [Repos] v chip for overflow menu (EN)" # TODO: translate to hungarian
+          # TODO: translate to hungarian
+          - "  • Custom repos.conf filters: click [Repos] v chip for overflow menu (EN)"
           - "  • Arch Linux állapot (jobb felső): kattintson a status.archlinux.org megnyitásához"
         repositories_modal_lines:
-          - "  • Enter: apply plan (EN)" # TODO: translate to hungarian
-          - "  • o: open ~/.config/pacsea/repos.conf in editor (EN)" # TODO: translate to hungarian
-          - "  • r: refresh signing key for row (EN, Linux)" # TODO: translate to hungarian
-          - "  • s: open in-tree repos.conf example (EN)" # TODO: translate to hungarian
-          - "  • Navigate • Esc or q: close (EN)" # TODO: translate to hungarian
+          # TODO: translate to hungarian
+          - "  • Enter: apply plan (EN)" 
+          - "  • o: open ~/.config/pacsea/repos.conf in editor (EN)"
+          - "  • r: refresh signing key for row (EN, Linux)"
+          - "  • s: open in-tree repos.conf example (EN)"
+          - "  • Navigate • Esc or q: close (EN)"
         system_update_lines:
           - "  • Megnyitás: Beállítások → Rendszer frissítése"
           - "  • Fel/Le: mozgás • Szóköz: be/ki • Balra/Jobbra: országváltás • Enter: futtatás • Esc: bezárás"
@@ -550,25 +553,29 @@ hu-HU:
           not_trusted: "hiányzik"
           unknown: "ismeretlen"
         warnings_prefix: "pacman.conf:"
-        unsupported_platform: "Repositories modal is Linux-only (pacman) (EN)." # TODO: translate to hungarian
+        # TODO: translate to hungarian
+        unsupported_platform: "Repositories modal is Linux-only (pacman) (EN)." 
         open_config:
-          mkdir_failed: "Could not create config dir for repos.conf (EN)." # TODO: translate to hungarian
-          create_failed: "Could not create repos.conf (EN)." # TODO: translate to hungarian
-          started: "Opening {} in editor… (EN)" # TODO: translate to hungarian
-        setup_example_missing: "repos.conf example not found in tree (EN)." # TODO: translate to hungarian
-        setup_example_started: "Opening repos.conf example… (EN)" # TODO: translate to hungarian
+          # TODO: translate to hungarian
+          mkdir_failed: "Could not create config dir for repos.conf (EN)." 
+          create_failed: "Could not create repos.conf (EN)."
+          started: "Opening {} in editor… (EN)"
+        setup_example_started: "Opening {} in your editor… (EN)"
+        setup_example_write_failed: "Could not write repos.conf example to config directory (EN)."
         refresh_key:
-          unsupported_platform: "Key refresh Linux-only (EN)." # TODO: translate to hungarian
-        footer_hint: "Enter: apply • o: repos.conf • r: key • s: example • Nav • Esc/Q (EN)" # TODO: translate to hungarian
+          # TODO: translate to hungarian
+          unsupported_platform: "Key refresh Linux-only (EN)."
+        footer_hint: "Enter: apply • o: repos.conf • r: key • s: example • Nav • Esc/Q (EN)"
         apply:
-          fix_repos_conf: "Fix repos.conf errors before applying (EN)." # TODO: translate to hungarian
-          no_rows: "No repositories to apply. Add [[repo]] rows first (EN)." # TODO: translate to hungarian
-          no_selection: "No row selected (EN)." # TODO: translate to hungarian
-          no_config_path: "Could not resolve repos.conf path (EN)." # TODO: translate to hungarian
+          # TODO: translate to hungarian
+          fix_repos_conf: "Fix repos.conf errors before applying (EN)."
+          no_rows: "No repositories to apply. Add [[repo]] rows first (EN)."
+          no_selection: "No row selected (EN)."
+          no_config_path: "Could not resolve repos.conf path (EN)."
           read_failed: "Could not read (EN)"
           parse_failed: "repos.conf:"
-          empty_plan: "No apply steps were generated (EN)." # TODO: translate to hungarian
-          missing_commands: "No repository apply commands found (EN)." # TODO: translate to hungarian
+          empty_plan: "No apply steps were generated (EN)."
+          missing_commands: "No repository apply commands found (EN)."
       gnome_terminal_prompt:
         title: " Gnome Terminál telepítése "
         heading: "Gnome Terminál vagy Konzol ajánlott"

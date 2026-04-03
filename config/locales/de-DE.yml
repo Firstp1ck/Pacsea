@@ -551,8 +551,8 @@ de-DE:
           mkdir_failed: "Konfigurationsverzeichnis für repos.conf konnte nicht erstellt werden."
           create_failed: "repos.conf im Konfigurationsverzeichnis konnte nicht erstellt werden."
           started: "{} wird im Editor geöffnet…"
-        setup_example_missing: "repos.conf-Beispiel wurde im Build-Baum nicht gefunden."
-        setup_example_started: "repos.conf-Beispiel wird im Editor geöffnet…"
+        setup_example_started: "{} wird im Editor geöffnet…"
+        setup_example_write_failed: "Das repos.conf-Beispiel konnte nicht ins Pacsea-Konfigurationsverzeichnis geschrieben werden."
         refresh_key:
           unsupported_platform: "Schlüsselaktualisierung ist nur unter Linux verfügbar."
         footer_hint: "Enter: anwenden  •  o: repos.conf bearbeiten  •  r: Schlüssel  •  s: Beispiel  •  Nav  •  Esc/Q"

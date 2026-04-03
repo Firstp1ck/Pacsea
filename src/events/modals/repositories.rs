@@ -14,6 +14,20 @@ use crate::state::AppState;
 use crate::state::types::RepositoryModalRow;
 use crate::theme::{config_dir, resolve_repos_config_path};
 
+/// What: Shipped `repos.conf` example text embedded at compile time.
+///
+/// Inputs:
+/// - None.
+///
+/// Output:
+/// - Static string matching `config/examples/repos.conf.example` in the source tree.
+///
+/// Details:
+/// - Used so the Repositories modal can open a real file path on machines that do not have the
+///   repository checkout (for example AUR or distro packages).
+const REPOS_CONF_EXAMPLE_SHIPPED: &str =
+    include_str!("../../../config/examples/repos.conf.example");
+
 /// What: Height of the scroll viewport (data rows) for the Repositories modal.
 const REPOS_VIEWPORT_ROWS: usize = 12;
 
@@ -172,7 +186,7 @@ pub(super) fn open_user_repos_conf_in_editor(app: &mut AppState) {
     app.toast_expires_at = Some(Instant::now() + Duration::from_secs(3));
 }
 
-/// What: Open the in-tree `repos.conf` example in an editor for Setup guidance.
+/// What: Open the shipped `repos.conf` example in an editor for setup guidance.
 ///
 /// Inputs:
 /// - `app`: Application state for toasts / i18n.
@@ -181,13 +195,26 @@ pub(super) fn open_user_repos_conf_in_editor(app: &mut AppState) {
 /// - None.
 ///
 /// Details:
-/// - Path is fixed at compile time via `CARGO_MANIFEST_DIR`; installed copies may not ship the file.
+/// - Writes [`REPOS_CONF_EXAMPLE_SHIPPED`] to `config_dir()/repos.conf.example` so external editors
+///   receive a stable path (embedded content works for packaged installs, unlike
+///   `CARGO_MANIFEST_DIR` source paths). Overwrites that file on each open so the buffer matches
+///   the version shipped in the binary.
 pub(super) fn open_repos_conf_example_in_editor(app: &mut AppState) {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("config/examples/repos.conf.example");
-    if !path.is_file() {
+    let path = config_dir().join("repos.conf.example");
+    if let Some(parent) = path.parent()
+        && std::fs::create_dir_all(parent).is_err()
+    {
         app.toast_message = Some(crate::i18n::t(
             app,
-            "app.modals.repositories.setup_example_missing",
+            "app.modals.repositories.open_config.mkdir_failed",
+        ));
+        app.toast_expires_at = Some(Instant::now() + Duration::from_secs(4));
+        return;
+    }
+    if std::fs::write(&path, REPOS_CONF_EXAMPLE_SHIPPED).is_err() {
+        app.toast_message = Some(crate::i18n::t(
+            app,
+            "app.modals.repositories.setup_example_write_failed",
         ));
         app.toast_expires_at = Some(Instant::now() + Duration::from_secs(4));
         return;
@@ -204,9 +231,10 @@ pub(super) fn open_repos_conf_example_in_editor(app: &mut AppState) {
             crate::install::spawn_shell_commands_in_terminal(&cmds);
         });
     }
-    app.toast_message = Some(crate::i18n::t(
+    app.toast_message = Some(crate::i18n::t_fmt1(
         app,
         "app.modals.repositories.setup_example_started",
+        path.display().to_string(),
     ));
     app.toast_expires_at = Some(Instant::now() + Duration::from_secs(3));
 }
@@ -491,4 +519,31 @@ fn queue_repo_apply_execution(app: &mut AppState, cmds: Vec<String>) {
         cursor: 0,
         error: None,
     };
+}
+
+#[cfg(test)]
+mod repos_conf_example_embed_tests {
+    use super::REPOS_CONF_EXAMPLE_SHIPPED;
+
+    /// What: Assert the embedded repos example is non-empty and recognizable.
+    ///
+    /// Inputs:
+    /// - None.
+    ///
+    /// Output:
+    /// - None.
+    ///
+    /// Details:
+    /// - Guards against a broken `include_str!` path or an accidentally emptied example file.
+    #[test]
+    fn embedded_repos_example_is_non_empty() {
+        assert!(
+            REPOS_CONF_EXAMPLE_SHIPPED.len() > 20,
+            "embedded example should contain substantial content"
+        );
+        assert!(
+            REPOS_CONF_EXAMPLE_SHIPPED.contains("Pacsea"),
+            "embedded example should identify itself as Pacsea documentation"
+        );
+    }
 }

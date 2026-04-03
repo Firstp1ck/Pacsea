@@ -959,9 +959,11 @@ server = "https://x.test"
                 .iter()
                 .any(|s| s.contains("Skip appending") && s.contains("already active"))
         );
-        assert!(!b.commands.iter().any(|c| {
-            c.contains(">>") && c.contains("/etc/pacman.conf")
-        }));
+        assert!(
+            !b.commands
+                .iter()
+                .any(|c| { c.contains(">>") && c.contains("/etc/pacman.conf") })
+        );
     }
 
     #[test]
@@ -982,9 +984,11 @@ server = "https://x.test"
                 .iter()
                 .any(|s| s.contains("Append Pacsea Include"))
         );
-        assert!(b.commands.iter().any(|c| {
-            c.contains(">>") && c.contains("/etc/pacman.conf")
-        }));
+        assert!(
+            b.commands
+                .iter()
+                .any(|c| { c.contains(">>") && c.contains("/etc/pacman.conf") })
+        );
     }
 
     #[test]
@@ -1093,10 +1097,7 @@ server = "file:///etc/shadow"
         let file = ReposConfFile { repo };
         let err = build_repo_apply_bundle_with_tool(&file, "\n", "bad", PrivilegeTool::Sudo)
             .expect_err("err");
-        assert!(
-            err.contains("http://") && err.contains("https://"),
-            "{err}"
-        );
+        assert!(err.contains("http://") && err.contains("https://"), "{err}");
     }
 
     #[test]
@@ -1112,7 +1113,9 @@ server = "https://example.com/$repo/os/$arch"
         let b = build_repo_apply_bundle_with_tool(&file, "\n", "myrepo", PrivilegeTool::Sudo)
             .expect("bundle");
         assert!(
-            b.commands.iter().any(|c| c.contains(DEFAULT_DROPIN_SIG_LEVEL)),
+            b.commands
+                .iter()
+                .any(|c| c.contains(DEFAULT_DROPIN_SIG_LEVEL)),
             "expected drop-in write to use default sig level"
         );
     }

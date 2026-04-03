@@ -175,6 +175,9 @@ fn build_numbered_menu_lines(
 ///
 /// Output:
 /// - Vector of styled lines ready for rendering
+///
+/// Details:
+/// - Padding uses [`UnicodeWidthStr::width`] so row width matches terminal columns for non-ASCII labels.
 fn build_checkbox_menu_lines(
     opts: &[(String, bool)],
     menu_width: u16,
@@ -183,9 +186,11 @@ fn build_checkbox_menu_lines(
     let mut lines: Vec<Line> = Vec::new();
     for (text, enabled) in opts {
         let indicator = if *enabled { "✓ " } else { "  " };
+        let text_w = u16::try_from(text.width()).unwrap_or(u16::MAX);
+        let indicator_w = u16::try_from(indicator.width()).unwrap_or(u16::MAX);
         let pad = menu_width
-            .saturating_sub(u16::try_from(text.len()).unwrap_or(u16::MAX))
-            .saturating_sub(u16::try_from(indicator.len()).unwrap_or(u16::MAX));
+            .saturating_sub(text_w)
+            .saturating_sub(indicator_w);
         let padding = " ".repeat(pad as usize);
         lines.push(Line::from(vec![
             Span::styled(
@@ -502,7 +507,7 @@ fn render_artix_filter_menu(
 
     let widest = opts
         .iter()
-        .map(|(s, _)| u16::try_from(s.len()).map_or(u16::MAX, |x| x))
+        .map(|(s, _)| u16::try_from(s.width()).map_or(u16::MAX, |x| x))
         .max()
         .unwrap_or(0);
     let w = widest
@@ -676,7 +681,7 @@ fn render_custom_repos_filter_menu(
 
     let widest = opts
         .iter()
-        .map(|(s, _)| u16::try_from(s.len()).map_or(u16::MAX, |x| x))
+        .map(|(s, _)| u16::try_from(s.width()).map_or(u16::MAX, |x| x))
         .max()
         .unwrap_or(0);
     let w = widest
