@@ -6,6 +6,7 @@ mod import;
 mod install;
 mod optional_deps;
 mod password;
+mod repositories;
 mod restore;
 mod scan;
 mod system_update;
@@ -30,7 +31,7 @@ use crate::state::{AppState, Modal, PackageItem};
 ///
 /// Details:
 /// - Covers Alert, `PreflightExec`, `PostSummary`, `SystemUpdate`, `ConfirmInstall`/`Remove`, Help, News,
-///   `OptionalDeps`, `VirusTotalSetup`, `ScanConfig`, `ImportHelp`, and other lightweight modals.
+///   `OptionalDeps`, `Repositories`, `VirusTotalSetup`, `ScanConfig`, `ImportHelp`, and other lightweight modals.
 /// - Each branch performs modal-specific mutations (toggles, list navigation, spawning commands) and
 ///   is responsible for clearing or restoring `app.modal` when exiting.
 /// - When a modal should block further processing this function returns `true`, allowing callers to
@@ -62,6 +63,7 @@ pub(super) fn handle_modal_key(
         Modal::Announcement { .. } => handlers::handle_announcement_modal(ke, app, modal),
         Modal::Updates { .. } => handlers::handle_updates_modal(ke, app, modal),
         Modal::OptionalDeps { .. } => handlers::handle_optional_deps_modal(ke, app, modal),
+        Modal::Repositories { .. } => handlers::handle_repositories_modal(ke, app, modal),
         Modal::SshAurSetup { .. } => handlers::handle_ssh_setup_modal(ke, app, modal),
         Modal::ScanConfig { .. } => handlers::handle_scan_config_modal(ke, app, modal),
         Modal::VirusTotalSetup { .. } => handlers::handle_virustotal_setup_modal(ke, app, modal),

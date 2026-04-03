@@ -50,6 +50,7 @@ strip-ansi-escapes = "0.2"
 lru = "0.16.3"
 ego-tree = "0.11.0"
 rand = "0.10.0"
+toml = "1.1.2"
 
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.31.2", features = ["poll", "fs"], default-features = false }

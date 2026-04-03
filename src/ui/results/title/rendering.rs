@@ -3,6 +3,7 @@ use ratatui::{
     text::Span,
 };
 
+use crate::state::AppState;
 use crate::theme::theme;
 
 use super::super::{FilterStates, MenuStates, OptionalRepos};
@@ -353,6 +354,41 @@ pub(super) fn render_manjaro_filter(
         spans.push(span);
     }
     spans
+}
+
+/// What: Render the `[Custom] v` chip when `repos.conf` defines dynamic filter ids.
+///
+/// Inputs:
+/// - `app`: Application state (reads `results_filter_dynamic` for on/off styling).
+/// - `chip_label`: Full chip text including `v` suffix, or `None` to skip.
+///
+/// Output:
+/// - Spans to append after built-in repo chips.
+///
+/// Details:
+/// - Uses the same active/inactive colors as other filter chips; “all on” uses the active palette.
+pub(super) fn render_custom_repos_dynamic_chip(
+    app: &AppState,
+    chip_label: Option<&str>,
+) -> Vec<Span<'static>> {
+    let Some(label) = chip_label else {
+        return Vec::new();
+    };
+    let th = theme();
+    let all_on = !app.results_filter_dynamic.is_empty()
+        && app.results_filter_dynamic.values().all(|visible| *visible);
+    let (fg, bg) = if all_on {
+        (th.crust, th.green)
+    } else {
+        (th.mauve, th.surface2)
+    };
+    vec![
+        Span::raw(" "),
+        Span::styled(
+            label.to_string(),
+            Style::default().fg(fg).bg(bg).add_modifier(Modifier::BOLD),
+        ),
+    ]
 }
 
 /// What: Render right-aligned buttons (Config/Lists, Panels, Options) or collapsed Menu button.

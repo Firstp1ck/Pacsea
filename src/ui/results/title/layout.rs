@@ -157,6 +157,7 @@ pub(super) fn calculate_title_layout_info(
     results_len: usize,
     inner_width: u16,
     optional_repos: &OptionalRepos,
+    custom_repos_chip_label: Option<String>,
 ) -> TitleLayoutInfo {
     let results_title_text = format!("{} ({})", i18n.results_title, results_len);
     let sort_button_label = format!("{} v", i18n.sort_button);
@@ -189,7 +190,12 @@ pub(super) fn calculate_title_layout_info(
     let base_consumed =
         calculate_base_consumed_space(&results_title_text, &sort_button_label, &core_labels);
     let optional_consumed = calculate_optional_repos_width(optional_repos, &optional_labels);
-    let consumed_left = base_consumed.saturating_add(optional_consumed);
+    let custom_extra = custom_repos_chip_label.as_ref().map_or(0u16, |s| {
+        1u16.saturating_add(u16::try_from(s.width()).unwrap_or(u16::MAX))
+    });
+    let consumed_left = base_consumed
+        .saturating_add(optional_consumed)
+        .saturating_add(custom_extra);
 
     // Use Unicode display width, not byte length, to handle wide characters
     let options_w = u16::try_from(options_button_label.width()).unwrap_or(u16::MAX);
@@ -284,5 +290,6 @@ pub(super) fn calculate_title_layout_info(
         pad,
         use_collapsed_menu,
         menu_pad,
+        custom_repos_chip_label,
     }
 }

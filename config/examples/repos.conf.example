@@ -1,0 +1,47 @@
+# Pacsea — example third-party repository definitions (TOML)
+#
+# This file is not loaded automatically. Copy entries into your active repos.conf:
+#   ~/.config/pacsea/repos.conf   (or via Config/Lists → Repositories in the TUI)
+#
+# Verify mirrors, keys, and signing instructions against each upstream’s current docs
+# before enabling; upstreams change mirrors and key procedures over time.
+#
+# Repositories modal — Apply (Enter): writes a managed drop-in for every enabled [[repo]]
+# with server = "...", mirrorlist = "/path", or mirrorlist_url = "https://..." (curl fetch).
+# Optional key_id (≥8 hex) → pacman-key recv/lsign; key_server → --keyserver on recv.
+# Final step: pacman -Sy --noconfirm. Rows need name, results_filter, and an apply source.
+
+# --- Example: Chaotic-AUR-style row (verify against https://aur.chaotic.cx/) ---
+# [[repo]]
+# id = "chaotic-aur"
+# name = "chaotic-aur"
+# results_filter = "chaotic_aur"
+# server = "https://cdn-mirror.chaotic.cx/$repo/$arch"
+# sig_level = "Required DatabaseOptional"
+# key_id = "3056513887B78AEB"
+# key_server = "keyserver.ubuntu.com"
+
+# --- Example: EndeavourOS extra repo (pick a mirror from their docs) ---
+# [[repo]]
+# id = "endeavouros"
+# name = "endeavouros"
+# results_filter = "endeavouros"
+# server = "https://mirror.alpix.eu/endeavouros/$repo/$arch"
+# sig_level = "Required DatabaseOptional"
+# # key fields: follow EndeavourOS signing docs if required for your setup
+
+# Minimal custom mirror (placeholders only):
+# [[repo]]
+# id = "vendor"
+# name = "myrepo"
+# results_filter = "vendor_pkgs"
+# server = "https://example.com/$repo/$arch"
+# sig_level = "Required DatabaseOptional"
+# key_id = "YOURKEYID"
+# key_server = "keyserver.ubuntu.com"
+#
+# Mirrorlist from URL (needs curl installed):
+# # [[repo]]
+# # name = "core-mirrorlist"
+# # results_filter = "vendor_pkgs"
+# # mirrorlist_url = "https://geo.mirror.pkgbuild.com/mirrors.txt"

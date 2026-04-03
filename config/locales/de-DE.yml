@@ -295,6 +295,9 @@ de-DE:
         artix_galaxy: "GALAXY"
         artix_world: "WORLD"
         artix_system: "SYSTEM"
+        custom_repos: "Repos"
+        custom_repos_all: "Alle benutzerdefinierten"
+        custom_repos_menu_title: "Benutzerdefinierte Repo-Filter"
         blackarch: "BlackArch"
         manjaro: "Manjaro"
       sort_menu:
@@ -308,6 +311,7 @@ de-DE:
           settings: "Einstellungen -> settings.conf"
           theme: "Theme -> theme.conf"
           keybindings: "Tastenkombinationen -> keybinds.conf"
+          repos: "Repositories -> repos.conf"
       panels_menu:
         show_recent: "Kürzlich anzeigen"
         hide_recent: "Kürzlich verbergen"
@@ -329,6 +333,7 @@ de-DE:
         news_age_days: "News-Alter: {} Tage"
         news_age_all: "News-Alter: unbegrenzt"
         tui_optional_deps: "TUI Optionale Abhängigkeiten"
+        repositories: "Paketquellen"
     news:
       filters:
         arch: "Arch"
@@ -361,6 +366,7 @@ de-DE:
         heading_update: "Administrative Rechte erforderlich, um das System zu aktualisieren"
         heading_downgrade: "Administrative Rechte erforderlich, um Pakete zu downgraden"
         heading_file_sync: "Administrative Rechte erforderlich, um die Dateidatenbank zu synchronisieren"
+        heading_repo_apply: "Administrative Rechte erforderlich, um die Paketquellen-Konfiguration anzuwenden"
         package_label_singular: "Paket:"
         package_label_plural: "Pakete:"
         password_label: "Geben Sie Ihr sudo-Passwort ein:"
@@ -423,6 +429,7 @@ de-DE:
           mouse: "Maus:"
           system_update_dialog: "System-Update-Dialog:"
           news_dialog: "Neuigkeiten-Dialog:"
+          repositories_modal: "Paketquellen-Dialog:"
         mouse_lines:
           - "  • Listen (Ergebnisse/Kürzlich/Installieren) und PKGBUILD mit Mausrad scrollen"
           - "  • PKGBUILD umschalten: 'PKGBUILD anzeigen' in Details klicken"
@@ -430,7 +437,14 @@ de-DE:
           - "  • Details-URL öffnen: Strg+Umschalt+Linksklick auf die URL"
           - "  • Ergebnisse-Titelleiste: Sortieren/Optionen/Panels/Konfiguration klicken, um Menüs zu öffnen"
           - "  • Filter umschalten (AUR/core/extra/multilib/EOS/cachyos/Artix): ihre Beschriftungen klicken"
+          - "  • Benutzerdefinierte repos.conf-Filter: [Repos] v klicken für das Überlauf-Menü"
           - "  • Arch-Status (oben rechts): klicken, um status.archlinux.org zu öffnen"
+        repositories_modal_lines:
+          - "  • Enter: Plan anwenden (curl/Schlüssel/Drop-in/Sync)"
+          - "  • o: ~/.config/pacsea/repos.conf im Editor öffnen"
+          - "  • r: Signaturschlüssel der markierten Zeile aktualisieren (pacman-key recv + lsign; Linux)"
+          - "  • s: eingebautes repos.conf-Beispiel für Einrichtungshinweise öffnen"
+          - "  • Hoch/Runter/j/k, Bild↑/Bild↓, Pos1/Ende: navigieren  •  Esc oder q: schließen"
         system_update_lines:
           - "  • Öffnen über Optionen → System aktualisieren"
           - "  • Hoch/Runter: bewegen • Leertaste: umschalten • Links/Rechts: Land ändern • Enter: ausführen • Esc: schließen"
@@ -512,6 +526,45 @@ de-DE:
           installed: "✔ installiert"
           not_installed: "⏺ nicht installiert"
         footer_hint: "Hoch/Runter: auswählen  •  Enter: installieren  •  Esc: schließen"
+      repositories:
+        title: " Paketquellen "
+        heading: "Konfigurierte Paketquellen"
+        parse_error: "repos.conf:"
+        empty: "Keine [[repo]]-Einträge in repos.conf. Über das Konfigurationsmenü ergänzen oder config/examples/repos.conf.example aus dem Pacsea-Repo kopieren."
+        col:
+          repo: "Repo"
+          filter: "Filter"
+          pacman: "Pacman"
+          key: "Signaturschlüssel"
+        pacman:
+          absent: "fehlt"
+          active: "aktiv"
+          commented: "auskommentiert"
+        key:
+          na: "—"
+          trusted: "vertraut"
+          not_trusted: "fehlt"
+          unknown: "unbekannt"
+        warnings_prefix: "pacman.conf:"
+        unsupported_platform: "Der Paketquellen-Dialog wird nur unter Linux (pacman) unterstützt."
+        open_config:
+          mkdir_failed: "Konfigurationsverzeichnis für repos.conf konnte nicht erstellt werden."
+          create_failed: "repos.conf im Konfigurationsverzeichnis konnte nicht erstellt werden."
+          started: "{} wird im Editor geöffnet…"
+        setup_example_missing: "repos.conf-Beispiel wurde im Build-Baum nicht gefunden."
+        setup_example_started: "repos.conf-Beispiel wird im Editor geöffnet…"
+        refresh_key:
+          unsupported_platform: "Schlüsselaktualisierung ist nur unter Linux verfügbar."
+        footer_hint: "Enter: anwenden  •  o: repos.conf bearbeiten  •  r: Schlüssel  •  s: Beispiel  •  Nav  •  Esc/Q"
+        apply:
+          fix_repos_conf: "Beheben Sie zuerst die repos.conf-Fehler (siehe Meldung oben)."
+          no_rows: "Keine Paketquellen zum Anwenden. Zuerst [[repo]]-Zeilen in repos.conf ergänzen."
+          no_selection: "Keine Zeile ausgewählt."
+          no_config_path: "Pfad zu repos.conf konnte nicht ermittelt werden."
+          read_failed: "Konnte nicht lesen:"
+          parse_failed: "repos.conf:"
+          empty_plan: "Keine Anwendungsschritte erzeugt."
+          missing_commands: "Keine Anwenden-Befehle gefunden."
       gnome_terminal_prompt:
         title: " GNOME-Terminal installieren "
         heading: "GNOME Terminal oder Console empfohlen"

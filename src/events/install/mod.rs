@@ -457,7 +457,9 @@ fn handle_enter_key(app: &mut AppState) {
     // These modals use spawn_shell_commands_in_terminal which bypasses preflight
     let skip_preflight_for_modals = matches!(
         app.modal,
-        crate::state::Modal::SystemUpdate { .. } | crate::state::Modal::OptionalDeps { .. }
+        crate::state::Modal::SystemUpdate { .. }
+            | crate::state::Modal::OptionalDeps { .. }
+            | crate::state::Modal::Repositories { .. }
     );
     let skip = crate::theme::settings().skip_preflight || skip_preflight_for_modals;
     if !app.installed_only_mode && !app.install_list.is_empty() {

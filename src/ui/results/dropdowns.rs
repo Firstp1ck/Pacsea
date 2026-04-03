@@ -266,6 +266,7 @@ fn render_config_menu(
         i18n::t(app, "app.results.config_menu.options.settings"),
         i18n::t(app, "app.results.config_menu.options.theme"),
         i18n::t(app, "app.results.config_menu.options.keybindings"),
+        i18n::t(app, "app.results.config_menu.options.repos"),
     ];
 
     let widest = opts
@@ -408,6 +409,7 @@ fn render_options_menu(
     }
     opts.push(i18n::t(app, "app.results.options_menu.update_system"));
     opts.push(i18n::t(app, "app.results.options_menu.tui_optional_deps"));
+    opts.push(i18n::t(app, "app.results.options_menu.repositories"));
     opts.push(mode_toggle_label);
     let widest = opts
         .iter()
@@ -633,5 +635,76 @@ pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
     render_panels_menu(f, app, results_area, th);
     render_options_menu(f, app, results_area, th);
     render_artix_filter_menu(f, app, results_area, th);
+    render_custom_repos_filter_menu(f, app, results_area, th);
     render_collapsed_menu(f, app, results_area, th);
+}
+
+/// What: Render checkbox dropdown for `repos.conf` dynamic `results_filter` ids.
+///
+/// Inputs:
+/// - `f`: Frame to render into.
+/// - `app`: Application state (menu open flag, dynamic map, button rect).
+/// - `results_area`: Results pane area for clamping.
+/// - `th`: Theme colors.
+///
+/// Output:
+/// - Updates `custom_repos_filter_menu_rect` when the menu is visible.
+///
+/// Details:
+/// - Row 0 toggles every dynamic id; following rows toggle one canonical id each. Uses the same
+///   overflow positioning helper as the Artix filter menu (`calculate_menu_rect`).
+fn render_custom_repos_filter_menu(
+    f: &mut Frame,
+    app: &mut AppState,
+    results_area: Rect,
+    th: crate::theme::Theme,
+) {
+    app.custom_repos_filter_menu_rect = None;
+    if !app.custom_repos_filter_menu_open || app.results_filter_dynamic.is_empty() {
+        return;
+    }
+
+    let mut keys: Vec<String> = app.results_filter_dynamic.keys().cloned().collect();
+    keys.sort();
+    let all_label = i18n::t(app, "app.results.filters.custom_repos_all");
+    let all_on = app.results_filter_dynamic.values().all(|v| *v);
+    let mut opts: Vec<(String, bool)> = vec![(all_label, all_on)];
+    for k in &keys {
+        let on = app.results_filter_dynamic.get(k).copied().unwrap_or(true);
+        opts.push((k.clone(), on));
+    }
+
+    let widest = opts
+        .iter()
+        .map(|(s, _)| u16::try_from(s.len()).map_or(u16::MAX, |x| x))
+        .max()
+        .unwrap_or(0);
+    let w = widest
+        .saturating_add(4)
+        .saturating_add(2)
+        .min(results_area.width.saturating_sub(2));
+    let h = u16::try_from(opts.len())
+        .unwrap_or(u16::MAX)
+        .saturating_add(2);
+    let (rect, inner_rect) =
+        calculate_menu_rect(app.results_filter_custom_repos_rect, w, h, results_area);
+    app.custom_repos_filter_menu_rect = Some(inner_rect);
+
+    let lines = build_checkbox_menu_lines(&opts, w, th);
+    let menu = Paragraph::new(lines)
+        .style(Style::default().fg(th.text).bg(th.base))
+        .wrap(Wrap { trim: true })
+        .block(
+            Block::default()
+                .style(Style::default().bg(th.base))
+                .title(Line::from(vec![Span::styled(
+                    i18n::t(app, "app.results.filters.custom_repos_menu_title"),
+                    Style::default().fg(th.overlay1),
+                )]))
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().fg(th.mauve)),
+        );
+    f.render_widget(Clear, rect);
+    f.render_widget(menu, rect);
 }

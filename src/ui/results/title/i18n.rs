@@ -34,5 +34,6 @@ pub(super) fn build_title_i18n_strings(app: &AppState) -> TitleI18nStrings {
         filter_artix_system: i18n::t(app, "app.results.filters.artix_system"),
         filter_blackarch: i18n::t(app, "app.results.filters.blackarch"),
         filter_manjaro: i18n::t(app, "app.results.filters.manjaro"),
+        filter_custom_repos: i18n::t(app, "app.results.filters.custom_repos"),
     }
 }

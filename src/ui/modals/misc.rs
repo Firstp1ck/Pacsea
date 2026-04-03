@@ -7,7 +7,10 @@ use ratatui::{
 };
 
 use super::common::render_simple_list_modal;
-use crate::state::{AppState, types::OptionalDepRow};
+use crate::state::{
+    AppState,
+    types::{OptionalDepRow, RepositoryKeyTrust, RepositoryModalRow, RepositoryPacmanStatus},
+};
 use crate::theme::theme;
 
 /// What: Render the optional dependencies modal with install status indicators.
@@ -91,6 +94,232 @@ pub fn render_optional_deps(
         &crate::i18n::t(app, "app.modals.optional_deps.title"),
         lines,
     );
+}
+
+/// What: Draw the read-only Repositories modal listing `repos.conf` vs pacman sections.
+///
+/// Inputs:
+/// - `frame`: Frame to render into.
+/// - `area`: Full-screen area for centering.
+/// - `rows`: Merged repository rows.
+/// - `selected` / `scroll`: List focus and window start.
+/// - `repos_conf_error` / `pacman_warnings`: Optional diagnostics.
+/// - `app`: For i18n lookup.
+///
+/// Output:
+/// - Renders a scrollable table-style list; does not mutate app state.
+///
+/// Details:
+/// - Uses a wider box than `render_simple_list_modal` to fit column hints.
+#[allow(clippy::too_many_arguments)]
+pub fn render_repositories(
+    frame: &mut Frame,
+    area: Rect,
+    rows: &[RepositoryModalRow],
+    selected: usize,
+    scroll: u16,
+    repos_conf_error: Option<&str>,
+    pacman_warnings: &[String],
+    app: &AppState,
+) {
+    const VIEWPORT: usize = 12;
+    let th = theme();
+    let box_w = area.width.saturating_sub(6).min(102);
+    let box_h = area.height.saturating_sub(6).min(28);
+    let box_x = area.x + (area.width.saturating_sub(box_w)) / 2;
+    let box_y = area.y + (area.height.saturating_sub(box_h)) / 2;
+    let rect = Rect {
+        x: box_x,
+        y: box_y,
+        width: box_w,
+        height: box_h,
+    };
+    frame.render_widget(Clear, rect);
+
+    let mut lines: Vec<Line<'static>> = Vec::new();
+    lines.push(Line::from(Span::styled(
+        crate::i18n::t(app, "app.modals.repositories.heading"),
+        Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+    )));
+    lines.push(Line::from(""));
+
+    if let Some(err) = repos_conf_error {
+        lines.push(Line::from(Span::styled(
+            format!(
+                "{} {err}",
+                crate::i18n::t(app, "app.modals.repositories.parse_error")
+            ),
+            Style::default().fg(th.red),
+        )));
+        lines.push(Line::from(""));
+    }
+
+    if rows.is_empty() && repos_conf_error.is_none() {
+        lines.push(Line::from(Span::styled(
+            crate::i18n::t(app, "app.modals.repositories.empty"),
+            Style::default().fg(th.subtext1),
+        )));
+        lines.push(Line::from(""));
+    }
+
+    let header_style = Style::default()
+        .fg(th.subtext0)
+        .add_modifier(Modifier::BOLD);
+    lines.push(Line::from(vec![
+        Span::styled(
+            format!(
+                "{:<22}",
+                crate::i18n::t(app, "app.modals.repositories.col.repo")
+            ),
+            header_style,
+        ),
+        Span::styled(
+            format!(
+                "{:<16}",
+                crate::i18n::t(app, "app.modals.repositories.col.filter")
+            ),
+            header_style,
+        ),
+        Span::styled(
+            format!(
+                "{:<12}",
+                crate::i18n::t(app, "app.modals.repositories.col.pacman")
+            ),
+            header_style,
+        ),
+        Span::styled(
+            crate::i18n::t(app, "app.modals.repositories.col.key"),
+            header_style,
+        ),
+    ]));
+    lines.push(Line::from(""));
+
+    let scroll_u = usize::from(scroll);
+    let start = scroll_u.min(rows.len());
+    let end = (start + VIEWPORT).min(rows.len());
+    for (rel_i, row) in rows[start..end].iter().enumerate() {
+        let i_global = start + rel_i;
+        let is_sel = selected == i_global;
+        let style = if is_sel {
+            Style::default()
+                .fg(th.crust)
+                .bg(th.lavender)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(th.text)
+        };
+        let pname = truncate_display(&row.pacman_section_name, 20);
+        let pfilter = truncate_display(&row.results_filter_display, 14);
+        let pst = pacman_status_label(app, row.pacman_status);
+        let pk = key_trust_label(app, row.key_trust);
+        let hint = row
+            .source_hint
+            .as_deref()
+            .map(|s| format!(" [{}]", truncate_display(s, 20)))
+            .unwrap_or_default();
+        lines.push(Line::from(vec![
+            Span::styled(format!("{pname:<22}"), style),
+            Span::styled(format!("{pfilter:<16}"), style),
+            Span::styled(format!("{pst:<12}"), style),
+            Span::styled(format!("{pk}{hint}"), style),
+        ]));
+    }
+
+    lines.push(Line::from(""));
+    if !pacman_warnings.is_empty() {
+        let wtext = pacman_warnings
+            .iter()
+            .take(3)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join(" | ");
+        lines.push(Line::from(Span::styled(
+            format!(
+                "{} {wtext}",
+                crate::i18n::t(app, "app.modals.repositories.warnings_prefix")
+            ),
+            Style::default().fg(th.yellow),
+        )));
+        lines.push(Line::from(""));
+    }
+    lines.push(Line::from(Span::styled(
+        crate::i18n::t(app, "app.modals.repositories.footer_hint"),
+        Style::default().fg(th.subtext1),
+    )));
+
+    let repo_paragraph = Paragraph::new(lines)
+        .style(Style::default().fg(th.text).bg(th.mantle))
+        .wrap(Wrap { trim: true })
+        .block(
+            Block::default()
+                .title(ratatui::text::Span::styled(
+                    format!(" {} ", crate::i18n::t(app, "app.modals.repositories.title")),
+                    Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+                ))
+                .borders(Borders::ALL)
+                .border_type(BorderType::Double)
+                .border_style(Style::default().fg(th.mauve))
+                .style(Style::default().bg(th.mantle)),
+        );
+    frame.render_widget(repo_paragraph, rect);
+}
+
+/// What: Clamp display string width with an ellipsis suffix.
+///
+/// Inputs:
+/// - `s`: Source text.
+/// - `max_chars`: Maximum character count before truncation.
+///
+/// Output:
+/// - Possibly shortened owned string.
+fn truncate_display(s: &str, max_chars: usize) -> String {
+    let count = s.chars().count();
+    if count <= max_chars {
+        return s.to_string();
+    }
+    let take = max_chars.saturating_sub(1);
+    s.chars().take(take).collect::<String>() + "…"
+}
+
+/// What: Localized label for pacman section presence.
+///
+/// Inputs:
+/// - `app`: For i18n.
+/// - `st`: Enumeration from the row model.
+///
+/// Output:
+/// - Short uppercase-ish token for the column.
+fn pacman_status_label(app: &AppState, st: RepositoryPacmanStatus) -> String {
+    match st {
+        RepositoryPacmanStatus::Absent => {
+            crate::i18n::t(app, "app.modals.repositories.pacman.absent")
+        }
+        RepositoryPacmanStatus::Active => {
+            crate::i18n::t(app, "app.modals.repositories.pacman.active")
+        }
+        RepositoryPacmanStatus::Commented => {
+            crate::i18n::t(app, "app.modals.repositories.pacman.commented")
+        }
+    }
+}
+
+/// What: Localized label for keyring trust column.
+///
+/// Inputs:
+/// - `app`: For i18n.
+/// - `kt`: Trust enum.
+///
+/// Output:
+/// - Compact column text.
+fn key_trust_label(app: &AppState, kt: RepositoryKeyTrust) -> String {
+    match kt {
+        RepositoryKeyTrust::NotApplicable => crate::i18n::t(app, "app.modals.repositories.key.na"),
+        RepositoryKeyTrust::Trusted => crate::i18n::t(app, "app.modals.repositories.key.trusted"),
+        RepositoryKeyTrust::NotTrusted => {
+            crate::i18n::t(app, "app.modals.repositories.key.not_trusted")
+        }
+        RepositoryKeyTrust::Unknown => crate::i18n::t(app, "app.modals.repositories.key.unknown"),
+    }
 }
 
 /// What: Render the guided AUR SSH setup modal.

@@ -11,6 +11,7 @@
 ///
 /// Details:
 /// - Normalizes repository names and applies special-handling for EOS/CachyOS/Artix/BlackArch classification helpers.
+/// - Repos listed in `repos.conf` use dynamic toggles (`results_filter_show_<canonical>` in `settings.conf`).
 /// - Unknown repositories are only allowed when every official filter is enabled simultaneously.
 #[must_use]
 pub fn repo_toggle_for(repo: &str, app: &crate::state::AppState) -> bool {
@@ -42,6 +43,11 @@ pub fn repo_toggle_for(repo: &str, app: &crate::state::AppState) -> bool {
         app.results_filter_show_artix
     } else if crate::index::is_blackarch_repo(&r) {
         app.results_filter_show_blackarch
+    } else if let Some(filter_key) = app.repo_results_filter_by_name.get(&r) {
+        app.results_filter_dynamic
+            .get(filter_key)
+            .copied()
+            .unwrap_or(true)
     } else {
         // Unknown official repo: include only when all official filters are enabled
         app.results_filter_show_core
@@ -107,6 +113,8 @@ pub fn label_for_official(repo: &str, name: &str, owner: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use super::*;
     use crate::state::AppState;
 
@@ -254,5 +262,30 @@ mod tests {
 
         app.results_filter_show_blackarch = false;
         assert!(!repo_toggle_for("unlisted", &app));
+    }
+
+    #[test]
+    /// What: Repos mapped via `repos.conf` respect `results_filter_dynamic`.
+    ///
+    /// Inputs:
+    /// - `app`: Custom repo name `myvendor` with canonical filter `vendor_pkgs` toggled off.
+    ///
+    /// Output:
+    /// - `repo_toggle_for("myvendor", ...)` is `false` when dynamic map disables the filter.
+    ///
+    /// Details:
+    /// - Builtin branches take precedence; this exercises the dynamic `repos.conf` path only.
+    fn repo_toggle_respects_repos_conf_dynamic_filter() {
+        let mut by_name = HashMap::new();
+        by_name.insert("myvendor".to_string(), "vendor_pkgs".to_string());
+        let mut dynamic = HashMap::new();
+        dynamic.insert("vendor_pkgs".to_string(), false);
+        let app = AppState {
+            repo_results_filter_by_name: by_name,
+            results_filter_dynamic: dynamic,
+            ..Default::default()
+        };
+        assert!(!repo_toggle_for("myvendor", &app));
+        assert!(!repo_toggle_for("MyVendor", &app));
     }
 }

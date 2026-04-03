@@ -85,6 +85,9 @@ pub fn render_password_prompt(
         PasswordPurpose::FileSync => {
             crate::i18n::t(app, "app.modals.password_prompt.heading_file_sync")
         }
+        PasswordPurpose::RepoApply => {
+            crate::i18n::t(app, "app.modals.password_prompt.heading_repo_apply")
+        }
     };
     lines.push(Line::from(Span::styled(
         heading,

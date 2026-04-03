@@ -18,14 +18,15 @@ use crate::theme::{reload_theme, settings};
 /// - `true` if menus were closed, `false` otherwise
 ///
 /// Details:
-/// - Closes sort, options, panels, config, and artix filter menus.
+/// - Closes sort, options, panels, config, and filter dropdown menus.
 #[allow(clippy::missing_const_for_fn)]
 fn close_all_dropdowns(app: &mut AppState) -> bool {
     let any_open = app.sort_menu_open
         || app.options_menu_open
         || app.panels_menu_open
         || app.config_menu_open
-        || app.artix_filter_menu_open;
+        || app.artix_filter_menu_open
+        || app.custom_repos_filter_menu_open;
     if any_open {
         app.sort_menu_open = false;
         app.sort_menu_auto_close_at = None;
@@ -33,6 +34,7 @@ fn close_all_dropdowns(app: &mut AppState) -> bool {
         app.panels_menu_open = false;
         app.config_menu_open = false;
         app.artix_filter_menu_open = false;
+        app.custom_repos_filter_menu_open = false;
         true
     } else {
         false
@@ -160,6 +162,28 @@ fn handle_options_optional_deps(app: &mut AppState) {
     app.pending_aur_ssh_help_check_result = Some(
         crate::logic::ssh_setup::spawn_aur_ssh_help_check(ssh_command),
     );
+}
+
+/// What: Open the read-only Repositories modal from the options menu.
+///
+/// Inputs:
+/// - `app`: Mutable application state.
+///
+/// Output:
+/// - None (sets `app.modal`).
+///
+/// Details:
+/// - Loads `repos.conf` from the resolved path and scans `/etc/pacman.conf` for section headers.
+fn handle_options_repositories(app: &mut AppState) {
+    let (rows, repos_conf_error, pacman_warnings) =
+        crate::logic::repos::build_repositories_modal_fields_default();
+    app.modal = crate::state::Modal::Repositories {
+        rows,
+        selected: 0,
+        scroll: 0,
+        repos_conf_error,
+        pacman_warnings,
+    };
 }
 
 /// What: Handle panels menu numeric selection.
@@ -330,6 +354,7 @@ fn handle_reload_config(
         errors.push(format!("Theme reload failed: {msg}"));
     }
 
+    crate::logic::repos::load_repos_config_into_app(app, crate::theme::resolve_repos_config_path());
     // Apply settings to app state
     let old_installed_mode = app.installed_packages_mode;
     apply_settings_to_app_state(app, &new_settings);
@@ -605,10 +630,10 @@ fn handle_change_sort(app: &mut AppState, details_tx: &mpsc::UnboundedSender<Pac
 /// - `Some(false)` if selection was handled, `None` otherwise
 ///
 /// Details:
-/// - Package mode display order: List installed (1), Update system (2), TUI Optional Deps (3), News management (4)
-/// - News mode display order: Update system (1), TUI Optional Deps (2), Package mode (3)
+/// - Package mode display order: List installed (1), Update system (2), TUI Optional Deps (3), Repositories (4), News management (5)
+/// - News mode display order: Update system (1), TUI Optional Deps (2), Repositories (3), Package mode (4)
 /// - Closes the options menu when a selection is handled.
-/// - Note: News age toggle (idx 3 in News mode) is not displayed in menu but handler remains for compatibility.
+/// - Note: News age toggle (idx 5 in News mode) is not displayed in menu but handler remains for compatibility.
 fn handle_options_menu_numeric(
     idx: usize,
     app: &mut AppState,
@@ -616,7 +641,7 @@ fn handle_options_menu_numeric(
 ) -> Option<bool> {
     let news_mode = matches!(app.app_mode, crate::state::types::AppMode::News);
     let handled = if news_mode {
-        // News mode display order: Update system (1), TUI Optional Deps (2), Package mode (3)
+        // News mode display order: Update system (1), TUI Optional Deps (2), Repositories (3), Package mode (4)
         match idx {
             0 => {
                 handle_options_system_update(app);
@@ -627,17 +652,21 @@ fn handle_options_menu_numeric(
                 true
             }
             2 => {
-                handle_mode_toggle(app, details_tx);
+                handle_options_repositories(app);
                 true
             }
             3 => {
+                handle_mode_toggle(app, details_tx);
+                true
+            }
+            4 => {
                 handle_news_age_toggle(app);
                 true
             }
             _ => false,
         }
     } else {
-        // Package mode display order: List installed (1), Update system (2), TUI Optional Deps (3), News management (4)
+        // Package mode display order: List installed (1), Update system (2), TUI Optional Deps (3), Repositories (4), News management (5)
         match idx {
             0 => {
                 handle_options_installed_only_toggle(app, details_tx);
@@ -652,6 +681,10 @@ fn handle_options_menu_numeric(
                 true
             }
             3 => {
+                handle_options_repositories(app);
+                true
+            }
+            4 => {
                 handle_mode_toggle(app, details_tx);
                 true
             }
@@ -831,7 +864,7 @@ fn handle_global_keybinds(
 /// What: Handle config menu numeric selection.
 ///
 /// Inputs:
-/// - `idx`: Selected menu index (0=settings, 1=theme, 2=keybinds)
+/// - `idx`: Selected menu index (0=settings, 1=theme, 2=keybinds, 3=repos.conf)
 /// - `app`: Mutable application state
 ///
 /// Details:
@@ -840,13 +873,16 @@ fn handle_config_menu_selection(idx: usize, app: &mut AppState) {
     let settings_path = crate::theme::config_dir().join("settings.conf");
     let theme_path = crate::theme::config_dir().join("theme.conf");
     let keybinds_path = crate::theme::config_dir().join("keybinds.conf");
+    let repos_path = crate::theme::config_dir().join("repos.conf");
     let target = match idx {
         0 => settings_path,
         1 => theme_path,
         2 => keybinds_path,
+        3 => repos_path,
         _ => {
             app.config_menu_open = false;
             app.artix_filter_menu_open = false;
+            app.custom_repos_filter_menu_open = false;
             return;
         }
     };
@@ -864,6 +900,7 @@ fn handle_config_menu_selection(idx: usize, app: &mut AppState) {
     }
     app.config_menu_open = false;
     app.artix_filter_menu_open = false;
+    app.custom_repos_filter_menu_open = false;
 }
 
 /// What: Handle global shortcuts plus dropdown menus and optionally stop propagation.

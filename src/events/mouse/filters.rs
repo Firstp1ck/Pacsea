@@ -134,11 +134,73 @@ fn handle_artix_main_filter_click(mx: u16, my: u16, app: &mut AppState) -> bool 
         return false;
     }
 
+    app.custom_repos_filter_menu_open = false;
     if has_hidden_artix_filters(app) {
         app.artix_filter_menu_open = !app.artix_filter_menu_open;
     } else {
         toggle_all_artix_filters(app);
     }
+    true
+}
+
+/// What: Toggle the custom `repos.conf` filter dropdown from the title chip.
+///
+/// Inputs:
+/// - `mx` / `my`: Mouse coordinates.
+/// - `app`: Application state.
+///
+/// Output:
+/// - `true` when the chip absorbed the click.
+///
+/// Details:
+/// - Closes the Artix filter menu so only one overflow menu is open at a time.
+fn handle_custom_repos_chip_click(mx: u16, my: u16, app: &mut AppState) -> bool {
+    if app.results_filter_dynamic.is_empty() {
+        return false;
+    }
+    if !is_point_in_rect(mx, my, app.results_filter_custom_repos_rect) {
+        return false;
+    }
+    app.artix_filter_menu_open = false;
+    app.custom_repos_filter_menu_open = !app.custom_repos_filter_menu_open;
+    true
+}
+
+/// What: Handle checkbox rows inside the custom dynamic filter dropdown.
+///
+/// Inputs:
+/// - `mx` / `my`: Mouse coordinates.
+/// - `app`: Application state.
+///
+/// Output:
+/// - `true` when a row toggle was applied.
+///
+/// Details:
+/// - Row 0 flips every dynamic id; other rows map to sorted canonical ids.
+fn handle_custom_repos_dropdown_click(mx: u16, my: u16, app: &mut AppState) -> bool {
+    if !app.custom_repos_filter_menu_open {
+        return false;
+    }
+    let Some((x, y, w, h)) = app.custom_repos_filter_menu_rect else {
+        return false;
+    };
+    if !is_point_in_rect(mx, my, Some((x, y, w, h))) {
+        return false;
+    }
+    let row = my.saturating_sub(y) as usize;
+    let mut keys: Vec<String> = app.results_filter_dynamic.keys().cloned().collect();
+    keys.sort();
+    if row == 0 {
+        let all_on = app.results_filter_dynamic.values().all(|v| *v);
+        crate::logic::repos::persist_dynamic_filters_set_all(app, !all_on);
+        return true;
+    }
+    let idx = row.saturating_sub(1);
+    let Some(id) = keys.get(idx) else {
+        return false;
+    };
+    let cur = app.results_filter_dynamic.get(id).copied().unwrap_or(true);
+    crate::logic::repos::persist_dynamic_filter_toggle_and_refresh(app, id, !cur);
     true
 }
 
@@ -307,8 +369,17 @@ pub(super) fn handle_filters_mouse(mx: u16, my: u16, app: &mut AppState) -> Opti
         return None;
     }
 
+    // Custom repos.conf filter dropdown (same layer as Artix overflow)
+    if handle_custom_repos_dropdown_click(mx, my, app) {
+        return Some(false);
+    }
+
     // Handle Artix dropdown menu first (higher priority)
     if handle_artix_dropdown_click(mx, my, app) {
+        return Some(false);
+    }
+
+    if handle_custom_repos_chip_click(mx, my, app) {
         return Some(false);
     }
 

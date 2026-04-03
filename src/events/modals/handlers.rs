@@ -700,6 +700,97 @@ pub(super) fn handle_optional_deps_modal(
     false
 }
 
+/// What: Handle key events for the read-only Repositories modal.
+///
+/// Inputs:
+/// - `ke`: Key event.
+/// - `app`: Mutable application state.
+/// - `modal`: `Repositories` modal variant.
+///
+/// Output:
+/// - `true` when Esc/q should stop propagation, as with other list modals.
+///
+/// Details:
+/// - Restores modal state after navigation unless the user closed it.
+pub(super) fn handle_repositories_modal(
+    ke: KeyEvent,
+    app: &mut AppState,
+    mut modal: Modal,
+) -> bool {
+    if let Modal::Repositories {
+        ref rows,
+        ref mut selected,
+        ref mut scroll,
+        ref repos_conf_error,
+        ref pacman_warnings,
+    } = modal
+    {
+        if matches!(ke.code, KeyCode::Enter | KeyCode::Char('\n' | '\r')) {
+            match super::repositories::enter_repo_apply(
+                app,
+                rows,
+                *selected,
+                repos_conf_error.as_deref(),
+            ) {
+                Ok(()) => return true,
+                Err(msg) => {
+                    app.modal = Modal::Alert { message: msg };
+                    return true;
+                }
+            }
+        }
+        if matches!(ke.code, KeyCode::Char('r' | 'R')) {
+            match super::repositories::enter_repo_key_refresh(
+                app,
+                rows,
+                *selected,
+                repos_conf_error.as_deref(),
+            ) {
+                Ok(()) => return true,
+                Err(msg) => {
+                    app.modal = Modal::Alert { message: msg };
+                    return true;
+                }
+            }
+        }
+        if matches!(ke.code, KeyCode::Char('s' | 'S')) {
+            super::repositories::open_repos_conf_example_in_editor(app);
+            return restore::restore_if_not_closed_with_option_result(
+                app,
+                &ke,
+                Some(false),
+                Modal::Repositories {
+                    rows: rows.clone(),
+                    selected: *selected,
+                    scroll: *scroll,
+                    repos_conf_error: repos_conf_error.clone(),
+                    pacman_warnings: pacman_warnings.clone(),
+                },
+            );
+        }
+        let should_stop = super::repositories::handle_repositories_modal_keys(
+            ke,
+            app,
+            rows.len(),
+            selected,
+            scroll,
+        );
+        return restore::restore_if_not_closed_with_option_result(
+            app,
+            &ke,
+            should_stop,
+            Modal::Repositories {
+                rows: rows.clone(),
+                selected: *selected,
+                scroll: *scroll,
+                repos_conf_error: repos_conf_error.clone(),
+                pacman_warnings: pacman_warnings.clone(),
+            },
+        );
+    }
+    false
+}
+
 /// What: Handle key events for `SshAurSetup` modal, including restoration logic.
 ///
 /// Inputs:
@@ -1040,6 +1131,8 @@ pub(super) fn handle_password_prompt_modal(
                             app.pending_executor_password = None;
                             app.pending_exec_header_chips = None;
                             app.pending_executor_request = None;
+                            app.pending_repo_apply_commands = None;
+                            app.pending_repo_apply_summary = None;
                             app.modal = crate::state::Modal::Alert {
                                 message: lockout_msg,
                             };
@@ -1232,6 +1325,38 @@ pub(super) fn handle_password_prompt_modal(
                 return true;
             }
 
+            if matches!(purpose, crate::state::modal::PasswordPurpose::RepoApply) {
+                if let Some(commands) = app.pending_repo_apply_commands.take() {
+                    match (&mut app.pending_executor_password, &password) {
+                        (Some(p), Some(pass)) => p.clone_from(pass),
+                        (None, Some(pass)) => app.pending_executor_password = Some(pass.clone()),
+                        (_, None) => app.pending_executor_password = None,
+                    }
+                    app.pending_exec_header_chips = Some(header_chips.clone());
+                    let log_lines = app.pending_repo_apply_summary.take().unwrap_or_default();
+                    app.modal = Modal::PreflightExec {
+                        items: Vec::new(),
+                        action: crate::state::PreflightAction::Install,
+                        tab: crate::state::PreflightTab::Summary,
+                        verbose: false,
+                        log_lines,
+                        abortable: false,
+                        header_chips,
+                        success: None,
+                    };
+                    app.pending_executor_request = Some(ExecutorRequest::Update {
+                        commands,
+                        password,
+                        dry_run: app.dry_run,
+                    });
+                    return true;
+                }
+                app.modal = Modal::Alert {
+                    message: crate::i18n::t(app, "app.modals.repositories.apply.missing_commands"),
+                };
+                return true;
+            }
+
             // For Install actions, use start_execution to check for reinstall scenarios
             // This ensures the reinstall confirmation modal is shown if needed
             if matches!(purpose, crate::state::modal::PasswordPurpose::Install) {
@@ -1249,9 +1374,10 @@ pub(super) fn handle_password_prompt_modal(
             // For Remove actions, proceed directly (no reinstall check needed)
             let action = match purpose {
                 crate::state::modal::PasswordPurpose::Install
-                | crate::state::modal::PasswordPurpose::Update => {
+                | crate::state::modal::PasswordPurpose::Update
+                | crate::state::modal::PasswordPurpose::RepoApply => {
                     // This should never be reached due to the check above
-                    unreachable!("Install/Update should be handled above")
+                    unreachable!("Install/Update/RepoApply should be handled above")
                 }
                 crate::state::modal::PasswordPurpose::Remove => {
                     crate::state::PreflightAction::Remove
@@ -1279,9 +1405,10 @@ pub(super) fn handle_password_prompt_modal(
             // Store executor request for remove
             app.pending_executor_request = Some(match purpose {
                 crate::state::modal::PasswordPurpose::Install
-                | crate::state::modal::PasswordPurpose::Update => {
+                | crate::state::modal::PasswordPurpose::Update
+                | crate::state::modal::PasswordPurpose::RepoApply => {
                     // This should never be reached due to the check above
-                    unreachable!("Install/Update should be handled above")
+                    unreachable!("Install/Update/RepoApply should be handled above")
                 }
                 crate::state::modal::PasswordPurpose::Remove => {
                     let names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
