@@ -174,16 +174,27 @@ fn handle_options_optional_deps(app: &mut AppState) {
 ///
 /// Details:
 /// - Loads `repos.conf` from the resolved path and scans `/etc/pacman.conf` for section headers.
+/// - On non-Linux targets, shows the same unsupported-platform alert as the mouse menu path.
 fn handle_options_repositories(app: &mut AppState) {
-    let (rows, repos_conf_error, pacman_warnings) =
-        crate::logic::repos::build_repositories_modal_fields_default();
-    app.modal = crate::state::Modal::Repositories {
-        rows,
-        selected: 0,
-        scroll: 0,
-        repos_conf_error,
-        pacman_warnings,
-    };
+    #[cfg(not(target_os = "linux"))]
+    {
+        app.modal = crate::state::Modal::Alert {
+            message: crate::i18n::t(app, "app.modals.repositories.unsupported_platform"),
+        };
+        return;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let (rows, repos_conf_error, pacman_warnings) =
+            crate::logic::repos::build_repositories_modal_fields_default();
+        app.modal = crate::state::Modal::Repositories {
+            rows,
+            selected: 0,
+            scroll: 0,
+            repos_conf_error,
+            pacman_warnings,
+        };
+    }
 }
 
 /// What: Handle panels menu numeric selection.

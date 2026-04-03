@@ -30,8 +30,8 @@ const REPOS_VIEWPORT_ROWS: usize = 12;
 /// - `Some(...)` when the key was handled; `None` otherwise.
 ///
 /// Details:
-/// - Enter triggers apply (see [`enter_repo_apply`]). `o` opens `repos.conf` like the Config menu.
-/// - PageUp/PageDown scroll the list.
+/// - Enter is handled in [`crate::events::modals::handlers::handle_repositories_modal`] via [`enter_repo_apply`].
+/// - `o` opens `repos.conf` like the Config menu; PageUp/PageDown scroll the list.
 pub(super) fn handle_repositories_modal_keys(
     ke: KeyEvent,
     app: &mut AppState,
@@ -80,7 +80,6 @@ pub(super) fn handle_repositories_modal_keys(
             end_scroll(scroll, row_count);
             Some(false)
         }
-        KeyCode::Enter | KeyCode::Char('\n' | '\r') => Some(false),
         _ => {
             if ke.modifiers.contains(KeyModifiers::CONTROL) && matches!(ke.code, KeyCode::Char('d'))
             {
@@ -447,12 +446,14 @@ fn queue_repo_apply_execution(app: &mut AppState, cmds: Vec<String>) {
             }
             Ok(false) => {
                 app.pending_repo_apply_summary = None;
+                app.pending_repo_apply_commands = None;
                 app.modal = crate::state::Modal::Alert {
                     message: crate::i18n::t(app, "app.errors.authentication_failed"),
                 };
             }
             Err(e) => {
                 app.pending_repo_apply_summary = None;
+                app.pending_repo_apply_commands = None;
                 app.modal = crate::state::Modal::Alert { message: e };
             }
         }

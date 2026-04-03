@@ -1070,6 +1070,21 @@ pub(super) fn handle_password_prompt_modal(
     } = modal
     {
         let submitted = super::password::handle_password_prompt(ke, app, input, cursor);
+        if !submitted && matches!(ke.code, KeyCode::Esc) {
+            match purpose {
+                crate::state::modal::PasswordPurpose::RepoApply => {
+                    app.pending_repo_apply_commands = None;
+                    app.pending_repo_apply_summary = None;
+                }
+                crate::state::modal::PasswordPurpose::Update => {
+                    app.pending_update_commands = None;
+                }
+                crate::state::modal::PasswordPurpose::Install
+                | crate::state::modal::PasswordPurpose::Remove
+                | crate::state::modal::PasswordPurpose::Downgrade
+                | crate::state::modal::PasswordPurpose::FileSync => {}
+            }
+        }
         if submitted {
             // Password submitted - validate before starting execution
             let password = if input.trim().is_empty() {

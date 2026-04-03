@@ -6,6 +6,29 @@
 
 ---
 
+## Implementation status (2026-04-03)
+
+The following review items were **implemented** on `feat/custom-repos`:
+
+| ID | Change |
+|----|--------|
+| **1.1** | `is_safe_abs_path`: added `!p.contains("..")` (`apply_plan.rs`). |
+| **1.2** | `append_managed_include_command`: `main_path` passed through `shell_single_quote` for the `>>` redirect (`apply_plan.rs`). |
+| **1.3** | Default drop-in `SigLevel` is `Required DatabaseOptional` via `DEFAULT_DROPIN_SIG_LEVEL` (`apply_plan.rs`). |
+| **2.1** | `mirror_url_dest_path`: replaced `DefaultHasher` with stable **FNV-1a** (`stable_fnv1a_u32`) (`apply_plan.rs`). |
+| **2.4** | Removed dead `Enter` arm from `handle_repositories_modal_keys`; Enter documented as handled in `handle_repositories_modal` (`repositories.rs`). |
+| **3.1** | `handle_options_repositories` uses the same `#[cfg(target_os = "linux")]` / unsupported-platform alert as the mouse path (`global.rs`). |
+| **3.2** | `pending_repo_apply_commands` cleared on interactive-auth `Ok(false)`/`Err`; **Esc** on password prompt clears `pending_repo_apply_commands` / `pending_repo_apply_summary` (repo apply) and `pending_update_commands` (system update) (`repositories.rs`, `handlers.rs`). |
+| **6.2** | `render_dropin_body`: non-empty `server` must pass `http://` / `https://` (same policy as `mirrorlist_url`) (`apply_plan.rs`). |
+
+**Tests added** in `apply_plan.rs`: `is_safe_abs_path_rejects_dotdot`, `server_must_use_http_or_https`, `dropin_command_contains_safe_default_sig_level`; include-append assertions adjusted for quoted `pacman.conf` paths.
+
+**PR notes:** `dev/PR/PR_feat_custom-repos.md` — reviewer note summarizing hardening.
+
+**Still open** (unchanged by this pass): **1.4**, **2.2**, **2.3**, **3.3**, **4.1**, **5.1–5.4**, **6.1**, **6.3**, **6.4**.
+
+---
+
 ## 1. Security Concerns
 
 ### 1.1 Path traversal in `is_safe_abs_path` is too permissive
@@ -23,7 +46,11 @@ fn is_safe_abs_path(p: &str) -> bool {
 }
 ```
 
+*(Pre-fix reference; current implementation adds `!p.contains("..")`.)*
+
 **Fix:** Add `&& !p.contains("..")` or validate resolved canonical path.
+
+**Status:** Fixed — `!p.contains("..")` added to `is_safe_abs_path`.
 
 ### 1.2 `append_managed_include_command` — main_path not shell-quoted in `>>`
 
@@ -32,12 +59,16 @@ fn is_safe_abs_path(p: &str) -> bool {
 
 In the `printf ... >> {main_path}` command, `main_path` is embedded unquoted in the shell string. While `is_safe_abs_path` restricts the character set, the path should still be `shell_single_quote`d for defense in depth, consistent with how other variable fragments are treated.
 
+**Status:** Fixed — redirect target uses `shell_single_quote(main_path)`.
+
 ### 1.3 `SigLevel = Optional TrustAll` default is insecure
 
 **File:** `src/logic/repos/apply_plan.rs` — `render_dropin_body`
 **Severity:** Medium
 
 When a `[[repo]]` row omits `sig_level`, the drop-in defaults to `SigLevel = Optional TrustAll`, which disables signature verification entirely. This silently trusts unsigned packages from third-party repos. A safer default would be `Required DatabaseOptional` (the standard for custom repos like Chaotic-AUR, EndeavourOS, etc.), or at minimum the user should be warned.
+
+**Status:** Fixed — omitted `sig_level` now writes `SigLevel = Required DatabaseOptional` (`DEFAULT_DROPIN_SIG_LEVEL`).
 
 ### 1.4 `CARGO_MANIFEST_DIR` baked into binary at compile time
 
@@ -49,6 +80,8 @@ let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("config/examples/repos
 ```
 
 This embeds the build machine's absolute path into the binary. For installed/packaged builds, this path will not exist. The fallback toast already handles this, but users on installed builds will always see "example not found" with no alternative.
+
+**Status:** Open.
 
 ---
 
@@ -63,12 +96,16 @@ The mirrorlist destination path includes a hash suffix from `DefaultHasher`. Rus
 
 **Fix:** Use a fixed hash algorithm (e.g., FNV, CRC32, or a simple custom hash).
 
+**Status:** Fixed — FNV-1a 32-bit hash over trimmed section name bytes (`stable_fnv1a_u32`).
+
 ### 2.2 Options menu index shift may break existing keybind muscle-memory
 
 **Files:** `src/events/global.rs`, `src/events/mouse/menus.rs`
 **Severity:** Low
 
 The "Repositories" entry is inserted at index 3 in package mode and index 2 in news mode, pushing "News management" / "Package mode" toggle down by one position. Users relying on numeric muscle memory for menu navigation will hit the wrong option.
+
+**Status:** Open (intentional UX tradeoff).
 
 ### 2.3 `scroll` field uses `u16` but `selected` uses `usize`
 
@@ -77,12 +114,16 @@ The "Repositories" entry is inserted at index 3 in package mode and index 2 in n
 
 Mixing `u16` for scroll and `usize` for selected creates friction throughout the codebase with frequent `u16::try_from()` / `.unwrap_or()` calls. For lists with >65535 repos this would break, though practically this is unlikely. It does add noise and potential for off-by-one bugs in the many conversion sites.
 
+**Status:** Open.
+
 ### 2.4 Enter key handled in two places for Repositories modal
 
-**Files:** `src/events/modals/handlers.rs` (line ~208), `src/events/modals/repositories.rs` (line ~468)
+**Files:** `src/events/modals/handlers.rs` (`handle_repositories_modal`), `src/events/modals/repositories.rs` (`handle_repositories_modal_keys`)
 **Severity:** Low
 
 `handle_repositories_modal` checks for Enter before delegating to `handle_repositories_modal_keys`, which also has its own `KeyCode::Enter` arm that returns `Some(false)`. The outer handler catches Enter first, so the inner match arm is dead code that could confuse future maintainers.
+
+**Status:** Fixed — redundant `Enter` arm removed from `handle_repositories_modal_keys`; rustdoc references outer handler.
 
 ---
 
@@ -95,6 +136,8 @@ Mixing `u16` for scroll and `usize` for selected creates friction throughout the
 
 The keyboard-triggered path (`handle_options_repositories` in `global.rs`) does NOT have the `#[cfg(target_os = "linux")]` / unsupported-platform guard that the mouse-triggered path (`handle_repositories_option` in `menus.rs`) has. On non-Linux platforms, this will attempt to scan `/etc/pacman.conf`, fail silently or show broken state.
 
+**Status:** Fixed — `handle_options_repositories` mirrors `handle_repositories_option` cfg/alert behavior.
+
 ### 3.2 `pending_repo_apply_commands` not cleared on all error paths
 
 **File:** `src/events/modals/repositories.rs` — `queue_repo_apply_execution`
@@ -102,12 +145,16 @@ The keyboard-triggered path (`handle_options_repositories` in `global.rs`) does 
 
 When the interactive auth handoff fails (`Ok(false)` or `Err`), `pending_repo_apply_summary` is cleared but `pending_repo_apply_commands` is not explicitly cleared (it was already moved into `cmds`). However, in the password prompt flow, if the user cancels the password dialog, `pending_repo_apply_commands` may linger in `AppState` until the next apply attempt. This is mostly harmless but could leak stale commands.
 
+**Status:** Fixed — explicit clear on interactive-auth failure paths; **Esc** on `PasswordPrompt` clears repo-apply pending fields and `pending_update_commands` when `purpose` is `Update`.
+
 ### 3.3 `PACSEA_TEST_OUT` env var short-circuits without privilege escalation
 
 **File:** `src/events/modals/repositories.rs` — `queue_repo_apply_execution`
 **Severity:** Low
 
 When `PACSEA_TEST_OUT` is set, repo apply commands are spawned directly in a terminal without any password/auth flow. If a user accidentally sets this env var in production, privileged commands would be executed without confirmation.
+
+**Status:** Open (test hook; no code change in this pass).
 
 ---
 
@@ -120,12 +167,16 @@ When `PACSEA_TEST_OUT` is set, repo apply commands are spawned directly in a ter
 
 The entire repositories modal section, custom repo filter labels, password prompt heading, and help modal lines are English with `# TODO: translate to hungarian` comments. Hungarian users will see mixed-language UI.
 
+**Status:** Open.
+
 ### 4.2 German locale has no missing translations
 
 **File:** `config/locales/de-DE.yml`
 **Severity:** None
 
 All new keys appear fully translated.
+
+**Status:** N/A (no issue).
 
 ---
 
@@ -138,12 +189,16 @@ All new keys appear fully translated.
 
 The `restore_if_not_closed_with_option_result` pattern clones the entire `Modal::Repositories` (including `Vec<RepositoryModalRow>` and `Vec<String>`) on every key press to restore it after the event handler. For large repo lists this creates unnecessary allocations.
 
+**Status:** Open.
+
 ### 5.2 Config menu width may not account for the new "Repositories" entry
 
 **File:** `src/ui/results/dropdowns.rs`
 **Severity:** Low
 
 The config menu calculates `widest` from option labels. The new "Repositories -> repos.conf" string is the longest entry and should be handled, but since `widest` is dynamically computed this works. However, the menu positioning may overflow on very narrow terminals since no max-width clamping is applied to the config menu (unlike options menu).
+
+**Status:** Open.
 
 ### 5.3 `toml` crate added as full dependency
 
@@ -152,12 +207,16 @@ The config menu calculates `widest` from option labels. The new "Repositories ->
 
 The `toml = "1.1.2"` dependency is added for parsing `repos.conf`. This pulls in `serde`, `toml_edit`, etc. The project already uses `serde` so the incremental cost is mainly `toml`/`toml_edit`, but worth noting for binary size consideration.
 
+**Status:** Open (informational).
+
 ### 5.4 Implementation plan committed to repo
 
 **File:** `dev/IMPROVEMENTS/IMPLEMENTATION_PLAN_custom_repos.md`
 **Severity:** Low
 
 A 275-line implementation plan is staged for commit. Depending on project conventions, design documents may not belong in the source tree. This is purely a project hygiene concern.
+
+**Status:** Open (hygiene / policy).
 
 ---
 
@@ -167,15 +226,21 @@ A 275-line implementation plan is staged for commit. Depending on project conven
 
 After the user edits `repos.conf` via the `o` shortcut and returns to the TUI, the Repositories modal still shows stale data. The user must close and reopen the modal to see changes.
 
+**Status:** Open.
+
 ### 6.2 No validation that `server` URLs use safe schemes
 
 **File:** `src/logic/repos/apply_plan.rs`
 
 While `mirrorlist_url` is validated for `http://`/`https://`, the `server` field is not validated at all. A malicious or malformed `server = "file:///etc/shadow"` would be written directly into the pacman drop-in. Pacman itself would likely reject it, but it still gets written to `/etc/pacman.d/pacsea-repos.conf`.
 
+**Status:** Fixed — `render_dropin_body` rejects non-HTTP(S) `server` values with an actionable error (unit test `server_must_use_http_or_https`).
+
 ### 6.3 No rollback mechanism if apply partially fails
 
 If the apply bundle's chained commands fail midway (e.g., key import succeeds but drop-in write fails), there is no rollback. The system is left in a partially-applied state. The summary lines hint at what was done, but there's no undo flow.
+
+**Status:** Open.
 
 ### 6.4 Filter dropdown sort order uses `String::sort` (lexicographic)
 
@@ -183,9 +248,13 @@ If the apply bundle's chained commands fail midway (e.g., key import succeeds bu
 
 Dynamic filter keys are sorted lexicographically. If users expect display order to match `repos.conf` file order, this could be confusing.
 
+**Status:** Open.
+
 ---
 
 ## Summary
+
+Original severity snapshot (before fixes):
 
 | Category | Critical | Medium | Low |
 |----------|----------|--------|-----|
@@ -196,8 +265,6 @@ Dynamic filter keys are sorted lexicographically. If users expect display order 
 | Architecture | 0 | 0 | 4 |
 | Missing features | 0 | 0 | 4 |
 
-**Highest priority fixes before merge:**
-1. Add `..` traversal check to `is_safe_abs_path`
-2. Add `#[cfg(target_os = "linux")]` guard to `handle_options_repositories` in `global.rs`
-3. Change default `SigLevel` from `Optional TrustAll` to `Required DatabaseOptional`
-4. Replace `DefaultHasher` with a stable hash for mirrorlist paths
+**Resolved from the former “highest priority” list:** items 1–4 (path `..`, Linux keyboard guard, `SigLevel` default, stable mirror path hash).
+
+**Remaining backlog (not addressed in implementation pass):** **1.4**, **2.2**, **2.3**, **3.3**, **4.1**, **5.1–5.4**, **6.1**, **6.3**, **6.4** — see per-section **Status** lines above.

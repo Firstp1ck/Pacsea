@@ -2,8 +2,6 @@
 //!
 //! Planning runs without mutating the system. Final command strings use [`crate::logic::privilege::build_privilege_command`].
 
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
 use std::path::Path;
 
 use crate::install::shell_single_quote;
@@ -22,6 +20,8 @@ pub const MANAGED_DROPIN_FILE: &str = "pacsea-repos.conf";
 pub const DEFAULT_DROPIN_PATH: &str = "/etc/pacman.d/pacsea-repos.conf";
 /// What: Default path to the main pacman configuration.
 pub const DEFAULT_MAIN_PACMAN_PATH: &str = "/etc/pacman.conf";
+/// What: Default `SigLevel` written to the managed drop-in when `sig_level` is omitted in `repos.conf`.
+pub const DEFAULT_DROPIN_SIG_LEVEL: &str = "Required DatabaseOptional";
 
 /// What: Human-readable summary lines plus shell commands for [`ExecutorRequest::Update`].
 ///
@@ -375,6 +375,7 @@ fn apply_eligible_rows(repos: &ReposConfFile) -> Vec<&RepoRow> {
 ///
 /// Details:
 /// - Non-HTTP `mirrorlist_url` values do not qualify alone (returns `false` when that is all there is).
+/// - A non-empty `server` is accepted here; [`render_dropin_body`] rejects values that are not HTTP(S) URLs.
 fn row_has_apply_source(r: &RepoRow) -> bool {
     if non_empty_trim(r.server.as_deref()) {
         return true;
@@ -626,11 +627,10 @@ fn privileged_curl_fetch_command(
 ///
 /// Details:
 /// - Slug is sanitized; a short hash suffix avoids collisions when names normalize alike.
+/// - Hash uses FNV-1a (32-bit) so filenames stay stable across Rust compiler versions (unlike `DefaultHasher`).
 fn mirror_url_dest_path(section: &str) -> Result<String, String> {
     let slug = sanitize_repo_slug(section)?;
-    let mut h = DefaultHasher::new();
-    section.trim().hash(&mut h);
-    let short = h.finish() & 0xffff_ffff;
+    let short = stable_fnv1a_u32(section.trim().as_bytes());
     let p = format!("/etc/pacman.d/pacsea-mirror-{slug}-{short:x}.list");
     if !is_safe_abs_path(&p) {
         return Err("Refusing unsafe mirrorlist destination path.".to_string());
@@ -686,8 +686,9 @@ fn sanitize_repo_slug(section: &str) -> Result<String, String> {
 /// - Full file text ending with a newline.
 ///
 /// Details:
-/// - Default `SigLevel` is `Optional TrustAll` when omitted.
+/// - Default `SigLevel` is [`DEFAULT_DROPIN_SIG_LEVEL`] when omitted.
 /// - `mirrorlist_url`-only rows emit `Include =` to the same path as [`mirror_url_dest_path`].
+/// - Non-empty `server` values must start with `http://` or `https://` (same policy as `mirrorlist_url` fetches).
 fn render_dropin_body(rows: &[&RepoRow]) -> Result<String, String> {
     let mut out = String::new();
     for r in rows {
@@ -700,19 +701,21 @@ fn render_dropin_body(rows: &[&RepoRow]) -> Result<String, String> {
         out.push('[');
         out.push_str(name);
         out.push_str("]\n");
-        if let Some(sl) = r
+        let sl_line = r
             .sig_level
             .as_deref()
             .map(str::trim)
             .filter(|s| !s.is_empty())
-        {
-            out.push_str("SigLevel = ");
-            out.push_str(sl);
-            out.push('\n');
-        } else {
-            out.push_str("SigLevel = Optional TrustAll\n");
-        }
+            .unwrap_or(DEFAULT_DROPIN_SIG_LEVEL);
+        out.push_str("SigLevel = ");
+        out.push_str(sl_line);
+        out.push('\n');
         if let Some(srv) = r.server.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+            if !looks_like_http_url(srv) {
+                return Err(format!(
+                    "repos.conf: server for [{name}] must start with http:// or https://"
+                ));
+            }
             out.push_str("Server = ");
             out.push_str(srv);
             out.push('\n');
@@ -803,7 +806,8 @@ fn append_managed_include_command(
     let b = shell_single_quote(PACMAN_MANAGED_BEGIN);
     let inc = shell_single_quote(&include_line);
     let e = shell_single_quote(PACMAN_MANAGED_END);
-    let inner = format!("printf '%s\\n' {b} {inc} {e} '' >> {main_path}");
+    let q_main = shell_single_quote(main_path);
+    let inner = format!("printf '%s\\n' {b} {inc} {e} '' >> {q_main}");
     Ok(build_privilege_command(
         tool,
         &format!("sh -c {}", shell_single_quote(&inner)),
@@ -820,10 +824,33 @@ fn append_managed_include_command(
 ///
 /// Details:
 /// - Allows alphanumeric, `/`, `-`, `.`, `_`.
+/// - Rejects `..` path segments so traversal like `/etc/pacman.d/../../tmp/x` cannot pass.
 fn is_safe_abs_path(p: &str) -> bool {
     p.starts_with('/')
+        && !p.contains("..")
         && p.chars()
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '-' | '.' | '_'))
+}
+
+/// What: 32-bit FNV-1a hash over bytes (stable across toolchains).
+///
+/// Inputs:
+/// - `data`: Bytes to hash (e.g. UTF-8 of a trimmed repo name).
+///
+/// Output:
+/// - Unsigned 32-bit digest.
+///
+/// Details:
+/// - Used for mirrorlist filenames so upgrades to a new `rustc` do not orphan on-disk paths.
+fn stable_fnv1a_u32(data: &[u8]) -> u32 {
+    const OFFSET_BASIS: u32 = 0x811c_9dc5;
+    const PRIME: u32 = 0x0100_0193;
+    let mut h = OFFSET_BASIS;
+    for &b in data {
+        h ^= u32::from(b);
+        h = h.wrapping_mul(PRIME);
+    }
+    h
 }
 
 /// What: Read main `pacman.conf` for planning (production convenience).
@@ -932,7 +959,9 @@ server = "https://x.test"
                 .iter()
                 .any(|s| s.contains("Skip appending") && s.contains("already active"))
         );
-        assert!(!b.commands.iter().any(|c| c.contains(">> /etc/pacman.conf")));
+        assert!(!b.commands.iter().any(|c| {
+            c.contains(">>") && c.contains("/etc/pacman.conf")
+        }));
     }
 
     #[test]
@@ -953,7 +982,9 @@ server = "https://x.test"
                 .iter()
                 .any(|s| s.contains("Append Pacsea Include"))
         );
-        assert!(b.commands.iter().any(|c| c.contains(">> /etc/pacman.conf")));
+        assert!(b.commands.iter().any(|c| {
+            c.contains(">>") && c.contains("/etc/pacman.conf")
+        }));
     }
 
     #[test]
@@ -1042,6 +1073,48 @@ key_server = "keyserver.ubuntu.com"
                 && c.contains("--keyserver")
                 && c.contains("keyserver.ubuntu.com")
         }));
+    }
+
+    #[test]
+    fn is_safe_abs_path_rejects_dotdot() {
+        assert!(!is_safe_abs_path("/etc/pacman.d/../../tmp/evil"));
+        assert!(is_safe_abs_path("/etc/pacman.d/pacsea-repos.conf"));
+    }
+
+    #[test]
+    fn server_must_use_http_or_https() {
+        let toml = r#"
+[[repo]]
+name = "bad"
+results_filter = "b"
+server = "file:///etc/shadow"
+"#;
+        let (repo, _) = load_resolve_repos_from_str(toml).expect("parse");
+        let file = ReposConfFile { repo };
+        let err = build_repo_apply_bundle_with_tool(&file, "\n", "bad", PrivilegeTool::Sudo)
+            .expect_err("err");
+        assert!(
+            err.contains("http://") && err.contains("https://"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn dropin_command_contains_safe_default_sig_level() {
+        let toml = r#"
+[[repo]]
+name = "myrepo"
+results_filter = "mine"
+server = "https://example.com/$repo/os/$arch"
+"#;
+        let (repo, _) = load_resolve_repos_from_str(toml).expect("parse");
+        let file = ReposConfFile { repo };
+        let b = build_repo_apply_bundle_with_tool(&file, "\n", "myrepo", PrivilegeTool::Sudo)
+            .expect("bundle");
+        assert!(
+            b.commands.iter().any(|c| c.contains(DEFAULT_DROPIN_SIG_LEVEL)),
+            "expected drop-in write to use default sig level"
+        );
     }
 
     #[test]
