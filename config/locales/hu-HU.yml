@@ -148,8 +148,7 @@ hu-HU:
       cascade_mode_disabled: "Lépcsőzetes mód letiltva"
       gnome_terminal_warning: "Gnome Terminál nélkül a program váratlanul viselkedhet"
     errors:
-      # TODO: translate to hungarian
-      authentication_failed: "Authentication failed or was cancelled. Operation aborted."
+      authentication_failed: "Nem sikerült a hitelesítés vagy meg lett szakítva. Művelet megszakítva."
     updates_button:
       available: "({}) frissítés érhető el"
       none: "Nincsenek elérhető frissítések"
@@ -167,9 +166,8 @@ hu-HU:
       reload_config: "Konfiguráció újratöltése"
       show_hide_pkgbuild: "PKGBUILD megjelenítése/elrejtése"
       show_hide_comments: "Megjegyzések megjelenítése/elrejtése"
-      # TODO: translate to hungarian
-      run_pkgbuild_checks: "Run PKGBUILD checks"
-      cycle_pkgbuild_sections: "Cycle PKGBUILD / ShellCheck / Namcap"
+      run_pkgbuild_checks: "PKGBUILD ellenőrzés futtatása"
+      cycle_pkgbuild_sections: "PKGBUILD / ShellCheck / Namcap közötti váltás"
       change_sort_mode: "Rendezési szempont módosítása"
       import: "Importálás"
       export: "Exportálás"
@@ -373,8 +371,7 @@ hu-HU:
         incorrect_password: "Helytelen jelszó. Próbálja újra."
         incorrect_password_attempts: "Helytelen jelszó. {} próbálkozás maradt."
         validation_failed: "Nem sikerült ellenőrizni a jelszót: {}"
-        # TODO: translate to hungarian
-        fingerprint_hint: "Tip: Fingerprint auth detected. Set auth_mode = interactive in settings.conf"
+        fingerprint_hint: "Tipp: Ujjlenyomatos hitelesítés észlelve. Javasolt az „auth_mode = interactive” beállítása a settings.conf fájlban."
       confirm_install:
         title: " Telepítés megerősítése "
         heading: "Telepítés megerősítése"
@@ -452,8 +449,7 @@ hu-HU:
           focus_right: "Fókuszálás jobbra"
           show_pkgbuild: "PKGBUILD megjelenítése"
           show_comments: "Megjegyzések megjelenítése"
-          # TODO: translate to hungarian
-          cycle_pkgbuild_sections: "Cycle PKGBUILD sections"
+          cycle_pkgbuild_sections: "Váltás a PKGBUILD szakaszok között"
           change_sorting: "Rendezési szempont módosítása"
           move: "  Mozgás"
           page: "  Lapozás"
