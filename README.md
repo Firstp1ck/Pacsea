@@ -75,7 +75,7 @@ pacsea
 | **Fuzzy Search** | Toggle flexible fuzzy search mode to find packages even without exact names |
 | **Unified search** | Fast results across official repos and the AUR |
 | **BlackArch (optional)** | If the BlackArch repo is enabled in pacman, those packages are indexed like other sync databases, labeled in results, and toggled with a title-bar filter chip; Preflight uses the same badge styling as other special repos. Pacsea does not configure BlackArch for you |
-| **Custom sync repositories (optional)** | `[[repo]]` entries in `repos.conf` merge into search; results deduplicate by repository and package name so third-party DB hits can coexist with AUR matches. **[Repos]** toggles each `results_filter` (persisted as `results_filter_show_*` in `settings.conf`). On Linux, **Options → Repositories** compares your recipe to `pacman.conf`, can show key trust, and applies mirrorlist/key/drop-in steps through preflight—start with `--dry-run`. Use `config/examples/repos_example.conf` as a template (no preset shortcuts in the file format) |
+| **Custom sync repositories (optional)** | Add extra repository databases to the same search as official packages and the AUR, with sensible handling when a package name appears in more than one place. Show or hide each source from the UI.
 | **Package Update Availability** | Automatic background checks with detailed version comparison view |
 | **Keyboard‑first** | Minimal keystrokes, Vim‑friendly navigation; numpad Enter works for submit in prompts and modals |
 | **Queue & install** | Add packages to queue and confirm installs. Run security scans for AUR packages before installing |
