@@ -184,6 +184,34 @@ semantic_error = #f38ba8\n\
 #\n\
 #-----------------------------------------------------------------------------------------------------------------------\n";
 
+/// Standalone `repos.conf` skeleton used when initializing the repository definitions file.
+pub const REPOS_SKELETON_CONTENT: &str = "# Pacsea third-party repository definitions (TOML)\n\
+#\n\
+# Each active [[repo]] needs at least:\n\
+#   name            — pacman [repo] section name (lowercase match in search)\n\
+#   results_filter  — group id for results visibility; see settings.conf\n\
+#\n\
+# Optional metadata (for future apply-to-system): id, enabled, server, sig_level, keys, mirrorlist, …\n\
+#\n\
+# Copy/paste rows from the optional examples file (not loaded automatically):\n\
+#   https://github.com/Firstp1ck/Pacsea/blob/main/config/examples/repos_example.conf\n\
+#   (or config/examples/repos_example.conf in a source checkout)\n\
+#\n\
+# Hyphens in results_filter are normalized; prefer alphanumeric + underscores so\n\
+# settings.conf keys stay clear: results_filter_show_<token> = true|false\n\
+#\n\
+# ---------------------------------------------------------------------------\n\
+# Example [[repo]] (commented — uncomment and edit; verify mirrors and keys with upstream docs)\n\
+# ---------------------------------------------------------------------------\n\
+# [[repo]]\n\
+# name = \"myrepo\"\n\
+# results_filter = \"third_party\"\n\
+# server = \"https://mirror.example.com/$repo/$arch\"\n\
+# sig_level = \"PackageRequired\"\n\
+#\n\
+# Optional for Options → Repositories → Apply: mirrorlist, mirrorlist_url, key_id, key_server, enabled\n\
+# Full recipes: config/examples/repos_example.conf in the Pacsea source tree (or press s in that modal)\n";
+
 /// Standalone settings skeleton used when initializing a separate settings.conf
 pub const SETTINGS_SKELETON_CONTENT: &str = "# Pacsea settings configuration\n\
 # Layout percentages for the middle row panes (must sum to 100)\n\

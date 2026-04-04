@@ -1,7 +1,11 @@
 use ratatui::Frame;
 use ratatui::prelude::Rect;
 
-use crate::state::{AppState, Modal, modal::PreflightHeaderChips, types::OptionalDepRow};
+use crate::state::{
+    AppState, Modal,
+    modal::PreflightHeaderChips,
+    types::{OptionalDepRow, RepositoryModalRow},
+};
 use crate::ui::modals::{
     alert, announcement, confirm, help, misc, news, password, post_summary, preflight,
     preflight_exec, system_update, updates,
@@ -374,6 +378,20 @@ struct OptionalDepsContext {
     selected: usize,
 }
 
+/// What: Context for the read-only Repositories modal.
+struct RepositoriesContext {
+    /// Merged rows from `repos.conf` and pacman scan.
+    rows: Vec<RepositoryModalRow>,
+    /// Selected row index.
+    selected: usize,
+    /// Scroll offset for the row viewport.
+    scroll: u16,
+    /// `repos.conf` diagnostic when parsing failed.
+    repos_conf_error: Option<String>,
+    /// Warnings collected while reading pacman configuration.
+    pacman_warnings: Vec<String>,
+}
+
 /// What: Context struct grouping `SshAurSetup` modal fields.
 struct SshAurSetupContext {
     /// Current setup step.
@@ -632,6 +650,22 @@ impl ModalRenderer for Modal {
             Self::OptionalDeps { rows, selected } => {
                 let ctx = OptionalDepsContext { rows, selected };
                 render_optional_deps_modal(f, area, ctx, app)
+            }
+            Self::Repositories {
+                rows,
+                selected,
+                scroll,
+                repos_conf_error,
+                pacman_warnings,
+            } => {
+                let ctx = RepositoriesContext {
+                    rows,
+                    selected,
+                    scroll,
+                    repos_conf_error,
+                    pacman_warnings,
+                };
+                render_repositories_modal(f, area, ctx, app)
             }
             Self::SshAurSetup {
                 step,
@@ -1040,6 +1074,32 @@ fn render_optional_deps_modal(
     Modal::OptionalDeps {
         rows: ctx.rows,
         selected: ctx.selected,
+    }
+}
+
+/// What: Render `Repositories` modal (read-only) and return reconstructed state.
+fn render_repositories_modal(
+    f: &mut Frame,
+    area: Rect,
+    ctx: RepositoriesContext,
+    app: &AppState,
+) -> Modal {
+    misc::render_repositories(
+        f,
+        area,
+        &ctx.rows,
+        ctx.selected,
+        ctx.scroll,
+        ctx.repos_conf_error.as_deref(),
+        &ctx.pacman_warnings,
+        app,
+    );
+    Modal::Repositories {
+        rows: ctx.rows,
+        selected: ctx.selected,
+        scroll: ctx.scroll,
+        repos_conf_error: ctx.repos_conf_error,
+        pacman_warnings: ctx.pacman_warnings,
     }
 }
 

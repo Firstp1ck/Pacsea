@@ -298,6 +298,9 @@ hu-HU:
         artix_galaxy: "GALAXY"
         artix_world: "WORLD"
         artix_system: "SYSTEM"
+        custom_repos: "Repos (EN)" # TODO: translate to hungarian
+        custom_repos_all: "All custom repo filters (EN)" # TODO: translate to hungarian
+        custom_repos_menu_title: "Custom repo filters (EN)" # TODO: translate to hungarian
         blackarch: "BlackArch"
         manjaro: "Manjaro"
       sort_menu:
@@ -311,6 +314,8 @@ hu-HU:
           settings: "Beállítások → settings.conf"
           theme: "Téma → theme.conf"
           keybindings: "Billentyűparancsok → keybinds.conf"
+          # TODO: translate to hungarian
+          repos: "Repositories -> repos.conf"
       panels_menu:
         show_recent: "Legutóbbi megjelenítése"
         hide_recent: "Legutóbbi elrejtése"
@@ -332,6 +337,7 @@ hu-HU:
         news_age_days: "Az elmúlt {} nap hírei"
         news_age_all: "Az elmúlt összes nap hírei"
         tui_optional_deps: "A PacSea nem kötelező függőségei"
+        repositories: "Repositories (English UI placeholder)" # TODO: translate to hungarian
     news:
       filters:
         arch: "Arch"
@@ -364,6 +370,7 @@ hu-HU:
         heading_update: "Rendszergazdai jogosultság szükséges a rendszer frissítéséhez"
         heading_downgrade: "Rendszergazdai jogosultság szükséges a csomagok visszafejlesztéséhez"
         heading_file_sync: "Rendszergazdai jogosultság szükséges a fájladatbázis szinkronizálásához"
+        heading_repo_apply: "Administrative privileges required to apply repository configuration (EN placeholder)" # TODO: translate to hungarian
         package_label_singular: "Csomag:"
         package_label_plural: "Csomagok:"
         password_label: "[sudo] adja meg a jelszavát:"
@@ -426,14 +433,25 @@ hu-HU:
           mouse: "Egér:"
           system_update_dialog: "Rendszerfrissítési párbeszédablak:"
           news_dialog: "Hírek párbeszédablak:"
+          # TODO: translate to hungarian
+          repositories_modal: "Repositories modal (EN)"
         mouse_lines:
           - "  • Listák (találatok/legutóbbi/telepítés) és PKGBUILD görgetése egérgörgővel"
           - "  • PKGBUILD be/ki: kattintson a „PKGBUILD megjelenítése” gombra a részleteknél"
           - "  • Másolás „PKGBUILD másolása”: kattintson a címgombra a PKGBUILD nézetben"
           - "  • Részletek webcímének megnyitása: Ctrl+Shift+Bal kattintás a webcímre"
           - "  • Találati címsor: kattintson a Rendezés/Beállítások/Panelek/Konfiguráció gombra a menük megnyitásához"
-          - "  • Szűrők be/ki (AUR/core/extra/multilib/EOS/cachyos): kattintson a címkéjükre"
+          - "  • Szűrők be/ki (AUR/core/extra/multilib/EOS/cachyos/Artix): kattintson a címkéjükre"
+          # TODO: translate to hungarian
+          - "  • Custom repos.conf filters: click [Repos] v chip for overflow menu (EN)"
           - "  • Arch Linux állapot (jobb felső): kattintson a status.archlinux.org megnyitásához"
+        repositories_modal_lines:
+          # TODO: translate to hungarian
+          - "  • Enter: apply plan (EN)" 
+          - "  • o: open ~/.config/pacsea/repos.conf in editor (EN)"
+          - "  • r: refresh signing key for row (EN, Linux)"
+          - "  • s: open in-tree repos.conf example (EN)"
+          - "  • Navigate • Esc or q: close (EN)"
         system_update_lines:
           - "  • Megnyitás: Beállítások → Rendszer frissítése"
           - "  • Fel/Le: mozgás • Szóköz: be/ki • Balra/Jobbra: országváltás • Enter: futtatás • Esc: bezárás"
@@ -515,6 +533,49 @@ hu-HU:
           installed: "✔ telepítve"
           not_installed: "⏺ nincs telepítve"
         footer_hint: "Fel/Le: kiválasztás • Enter: telepítés • Esc: bezárás"
+      repositories:
+        title: " Repositories (EN) " # TODO: translate to hungarian
+        heading: "Configured repositories — read-only (EN)" # TODO: translate to hungarian
+        parse_error: "repos.conf:"
+        empty: "No [[repo]] rows (EN). Use Config menu / example file." # TODO: translate to hungarian
+        col:
+          repo: "Repo"
+          filter: "Filter"
+          pacman: "Pacman"
+          key: "Kulcs"
+        pacman:
+          absent: "nincs"
+          active: "aktív"
+          commented: "kikommentelve"
+        key:
+          na: "—"
+          trusted: "megbízható"
+          not_trusted: "hiányzik"
+          unknown: "ismeretlen"
+        warnings_prefix: "pacman.conf:"
+        # TODO: translate to hungarian
+        unsupported_platform: "Repositories modal is Linux-only (pacman) (EN)." 
+        open_config:
+          # TODO: translate to hungarian
+          mkdir_failed: "Could not create config dir for repos.conf (EN)." 
+          create_failed: "Could not create repos.conf (EN)."
+          started: "Opening {} in editor… (EN)"
+        setup_example_started: "Opening {} in your editor… (EN)"
+        setup_example_write_failed: "Could not write repos.conf example to config directory (EN)."
+        refresh_key:
+          # TODO: translate to hungarian
+          unsupported_platform: "Key refresh Linux-only (EN)."
+        footer_hint: "Enter: apply • o: repos.conf • r: key • s: example • Nav • Esc/Q (EN)"
+        apply:
+          # TODO: translate to hungarian
+          fix_repos_conf: "Fix repos.conf errors before applying (EN)."
+          no_rows: "No repositories to apply. Add [[repo]] rows first (EN)."
+          no_selection: "No row selected (EN)."
+          no_config_path: "Could not resolve repos.conf path (EN)."
+          read_failed: "Could not read (EN)"
+          parse_failed: "repos.conf:"
+          empty_plan: "No apply steps were generated (EN)."
+          missing_commands: "No repository apply commands found (EN)."
       gnome_terminal_prompt:
         title: " Gnome Terminál telepítése "
         heading: "Gnome Terminál vagy Konzol ajánlott"

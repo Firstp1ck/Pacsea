@@ -10,7 +10,7 @@ use tokio::{
 
 use crate::index as pkgindex;
 use crate::sources;
-use crate::state::{PackageItem, QueryInput, SearchResults};
+use crate::state::{PackageItem, QueryInput, SearchResults, Source};
 use crate::util::{fuzzy_match_rank_with_matcher, match_rank, repo_order};
 
 /// What: Spawn background worker for search queries.
@@ -94,7 +94,7 @@ pub fn spawn_search_worker(
 /// Details:
 /// - Fetches all official packages
 /// - Sorts by repo order (core > extra > others), then by name
-/// - Deduplicates by package name, preferring earlier entries
+/// - Deduplicates by repository and package name (same name may exist in more than one repo)
 fn handle_empty_query(index_path: &Path) -> Vec<PackageItem> {
     let mut items = pkgindex::all_official_or_fetch(index_path);
     sort_by_repo_and_name(&mut items);
@@ -117,6 +117,8 @@ fn handle_empty_query(index_path: &Path) -> Vec<PackageItem> {
 /// - Searches official packages
 /// - Fetches and filters AUR packages
 /// - Combines, scores, and sorts results
+/// - Deduplicates by repository/source and name so a binary repo row and an AUR row with the
+///   same package name both remain visible
 async fn process_search_query(
     query_text: &str,
     fuzzy_mode: bool,
@@ -276,15 +278,121 @@ fn sort_by_repo_and_name(items: &mut [PackageItem]) {
     items.sort_by(compare_by_repo_and_name);
 }
 
-/// What: Deduplicate items by package name, keeping first occurrence.
+/// What: Build a key so search rows dedupe per origin, not only per package name.
+///
+/// Inputs:
+/// - `item`: Row whose source bucket and name define uniqueness.
+///
+/// Output:
+/// - Lowercase `(source_bucket, package_name)` where `source_bucket` is the pacman repo for
+///   [`Source::Official`] or the literal `aur` for [`Source::Aur`].
+///
+/// Details:
+/// - Same package name may appear as a binary in a third-party repo and as an AUR package; both
+///   must remain in the combined list after deduplication.
+fn item_dedup_key(item: &PackageItem) -> (String, String) {
+    match &item.source {
+        Source::Official { repo, .. } => (repo.to_lowercase(), item.name.to_lowercase()),
+        Source::Aur => ("aur".to_string(), item.name.to_lowercase()),
+    }
+}
+
+/// What: Deduplicate items by repository/source and package name, keeping first occurrence.
 ///
 /// Inputs:
 /// - `items`: Mutable reference to list of package items
 ///
 /// Details:
-/// - Removes duplicate packages based on case-insensitive name comparison
+/// - Removes duplicates that share the same [`item_dedup_key`]
 /// - Keeps the first occurrence (preferring earlier entries in sort order)
 fn deduplicate_items(items: &mut Vec<PackageItem>) {
     let mut seen = HashSet::new();
-    items.retain(|p| seen.insert(p.name.to_lowercase()));
+    items.retain(|p| seen.insert(item_dedup_key(p)));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    /// What: Ensure AUR and a binary repo can both list the same package name.
+    ///
+    /// Inputs:
+    /// - Two items named `a2ln`, one `chaotic-aur` official and one AUR.
+    ///
+    /// Output:
+    /// - Both rows survive [`deduplicate_items`].
+    ///
+    /// Details:
+    /// - Regression for third-party repos that publish binaries for packages that also exist on
+    ///   the AUR (e.g. Chaotic-AUR).
+    fn deduplicate_keeps_aur_and_official_same_name() {
+        let mut items = vec![
+            PackageItem {
+                name: "a2ln".into(),
+                version: "1-1".into(),
+                description: String::new(),
+                source: Source::Official {
+                    repo: "chaotic-aur".into(),
+                    arch: "x86_64".into(),
+                },
+                popularity: None,
+                out_of_date: None,
+                orphaned: false,
+            },
+            PackageItem {
+                name: "a2ln".into(),
+                version: "1-1".into(),
+                description: String::new(),
+                source: Source::Aur,
+                popularity: Some(0.0),
+                out_of_date: None,
+                orphaned: false,
+            },
+        ];
+        deduplicate_items(&mut items);
+        assert_eq!(items.len(), 2);
+    }
+
+    #[test]
+    /// What: Ensure identical repo+name rows still collapse to one entry.
+    ///
+    /// Inputs:
+    /// - Two official items with the same repo and name.
+    ///
+    /// Output:
+    /// - One row remains after [`deduplicate_items`].
+    ///
+    /// Details:
+    /// - Protects against duplicate lines in combined search output.
+    fn deduplicate_removes_same_repo_and_name() {
+        let mut items = vec![
+            PackageItem {
+                name: "foo".into(),
+                version: "1".into(),
+                description: String::new(),
+                source: Source::Official {
+                    repo: "extra".into(),
+                    arch: "x86_64".into(),
+                },
+                popularity: None,
+                out_of_date: None,
+                orphaned: false,
+            },
+            PackageItem {
+                name: "foo".into(),
+                version: "1".into(),
+                description: String::new(),
+                source: Source::Official {
+                    repo: "extra".into(),
+                    arch: "x86_64".into(),
+                },
+                popularity: None,
+                out_of_date: None,
+                orphaned: false,
+            },
+        ];
+        deduplicate_items(&mut items);
+        assert_eq!(items.len(), 1);
+    }
 }

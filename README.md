@@ -4,7 +4,7 @@
 [![Made with Rust](https://img.shields.io/badge/Made%20with-Rust-orange.svg)](https://www.rust-lang.org/)
 [![Target: Arch Linux](https://img.shields.io/badge/Target-Arch%20Linux-1793D1?logo=arch-linux&logoColor=white)](https://archlinux.org/)
 
-Pacsea is a TUI application for browsing and installing Arch and AUR packages. It includes an integrated Arch news and advisory feed and supports keyboard-first navigation.
+Pacsea is a TUI application for browsing and installing Arch and AUR packages. It includes an integrated Arch news and advisory feed, keyboard-first navigation, and optional awareness of extra pacman sync repositories you configure yourself.
 
 ## Community
 <p align="center">
@@ -75,6 +75,7 @@ pacsea
 | **Fuzzy Search** | Toggle flexible fuzzy search mode to find packages even without exact names |
 | **Unified search** | Fast results across official repos and the AUR |
 | **BlackArch (optional)** | If the BlackArch repo is enabled in pacman, those packages are indexed like other sync databases, labeled in results, and toggled with a title-bar filter chip; Preflight uses the same badge styling as other special repos. Pacsea does not configure BlackArch for you |
+| **Custom sync repositories (optional)** | `[[repo]]` entries in `repos.conf` merge into search; results deduplicate by repository and package name so third-party DB hits can coexist with AUR matches. **[Repos]** toggles each `results_filter` (persisted as `results_filter_show_*` in `settings.conf`). On Linux, **Options → Repositories** compares your recipe to `pacman.conf`, can show key trust, and applies mirrorlist/key/drop-in steps through preflight—start with `--dry-run`. Use `config/examples/repos_example.conf` as a template (no preset shortcuts in the file format) |
 | **Package Update Availability** | Automatic background checks with detailed version comparison view |
 | **Keyboard‑first** | Minimal keystrokes, Vim‑friendly navigation; numpad Enter works for submit in prompts and modals |
 | **Queue & install** | Add packages to queue and confirm installs. Run security scans for AUR packages before installing |
@@ -131,6 +132,7 @@ Pacsea provides a keyboard-first interface for searching, queueing, and installi
 - Run security scans for AUR packages
 - Manage installed packages, including removal and downgrade
 - Switch to News mode (Options → News) or start directly in News mode to browse Arch news, security advisories, package updates, and AUR comments. Filter by source/age/installed-only, search with history (independent search inputs for each mode), bookmark/read items, and track package changes with automatic detection
+- On Linux, open **Options → Repositories** to review or apply `repos.conf` against the live system (elsewhere Pacsea shows that this flow is unavailable)
 - All operations execute directly in the TUI with real-time output and progress indicators
 
 For a complete reference of all keyboard shortcuts, see the [Keyboard Shortcuts](https://github.com/Firstp1ck/Pacsea/wiki/Keyboard-Shortcuts) wiki page.
@@ -149,10 +151,11 @@ You can also run `pacsea --help` to see all available commands and options.
 
 ## Configuration
 
-Pacsea uses three configuration files located in `~/.config/pacsea/`:
-- `settings.conf` — app behavior (layout, defaults, visibility, scans, news, etc.)
+Pacsea uses configuration files in `~/.config/pacsea/`:
+- `settings.conf` — app behavior (layout, defaults, visibility, scans, news, custom repo filter toggles, etc.)
 - `theme.conf` — colors and styling
 - `keybinds.conf` — keyboard shortcuts
+- `repos.conf` (optional) — third-party sync repo recipes for search, filters, and the Repositories modal; example: [`config/examples/repos_example.conf`](config/examples/repos_example.conf)
 
 Opening any of these from the app uses your `VISUAL` or `EDITOR` environment variable.
 
@@ -215,11 +218,10 @@ Longer specs for tracked items live in [`dev/ROADMAP/`](https://github.com/First
 
 ### Other Potential Features
 - **Show with Hover over button, what the button does** ([#140](https://github.com/Firstp1ck/Pacsea/issues/140))
-- **Mirror Search and extensive Mirror Selection** ([#132](https://github.com/Firstp1ck/Pacsea/issues/132))
-- **Add Chaotic AUR setup and add Garuda Repository Support** ([#132](https://github.com/Firstp1ck/Pacsea/issues/132))
+- **Mirror Search and extensive Mirror Selection**
+- **Add Garuda Repository Support**
 - **Add possibility to view News for the respective Distro: EndeavourOS, Manjaro, Garuda and CachyOS** ([#131](https://github.com/Firstp1ck/Pacsea/issues/131))
   - grouped by system critical updates like Kernel, systemd and other CORE packages that need restart and other packages (pacman and aur, incl. search/filter)
-- **Add custom Repository Support (e.g Make Cachy/Manjaro/EOS Repositories available to other Arch based Systems)** ([#132](https://github.com/Firstp1ck/Pacsea/issues/132))
 - **Implement `rebuild-detector` that checks if a package needs to be rebuild** ([#134](https://github.com/Firstp1ck/Pacsea/issues/134))
 - **Add custom upgrade commands** ([#134](https://github.com/Firstp1ck/Pacsea/issues/134))
 - **Add accessability themes for visual impairments** ([#130](https://github.com/Firstp1ck/Pacsea/issues/130))

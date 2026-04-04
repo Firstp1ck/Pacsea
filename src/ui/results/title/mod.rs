@@ -37,9 +37,30 @@ use layout::calculate_title_layout_info;
 use rects::record_title_rects;
 use rendering::{
     render_artix_filter, render_artix_specific_filters, render_blackarch_filter,
-    render_core_filters, render_manjaro_filter, render_optional_eos_cachyos_filters,
-    render_right_aligned_buttons, render_sort_button, render_title_prefix,
+    render_core_filters, render_custom_repos_dynamic_chip, render_manjaro_filter,
+    render_optional_eos_cachyos_filters, render_right_aligned_buttons, render_sort_button,
+    render_title_prefix,
 };
+/// What: Build the title-bar chip label for dynamic `repos.conf` filters when any ids exist.
+///
+/// Inputs:
+/// - `app`: Application state (reads `results_filter_dynamic`).
+/// - `filter_custom_repos_label`: Localized short label for the chip (no brackets).
+///
+/// Output:
+/// - `Some("[label] v")` when the dynamic map is non-empty; otherwise `None`.
+///
+/// Details:
+/// - Matches the Artix overflow dropdown affordance (`v` suffix).
+pub(super) fn custom_repos_chip_label(
+    app: &AppState,
+    filter_custom_repos_label: &str,
+) -> Option<String> {
+    if app.results_filter_dynamic.is_empty() {
+        return None;
+    }
+    Some(format!("[{filter_custom_repos_label}] v"))
+}
 
 /// What: Build title spans with Sort button, filter toggles, and right-aligned buttons.
 ///
@@ -105,7 +126,13 @@ fn build_title_spans_from_values(
     let i18n = build_title_i18n_strings(app);
 
     // Reuse layout calculation logic
-    let layout_info = calculate_title_layout_info(&i18n, results_len, inner_width, optional_repos);
+    let layout_info = calculate_title_layout_info(
+        &i18n,
+        results_len,
+        inner_width,
+        optional_repos,
+        custom_repos_chip_label(app, &i18n.filter_custom_repos),
+    );
 
     // Build title spans using focused rendering functions
     let mut title_spans = render_title_prefix(&i18n, results_len);
@@ -137,6 +164,10 @@ fn build_title_spans_from_values(
         filter_states,
     ));
     title_spans.extend(render_manjaro_filter(&i18n, optional_repos, filter_states));
+    title_spans.extend(render_custom_repos_dynamic_chip(
+        app,
+        layout_info.custom_repos_chip_label.as_deref(),
+    ));
     title_spans.extend(render_right_aligned_buttons(
         &i18n,
         menu_states,

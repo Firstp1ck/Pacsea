@@ -317,6 +317,7 @@ pub fn apply_settings_to_app_state(app: &mut AppState, prefs: &crate::theme::Set
     app.news_max_age_days = prefs.news_max_age_days;
     // Recompute news results with loaded filters/age
     app.refresh_news_results();
+    crate::logic::repos::refresh_dynamic_filters_in_app(app, prefs);
 }
 
 /// What: Check if GNOME terminal is needed and set modal if required.
@@ -625,6 +626,7 @@ pub fn initialize_app_state(
         "resolved state file paths"
     );
 
+    crate::logic::repos::load_repos_config_into_app(app, crate::theme::resolve_repos_config_path());
     apply_settings_to_app_state(app, prefs);
 
     // Initialize locale system

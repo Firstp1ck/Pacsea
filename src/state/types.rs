@@ -645,6 +645,72 @@ pub struct OptionalDepRow {
     pub note: Option<String>,
 }
 
+/// What: Pacman `[repo]` presence as shown in the read-only Repositories modal.
+///
+/// Inputs:
+/// - Set when merging `repos.conf` rows with a live `pacman.conf` scan.
+///
+/// Output:
+/// - Drives result column labels in the UI.
+///
+/// Details:
+/// - Distinct from Pacsea results-filter toggles; this reflects `/etc/pacman.conf` only.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RepositoryPacmanStatus {
+    /// No matching section header found.
+    Absent,
+    /// Active `[name]` header exists.
+    Active,
+    /// Only `# [name]` (commented) headers exist.
+    Commented,
+}
+
+/// What: Signing key trust hint for a `[[repo]]` row that declares `key_id`.
+///
+/// Inputs:
+/// - Derived from a batched `pacman-key --list-keys` check.
+///
+/// Output:
+/// - Column text in the Repositories modal.
+///
+/// Details:
+/// - `Unknown` covers missing `pacman-key`, failed runs, or fingerprints too short to match safely.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RepositoryKeyTrust {
+    /// Row has no `key_id`; nothing to verify.
+    NotApplicable,
+    /// Fingerprint (normalized) appears in the key listing.
+    Trusted,
+    /// Listing succeeded but fingerprint not found.
+    NotTrusted,
+    /// Could not determine (tool missing, error, or invalid id).
+    Unknown,
+}
+
+/// What: One row in the read-only Repositories modal (merged `repos.conf` + live pacman scan).
+///
+/// Inputs:
+/// - Built when opening the Repositories modal from `logic::repos`.
+///
+/// Output:
+/// - Rendered as a list line with status chips.
+///
+/// Details:
+/// - Read-only in Phase 2; apply flows will extend behavior later.
+#[derive(Clone, Debug)]
+pub struct RepositoryModalRow {
+    /// Pacman section `name` from `repos.conf`.
+    pub pacman_section_name: String,
+    /// Raw `results_filter` label for display.
+    pub results_filter_display: String,
+    /// Whether `/etc/pacman.conf` (includes) contains this repo section.
+    pub pacman_status: RepositoryPacmanStatus,
+    /// Optional short source file hint (e.g. include file name).
+    pub source_hint: Option<String>,
+    /// Keyring trust classification when `key_id` is set.
+    pub key_trust: RepositoryKeyTrust,
+}
+
 /// AUR package comment data structure.
 ///
 /// What: Represents a single comment from an AUR package page.

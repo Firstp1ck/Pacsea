@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crossterm::event::{KeyCode, KeyModifiers};
 use ratatui::style::Color;
 
@@ -202,6 +204,10 @@ pub struct Settings {
     /// SSH binary path or name for AUR vote commands.
     /// Defaults to `"ssh"`. Override for non-standard SSH setups.
     pub aur_vote_ssh_command: String,
+    /// Dynamic results-list toggles from `repos.conf` filter ids (canonical keys, see `repos` module).
+    ///
+    /// Keys match canonical `results_filter` tokens from repos.conf (e.g. `vendor_pkgs` for `results_filter_show_vendor_pkgs`).
+    pub results_filter_toggles: HashMap<String, bool>,
 }
 
 impl Default for Settings {
@@ -275,6 +281,7 @@ impl Default for Settings {
             aur_vote_enabled: true,    // Enabled by default; requires SSH key configured on AUR
             aur_vote_ssh_timeout_seconds: 10,
             aur_vote_ssh_command: "ssh".to_string(),
+            results_filter_toggles: HashMap::new(),
         }
     }
 }

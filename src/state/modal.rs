@@ -1,7 +1,7 @@
 //! Modal dialog state for the UI.
 
 use crate::sources::VoteAction;
-use crate::state::types::{OptionalDepRow, PackageItem, Source};
+use crate::state::types::{OptionalDepRow, PackageItem, RepositoryModalRow, Source};
 use std::collections::HashSet;
 
 /// What: Enumerates the high-level operations represented in the preflight
@@ -45,6 +45,8 @@ pub enum PasswordPurpose {
     Downgrade,
     /// Syncing file database.
     FileSync,
+    /// Applying custom repository configuration (`repos.conf` → managed drop-in, keys).
+    RepoApply,
 }
 
 /// What: Identifies which tab within the preflight modal is active.
@@ -673,6 +675,19 @@ pub enum Modal {
         /// Selected row index.
         selected: usize,
     },
+    /// Read-only Repositories viewer: `repos.conf` vs live `pacman.conf` / includes.
+    Repositories {
+        /// Merged rows for each configured `[[repo]]`.
+        rows: Vec<RepositoryModalRow>,
+        /// Selected row index.
+        selected: usize,
+        /// Scroll offset: index of first visible data row.
+        scroll: u16,
+        /// Error loading or parsing `repos.conf`, if any.
+        repos_conf_error: Option<String>,
+        /// Warnings from reading `pacman.conf` or includes.
+        pacman_warnings: Vec<String>,
+    },
     /// Guided SSH setup workflow for AUR voting.
     SshAurSetup {
         /// Active setup step in the wizard-like flow.
@@ -795,6 +810,13 @@ mod tests {
         let _ = super::Modal::OptionalDeps {
             rows: Vec::new(),
             selected: 0,
+        };
+        let _ = super::Modal::Repositories {
+            rows: Vec::new(),
+            selected: 0,
+            scroll: 0,
+            repos_conf_error: None,
+            pacman_warnings: Vec::new(),
         };
         let _ = super::Modal::SshAurSetup {
             step: super::SshSetupStep::Intro,

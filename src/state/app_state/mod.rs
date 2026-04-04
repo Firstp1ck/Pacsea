@@ -635,6 +635,11 @@ pub struct AppState {
     /// Inner content rectangle of the Artix filter dropdown menu when visible (x, y, w, h).
     pub artix_filter_menu_rect: Option<(u16, u16, u16, u16)>,
 
+    /// Whether the custom `repos.conf` results-filter dropdown is visible.
+    pub custom_repos_filter_menu_open: bool,
+    /// Inner hit-test rect for the custom repos filter dropdown when visible.
+    pub custom_repos_filter_menu_rect: Option<(u16, u16, u16, u16)>,
+
     // Collapsed menu dropdown UI (when window is too narrow for all three buttons)
     /// Whether the collapsed menu dropdown is currently visible.
     pub collapsed_menu_open: bool,
@@ -681,6 +686,10 @@ pub struct AppState {
     pub results_filter_show_blackarch: bool,
     /// Whether to include packages labeled as `manjaro` in the Results view.
     pub results_filter_show_manjaro: bool,
+    /// Lowercase pacman `[repo]` name → canonical `results_filter` id from `repos.conf`.
+    pub repo_results_filter_by_name: HashMap<String, String>,
+    /// Per dynamic filter id (canonical), whether search results include packages from mapped repos.
+    pub results_filter_dynamic: HashMap<String, bool>,
     /// Clickable rectangle for the AUR filter toggle in the Results title (x, y, w, h).
     pub results_filter_aur_rect: Option<(u16, u16, u16, u16)>,
     /// Clickable rectangle for the core filter toggle in the Results title (x, y, w, h).
@@ -711,6 +720,8 @@ pub struct AppState {
     pub results_filter_blackarch_rect: Option<(u16, u16, u16, u16)>,
     /// Clickable rectangle for the Manjaro filter toggle in the Results title (x, y, w, h).
     pub results_filter_manjaro_rect: Option<(u16, u16, u16, u16)>,
+    /// Clickable rectangle for the custom `repos.conf` filter dropdown chip (x, y, w, h).
+    pub results_filter_custom_repos_rect: Option<(u16, u16, u16, u16)>,
     /// Clickable rectangle for the fuzzy search mode indicator in the Search title (x, y, w, h).
     pub fuzzy_indicator_rect: Option<(u16, u16, u16, u16)>,
 
@@ -837,6 +848,10 @@ pub struct AppState {
     pub pending_custom_command: Option<String>,
     /// Update commands to execute after password prompt (for system update).
     pub pending_update_commands: Option<Vec<String>>,
+    /// Repo apply commands after password prompt (custom `repos.conf` apply).
+    pub pending_repo_apply_commands: Option<Vec<String>>,
+    /// Summary lines to seed `PreflightExec` when starting a repo apply.
+    pub pending_repo_apply_summary: Option<Vec<String>>,
     /// AUR update command to execute conditionally if pacman fails (for system update).
     pub pending_aur_update_command: Option<String>,
     /// Password obtained from password prompt, stored temporarily for reinstall confirmation flow.

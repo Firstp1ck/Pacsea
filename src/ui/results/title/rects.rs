@@ -255,8 +255,13 @@ pub(super) fn record_title_rects(app: &mut AppState, area: Rect, optional_repos:
     let inner_width = area.width.saturating_sub(2); // exclude borders
     let i18n = build_title_i18n_strings(app);
     // Calculate shared layout information
-    let layout_info =
-        calculate_title_layout_info(&i18n, app.results.len(), inner_width, optional_repos);
+    let layout_info = calculate_title_layout_info(
+        &i18n,
+        app.results.len(),
+        inner_width,
+        optional_repos,
+        super::custom_repos_chip_label(app, &i18n.filter_custom_repos),
+    );
 
     // Initialize layout state starting after title and sort button
     // Use Unicode display width, not byte length, to handle wide characters
@@ -294,6 +299,13 @@ pub(super) fn record_title_rects(app: &mut AppState, area: Rect, optional_repos:
         &layout_info.optional_labels,
         layout_info.show_artix_specific_repos,
     );
+
+    if let Some(lbl) = layout_info.custom_repos_chip_label.as_ref() {
+        app.results_filter_custom_repos_rect = Some(layout.record_rect(lbl));
+        layout.advance(u16::try_from(lbl.width()).unwrap_or(u16::MAX), 1);
+    } else {
+        app.results_filter_custom_repos_rect = None;
+    }
 
     // Record right-aligned button rects
     record_right_aligned_button_rects(app, area, &layout_info, btn_y);

@@ -82,6 +82,33 @@ pub(super) fn resolve_keybinds_config_path() -> Option<PathBuf> {
     candidates.into_iter().find(|p| p.is_file())
 }
 
+/// What: Locate the `repos.conf` file for third-party repository definitions (TOML).
+///
+/// Inputs:
+/// - None (reads `HOME` / `XDG_CONFIG_HOME`).
+///
+/// Output:
+/// - `Some(PathBuf)` when a candidate file exists; `None` otherwise.
+///
+/// Details:
+/// - Checks `$HOME/.config/pacsea/repos.conf` then `XDG_CONFIG_HOME/pacsea/repos.conf`.
+/// - Does not fall back to legacy `pacsea.conf` (repos live only in the split layout).
+#[must_use]
+pub fn resolve_repos_config_path() -> Option<PathBuf> {
+    let home = env::var("HOME").ok();
+    let xdg_config = env::var("XDG_CONFIG_HOME").ok();
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    if let Some(h) = home.as_deref() {
+        let base = Path::new(h).join(".config").join("pacsea");
+        candidates.push(base.join("repos.conf"));
+    }
+    if let Some(xdg) = xdg_config.as_deref() {
+        let x = Path::new(xdg).join("pacsea");
+        candidates.push(x.join("repos.conf"));
+    }
+    candidates.into_iter().find(|p| p.is_file())
+}
+
 /// What: Resolve an XDG base directory, falling back to `$HOME` with provided segments.
 ///
 /// Inputs:

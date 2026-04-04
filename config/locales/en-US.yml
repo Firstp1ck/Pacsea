@@ -295,6 +295,9 @@ en-US:
         artix_galaxy: "GALAXY"
         artix_world: "WORLD"
         artix_system: "SYSTEM"
+        custom_repos: "Repos"
+        custom_repos_all: "All custom"
+        custom_repos_menu_title: "Custom repo filters"
         blackarch: "BlackArch"
         manjaro: "Manjaro"
       sort_menu:
@@ -308,6 +311,7 @@ en-US:
           settings: "Settings -> settings.conf"
           theme: "Theme -> theme.conf"
           keybindings: "Keybindings -> keybinds.conf"
+          repos: "Repositories -> repos.conf"
       panels_menu:
         show_recent: "Show Recent"
         hide_recent: "Hide Recent"
@@ -329,6 +333,7 @@ en-US:
         news_age_days: "News age: {} days"
         news_age_all: "News age: all time"
         tui_optional_deps: "TUI Optional Dep's"
+        repositories: "Repositories"
     news:
       filters:
         arch: "Arch"
@@ -361,6 +366,7 @@ en-US:
         heading_update: "Administrative privileges required to update system"
         heading_downgrade: "Administrative privileges required to downgrade packages"
         heading_file_sync: "Administrative privileges required to sync file database"
+        heading_repo_apply: "Administrative privileges required to apply repository configuration"
         package_label_singular: "Package:"
         package_label_plural: "Packages:"
         password_label: "Enter your sudo password:"
@@ -423,6 +429,7 @@ en-US:
           mouse: "Mouse:"
           system_update_dialog: "System Update dialog:"
           news_dialog: "News dialog:"
+          repositories_modal: "Repositories modal:"
         mouse_lines:
           - "  • Scroll lists (Results/Recent/Install) and PKGBUILD with mouse wheel"
           - "  • Toggle PKGBUILD: click 'Show PKGBUILD' in details"
@@ -430,7 +437,14 @@ en-US:
           - "  • Open details URL: Ctrl+Shift+Left click on the URL"
           - "  • Results title bar: click Sort/Options/Panels/Config to open menus"
           - "  • Toggle filters (AUR/core/extra/multilib/EOS/cachyos/Artix): click their labels"
+          - "  • Custom repos.conf filters: click the [Repos] v chip to open the overflow menu"
           - "  • Arch Status (top-right): click to open status.archlinux.org"
+        repositories_modal_lines:
+          - "  • Enter: apply plan (curl/keys/drop-in/sync)"
+          - "  • o: open ~/.config/pacsea/repos.conf in your editor"
+          - "  • r: refresh signing key for the selected row (pacman-key recv + lsign; Linux)"
+          - "  • s: open the in-tree repos.conf example for setup hints"
+          - "  • Up/Down/j/k, PgUp/PgDn, Home/End: navigate  •  Esc or q: close"
         system_update_lines:
           - "  • Open via Options → Update System"
           - "  • Up/Down: move • Space: toggle • Left/Right: change country • Enter: run • Esc: close"
@@ -512,6 +526,45 @@ en-US:
           installed: "✔ installed"
           not_installed: "⏺ not installed"
         footer_hint: "Up/Down: select  •  Enter: install  •  Esc: close"
+      repositories:
+        title: " Repositories "
+        heading: "Configured repositories"
+        parse_error: "repos.conf:"
+        empty: "No [[repo]] entries in repos.conf. Add definitions via the Config menu or copy config/examples/repos_example.conf."
+        col:
+          repo: "Repo"
+          filter: "Filter"
+          pacman: "Pacman"
+          key: "Signing key"
+        pacman:
+          absent: "absent"
+          active: "active"
+          commented: "commented"
+        key:
+          na: "—"
+          trusted: "trusted"
+          not_trusted: "missing"
+          unknown: "unknown"
+        warnings_prefix: "pacman.conf:"
+        unsupported_platform: "The Repositories modal is only supported on Linux (pacman)."
+        open_config:
+          mkdir_failed: "Could not create the Pacsea config directory for repos.conf."
+          create_failed: "Could not create repos.conf in your config directory."
+          started: "Opening {} in your editor…"
+        setup_example_started: "Opening {} in your editor…"
+        setup_example_write_failed: "Could not write the repos.conf example to your Pacsea config directory."
+        refresh_key:
+          unsupported_platform: "Key refresh is only available on Linux."
+        footer_hint: "Enter: apply  •  o: edit repos.conf  •  r: refresh key  •  s: example  •  Nav  •  Esc/Q"
+        apply:
+          fix_repos_conf: "Fix repos.conf errors before applying (see message above)."
+          no_rows: "No repositories to apply. Add [[repo]] rows in repos.conf first."
+          no_selection: "No row selected."
+          no_config_path: "Could not resolve repos.conf path."
+          read_failed: "Could not read"
+          parse_failed: "repos.conf:"
+          empty_plan: "No apply steps were generated."
+          missing_commands: "No repository apply commands found."
       gnome_terminal_prompt:
         title: " Install a GNOME Terminal "
         heading: "GNOME Terminal or Console recommended"

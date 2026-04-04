@@ -48,6 +48,8 @@ pub(super) struct TitleI18nStrings {
     pub(super) filter_blackarch: String,
     /// Translated Manjaro repository filter text.
     pub(super) filter_manjaro: String,
+    /// Short label for custom `repos.conf` results filters (chip text without brackets).
+    pub(super) filter_custom_repos: String,
 }
 
 /// What: Represents pre-formatted label strings for optional repos.
@@ -134,6 +136,8 @@ pub(super) struct TitleLayoutInfo {
     pub(super) use_collapsed_menu: bool,
     /// Padding reserved for menu button area.
     pub(super) menu_pad: u16,
+    /// When set, title bar shows a `[Custom] v` chip for `repos.conf` filter ids.
+    pub(super) custom_repos_chip_label: Option<String>,
 }
 
 /// What: Layout state tracker for recording rectangles.

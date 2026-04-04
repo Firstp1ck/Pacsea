@@ -228,7 +228,10 @@ fn handle_arch_status() -> bool {
 #[allow(clippy::missing_const_for_fn)]
 fn handle_sort_button(app: &mut AppState) -> bool {
     app.sort_menu_open = !app.sort_menu_open;
-    if !app.sort_menu_open {
+    if app.sort_menu_open {
+        app.artix_filter_menu_open = false;
+        app.custom_repos_filter_menu_open = false;
+    } else {
         app.sort_menu_auto_close_at = None;
     }
     false
@@ -250,6 +253,7 @@ fn handle_options_button(app: &mut AppState) -> bool {
         app.panels_menu_open = false;
         app.config_menu_open = false;
         app.artix_filter_menu_open = false;
+        app.custom_repos_filter_menu_open = false;
     }
     false
 }
@@ -269,6 +273,8 @@ fn handle_config_button(app: &mut AppState) -> bool {
     if app.config_menu_open {
         app.options_menu_open = false;
         app.panels_menu_open = false;
+        app.artix_filter_menu_open = false;
+        app.custom_repos_filter_menu_open = false;
     }
     false
 }
@@ -289,6 +295,7 @@ fn handle_panels_button(app: &mut AppState) -> bool {
         app.options_menu_open = false;
         app.config_menu_open = false;
         app.artix_filter_menu_open = false;
+        app.custom_repos_filter_menu_open = false;
     }
     false
 }
@@ -310,6 +317,7 @@ fn handle_collapsed_menu_button(app: &mut AppState) -> bool {
         app.config_menu_open = false;
         app.panels_menu_open = false;
         app.artix_filter_menu_open = false;
+        app.custom_repos_filter_menu_open = false;
     }
     false
 }
@@ -380,7 +388,7 @@ fn handle_sort_menu_click(
 
 /// Handle click inside options menu.
 ///
-/// What: Handles clicks on options menu items (installed-only toggle, system update, news, optional deps).
+/// What: Handles clicks on options menu items (installed-only, update, optional deps, repositories, mode toggle).
 ///
 /// Inputs:
 /// - `mx`: Mouse X coordinate
@@ -403,7 +411,8 @@ fn handle_options_menu_click(
             match row {
                 0 => handle_system_update_option(app),
                 1 => handle_optional_deps_option(app),
-                2 => handle_mode_toggle(app, details_tx),
+                2 => handle_repositories_option(app),
+                3 => handle_mode_toggle(app, details_tx),
                 _ => return None,
             }
         } else {
@@ -411,7 +420,8 @@ fn handle_options_menu_click(
                 0 => handle_installed_only_toggle(app, details_tx),
                 1 => handle_system_update_option(app),
                 2 => handle_optional_deps_option(app),
-                3 => handle_mode_toggle(app, details_tx),
+                3 => handle_repositories_option(app),
+                4 => handle_mode_toggle(app, details_tx),
                 _ => return None,
             }
         }
@@ -593,12 +603,48 @@ fn handle_system_update_option(app: &mut AppState) {
     };
 }
 
-/// Handle optional deps option.
-///
-/// What: Builds optional dependencies rows and opens `OptionalDeps` modal.
+/// What: Opens the read-only Repositories modal (`repos.conf` merged with `/etc/pacman.conf`).
 ///
 /// Inputs:
-/// - `app`: Mutable application state
+/// - `app`: Mutable application state.
+///
+/// Output:
+/// - None (sets `Modal::Repositories`).
+///
+/// Details:
+/// - Does not write to `/etc`; apply/edit flows are deferred to a later phase.
+fn handle_repositories_option(app: &mut AppState) {
+    #[cfg(not(target_os = "linux"))]
+    {
+        app.modal = crate::state::Modal::Alert {
+            message: crate::i18n::t(app, "app.modals.repositories.unsupported_platform"),
+        };
+        return;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let (rows, repos_conf_error, pacman_warnings) =
+            crate::logic::repos::build_repositories_modal_fields_default();
+        app.modal = crate::state::Modal::Repositories {
+            rows,
+            selected: 0,
+            scroll: 0,
+            repos_conf_error,
+            pacman_warnings,
+        };
+    }
+}
+
+/// What: Opens the TUI optional-dependencies review modal.
+///
+/// Inputs:
+/// - `app`: Mutable application state (sets modal and SSH help check).
+///
+/// Output:
+/// - None (mutates `app`).
+///
+/// Details:
+/// - Spawns a background AUR SSH help check like other optional-deps entry points.
 fn handle_optional_deps_option(app: &mut AppState) {
     let rows = menu_options::build_optional_deps_rows(app);
     app.modal = crate::state::Modal::OptionalDeps { rows, selected: 0 };
@@ -627,14 +673,17 @@ fn handle_config_menu_click(_mx: u16, my: u16, app: &mut AppState) -> Option<boo
         let settings_path = crate::theme::config_dir().join("settings.conf");
         let theme_path = crate::theme::config_dir().join("theme.conf");
         let keybinds_path = crate::theme::config_dir().join("keybinds.conf");
+        let repos_path = crate::theme::config_dir().join("repos.conf");
 
         let target = match row {
             0 => settings_path,
             1 => theme_path,
             2 => keybinds_path,
+            3 => repos_path,
             _ => {
                 app.config_menu_open = false;
                 app.artix_filter_menu_open = false;
+                app.custom_repos_filter_menu_open = false;
                 return Some(false);
             }
         };
@@ -653,6 +702,8 @@ fn handle_config_menu_click(_mx: u16, my: u16, app: &mut AppState) -> Option<boo
         }
 
         app.config_menu_open = false;
+        app.artix_filter_menu_open = false;
+        app.custom_repos_filter_menu_open = false;
         Some(false)
     } else {
         None
@@ -754,18 +805,21 @@ fn handle_collapsed_menu_click(_mx: u16, my: u16, app: &mut AppState) -> Option<
                 app.options_menu_open = false;
                 app.panels_menu_open = false;
                 app.artix_filter_menu_open = false;
+                app.custom_repos_filter_menu_open = false;
             }
             1 => {
                 app.panels_menu_open = true;
                 app.options_menu_open = false;
                 app.config_menu_open = false;
                 app.artix_filter_menu_open = false;
+                app.custom_repos_filter_menu_open = false;
             }
             2 => {
                 app.options_menu_open = true;
                 app.panels_menu_open = false;
                 app.config_menu_open = false;
                 app.artix_filter_menu_open = false;
+                app.custom_repos_filter_menu_open = false;
             }
             _ => return None,
         }
@@ -799,6 +853,28 @@ fn close_all_menus(app: &mut AppState) {
     if app.collapsed_menu_open {
         app.collapsed_menu_open = false;
     }
+    app.artix_filter_menu_open = false;
+    app.custom_repos_filter_menu_open = false;
+}
+
+/// What: Detect clicks meant for Artix or `repos.conf` overflow filter UI.
+///
+/// Inputs:
+/// - `mx` / `my`: Mouse coordinates.
+/// - `app`: State carrying Artix / custom repo chip rects and open dropdown hit rects.
+///
+/// Output:
+/// - `true` when the point hits the main Artix chip, the custom `[Repos]` chip, or either overflow menu.
+///
+/// Details:
+/// - Menu dispatch runs before filter mouse handling. The generic "click outside closes menus" path
+///   must not clear these flags when the same click will toggle a chip or a checkbox row; otherwise
+///   the filter pass sees menus already closed and ignores the action.
+const fn click_on_filter_overflow_targets(mx: u16, my: u16, app: &AppState) -> bool {
+    point_in_rect(mx, my, app.results_filter_artix_rect)
+        || point_in_rect(mx, my, app.results_filter_custom_repos_rect)
+        || point_in_rect(mx, my, app.artix_filter_menu_rect)
+        || point_in_rect(mx, my, app.custom_repos_filter_menu_rect)
 }
 
 /// Handle mouse events for menus (sort, options, config, panels, import/export).
@@ -886,8 +962,11 @@ pub(super) fn handle_menus_mouse(
         return handle_collapsed_menu_click(mx, my, app);
     }
 
-    // Click outside any menu closes all menus
-    close_all_menus(app);
+    // Click outside standard menus closes them. Defer clearing Artix / custom-repo overflow menus when
+    // the coordinates target those controls — filter mouse handling runs next.
+    if !click_on_filter_overflow_targets(mx, my, app) {
+        close_all_menus(app);
+    }
     None
 }
 
@@ -1067,5 +1146,32 @@ mod tests {
                 "pending_news should still have 2 items after second open"
             );
         }
+    }
+
+    #[test]
+    /// What: Ensure menu dispatch does not clear the custom-repo filter dropdown before filters run.
+    ///
+    /// Inputs:
+    /// - `AppState` with `custom_repos_filter_menu_open` and a menu hit rect; click coordinates inside it.
+    ///
+    /// Output:
+    /// - After `handle_menus_mouse`, the menu remains open.
+    ///
+    /// Details:
+    /// - Regression: `close_all_menus` used to run on every unhandled menu click and cleared
+    ///   `custom_repos_filter_menu_open`, so the subsequent filter pass ignored checkbox toggles.
+    fn handle_menus_mouse_leaves_custom_repos_dropdown_open_for_filter_pass() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let mut app = crate::state::AppState {
+            custom_repos_filter_menu_open: true,
+            custom_repos_filter_menu_rect: Some((50u16, 3u16, 24u16, 5u16)),
+            ..crate::state::AppState::default()
+        };
+        let mx = 55u16;
+        let my = 5u16;
+        assert!(super::click_on_filter_overflow_targets(mx, my, &app));
+        let r = super::handle_menus_mouse(mx, my, &mut app, &tx);
+        assert!(r.is_none());
+        assert!(app.custom_repos_filter_menu_open);
     }
 }

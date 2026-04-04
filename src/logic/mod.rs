@@ -13,6 +13,7 @@ pub mod prefetch;
 pub mod preflight;
 pub mod privilege;
 pub mod query;
+pub mod repos;
 pub mod sandbox;
 pub mod selection;
 pub mod services;

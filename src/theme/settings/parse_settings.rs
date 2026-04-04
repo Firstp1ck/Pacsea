@@ -349,6 +349,32 @@ fn parse_aur_vote_settings(key: &str, val: &str, settings: &mut Settings) -> boo
     }
 }
 
+/// What: Parse `results_filter_show_<canonical_id>` lines for dynamic repo filters.
+///
+/// Inputs:
+/// - `key`: Normalized settings key.
+/// - `val`: Boolean string.
+/// - `settings`: Target settings.
+///
+/// Output:
+/// - `true` when the key was consumed.
+///
+/// Details:
+/// - Keys match [`crate::logic::repos::canonical_results_filter_key`] suffixes (e.g. `vendor_pkgs`).
+fn parse_results_filter_dynamic(key: &str, val: &str, settings: &mut Settings) -> bool {
+    const PREFIX: &str = "results_filter_show_";
+    let Some(suffix) = key.strip_prefix(PREFIX) else {
+        return false;
+    };
+    if suffix.is_empty() {
+        return false;
+    }
+    settings
+        .results_filter_toggles
+        .insert(suffix.to_string(), parse_bool(val));
+    true
+}
+
 /// What: Parse miscellaneous settings.
 ///
 /// Inputs:
@@ -455,6 +481,7 @@ pub fn parse_settings(content: &str, _settings_path: &Path, settings: &mut Setti
             || parse_news_settings(&key, val, settings)
             || parse_search_settings(&key, val, settings)
             || parse_aur_vote_settings(&key, val, settings)
-            || parse_misc_settings(&key, val, settings);
+            || parse_misc_settings(&key, val, settings)
+            || parse_results_filter_dynamic(&key, val, settings);
     }
 }

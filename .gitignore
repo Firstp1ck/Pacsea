@@ -49,3 +49,5 @@ clippy_errors.txt
 __pycache__/
 dev/COMMIT/*
 dev/PR/*
+
+pacsea.log

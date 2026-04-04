@@ -119,6 +119,21 @@ fn get_curl_path() -> &'static str {
     })
 }
 
+/// What: Resolved curl executable path for subprocess or shell wrappers (e.g. privileged fetch).
+///
+/// Inputs:
+/// - None.
+///
+/// Output:
+/// - Path string matching the same resolution used by curl helpers (absolute binary when found).
+///
+/// Details:
+/// - Prefer this over hard-coding `curl` so planners can probe `--version` and build argv-safe commands.
+#[must_use]
+pub fn curl_binary_path() -> &'static str {
+    get_curl_path()
+}
+
 /// What: Redact query parameters from a URL for safe logging.
 ///
 /// Inputs:

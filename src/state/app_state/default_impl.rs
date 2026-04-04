@@ -1,9 +1,10 @@
 //! Default implementation for `AppState`.
 
+use std::collections::HashMap;
+
 use super::AppState;
 use super::defaults;
 use super::defaults_cache;
-use std::collections::HashMap;
 
 impl Default for AppState {
     /// What: Construct a default, empty [`AppState`] with initialized paths, selection states, and timers.
@@ -356,6 +357,8 @@ impl Default for AppState {
             config_menu_open,
             artix_filter_menu_open,
             artix_filter_menu_rect,
+            custom_repos_filter_menu_open,
+            custom_repos_filter_menu_rect,
             config_button_rect,
             config_menu_rect,
             collapsed_menu_open,
@@ -634,6 +637,8 @@ impl Default for AppState {
             config_menu_open,
             artix_filter_menu_open,
             artix_filter_menu_rect,
+            custom_repos_filter_menu_open,
+            custom_repos_filter_menu_rect,
             config_button_rect,
             config_menu_rect,
             collapsed_menu_open,
@@ -657,6 +662,8 @@ impl Default for AppState {
             results_filter_show_artix_system,
             results_filter_show_blackarch,
             results_filter_show_manjaro,
+            repo_results_filter_by_name: HashMap::new(),
+            results_filter_dynamic: HashMap::new(),
             results_filter_aur_rect,
             results_filter_core_rect,
             results_filter_extra_rect,
@@ -672,6 +679,7 @@ impl Default for AppState {
             results_filter_artix_system_rect,
             results_filter_blackarch_rect,
             results_filter_manjaro_rect,
+            results_filter_custom_repos_rect: None,
             fuzzy_indicator_rect: None,
             refresh_installed_until,
             next_installed_refresh_at,
@@ -724,6 +732,8 @@ impl Default for AppState {
             pending_post_summary_items: None,
             pending_custom_command: None,
             pending_update_commands: None,
+            pending_repo_apply_commands: None,
+            pending_repo_apply_summary: None,
             pending_aur_update_command: None,
             pending_executor_password: None,
             pending_file_sync_result: None,

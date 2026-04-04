@@ -679,6 +679,17 @@ pub fn render_help(f: &mut Frame, app: &mut AppState, area: Rect) {
         "app.modals.help.news_lines",
     )));
 
+    add_section_header(
+        &mut lines,
+        app,
+        &th,
+        "app.modals.help.sections.repositories_modal",
+    );
+    lines.extend(parse_yaml_lines(&i18n::t(
+        app,
+        "app.modals.help.repositories_modal_lines",
+    )));
+
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(
         i18n::t(app, "app.modals.help.close_hint"),

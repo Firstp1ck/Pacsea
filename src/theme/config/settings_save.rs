@@ -537,3 +537,28 @@ pub fn save_scan_do_sleuth(value: bool) {
 pub fn save_fuzzy_search(value: bool) {
     save_boolean_key("fuzzy_search", value);
 }
+
+/// What: Persist `results_filter_show_<canonical>` for a dynamic repo filter id from `repos.conf`.
+///
+/// Inputs:
+/// - `canonical_id`: Normalized filter token (`a-z`, `0-9`, `_` only).
+/// - `value`: Whether matching packages should appear in Results.
+///
+/// Output:
+/// - None.
+///
+/// Details:
+/// - No-op when `canonical_id` is empty or contains characters outside the safe token alphabet.
+/// - Writes the full key name `results_filter_show_<canonical_id>` into `settings.conf`.
+pub fn save_results_filter_show_canonical(canonical_id: &str, value: bool) {
+    let trimmed = canonical_id.trim();
+    if trimmed.is_empty()
+        || !trimmed
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+    {
+        return;
+    }
+    let key = format!("results_filter_show_{trimmed}");
+    save_boolean_key_with_aliases(&key, &[], value);
+}
