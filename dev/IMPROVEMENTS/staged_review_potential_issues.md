@@ -76,7 +76,7 @@ When a `[[repo]]` row omits `sig_level`, the drop-in defaults to `SigLevel = Opt
 **Severity:** Low
 
 ```rust
-let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("config/examples/repos.conf.example");
+let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("config/examples/repos_example.conf");
 ```
 
 This embeds the build machine's absolute path into the binary. For installed/packaged builds, this path will not exist. The fallback toast already handles this, but users on installed builds will always see "example not found" with no alternative.

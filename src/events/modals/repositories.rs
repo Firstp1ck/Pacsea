@@ -20,13 +20,13 @@ use crate::theme::{config_dir, resolve_repos_config_path};
 /// - None.
 ///
 /// Output:
-/// - Static string matching `config/examples/repos.conf.example` in the source tree.
+/// - Static string matching `config/examples/repos_example.conf` in the source tree.
 ///
 /// Details:
 /// - Used so the Repositories modal can open a real file path on machines that do not have the
 ///   repository checkout (for example AUR or distro packages).
 const REPOS_CONF_EXAMPLE_SHIPPED: &str =
-    include_str!("../../../config/examples/repos.conf.example");
+    include_str!("../../../config/examples/repos_example.conf");
 
 /// What: Height of the scroll viewport (data rows) for the Repositories modal.
 const REPOS_VIEWPORT_ROWS: usize = 12;
@@ -194,12 +194,12 @@ pub(super) fn open_user_repos_conf_in_editor(app: &mut AppState) {
 /// - None.
 ///
 /// Details:
-/// - Writes [`REPOS_CONF_EXAMPLE_SHIPPED`] to `config_dir()/repos.conf.example` so external editors
+/// - Writes [`REPOS_CONF_EXAMPLE_SHIPPED`] to `config_dir()/repos_example.conf` so external editors
 ///   receive a stable path (embedded content works for packaged installs, unlike
 ///   `CARGO_MANIFEST_DIR` source paths). Overwrites that file on each open so the buffer matches
 ///   the version shipped in the binary.
 pub(super) fn open_repos_conf_example_in_editor(app: &mut AppState) {
-    let path = config_dir().join("repos.conf.example");
+    let path = config_dir().join("repos_example.conf");
     if let Some(parent) = path.parent()
         && std::fs::create_dir_all(parent).is_err()
     {

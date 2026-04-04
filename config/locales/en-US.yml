@@ -530,7 +530,7 @@ en-US:
         title: " Repositories "
         heading: "Configured repositories"
         parse_error: "repos.conf:"
-        empty: "No [[repo]] entries in repos.conf. Add definitions via the Config menu or copy config/examples/repos.conf.example."
+        empty: "No [[repo]] entries in repos.conf. Add definitions via the Config menu or copy config/examples/repos_example.conf."
         col:
           repo: "Repo"
           filter: "Filter"

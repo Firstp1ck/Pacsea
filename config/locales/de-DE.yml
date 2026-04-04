@@ -530,7 +530,7 @@ de-DE:
         title: " Paketquellen "
         heading: "Konfigurierte Paketquellen"
         parse_error: "repos.conf:"
-        empty: "Keine [[repo]]-Einträge in repos.conf. Über das Konfigurationsmenü ergänzen oder config/examples/repos.conf.example aus dem Pacsea-Repo kopieren."
+        empty: "Keine [[repo]]-Einträge in repos.conf. Über das Konfigurationsmenü ergänzen oder config/examples/repos_example.conf aus dem Pacsea-Repo kopieren."
         col:
           repo: "Repo"
           filter: "Filter"

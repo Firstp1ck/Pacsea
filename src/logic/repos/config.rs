@@ -32,7 +32,7 @@ pub struct ReposConfFile {
 ///
 /// Details:
 /// - Required for the results map: `name`, `results_filter`. Other fields are reserved for Phase 3 (apply).
-/// - The `preset` key is rejected: use full rows; see `config/examples/repos.conf.example` in the Pacsea repo.
+/// - The `preset` key is rejected: use full rows; see `config/examples/repos_example.conf` in the Pacsea repo.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct RepoRow {
@@ -146,7 +146,7 @@ fn finalize_row(row: &RepoRow) -> Result<RepoRow, String> {
     {
         return Err(
             "repos.conf: `preset` is not supported; define a full [[repo]] block. \
-             See config/examples/repos.conf.example in the Pacsea repository."
+             See config/examples/repos_example.conf in the Pacsea repository."
                 .to_string(),
         );
     }

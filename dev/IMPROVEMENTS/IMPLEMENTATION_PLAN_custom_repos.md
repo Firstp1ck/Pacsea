@@ -13,7 +13,7 @@
 | **3** | Privileged apply: managed drop-in, active-line marker detection, `mirrorlist_url`+curl, `key_server`, final `pacman -Sy --noconfirm`, **`PasswordPurpose::RepoApply`**, preflight + `ExecutorRequest::Update`, **`dry_run`** | **Done** |
 | **4** | Title-bar toggles for all dynamic filter ids, polish, issue #132 closure | **Not started** |
 
-Reference implementations: `src/logic/repos/` (`config.rs`, `pacman_conf.rs`, `modal_data.rs`, **`apply_plan.rs`**), `src/state/modal.rs` (`Modal::Repositories`, **`PasswordPurpose::RepoApply`**), `src/events/modals/repositories.rs`, `src/ui/modals/misc.rs` (`render_repositories`), `config/examples/repos.conf.example`.
+Reference implementations: `src/logic/repos/` (`config.rs`, `pacman_conf.rs`, `modal_data.rs`, **`apply_plan.rs`**), `src/state/modal.rs` (`Modal::Repositories`, **`PasswordPurpose::RepoApply`**), `src/events/modals/repositories.rs`, `src/ui/modals/misc.rs` (`render_repositories`), `config/examples/repos_example.conf`.
 
 ---
 
@@ -21,7 +21,7 @@ Reference implementations: `src/logic/repos/` (`config.rs`, `pacman_conf.rs`, `m
 
 1. **Options** → **Repositories** — Each `[[repo]]` from `repos.conf` merged with live `/etc/pacman.conf` (and shallow includes) plus optional keyring trust column. **Enter** runs **Apply** for the selected row: it rebuilds the managed drop-in for all enabled rows that have `server`, local `mirrorlist`, or `http`/`https` `mirrorlist_url` (URLs are fetched with **curl** first), optional **`pacman-key`** steps (with **`key_server`** when set), marker **`Include`** append when no **active** begin line exists, then **`pacman -Sy --noconfirm`**. Preflight → password (if needed) → privileged commands. **Setup / Remove / “Apply all”** remain Phase 4+.
 2. **Config menu** — `repos.conf` is listed **with** `settings.conf`, `theme.conf`, and `keybinds.conf` (fourth row; numeric `4` where applicable).
-3. **Add / define repos** — Edit **`repos.conf`** (TOML). Copy rows from **`config/examples/repos.conf.example`** in the Pacsea repo (or upstream docs); there is **no** `preset = "…"` merge—`preset` is **rejected** at parse time so behavior stays explicit and user-controlled.
+3. **Add / define repos** — Edit **`repos.conf`** (TOML). Copy rows from **`config/examples/repos_example.conf`** in the Pacsea repo (or upstream docs); there is **no** `preset = "…"` merge—`preset` is **rejected** at parse time so behavior stays explicit and user-controlled.
 4. **Results filters** — Hiding packages from third-party repos uses **`results_filter`** in each row plus **`results_filter_show_<canonical_token>`** lines in **`settings.conf`** (see [`canonical_results_filter_key`](../../src/logic/repos/config.rs)); this is separate from whether a repo is enabled in `pacman.conf`.
 
 **Read-only vs apply:** Phase 3 **Apply** writes `/etc/pacman.d/pacsea-repos.conf` and may append a marker-wrapped **`Include =`** block to `/etc/pacman.conf` once. Commands respect global **`dry_run`** (same path as system update). The **`enabled`** field omits rows from the managed drop-in when `enabled = false`.
@@ -39,7 +39,7 @@ Reference implementations: `src/logic/repos/` (`config.rs`, `pacman_conf.rs`, `m
 | Privilege / exec | `src/logic/privilege.rs`, `src/install/executor.rs`, `src/logic/repos/apply_plan.rs` | Apply uses `build_privilege_command`; `PasswordPurpose::RepoApply`; execution reuses **`ExecutorRequest::Update`** with command list from **`build_repo_apply_bundle`**. |
 | Results visibility | `src/logic/distro.rs` (`repo_toggle_for`) | Builtins first; then `repo_results_filter_by_name` + `results_filter_dynamic`. |
 | Settings | `src/theme/settings/parse_settings.rs`, `src/theme/types.rs` | Dynamic keys: prefix `results_filter_show_`; canonical token from `repos.conf` via `canonical_results_filter_key`. |
-| Examples | `config/examples/repos.conf.example`, `config/repos.conf` | Shipped **examples** and minimal starter—not an in-tree preset merge. |
+| Examples | `config/examples/repos_example.conf`, `config/repos.conf` | Shipped **examples** and minimal starter—not an in-tree preset merge. |
 
 ---
 
@@ -71,13 +71,13 @@ results_filter = "vendor"      # required; drives results_toggle + settings key
 
 - **`results_filter`:** Free-form label; canonical key for `settings.conf` is from `canonical_results_filter_key` (non-alphanumeric → `_`, lowercase). Example: `vendor-aur` → `results_filter_show_vendor_aur`.
 - **`repo_toggle_for`:** After hardcoded branches, normalize repo name, look up dynamic map, then `results_filter_dynamic.get(canonical).copied().unwrap_or(true)` (default visible).
-- **`preset`:** Intentionally unsupported—avoids maintaining vendor-specific defaults inside the binary; users copy from `config/examples/repos.conf.example` or official install instructions.
+- **`preset`:** Intentionally unsupported—avoids maintaining vendor-specific defaults inside the binary; users copy from `config/examples/repos_example.conf` or official install instructions.
 
 ---
 
 ## Examples (reference only — not merged at runtime)
 
-Maintain **human-oriented** samples under **`config/examples/repos.conf.example`** (third-party server lines, keys, comments). Users (or docs) copy rows into their own `repos.conf`. Updates to examples are **documentation / packaging**, not a runtime catalog.
+Maintain **human-oriented** samples under **`config/examples/repos_example.conf`** (third-party server lines, keys, comments). Users (or docs) copy rows into their own `repos.conf`. Updates to examples are **documentation / packaging**, not a runtime catalog.
 
 ---
 
@@ -208,7 +208,7 @@ sequenceDiagram
 |-------|----------|
 | Managed drop-in vs inline | Prefer single **`Include`** drop-in under `/etc/pacman.d/` for Pacsea-managed repos. |
 | Results filters | Each **`[[repo]]`** has **`results_filter`**; settings use **`results_filter_show_<canonical>`**; `repo_toggle_for` uses name → canonical map + dynamic map. |
-| Presets | **No in-tree preset catalog.** **`preset` key rejected.** Examples live in **`config/examples/repos.conf.example`**. |
+| Presets | **No in-tree preset catalog.** **`preset` key rejected.** Examples live in **`config/examples/repos_example.conf`**. |
 | Repo ordering in drop-in | File order in `repos.conf` defines drop-in order; document per-upstream if ordering matters relative to `[core]`. |
 | Apply UX scope | **Per-row Enter** validates selection; regenerates drop-in for **all** enabled eligible rows. |
 | Executor variant | Reuse **`Update`** for repo apply commands to minimize duplication; dedicated variant optional later. |
@@ -237,7 +237,7 @@ This file is planning-only; implementation follows `AGENTS.md` (clippy, tests, r
 - [x] `toml` + `serde` in `Cargo.toml`
 - [x] Serde models for `[[repo]]`, validation (empty `name`, duplicate names, required `results_filter`, reject `preset`)
 - [x] `resolve_repos_config_path()` in `src/theme/paths.rs`
-- [x] `config/repos.conf` + `config/examples/repos.conf.example`
+- [x] `config/repos.conf` + `config/examples/repos_example.conf`
 - [x] `settings.conf`: parse `results_filter_show_<canonical>` → `Settings` / `apply_settings_to_app_state` → `results_filter_dynamic`
 - [x] Startup + config reload: build `repo_results_filter_by_name` (lowercase pacman name → canonical filter) from `repos.conf`
 - [x] **No** in-tree preset merge (superseded by examples-only policy)
@@ -259,7 +259,7 @@ This file is planning-only; implementation follows `AGENTS.md` (clippy, tests, r
 - [x] Managed **`pacsea-repos.conf`** drop-in + marker-wrapped **`Include`** append to `/etc/pacman.conf` when absent
 - [x] `pacman-key --recv-keys` / `--lsign-key` per distinct fingerprint (≥8 hex); no unsafe shell interpolation of TOML values
 - [x] **`PasswordPurpose::RepoApply`**, preflight, **`ExecutorRequest::Update`** reuse; **`dry_run`** via existing executor behavior
-- [x] i18n + `config/examples/repos.conf.example` note for Apply fields
+- [x] i18n + `config/examples/repos_example.conf` note for Apply fields
 - [x] **`mirrorlist_url`**: privileged curl to `/etc/pacman.d/pacsea-mirror-*`; requires **curl** at plan time
 - [x] **`key_server`**: `pacman-key --keyserver … --recv-keys`
 - [x] Post-apply **`pacman -Sy --noconfirm`** in the same confirmed bundle
