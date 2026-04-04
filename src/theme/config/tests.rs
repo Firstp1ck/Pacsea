@@ -210,6 +210,29 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
     }
 
+    /// What: Verify the `repos.conf` skeleton string still documents a commented `[[repo]]` example.
+    ///
+    /// Inputs:
+    /// - None.
+    ///
+    /// Output:
+    /// - None.
+    ///
+    /// Details:
+    /// - Guards an accidentally emptied `REPOS_SKELETON_CONTENT` in `skeletons.rs` (keep `config/repos.conf` in sync).
+    #[test]
+    fn repos_skeleton_embeds_commented_repo_example() {
+        use crate::theme::config::skeletons::REPOS_SKELETON_CONTENT;
+        assert!(
+            REPOS_SKELETON_CONTENT.contains("# [[repo]]"),
+            "repos skeleton should include a commented-out [[repo]] example"
+        );
+        assert!(
+            REPOS_SKELETON_CONTENT.contains("results_filter"),
+            "repos skeleton should document results_filter"
+        );
+    }
+
     /// What: Extract keys from config file content.
     ///
     /// Inputs:

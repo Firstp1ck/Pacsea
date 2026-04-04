@@ -3,13 +3,14 @@ use std::fs;
 use std::path::Path;
 
 use crate::theme::config::skeletons::{
-    KEYBINDS_SKELETON_CONTENT, SETTINGS_SKELETON_CONTENT, THEME_SKELETON_CONTENT,
+    KEYBINDS_SKELETON_CONTENT, REPOS_SKELETON_CONTENT, SETTINGS_SKELETON_CONTENT,
+    THEME_SKELETON_CONTENT,
 };
 use crate::theme::config::theme_loader::{THEME_REQUIRED_CANONICAL, resolved_theme_canonical_keys};
 use crate::theme::parsing::canonical_for_key;
 use crate::theme::paths::{
-    config_dir, resolve_keybinds_config_path, resolve_settings_config_path,
-    resolve_theme_config_path,
+    config_dir, resolve_keybinds_config_path, resolve_repos_config_path,
+    resolve_settings_config_path, resolve_theme_config_path,
 };
 use crate::theme::types::Settings;
 
@@ -308,6 +309,29 @@ fn parse_missing_settings(
     missing_settings
 }
 
+/// What: Create `repos.conf` from the built-in skeleton when the file does not exist yet.
+///
+/// Inputs:
+/// - None.
+///
+/// Output:
+/// - None.
+///
+/// Details:
+/// - Best-effort: ignores write failures (same pattern as keybinds seeding).
+/// - Target path matches [`resolve_repos_config_path`] when a candidate file already exists; if none
+///   exist yet, writes to `config_dir()/repos.conf` (same default as the Config menu and Repositories modal).
+fn ensure_repos_conf_skeleton() {
+    let repos_path = resolve_repos_config_path().unwrap_or_else(|| config_dir().join("repos.conf"));
+    if repos_path.exists() {
+        return;
+    }
+    if let Some(dir) = repos_path.parent() {
+        let _ = fs::create_dir_all(dir);
+    }
+    let _ = fs::write(&repos_path, REPOS_SKELETON_CONTENT);
+}
+
 /// What: Ensure all expected settings keys exist in `settings.conf`, appending defaults as needed.
 ///
 /// Inputs:
@@ -431,6 +455,8 @@ pub fn ensure_settings_keys_present(prefs: &Settings) {
         }
         let _ = fs::write(&kb, KEYBINDS_SKELETON_CONTENT);
     }
+
+    ensure_repos_conf_skeleton();
 }
 
 /// What: Ensure all expected keybind entries exist in `keybinds.conf`, appending defaults as needed.

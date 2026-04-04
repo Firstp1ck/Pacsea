@@ -19,8 +19,8 @@ pub mod theme_loader;
 #[cfg(test)]
 mod tests;
 
-// Re-export skeleton constants (only THEME_SKELETON_CONTENT is used externally)
-pub use skeletons::THEME_SKELETON_CONTENT;
+// Re-export skeleton constants for theme and first-run `repos.conf` seeding
+pub use skeletons::{REPOS_SKELETON_CONTENT, THEME_SKELETON_CONTENT};
 
 // Re-export theme loading functions
 pub use theme_loader::try_load_theme_with_diagnostics;

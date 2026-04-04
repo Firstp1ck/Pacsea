@@ -155,8 +155,7 @@ pub(super) fn open_user_repos_conf_in_editor(app: &mut AppState) {
         return;
     }
     if !path.exists() {
-        let seed =
-            "# Pacsea repos.conf — add [[repo]] blocks (see config/examples/repos.conf.example).\n";
+        let seed = crate::theme::REPOS_SKELETON_CONTENT;
         if std::fs::write(&path, seed).is_err() {
             app.toast_message = Some(crate::i18n::t(
                 app,
