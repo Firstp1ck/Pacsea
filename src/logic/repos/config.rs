@@ -100,6 +100,7 @@ pub fn canonical_results_filter_key(raw: &str) -> String {
 ///
 /// Details:
 /// - Used before the row enters the repo-name map.
+/// - Rejects `results_filter` values that normalize to an empty canonical key (no ASCII alphanumerics).
 fn validate_row(row: &RepoRow) -> Result<(), String> {
     let name_ok = row
         .name
@@ -109,13 +110,19 @@ fn validate_row(row: &RepoRow) -> Result<(), String> {
     if !name_ok {
         return Err("repo `name` is missing or empty".to_string());
     }
-    let rf_ok = row
+    let Some(rf_trimmed) = row
         .results_filter
         .as_deref()
         .map(str::trim)
-        .is_some_and(|s| !s.is_empty());
-    if !rf_ok {
+        .filter(|s| !s.is_empty())
+    else {
         return Err("repo `results_filter` is missing or empty".to_string());
+    };
+    if canonical_results_filter_key(rf_trimmed).is_empty() {
+        return Err(
+            "repo `results_filter` contains no ASCII letters or digits; add at least one so the filter can be toggled in settings (results_filter_show_<id>)"
+                .to_string(),
+        );
     }
     Ok(())
 }
@@ -158,6 +165,7 @@ fn finalize_row(row: &RepoRow) -> Result<RepoRow, String> {
 /// # Errors
 ///
 /// - Returns `Err` when two rows share the same case-insensitive `name`.
+/// - Returns `Err` when a row's `results_filter` normalizes to an empty canonical key.
 ///
 /// Details:
 /// - Errors on duplicate `name` (case-insensitive).
@@ -170,6 +178,11 @@ pub fn build_repo_name_to_filter_map(rows: &[RepoRow]) -> Result<HashMap<String,
         }
         let rf_raw = row.results_filter.as_deref().unwrap_or("");
         let canon = canonical_results_filter_key(rf_raw);
+        if canon.is_empty() {
+            return Err(format!(
+                "repo `name` = {name:?}: `results_filter` normalizes to an empty settings key; include at least one ASCII letter or digit"
+            ));
+        }
         if map.insert(name.clone(), canon).is_some() {
             return Err(format!("duplicate repo `name` in repos.conf: {name}"));
         }
@@ -343,6 +356,40 @@ mod tests {
     fn canonical_key_collapses_separators() {
         assert_eq!(canonical_results_filter_key("vendor-aur"), "vendor_aur");
         assert_eq!(canonical_results_filter_key("  Foo..Bar  "), "foo_bar");
+    }
+
+    #[test]
+    fn canonical_key_empty_when_no_alphanumerics() {
+        assert!(canonical_results_filter_key("---").is_empty());
+        assert!(canonical_results_filter_key("  ..  ").is_empty());
+    }
+
+    #[test]
+    fn results_filter_without_alphanumerics_rejected() {
+        let toml = r#"
+[[repo]]
+name = "myrepo"
+results_filter = "---"
+"#;
+        let err = load_resolve_repos_from_str(toml).expect_err("no alphanumeric");
+        assert!(
+            err.contains("ASCII letters or digits"),
+            "unexpected message: {err}"
+        );
+    }
+
+    #[test]
+    fn build_repo_name_to_filter_map_rejects_empty_canonical_key() {
+        let rows = vec![RepoRow {
+            name: Some("foo".to_string()),
+            results_filter: Some("---".to_string()),
+            ..Default::default()
+        }];
+        let err = build_repo_name_to_filter_map(&rows).expect_err("empty canon");
+        assert!(
+            err.contains("empty settings key"),
+            "unexpected message: {err}"
+        );
     }
 
     #[test]

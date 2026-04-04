@@ -5,6 +5,7 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, BorderType, Borders, Clear, Paragraph, Wrap},
 };
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use super::common::render_simple_list_modal;
 use crate::state::{
@@ -167,23 +168,20 @@ pub fn render_repositories(
         .add_modifier(Modifier::BOLD);
     lines.push(Line::from(vec![
         Span::styled(
-            format!(
-                "{:<22}",
-                crate::i18n::t(app, "app.modals.repositories.col.repo")
+            pad_right_display(&crate::i18n::t(app, "app.modals.repositories.col.repo"), 22),
+            header_style,
+        ),
+        Span::styled(
+            pad_right_display(
+                &crate::i18n::t(app, "app.modals.repositories.col.filter"),
+                16,
             ),
             header_style,
         ),
         Span::styled(
-            format!(
-                "{:<16}",
-                crate::i18n::t(app, "app.modals.repositories.col.filter")
-            ),
-            header_style,
-        ),
-        Span::styled(
-            format!(
-                "{:<12}",
-                crate::i18n::t(app, "app.modals.repositories.col.pacman")
+            pad_right_display(
+                &crate::i18n::t(app, "app.modals.repositories.col.pacman"),
+                12,
             ),
             header_style,
         ),
@@ -208,9 +206,9 @@ pub fn render_repositories(
         } else {
             Style::default().fg(th.text)
         };
-        let pname = truncate_display(&row.pacman_section_name, 20);
-        let pfilter = truncate_display(&row.results_filter_display, 14);
-        let pst = pacman_status_label(app, row.pacman_status);
+        let pname = pad_right_display(&truncate_display(&row.pacman_section_name, 20), 22);
+        let pfilter = pad_right_display(&truncate_display(&row.results_filter_display, 14), 16);
+        let pst = pad_right_display(&pacman_status_label(app, row.pacman_status), 12);
         let pk = key_trust_label(app, row.key_trust);
         let hint = row
             .source_hint
@@ -218,9 +216,9 @@ pub fn render_repositories(
             .map(|s| format!(" [{}]", truncate_display(s, 20)))
             .unwrap_or_default();
         lines.push(Line::from(vec![
-            Span::styled(format!("{pname:<22}"), style),
-            Span::styled(format!("{pfilter:<16}"), style),
-            Span::styled(format!("{pst:<12}"), style),
+            Span::styled(pname, style),
+            Span::styled(pfilter, style),
+            Span::styled(pst, style),
             Span::styled(format!("{pk}{hint}"), style),
         ]));
     }
@@ -264,21 +262,62 @@ pub fn render_repositories(
     frame.render_widget(repo_paragraph, rect);
 }
 
-/// What: Clamp display string width with an ellipsis suffix.
+/// What: Truncate `s` to a maximum terminal display width, appending an ellipsis when shortened.
 ///
 /// Inputs:
 /// - `s`: Source text.
-/// - `max_chars`: Maximum character count before truncation.
+/// - `max_width`: Maximum display columns ([`UnicodeWidthStr::width`]); the result fits within this
+///   width when rendered in a typical monospace terminal.
 ///
 /// Output:
-/// - Possibly shortened owned string.
-fn truncate_display(s: &str, max_chars: usize) -> String {
-    let count = s.chars().count();
-    if count <= max_chars {
+/// - Owned string at most `max_width` display columns, or empty when `max_width` is zero.
+///
+/// Details:
+/// - Uses [`UnicodeWidthChar`] per scalar value (same approach as `results/status.rs`); combining
+///   sequences are not grapheme-cluster aware.
+fn truncate_display(s: &str, max_width: usize) -> String {
+    const ELLIPSIS: char = '…';
+    let ellipsis_w = ELLIPSIS.width().unwrap_or(0);
+    let w = s.width();
+    if w <= max_width {
         return s.to_string();
     }
-    let take = max_chars.saturating_sub(1);
-    s.chars().take(take).collect::<String>() + "…"
+    if max_width == 0 {
+        return String::new();
+    }
+    let budget = max_width.saturating_sub(ellipsis_w);
+    let mut out = String::new();
+    let mut width_so_far = 0usize;
+    for ch in s.chars() {
+        let ch_w = ch.width().unwrap_or(0);
+        if width_so_far.saturating_add(ch_w) > budget {
+            break;
+        }
+        out.push(ch);
+        width_so_far = width_so_far.saturating_add(ch_w);
+    }
+    out.push(ELLIPSIS);
+    out
+}
+
+/// What: Append ASCII spaces so `s` spans at least `target_width` terminal display columns.
+///
+/// Inputs:
+/// - `s`: Text to pad (callers should truncate first if it may exceed `target_width`).
+/// - `target_width`: Minimum display width for the returned string.
+///
+/// Output:
+/// - `s` unchanged when already wide enough; otherwise `s` plus trailing spaces.
+///
+/// Details:
+/// - Matches [`UnicodeWidthStr::width`] so padding aligns with `truncate_display` and Ratatui spans.
+fn pad_right_display(s: &str, target_width: usize) -> String {
+    let w = s.width();
+    if w >= target_width {
+        return s.to_string();
+    }
+    let pad = target_width - w;
+    format!("{s}{}", " ".repeat(pad))
 }
 
 /// What: Localized label for pacman section presence.
@@ -931,4 +970,49 @@ pub fn render_loading(f: &mut Frame, area: Rect, message: &str) {
                 .style(Style::default().bg(th.mantle)),
         );
     f.render_widget(boxw, rect);
+}
+
+#[cfg(test)]
+mod truncate_and_pad_tests {
+    use unicode_width::UnicodeWidthStr;
+
+    use super::{pad_right_display, truncate_display};
+
+    #[test]
+    fn truncate_display_ascii_short_unchanged() {
+        assert_eq!(truncate_display("core", 20), "core");
+    }
+
+    #[test]
+    fn truncate_display_ascii_long_uses_ellipsis_within_width() {
+        let s = truncate_display("very-long-repo-section-name-here", 20);
+        assert!(s.ends_with('…'));
+        assert!(s.width() <= 20);
+    }
+
+    #[test]
+    fn truncate_display_cjk_respects_display_columns() {
+        // Each CJK character is typically width 2; 9 chars => 18 columns, fits in 20.
+        let narrow = "一二三四五六七八九";
+        assert_eq!(truncate_display(narrow, 20), narrow);
+        // 11 chars => 22 columns; truncate to <= 20 with ellipsis (width 1) => 9 display cols body.
+        let wide = "一二三四五六七八九十甲";
+        let t = truncate_display(wide, 20);
+        assert!(t.ends_with('…'));
+        assert!(t.width() <= 20);
+    }
+
+    #[test]
+    fn pad_right_display_adds_spaces_by_display_width() {
+        let s = pad_right_display("ab", 6);
+        assert_eq!(s.width(), 6);
+        assert_eq!(s, "ab    ");
+    }
+
+    #[test]
+    fn pad_right_display_wide_prefix() {
+        let s = pad_right_display("国", 6);
+        assert_eq!(s.width(), 6);
+        assert_eq!(s, "国    ");
+    }
 }
