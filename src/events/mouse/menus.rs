@@ -857,6 +857,26 @@ fn close_all_menus(app: &mut AppState) {
     app.custom_repos_filter_menu_open = false;
 }
 
+/// What: Detect clicks meant for Artix or `repos.conf` overflow filter UI.
+///
+/// Inputs:
+/// - `mx` / `my`: Mouse coordinates.
+/// - `app`: State carrying Artix / custom repo chip rects and open dropdown hit rects.
+///
+/// Output:
+/// - `true` when the point hits the main Artix chip, the custom `[Repos]` chip, or either overflow menu.
+///
+/// Details:
+/// - Menu dispatch runs before filter mouse handling. The generic "click outside closes menus" path
+///   must not clear these flags when the same click will toggle a chip or a checkbox row; otherwise
+///   the filter pass sees menus already closed and ignores the action.
+const fn click_on_filter_overflow_targets(mx: u16, my: u16, app: &AppState) -> bool {
+    point_in_rect(mx, my, app.results_filter_artix_rect)
+        || point_in_rect(mx, my, app.results_filter_custom_repos_rect)
+        || point_in_rect(mx, my, app.artix_filter_menu_rect)
+        || point_in_rect(mx, my, app.custom_repos_filter_menu_rect)
+}
+
 /// Handle mouse events for menus (sort, options, config, panels, import/export).
 ///
 /// What: Process mouse interactions with menu buttons, dropdown menus, and action buttons
@@ -942,8 +962,11 @@ pub(super) fn handle_menus_mouse(
         return handle_collapsed_menu_click(mx, my, app);
     }
 
-    // Click outside any menu closes all menus
-    close_all_menus(app);
+    // Click outside standard menus closes them. Defer clearing Artix / custom-repo overflow menus when
+    // the coordinates target those controls — filter mouse handling runs next.
+    if !click_on_filter_overflow_targets(mx, my, app) {
+        close_all_menus(app);
+    }
     None
 }
 
@@ -1123,5 +1146,32 @@ mod tests {
                 "pending_news should still have 2 items after second open"
             );
         }
+    }
+
+    #[test]
+    /// What: Ensure menu dispatch does not clear the custom-repo filter dropdown before filters run.
+    ///
+    /// Inputs:
+    /// - `AppState` with `custom_repos_filter_menu_open` and a menu hit rect; click coordinates inside it.
+    ///
+    /// Output:
+    /// - After `handle_menus_mouse`, the menu remains open.
+    ///
+    /// Details:
+    /// - Regression: `close_all_menus` used to run on every unhandled menu click and cleared
+    ///   `custom_repos_filter_menu_open`, so the subsequent filter pass ignored checkbox toggles.
+    fn handle_menus_mouse_leaves_custom_repos_dropdown_open_for_filter_pass() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let mut app = crate::state::AppState {
+            custom_repos_filter_menu_open: true,
+            custom_repos_filter_menu_rect: Some((50u16, 3u16, 24u16, 5u16)),
+            ..crate::state::AppState::default()
+        };
+        let mx = 55u16;
+        let my = 5u16;
+        assert!(super::click_on_filter_overflow_targets(mx, my, &app));
+        let r = super::handle_menus_mouse(mx, my, &mut app, &tx);
+        assert!(r.is_none());
+        assert!(app.custom_repos_filter_menu_open);
     }
 }

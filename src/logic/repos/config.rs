@@ -239,6 +239,74 @@ pub fn load_repo_name_map_from_path(path: &Path) -> HashMap<String, String> {
     }
 }
 
+/// What: Collect `[[repo]]` pacman section names from `repos.conf` for extra `pacman -Sl` index passes.
+///
+/// Inputs:
+/// - `content`: Full `repos.conf` file text.
+/// - `sl_names_lower_already_fetched`: Lowercase repo names already queried by the builtin index fetch.
+///
+/// Output:
+/// - Distinct `name` values not present in `sl_names_lower_already_fetched`, in file order.
+///
+/// Details:
+/// - Parses with [`load_resolve_repos_from_str`]; on failure returns an empty list (caller may log).
+/// - Skips duplicates case-insensitively so each extra `-Sl` runs at most once.
+#[allow(clippy::implicit_hasher)]
+fn repos_conf_repo_names_for_extra_sl_from_str(
+    content: &str,
+    sl_names_lower_already_fetched: &HashSet<String>,
+) -> Vec<String> {
+    let Ok((rows, _)) = load_resolve_repos_from_str(content) else {
+        tracing::debug!("repos.conf: skip index Sl extras (parse failed)");
+        return Vec::new();
+    };
+    let mut seen_out = HashSet::<String>::new();
+    let mut out = Vec::new();
+    for row in rows {
+        let Some(name) = row.name.as_deref() else {
+            continue;
+        };
+        let nl = name.to_lowercase();
+        if sl_names_lower_already_fetched.contains(&nl) {
+            continue;
+        }
+        if seen_out.insert(nl) {
+            out.push(name.to_string());
+        }
+    }
+    out
+}
+
+/// What: Resolve `repos.conf` and list repo names that need an extra `pacman -Sl` for the package index.
+///
+/// Inputs:
+/// - `sl_names_lower_already_fetched`: Lowercase names already covered by Pacsea's builtin `-Sl` loop.
+///
+/// Output:
+/// - Repository `name` strings to pass to `pacman -Sl`, excluding builtins and duplicates.
+///
+/// Details:
+/// - When no file exists or read/parse fails, returns an empty vector (non-fatal).
+/// - Logs at info when extras are non-empty so diagnostics show third-party repos indexed (e.g. Chaotic-AUR).
+#[allow(clippy::implicit_hasher)]
+#[must_use]
+pub fn repos_conf_repo_names_for_index_sl(
+    sl_names_lower_already_fetched: &HashSet<String>,
+) -> Vec<String> {
+    let Some(path) = crate::theme::resolve_repos_config_path() else {
+        return Vec::new();
+    };
+    let Ok(content) = std::fs::read_to_string(&path) else {
+        tracing::debug!(path = %path.display(), "repos.conf: skip index Sl extras (read failed)");
+        return Vec::new();
+    };
+    let out = repos_conf_repo_names_for_extra_sl_from_str(&content, sl_names_lower_already_fetched);
+    if !out.is_empty() {
+        tracing::info!(repos = ?out, "index fetch: extra pacman -Sl repos from repos.conf");
+    }
+    out
+}
+
 /// What: Merge per-filter toggles from `settings.conf` with defaults for all ids from repos.
 ///
 /// Inputs:
@@ -267,6 +335,8 @@ pub fn build_dynamic_visibility(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use super::*;
 
     #[test]
@@ -284,6 +354,37 @@ results_filter = "vendor_pkgs"
 "#;
         let (_rows, map) = load_resolve_repos_from_str(toml).expect("parse");
         assert_eq!(map.get("myrepo").map(String::as_str), Some("vendor_pkgs"));
+    }
+
+    #[test]
+    /// What: Ensure index Sl extras omit repos already fetched and builtins listed in `repos.conf`.
+    ///
+    /// Inputs:
+    /// - TOML with `core`, `chaotic-aur`, and `my-vendor`; `builtin` set marks `core` and
+    ///   `chaotic-aur` as already queried.
+    ///
+    /// Output:
+    /// - Only `my-vendor` is returned.
+    ///
+    /// Details:
+    /// - `repos.conf` may repeat names Pacsea already passes to `pacman -Sl`; those must not run twice.
+    fn repos_conf_index_sl_extras_skip_builtins() {
+        let mut builtin = HashSet::new();
+        builtin.insert("core".to_string());
+        builtin.insert("chaotic-aur".to_string());
+        let toml = r#"
+[[repo]]
+name = "core"
+results_filter = "c"
+[[repo]]
+name = "chaotic-aur"
+results_filter = "chaotic_aur"
+[[repo]]
+name = "my-vendor"
+results_filter = "vendor"
+"#;
+        let out = super::repos_conf_repo_names_for_extra_sl_from_str(toml, &builtin);
+        assert_eq!(out, vec!["my-vendor".to_string()]);
     }
 
     #[test]

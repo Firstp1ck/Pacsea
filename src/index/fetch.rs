@@ -1,4 +1,7 @@
 #[cfg(not(windows))]
+use std::collections::HashSet;
+
+#[cfg(not(windows))]
 use super::OfficialPkg;
 #[cfg(not(windows))]
 use super::distro::{artix_repo_names, blackarch_repo_names, cachyos_repo_names, eos_repo_names};
@@ -15,6 +18,8 @@ use super::distro::{artix_repo_names, blackarch_repo_names, cachyos_repo_names, 
 /// Details:
 /// - Combines results from core, extra, multilib, `EndeavourOS`, `CachyOS`, `Artix Linux`, and
 ///   `BlackArch` repositories before sorting and deduplicating entries.
+/// - Adds `pacman -Sl <name>` for each `[[repo]]` `name` in `repos.conf` that is not already in the
+///   builtin list (e.g. Chaotic-AUR) so third-party databases appear in search.
 #[cfg(not(windows))]
 pub async fn fetch_official_pkg_names()
 -> Result<Vec<OfficialPkg>, Box<dyn std::error::Error + Send + Sync>> {
@@ -79,6 +84,36 @@ pub async fn fetch_official_pkg_names()
                 .unwrap_or_default();
         blackarch_pairs.push((repo, body));
     }
+
+    let mut sl_lower_done = HashSet::<String>::new();
+    for x in ["core", "extra", "multilib"] {
+        sl_lower_done.insert(x.to_string());
+    }
+    for &r in eos_repo_names() {
+        sl_lower_done.insert(r.to_lowercase());
+    }
+    for &r in cachyos_repo_names() {
+        sl_lower_done.insert(r.to_lowercase());
+    }
+    for &r in artix_repo_names() {
+        sl_lower_done.insert(r.to_lowercase());
+    }
+    for &r in blackarch_repo_names() {
+        sl_lower_done.insert(r.to_lowercase());
+    }
+    let extra_repo_names = crate::logic::repos::repos_conf_repo_names_for_index_sl(&sl_lower_done);
+    let mut repos_conf_pairs: Vec<(String, String)> = Vec::with_capacity(extra_repo_names.len());
+    for name in extra_repo_names {
+        let nm = name.clone();
+        let body =
+            tokio::task::spawn_blocking(move || crate::util::pacman::run_pacman(&["-Sl", &nm]))
+                .await
+                .ok()
+                .and_then(Result::ok)
+                .unwrap_or_default();
+        repos_conf_pairs.push((name, body));
+    }
+
     let mut pkgs: Vec<OfficialPkg> = Vec::new();
     for (repo, text) in [("core", core), ("extra", extra), ("multilib", multilib)]
         .into_iter()
@@ -103,6 +138,30 @@ pub async fn fetch_official_pkg_names()
                 continue;
             }
             // Keep name, repo, version; leave arch/description empty for speed
+            pkgs.push(OfficialPkg {
+                name: n.to_string(),
+                repo: r.to_string(),
+                arch: String::new(),
+                version: v.unwrap_or("").to_string(),
+                description: String::new(),
+            });
+        }
+    }
+    for (repo, text) in repos_conf_pairs {
+        for line in text.lines() {
+            let mut it = line.split_whitespace();
+            let r = it.next();
+            let n = it.next();
+            let v = it.next();
+            let Some(r) = r else {
+                continue;
+            };
+            let Some(n) = n else {
+                continue;
+            };
+            if r != repo.as_str() {
+                continue;
+            }
             pkgs.push(OfficialPkg {
                 name: n.to_string(),
                 repo: r.to_string(),

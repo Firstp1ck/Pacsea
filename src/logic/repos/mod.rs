@@ -17,6 +17,7 @@ pub use apply_plan::{
 pub use config::{
     RepoRow, ReposConfFile, build_dynamic_visibility, build_repo_name_to_filter_map,
     canonical_results_filter_key, load_repo_name_map_from_path, load_resolve_repos_from_str,
+    repos_conf_repo_names_for_index_sl,
 };
 pub use modal_data::{build_repositories_modal_fields, build_repositories_modal_fields_default};
 pub use pacman_conf::{PacmanConfScan, PacmanRepoPresence, scan_pacman_conf_path};

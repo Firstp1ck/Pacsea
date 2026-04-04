@@ -32,19 +32,21 @@ pub async fn update_in_background(
                     let guard = idx().read().ok();
                     if let Some(g) = guard {
                         use std::collections::{HashMap, HashSet};
-                        let old_names: HashSet<String> =
-                            g.pkgs.iter().map(|p| p.name.clone()).collect();
-                        let new_names: HashSet<String> =
-                            new_pkgs.iter().map(|p| p.name.clone()).collect();
-                        let different = old_names != new_names;
-                        // Merge: prefer old/enriched fields when same name exists
-                        let mut old_map: HashMap<String, &OfficialPkg> = HashMap::new();
+                        let pkg_key =
+                            |p: &OfficialPkg| (p.repo.to_lowercase(), p.name.to_lowercase());
+                        let old_keys: HashSet<(String, String)> =
+                            g.pkgs.iter().map(pkg_key).collect();
+                        let new_keys: HashSet<(String, String)> =
+                            new_pkgs.iter().map(pkg_key).collect();
+                        let different = old_keys != new_keys;
+                        // Merge: prefer old/enriched fields when the same (repo, name) exists
+                        let mut old_map: HashMap<(String, String), &OfficialPkg> = HashMap::new();
                         for p in &g.pkgs {
-                            old_map.insert(p.name.clone(), p);
+                            old_map.insert(pkg_key(p), p);
                         }
                         let mut merged = Vec::with_capacity(new_pkgs.len());
                         for mut p in new_pkgs {
-                            if let Some(old) = old_map.get(&p.name) {
+                            if let Some(old) = old_map.get(&pkg_key(&p)) {
                                 // keep enriched data
                                 p.repo.clone_from(&old.repo);
                                 p.arch.clone_from(&old.arch);
