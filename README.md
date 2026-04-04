@@ -209,7 +209,7 @@ For troubleshooting common issues, solutions, and diagnostic information, see th
 
 ### Potential future Features
 
-Longer specs for tracked items live in [`dev/ROADMAP/`](https://github.com/Firstp1ck/Pacsea/tree/main/dev/ROADMAP).
+Longer specs for tracked items live in [`dev/ROADMAP/`](https://github.com/Firstp1ck/Pacsea/tree/main/dev/ROADMAP). Priority tiers and a **GitHub issue cross-reference** table are in [`dev/IMPROVEMENTS/FEATURE_PRIORITY.md`](https://github.com/Firstp1ck/Pacsea/blob/main/dev/IMPROVEMENTS/FEATURE_PRIORITY.md).
 
 ### Community Suggestions: Priority Features
 - **Adjustable Height of the "Results", "Package Info" and "Search" panes** ([#135](https://github.com/Firstp1ck/Pacsea/issues/135))
@@ -217,18 +217,24 @@ Longer specs for tracked items live in [`dev/ROADMAP/`](https://github.com/First
 
 ### Other Potential Features
 - **Show with Hover over button, what the button does** ([#140](https://github.com/Firstp1ck/Pacsea/issues/140))
-- **Mirror Search and extensive Mirror Selection**
-- **Add Garuda Repository Support**
+- **Mirror Search and extensive Mirror Selection** ([#145](https://github.com/Firstp1ck/Pacsea/issues/145))
+- **Add Garuda Repository Support** — Garuda/Chaotic-style sync databases are mostly covered by optional **`repos.conf`** (see [#132](https://github.com/Firstp1ck/Pacsea/issues/132), closed); dedicated one-click presets remain a polish item
 - **Add possibility to view News for the respective Distro: EndeavourOS, Manjaro, Garuda and CachyOS** ([#131](https://github.com/Firstp1ck/Pacsea/issues/131))
-  - grouped by system critical updates like Kernel, systemd and other CORE packages that need restart and other packages (pacman and aur, incl. search/filter)
+  - grouped by system critical updates like Kernel, systemd and other CORE packages that need restart and other packages (pacman and aur, incl. search/filter) — overlaps [#134](https://github.com/Firstp1ck/Pacsea/issues/134)
 - **Implement `rebuild-detector` that checks if a package needs to be rebuild** ([#134](https://github.com/Firstp1ck/Pacsea/issues/134))
 - **Add custom upgrade commands** ([#134](https://github.com/Firstp1ck/Pacsea/issues/134))
-- **Add accessability themes for visual impairments** ([#130](https://github.com/Firstp1ck/Pacsea/issues/130))
-- **Add System Tray Support for popular Bars like Waybar, Quickshell, Hyprbar, Swaybar, etc.** ([#130](https://github.com/Firstp1ck/Pacsea/issues/130))
+- **Add accessibility themes for visual impairments** ([#129](https://github.com/Firstp1ck/Pacsea/issues/129))
+- **Add System Tray Support for popular Bars like Waybar, Quickshell, Hyprbar, Swaybar, etc.** ([#129](https://github.com/Firstp1ck/Pacsea/issues/129))
 - **Ability to resolve dependency conflicts** ([#134](https://github.com/Firstp1ck/Pacsea/issues/134))
-- **Ability to maintain your AUR packages** ([#129](https://github.com/Firstp1ck/Pacsea/issues/129))
-- **Implement Wiki into the TUI** ([#129](https://github.com/Firstp1ck/Pacsea/issues/129))
-- **Multi Package Manager Support for: Debian-Based (apt), Fedora-Based (dnf) and Flatpak Support** ([#129](https://github.com/Firstp1ck/Pacsea/issues/129))
+- **Ability to maintain your AUR packages** ([#130](https://github.com/Firstp1ck/Pacsea/issues/130))
+- **Implement Wiki into the TUI** ([#130](https://github.com/Firstp1ck/Pacsea/issues/130))
+- **Multi Package Manager Support for: Debian-Based (apt), Fedora-Based (dnf) and Flatpak Support** ([#130](https://github.com/Firstp1ck/Pacsea/issues/130))
+- **View or fetch descriptions for optional dependencies** (ALPM/AUR) ([#102](https://github.com/Firstp1ck/Pacsea/issues/102))
+- **Update packages whose sources track GitHub** (detect newer tags/releases) ([#104](https://github.com/Firstp1ck/Pacsea/issues/104))
+- **Service restart logic** after relevant package updates ([#99](https://github.com/Firstp1ck/Pacsea/issues/99))
+- **Transaction abort / safer cancellation** during long operations ([#98](https://github.com/Firstp1ck/Pacsea/issues/98))
+- **Sequential multi-package AUR security scans** ([#95](https://github.com/Firstp1ck/Pacsea/issues/95))
+- **CLI: remove packages from a saved install-list file** ([#93](https://github.com/Firstp1ck/Pacsea/issues/93))
 
 ## Credits
 - Inspired by the following yay commandline: `yay -Slq | fzf --multi --preview 'yay -Sii {}' --preview-window=down:75% --layout=default | xargs -ro yay -S`

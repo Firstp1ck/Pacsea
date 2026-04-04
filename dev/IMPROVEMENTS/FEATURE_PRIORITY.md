@@ -16,19 +16,25 @@
 
 **Still open (aligned with tier list below; not exhaustive):**
 
-- [ ] Adjustable vertical pane heights (Tier 1 #2)
-- [ ] CLI `--update` fully respects mirror/AUR-helper and related `settings.conf` fields (Tier 1 #3)
-- [x] PKGBUILD inline ShellCheck / namcap in details pane (Tier 1 #4) — **v0.8.0**
-- [ ] Button/focus tooltips (Tier 2 #5)
-- [x] AUR SSH voting (Tier 2 #6) — **v0.8.0**
-- [ ] Distro-specific news feeds (Tier 2 #7)
-- [ ] Rearrange pane order / locations (Tier 2 #8)
-- [ ] Accessibility themes (Tier 3 #9)
+- [ ] Adjustable vertical pane heights (Tier 1 #2) — [#135](https://github.com/Firstp1ck/Pacsea/issues/135)
+- [ ] CLI `--update` fully respects mirror/AUR-helper and related `settings.conf` fields (Tier 1 #3) — no open umbrella issue (related historic bug: [#57](https://github.com/Firstp1ck/Pacsea/issues/57), closed)
+- [x] PKGBUILD inline ShellCheck / namcap in details pane (Tier 1 #4) — **v0.8.0** — [#133](https://github.com/Firstp1ck/Pacsea/issues/133) closed
+- [ ] Button/focus tooltips (Tier 2 #5) — [#140](https://github.com/Firstp1ck/Pacsea/issues/140)
+- [x] AUR SSH voting (Tier 2 #6) — **v0.8.0** — [#137](https://github.com/Firstp1ck/Pacsea/issues/137) closed
+- [ ] Distro-specific news feeds (Tier 2 #7) — [#131](https://github.com/Firstp1ck/Pacsea/issues/131)
+- [ ] Rearrange pane order / locations (Tier 2 #8) — [#136](https://github.com/Firstp1ck/Pacsea/issues/136)
+- [ ] Accessibility themes (Tier 3 #9) — [#129](https://github.com/Firstp1ck/Pacsea/issues/129) (with system tray / panel integration in the same issue)
 - [x] Package-scoped news/comments in News Mode (Tier 3 #10; not separate background notifier)
-- [ ] Mirror browser / search UI (Tier 3 #11)
-- [ ] Update grouping by criticality (Tier 3 #12)
-- [x] Custom / third-party Pacman repositories (`repos.conf`, UI, apply) — **v0.8.0** (Tier 4 #13–14)
-- [ ] Tier 4+ remaining (conflict wizard, AUR maint tools, custom upgrade commands, multi-PM, optional preset polish for specific repos)
+- [ ] Mirror browser / search UI (Tier 3 #11) — [#145](https://github.com/Firstp1ck/Pacsea/issues/145)
+- [ ] Update grouping by criticality (Tier 3 #12) — overlaps [#134](https://github.com/Firstp1ck/Pacsea/issues/134) (umbrella: upgrades, rebuilds, conflicts, custom commands)
+- [x] Custom / third-party Pacman repositories (`repos.conf`, UI, apply) — **v0.8.0** (Tier 4 #13–14) — [#132](https://github.com/Firstp1ck/Pacsea/issues/132) closed
+- [ ] Tier 4+ remaining — [#134](https://github.com/Firstp1ck/Pacsea/issues/134), [#130](https://github.com/Firstp1ck/Pacsea/issues/130) (AUR maintainer tools, embedded wiki, multi-PM), optional first-class repo presets beyond `repos_example.conf`
+- [ ] Optional dependency descriptions (ALPM/AUR) — [#102](https://github.com/Firstp1ck/Pacsea/issues/102)
+- [ ] Update packages tracked via GitHub — [#104](https://github.com/Firstp1ck/Pacsea/issues/104)
+- [ ] Service restart guidance after updates — [#99](https://github.com/Firstp1ck/Pacsea/issues/99)
+- [ ] Transaction abort / cancellation UX — [#98](https://github.com/Firstp1ck/Pacsea/issues/98)
+- [ ] Sequential multi-package AUR scans — [#95](https://github.com/Firstp1ck/Pacsea/issues/95)
+- [ ] CLI remove-from-file for saved install lists — [#93](https://github.com/Firstp1ck/Pacsea/issues/93)
 
 ---
 
@@ -57,7 +63,7 @@
 | Next | 🟠 Rearrange pane order / locations |
 | `v0.8.x`+ | 🟡 Accessibility themes, mirror browser UI, update-by-criticality grouping (see diagram — **v0.8.0** shipped repos + checks + voting) |
 | `v1.0.0` | 🎉 Stable release (polish) |
-| `v1.1.0`+ | 🟢 Extra repos (Chaotic/Garuda, etc.), custom repos, conflict wizard, AUR maint tools |
+| `v1.1.0`+ | 🟢 Conflict wizard, AUR maintainer/wiki/multi-PM umbrella ([#130](https://github.com/Firstp1ck/Pacsea/issues/130)), optional repo presets beyond **`repos.conf`** (custom repos shipped **v0.8.0** — [#132](https://github.com/Firstp1ck/Pacsea/issues/132)) |
 | `v2.0.0` | 🔵 Multi-PM (apt, dnf, Flatpak) |
 
 ---
@@ -71,6 +77,31 @@
 | 🟡 **Tier 3** | Valuable for specific use cases, medium effort | Roadmap items |
 | 🟢 **Tier 4** | Niche or higher complexity, community-driven | Future consideration |
 | 🔵 **Tier 5** | Major architectural changes, long-term vision | Future major version |
+
+### GitHub issue cross-reference
+
+Open and closed issues on [Firstp1ck/Pacsea](https://github.com/Firstp1ck/Pacsea/issues) that map to this document (umbrella issues cover several bullets).
+
+| Topic | Issue | State |
+|-------|-------|-------|
+| Adjustable pane heights (Tier 1 #2) | [#135](https://github.com/Firstp1ck/Pacsea/issues/135) | Open |
+| Rearrange Top/Center/Bottom panes (Tier 2 #8) | [#136](https://github.com/Firstp1ck/Pacsea/issues/136) | Open |
+| Focus/hover discoverability (Tier 2 #5) | [#140](https://github.com/Firstp1ck/Pacsea/issues/140) | Open |
+| Distro-specific news (Tier 2 #7) | [#131](https://github.com/Firstp1ck/Pacsea/issues/131) | Open |
+| Mirror search / selection UI (Tier 3 #11) | [#145](https://github.com/Firstp1ck/Pacsea/issues/145) | Open |
+| Upgrades, rebuild detector, custom upgrade commands, conflicts (Tier 3 #12, Tier 4 #15/#17) | [#134](https://github.com/Firstp1ck/Pacsea/issues/134) | Open |
+| Accessibility themes + system tray / panel bars | [#129](https://github.com/Firstp1ck/Pacsea/issues/129) | Open |
+| AUR maintainer tools + embedded wiki + multi-PM (Tier 4 #16, Tier 5 #18) | [#130](https://github.com/Firstp1ck/Pacsea/issues/130) | Open |
+| Optional dependency descriptions | [#102](https://github.com/Firstp1ck/Pacsea/issues/102) | Open |
+| Updates for GitHub-hosted upstreams | [#104](https://github.com/Firstp1ck/Pacsea/issues/104) | Open |
+| Service restart logic after updates | [#99](https://github.com/Firstp1ck/Pacsea/issues/99) | Open |
+| Transaction abort logic | [#98](https://github.com/Firstp1ck/Pacsea/issues/98) | Open |
+| Sequential multi-package scan support | [#95](https://github.com/Firstp1ck/Pacsea/issues/95) | Open |
+| CLI remove-from-file (install list) | [#93](https://github.com/Firstp1ck/Pacsea/issues/93) | Open |
+| Custom repos + mirror/third-party umbrella | [#132](https://github.com/Firstp1ck/Pacsea/issues/132) | Closed |
+| PKGBUILD validation / ShellCheck+Namcap in UI | [#133](https://github.com/Firstp1ck/Pacsea/issues/133) | Closed |
+| AUR vote via SSH | [#137](https://github.com/Firstp1ck/Pacsea/issues/137) | Closed |
+| `pacsea -u` / `--update` not working (historic) | [#57](https://github.com/Firstp1ck/Pacsea/issues/57) | Closed |
 
 ---
 
@@ -507,6 +538,6 @@
 
 ---
 
-*Last updated: 2026-04-04 — synced to **`v0.8.0`** release notes (`Documents/RELEASE_v0.8.0.md`) and changelog `v0.7.4...v0.8.0`*  
+*Last updated: 2026-04-04 — synced to **`v0.8.0`** release notes (`Documents/RELEASE_v0.8.0.md`), changelog `v0.7.4...v0.8.0`, and GitHub issues (open/closed) on `Firstp1ck/Pacsea`*  
 *PKGBUILD checks, AUR voting, and custom repos are documented as **v0.8.0** features; in-tree `Cargo.toml` may lag the tag until the next version bump*
 
