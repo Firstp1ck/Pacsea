@@ -6,12 +6,16 @@ use std::time::{Duration, Instant};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::logic::repos::{
-    DEFAULT_MAIN_PACMAN_PATH, ReposConfFile, build_repo_apply_bundle,
-    build_repo_key_refresh_bundle, load_resolve_repos_from_str, read_main_pacman_conf_text,
-    repositories_linux_actions_supported,
+    DEFAULT_MAIN_PACMAN_PATH, MANAGED_DROPIN_FILE, ReposConfFile, build_repo_apply_bundle,
+    build_repo_key_refresh_bundle, disable_repo_section_in_repos_conf_if_enabled,
+    list_foreign_packages, load_repos_config_into_app, load_resolve_repos_from_str,
+    read_main_pacman_conf_text, refresh_dynamic_filters_in_app,
+    repos_conf_section_is_disabled_with_apply_sources, repositories_linux_actions_supported,
+    toggle_repo_enabled_for_section_in_file,
 };
 use crate::state::AppState;
-use crate::state::types::RepositoryModalRow;
+use crate::state::modal::RepositoriesModalResume;
+use crate::state::types::{RepositoryModalRow, RepositoryPacmanStatus};
 use crate::theme::{config_dir, resolve_repos_config_path};
 
 /// What: Shipped `repos.conf` example text embedded at compile time.
@@ -30,6 +34,163 @@ const REPOS_CONF_EXAMPLE_SHIPPED: &str =
 
 /// What: Height of the scroll viewport (data rows) for the Repositories modal.
 const REPOS_VIEWPORT_ROWS: usize = 12;
+
+/// What: Whether the modal row is an active pacman repo defined in Pacsea's managed drop-in.
+///
+/// Inputs:
+/// - `row`: Merged `repos.conf` + pacman scan row.
+///
+/// Output:
+/// - `true` when pacman shows the section active and the source file is [`MANAGED_DROPIN_FILE`].
+///
+/// Details:
+/// - Used to gate disabling: Pacsea cannot strip repos that live only outside the managed file.
+fn repo_row_is_pacsea_managed_active(row: &RepositoryModalRow) -> bool {
+    matches!(row.pacman_status, RepositoryPacmanStatus::Active)
+        && row
+            .source_hint
+            .as_deref()
+            .is_some_and(|h| h == MANAGED_DROPIN_FILE)
+}
+
+/// What: Whether Space may toggle this row (disable while managed active, or re-enable from repos.conf).
+///
+/// Inputs:
+/// - `row`: Modal row from the last pacman scan.
+/// - `repos_conf_text`: Current `repos.conf` contents.
+///
+/// Output:
+/// - `Ok(true)` when toggle is allowed; `Ok(false)` when not.
+///
+/// Details:
+/// - Re-enable is allowed when pacman no longer lists the repo (after disable) but `repos.conf` still
+///   has `enabled = false` with apply sources.
+///
+/// # Errors
+///
+/// - Propagates `repos.conf` parse errors from [`repos_conf_section_is_disabled_with_apply_sources`].
+fn repo_row_allows_space_toggle(
+    row: &RepositoryModalRow,
+    repos_conf_text: &str,
+) -> Result<bool, String> {
+    if repo_row_is_pacsea_managed_active(row) {
+        return Ok(true);
+    }
+    repos_conf_section_is_disabled_with_apply_sources(
+        repos_conf_text,
+        row.pacman_section_name.trim(),
+    )
+}
+
+/// What: Clamp list scroll so the viewport stays within row bounds.
+///
+/// Inputs:
+/// - `scroll`: Desired first visible index.
+/// - `row_count`: Number of data rows.
+///
+/// Output:
+/// - Scroll value within `[0, max_start]` for the configured viewport height.
+///
+/// Details:
+/// - Mirrors scroll clamping used when navigating the Repositories list.
+fn clamp_repositories_scroll(scroll: u16, row_count: usize) -> u16 {
+    if row_count == 0 {
+        return 0;
+    }
+    let max_start = row_count.saturating_sub(1);
+    let cap = max_start
+        .saturating_sub(REPOS_VIEWPORT_ROWS.saturating_sub(1))
+        .min(max_start);
+    let cap_u16 = u16::try_from(cap).unwrap_or(u16::MAX);
+    scroll.min(cap_u16)
+}
+
+/// What: Reopen the Repositories modal with fresh pacman scan data when resume is pending.
+///
+/// Inputs:
+/// - `app`: State holding optional [`RepositoriesModalResume`].
+///
+/// Output:
+/// - None; may set [`crate::state::Modal::Repositories`].
+///
+/// Details:
+/// - No-op when `pending_repositories_modal_resume` is unset; consumes the pending value when reopening.
+pub fn reopen_repositories_modal_if_pending(app: &mut AppState) {
+    let Some(resume) = app.pending_repositories_modal_resume.take() else {
+        return;
+    };
+    let (rows, repos_conf_error, pacman_warnings) =
+        crate::logic::repos::build_repositories_modal_fields_default();
+    let want = resume.section_name.trim().to_lowercase();
+    let selected = rows
+        .iter()
+        .position(|r| r.pacman_section_name.trim().to_lowercase() == want)
+        .unwrap_or(0);
+    let row_count = rows.len();
+    let scroll = clamp_repositories_scroll(resume.scroll, row_count);
+    app.modal = crate::state::Modal::Repositories {
+        rows,
+        selected,
+        scroll,
+        repos_conf_error,
+        pacman_warnings,
+    };
+}
+
+/// What: Disable the repository in `repos.conf` and queue a privileged apply (same path as Space-toggle off).
+///
+/// Inputs:
+/// - `app`: Application state; [`AppState::pending_repositories_modal_resume`] is cloned into the apply queue.
+/// - `section_name`: Pacman `[repo]` section (`ForeignRepoOverlap` `repo_name`).
+///
+/// Output:
+/// - `Ok(())` when apply was queued; `Err` with a user-facing string for alerts.
+///
+/// Details:
+/// - For overlap **warning step 0** cancel: reverts `enabled` on disk and regenerates the managed drop-in.
+/// - If the row is already `enabled = false`, skips the write but still builds a bundle so pacman can match the file.
+/// - Caller must ensure [`repositories_linux_actions_supported`] is true.
+pub(super) fn queue_repo_disable_apply_after_overlap_warn_cancel(
+    app: &mut AppState,
+    section_name: &str,
+) -> Result<(), String> {
+    let trimmed = section_name.trim();
+    if trimmed.is_empty() {
+        return Err(crate::i18n::t(
+            app,
+            "app.modals.foreign_overlap.cancel_revert_empty_section",
+        ));
+    }
+    let path = resolve_repos_config_path()
+        .ok_or_else(|| crate::i18n::t(app, "app.modals.repositories.apply.no_config_path"))?;
+    disable_repo_section_in_repos_conf_if_enabled(&path, trimmed).map_err(|e| {
+        crate::i18n::t_fmt1(app, "app.modals.foreign_overlap.cancel_revert_failed", e)
+    })?;
+    load_repos_config_into_app(app, resolve_repos_config_path());
+    refresh_dynamic_filters_in_app(app, &crate::theme::settings());
+    let text = std::fs::read_to_string(&path).map_err(|e| {
+        crate::i18n::t_fmt1(
+            app,
+            "app.modals.foreign_overlap.cancel_revert_failed",
+            format!("{}: {e}", path.display()),
+        )
+    })?;
+    let (repo_rows, _) = load_resolve_repos_from_str(&text).map_err(|e| {
+        crate::i18n::t_fmt1(app, "app.modals.foreign_overlap.cancel_revert_failed", e)
+    })?;
+    let repos = ReposConfFile { repo: repo_rows };
+    let main = read_main_pacman_conf_text(Path::new(DEFAULT_MAIN_PACMAN_PATH)).map_err(|e| {
+        crate::i18n::t_fmt1(app, "app.modals.foreign_overlap.cancel_revert_failed", e)
+    })?;
+    let bundle = build_repo_apply_bundle(&repos, &main, trimmed).map_err(|e| {
+        crate::i18n::t_fmt1(app, "app.modals.foreign_overlap.cancel_revert_failed", e)
+    })?;
+    app.pending_repo_apply_summary = Some(bundle.summary_lines);
+    app.pending_repo_apply_overlap_check = None;
+    let resume = app.pending_repositories_modal_resume.clone();
+    queue_repo_apply_execution(app, bundle.commands, resume);
+    Ok(())
+}
 
 /// What: Handle keys for the read-only Repositories modal.
 ///
@@ -291,7 +452,7 @@ pub(super) fn enter_repo_key_refresh(
     let section = row.pacman_section_name.trim();
     let bundle = build_repo_key_refresh_bundle(&repos, section)?;
     app.pending_repo_apply_summary = Some(bundle.summary_lines);
-    queue_repo_apply_execution(app, bundle.commands);
+    queue_repo_apply_execution(app, bundle.commands, None);
     Ok(())
 }
 
@@ -379,10 +540,12 @@ fn end_scroll(scroll: &mut u16, row_count: usize) {
 ///
 /// Details:
 /// - Builds a full managed drop-in for all eligible rows; see [`build_repo_apply_bundle`].
+/// - `scroll` is stored for [`reopen_repositories_modal_if_pending`] after apply completes.
 pub(super) fn enter_repo_apply(
     app: &mut AppState,
     rows: &[RepositoryModalRow],
     selected: usize,
+    scroll: u16,
     repos_conf_error: Option<&str>,
 ) -> Result<(), String> {
     if repos_conf_error.is_some() {
@@ -417,8 +580,96 @@ pub(super) fn enter_repo_apply(
     let section = rows[selected].pacman_section_name.trim();
     let bundle = build_repo_apply_bundle(&repos, &main, section)?;
     app.pending_repo_apply_summary = Some(bundle.summary_lines);
-    queue_repo_apply_execution(app, bundle.commands);
+    if crate::logic::repos::repositories_linux_actions_supported() {
+        let pre_apply_foreign_snapshot = match list_foreign_packages() {
+            Ok(rows) => Some(rows),
+            Err(e) => {
+                tracing::warn!(
+                    target: "pacsea::repos",
+                    error = %e,
+                    "pacman -Qm snapshot before repo apply failed; overlap will use live -Qm at completion"
+                );
+                None
+            }
+        };
+        app.pending_repo_apply_overlap_check = Some(crate::state::modal::RepoOverlapApplyPending {
+            repo_section: section.to_lowercase(),
+            pre_apply_foreign_snapshot,
+        });
+    } else {
+        app.pending_repo_apply_overlap_check = None;
+    }
+    queue_repo_apply_execution(
+        app,
+        bundle.commands,
+        Some(RepositoriesModalResume {
+            section_name: section.to_string(),
+            scroll,
+        }),
+    );
     Ok(())
+}
+
+/// What: Toggle `enabled` for the focused managed repo, then run a full apply like Enter.
+///
+/// Inputs:
+/// - `app`, `rows`, `selected`, `scroll`, `repos_conf_error`: Same constraints as [`enter_repo_apply`].
+///
+/// Output:
+/// - `Ok(())` when apply was queued; `Err` with a user-visible message otherwise.
+///
+/// Details:
+/// - Disable: requires active pacman section from [`MANAGED_DROPIN_FILE`].
+/// - Re-enable: allowed when `repos.conf` has `enabled = false` and apply sources (repo may be absent in pacman).
+/// - Persists `repos.conf` via [`toggle_repo_enabled_for_section_in_file`] before planning apply.
+pub(super) fn toggle_selected_repo_enabled_and_apply(
+    app: &mut AppState,
+    rows: &[RepositoryModalRow],
+    selected: usize,
+    scroll: u16,
+    repos_conf_error: Option<&str>,
+) -> Result<(), String> {
+    if !repositories_linux_actions_supported() {
+        return Err(crate::i18n::t(
+            app,
+            "app.modals.repositories.toggle.unsupported_platform",
+        ));
+    }
+    if repos_conf_error.is_some() {
+        return Err(crate::i18n::t(
+            app,
+            "app.modals.repositories.apply.fix_repos_conf",
+        ));
+    }
+    let row = rows
+        .get(selected)
+        .ok_or_else(|| crate::i18n::t(app, "app.modals.repositories.apply.no_selection"))?;
+    let path = resolve_repos_config_path()
+        .ok_or_else(|| crate::i18n::t(app, "app.modals.repositories.apply.no_config_path"))?;
+    let repos_text = std::fs::read_to_string(&path).map_err(|e| {
+        format!(
+            "{} {}: {e}",
+            crate::i18n::t(app, "app.modals.repositories.apply.read_failed"),
+            path.display()
+        )
+    })?;
+    if !repo_row_allows_space_toggle(row, &repos_text)? {
+        return Err(crate::i18n::t(
+            app,
+            "app.modals.repositories.toggle.not_managed",
+        ));
+    }
+    toggle_repo_enabled_for_section_in_file(&path, row.pacman_section_name.trim()).map_err(
+        |e| {
+            format!(
+                "{} {e}",
+                crate::i18n::t(app, "app.modals.repositories.toggle.persist_failed"),
+            )
+        },
+    )?;
+    load_repos_config_into_app(app, resolve_repos_config_path());
+    refresh_dynamic_filters_in_app(app, &crate::theme::settings());
+    enter_repo_apply(app, rows, selected, scroll, repos_conf_error)
 }
 
 /// What: Route repo apply commands through the same privilege/auth paths as system update.
@@ -426,15 +677,23 @@ pub(super) fn enter_repo_apply(
 /// Inputs:
 /// - `app`: Application state.
 /// - `cmds`: Privilege-wrapped shell commands from [`build_repo_apply_bundle`].
+/// - `resume`: When set, reopen the Repositories modal after the user dismisses successful apply UI.
 ///
 /// Output:
 /// - None (sets modals / pending fields).
 ///
 /// Details:
 /// - Uses `PasswordPurpose::RepoApply` and `pending_repo_apply_commands`.
-fn queue_repo_apply_execution(app: &mut AppState, cmds: Vec<String>) {
+/// - Key-only refresh should pass `resume: None`.
+fn queue_repo_apply_execution(
+    app: &mut AppState,
+    cmds: Vec<String>,
+    resume: Option<RepositoriesModalResume>,
+) {
     if cmds.is_empty() {
         app.pending_repo_apply_summary = None;
+        app.pending_repo_apply_overlap_check = None;
+        app.pending_repositories_modal_resume = None;
         app.modal = crate::state::Modal::Alert {
             message: crate::i18n::t(app, "app.modals.repositories.apply.empty_plan"),
         };
@@ -446,6 +705,8 @@ fn queue_repo_apply_execution(app: &mut AppState, cmds: Vec<String>) {
         app.modal = crate::state::Modal::None;
         app.pending_repo_apply_summary = None;
         app.pending_repo_apply_commands = None;
+        app.pending_repo_apply_overlap_check = None;
+        app.pending_repositories_modal_resume = None;
         return;
     }
 
@@ -454,6 +715,7 @@ fn queue_repo_apply_execution(app: &mut AppState, cmds: Vec<String>) {
     if crate::logic::password::should_use_interactive_auth_handoff(&settings) {
         match crate::events::try_interactive_auth_handoff() {
             Ok(true) => {
+                app.pending_repositories_modal_resume = resume;
                 let log_lines = app.pending_repo_apply_summary.take().unwrap_or_default();
                 app.modal = crate::state::Modal::PreflightExec {
                     items: Vec::new(),
@@ -474,6 +736,8 @@ fn queue_repo_apply_execution(app: &mut AppState, cmds: Vec<String>) {
             Ok(false) => {
                 app.pending_repo_apply_summary = None;
                 app.pending_repo_apply_commands = None;
+                app.pending_repo_apply_overlap_check = None;
+                app.pending_repositories_modal_resume = None;
                 app.modal = crate::state::Modal::Alert {
                     message: crate::i18n::t(app, "app.errors.authentication_failed"),
                 };
@@ -481,6 +745,8 @@ fn queue_repo_apply_execution(app: &mut AppState, cmds: Vec<String>) {
             Err(e) => {
                 app.pending_repo_apply_summary = None;
                 app.pending_repo_apply_commands = None;
+                app.pending_repo_apply_overlap_check = None;
+                app.pending_repositories_modal_resume = None;
                 app.modal = crate::state::Modal::Alert { message: e };
             }
         }
@@ -491,6 +757,7 @@ fn queue_repo_apply_execution(app: &mut AppState, cmds: Vec<String>) {
         == crate::logic::privilege::AuthMode::PasswordlessOnly
         && crate::logic::password::should_use_passwordless_sudo(&settings)
     {
+        app.pending_repositories_modal_resume = resume;
         let log_lines = app.pending_repo_apply_summary.take().unwrap_or_default();
         app.modal = crate::state::Modal::PreflightExec {
             items: Vec::new(),
@@ -510,6 +777,7 @@ fn queue_repo_apply_execution(app: &mut AppState, cmds: Vec<String>) {
         return;
     }
 
+    app.pending_repositories_modal_resume = resume;
     app.pending_repo_apply_commands = Some(cmds);
     app.modal = crate::state::Modal::PasswordPrompt {
         purpose: crate::state::modal::PasswordPurpose::RepoApply,

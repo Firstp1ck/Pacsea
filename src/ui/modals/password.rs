@@ -88,6 +88,10 @@ pub fn render_password_prompt(
         PasswordPurpose::RepoApply => {
             crate::i18n::t(app, "app.modals.password_prompt.heading_repo_apply")
         }
+        PasswordPurpose::RepoForeignMigrate => crate::i18n::t(
+            app,
+            "app.modals.password_prompt.heading_repo_foreign_migrate",
+        ),
     };
     lines.push(Line::from(Span::styled(
         heading,

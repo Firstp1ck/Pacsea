@@ -200,6 +200,13 @@ fn create_preflight_modal_insert_mode(app: &mut AppState, items: Vec<PackageItem
 /// - Sets up all preflight resolution flags and initializes the modal state.
 pub fn open_preflight_modal(app: &mut AppState, items: Vec<PackageItem>, use_cache: bool) {
     if crate::theme::settings().skip_preflight {
+        if crate::events::install::try_open_warn_aur_repo_duplicate_modal(
+            app,
+            &items,
+            crate::state::modal::PreflightHeaderChips::default(),
+        ) {
+            return;
+        }
         // Direct install - check for reinstalls first, then batch updates
         // First, check if we're installing packages that are already installed (reinstall scenario)
         // BUT exclude packages that have updates available (those should go through normal update flow)

@@ -47,6 +47,88 @@ pub enum PasswordPurpose {
     FileSync,
     /// Applying custom repository configuration (`repos.conf` → managed drop-in, keys).
     RepoApply,
+    /// Migrating foreign packages to sync after repository overlap detection.
+    RepoForeignMigrate,
+}
+
+/// What: Remembers which repository section was fully applied so a follow-up overlap scan can run.
+///
+/// Inputs:
+/// - Set in [`crate::events::modals::repositories::enter_repo_apply`] when a full apply is queued.
+///
+/// Output:
+/// - Consumed after successful `PreflightExec` when the user dismisses the log (Enter).
+///
+/// Details:
+/// - `repo_section` is normalized lowercase for `pacman -Sl`.
+/// - `pre_apply_foreign_snapshot` is `pacman -Qm` captured when apply was **queued** (before sudo/sync).
+///   After the repo is enabled, pacman may stop classifying matching installs as foreign; the snapshot
+///   preserves the pre-apply set for overlap detection without disabling repositories globally.
+#[derive(Debug, Clone)]
+pub struct RepoOverlapApplyPending {
+    /// Pacman repository name from the applied `[[repo]]` row.
+    pub repo_section: String,
+    /// Foreign packages from `pacman -Qm` before privileged apply commands ran.
+    ///
+    /// `None` if the snapshot failed (overlap analysis falls back to live `-Qm` at completion).
+    pub pre_apply_foreign_snapshot: Option<Vec<(String, String)>>,
+}
+
+/// What: Restore the Repositories modal after a successful repo apply preflight flow ends.
+///
+/// Inputs:
+/// - Set when queuing [`PasswordPurpose::RepoApply`] (full apply, not key-only refresh).
+///
+/// Output:
+/// - Consumed when the UI returns to `Modal::None` and rescans pacman rows.
+///
+/// Details:
+/// - `section_name` selects the same `[[repo]]` row after refresh; `scroll` is re-clamped to the new row count.
+#[derive(Debug, Clone)]
+pub struct RepositoriesModalResume {
+    /// Pacman `[repo]` section name from the row that was focused when apply started.
+    pub section_name: String,
+    /// First visible list index to restore when possible.
+    pub scroll: u16,
+}
+
+/// What: Step state for the post-apply foreign vs sync overlap workflow.
+///
+/// Inputs:
+/// - Owned by [`Modal::ForeignRepoOverlap`].
+///
+/// Output:
+/// - Drives which screen and scroll position the renderer shows.
+///
+/// Details:
+/// - `WarnAck` uses two substeps before package selection; `Select` supports multi-toggle migration targets.
+#[derive(Debug, Clone)]
+pub enum ForeignRepoOverlapPhase {
+    /// Red warning screens (`step` 0 then 1) before package selection.
+    WarnAck {
+        /// `0` = primary warning, `1` = secondary acknowledgment.
+        step: u8,
+        /// Vertical scroll for the overlap list on warning steps 0 and 1.
+        list_scroll: u16,
+    },
+    /// Multi-select which overlapping packages to migrate (Space toggles).
+    Select {
+        /// Focused row index into `entries`.
+        cursor: usize,
+        /// Scroll for the selectable list.
+        list_scroll: u16,
+        /// Selected package names to migrate.
+        selected: HashSet<String>,
+    },
+    /// Final confirmation before the password prompt (Esc returns to [`Self::Select`]).
+    FinalConfirm {
+        /// Cursor to restore when backing out.
+        select_cursor: usize,
+        /// Scroll to restore when backing out.
+        select_scroll: u16,
+        /// Packages slated for `pacman -Rns` / `pacman -S`.
+        selected: HashSet<String>,
+    },
 }
 
 /// What: Identifies which tab within the preflight modal is active.
@@ -511,6 +593,24 @@ pub enum Modal {
         /// Message explaining the situation.
         message: String,
     },
+    /// Warning: AUR install targets also appear as official/sync rows in current results.
+    WarnAurRepoDuplicate {
+        /// `pkgname` values that are both AUR-selected and present as official rows.
+        dup_names: Vec<String>,
+        /// Full install set to resume after continue.
+        packages: Vec<PackageItem>,
+        /// Preflight header chips to restore [`handle_proceed_install`] context.
+        header_chips: PreflightHeaderChips,
+    },
+    /// Post full repo-apply: foreign packages that share a name with the new sync repository.
+    ForeignRepoOverlap {
+        /// Repository that was applied (for copy and `pacman -Sl`).
+        repo_name: String,
+        /// Overlapping `(pkgname, installed version)` rows sorted by name.
+        entries: Vec<(String, String)>,
+        /// Current wizard phase.
+        phase: ForeignRepoOverlapPhase,
+    },
     /// Confirmation dialog for AUR vote/unvote actions.
     ConfirmAurVote {
         /// AUR package base the action targets.
@@ -802,6 +902,20 @@ mod tests {
             action: crate::sources::VoteAction::Vote,
             message: "confirm".into(),
         };
+        let _ = super::Modal::WarnAurRepoDuplicate {
+            dup_names: vec!["foo".into()],
+            packages: Vec::new(),
+            header_chips: super::PreflightHeaderChips::default(),
+        };
+        let _ = super::Modal::ForeignRepoOverlap {
+            repo_name: "extra".into(),
+            entries: vec![("a".into(), "1-1".into())],
+            phase: super::ForeignRepoOverlapPhase::FinalConfirm {
+                select_cursor: 0,
+                select_scroll: 0,
+                selected: std::collections::HashSet::new(),
+            },
+        };
         let _ = super::Modal::News {
             items: Vec::new(),
             selected: 0,
@@ -831,6 +945,13 @@ mod tests {
         let _ = super::Modal::ImportHelp;
         let _ = super::Modal::PasswordPrompt {
             purpose: super::PasswordPurpose::Install,
+            items: Vec::new(),
+            input: String::new(),
+            cursor: 0,
+            error: None,
+        };
+        let _ = super::Modal::PasswordPrompt {
+            purpose: super::PasswordPurpose::RepoForeignMigrate,
             items: Vec::new(),
             input: String::new(),
             cursor: 0,

@@ -122,7 +122,7 @@ pub enum ExecutorOutput {
 /// - Command string ready for `PTY` execution (no hold tail).
 ///
 /// Details:
-/// - Groups official and `AUR` packages separately.
+/// - Groups official and `AUR` packages separately; mixed installs run `pacman` then `paru`/`yay` with `--aur` on **AUR-only** names.
 /// - Uses `--noconfirm` for non-interactive execution.
 /// - Always uses `sudo -S` for official packages (password written to PTY stdin when sudo prompts).
 /// - Removes hold tail since we're not spawning a terminal.
@@ -135,7 +135,7 @@ pub fn build_install_command_for_executor(
     password: Option<&str>,
     dry_run: bool,
 ) -> Result<String, String> {
-    use super::command::aur_install_body;
+    use super::command::{aur_install_body, aur_install_helper_flags};
     use super::utils::shell_single_quote;
     use crate::state::Source;
 
@@ -149,96 +149,102 @@ pub fn build_install_command_for_executor(
         }
     }
 
+    let installed_set = crate::logic::deps::get_installed_packages();
+    let provided_set = crate::logic::deps::get_provided_packages(&installed_set);
+
+    let official_has_reinstall = official.iter().any(|name| {
+        crate::logic::deps::is_package_installed_or_provided(name, &installed_set, &provided_set)
+    });
+    let pacman_flags = if official_has_reinstall {
+        "--noconfirm"
+    } else {
+        "--needed --noconfirm"
+    };
+
+    let aur_has_reinstall = aur.iter().any(|name| {
+        crate::logic::deps::is_package_installed_or_provided(name, &installed_set, &provided_set)
+    });
+    let aur_s_flags = aur_install_helper_flags(aur_has_reinstall);
+    let aur_cli_suffix = if aur_has_reinstall {
+        "--noconfirm"
+    } else {
+        "--needed --noconfirm"
+    };
+
+    let aur_names = aur.join(" ");
+
     if dry_run {
-        if !aur.is_empty() {
-            let all: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
-            // Check if any packages are already installed (reinstall scenario)
-            // Use comprehensive check that includes packages provided by installed packages
-            let installed_set = crate::logic::deps::get_installed_packages();
-            let provided_set = crate::logic::deps::get_provided_packages(&installed_set);
-            let has_reinstall = items.iter().any(|item| {
-                crate::logic::deps::is_package_installed_or_provided(
-                    &item.name,
-                    &installed_set,
-                    &provided_set,
-                )
-            });
-            let flags = if has_reinstall {
-                "--noconfirm"
-            } else {
-                "--needed --noconfirm"
-            };
-            let cmd = format!(
-                "(paru -S {flags} {n} || yay -S {flags} {n})",
-                n = all.join(" "),
-                flags = flags
+        if !aur.is_empty() && !official.is_empty() {
+            let tool = crate::logic::privilege::active_tool()?;
+            let off_cmd = crate::logic::privilege::build_privilege_command(
+                tool,
+                &format!("pacman -S {pacman_flags} {}", official.join(" ")),
             );
-            let quoted = shell_single_quote(&cmd);
+            let aur_cmd = format!(
+                "(paru -S --aur {aur_cli_suffix} {aur_names} || yay -S --aur {aur_cli_suffix} {aur_names})",
+            );
+            let combined = format!("{off_cmd} && {aur_cmd}");
+            let quoted = shell_single_quote(&combined);
+            Ok(format!("echo DRY RUN: {quoted}"))
+        } else if !aur.is_empty() {
+            let aur_cmd = format!(
+                "(paru -S --aur {aur_cli_suffix} {aur_names} || yay -S --aur {aur_cli_suffix} {aur_names})",
+            );
+            let quoted = shell_single_quote(&aur_cmd);
             Ok(format!("echo DRY RUN: {quoted}"))
         } else if !official.is_empty() {
-            let installed_set = crate::logic::deps::get_installed_packages();
-            let provided_set = crate::logic::deps::get_provided_packages(&installed_set);
-            let has_reinstall = official.iter().any(|name| {
-                crate::logic::deps::is_package_installed_or_provided(
-                    name,
-                    &installed_set,
-                    &provided_set,
-                )
-            });
-            let flags = if has_reinstall {
-                "--noconfirm"
-            } else {
-                "--needed --noconfirm"
-            };
             let tool = crate::logic::privilege::active_tool()?;
             let cmd = crate::logic::privilege::build_privilege_command(
                 tool,
-                &format!("pacman -S {flags} {}", official.join(" ")),
+                &format!("pacman -S {pacman_flags} {}", official.join(" ")),
             );
             let quoted = shell_single_quote(&cmd);
             Ok(format!("echo DRY RUN: {quoted}"))
         } else {
             Ok("echo DRY RUN: nothing to install".to_string())
         }
-    } else if !aur.is_empty() {
-        let all: Vec<String> = items.iter().map(|p| p.name.clone()).collect();
-        let n = all.join(" ");
-        // Check if any packages are already installed (reinstall scenario)
-        // Use comprehensive check that includes packages provided by installed packages
-        let installed_set = crate::logic::deps::get_installed_packages();
-        let provided_set = crate::logic::deps::get_provided_packages(&installed_set);
-        let has_reinstall = items.iter().any(|item| {
-            crate::logic::deps::is_package_installed_or_provided(
-                &item.name,
-                &installed_set,
-                &provided_set,
-            )
-        });
-        let flags = if has_reinstall {
-            "-S --noconfirm"
-        } else {
-            "-S --needed --noconfirm"
-        };
-        Ok(aur_install_body(flags, &n))
-    } else if !official.is_empty() {
-        // Check if any packages are already installed (reinstall scenario)
-        // Use comprehensive check that includes packages provided by installed packages
-        let installed_set = crate::logic::deps::get_installed_packages();
-        let provided_set = crate::logic::deps::get_provided_packages(&installed_set);
-        let has_reinstall = official.iter().any(|name| {
-            crate::logic::deps::is_package_installed_or_provided(
-                name,
-                &installed_set,
-                &provided_set,
-            )
-        });
-        let flags = if has_reinstall {
-            "--noconfirm"
-        } else {
-            "--needed --noconfirm"
-        };
+    } else if !aur.is_empty() && !official.is_empty() {
         let tool = crate::logic::privilege::active_tool()?;
-        let install_cmd = format!("pacman -S {flags} {}", official.join(" "));
+        let install_cmd = format!("pacman -S {pacman_flags} {}", official.join(" "));
+        let official_chain = password.map_or_else(
+            || {
+                let sync = crate::logic::privilege::build_privilege_command(tool, "pacman -Sy");
+                let install = crate::logic::privilege::build_privilege_command(tool, &install_cmd);
+                format!("{sync} && {install}")
+            },
+            |pass| {
+                crate::logic::privilege::build_password_pipe(tool, pass, "pacman -Sy").map_or_else(
+                    || {
+                        let sync =
+                            crate::logic::privilege::build_privilege_command(tool, "pacman -Sy");
+                        let install =
+                            crate::logic::privilege::build_privilege_command(tool, &install_cmd);
+                        format!("{sync} && {install}")
+                    },
+                    |sync_pipe| {
+                        let install_pipe =
+                            crate::logic::privilege::build_password_pipe(tool, pass, &install_cmd)
+                                .unwrap_or_else(|| {
+                                    crate::logic::privilege::build_privilege_command(
+                                        tool,
+                                        &install_cmd,
+                                    )
+                                });
+                        format!("{sync_pipe} && {install_pipe}")
+                    },
+                )
+            },
+        );
+        Ok(format!(
+            "{} && {}",
+            official_chain,
+            aur_install_body(aur_s_flags, &aur_names)
+        ))
+    } else if !aur.is_empty() {
+        Ok(aur_install_body(aur_s_flags, &aur_names))
+    } else if !official.is_empty() {
+        let tool = crate::logic::privilege::active_tool()?;
+        let install_cmd = format!("pacman -S {pacman_flags} {}", official.join(" "));
         Ok(password.map_or_else(
             || {
                 let sync = crate::logic::privilege::build_privilege_command(tool, "pacman -Sy");
@@ -667,6 +673,7 @@ mod tests {
         let cmd3 = build_install_command_for_executor(std::slice::from_ref(&aur_pkg), None, false)
             .expect("build install");
         assert!(cmd3.contains("command -v paru"));
+        assert!(cmd3.contains("paru -S --aur"));
         assert!(!cmd3.contains("Press any key to close"));
 
         // Dry run
@@ -685,8 +692,11 @@ mod tests {
     /// - Command that installs all packages using appropriate tool.
     ///
     /// Details:
-    /// - When AUR packages are present, command should use AUR helper for all packages.
+    /// - Official names go through `pacman`; AUR names use `paru`/`yay` with `--aur` only on the AUR target list.
     fn executor_build_mixed_packages() {
+        let tool = crate::logic::privilege::active_tool().expect("privilege tool");
+        let bin = tool.binary_name();
+
         let official_pkg = create_test_package(
             "ripgrep",
             Source::Official {
@@ -698,8 +708,22 @@ mod tests {
 
         let cmd = build_install_command_for_executor(&[official_pkg, aur_pkg], None, false)
             .expect("build install");
-        // When AUR packages are present, should use AUR helper
-        assert!(cmd.contains("command -v paru") || cmd.contains("command -v yay"));
+        assert!(
+            cmd.contains(&format!("{bin} pacman")),
+            "expected privileged pacman in mixed install: {cmd}"
+        );
+        assert!(
+            cmd.contains("ripgrep"),
+            "expected official pkg in cmd: {cmd}"
+        );
+        assert!(
+            cmd.contains("paru -S --aur") || cmd.contains("yay -S --aur"),
+            "expected helper --aur for AUR targets: {cmd}"
+        );
+        assert!(
+            cmd.contains("yay-bin"),
+            "expected AUR pkg name in helper invocation: {cmd}"
+        );
     }
 
     #[test]

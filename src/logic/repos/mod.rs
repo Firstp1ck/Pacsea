@@ -6,6 +6,7 @@
 
 mod apply_plan;
 mod config;
+mod foreign_overlap;
 mod modal_data;
 mod pacman_conf;
 
@@ -16,8 +17,15 @@ pub use apply_plan::{
 };
 pub use config::{
     RepoRow, ReposConfFile, build_dynamic_visibility, build_repo_name_to_filter_map,
-    canonical_results_filter_key, load_repo_name_map_from_path, load_resolve_repos_from_str,
-    repos_conf_repo_names_for_index_sl,
+    canonical_results_filter_key, disable_repo_section_in_repos_conf_if_enabled,
+    load_repo_name_map_from_path, load_resolve_repos_from_str, repo_row_declares_apply_sources,
+    repos_conf_repo_names_for_index_sl, repos_conf_section_is_disabled_with_apply_sources,
+    row_is_enabled_for_repos_conf, save_repos_conf_file, toggle_repo_enabled_for_section_in_file,
+};
+pub use foreign_overlap::{
+    ForeignRepoOverlapAnalysis, ForeignRepoOverlapEntry, analyze_foreign_repo_overlap,
+    analyze_foreign_repo_overlap_with_qm_snapshot, build_foreign_to_sync_migrate_bundle,
+    compute_foreign_repo_overlap, list_foreign_packages, sync_repo_pkgnames,
 };
 pub use modal_data::{build_repositories_modal_fields, build_repositories_modal_fields_default};
 pub use pacman_conf::{PacmanConfScan, PacmanRepoPresence, scan_pacman_conf_path};

@@ -147,6 +147,12 @@ hu-HU:
       cascade_mode_enabled: "Lépcsőzetes mód engedélyezve"
       cascade_mode_disabled: "Lépcsőzetes mód letiltva"
       gnome_terminal_warning: "Gnome Terminál nélkül a program váratlanul viselkedhet"
+      # TODO: translate to Hungarian
+      repo_apply_wait_exec_finish: "Wait until the command finishes (log shows completion), then press Enter for the next step."
+      # TODO: translate to Hungarian
+      repo_overlap_no_sync_list: "Repository \"{}\": pacman reported no package list (sync DB, section name, or empty repo). (EN)"
+      # TODO: translate to Hungarian
+      repo_overlap_no_matching_names: "Foreign installs exist, but none match a pkgname in repository \"{}\". (EN)"
     errors:
       authentication_failed: "Nem sikerült a hitelesítés vagy meg lett szakítva. Művelet megszakítva."
     updates_button:
@@ -371,6 +377,7 @@ hu-HU:
         heading_downgrade: "Rendszergazdai jogosultság szükséges a csomagok visszafejlesztéséhez"
         heading_file_sync: "Rendszergazdai jogosultság szükséges a fájladatbázis szinkronizálásához"
         heading_repo_apply: "Administrative privileges required to apply repository configuration (EN placeholder)" # TODO: translate to hungarian
+        heading_repo_foreign_migrate: "Administrative privileges required to migrate foreign packages to sync (EN placeholder)" # TODO: translate to hungarian
         package_label_singular: "Csomag:"
         package_label_plural: "Csomagok:"
         password_label: "[sudo] adja meg a jelszavát:"
@@ -400,6 +407,36 @@ hu-HU:
         none: "Nincs újratelepítendő csomag"
         confirm_hint: "Nyomja meg az Entert az újratelepítés megerősítéséhez vagy az Esc gombot a megszakításhoz"
         and_more: "… és további {}"
+      foreign_overlap:
+        title: " AUR vs new repository (EN) " # TODO: translate to hungarian
+        warn_step0_line1: "Listed packages below, installed from the AUR on your system, use the same name as packages now available from [{}]. (EN)" # TODO: translate to hungarian
+        warn_step0_line2: "Updates will switch to the repository package from [{}]. That build is not always the same as the AUR one. (EN)" # TODO: translate to hungarian
+        # TODO: translate warn_step0_detail* to hungarian
+        warn_step0_detail1: ""
+        warn_step0_detail2: "Skipping migration may lead to broken packages. AUR helpers often prioritize the repositories added to pacman.conf. (EN)"
+        warn_step0_detail3: "Repo packages can differ from AUR builds (version, compile options, optional dependencies). Things can change if you start using the repo build instead. (EN)"
+        warn_step0_detail4: "Esc or q closes this wizard without applying anything from here. Use ↑/↓ to scroll through the full list before you continue. (EN)"
+        # TODO: translate foreign_overlap warn_step1_* to hungarian
+        warn_step1_line: "Migration will reinstall packages from the repository, replacing your current AUR-installed packages. (EN)"
+        warn_step1_detail1: ""
+        warn_step1_detail2: "Following commands will be run: pacman -Rns --noconfirm removes the AUR install and dependencies no longer needed (other packages can be removed if nothing depends on them). After that, pacman -S --needed --noconfirm installs the same packages from the added repository. (EN)"
+        warn_step1_detail3: "Packages will update normally via pacman -Syu (pulls packages from the added repository). (EN)"
+        warn_step1_detail4: "Read the package list and command summary carefully before sudo. The repo package may not match what your AUR PKGBUILD gave you. (EN)"
+        list_heading: "Affected packages (AUR install; repository also ships this name): (EN)" # TODO: translate to hungarian
+        select_heading: "Space: toggle • Enter: confirm or skip (EN)" # TODO: translate to hungarian
+        final_heading: "Privileged pacman -Rns then -S (EN)" # TODO: translate to hungarian
+        final_hint: "y: confirm sudo • Esc: back (EN)" # TODO: translate to hungarian
+        warn_ack_hint: "Enter: continue • arrows: scroll • Esc/q: cancel (EN)" # TODO: translate to hungarian
+        migrate_empty_plan: "No migration commands. (EN)" # TODO: translate to hungarian
+        missing_migrate_commands: "Missing migration plan. (EN)" # TODO: translate to hungarian
+        cancel_revert_empty_section: "Cannot turn off the repository: missing section name. (EN)" # TODO: translate to hungarian
+        cancel_revert_failed: "Could not turn off the repository after cancel: {} (EN)" # TODO: translate to hungarian
+      warn_aur_repo_duplicate:
+        title: " AUR vs repository row (EN) " # TODO: translate to hungarian
+        line1: "AUR install selected but same pkgname exists as official row. (EN)" # TODO: translate to hungarian
+        line2: "Helpers may prefer repo; pacman -Syu may replace AUR install. (EN)" # TODO: translate to hungarian
+        names_heading: "Affected names: (EN)" # TODO: translate to hungarian
+        hint: "Enter: continue • Esc/q: cancel (EN)" # TODO: translate to hungarian
       confirm_aur_update:
         title: "  - Folytatja az AUR-frissítést? "
         pacman_failed: "Nem sikerült frissíteni a csomagokat a pacman paranccsal (kilépési kód: {})."
@@ -435,6 +472,7 @@ hu-HU:
           news_dialog: "Hírek párbeszédablak:"
           # TODO: translate to hungarian
           repositories_modal: "Repositories modal (EN)"
+          foreign_overlap_dialog: "Repository overlap / AUR warning (EN)" # TODO: translate to hungarian
         mouse_lines:
           - "  • Listák (találatok/legutóbbi/telepítés) és PKGBUILD görgetése egérgörgővel"
           - "  • PKGBUILD be/ki: kattintson a „PKGBUILD megjelenítése” gombra a részleteknél"
@@ -445,8 +483,14 @@ hu-HU:
           # TODO: translate to hungarian
           - "  • Custom repos.conf filters: click [Repos] v chip for overflow menu (EN)"
           - "  • Arch Linux állapot (jobb felső): kattintson a status.archlinux.org megnyitásához"
+        foreign_overlap_help_lines:
+          # TODO: translate to hungarian
+          - "  • After full repo apply, press Enter only after log shows completion; then AUR/repo overlap wizard may open (EN)"
+          - "  • Wizard: Enter twice; Esc/q on first warning disables repo in repos.conf and queues apply; then Space, y for sudo (EN)"
+          - "  • AUR install with same pkgname as official row shows red warning (EN)"
         repositories_modal_lines:
           # TODO: translate to hungarian
+          - "  • Space: toggle enabled in repos.conf + apply, managed drop-in only (EN)"
           - "  • Enter: apply plan (EN)" 
           - "  • o: open ~/.config/pacsea/repos.conf in editor (EN)"
           - "  • r: refresh signing key for row (EN, Linux)"
@@ -565,7 +609,11 @@ hu-HU:
         refresh_key:
           # TODO: translate to hungarian
           unsupported_platform: "Key refresh Linux-only (EN)."
-        footer_hint: "Enter: apply • o: repos.conf • r: key • s: example • Nav • Esc/Q (EN)"
+        toggle:
+          unsupported_platform: "Toggle managed repos Linux-only (EN)" # TODO: translate to hungarian
+          not_managed: "Toggle: pacsea-repos.conf active row OR repos.conf enabled=false+server (EN)." # TODO: translate to hungarian
+          persist_failed: "Could not update repos.conf: (EN)" # TODO: translate to hungarian
+        footer_hint: "Space: toggle+apply • Enter: apply • o: repos.conf • r: key • s: example • Nav • Esc/Q (EN)" # TODO: translate to hungarian
         apply:
           # TODO: translate to hungarian
           fix_repos_conf: "Fix repos.conf errors before applying (EN)."

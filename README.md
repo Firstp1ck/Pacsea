@@ -4,7 +4,7 @@
 [![Made with Rust](https://img.shields.io/badge/Made%20with-Rust-orange.svg)](https://www.rust-lang.org/)
 [![Target: Arch Linux](https://img.shields.io/badge/Target-Arch%20Linux-1793D1?logo=arch-linux&logoColor=white)](https://archlinux.org/)
 
-Pacsea is a TUI application for browsing and installing Arch and AUR packages. It includes an integrated Arch news and advisory feed, keyboard-first navigation, and optional awareness of extra pacman sync repositories you configure yourself.
+Pacsea is a TUI application for browsing and installing Arch and AUR packages. It includes an integrated Arch news and advisory feed, keyboard-first navigation, and optional support for extra package repositories you configure yourself.
 
 ## Community
 <p align="center">
@@ -73,8 +73,8 @@ pacsea
 | **News feed & advisories** | Unified news feed combining Arch news, security advisories, package update notifications, and AUR package comments. Includes offline access with automatic caching, filtering by source or date, search with history, bookmarking, read/unread tracking, and background updates |
 | **Security Scan for AUR Packages** | Comprehensive security scanning workflow with multiple tools (ClamAV, Trivy, Semgrep, ShellCheck, VirusTotal, custom patterns, aur-sleuth) and detailed scan summaries |
 | **Fuzzy Search** | Toggle flexible fuzzy search mode to find packages even without exact names |
-| **Unified search** | Fast results across official repos and the AUR |
-| **Custom sync repositories (optional)** | Add extra repository databases to the same search as official packages and the AUR, with sensible handling when a package name appears in more than one place. Show or hide each source from the UI.
+| **Unified search** | Fast results across official packages, any extra repositories you configure, and the AUR.
+| **Custom sync repositories (optional)** | Add optional package sources to the same search as the defaults and the AUR, and show or hide each source in the UI.
 | **Package Update Availability** | Automatic background checks with detailed version comparison view |
 | **Keyboard‑first** | Minimal keystrokes, Vim‑friendly navigation; numpad Enter works for submit in prompts and modals |
 | **Queue & install** | Add packages to queue and confirm installs. Run security scans for AUR packages before installing |
@@ -131,7 +131,7 @@ Pacsea provides a keyboard-first interface for searching, queueing, and installi
 - Run security scans for AUR packages
 - Manage installed packages, including removal and downgrade
 - Switch to News mode (Options → News) or start directly in News mode to browse Arch news, security advisories, package updates, and AUR comments. Filter by source/age/installed-only, search with history (independent search inputs for each mode), bookmark/read items, and track package changes with automatic detection
-- On Linux, open **Options → Repositories** to review or apply `repos.conf` against the live system (elsewhere Pacsea shows that this flow is unavailable)
+- Open **Options → Repositories** to review and apply your optional repository settings—**Space** turns lines on or off; after changes are applied, you might see a short prompt if something you already installed also shows up in a newly enabled source
 - All operations execute directly in the TUI with real-time output and progress indicators
 
 For a complete reference of all keyboard shortcuts, see the [Keyboard Shortcuts](https://github.com/Firstp1ck/Pacsea/wiki/Keyboard-Shortcuts) wiki page.
@@ -209,7 +209,7 @@ For troubleshooting common issues, solutions, and diagnostic information, see th
 
 ### Potential future Features
 
-Longer specs for tracked items live in [`dev/ROADMAP/`](https://github.com/Firstp1ck/Pacsea/tree/main/dev/ROADMAP).
+Longer specs for tracked items live in [`dev/ROADMAP/`](https://github.com/Firstp1ck/Pacsea/tree/main/dev/ROADMAP). Priority tiers and a **GitHub issue cross-reference** table are in [`dev/IMPROVEMENTS/FEATURE_PRIORITY.md`](https://github.com/Firstp1ck/Pacsea/blob/main/dev/IMPROVEMENTS/FEATURE_PRIORITY.md).
 
 ### Community Suggestions: Priority Features
 - **Adjustable Height of the "Results", "Package Info" and "Search" panes** ([#135](https://github.com/Firstp1ck/Pacsea/issues/135))
@@ -217,18 +217,24 @@ Longer specs for tracked items live in [`dev/ROADMAP/`](https://github.com/First
 
 ### Other Potential Features
 - **Show with Hover over button, what the button does** ([#140](https://github.com/Firstp1ck/Pacsea/issues/140))
-- **Mirror Search and extensive Mirror Selection**
-- **Add Garuda Repository Support**
+- **Mirror Search and extensive Mirror Selection** ([#145](https://github.com/Firstp1ck/Pacsea/issues/145))
+- **Add Garuda Repository Support** — Garuda/Chaotic-style sync databases are mostly covered by optional **`repos.conf`** (see [#132](https://github.com/Firstp1ck/Pacsea/issues/132), closed); dedicated one-click presets remain a polish item
 - **Add possibility to view News for the respective Distro: EndeavourOS, Manjaro, Garuda and CachyOS** ([#131](https://github.com/Firstp1ck/Pacsea/issues/131))
-  - grouped by system critical updates like Kernel, systemd and other CORE packages that need restart and other packages (pacman and aur, incl. search/filter)
+  - grouped by system critical updates like Kernel, systemd and other CORE packages that need restart and other packages (pacman and aur, incl. search/filter) — overlaps [#134](https://github.com/Firstp1ck/Pacsea/issues/134)
 - **Implement `rebuild-detector` that checks if a package needs to be rebuild** ([#134](https://github.com/Firstp1ck/Pacsea/issues/134))
 - **Add custom upgrade commands** ([#134](https://github.com/Firstp1ck/Pacsea/issues/134))
-- **Add accessability themes for visual impairments** ([#130](https://github.com/Firstp1ck/Pacsea/issues/130))
-- **Add System Tray Support for popular Bars like Waybar, Quickshell, Hyprbar, Swaybar, etc.** ([#130](https://github.com/Firstp1ck/Pacsea/issues/130))
+- **Add accessibility themes for visual impairments** ([#129](https://github.com/Firstp1ck/Pacsea/issues/129))
+- **Add System Tray Support for popular Bars like Waybar, Quickshell, Hyprbar, Swaybar, etc.** ([#129](https://github.com/Firstp1ck/Pacsea/issues/129))
 - **Ability to resolve dependency conflicts** ([#134](https://github.com/Firstp1ck/Pacsea/issues/134))
-- **Ability to maintain your AUR packages** ([#129](https://github.com/Firstp1ck/Pacsea/issues/129))
-- **Implement Wiki into the TUI** ([#129](https://github.com/Firstp1ck/Pacsea/issues/129))
-- **Multi Package Manager Support for: Debian-Based (apt), Fedora-Based (dnf) and Flatpak Support** ([#129](https://github.com/Firstp1ck/Pacsea/issues/129))
+- **Ability to maintain your AUR packages** ([#130](https://github.com/Firstp1ck/Pacsea/issues/130))
+- **Implement Wiki into the TUI** ([#130](https://github.com/Firstp1ck/Pacsea/issues/130))
+- **Multi Package Manager Support for: Debian-Based (apt), Fedora-Based (dnf) and Flatpak Support** ([#130](https://github.com/Firstp1ck/Pacsea/issues/130))
+- **View or fetch descriptions for optional dependencies** (ALPM/AUR) ([#102](https://github.com/Firstp1ck/Pacsea/issues/102))
+- **Update packages whose sources track GitHub** (detect newer tags/releases) ([#104](https://github.com/Firstp1ck/Pacsea/issues/104))
+- **Service restart logic** after relevant package updates ([#99](https://github.com/Firstp1ck/Pacsea/issues/99))
+- **Transaction abort / safer cancellation** during long operations ([#98](https://github.com/Firstp1ck/Pacsea/issues/98))
+- **Sequential multi-package AUR security scans** ([#95](https://github.com/Firstp1ck/Pacsea/issues/95))
+- **CLI: remove packages from a saved install-list file** ([#93](https://github.com/Firstp1ck/Pacsea/issues/93))
 
 ## Credits
 - Inspired by the following yay commandline: `yay -Slq | fzf --multi --preview 'yay -Sii {}' --preview-window=down:75% --layout=default | xargs -ro yay -S`

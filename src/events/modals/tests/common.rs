@@ -42,6 +42,7 @@ pub(super) fn key_event(code: KeyCode, modifiers: KeyModifiers) -> KeyEvent {
 ///
 /// Details:
 /// - Returns all modals that should block global keybinds (excludes None and Preflight)
+#[allow(clippy::too_many_lines)] // Exhaustive modal fixture list for keybind-blocking regression tests
 pub(super) fn create_test_modals() -> Vec<(crate::state::Modal, &'static str)> {
     vec![
         (
@@ -74,6 +75,25 @@ pub(super) fn create_test_modals() -> Vec<(crate::state::Modal, &'static str)> {
                 dry_run: false,
             },
             "ConfirmBatchUpdate",
+        ),
+        (
+            crate::state::Modal::WarnAurRepoDuplicate {
+                dup_names: vec!["duppkg".to_string()],
+                packages: vec![],
+                header_chips: PreflightHeaderChips::default(),
+            },
+            "WarnAurRepoDuplicate",
+        ),
+        (
+            crate::state::Modal::ForeignRepoOverlap {
+                repo_name: "extra".to_string(),
+                entries: vec![],
+                phase: crate::state::modal::ForeignRepoOverlapPhase::WarnAck {
+                    step: 0,
+                    list_scroll: 0,
+                },
+            },
+            "ForeignRepoOverlap",
         ),
         (
             crate::state::Modal::PreflightExec {

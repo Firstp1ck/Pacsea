@@ -11,6 +11,8 @@ mod announcement;
 mod common;
 /// Confirmation modal rendering.
 mod confirm;
+/// Foreign overlap and AUR duplicate warning modals.
+mod foreign_overlap;
 /// Help overlay modal rendering.
 mod help;
 /// Miscellaneous modal rendering utilities.
