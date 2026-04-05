@@ -4,7 +4,7 @@
 [![Made with Rust](https://img.shields.io/badge/Made%20with-Rust-orange.svg)](https://www.rust-lang.org/)
 [![Target: Arch Linux](https://img.shields.io/badge/Target-Arch%20Linux-1793D1?logo=arch-linux&logoColor=white)](https://archlinux.org/)
 
-Pacsea is a TUI application for browsing and installing Arch and AUR packages. It includes an integrated Arch news and advisory feed, keyboard-first navigation, and optional awareness of extra pacman sync repositories you configure yourself.
+Pacsea is a TUI application for browsing and installing Arch and AUR packages. It includes an integrated Arch news and advisory feed, keyboard-first navigation, and optional support for extra package repositories you configure yourself.
 
 ## Community
 <p align="center">
@@ -73,8 +73,8 @@ pacsea
 | **News feed & advisories** | Unified news feed combining Arch news, security advisories, package update notifications, and AUR package comments. Includes offline access with automatic caching, filtering by source or date, search with history, bookmarking, read/unread tracking, and background updates |
 | **Security Scan for AUR Packages** | Comprehensive security scanning workflow with multiple tools (ClamAV, Trivy, Semgrep, ShellCheck, VirusTotal, custom patterns, aur-sleuth) and detailed scan summaries |
 | **Fuzzy Search** | Toggle flexible fuzzy search mode to find packages even without exact names |
-| **Unified search** | Fast results across official repos and the AUR |
-| **Custom sync repositories (optional)** | Add extra repository databases to the same search as official packages and the AUR, with sensible handling when a package name appears in more than one place. Show or hide each source from the UI.
+| **Unified search** | Fast results across official packages, any extra repositories you configure, and the AUR.
+| **Custom sync repositories (optional)** | Add optional package sources to the same search as the defaults and the AUR, and show or hide each source in the UI.
 | **Package Update Availability** | Automatic background checks with detailed version comparison view |
 | **Keyboard‑first** | Minimal keystrokes, Vim‑friendly navigation; numpad Enter works for submit in prompts and modals |
 | **Queue & install** | Add packages to queue and confirm installs. Run security scans for AUR packages before installing |
@@ -131,7 +131,7 @@ Pacsea provides a keyboard-first interface for searching, queueing, and installi
 - Run security scans for AUR packages
 - Manage installed packages, including removal and downgrade
 - Switch to News mode (Options → News) or start directly in News mode to browse Arch news, security advisories, package updates, and AUR comments. Filter by source/age/installed-only, search with history (independent search inputs for each mode), bookmark/read items, and track package changes with automatic detection
-- On Linux, open **Options → Repositories** to review or apply `repos.conf` against the live system (elsewhere Pacsea shows that this flow is unavailable)
+- Open **Options → Repositories** to review and apply your optional repository settings—**Space** turns lines on or off; after changes are applied, you might see a short prompt if something you already installed also shows up in a newly enabled source
 - All operations execute directly in the TUI with real-time output and progress indicators
 
 For a complete reference of all keyboard shortcuts, see the [Keyboard Shortcuts](https://github.com/Firstp1ck/Pacsea/wiki/Keyboard-Shortcuts) wiki page.
