@@ -320,78 +320,42 @@ function generate_announcement
     set -l ver $argv[2]
     set -l output_file "$PACSEA_DIR/dev/ANNOUNCEMENTS/version_announcement_content.md"
     
-    log_info "Parsing release file for announcement..."
+    # Extract the full "## What's New" body from Documents/RELEASE_v*.md: every line after
+    # "## What's New" until the next level-2 heading (## Technical Details, ## Full Changelog, …).
+    # Preserves ### headings, **bold** group titles, and all bullets — no length or count caps.
+    # Note: awk variable must not be named `in` (reserved).
+    log_info "Extracting full ## What's New section from release file..."
     
-    # Collect all bullet points from the "What's New" section
-    set -l all_items
-    set -l in_whats_new false
-    set -l current_subsection ""
+    set -l body_lines (
+        awk '/^##[[:space:]]+What/{sec=1;next} sec&&/^##[[:space:]]/{exit} sec{print}' "$release_file"
+    )
     
-    # Parse the release file line by line
-    while read -l line
-        # Detect "## What's New" section start
-        if string match -r -- '^##\s+What' "$line"
-            set in_whats_new true
-            continue
-        end
-        
-        # Detect end of "What's New" section (another ## header)
-        if test "$in_whats_new" = true
-            if string match -r -- '^##\s+' "$line"
-                # Another major section - stop parsing
-                set in_whats_new false
-                continue
-            end
-        end
-        
-        # Inside What's New section
-        if test "$in_whats_new" = true
-            # Detect subsection headers (### ...)
-            if string match -r -- '^###' "$line"
-                # Extract subsection name (strip ### and emoji)
-                set current_subsection (string replace -r -- '^###\s*[^\s]*\s*' '' "$line" | string trim)
-                continue
-            end
-            
-            # Extract bullet points
-            if string match -r -- '^[*\-]\s+' "$line"
-                set -l item (string replace -r -- '^[*\-]\s+' '' "$line")
-                # Truncate very long items (keep up to 150 chars to preserve content)
-                if test (string length "$item") -gt 150
-                    set item (string sub -l 147 "$item")"..."
-                end
-                # Skip empty items
-                if test -n "$item"
-                    set -a all_items "$item"
-                end
-            end
-        end
-    end < "$release_file"
-    
-    # Build the announcement content
-    set -l tmp_output (mktemp)
-    echo "## What's New" > "$tmp_output"
-    echo "" >> "$tmp_output"
-    
-    # Add items (limit to 5 total)
-    set -l count 0
-    for item in $all_items
-        if test $count -lt 5
-            echo "- $item" >> "$tmp_output"
-            set count (math $count + 1)
-        end
+    while test (count $body_lines) -gt 0; and test -z "$body_lines[1]"
+        set --erase body_lines[1]
     end
-    echo "" >> "$tmp_output"
+    while test (count $body_lines) -gt 0; and test -z "$body_lines[-1]"
+        set --erase body_lines[-1]
+    end
     
-    # Check character count (max 800)
+    if test (count $body_lines) -eq 0
+        log_warn "No content found under ## What's New in $release_file — wrote header only; edit $output_file if needed"
+    end
+    
+    set -l tmp_output (mktemp)
+    printf '%s\n' "## What's New" "" > "$tmp_output"
+    for line in $body_lines
+        printf '%s\n' "$line" >> "$tmp_output"
+    end
+    printf '%s\n' "" >> "$tmp_output"
+    
     set -l char_count (wc -c < "$tmp_output" | string trim)
-    if test $char_count -gt 800
-        log_warn "Announcement exceeds 800 chars ($char_count), truncating..."
+    if test $char_count -gt 4000
+        log_info "Announcement is long ($char_count bytes); shorten $output_file if the startup modal feels crowded"
     end
     
     # Move to output file
     mv "$tmp_output" "$output_file"
-    log_success "Generated announcement ($char_count chars) at: $output_file"
+    log_success "Generated announcement ($char_count bytes) at: $output_file"
     
     # Show preview
     echo
