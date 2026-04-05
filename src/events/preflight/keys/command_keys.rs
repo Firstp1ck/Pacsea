@@ -226,11 +226,18 @@ fn extract_install_targets(
 /// Output: `false` to keep TUI open.
 ///
 /// Details: Checks for reinstalls first, then batch updates (only if update available), handles password prompt if needed, or starts execution.
-pub(super) fn handle_proceed_install(
+pub fn handle_proceed_install(
     app: &mut AppState,
     packages: Vec<PackageItem>,
     header_chips: crate::state::modal::PreflightHeaderChips,
 ) -> bool {
+    if crate::events::install::try_open_warn_aur_repo_duplicate_modal(
+        app,
+        &packages,
+        header_chips.clone(),
+    ) {
+        return false;
+    }
     // First, check if we're installing packages that are already installed (reinstall scenario)
     // This check happens BEFORE password prompt
     // BUT exclude packages that have updates available (those should go through normal update flow)

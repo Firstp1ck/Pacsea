@@ -1086,6 +1086,8 @@ fn integration_all_password_purposes_valid() {
         PasswordPurpose::Update,
         PasswordPurpose::Downgrade,
         PasswordPurpose::FileSync,
+        PasswordPurpose::RepoApply,
+        PasswordPurpose::RepoForeignMigrate,
     ];
 
     for purpose in purposes {

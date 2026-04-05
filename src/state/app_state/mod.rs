@@ -5,7 +5,10 @@ use ratatui::widgets::ListState;
 use std::{collections::HashMap, collections::HashSet, path::PathBuf, time::Instant};
 
 use crate::sources::VoteAction;
-use crate::state::modal::{CascadeMode, Modal, PreflightAction, ServiceImpact};
+use crate::state::modal::{
+    CascadeMode, Modal, PreflightAction, RepoOverlapApplyPending, RepositoriesModalResume,
+    ServiceImpact,
+};
 use crate::state::types::{
     AppMode, ArchStatusColor, Focus, InstalledPackagesMode, NewsFeedItem, NewsReadFilter,
     NewsSortMode, PackageDetails, PackageItem, RightPaneFocus, SortMode,
@@ -852,6 +855,16 @@ pub struct AppState {
     pub pending_repo_apply_commands: Option<Vec<String>>,
     /// Summary lines to seed `PreflightExec` when starting a repo apply.
     pub pending_repo_apply_summary: Option<Vec<String>>,
+    /// Pending foreign∩sync overlap check after a successful full repository apply.
+    pub pending_repo_apply_overlap_check: Option<RepoOverlapApplyPending>,
+    /// Reopen the Repositories modal with a rescanned pacman view after repo apply completes.
+    pub pending_repositories_modal_resume: Option<RepositoriesModalResume>,
+    /// Privileged shell commands for foreign→sync migration (`PasswordPurpose::RepoForeignMigrate`).
+    pub pending_foreign_migrate_commands: Option<Vec<String>>,
+    /// Summary lines for foreign→sync migration preflight log.
+    pub pending_foreign_migrate_summary: Option<Vec<String>>,
+    /// Skips the next AUR-vs-repo duplicate-results warning (after user continues once).
+    pub skip_aur_repo_dup_warning_once: bool,
     /// AUR update command to execute conditionally if pacman fails (for system update).
     pub pending_aur_update_command: Option<String>,
     /// Password obtained from password prompt, stored temporarily for reinstall confirmation flow.

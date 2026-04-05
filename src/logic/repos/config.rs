@@ -90,6 +90,105 @@ pub fn canonical_results_filter_key(raw: &str) -> String {
     out
 }
 
+/// What: Whether a `[[repo]]` row is treated as enabled for index and apply planning.
+///
+/// Inputs:
+/// - `row`: Parsed row from `repos.conf`.
+///
+/// Output:
+/// - `false` only when `enabled = false`; otherwise `true`.
+///
+/// Details:
+/// - Matches `row_enabled` in the apply-plan module (same semantics).
+#[must_use]
+pub fn row_is_enabled_for_repos_conf(row: &RepoRow) -> bool {
+    row.enabled != Some(false)
+}
+
+/// What: Non-empty string after trim for optional TOML fields.
+///
+/// Inputs:
+/// - `s`: Optional string slice.
+///
+/// Output:
+/// - `true` when `s` is `Some` and not empty or whitespace-only.
+fn non_empty_trim_opt(s: Option<&str>) -> bool {
+    s.map(str::trim).is_some_and(|t| !t.is_empty())
+}
+
+/// What: Whether a string looks like an HTTP(S) URL for mirrorlist fetch policy.
+///
+/// Inputs:
+/// - `u`: Trimmed URL candidate.
+///
+/// Output:
+/// - `true` for `http://` or `https://` prefixes (ASCII case-insensitive).
+fn looks_like_http_url_cfg(u: &str) -> bool {
+    let lower = u.to_ascii_lowercase();
+    lower.starts_with("https://") || lower.starts_with("http://")
+}
+
+/// What: Whether a `[[repo]]` row declares sources that participate in Apply (drop-in generation).
+///
+/// Inputs:
+/// - `r`: Parsed row from `repos.conf`.
+///
+/// Output:
+/// - `true` when `server`, local `mirrorlist`, or HTTP(S) `mirrorlist_url` is set per apply-plan rules.
+///
+/// Details:
+/// - Mirrors apply-plan eligibility for sources; non-HTTP `mirrorlist_url` alone does not qualify.
+#[must_use]
+pub fn repo_row_declares_apply_sources(r: &RepoRow) -> bool {
+    if non_empty_trim_opt(r.server.as_deref()) {
+        return true;
+    }
+    if non_empty_trim_opt(r.mirrorlist.as_deref()) {
+        return true;
+    }
+    r.mirrorlist_url
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .is_some_and(looks_like_http_url_cfg)
+}
+
+/// What: Whether `repos.conf` has a matching `[[repo]]` that is disabled but still defines apply sources.
+///
+/// Inputs:
+/// - `content`: Full `repos.conf` text.
+/// - `section_name`: Pacman `[repo]` name (case-insensitive trim).
+///
+/// Output:
+/// - `Ok(true)` when a row matches, has `enabled = false`, and [`repo_row_declares_apply_sources`].
+/// - `Ok(false)` when no such row exists.
+///
+/// Details:
+/// - Used so the Repositories modal can re-enable a row after Apply removed it from pacman: pacman
+///   no longer shows the section as active from `pacsea-repos.conf`, but `repos.conf` still carries the recipe.
+///
+/// # Errors
+///
+/// - Propagates [`load_resolve_repos_from_str`] failures.
+pub fn repos_conf_section_is_disabled_with_apply_sources(
+    content: &str,
+    section_name: &str,
+) -> Result<bool, String> {
+    let (rows, _) = load_resolve_repos_from_str(content)?;
+    let want = section_name.trim().to_lowercase();
+    if want.is_empty() {
+        return Ok(false);
+    }
+    for row in rows {
+        let name = row.name.as_deref().map_or("", str::trim);
+        if name.to_lowercase() != want {
+            continue;
+        }
+        return Ok(row.enabled == Some(false) && repo_row_declares_apply_sources(&row));
+    }
+    Ok(false)
+}
+
 /// What: Ensure a row has `name` and `results_filter`.
 ///
 /// Inputs:
@@ -276,6 +375,9 @@ fn repos_conf_repo_names_for_extra_sl_from_str(
     let mut seen_out = HashSet::<String>::new();
     let mut out = Vec::new();
     for row in rows {
+        if !row_is_enabled_for_repos_conf(&row) {
+            continue;
+        }
         let Some(name) = row.name.as_deref() else {
             continue;
         };
@@ -318,6 +420,122 @@ pub fn repos_conf_repo_names_for_index_sl(
         tracing::info!(repos = ?out, "index fetch: extra pacman -Sl repos from repos.conf");
     }
     out
+}
+
+/// What: Serialize a resolved `repos.conf` document to disk (overwrites the file).
+///
+/// Inputs:
+/// - `path`: Destination path (typically `resolve_repos_config_path()`).
+/// - `file`: Parsed and validated rows to write.
+///
+/// Output:
+/// - `Ok(())` or a user-visible error string.
+///
+/// Details:
+/// - Uses `toml::to_string`; formatting and comments from the prior file are not preserved.
+///
+/// # Errors
+///
+/// - Returns an error when TOML serialization fails or the file cannot be written.
+pub fn save_repos_conf_file(path: &Path, file: &ReposConfFile) -> Result<(), String> {
+    let out = toml::to_string(file).map_err(|e| format!("repos.conf: serialize failed: {e}"))?;
+    std::fs::write(path, &out)
+        .map_err(|e| format!("repos.conf: write failed ({}): {e}", path.display()))
+}
+
+/// What: Toggle `enabled` for the `[[repo]]` whose `name` matches `section_name` and save the file.
+///
+/// Inputs:
+/// - `path`: `repos.conf` path.
+/// - `section_name`: Pacman `[repo]` name (case-insensitive trim).
+///
+/// Output:
+/// - `Ok(())` or an error (read/parse/write).
+///
+/// Details:
+/// - When the row is currently enabled (`enabled` absent or `true`), sets `enabled = false`.
+/// - When currently disabled (`enabled = false`), clears `enabled` (treat as enabled again).
+/// - Requires a validated row with `name` and `results_filter` as in [`load_resolve_repos_from_str`].
+///
+/// # Errors
+///
+/// - Read/parse failures, missing matching `[[repo]]`, or write errors surface as `Err(String)`.
+pub fn toggle_repo_enabled_for_section_in_file(
+    path: &Path,
+    section_name: &str,
+) -> Result<(), String> {
+    let content = std::fs::read_to_string(path)
+        .map_err(|e| format!("repos.conf: read failed ({}): {e}", path.display()))?;
+    let (mut rows, _) = load_resolve_repos_from_str(&content)?;
+    let want = section_name.trim().to_lowercase();
+    if want.is_empty() {
+        return Err("repos.conf: empty repository name".to_string());
+    }
+    let mut found = false;
+    for row in &mut rows {
+        let name = row.name.as_deref().map_or("", str::trim);
+        if name.to_lowercase() == want {
+            found = true;
+            let on = row_is_enabled_for_repos_conf(row);
+            row.enabled = if on { Some(false) } else { None };
+            break;
+        }
+    }
+    if !found {
+        return Err(format!(
+            "repos.conf: no [[repo]] with name matching \"{section_name}\""
+        ));
+    }
+    save_repos_conf_file(path, &ReposConfFile { repo: rows })
+}
+
+/// What: Persist `enabled = false` for a `[[repo]]` row only while it is currently enabled.
+///
+/// Inputs:
+/// - `path`: `repos.conf` path.
+/// - `section_name`: Pacman `[repo]` name (case-insensitive trim).
+///
+/// Output:
+/// - `Ok(true)` when the file was updated; `Ok(false)` when the row is already disabled or equivalent.
+///
+/// Details:
+/// - Does **not** toggle back to enabled when the row is already `enabled = false` (unlike
+///   [`toggle_repo_enabled_for_section_in_file`]).
+/// - Returns an error when no matching `[[repo]]` exists or read/parse/write fails.
+///
+/// # Errors
+///
+/// - Same shape as [`toggle_repo_enabled_for_section_in_file`] for missing rows and I/O.
+pub fn disable_repo_section_in_repos_conf_if_enabled(
+    path: &Path,
+    section_name: &str,
+) -> Result<bool, String> {
+    let content = std::fs::read_to_string(path)
+        .map_err(|e| format!("repos.conf: read failed ({}): {e}", path.display()))?;
+    let (mut rows, _) = load_resolve_repos_from_str(&content)?;
+    let want = section_name.trim().to_lowercase();
+    if want.is_empty() {
+        return Err("repos.conf: empty repository name".to_string());
+    }
+    let mut found = false;
+    for row in &mut rows {
+        let name = row.name.as_deref().map_or("", str::trim);
+        if name.to_lowercase() == want {
+            found = true;
+            if !row_is_enabled_for_repos_conf(row) {
+                return Ok(false);
+            }
+            row.enabled = Some(false);
+            break;
+        }
+    }
+    if !found {
+        return Err(format!(
+            "repos.conf: no [[repo]] with name matching \"{section_name}\""
+        ));
+    }
+    save_repos_conf_file(path, &ReposConfFile { repo: rows })?;
+    Ok(true)
 }
 
 /// What: Merge per-filter toggles from `settings.conf` with defaults for all ids from repos.
@@ -435,6 +653,60 @@ results_filter = "vendor"
     }
 
     #[test]
+    /// What: Ensure `enabled = false` rows are omitted from extra `pacman -Sl` names.
+    ///
+    /// Inputs:
+    /// - TOML with one disabled repo and one enabled vendor repo; builtin set empty.
+    ///
+    /// Output:
+    /// - Only the enabled repo name is returned.
+    ///
+    /// Details:
+    /// - Disabled custom repos should not trigger index fetches.
+    fn repos_conf_index_sl_extras_skip_disabled() {
+        let builtin = HashSet::new();
+        let toml = r#"
+[[repo]]
+name = "off-vendor"
+results_filter = "off"
+enabled = false
+
+[[repo]]
+name = "on-vendor"
+results_filter = "on"
+"#;
+        let out = super::repos_conf_repo_names_for_extra_sl_from_str(toml, &builtin);
+        assert_eq!(out, vec!["on-vendor".to_string()]);
+    }
+
+    #[test]
+    fn repos_conf_disabled_with_server_detected_for_reenable() {
+        let toml = r#"
+[[repo]]
+name = "chaotic-aur"
+results_filter = "chaotic"
+enabled = false
+server = "https://example.com/$repo/os/$arch"
+"#;
+        assert!(
+            super::repos_conf_section_is_disabled_with_apply_sources(toml, "chaotic-aur")
+                .expect("parse")
+        );
+        assert!(
+            !super::repos_conf_section_is_disabled_with_apply_sources(
+                r#"
+[[repo]]
+name = "chaotic-aur"
+results_filter = "chaotic"
+server = "https://x.test"
+"#,
+                "chaotic-aur"
+            )
+            .expect("parse")
+        );
+    }
+
+    #[test]
     fn duplicate_name_errors() {
         let toml = r#"
 [[repo]]
@@ -476,5 +748,50 @@ preset = "anything"
         toggles.insert("bar".to_string(), false);
         let v = build_dynamic_visibility(&toggles, &repo);
         assert_eq!(v.get("bar").copied(), Some(false));
+    }
+
+    #[test]
+    fn disable_repo_section_in_repos_conf_if_enabled_disables_once() {
+        let dir = tempfile::tempdir().expect("tmpdir");
+        let path = dir.path().join("repos.conf");
+        std::fs::write(
+            &path,
+            r#"[[repo]]
+name = "alpha"
+results_filter = "a"
+"#,
+        )
+        .expect("write");
+        assert!(
+            super::disable_repo_section_in_repos_conf_if_enabled(&path, "alpha").expect("disable")
+        );
+        let body = std::fs::read_to_string(&path).expect("read");
+        let (rows, _) = load_resolve_repos_from_str(&body).expect("parse");
+        let alpha = rows
+            .iter()
+            .find(|r| r.name.as_deref() == Some("alpha"))
+            .expect("row");
+        assert_eq!(alpha.enabled, Some(false));
+        assert!(
+            !super::disable_repo_section_in_repos_conf_if_enabled(&path, "alpha")
+                .expect("idempotent")
+        );
+    }
+
+    #[test]
+    fn disable_repo_section_in_repos_conf_if_enabled_unknown_section_errors() {
+        let dir = tempfile::tempdir().expect("tmpdir");
+        let path = dir.path().join("repos.conf");
+        std::fs::write(
+            &path,
+            r#"[[repo]]
+name = "alpha"
+results_filter = "a"
+"#,
+        )
+        .expect("write");
+        let err = super::disable_repo_section_in_repos_conf_if_enabled(&path, "missing")
+            .expect_err("unknown");
+        assert!(err.contains("no [[repo]]"), "unexpected: {err}");
     }
 }

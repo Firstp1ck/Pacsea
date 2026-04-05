@@ -7,8 +7,8 @@ use crate::state::{
     types::{OptionalDepRow, RepositoryModalRow},
 };
 use crate::ui::modals::{
-    alert, announcement, confirm, help, misc, news, password, post_summary, preflight,
-    preflight_exec, system_update, updates,
+    alert, announcement, confirm, foreign_overlap, help, misc, news, password, post_summary,
+    preflight, preflight_exec, system_update, updates,
 };
 
 /// What: Render `ConfirmBatchUpdate` modal and return reconstructed state.
@@ -441,6 +441,38 @@ struct NewsSetupContext {
     cursor: usize,
 }
 
+/// What: Context struct grouping `WarnAurRepoDuplicate` modal fields.
+///
+/// Inputs: None (constructed from `Modal` variant).
+///
+/// Output: Fields for the AUR vs repository warning renderer.
+///
+/// Details: Preserves the install set and preflight chips across the warning step.
+struct WarnAurRepoDuplicateContext {
+    /// Conflicting package names.
+    dup_names: Vec<String>,
+    /// Packages to install after continue.
+    packages: Vec<crate::state::PackageItem>,
+    /// Preflight chips carried through the warning.
+    header_chips: PreflightHeaderChips,
+}
+
+/// What: Context struct grouping `ForeignRepoOverlap` modal fields.
+///
+/// Inputs: None (constructed from `Modal` variant).
+///
+/// Output: Groups related fields for the overlap wizard renderer.
+///
+/// Details: Keeps repository name, overlap rows, and phase together.
+struct ForeignRepoOverlapContext {
+    /// Repository that was applied.
+    repo_name: String,
+    /// Overlap rows.
+    entries: Vec<(String, String)>,
+    /// Wizard phase.
+    phase: crate::state::modal::ForeignRepoOverlapPhase,
+}
+
 /// What: Context struct grouping `PasswordPrompt` modal fields to reduce data flow complexity.
 ///
 /// Inputs: None (constructed from Modal variant).
@@ -726,6 +758,30 @@ impl ModalRenderer for Modal {
                     cursor,
                 };
                 render_news_setup_modal(f, app, area, ctx)
+            }
+            Self::WarnAurRepoDuplicate {
+                dup_names,
+                packages,
+                header_chips,
+            } => {
+                let ctx = WarnAurRepoDuplicateContext {
+                    dup_names,
+                    packages,
+                    header_chips,
+                };
+                render_warn_aur_repo_duplicate_modal(f, app, area, ctx)
+            }
+            Self::ForeignRepoOverlap {
+                repo_name,
+                entries,
+                phase,
+            } => {
+                let ctx = ForeignRepoOverlapContext {
+                    repo_name,
+                    entries,
+                    phase,
+                };
+                render_foreign_repo_overlap_modal(f, app, area, ctx)
             }
             Self::PasswordPrompt {
                 purpose,
@@ -1246,6 +1302,43 @@ fn render_news_setup_modal(
         show_pkg_updates,
         max_age_days,
         cursor,
+    }
+}
+
+/// What: Render `WarnAurRepoDuplicate` and return reconstructed state.
+fn render_warn_aur_repo_duplicate_modal(
+    f: &mut Frame,
+    app: &AppState,
+    area: Rect,
+    ctx: WarnAurRepoDuplicateContext,
+) -> Modal {
+    foreign_overlap::render_warn_aur_repo_duplicate(f, app, area, &ctx.dup_names);
+    Modal::WarnAurRepoDuplicate {
+        dup_names: ctx.dup_names,
+        packages: ctx.packages,
+        header_chips: ctx.header_chips,
+    }
+}
+
+/// What: Render `ForeignRepoOverlap` and return reconstructed state.
+fn render_foreign_repo_overlap_modal(
+    f: &mut Frame,
+    app: &AppState,
+    area: Rect,
+    ctx: ForeignRepoOverlapContext,
+) -> Modal {
+    foreign_overlap::render_foreign_repo_overlap(
+        f,
+        app,
+        area,
+        &ctx.repo_name,
+        &ctx.entries,
+        &ctx.phase,
+    );
+    Modal::ForeignRepoOverlap {
+        repo_name: ctx.repo_name,
+        entries: ctx.entries,
+        phase: ctx.phase,
     }
 }
 

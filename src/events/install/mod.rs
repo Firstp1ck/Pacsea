@@ -9,11 +9,15 @@ use super::utils::{
     refresh_selected_details,
 };
 
+/// AUR vs official duplicate-results warning before privileged install.
+mod aur_dup_warn;
 /// Preflight modal opening functions for install operations.
 mod preflight;
 
 #[cfg(test)]
 mod tests;
+
+pub use aur_dup_warn::try_open_warn_aur_repo_duplicate_modal;
 
 pub use preflight::{
     open_preflight_downgrade_modal, open_preflight_install_modal, open_preflight_remove_modal,
@@ -464,6 +468,14 @@ fn handle_enter_key(app: &mut AppState) {
     let skip = crate::theme::settings().skip_preflight || skip_preflight_for_modals;
     if !app.installed_only_mode && !app.install_list.is_empty() {
         if skip {
+            let install_snapshot = app.install_list.clone();
+            if try_open_warn_aur_repo_duplicate_modal(
+                app,
+                &install_snapshot,
+                crate::state::modal::PreflightHeaderChips::default(),
+            ) {
+                return;
+            }
             // Direct install - check for reinstalls first, then batch updates
             // First, check if we're installing packages that are already installed (reinstall scenario)
             // BUT exclude packages that have updates available (those should go through normal update flow)

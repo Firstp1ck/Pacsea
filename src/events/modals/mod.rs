@@ -1,6 +1,7 @@
 //! Modal event handling module (excluding Preflight which is in preflight.rs).
 
 mod common;
+mod foreign_overlap;
 mod handlers;
 mod import;
 mod install;
@@ -58,6 +59,12 @@ pub(super) fn handle_modal_key(
             handlers::handle_confirm_aur_update_modal(ke, app, &modal)
         }
         Modal::ConfirmAurVote { .. } => handlers::handle_confirm_aur_vote_modal(ke, app, &modal),
+        Modal::WarnAurRepoDuplicate { .. } => {
+            handlers::handle_warn_aur_repo_duplicate_modal(ke, app, &modal)
+        }
+        Modal::ForeignRepoOverlap { .. } => {
+            handlers::handle_foreign_repo_overlap_modal(ke, app, &modal)
+        }
         Modal::Help => handlers::handle_help_modal(ke, app, modal),
         Modal::News { .. } => handlers::handle_news_modal(ke, app, modal),
         Modal::Announcement { .. } => handlers::handle_announcement_modal(ke, app, modal),

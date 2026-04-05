@@ -41,6 +41,8 @@ pub(super) fn handle_alert_modal(ke: KeyEvent, app: &mut AppState, modal: &Modal
 /// Details:
 /// - Delegates to common handler, updates verbose flag, and restores modal if needed
 /// - Returns `true` when modal is closed/transitioned to stop key propagation
+/// - Defers Enter to post-summary when a repository overlap check is pending but the executor has
+///   not yet set `success`, so the overlap step can still run after completion
 pub(super) fn handle_preflight_exec_modal(
     ke: KeyEvent,
     app: &mut AppState,
@@ -57,6 +59,23 @@ pub(super) fn handle_preflight_exec_modal(
         ref success,
     } = modal
     {
+        // Defer Enter until the executor sets `success`: overlap runs only when
+        // `success == Some(true)`; an early Enter would open post-summary with `success` still
+        // `None` and drop `Finished` output because the modal is no longer `PreflightExec`.
+        if matches!(ke.code, KeyCode::Enter | KeyCode::Char('\n' | '\r'))
+            && app.pending_repo_apply_overlap_check.is_some()
+            && items.is_empty()
+            && success.is_none()
+        {
+            app.toast_message = Some(crate::i18n::t(
+                app,
+                "app.toasts.repo_apply_wait_exec_finish",
+            ));
+            app.toast_expires_at =
+                Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
+            app.modal = modal;
+            return true;
+        }
         // Pass success to the handler since app.modal is taken during dispatch
         let should_stop =
             super::common::handle_preflight_exec(ke, app, verbose, *abortable, items, *success);
@@ -270,6 +289,14 @@ pub(super) fn handle_confirm_batch_update_modal(
                 // Get header_chips if available from pending_exec_header_chips, otherwise use default
                 let header_chips = app.pending_exec_header_chips.take().unwrap_or_default();
 
+                if crate::events::install::try_open_warn_aur_repo_duplicate_modal(
+                    app,
+                    &items_clone,
+                    header_chips.clone(),
+                ) {
+                    return true;
+                }
+
                 let settings = crate::theme::settings();
                 if crate::logic::password::should_use_interactive_auth_handoff(&settings) {
                     match crate::events::try_interactive_auth_handoff() {
@@ -379,6 +406,79 @@ pub(super) fn handle_confirm_aur_update_modal(
     false
 }
 
+/// What: Handle keys for `WarnAurRepoDuplicate`, restoring modal when the key is not consumed.
+///
+/// Inputs:
+/// - `ke`: Key event.
+/// - `app`: Application state.
+/// - `modal`: Taken modal reference (original state before `mem::take`).
+///
+/// Output:
+/// - `true` when the event was consumed.
+///
+/// Details:
+/// - Delegates to [`super::foreign_overlap::handle_warn_aur_repo_duplicate_modal`].
+pub(super) fn handle_warn_aur_repo_duplicate_modal(
+    ke: KeyEvent,
+    app: &mut AppState,
+    modal: &Modal,
+) -> bool {
+    if let Modal::WarnAurRepoDuplicate {
+        dup_names,
+        packages,
+        header_chips,
+    } = modal
+    {
+        let consumed = super::foreign_overlap::handle_warn_aur_repo_duplicate_modal(
+            ke,
+            app,
+            dup_names,
+            packages,
+            header_chips,
+        );
+        if !consumed {
+            app.modal = modal.clone();
+        }
+        return consumed;
+    }
+    false
+}
+
+/// What: Handle keys for `ForeignRepoOverlap`, restoring modal when the key is not consumed.
+///
+/// Inputs:
+/// - `ke`: Key event.
+/// - `app`: Application state.
+/// - `modal`: Taken modal reference.
+///
+/// Output:
+/// - `true` when the event was consumed.
+pub(super) fn handle_foreign_repo_overlap_modal(
+    ke: KeyEvent,
+    app: &mut AppState,
+    modal: &Modal,
+) -> bool {
+    if let Modal::ForeignRepoOverlap {
+        repo_name,
+        entries,
+        phase,
+    } = modal
+    {
+        let consumed = super::foreign_overlap::handle_foreign_repo_overlap_modal(
+            ke,
+            app,
+            repo_name,
+            entries,
+            phase.clone(),
+        );
+        if !consumed {
+            app.modal = modal.clone();
+        }
+        return consumed;
+    }
+    false
+}
+
 /// What: Handle key events for `ConfirmAurVote` modal.
 ///
 /// Inputs:
@@ -466,6 +566,13 @@ pub(super) fn handle_confirm_reinstall_modal(
                 // Use all_items (all packages) instead of just installed ones
                 let items_clone = all_items.clone();
                 let header_chips_clone = header_chips.clone();
+                if crate::events::install::try_open_warn_aur_repo_duplicate_modal(
+                    app,
+                    &items_clone,
+                    header_chips_clone.clone(),
+                ) {
+                    return true;
+                }
                 // Retrieve password that was stored when reinstall confirmation was shown
                 let password = app.pending_executor_password.take();
 
@@ -725,11 +832,40 @@ pub(super) fn handle_repositories_modal(
         ref pacman_warnings,
     } = modal
     {
+        if matches!(ke.code, KeyCode::Char(' ')) {
+            match super::repositories::toggle_selected_repo_enabled_and_apply(
+                app,
+                rows,
+                *selected,
+                *scroll,
+                repos_conf_error.as_deref(),
+            ) {
+                Ok(()) => return true,
+                Err(msg) => {
+                    app.toast_message = Some(msg);
+                    app.toast_expires_at =
+                        Some(std::time::Instant::now() + std::time::Duration::from_secs(8));
+                    return restore::restore_if_not_closed_with_option_result(
+                        app,
+                        &ke,
+                        Some(false),
+                        Modal::Repositories {
+                            rows: rows.clone(),
+                            selected: *selected,
+                            scroll: *scroll,
+                            repos_conf_error: repos_conf_error.clone(),
+                            pacman_warnings: pacman_warnings.clone(),
+                        },
+                    );
+                }
+            }
+        }
         if matches!(ke.code, KeyCode::Enter | KeyCode::Char('\n' | '\r')) {
             match super::repositories::enter_repo_apply(
                 app,
                 rows,
                 *selected,
+                *scroll,
                 repos_conf_error.as_deref(),
             ) {
                 Ok(()) => return true,
@@ -1075,6 +1211,12 @@ pub(super) fn handle_password_prompt_modal(
                 crate::state::modal::PasswordPurpose::RepoApply => {
                     app.pending_repo_apply_commands = None;
                     app.pending_repo_apply_summary = None;
+                    app.pending_repo_apply_overlap_check = None;
+                    app.pending_repositories_modal_resume = None;
+                }
+                crate::state::modal::PasswordPurpose::RepoForeignMigrate => {
+                    app.pending_foreign_migrate_commands = None;
+                    app.pending_foreign_migrate_summary = None;
                 }
                 crate::state::modal::PasswordPurpose::Update => {
                     app.pending_update_commands = None;
@@ -1148,6 +1290,10 @@ pub(super) fn handle_password_prompt_modal(
                             app.pending_executor_request = None;
                             app.pending_repo_apply_commands = None;
                             app.pending_repo_apply_summary = None;
+                            app.pending_repo_apply_overlap_check = None;
+                            app.pending_repositories_modal_resume = None;
+                            app.pending_foreign_migrate_commands = None;
+                            app.pending_foreign_migrate_summary = None;
                             app.modal = crate::state::Modal::Alert {
                                 message: lockout_msg,
                             };
@@ -1372,6 +1518,47 @@ pub(super) fn handle_password_prompt_modal(
                 return true;
             }
 
+            if matches!(
+                purpose,
+                crate::state::modal::PasswordPurpose::RepoForeignMigrate
+            ) {
+                if let Some(commands) = app.pending_foreign_migrate_commands.take() {
+                    match (&mut app.pending_executor_password, &password) {
+                        (Some(p), Some(pass)) => p.clone_from(pass),
+                        (None, Some(pass)) => app.pending_executor_password = Some(pass.clone()),
+                        (_, None) => app.pending_executor_password = None,
+                    }
+                    app.pending_exec_header_chips = Some(header_chips.clone());
+                    let log_lines = app
+                        .pending_foreign_migrate_summary
+                        .take()
+                        .unwrap_or_default();
+                    app.modal = Modal::PreflightExec {
+                        items: Vec::new(),
+                        action: crate::state::PreflightAction::Install,
+                        tab: crate::state::PreflightTab::Summary,
+                        verbose: false,
+                        log_lines,
+                        abortable: false,
+                        header_chips,
+                        success: None,
+                    };
+                    app.pending_executor_request = Some(ExecutorRequest::Update {
+                        commands,
+                        password,
+                        dry_run: app.dry_run,
+                    });
+                    return true;
+                }
+                app.modal = Modal::Alert {
+                    message: crate::i18n::t(
+                        app,
+                        "app.modals.foreign_overlap.missing_migrate_commands",
+                    ),
+                };
+                return true;
+            }
+
             // For Install actions, use start_execution to check for reinstall scenarios
             // This ensures the reinstall confirmation modal is shown if needed
             if matches!(purpose, crate::state::modal::PasswordPurpose::Install) {
@@ -1390,9 +1577,12 @@ pub(super) fn handle_password_prompt_modal(
             let action = match purpose {
                 crate::state::modal::PasswordPurpose::Install
                 | crate::state::modal::PasswordPurpose::Update
-                | crate::state::modal::PasswordPurpose::RepoApply => {
+                | crate::state::modal::PasswordPurpose::RepoApply
+                | crate::state::modal::PasswordPurpose::RepoForeignMigrate => {
                     // This should never be reached due to the check above
-                    unreachable!("Install/Update/RepoApply should be handled above")
+                    unreachable!(
+                        "Install/Update/RepoApply/RepoForeignMigrate should be handled above"
+                    )
                 }
                 crate::state::modal::PasswordPurpose::Remove => {
                     crate::state::PreflightAction::Remove
@@ -1421,9 +1611,12 @@ pub(super) fn handle_password_prompt_modal(
             app.pending_executor_request = Some(match purpose {
                 crate::state::modal::PasswordPurpose::Install
                 | crate::state::modal::PasswordPurpose::Update
-                | crate::state::modal::PasswordPurpose::RepoApply => {
+                | crate::state::modal::PasswordPurpose::RepoApply
+                | crate::state::modal::PasswordPurpose::RepoForeignMigrate => {
                     // This should never be reached due to the check above
-                    unreachable!("Install/Update/RepoApply should be handled above")
+                    unreachable!(
+                        "Install/Update/RepoApply/RepoForeignMigrate should be handled above"
+                    )
                 }
                 crate::state::modal::PasswordPurpose::Remove => {
                     let names: Vec<String> = items.iter().map(|p| p.name.clone()).collect();

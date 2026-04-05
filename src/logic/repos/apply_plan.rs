@@ -8,7 +8,9 @@ use crate::install::shell_single_quote;
 use crate::logic::privilege::{PrivilegeTool, active_tool, build_privilege_command};
 use crate::util::curl_args;
 
-use super::config::{RepoRow, ReposConfFile};
+use super::config::{
+    RepoRow, ReposConfFile, repo_row_declares_apply_sources, row_is_enabled_for_repos_conf,
+};
 
 /// What: Start-of-block marker Pacsea appends to `/etc/pacman.conf`.
 pub const PACMAN_MANAGED_BEGIN: &str = "# === pacsea managed begin";
@@ -46,13 +48,13 @@ pub struct RepoApplyBundle {
 /// Inputs:
 /// - `repos`: Parsed document.
 /// - `main_pacman_text`: Current contents of the main `pacman.conf` (read from disk by the caller).
-/// - `selected_section`: Lowercase-normalized `[repo]` name for the focused modal row (must be apply-eligible).
+/// - `selected_section`: `[repo]` name for the focused modal row (trimmed; case-insensitive). The matching `[[repo]]` must declare apply sources (`server`, `mirrorlist`, or `http`/`https` `mirrorlist_url`), even when `enabled = false`.
 ///
 /// Output:
 /// - [`RepoApplyBundle`] or an actionable error string.
 ///
 /// Details:
-/// - Regenerates the **entire** managed drop-in from all enabled rows that define `server`, local `mirrorlist`, or `mirrorlist_url` (`http`/`https`).
+/// - Regenerates the **entire** managed drop-in from all **enabled** rows that define `server`, local `mirrorlist`, or `mirrorlist_url` (`http`/`https`). When none are enabled, writes a short comment-only stub file.
 /// - Optionally downloads `mirrorlist_url` targets with curl (privileged) before writing the drop-in.
 /// - Runs `pacman-key --recv-keys` (with optional `--keyserver` from `key_server`) / `--lsign-key` for each distinct fingerprint when `key_id` parses to at least 8 hex digits.
 /// - Appends the managed `Include` block only if an **active** (uncommented) [`PACMAN_MANAGED_BEGIN`] line is absent.
@@ -62,7 +64,7 @@ pub struct RepoApplyBundle {
 /// # Errors
 ///
 /// - When [`active_tool`] returns an error (no privilege tool configured).
-/// - When [`build_repo_apply_bundle_with_tool`] rejects the plan (no eligible rows, bad selection, unsafe paths).
+/// - When [`build_repo_apply_bundle_with_tool`] rejects the plan (bad selection, unsafe paths, invalid stanzas).
 pub fn build_repo_apply_bundle(
     repos: &ReposConfFile,
     main_pacman_text: &str,
@@ -86,8 +88,7 @@ pub fn build_repo_apply_bundle(
 ///
 /// # Errors
 ///
-/// - When there are no enabled `[[repo]]` rows with `server` or `mirrorlist`.
-/// - When `selected_section` is empty or names a row that is not among the apply-eligible set.
+/// - When `selected_section` is empty, names no `[[repo]]`, or names a row without apply sources.
 /// - When drop-in or `pacman.conf` paths fail safety checks, or stanza rendering fails internally.
 pub fn build_repo_apply_bundle_with_tool(
     repos: &ReposConfFile,
@@ -96,19 +97,16 @@ pub fn build_repo_apply_bundle_with_tool(
     tool: PrivilegeTool,
 ) -> Result<RepoApplyBundle, String> {
     let eligible: Vec<&RepoRow> = apply_eligible_rows(repos);
-    if eligible.is_empty() {
-        return Err(
-            "No enabled [[repo]] rows with server, mirrorlist, or mirrorlist_url to write. \
-             Add server = \"...\", mirrorlist = \"/path\", or mirrorlist_url = \"https://...\" in repos.conf."
-                .to_string(),
-        );
-    }
-
     let want = selected_section.trim().to_lowercase();
     if want.is_empty() {
         return Err("No repository selected.".to_string());
     }
-    if !row_with_name_in(&eligible, &want) {
+    let Some(selected_row) = find_repo_row_by_lower_name(repos, &want) else {
+        return Err(format!(
+            "Selected repository \"{selected_section}\" has no matching [[repo]] name in repos.conf."
+        ));
+    };
+    if !row_has_apply_source(selected_row) {
         return Err(format!(
             "Selected repository \"{selected_section}\" needs `server`, `mirrorlist`, or `http`/`https` mirrorlist_url in repos.conf \
              before it can be applied."
@@ -117,6 +115,13 @@ pub fn build_repo_apply_bundle_with_tool(
 
     let mut summary_lines: Vec<String> = Vec::new();
     let mut commands: Vec<String> = Vec::new();
+
+    if eligible.is_empty() {
+        summary_lines.push(
+            "No enabled [[repo]] rows: writing an empty managed drop-in (all custom repos disabled)."
+                .to_string(),
+        );
+    }
 
     for r in &eligible {
         let name = r.name.as_deref().map_or("", str::trim);
@@ -377,17 +382,7 @@ fn apply_eligible_rows(repos: &ReposConfFile) -> Vec<&RepoRow> {
 /// - Non-HTTP `mirrorlist_url` values do not qualify alone (returns `false` when that is all there is).
 /// - A non-empty `server` is accepted here; [`render_dropin_body`] rejects values that are not HTTP(S) URLs.
 fn row_has_apply_source(r: &RepoRow) -> bool {
-    if non_empty_trim(r.server.as_deref()) {
-        return true;
-    }
-    if non_empty_trim(r.mirrorlist.as_deref()) {
-        return true;
-    }
-    r.mirrorlist_url
-        .as_deref()
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .is_some_and(looks_like_http_url)
+    repo_row_declares_apply_sources(r)
 }
 
 /// What: Accept only obvious HTTP(S) mirrorlist URLs for privileged fetch.
@@ -413,25 +408,30 @@ fn looks_like_http_url(u: &str) -> bool {
 /// Details:
 /// - `None` treats the row as enabled.
 fn row_enabled(r: &RepoRow) -> bool {
-    r.enabled != Some(false)
+    row_is_enabled_for_repos_conf(r)
 }
 
-/// What: Check whether any eligible row uses the given pacman section name.
+/// What: Find a `[[repo]]` row by case-insensitive `name`.
 ///
 /// Inputs:
-/// - `rows`: Apply-eligible rows.
-/// - `lower_name`: Lowercased section name to match.
+/// - `repos`: Parsed document.
+/// - `want_lower`: Lowercased section name (trimmed by caller).
 ///
 /// Output:
-/// - `true` when a row's `name` matches `lower_name` (case-insensitive trim).
+/// - Matching row reference, if any.
 ///
 /// Details:
-/// - Used to validate the modal selection before building commands.
-fn row_with_name_in(rows: &[&RepoRow], lower_name: &str) -> bool {
-    rows.iter().any(|r| {
+/// - Ignores rows with empty `name` after trim.
+fn find_repo_row_by_lower_name<'a>(
+    repos: &'a ReposConfFile,
+    want_lower: &str,
+) -> Option<&'a RepoRow> {
+    repos.repo.iter().find(|r| {
         r.name
             .as_deref()
-            .is_some_and(|n| n.trim().to_lowercase() == lower_name)
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .is_some_and(|n| n.to_lowercase() == want_lower)
     })
 }
 
@@ -690,6 +690,12 @@ fn sanitize_repo_slug(section: &str) -> Result<String, String> {
 /// - `mirrorlist_url`-only rows emit `Include =` to the same path as [`mirror_url_dest_path`].
 /// - Non-empty `server` values must start with `http://` or `https://` (same policy as `mirrorlist_url` fetches).
 fn render_dropin_body(rows: &[&RepoRow]) -> Result<String, String> {
+    if rows.is_empty() {
+        return Ok(
+            "# Pacsea managed repositories\n# No enabled [[repo]] rows in repos.conf.\n"
+                .to_string(),
+        );
+    }
     let mut out = String::new();
     for r in rows {
         let name = r
@@ -1027,7 +1033,34 @@ server = "https://x.test"
         let file = ReposConfFile { repo };
         let err = build_repo_apply_bundle_with_tool(&file, "", "other", PrivilegeTool::Sudo)
             .expect_err("err");
-        assert!(err.contains("needs"), "{err}");
+        assert!(
+            err.contains("no matching [[repo]]") || err.contains("needs"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn all_disabled_rows_still_writes_empty_dropin() {
+        let toml = r#"
+[[repo]]
+name = "myrepo"
+results_filter = "mine"
+server = "https://x.test"
+enabled = false
+"#;
+        let (repo, _) = load_resolve_repos_from_str(toml).expect("parse");
+        let file = ReposConfFile { repo };
+        let b = build_repo_apply_bundle_with_tool(&file, "\n", "myrepo", PrivilegeTool::Sudo)
+            .expect("bundle");
+        assert!(
+            b.summary_lines
+                .iter()
+                .any(|s| s.contains("empty managed drop-in")),
+            "{:?}",
+            b.summary_lines
+        );
+        assert!(b.commands.iter().any(|c| c.contains("pacsea-repos.conf")));
+        assert!(b.commands.iter().any(|c| c.contains("pacman -Sy")));
     }
 
     #[test]

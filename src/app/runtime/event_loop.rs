@@ -905,6 +905,10 @@ fn handle_executor_output(app: &mut AppState, output: crate::install::ExecutorOu
                     "Received Finished: success={exec_success}, exit_code={exit_code:?}"
                 );
                 *abortable = false;
+                if !exec_success {
+                    app.pending_repo_apply_overlap_check = None;
+                    app.pending_repositories_modal_resume = None;
+                }
                 // Store the execution result in the modal
                 *success = Some(exec_success);
                 log_lines.push(String::new()); // Empty line before completion message

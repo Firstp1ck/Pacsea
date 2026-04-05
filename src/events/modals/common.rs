@@ -1,5 +1,7 @@
 //! Common modal handlers (Alert, Help, News, `PreflightExec`, `PostSummary`, `GnomeTerminalPrompt`).
 
+use std::time::{Duration, Instant};
+
 use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::state::{AppState, PackageItem, Source};
@@ -167,6 +169,7 @@ pub(super) fn handle_alert(ke: KeyEvent, app: &mut AppState, message: &str) -> b
                 app.modal = prev_modal;
             } else {
                 app.modal = crate::state::Modal::None;
+                super::repositories::reopen_repositories_modal_if_pending(app);
             }
             true // Stop propagation to prevent mode toggle
         }
@@ -185,6 +188,7 @@ pub(super) fn handle_alert(ke: KeyEvent, app: &mut AppState, message: &str) -> b
                 app.modal = prev_modal;
             } else {
                 app.modal = crate::state::Modal::None;
+                super::repositories::reopen_repositories_modal_if_pending(app);
             }
             // Return true for lockout alerts to stop propagation and abort the process
             is_lockout
@@ -198,6 +202,79 @@ pub(super) fn handle_alert(ke: KeyEvent, app: &mut AppState, message: &str) -> b
             false
         }
         _ => false,
+    }
+}
+
+/// What: After a successful full repo apply, optionally open the foreign overlap wizard or an alert.
+///
+/// Inputs:
+/// - `app`: Application state (consumes `pending_repo_apply_overlap_check` when set).
+/// - `success`: `PreflightExec` completion flag.
+/// - `items`: Packages associated with the run (empty for repo apply).
+///
+/// Output:
+/// - `true` when this handler took over (`Alert` or `ForeignRepoOverlap`); caller should stop Enter handling.
+///
+/// Details:
+/// - No-op unless `success == Some(true)` and `items` is empty with a pending overlap marker.
+fn consume_repo_apply_overlap_on_preflight_exec_enter(
+    app: &mut AppState,
+    success: Option<bool>,
+    items: &[PackageItem],
+) -> bool {
+    if success != Some(true) || !items.is_empty() {
+        return false;
+    }
+    if !crate::logic::repos::repositories_linux_actions_supported() {
+        return false;
+    }
+    let Some(pending) = app.pending_repo_apply_overlap_check.take() else {
+        return false;
+    };
+    match crate::logic::repos::analyze_foreign_repo_overlap_with_qm_snapshot(
+        &pending.repo_section,
+        pending.pre_apply_foreign_snapshot.as_deref(),
+    ) {
+        Err(msg) => {
+            app.modal = crate::state::Modal::Alert { message: msg };
+            true
+        }
+        Ok(analysis) if analysis.entries.is_empty() => {
+            if analysis.foreign_pkg_count > 0 {
+                if analysis.sync_pkg_name_count == 0 {
+                    app.toast_message = Some(crate::i18n::t_fmt1(
+                        app,
+                        "app.toasts.repo_overlap_no_sync_list",
+                        &pending.repo_section,
+                    ));
+                } else {
+                    app.toast_message = Some(crate::i18n::t_fmt1(
+                        app,
+                        "app.toasts.repo_overlap_no_matching_names",
+                        &pending.repo_section,
+                    ));
+                }
+                app.toast_expires_at = Some(Instant::now() + Duration::from_secs(10));
+            }
+            false
+        }
+        Ok(analysis) => {
+            let repo_name = pending.repo_section;
+            let entries: Vec<_> = analysis
+                .entries
+                .into_iter()
+                .map(|e| (e.name, e.version))
+                .collect();
+            app.modal = crate::state::Modal::ForeignRepoOverlap {
+                repo_name,
+                entries,
+                phase: crate::state::modal::ForeignRepoOverlapPhase::WarnAck {
+                    step: 0,
+                    list_scroll: 0,
+                },
+            };
+            true
+        }
     }
 }
 
@@ -227,10 +304,21 @@ pub(super) fn handle_preflight_exec(
 ) -> bool {
     match ke.code {
         KeyCode::Esc | KeyCode::Char('q') => {
+            app.pending_repo_apply_overlap_check = None;
+            let reopen_ok = success == Some(true);
+            if !reopen_ok {
+                app.pending_repositories_modal_resume = None;
+            }
             app.modal = crate::state::Modal::None;
+            if reopen_ok {
+                super::repositories::reopen_repositories_modal_if_pending(app);
+            }
             true // Stop propagation
         }
         KeyCode::Enter | KeyCode::Char('\n' | '\r') => {
+            if consume_repo_apply_overlap_on_preflight_exec_enter(app, success, items) {
+                return true;
+            }
             // Check if this is a scan (items have names starting with "scan:")
             let is_scan = items.iter().any(|item| item.name.starts_with("scan:"));
 
@@ -295,6 +383,7 @@ pub(super) fn handle_post_summary(
         // Close modal and stop propagation to prevent key from reaching other handlers
         KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q' | '\n' | '\r') => {
             app.modal = crate::state::Modal::None;
+            super::repositories::reopen_repositories_modal_if_pending(app);
             true // Stop propagation - prevents Enter from opening preflight again
         }
         KeyCode::Char('r') => {

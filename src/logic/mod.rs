@@ -1,5 +1,6 @@
 //! Core non-UI logic split into modular submodules.
 
+pub mod aur_official_catalog_dup;
 pub mod deps;
 pub mod distro;
 pub mod faillock;
@@ -22,6 +23,7 @@ pub mod ssh_setup;
 pub mod summary;
 
 // Re-export public APIs to preserve existing import paths (crate::logic::...)
+pub use aur_official_catalog_dup::aur_pkgnames_also_in_official_catalog;
 pub use filter::apply_filters_and_sort_preserve_selection;
 pub use gating::{is_allowed, set_allowed_only_selected, set_allowed_ring};
 pub use lists::{add_to_downgrade_list, add_to_install_list, add_to_remove_list};

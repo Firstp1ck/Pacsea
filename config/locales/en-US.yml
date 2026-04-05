@@ -144,6 +144,9 @@ en-US:
       cascade_mode_enabled: "Cascade mode enabled"
       cascade_mode_disabled: "Cascade mode disabled"
       gnome_terminal_warning: "Continuing without gnome-terminal may cause unexpected behavior"
+      repo_apply_wait_exec_finish: "Wait until the command finishes (log shows completion), then press Enter for the next step."
+      repo_overlap_no_sync_list: "Repository \"{}\": pacman reported no package list (sync DB missing, wrong section name vs repos.conf, or empty repo)."
+      repo_overlap_no_matching_names: "You have foreign installs, but none share a pkgname with repository \"{}\". Packages already installed from that repo are sync installs (not listed by pacman -Qm)."
     errors:
       authentication_failed: "Authentication failed or was cancelled. Operation aborted."
     updates_button:
@@ -367,6 +370,7 @@ en-US:
         heading_downgrade: "Administrative privileges required to downgrade packages"
         heading_file_sync: "Administrative privileges required to sync file database"
         heading_repo_apply: "Administrative privileges required to apply repository configuration"
+        heading_repo_foreign_migrate: "Administrative privileges required to migrate foreign packages to sync"
         package_label_singular: "Package:"
         package_label_plural: "Packages:"
         password_label: "Enter your sudo password:"
@@ -396,6 +400,34 @@ en-US:
         none: "No packages to reinstall"
         confirm_hint: "Press Enter to confirm reinstall, Esc to cancel"
         and_more: "... and {} more"
+      foreign_overlap:
+        title: " AUR vs new repository "
+        warn_step0_line1: "Listed packages below, installed from the AUR on your system, use the same name as packages now available from [{}]."
+        warn_step0_line2: "Updates will switch to the repository package from [{}]. That build is not always the same as the AUR one."
+        warn_step0_detail1: ""
+        warn_step0_detail2: "Skipping migration may lead to broken packages. AUR helpers often prioritize the repositories added to pacman.conf."
+        warn_step0_detail3: "Repo packages can differ from AUR builds (version, compile options, optional dependencies). Things can change if you start using the repo build instead."
+        warn_step0_detail4: "Esc or q closes this wizard without applying anything from here. Use ↑/↓ to scroll through the full list before you continue."
+        warn_step1_line: "Migration will reinstall packages from the repository, replacing your current AUR-installed packages."
+        warn_step1_detail1: ""
+        warn_step1_detail2: "Following commands will be run: pacman -Rns --noconfirm removes the AUR install and dependencies no longer needed (other packages can be removed if nothing depends on them). After that, pacman -S --needed --noconfirm installs the same packages from the added repository."
+        warn_step1_detail3: "Packages will update normally via pacman -Syu (pulls packages from the added repository)."
+        warn_step1_detail4: "Read the package list and command summary carefully before sudo. The repo package may not match what your AUR PKGBUILD gave you."
+        list_heading: "Affected packages (AUR install; repository also ships this name):"
+        select_heading: "Space: toggle migrate  •  Enter: open final confirm if any selected, or close if none selected"
+        final_heading: "Privileged command (summary): pacman -Rns --noconfirm … then pacman -S --needed --noconfirm …"
+        final_hint: "y: confirm and open sudo  •  Esc: back to selection"
+        warn_ack_hint: "Enter: continue  •  ↑/↓: scroll list  •  Esc/q: cancel"
+        migrate_empty_plan: "No migration commands were built."
+        missing_migrate_commands: "Missing migration command plan."
+        cancel_revert_empty_section: "Cannot turn off the repository: missing section name."
+        cancel_revert_failed: "Could not turn off the repository after cancel: {}"
+      warn_aur_repo_duplicate:
+        title: " AUR install vs repository row "
+        line1: "You chose an AUR install, but the same pkgname also appears as a sync/repository row in the current results."
+        line2: "Helpers may prefer the repository unless forced to AUR; future pacman -Syu may replace the AUR install."
+        names_heading: "Affected package names:"
+        hint: "Enter: continue AUR install  •  Esc/q: cancel"
       confirm_aur_update:
         title: " Continue AUR Update? "
         pacman_failed: "Pacman update failed (exit code: {})."
@@ -430,6 +462,7 @@ en-US:
           system_update_dialog: "System Update dialog:"
           news_dialog: "News dialog:"
           repositories_modal: "Repositories modal:"
+          foreign_overlap_dialog: "Repository overlap / AUR vs repo warning:"
         mouse_lines:
           - "  • Scroll lists (Results/Recent/Install) and PKGBUILD with mouse wheel"
           - "  • Toggle PKGBUILD: click 'Show PKGBUILD' in details"
@@ -440,11 +473,16 @@ en-US:
           - "  • Custom repos.conf filters: click the [Repos] v chip to open the overflow menu"
           - "  • Arch Status (top-right): click to open status.archlinux.org"
         repositories_modal_lines:
+          - "  • Space: toggle enabled in repos.conf and apply (managed drop-in rows only; Linux)"
           - "  • Enter: apply plan (curl/keys/drop-in/sync)"
           - "  • o: open ~/.config/pacsea/repos.conf in your editor"
           - "  • r: refresh signing key for the selected row (pacman-key recv + lsign; Linux)"
           - "  • s: open the in-tree repos.conf example for setup hints"
           - "  • Up/Down/j/k, PgUp/PgDn, Home/End: navigate  •  Esc or q: close"
+        foreign_overlap_help_lines:
+          - "  • After a full Repositories apply, press Enter only after the log shows completion; then you may get the AUR/repo overlap wizard (Linux)"
+          - "  • Wizard: Enter twice to acknowledge warnings; Esc/q on the first warning turns the repository off in repos.conf and queues apply; later steps: Space toggles migrate, y confirms sudo (Esc backs out)"
+          - "  • Installing from an AUR results row while the same pkgname exists as an official row shows a red warning first"
         system_update_lines:
           - "  • Open via Options → Update System"
           - "  • Up/Down: move • Space: toggle • Left/Right: change country • Enter: run • Esc: close"
@@ -555,7 +593,11 @@ en-US:
         setup_example_write_failed: "Could not write the repos.conf example to your Pacsea config directory."
         refresh_key:
           unsupported_platform: "Key refresh is only available on Linux."
-        footer_hint: "Enter: apply  •  o: edit repos.conf  •  r: refresh key  •  s: example  •  Nav  •  Esc/Q"
+        toggle:
+          unsupported_platform: "Toggling managed repos is only available on Linux."
+          not_managed: "Toggle only works for repos active from pacsea-repos.conf (disable), or rows with enabled=false and a server/mirrorlist in repos.conf (re-enable). Edit pacman.conf for other sources."
+          persist_failed: "Could not update repos.conf:"
+        footer_hint: "Space: toggle+apply  •  Enter: apply  •  o: edit repos.conf  •  r: refresh key  •  s: example  •  Nav  •  Esc/Q"
         apply:
           fix_repos_conf: "Fix repos.conf errors before applying (see message above)."
           no_rows: "No repositories to apply. Add [[repo]] rows in repos.conf first."

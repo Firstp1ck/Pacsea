@@ -17,6 +17,7 @@ use action_keys::{
 
 // Re-export start_execution for use in other modules
 pub use action_keys::start_execution;
+pub use command_keys::handle_proceed_install;
 use command_keys::{
     handle_c_key, handle_dry_run_key, handle_f_key, handle_help_key, handle_m_key, handle_p_key,
     handle_q_key, handle_s_key,
