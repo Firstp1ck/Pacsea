@@ -51,13 +51,16 @@ pub struct ForeignRepoOverlapAnalysis {
 /// - None (uses host `pacman`).
 ///
 /// Output:
-/// - Vector of `(pkgname, ver-rel)` or error message.
+/// - Vector of `(pkgname, version)` or error message. `version` is the remainder of the line after the
+///   package name (typically `pkgver-pkgrel` from `pacman -Qm`, but may be empty for name-only lines).
 ///
 /// Details:
-/// - Uses `-Qm` without `-q` so each line includes `pkgver-pkgrel`. `pacman -Qmq` only prints names
-///   (see `pacman(8)` `--quiet`), which would make overlap detection see zero foreign packages.
+/// - Uses `-Qm` without `-q` so each line normally includes `pkgver-pkgrel`. `pacman -Qmq` only prints
+///   names (see `pacman(8)` `--quiet`), which would make overlap detection see zero foreign packages.
 /// - Returns empty vector when no foreign packages exist.
-/// - Skips malformed lines.
+/// - Skips blank lines. Non-blank lines always yield an entry: the first whitespace-separated token is
+///   the package name; any further tokens are joined with spaces into `version`, which is empty when the
+///   line contains only a name (no version field to skip—overlap logic still keys on `pkgname`).
 ///
 /// # Errors
 ///

@@ -8,7 +8,7 @@ mod tab_handlers;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use crate::state::AppState;
+use crate::state::{AppState, PackageItem};
 
 use action_keys::{
     handle_a_key, handle_d_key, handle_enter_key, handle_esc_key, handle_r_key, handle_shift_r_key,
@@ -17,13 +17,33 @@ use action_keys::{
 
 // Re-export start_execution for use in other modules
 pub use action_keys::start_execution;
-pub use command_keys::handle_proceed_install;
 use command_keys::{
     handle_c_key, handle_dry_run_key, handle_f_key, handle_help_key, handle_m_key, handle_p_key,
     handle_q_key, handle_s_key,
 };
 use context::PreflightKeyContext;
 use navigation::{handle_down_key, handle_tab_switch, handle_up_key};
+
+/// What: Run the preflight install proceed flow for callers outside the command-keys submodule.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+/// - `packages`: Packages to install
+/// - `header_chips`: Header chip metrics for the preflight modal
+///
+/// Output:
+/// - `false` so the TUI event loop keeps running.
+///
+/// Details:
+/// - Thin delegate to [`command_keys::handle_proceed_install`]; the implementation stays
+///   `pub(super)` in the command-keys submodule while other `events` code can resume install.
+pub fn handle_proceed_install(
+    app: &mut AppState,
+    packages: Vec<PackageItem>,
+    header_chips: crate::state::modal::PreflightHeaderChips,
+) -> bool {
+    command_keys::handle_proceed_install(app, packages, header_chips)
+}
 
 /// What: Handle keys that need access to app fields outside of modal.
 ///

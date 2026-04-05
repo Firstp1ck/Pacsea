@@ -226,7 +226,7 @@ fn extract_install_targets(
 /// Output: `false` to keep TUI open.
 ///
 /// Details: Checks for reinstalls first, then batch updates (only if update available), handles password prompt if needed, or starts execution.
-pub fn handle_proceed_install(
+pub(super) fn handle_proceed_install(
     app: &mut AppState,
     packages: Vec<PackageItem>,
     header_chips: crate::state::modal::PreflightHeaderChips,
