@@ -159,7 +159,7 @@ fn add_makepkg_commands(cmds: &mut Vec<String>, _pkg: &str) {
                 echo 'Cleaning existing cached package directory…'; \
                 find \"$bdir\" -maxdepth 5 -type d -name \"$pkg\" -exec rm -rf {} + 2>/dev/null || true; \
                 echo 'Populating paru cache with -S (auto-abort, 20s timeout)…'; \
-                timeout 20s bash -lc 'yes n | paru -S \"$pkg\"' >/dev/null 2>&1 || true; \
+                timeout 20s bash -lc 'yes n | paru -S --aur \"$pkg\"' >/dev/null 2>&1 || true; \
                 cdir=$(find \"$bdir\" -maxdepth 6 -type f -name PKGBUILD -path \"*/$pkg/*\" 2>/dev/null | head -n1); \
                 if [ -z \"$cdir\" ]; then cdir=$(find \"$bdir\" -maxdepth 6 -type f -name PKGBUILD 2>/dev/null | head -n1); fi; \
             elif command -v yay >/dev/null 2>&1; then \
@@ -170,7 +170,7 @@ fn add_makepkg_commands(cmds: &mut Vec<String>, _pkg: &str) {
                 echo 'Cleaning existing cached package directory…'; \
                 find \"$bdir\" -maxdepth 5 -type d -name \"$pkg\" -exec rm -rf {} + 2>/dev/null || true; \
                 echo 'Populating yay cache with -S (auto-abort, 20s timeout)…'; \
-                timeout 20s bash -lc 'yes n | yay -S --noconfirm \"$pkg\"' >/dev/null 2>&1 || true; \
+                timeout 20s bash -lc 'yes n | yay -S --aur --noconfirm \"$pkg\"' >/dev/null 2>&1 || true; \
                 cdir=$(find \"$bdir\" -maxdepth 6 -type f -name PKGBUILD -path \"*/$pkg/*\" 2>/dev/null | head -n1); \
                 if [ -z \"$cdir\" ]; then cdir=$(find \"$bdir\" -maxdepth 6 -type f -name PKGBUILD 2>/dev/null | head -n1); fi; \
             fi; \

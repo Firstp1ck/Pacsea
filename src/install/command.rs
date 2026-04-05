@@ -4,11 +4,31 @@ use crate::state::{PackageItem, Source};
 
 use super::utils::shell_single_quote;
 
+/// What: Flag sequence for a non-interactive `paru`/`yay` `-S` install of **AUR-only** targets.
+///
+/// Inputs:
+/// - `reinstall`: When `true`, omit `--needed` (reinstall path).
+///
+/// Output:
+/// - Static flag string including `-S` and `--aur` (e.g. `-S --aur --needed --noconfirm`).
+///
+/// Details:
+/// - Same string is passed to both helpers via [`aur_install_body`].
+/// - `--aur` ensures helpers do not prefer a sync database (e.g. Chaotic-AUR) when the same name exists on the AUR.
+#[must_use]
+pub const fn aur_install_helper_flags(reinstall: bool) -> &'static str {
+    if reinstall {
+        "-S --aur --noconfirm"
+    } else {
+        "-S --aur --needed --noconfirm"
+    }
+}
+
 /// What: Build the common AUR install body that prefers `paru` and falls back to `yay`.
 ///
 /// Input:
-/// - `flags`: Flag string forwarded to the helper (e.g. `-S --needed`).
-/// - `n`: Space-separated package names to install.
+/// - `flags`: Full flag string forwarded to the helper (use [`aur_install_helper_flags`] for installs).
+/// - `n`: Space-separated **AUR** package names only (must not include official/repo targets).
 ///
 /// Output:
 /// - Parenthesised shell snippet `(if ... fi)` without the trailing hold suffix.
@@ -89,11 +109,7 @@ pub fn build_install_command(
         Source::Aur => {
             let hold_tail = "; echo; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
             let reinstall = crate::index::is_installed(&item.name);
-            let flags = if reinstall {
-                "-S --noconfirm"
-            } else {
-                "-S --needed --noconfirm"
-            };
+            let flags = aur_install_helper_flags(reinstall);
             let aur_cmd = if dry_run {
                 let cmd = format!(
                     "paru {flags} {n} || yay {flags} {n}{hold}",
@@ -209,7 +225,8 @@ mod tests {
         let (cmd1, uses_sudo1) = build_install_command(&pkg, None, false).expect("build");
         assert!(!uses_sudo1);
         assert!(cmd1.contains("command -v paru"));
-        assert!(cmd1.contains("paru -S --needed --noconfirm yay-bin"));
+        assert!(cmd1.contains("paru -S --aur --needed --noconfirm yay-bin"));
+        assert!(cmd1.contains("yay -S --aur --needed --noconfirm yay-bin"));
         assert!(cmd1.contains("elif command -v yay"));
         assert!(cmd1.contains("No AUR helper"));
         assert!(cmd1.contains("Press any key to close"));
@@ -218,6 +235,6 @@ mod tests {
         assert!(!uses_sudo2);
         // Dry-run commands are now properly quoted to avoid syntax errors
         assert!(cmd2.starts_with("echo DRY RUN: '"));
-        assert!(cmd2.contains("paru -S --needed --noconfirm yay-bin"));
+        assert!(cmd2.contains("paru -S --aur --needed --noconfirm yay-bin"));
     }
 }
