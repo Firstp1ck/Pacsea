@@ -74,6 +74,11 @@ pub const VERSION_ANNOUNCEMENTS: &[VersionAnnouncement] = &[
         title: "Version 0.7.4",
         content: "## What's New\n\n- New `privilege_tool` setting: `auto` | `sudo` | `doas`\n- Commands now run through the selected tool (or auto-detected one) instead of always using sudo\n- New `auth_mode` setting: `prompt` | `passwordless_only` | `interactive`\n- Interactive mode hands off to the terminal so sudo/doas can handle PAM prompts directly (including fingerprint via fprintd, when configured)\n- Detects the `blackarch` repo and adds a toggle/filter in results when available\n\n",
     },
+    VersionAnnouncement {
+        version: "0.8.0",
+        title: "Version 0.8.0",
+        content: "## What's New\n\n- Configure extra repos in **`repos.conf`**, edit them from the app, and apply changes when you are ready (with privilege prompts when needed).\n- Search and filters can include packages from those repos, with sensible handling when the same package name appears more than once.\n- You can turn individual managed entries on or off; disabled repos are ignored until you enable them again. The repositories screen may refresh with...\n- First run seeds a starter file; **`repos_example.conf`** ships as a copy-paste reference.\n- If packages you installed yourself also exist in the new repo, a short guided flow explains the situation and helps you choose what to do next (inc...\n\n",
+    },
 ];
 
 /// What: Remote announcement fetched from GitHub Gist.
