@@ -4,35 +4,42 @@
 
 ### ✨ Features
 
-**Custom Pacman repositories (`repos.conf`)**
-- Define extra repos in `repos.conf`, edit them from an in-app **Repositories** modal, and apply changes into `pacman.conf` when you are ready (with privilege prompts when needed).
-- Third-party repo databases are indexed (via `pacman -Sl`) so search and filters can see packages from those repos, alongside clearer deduplication by repo + package name.
-- First-run seeding and a shipped **`repos_example.conf`** reference (with sample recipes) help you get started safely.
+**Custom and third-party repositories**
+- Configure extra repos in **`repos.conf`**, edit them from the app, and apply changes when you are ready (with privilege prompts when needed).
+- Search and filters can include packages from those repos, with sensible handling when the same package name appears more than once.
+- You can turn individual managed entries on or off; disabled repos are ignored until you enable them again. The repositories screen may refresh with up-to-date status after you work through related dialogs.
+- First run seeds a starter file; **`repos_example.conf`** ships as a copy-paste reference.
 
-**AUR package voting over SSH (opt-in)**
-- Vote or unvote AUR packages from search when enabled in settings, using SSH to `aur.archlinux.org`.
-- Guided **SSH AUR setup** flow helps install or fix the `aur.archlinux.org` host block in your SSH config.
-- Respects your configured SSH command, timeout, and **dry-run** semantics (no fake “dirty” vote cache in dry-run).
+**After you add a repo**
+- If packages you installed yourself also exist in the new repo, a short guided flow explains the situation and helps you choose what to do next (including optional cleanup). Preview-only mode stays honest; canceling or errors should not leave the UI stuck.
 
-**PKGBUILD checks (ShellCheck + Namcap)**
-- Run **ShellCheck** and **Namcap** on the PKGBUILD for the selected package from the details view (background worker, timeouts, graceful handling when tools are missing).
-- Cycle between **PKGBUILD** and **checks** in the details pane (default **`Ctrl+D`**); optional raw checker output and ShellCheck exclude list in settings.
-- Example keybinds include **`Ctrl+K`** to run checks; the checks panel stays aligned with the package you selected.
+**Installs when names overlap (AUR vs other sources)**
+- AUR installs go through your helper in a way that avoids “wrong source” surprises when a community mirror lists the same name.
+- Selecting an AUR hit that also appears as a normal Arch listing can show a one-time warning before you continue.
 
-### 🐛 Fixes & hardening
+**AUR package voting (optional)**
+- Vote or unvote AUR packages from search when enabled, using SSH to the AUR.
+- Built-in **SSH AUR setup** helps you configure the host entry in your SSH config.
+- Honors your SSH command, timeout, and preview-only mode (no fake vote state).
+
+**PKGBUILD checks (optional)**
+- Run **ShellCheck** and **Namcap** on the selected package’s build file from the details view when those tools are installed (timeouts and missing tools handled gracefully).
+- Switch between the PKGBUILD text and check results from the details pane; settings cover raw output and ShellCheck excludes.
+
+### 🐛 Bug Fixes
 
 **Repositories**
-- Safer validation for repo apply paths, server URLs, and signing-key handling; stable mirror filenames; correct pending-state cleanup if you cancel auth or hit errors.
+- Stricter validation for paths, server URLs, signing keys, and filter keys; safer behavior when apply is interrupted or does not complete successfully.
 
 **PKGBUILD checks**
-- Checker requests are wired reliably through the event loop; timeouts use Tokio instead of relying on an external `timeout` binary; clearer UI when a checker binary is not installed.
+- More reliable when starting a check; time limits handled inside the app; clearer messaging when a checker is not installed.
 
-**UI**
-- Wider-character-safe padding and truncation in repo-related lists and filter menus so columns line up in the terminal.
+**Lists and filters**
+- Better column alignment when names use wide characters (e.g. some non-Latin scripts).
 
 ## Technical Details
 
-This release adds optional **AUR voting**, optional **PKGBUILD static analysis**, and a full **custom repository** workflow (config, UI, indexing, and pacman integration), with emphasis on safe defaults, dry-run behavior, and missing-tool degradation.
+This release adds optional **AUR voting**, optional **PKGBUILD analysis**, and a full **custom repository** workflow (config, UI, indexing, and system integration), plus clearer behavior when package names collide across sources. Defaults and preview-only behavior aim to stay safe and predictable.
 
 ## Full Changelog
 
