@@ -362,6 +362,18 @@ struct UpdatesContext {
     scroll: u16,
     /// Currently selected entry index.
     selected: usize,
+    /// Whether slash-filter text mode is active.
+    filter_active: bool,
+    /// Current slash-filter query text.
+    filter_query: String,
+    /// Caret position for slash-filter query.
+    filter_caret: usize,
+    /// Last selected package identity for restore logic.
+    last_selected_pkg_name: Option<String>,
+    /// Visible entries as original-entry indices after filtering.
+    filtered_indices: Vec<usize>,
+    /// Selected package names used for batch preflight actions.
+    selected_pkg_names: std::collections::HashSet<String>,
 }
 
 /// What: Context struct grouping `OptionalDeps` modal fields to reduce data flow complexity.
@@ -671,11 +683,23 @@ impl ModalRenderer for Modal {
                 entries,
                 scroll,
                 selected,
+                filter_active,
+                filter_query,
+                filter_caret,
+                last_selected_pkg_name,
+                filtered_indices,
+                selected_pkg_names,
             } => {
                 let ctx = UpdatesContext {
                     entries,
                     scroll,
                     selected,
+                    filter_active,
+                    filter_query,
+                    filter_caret,
+                    last_selected_pkg_name,
+                    filtered_indices,
+                    selected_pkg_names,
                 };
                 render_updates_modal(f, app, area, ctx)
             }
@@ -1098,11 +1122,29 @@ fn render_updates_modal(
     area: Rect,
     ctx: UpdatesContext,
 ) -> Modal {
-    updates::render_updates(f, app, area, &ctx.entries, ctx.scroll, ctx.selected);
+    updates::render_updates(
+        f,
+        app,
+        area,
+        &ctx.entries,
+        &ctx.filtered_indices,
+        ctx.scroll,
+        ctx.selected,
+        ctx.filter_active,
+        &ctx.filter_query,
+        ctx.filter_caret,
+        &ctx.selected_pkg_names,
+    );
     Modal::Updates {
         entries: ctx.entries,
         scroll: ctx.scroll,
         selected: ctx.selected,
+        filter_active: ctx.filter_active,
+        filter_query: ctx.filter_query,
+        filter_caret: ctx.filter_caret,
+        last_selected_pkg_name: ctx.last_selected_pkg_name,
+        filtered_indices: ctx.filtered_indices,
+        selected_pkg_names: ctx.selected_pkg_names,
     }
 }
 

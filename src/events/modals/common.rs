@@ -998,74 +998,163 @@ pub(super) fn handle_announcement(
 /// - Handles Esc/q to close, Enter to install/update selected package
 /// - Handles j/k and arrow keys for selection navigation
 /// - Auto-scrolls to keep selected item visible
+#[allow(clippy::too_many_arguments)]
+// Updates modal needs coordinated mutable state (selection, scroll, and filter state) in one handler.
+#[allow(clippy::too_many_lines)] // Keeps full keymap behavior in a single readable dispatch for modal navigation and filter mode.
+#[allow(clippy::cognitive_complexity)] // Consolidating key dispatch here preserves modal behavior locality across filter, navigation, and batch actions.
 pub(super) fn handle_updates(
     ke: KeyEvent,
     app: &mut AppState,
     entries: &[(String, String, String)],
     scroll: &mut u16,
     selected: &mut usize,
+    filter_active: &mut bool,
+    filter_query: &mut String,
+    filter_caret: &mut usize,
+    last_selected_pkg_name: &mut Option<String>,
+    filtered_indices: &mut Vec<usize>,
+    selected_pkg_names: &mut std::collections::HashSet<String>,
 ) -> bool {
+    let sync_scroll =
+        |app: &AppState, scroll: &mut u16, selected_original: usize, filtered: &[usize]| {
+            let visible_selected =
+                updates_visible_index_for_selected(selected_original, filtered).unwrap_or(0);
+            let visible_count = filtered.len();
+            if visible_count == 0 {
+                *scroll = 0;
+                return;
+            }
+            *scroll = crate::events::utils::compute_updates_modal_scroll_for_selection(
+                &app.updates_modal_entry_line_starts,
+                app.updates_modal_total_lines,
+                app.updates_modal_content_rect,
+                visible_selected,
+                visible_count,
+                *scroll,
+            );
+        };
+    if filtered_indices.is_empty() && (!*filter_active || filter_query.trim().is_empty()) {
+        *filtered_indices = (0..entries.len()).collect();
+    }
+    if *selected >= entries.len() {
+        *selected = entries.len().saturating_sub(1);
+    }
+    if let Some((name, _, _)) = entries.get(*selected) {
+        *last_selected_pkg_name = Some(name.clone());
+    }
+
+    if *filter_active {
+        if handle_updates_filter_editing(
+            ke,
+            entries,
+            scroll,
+            selected,
+            filter_active,
+            filter_query,
+            filter_caret,
+            last_selected_pkg_name,
+            filtered_indices,
+            &sync_scroll,
+            app,
+        ) {
+            return false;
+        }
+    } else if matches!(ke.code, KeyCode::Char('/')) {
+        *filter_active = true;
+        *filter_caret = crate::events::utils::char_count(filter_query);
+        return false;
+    }
+
+    let plain_lower_g = matches!(ke.code, KeyCode::Char('g')) && ke.modifiers.is_empty();
+    if !plain_lower_g {
+        clear_updates_pending_g(app);
+    }
+
     match ke.code {
         KeyCode::Esc | KeyCode::Char('q') => {
             app.modal = crate::state::Modal::None;
             return true; // Stop propagation
         }
         KeyCode::Enter | KeyCode::Char('\n' | '\r') => {
-            // Install/update the selected package
-            if let Some((pkg_name, _, new_version)) = entries.get(*selected) {
-                // Try to find the package in the official index first
-                let pkg_item =
-                    if let Some(mut pkg_item) = crate::index::find_package_by_name(pkg_name) {
-                        // Update the version to the new version
-                        pkg_item.version.clone_from(new_version);
-                        pkg_item
-                    } else {
-                        // If not found in official repos, assume it's an AUR package
-                        PackageItem {
-                            name: pkg_name.clone(),
-                            version: new_version.clone(),
-                            description: String::new(),
-                            source: Source::Aur,
-                            popularity: None,
-                            out_of_date: None,
-                            orphaned: false,
-                        }
-                    };
-
-                // Close Updates modal
+            let selected_items = collect_selected_update_items(entries, selected_pkg_names);
+            if !selected_items.is_empty() {
                 app.modal = crate::state::Modal::None;
+                crate::events::search::open_preflight_modal(app, selected_items, true);
+                return true; // Stop propagation
+            }
 
-                // Open Preflight modal for this package (respects skip_preflight setting)
+            // Install/update the focused package when no batch selection exists.
+            if let Some((pkg_name, _, new_version)) = entries.get(*selected) {
+                let pkg_item = package_item_for_update_entry(pkg_name, new_version);
+                app.modal = crate::state::Modal::None;
                 crate::events::search::open_preflight_modal(app, vec![pkg_item], true);
             }
             return true; // Stop propagation
         }
+        KeyCode::Char(' ') => {
+            if let Some((name, _, _)) = entries.get(*selected)
+                && !selected_pkg_names.remove(name)
+            {
+                selected_pkg_names.insert(name.clone());
+            }
+        }
+        KeyCode::Char('a') if ke.modifiers.is_empty() => {
+            for &idx in filtered_indices.iter() {
+                if let Some((name, _, _)) = entries.get(idx) {
+                    selected_pkg_names.insert(name.clone());
+                }
+            }
+        }
+        KeyCode::Home => {
+            *selected = filtered_indices.first().copied().unwrap_or(0);
+            sync_scroll(app, scroll, *selected, filtered_indices);
+        }
+        KeyCode::End | KeyCode::Char('G') => {
+            *selected = filtered_indices.last().copied().unwrap_or(0);
+            sync_scroll(app, scroll, *selected, filtered_indices);
+        }
+        KeyCode::Char('g') if ke.modifiers.is_empty() => {
+            let now = Instant::now();
+            if is_updates_pending_g_active(app, now) {
+                clear_updates_pending_g(app);
+                *selected = filtered_indices.first().copied().unwrap_or(0);
+                sync_scroll(app, scroll, *selected, filtered_indices);
+            } else {
+                app.updates_modal_pending_g_at = Some(now);
+            }
+        }
         KeyCode::Up | KeyCode::Char('k') => {
-            if *selected > 0 {
-                *selected -= 1;
+            if let Some(visible) = updates_visible_index_for_selected(*selected, filtered_indices)
+                && visible > 0
+            {
+                *selected = filtered_indices[visible - 1];
                 // Auto-scroll to keep selected item visible
-                update_scroll_for_selection(scroll, *selected);
+                sync_scroll(app, scroll, *selected, filtered_indices);
             }
         }
         KeyCode::Down | KeyCode::Char('j') => {
-            if *selected + 1 < entries.len() {
-                *selected += 1;
+            if let Some(visible) = updates_visible_index_for_selected(*selected, filtered_indices)
+                && visible + 1 < filtered_indices.len()
+            {
+                *selected = filtered_indices[visible + 1];
                 // Auto-scroll to keep selected item visible
-                update_scroll_for_selection(scroll, *selected);
+                sync_scroll(app, scroll, *selected, filtered_indices);
             }
         }
         KeyCode::PageUp => {
-            if *selected >= 10 {
-                *selected -= 10;
-            } else {
-                *selected = 0;
+            if let Some(visible) = updates_visible_index_for_selected(*selected, filtered_indices) {
+                let next_visible = visible.saturating_sub(10);
+                *selected = filtered_indices[next_visible];
+                sync_scroll(app, scroll, *selected, filtered_indices);
             }
-            update_scroll_for_selection(scroll, *selected);
         }
         KeyCode::PageDown => {
-            let max_idx = entries.len().saturating_sub(1);
-            *selected = (*selected + 10).min(max_idx);
-            update_scroll_for_selection(scroll, *selected);
+            if let Some(visible) = updates_visible_index_for_selected(*selected, filtered_indices) {
+                let max_visible = filtered_indices.len().saturating_sub(1);
+                let next_visible = (visible + 10).min(max_visible);
+                *selected = filtered_indices[next_visible];
+                sync_scroll(app, scroll, *selected, filtered_indices);
+            }
         }
         KeyCode::Char('d')
             if ke
@@ -1073,9 +1162,12 @@ pub(super) fn handle_updates(
                 .contains(crossterm::event::KeyModifiers::CONTROL) =>
         {
             // Ctrl+D: page down (25 lines)
-            let max_idx = entries.len().saturating_sub(1);
-            *selected = (*selected + 25).min(max_idx);
-            update_scroll_for_selection(scroll, *selected);
+            if let Some(visible) = updates_visible_index_for_selected(*selected, filtered_indices) {
+                let max_visible = filtered_indices.len().saturating_sub(1);
+                let next_visible = (visible + 25).min(max_visible);
+                *selected = filtered_indices[next_visible];
+                sync_scroll(app, scroll, *selected, filtered_indices);
+            }
         }
         KeyCode::Char('u')
             if ke
@@ -1083,46 +1175,253 @@ pub(super) fn handle_updates(
                 .contains(crossterm::event::KeyModifiers::CONTROL) =>
         {
             // Ctrl+U: page up (20 lines)
-            if *selected >= 20 {
-                *selected -= 20;
-            } else {
-                *selected = 0;
+            if let Some(visible) = updates_visible_index_for_selected(*selected, filtered_indices) {
+                let next_visible = visible.saturating_sub(20);
+                *selected = filtered_indices[next_visible];
+                sync_scroll(app, scroll, *selected, filtered_indices);
             }
-            update_scroll_for_selection(scroll, *selected);
         }
         _ => {}
+    }
+    if let Some((name, _, _)) = entries.get(*selected) {
+        *last_selected_pkg_name = Some(name.clone());
     }
     false
 }
 
-/// What: Update scroll offset to keep the selected item visible.
+/// What: Build an update preflight `PackageItem` for a selected updates row.
+fn package_item_for_update_entry(pkg_name: &str, new_version: &str) -> PackageItem {
+    if let Some(mut pkg_item) = crate::index::find_package_by_name(pkg_name) {
+        pkg_item.version = new_version.to_string();
+        pkg_item
+    } else {
+        PackageItem {
+            name: pkg_name.to_string(),
+            version: new_version.to_string(),
+            description: String::new(),
+            source: Source::Aur,
+            popularity: None,
+            out_of_date: None,
+            orphaned: false,
+        }
+    }
+}
+
+/// What: Collect selected updates rows as preflight items in original entries order.
+fn collect_selected_update_items(
+    entries: &[(String, String, String)],
+    selected_pkg_names: &std::collections::HashSet<String>,
+) -> Vec<PackageItem> {
+    entries
+        .iter()
+        .filter(|(name, _, _)| selected_pkg_names.contains(name))
+        .map(|(name, _, new_version)| package_item_for_update_entry(name, new_version))
+        .collect()
+}
+
+/// What: Return visible filtered position for a selected original updates index.
+fn updates_visible_index_for_selected(
+    selected: usize,
+    filtered_indices: &[usize],
+) -> Option<usize> {
+    filtered_indices.iter().position(|&idx| idx == selected)
+}
+
+/// What: Recompute updates filter result and restore selection with identity-first strategy.
+#[allow(clippy::too_many_arguments)]
+fn recompute_updates_filter_state(
+    entries: &[(String, String, String)],
+    scroll: &mut u16,
+    selected: &mut usize,
+    filter_query: &str,
+    last_selected_pkg_name: &mut Option<String>,
+    filtered_indices: &mut Vec<usize>,
+    sync_scroll: &impl Fn(&AppState, &mut u16, usize, &[usize]),
+    app: &AppState,
+) {
+    let previous_visible =
+        updates_visible_index_for_selected(*selected, filtered_indices).unwrap_or(0);
+    *filtered_indices =
+        crate::events::utils::compute_updates_filtered_indices(entries, filter_query);
+    if filtered_indices.is_empty() {
+        *scroll = 0;
+        return;
+    }
+
+    let restored_by_name = last_selected_pkg_name.as_ref().and_then(|name| {
+        filtered_indices.iter().copied().find(|&original_idx| {
+            entries
+                .get(original_idx)
+                .is_some_and(|(entry_name, _, _)| entry_name == name)
+        })
+    });
+    let fallback_visible = previous_visible.min(filtered_indices.len().saturating_sub(1));
+    *selected = restored_by_name.unwrap_or(filtered_indices[fallback_visible]);
+
+    if let Some((name, _, _)) = entries.get(*selected) {
+        *last_selected_pkg_name = Some(name.clone());
+    }
+    sync_scroll(app, scroll, *selected, filtered_indices);
+}
+
+/// What: Handle key input while updates slash-filter text mode is active.
+#[allow(clippy::too_many_arguments)]
+fn handle_updates_filter_editing(
+    ke: KeyEvent,
+    entries: &[(String, String, String)],
+    scroll: &mut u16,
+    selected: &mut usize,
+    filter_active: &mut bool,
+    filter_query: &mut String,
+    filter_caret: &mut usize,
+    last_selected_pkg_name: &mut Option<String>,
+    filtered_indices: &mut Vec<usize>,
+    sync_scroll: &impl Fn(&AppState, &mut u16, usize, &[usize]),
+    app: &AppState,
+) -> bool {
+    match ke.code {
+        KeyCode::Esc => {
+            filter_query.clear();
+            *filter_caret = 0;
+            *filter_active = false;
+            *filtered_indices = (0..entries.len()).collect();
+            recompute_updates_filter_state(
+                entries,
+                scroll,
+                selected,
+                filter_query,
+                last_selected_pkg_name,
+                filtered_indices,
+                sync_scroll,
+                app,
+            );
+            true
+        }
+        KeyCode::Left => {
+            *filter_caret = filter_caret.saturating_sub(1);
+            true
+        }
+        KeyCode::Right => {
+            let chars = crate::events::utils::char_count(filter_query);
+            *filter_caret = (*filter_caret + 1).min(chars);
+            true
+        }
+        KeyCode::Home => {
+            *filter_caret = 0;
+            true
+        }
+        KeyCode::End => {
+            *filter_caret = crate::events::utils::char_count(filter_query);
+            true
+        }
+        KeyCode::Backspace => {
+            if *filter_caret > 0 {
+                let start_ci = filter_caret.saturating_sub(1);
+                let start_b = crate::events::utils::byte_index_for_char(filter_query, start_ci);
+                let end_b = crate::events::utils::byte_index_for_char(filter_query, *filter_caret);
+                filter_query.replace_range(start_b..end_b, "");
+                *filter_caret = start_ci;
+                recompute_updates_filter_state(
+                    entries,
+                    scroll,
+                    selected,
+                    filter_query,
+                    last_selected_pkg_name,
+                    filtered_indices,
+                    sync_scroll,
+                    app,
+                );
+            }
+            true
+        }
+        KeyCode::Delete => {
+            let chars = crate::events::utils::char_count(filter_query);
+            if *filter_caret < chars {
+                let start_b =
+                    crate::events::utils::byte_index_for_char(filter_query, *filter_caret);
+                let end_b =
+                    crate::events::utils::byte_index_for_char(filter_query, *filter_caret + 1);
+                filter_query.replace_range(start_b..end_b, "");
+                recompute_updates_filter_state(
+                    entries,
+                    scroll,
+                    selected,
+                    filter_query,
+                    last_selected_pkg_name,
+                    filtered_indices,
+                    sync_scroll,
+                    app,
+                );
+            }
+            true
+        }
+        KeyCode::Char(ch)
+            if ke.modifiers.is_empty() || ke.modifiers == crossterm::event::KeyModifiers::SHIFT =>
+        {
+            let insert_at = crate::events::utils::byte_index_for_char(filter_query, *filter_caret);
+            filter_query.insert(insert_at, ch);
+            *filter_caret += 1;
+            recompute_updates_filter_state(
+                entries,
+                scroll,
+                selected,
+                filter_query,
+                last_selected_pkg_name,
+                filtered_indices,
+                sync_scroll,
+                app,
+            );
+            true
+        }
+        KeyCode::Up
+        | KeyCode::Down
+        | KeyCode::PageUp
+        | KeyCode::PageDown
+        | KeyCode::Enter
+        | KeyCode::Tab => true,
+        KeyCode::Char('k' | 'j' | 'g' | 'G')
+            if ke.modifiers.is_empty()
+                || ke
+                    .modifiers
+                    .contains(crossterm::event::KeyModifiers::CONTROL) =>
+        {
+            true
+        }
+        _ => false,
+    }
+}
+
+/// What: Timeout window used to complete the `g g` chord in Updates modal navigation.
+const UPDATES_GG_TIMEOUT: Duration = Duration::from_millis(500);
+
+/// What: Clear any pending `g` chord state for Updates modal navigation.
 ///
 /// Inputs:
-/// - `scroll`: Mutable scroll offset
-/// - `selected`: Selected index
+/// - `app`: Mutable application state.
 ///
 /// Output:
-/// - Updates scroll to ensure selected item is visible
+/// - Resets `updates_modal_pending_g_at` to `None`.
 ///
 /// Details:
-/// - Estimates visible lines based on modal height
-/// - Adjusts scroll so selected item is within visible range
-fn update_scroll_for_selection(scroll: &mut u16, selected: usize) {
-    // Estimate visible content lines (modal height minus header/footer/borders)
-    // Header: 2 lines, borders: 2 lines, footer: 0 lines = ~4 lines overhead
-    // Assume ~20 visible content lines as a reasonable default
-    const VISIBLE_LINES: u16 = 20;
+/// - Called on non-`g` keypresses and after successful `g g`.
+const fn clear_updates_pending_g(app: &mut AppState) {
+    app.updates_modal_pending_g_at = None;
+}
 
-    let selected_line = u16::try_from(selected).unwrap_or(u16::MAX);
-
-    // If selected item is above visible area, scroll up
-    if selected_line < *scroll {
-        *scroll = selected_line;
-    }
-    // If selected item is below visible area, scroll down
-    else if selected_line >= *scroll + VISIBLE_LINES {
-        *scroll = selected_line.saturating_sub(VISIBLE_LINES.saturating_sub(1));
-    }
+/// What: Check whether a pending `g` chord is still valid for `g g`.
+///
+/// Inputs:
+/// - `app`: Application state containing pending chord timestamp.
+/// - `now`: Current monotonic timestamp.
+///
+/// Output:
+/// - `true` when a prior `g` exists and is within `UPDATES_GG_TIMEOUT`.
+///
+/// Details:
+/// - Uses `saturating_duration_since` to avoid panics if clocks appear reordered.
+fn is_updates_pending_g_active(app: &AppState, now: Instant) -> bool {
+    app.updates_modal_pending_g_at
+        .is_some_and(|pending| now.saturating_duration_since(pending) <= UPDATES_GG_TIMEOUT)
 }
 
 /// What: Handle key events for `GnomeTerminalPrompt` modal.
@@ -1185,6 +1484,7 @@ mod tests {
     use super::*;
     use crate::announcements::RemoteAnnouncement;
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+    use std::time::{Duration, Instant};
 
     /// What: Create a test `KeyEvent` for testing.
     ///
@@ -1629,5 +1929,649 @@ mod tests {
             }
             _ => panic!("Expected Announcement modal with next announcement"),
         }
+    }
+
+    #[test]
+    /// What: Verify updates modal scroll uses rendered-line mapping for wrapped rows.
+    ///
+    /// Inputs:
+    /// - App state with synthetic entry->line starts and viewport height.
+    ///
+    /// Output:
+    /// - Scroll offset follows rendered line starts instead of entry index.
+    ///
+    /// Details:
+    /// - Protects against selection/scroll desync when entries wrap to multiple lines.
+    fn test_update_scroll_for_selection_uses_rendered_line_starts() {
+        let app = crate::state::AppState {
+            updates_modal_entry_line_starts: vec![0, 3, 5],
+            updates_modal_total_lines: 7,
+            updates_modal_content_rect: Some((0, 0, 40, 3)),
+            ..Default::default()
+        };
+
+        let mut scroll = crate::events::utils::compute_updates_modal_scroll_for_selection(
+            &app.updates_modal_entry_line_starts,
+            app.updates_modal_total_lines,
+            app.updates_modal_content_rect,
+            1,
+            3,
+            0,
+        );
+        assert_eq!(
+            scroll, 1,
+            "entry 1 starts at rendered line 3 with height 3 viewport"
+        );
+
+        scroll = crate::events::utils::compute_updates_modal_scroll_for_selection(
+            &app.updates_modal_entry_line_starts,
+            app.updates_modal_total_lines,
+            app.updates_modal_content_rect,
+            2,
+            3,
+            scroll,
+        );
+        assert_eq!(
+            scroll, 3,
+            "entry 2 should move viewport to include rendered line 5"
+        );
+    }
+
+    #[test]
+    /// What: Verify updates modal scroll clamps to computed max scroll.
+    ///
+    /// Inputs:
+    /// - App state with small total rendered lines and larger desired scroll.
+    ///
+    /// Output:
+    /// - Scroll value is clamped within valid range.
+    ///
+    /// Details:
+    /// - Ensures dynamic viewport calculations cannot overscroll.
+    fn test_update_scroll_for_selection_clamps_to_max_scroll() {
+        let app = crate::state::AppState {
+            updates_modal_entry_line_starts: vec![0, 2],
+            updates_modal_total_lines: 4,
+            updates_modal_content_rect: Some((0, 0, 40, 3)),
+            ..Default::default()
+        };
+
+        let scroll = crate::events::utils::compute_updates_modal_scroll_for_selection(
+            &app.updates_modal_entry_line_starts,
+            app.updates_modal_total_lines,
+            app.updates_modal_content_rect,
+            0,
+            2,
+            10,
+        );
+        assert_eq!(scroll, 0, "first entry should clamp scroll back to start");
+    }
+
+    #[test]
+    /// What: Verify `Home` and `End` jump to first/last updates entry.
+    ///
+    /// Inputs:
+    /// - Updates list with three entries and selected index in the middle.
+    ///
+    /// Output:
+    /// - `Home` moves selection to index 0; `End` moves to last index.
+    ///
+    /// Details:
+    /// - Confirms parity navigation keys for absolute jumps.
+    fn test_handle_updates_home_and_end_jump_bounds() {
+        let mut app = crate::state::AppState::default();
+        let entries = vec![
+            ("a".to_string(), "1".to_string(), "2".to_string()),
+            ("b".to_string(), "1".to_string(), "2".to_string()),
+            ("c".to_string(), "1".to_string(), "2".to_string()),
+        ];
+        let mut selected = 1usize;
+        let mut scroll = 0u16;
+        let mut filter_active = false;
+        let mut filter_query = String::new();
+        let mut filter_caret = 0usize;
+        let mut last_selected_pkg_name = None;
+        let mut filtered_indices = (0..entries.len()).collect();
+        let mut selected_pkg_names = std::collections::HashSet::new();
+
+        let _ = handle_updates(
+            test_key_event(KeyCode::Home),
+            &mut app,
+            &entries,
+            &mut scroll,
+            &mut selected,
+            &mut filter_active,
+            &mut filter_query,
+            &mut filter_caret,
+            &mut last_selected_pkg_name,
+            &mut filtered_indices,
+            &mut selected_pkg_names,
+        );
+        assert_eq!(selected, 0);
+
+        let _ = handle_updates(
+            test_key_event(KeyCode::End),
+            &mut app,
+            &entries,
+            &mut scroll,
+            &mut selected,
+            &mut filter_active,
+            &mut filter_query,
+            &mut filter_caret,
+            &mut last_selected_pkg_name,
+            &mut filtered_indices,
+            &mut selected_pkg_names,
+        );
+        assert_eq!(selected, 2);
+    }
+
+    #[test]
+    /// What: Verify uppercase `G` jumps to the last updates entry.
+    ///
+    /// Inputs:
+    /// - Updates list with three entries and selected index 0.
+    ///
+    /// Output:
+    /// - Selection moves to final index.
+    ///
+    /// Details:
+    /// - Mirrors common TUI navigation behavior.
+    fn test_handle_updates_uppercase_g_jumps_last() {
+        let mut app = crate::state::AppState::default();
+        let entries = vec![
+            ("a".to_string(), "1".to_string(), "2".to_string()),
+            ("b".to_string(), "1".to_string(), "2".to_string()),
+            ("c".to_string(), "1".to_string(), "2".to_string()),
+        ];
+        let mut selected = 0usize;
+        let mut scroll = 0u16;
+        let mut filter_active = false;
+        let mut filter_query = String::new();
+        let mut filter_caret = 0usize;
+        let mut last_selected_pkg_name = None;
+        let mut filtered_indices = (0..entries.len()).collect();
+        let mut selected_pkg_names = std::collections::HashSet::new();
+
+        let _ = handle_updates(
+            test_key_event(KeyCode::Char('G')),
+            &mut app,
+            &entries,
+            &mut scroll,
+            &mut selected,
+            &mut filter_active,
+            &mut filter_query,
+            &mut filter_caret,
+            &mut last_selected_pkg_name,
+            &mut filtered_indices,
+            &mut selected_pkg_names,
+        );
+        assert_eq!(selected, 2);
+    }
+
+    #[test]
+    /// What: Verify `g g` within timeout jumps to first entry.
+    ///
+    /// Inputs:
+    /// - Updates list with three entries and selected index at end.
+    ///
+    /// Output:
+    /// - First `g` arms pending chord; second `g` jumps selection to 0.
+    ///
+    /// Details:
+    /// - Ensures chord behavior is active in normal navigation mode.
+    fn test_handle_updates_gg_within_timeout_jumps_first() {
+        let mut app = crate::state::AppState::default();
+        let entries = vec![
+            ("a".to_string(), "1".to_string(), "2".to_string()),
+            ("b".to_string(), "1".to_string(), "2".to_string()),
+            ("c".to_string(), "1".to_string(), "2".to_string()),
+        ];
+        let mut selected = 2usize;
+        let mut scroll = 0u16;
+        let mut filter_active = false;
+        let mut filter_query = String::new();
+        let mut filter_caret = 0usize;
+        let mut last_selected_pkg_name = None;
+        let mut filtered_indices = (0..entries.len()).collect();
+        let mut selected_pkg_names = std::collections::HashSet::new();
+
+        let _ = handle_updates(
+            test_key_event(KeyCode::Char('g')),
+            &mut app,
+            &entries,
+            &mut scroll,
+            &mut selected,
+            &mut filter_active,
+            &mut filter_query,
+            &mut filter_caret,
+            &mut last_selected_pkg_name,
+            &mut filtered_indices,
+            &mut selected_pkg_names,
+        );
+        assert!(app.updates_modal_pending_g_at.is_some());
+        assert_eq!(selected, 2);
+
+        let _ = handle_updates(
+            test_key_event(KeyCode::Char('g')),
+            &mut app,
+            &entries,
+            &mut scroll,
+            &mut selected,
+            &mut filter_active,
+            &mut filter_query,
+            &mut filter_caret,
+            &mut last_selected_pkg_name,
+            &mut filtered_indices,
+            &mut selected_pkg_names,
+        );
+        assert_eq!(selected, 0);
+        assert!(app.updates_modal_pending_g_at.is_none());
+    }
+
+    #[test]
+    /// What: Verify expired pending `g` does not trigger a jump.
+    ///
+    /// Inputs:
+    /// - Updates list with pending `g` timestamp older than timeout.
+    ///
+    /// Output:
+    /// - Next `g` re-arms the chord and keeps selection unchanged.
+    ///
+    /// Details:
+    /// - Prevents stale chord state from causing surprise jumps.
+    fn test_handle_updates_expired_pending_g_does_not_jump() {
+        let mut app = crate::state::AppState::default();
+        let entries = vec![
+            ("a".to_string(), "1".to_string(), "2".to_string()),
+            ("b".to_string(), "1".to_string(), "2".to_string()),
+            ("c".to_string(), "1".to_string(), "2".to_string()),
+        ];
+        let mut selected = 2usize;
+        let mut scroll = 0u16;
+        let mut filter_active = false;
+        let mut filter_query = String::new();
+        let mut filter_caret = 0usize;
+        let mut last_selected_pkg_name = None;
+        let mut filtered_indices = (0..entries.len()).collect();
+        let mut selected_pkg_names = std::collections::HashSet::new();
+        let now = Instant::now();
+        let expired = now
+            .checked_sub(UPDATES_GG_TIMEOUT + Duration::from_millis(50))
+            .map_or(now, |instant| instant);
+        app.updates_modal_pending_g_at = Some(expired);
+
+        let _ = handle_updates(
+            test_key_event(KeyCode::Char('g')),
+            &mut app,
+            &entries,
+            &mut scroll,
+            &mut selected,
+            &mut filter_active,
+            &mut filter_query,
+            &mut filter_caret,
+            &mut last_selected_pkg_name,
+            &mut filtered_indices,
+            &mut selected_pkg_names,
+        );
+        assert_eq!(selected, 2);
+        assert!(app.updates_modal_pending_g_at.is_some());
+    }
+
+    #[test]
+    /// What: Verify non-`g` key clears pending `g` and preserves navigation behavior.
+    ///
+    /// Inputs:
+    /// - Pending `g` state followed by `Down`.
+    ///
+    /// Output:
+    /// - `Down` moves selection normally and clears pending chord state.
+    ///
+    /// Details:
+    /// - Ensures pending chord does not leak into unrelated key handling.
+    fn test_handle_updates_non_g_clears_pending_chord() {
+        let mut app = crate::state::AppState::default();
+        let entries = vec![
+            ("a".to_string(), "1".to_string(), "2".to_string()),
+            ("b".to_string(), "1".to_string(), "2".to_string()),
+            ("c".to_string(), "1".to_string(), "2".to_string()),
+        ];
+        let mut selected = 0usize;
+        let mut scroll = 0u16;
+        let mut filter_active = false;
+        let mut filter_query = String::new();
+        let mut filter_caret = 0usize;
+        let mut last_selected_pkg_name = None;
+        let mut filtered_indices = (0..entries.len()).collect();
+        let mut selected_pkg_names = std::collections::HashSet::new();
+        app.updates_modal_pending_g_at = Some(Instant::now());
+
+        let _ = handle_updates(
+            test_key_event(KeyCode::Down),
+            &mut app,
+            &entries,
+            &mut scroll,
+            &mut selected,
+            &mut filter_active,
+            &mut filter_query,
+            &mut filter_caret,
+            &mut last_selected_pkg_name,
+            &mut filtered_indices,
+            &mut selected_pkg_names,
+        );
+        assert_eq!(selected, 1);
+        assert!(app.updates_modal_pending_g_at.is_none());
+    }
+
+    #[test]
+    /// What: Verify slash key enters updates filter text mode.
+    ///
+    /// Inputs:
+    /// - Updates entries and slash keypress.
+    ///
+    /// Output:
+    /// - Filter mode becomes active without mutating selection.
+    ///
+    /// Details:
+    /// - Guards entrypoint behavior for phase-4 quick filter.
+    fn test_handle_updates_slash_enters_filter_mode() {
+        let mut app = crate::state::AppState::default();
+        let entries = vec![("pkg-a".to_string(), "1".to_string(), "2".to_string())];
+        let mut selected = 0usize;
+        let mut scroll = 0u16;
+        let mut filter_active = false;
+        let mut filter_query = String::new();
+        let mut filter_caret = 0usize;
+        let mut last_selected_pkg_name = None;
+        let mut filtered_indices = vec![0];
+        let mut selected_pkg_names = std::collections::HashSet::new();
+
+        let _ = handle_updates(
+            test_key_event(KeyCode::Char('/')),
+            &mut app,
+            &entries,
+            &mut scroll,
+            &mut selected,
+            &mut filter_active,
+            &mut filter_query,
+            &mut filter_caret,
+            &mut last_selected_pkg_name,
+            &mut filtered_indices,
+            &mut selected_pkg_names,
+        );
+        assert!(filter_active);
+        assert_eq!(selected, 0);
+    }
+
+    #[test]
+    /// What: Verify Esc clears query and exits updates filter mode.
+    ///
+    /// Inputs:
+    /// - Active filter mode with non-empty query.
+    ///
+    /// Output:
+    /// - Filter mode exits and query is reset.
+    ///
+    /// Details:
+    /// - Ensures reversible filtering UX.
+    fn test_handle_updates_filter_esc_clears_and_exits() {
+        let mut app = crate::state::AppState::default();
+        let entries = vec![("pkg-a".to_string(), "1".to_string(), "2".to_string())];
+        let mut selected = 0usize;
+        let mut scroll = 0u16;
+        let mut filter_active = true;
+        let mut filter_query = "pkg".to_string();
+        let mut filter_caret = 3usize;
+        let mut last_selected_pkg_name = Some("pkg-a".to_string());
+        let mut filtered_indices = vec![0];
+        let mut selected_pkg_names = std::collections::HashSet::new();
+
+        let _ = handle_updates(
+            test_key_event(KeyCode::Esc),
+            &mut app,
+            &entries,
+            &mut scroll,
+            &mut selected,
+            &mut filter_active,
+            &mut filter_query,
+            &mut filter_caret,
+            &mut last_selected_pkg_name,
+            &mut filtered_indices,
+            &mut selected_pkg_names,
+        );
+        assert!(!filter_active);
+        assert!(filter_query.is_empty());
+        assert_eq!(filter_caret, 0);
+        assert_eq!(filtered_indices, vec![0]);
+    }
+
+    #[test]
+    /// What: Verify updates filter restores selection by package identity when reintroduced.
+    ///
+    /// Inputs:
+    /// - Entries with selected package hidden then restored by query edits.
+    ///
+    /// Output:
+    /// - Selection returns to the same package once it matches again.
+    ///
+    /// Details:
+    /// - Protects best-UX identity restoration requirement in phase 4.
+    fn test_handle_updates_filter_restores_selection_by_identity() {
+        let mut app = crate::state::AppState::default();
+        let entries = vec![
+            ("alpha".to_string(), "1".to_string(), "2".to_string()),
+            ("beta".to_string(), "1".to_string(), "2".to_string()),
+            ("gamma".to_string(), "1".to_string(), "2".to_string()),
+        ];
+        let mut selected = 1usize;
+        let mut scroll = 0u16;
+        let mut filter_active = true;
+        let mut filter_query = "be".to_string();
+        let mut filter_caret = 2usize;
+        let mut last_selected_pkg_name = Some("beta".to_string());
+        let mut filtered_indices =
+            crate::events::utils::compute_updates_filtered_indices(&entries, "be");
+        let mut selected_pkg_names = std::collections::HashSet::new();
+
+        let _ = handle_updates(
+            test_key_event(KeyCode::Backspace),
+            &mut app,
+            &entries,
+            &mut scroll,
+            &mut selected,
+            &mut filter_active,
+            &mut filter_query,
+            &mut filter_caret,
+            &mut last_selected_pkg_name,
+            &mut filtered_indices,
+            &mut selected_pkg_names,
+        );
+
+        assert_eq!(selected, 1);
+        assert_eq!(last_selected_pkg_name, Some("beta".to_string()));
+        assert!(!filtered_indices.is_empty());
+    }
+
+    #[test]
+    /// What: Verify active non-empty filter preserves an empty match set.
+    ///
+    /// Inputs:
+    /// - Active slash filter, query text with no matching entries, and navigation key press.
+    ///
+    /// Output:
+    /// - Filtered indices stay empty and are not replaced with the unfiltered list.
+    ///
+    /// Details:
+    /// - Prevents regression where "0 matches" becomes indistinguishable from "no filter".
+    fn test_handle_updates_active_filter_does_not_refill_empty_results() {
+        let mut app = crate::state::AppState::default();
+        let entries = vec![
+            ("alpha".to_string(), "1".to_string(), "2".to_string()),
+            ("beta".to_string(), "1".to_string(), "2".to_string()),
+        ];
+        let mut selected = 0usize;
+        let mut scroll = 0u16;
+        let mut filter_active = true;
+        let mut filter_query = "zzz".to_string();
+        let mut filter_caret = 3usize;
+        let mut last_selected_pkg_name = Some("alpha".to_string());
+        let mut filtered_indices =
+            crate::events::utils::compute_updates_filtered_indices(&entries, &filter_query);
+        let mut selected_pkg_names = std::collections::HashSet::new();
+        assert!(filtered_indices.is_empty());
+
+        let _ = handle_updates(
+            test_key_event(KeyCode::Down),
+            &mut app,
+            &entries,
+            &mut scroll,
+            &mut selected,
+            &mut filter_active,
+            &mut filter_query,
+            &mut filter_caret,
+            &mut last_selected_pkg_name,
+            &mut filtered_indices,
+            &mut selected_pkg_names,
+        );
+
+        assert!(filter_active);
+        assert_eq!(filter_query, "zzz");
+        assert!(filtered_indices.is_empty());
+    }
+
+    #[test]
+    /// What: Verify Space toggles batch selection for focused updates row.
+    fn test_handle_updates_space_toggles_selected_package() {
+        let mut app = crate::state::AppState::default();
+        let entries = vec![
+            ("alpha".to_string(), "1".to_string(), "2".to_string()),
+            ("beta".to_string(), "1".to_string(), "2".to_string()),
+        ];
+        let mut selected = 1usize;
+        let mut scroll = 0u16;
+        let mut filter_active = false;
+        let mut filter_query = String::new();
+        let mut filter_caret = 0usize;
+        let mut last_selected_pkg_name = None;
+        let mut filtered_indices = vec![0, 1];
+        let mut selected_pkg_names = std::collections::HashSet::new();
+
+        let _ = handle_updates(
+            test_key_event(KeyCode::Char(' ')),
+            &mut app,
+            &entries,
+            &mut scroll,
+            &mut selected,
+            &mut filter_active,
+            &mut filter_query,
+            &mut filter_caret,
+            &mut last_selected_pkg_name,
+            &mut filtered_indices,
+            &mut selected_pkg_names,
+        );
+        assert!(selected_pkg_names.contains("beta"));
+
+        let _ = handle_updates(
+            test_key_event(KeyCode::Char(' ')),
+            &mut app,
+            &entries,
+            &mut scroll,
+            &mut selected,
+            &mut filter_active,
+            &mut filter_query,
+            &mut filter_caret,
+            &mut last_selected_pkg_name,
+            &mut filtered_indices,
+            &mut selected_pkg_names,
+        );
+        assert!(!selected_pkg_names.contains("beta"));
+    }
+
+    #[test]
+    /// What: Verify `a` selects all currently visible filtered rows.
+    fn test_handle_updates_a_selects_all_visible_rows() {
+        let mut app = crate::state::AppState::default();
+        let entries = vec![
+            ("alpha".to_string(), "1".to_string(), "2".to_string()),
+            ("beta".to_string(), "1".to_string(), "2".to_string()),
+            ("gamma".to_string(), "1".to_string(), "2".to_string()),
+        ];
+        let mut selected = 0usize;
+        let mut scroll = 0u16;
+        let mut filter_active = false;
+        let mut filter_query = String::new();
+        let mut filter_caret = 0usize;
+        let mut last_selected_pkg_name = None;
+        let mut filtered_indices = vec![1, 2];
+        let mut selected_pkg_names = std::collections::HashSet::from(["alpha".to_string()]);
+
+        let _ = handle_updates(
+            test_key_event(KeyCode::Char('a')),
+            &mut app,
+            &entries,
+            &mut scroll,
+            &mut selected,
+            &mut filter_active,
+            &mut filter_query,
+            &mut filter_caret,
+            &mut last_selected_pkg_name,
+            &mut filtered_indices,
+            &mut selected_pkg_names,
+        );
+
+        assert!(selected_pkg_names.contains("alpha"));
+        assert!(selected_pkg_names.contains("beta"));
+        assert!(selected_pkg_names.contains("gamma"));
+        assert_eq!(selected_pkg_names.len(), 3);
+    }
+
+    #[test]
+    /// What: Verify selected packages remain intact while filter query changes.
+    fn test_handle_updates_filter_changes_preserve_hidden_selection() {
+        let mut app = crate::state::AppState::default();
+        let entries = vec![
+            ("alpha".to_string(), "1".to_string(), "2".to_string()),
+            ("beta".to_string(), "1".to_string(), "2".to_string()),
+            ("gamma".to_string(), "1".to_string(), "2".to_string()),
+        ];
+        let mut selected = 1usize;
+        let mut scroll = 0u16;
+        let mut filter_active = true;
+        let mut filter_query = "b".to_string();
+        let mut filter_caret = 1usize;
+        let mut last_selected_pkg_name = Some("beta".to_string());
+        let mut filtered_indices = vec![1];
+        let mut selected_pkg_names = std::collections::HashSet::from(["gamma".to_string()]);
+
+        let _ = handle_updates(
+            test_key_event(KeyCode::Char('e')),
+            &mut app,
+            &entries,
+            &mut scroll,
+            &mut selected,
+            &mut filter_active,
+            &mut filter_query,
+            &mut filter_caret,
+            &mut last_selected_pkg_name,
+            &mut filtered_indices,
+            &mut selected_pkg_names,
+        );
+
+        assert!(selected_pkg_names.contains("gamma"));
+    }
+
+    #[test]
+    /// What: Ensure selected-set collection preserves original entry order.
+    fn test_collect_selected_update_items_preserves_entry_order() {
+        let entries = vec![
+            ("alpha".to_string(), "1".to_string(), "2".to_string()),
+            ("beta".to_string(), "1".to_string(), "2".to_string()),
+            ("gamma".to_string(), "1".to_string(), "2".to_string()),
+        ];
+        let selected_pkg_names =
+            std::collections::HashSet::from(["gamma".to_string(), "alpha".to_string()]);
+
+        let items = collect_selected_update_items(&entries, &selected_pkg_names);
+        let names: Vec<String> = items.into_iter().map(|item| item.name).collect();
+        assert_eq!(names, vec!["alpha".to_string(), "gamma".to_string()]);
     }
 }

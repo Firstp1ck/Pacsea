@@ -30,6 +30,72 @@ use init::{initialize_app_state, run_startup_config_preflight, trigger_initial_r
 /// Result type alias for runtime operations.
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
+/// What: Best-effort terminal restore guard for non-headless runtime sessions.
+///
+/// Inputs:
+/// - `active`: Whether terminal restore should run on drop.
+///
+/// Output:
+/// - On drop, attempts to restore terminal modes when active.
+///
+/// Details:
+/// - Prevents leaked raw mode / mouse capture when `run()` returns early with `?`.
+/// - Uses best-effort restore and logs failures without changing the original return path.
+struct TerminalRestoreGuard {
+    /// Whether drop should attempt terminal restoration.
+    active: bool,
+}
+
+impl TerminalRestoreGuard {
+    /// What: Create a new terminal restore guard.
+    ///
+    /// Inputs:
+    /// - `active`: Enables or disables restore-on-drop behavior.
+    ///
+    /// Output:
+    /// - New `TerminalRestoreGuard`.
+    ///
+    /// Details:
+    /// - `active` should be `true` only after successful terminal setup in non-headless mode.
+    const fn new(active: bool) -> Self {
+        Self { active }
+    }
+
+    /// What: Disable restore-on-drop after explicit terminal restoration.
+    ///
+    /// Inputs:
+    /// - None.
+    ///
+    /// Output:
+    /// - Guard no longer restores terminal in `Drop`.
+    ///
+    /// Details:
+    /// - Prevents duplicate restoration attempts on normal exit path.
+    const fn disarm(&mut self) {
+        self.active = false;
+    }
+}
+
+impl Drop for TerminalRestoreGuard {
+    /// What: Restore terminal modes when the guard goes out of scope.
+    ///
+    /// Inputs:
+    /// - `self`: Guard state.
+    ///
+    /// Output:
+    /// - No return value; logs on restore failure.
+    ///
+    /// Details:
+    /// - This runs during unwinding and early-return paths.
+    fn drop(&mut self) {
+        if self.active
+            && let Err(err) = restore_terminal()
+        {
+            tracing::warn!(error = %err, "failed to restore terminal from drop guard");
+        }
+    }
+}
+
 /// What: Run the Pacsea TUI application end-to-end.
 ///
 /// This function initializes terminal and state, spawns background workers
@@ -71,6 +137,7 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
     if !headless {
         setup_terminal()?;
     }
+    let mut terminal_restore_guard = TerminalRestoreGuard::new(!headless);
     let mut terminal = if headless {
         None
     } else {
@@ -143,6 +210,7 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
     // Restore terminal so user sees prompt
     if !headless {
         restore_terminal()?;
+        terminal_restore_guard.disarm();
     }
 
     // Force immediate process exit to avoid waiting for background blocking tasks

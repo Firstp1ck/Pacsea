@@ -755,9 +755,27 @@ pub(super) fn handle_updates_modal(ke: KeyEvent, app: &mut AppState, mut modal: 
         ref entries,
         ref mut scroll,
         ref mut selected,
+        ref mut filter_active,
+        ref mut filter_query,
+        ref mut filter_caret,
+        ref mut last_selected_pkg_name,
+        ref mut filtered_indices,
+        ref mut selected_pkg_names,
     } = modal
     {
-        let result = super::common::handle_updates(ke, app, entries, scroll, selected);
+        let result = super::common::handle_updates(
+            ke,
+            app,
+            entries,
+            scroll,
+            selected,
+            filter_active,
+            filter_query,
+            filter_caret,
+            last_selected_pkg_name,
+            filtered_indices,
+            selected_pkg_names,
+        );
         return restore::restore_if_not_closed_with_bool_result(
             app,
             result,
@@ -765,6 +783,12 @@ pub(super) fn handle_updates_modal(ke: KeyEvent, app: &mut AppState, mut modal: 
                 entries: entries.clone(),
                 scroll: *scroll,
                 selected: *selected,
+                filter_active: *filter_active,
+                filter_query: filter_query.clone(),
+                filter_caret: *filter_caret,
+                last_selected_pkg_name: last_selected_pkg_name.clone(),
+                filtered_indices: filtered_indices.clone(),
+                selected_pkg_names: selected_pkg_names.clone(),
             },
         );
     }

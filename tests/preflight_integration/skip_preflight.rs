@@ -135,6 +135,12 @@ fn test_updates_modal_initialization() {
         entries,
         scroll: 0,
         selected: 0,
+        filter_active: false,
+        filter_query: String::new(),
+        filter_caret: 0,
+        last_selected_pkg_name: None,
+        filtered_indices: vec![0, 1],
+        selected_pkg_names: std::collections::HashSet::new(),
     };
 
     // Verify modal state
@@ -143,6 +149,7 @@ fn test_updates_modal_initialization() {
             entries: modal_entries,
             scroll,
             selected,
+            ..
         } => {
             assert_eq!(modal_entries.len(), 2);
             assert_eq!(modal_entries[0].0, "test-pkg");

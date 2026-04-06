@@ -339,12 +339,23 @@ pub(super) fn handle_updates_modal(
     is_left_down: bool,
     app: &mut AppState,
 ) -> Option<bool> {
+    let entry_line_starts = app.updates_modal_entry_line_starts.clone();
+    let total_lines = app.updates_modal_total_lines;
+
     if let crate::state::Modal::Updates {
         ref mut scroll,
         ref entries,
         ref mut selected,
+        filter_active,
+        ref filter_query,
+        ref mut last_selected_pkg_name,
+        ref mut filtered_indices,
+        ..
     } = app.modal
     {
+        if filtered_indices.is_empty() && (!filter_active || filter_query.trim().is_empty()) {
+            *filtered_indices = (0..entries.len()).collect();
+        }
         // Left click: select row or close on outside
         if is_left_down {
             if let Some((x, y, w, h)) = app.updates_modal_content_rect
@@ -353,20 +364,30 @@ pub(super) fn handle_updates_modal(
                 && my >= y
                 && my < y + h
             {
-                // Account for header (2 lines) when calculating clicked row
-                const HEADER_LINES: u16 = 2;
                 let relative_y = my.saturating_sub(y);
-                // Only process clicks in the content area (below header)
-                if relative_y >= HEADER_LINES {
-                    // Calculate which row was clicked (accounting for header and scroll offset)
-                    let clicked_row = (relative_y.saturating_sub(HEADER_LINES) as usize)
-                        .saturating_add(*scroll as usize);
-                    // Only update selection if clicking on an actual entry
-                    if clicked_row < entries.len() {
-                        *selected = clicked_row;
-                        // Auto-scroll to keep selected item visible
-                        update_scroll_for_selection(scroll, *selected);
+                let clicked_render_line = (relative_y as usize).saturating_add(*scroll as usize);
+                let clicked_row = map_render_line_to_entry(
+                    clicked_render_line,
+                    &entry_line_starts,
+                    filtered_indices.len(),
+                );
+                if let Some(&original_idx) = filtered_indices.get(clicked_row) {
+                    *selected = original_idx;
+                    if let Some((name, _, _)) = entries.get(*selected) {
+                        *last_selected_pkg_name = Some(name.clone());
                     }
+                    let visible_selected = filtered_indices
+                        .iter()
+                        .position(|&idx| idx == *selected)
+                        .unwrap_or(0);
+                    *scroll = crate::events::utils::compute_updates_modal_scroll_for_selection(
+                        &entry_line_starts,
+                        total_lines,
+                        app.updates_modal_content_rect,
+                        visible_selected,
+                        filtered_indices.len(),
+                        *scroll,
+                    );
                 }
             } else if let Some((x, y, w, h)) = app.updates_modal_rect {
                 // Click outside modal closes it
@@ -381,19 +402,51 @@ pub(super) fn handle_updates_modal(
         // Handle scroll within modal: update selection to match scroll position
         match m.kind {
             crossterm::event::MouseEventKind::ScrollUp => {
-                if *selected > 0 {
-                    *selected -= 1;
+                if let Some(visible) = filtered_indices.iter().position(|&idx| idx == *selected)
+                    && visible > 0
+                {
+                    *selected = filtered_indices[visible - 1];
+                }
+                if let Some((name, _, _)) = entries.get(*selected) {
+                    *last_selected_pkg_name = Some(name.clone());
                 }
                 // Auto-scroll to keep selected item visible
-                update_scroll_for_selection(scroll, *selected);
+                let visible_selected = filtered_indices
+                    .iter()
+                    .position(|&idx| idx == *selected)
+                    .unwrap_or(0);
+                *scroll = crate::events::utils::compute_updates_modal_scroll_for_selection(
+                    &entry_line_starts,
+                    total_lines,
+                    app.updates_modal_content_rect,
+                    visible_selected,
+                    filtered_indices.len(),
+                    *scroll,
+                );
                 return Some(false);
             }
             crossterm::event::MouseEventKind::ScrollDown => {
-                if *selected + 1 < entries.len() {
-                    *selected += 1;
+                if let Some(visible) = filtered_indices.iter().position(|&idx| idx == *selected)
+                    && visible + 1 < filtered_indices.len()
+                {
+                    *selected = filtered_indices[visible + 1];
+                }
+                if let Some((name, _, _)) = entries.get(*selected) {
+                    *last_selected_pkg_name = Some(name.clone());
                 }
                 // Auto-scroll to keep selected item visible
-                update_scroll_for_selection(scroll, *selected);
+                let visible_selected = filtered_indices
+                    .iter()
+                    .position(|&idx| idx == *selected)
+                    .unwrap_or(0);
+                *scroll = crate::events::utils::compute_updates_modal_scroll_for_selection(
+                    &entry_line_starts,
+                    total_lines,
+                    app.updates_modal_content_rect,
+                    visible_selected,
+                    filtered_indices.len(),
+                    *scroll,
+                );
                 return Some(false);
             }
             _ => {}
@@ -405,32 +458,110 @@ pub(super) fn handle_updates_modal(
     None
 }
 
-/// What: Update scroll offset to keep the selected item visible.
+/// What: Resolve a rendered line index to the owning updates entry index.
 ///
 /// Inputs:
-/// - `scroll`: Mutable scroll offset
-/// - `selected`: Selected index
+/// - `render_line`: Absolute rendered line index within the wrapped list
+/// - `entry_line_starts`: Entry index to first rendered line mapping
+/// - `entry_count`: Total number of entries
 ///
 /// Output:
-/// - Updates scroll to ensure selected item is visible
+/// - Entry index owning `render_line`, clamped to list bounds
 ///
 /// Details:
-/// - Estimates visible lines based on modal height
-/// - Adjusts scroll so selected item is within visible range
-fn update_scroll_for_selection(scroll: &mut u16, selected: usize) {
-    // Estimate visible content lines (modal height minus header/footer/borders)
-    // Header: 2 lines, borders: 2 lines, footer: 0 lines = ~4 lines overhead
-    // Assume ~20 visible content lines as a reasonable default
-    const VISIBLE_LINES: u16 = 20;
-
-    let selected_line = u16::try_from(selected).unwrap_or(u16::MAX);
-
-    // If selected item is above visible area, scroll up
-    if selected_line < *scroll {
-        *scroll = selected_line;
+/// - Uses partition-point semantics to find the latest start <= `render_line`.
+fn map_render_line_to_entry(
+    render_line: usize,
+    entry_line_starts: &[u16],
+    entry_count: usize,
+) -> usize {
+    if entry_count == 0 {
+        return 0;
     }
-    // If selected item is below visible area, scroll down
-    else if selected_line >= *scroll + VISIBLE_LINES {
-        *scroll = selected_line.saturating_sub(VISIBLE_LINES.saturating_sub(1));
+    let line = u16::try_from(render_line).unwrap_or(u16::MAX);
+    let idx = entry_line_starts.partition_point(|&start| start <= line);
+    idx.saturating_sub(1).min(entry_count.saturating_sub(1))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{handle_updates_modal, map_render_line_to_entry};
+    use crate::state::{AppState, Modal};
+    use crossterm::event::{KeyModifiers, MouseEvent, MouseEventKind};
+    use std::collections::HashSet;
+
+    #[test]
+    /// What: Ensure render-line hit testing maps wrapped lines to the correct entry.
+    ///
+    /// Inputs:
+    /// - Synthetic entry line starts with mixed entry heights.
+    ///
+    /// Output:
+    /// - Returns the owning entry index for each tested rendered line.
+    ///
+    /// Details:
+    /// - Protects click hit-testing correctness in the updates modal.
+    fn map_render_line_to_entry_resolves_wrapped_ranges() {
+        let starts = vec![0, 3, 5];
+        assert_eq!(map_render_line_to_entry(0, &starts, 3), 0);
+        assert_eq!(map_render_line_to_entry(2, &starts, 3), 0);
+        assert_eq!(map_render_line_to_entry(3, &starts, 3), 1);
+        assert_eq!(map_render_line_to_entry(4, &starts, 3), 1);
+        assert_eq!(map_render_line_to_entry(5, &starts, 3), 2);
+        assert_eq!(map_render_line_to_entry(999, &starts, 3), 2);
+    }
+
+    #[test]
+    /// What: Keep an empty filtered result set empty when the filter is active.
+    ///
+    /// Inputs:
+    /// - Updates modal with `filter_active = true`, non-empty query, and `filtered_indices = []`.
+    /// - A mouse wheel event routed through `handle_updates_modal`.
+    ///
+    /// Output:
+    /// - `filtered_indices` remains empty after handling.
+    ///
+    /// Details:
+    /// - Prevents mouse handling from treating legitimate "0 matches" as uninitialized state.
+    fn updates_modal_mouse_preserves_empty_active_filter_result_set() {
+        let mut app = AppState {
+            modal: Modal::Updates {
+                entries: vec![
+                    ("alpha".to_string(), "1".to_string(), "2".to_string()),
+                    ("bravo".to_string(), "1".to_string(), "2".to_string()),
+                ],
+                scroll: 0,
+                selected: 0,
+                filter_active: true,
+                filter_query: "zzz".to_string(),
+                filter_caret: 3,
+                last_selected_pkg_name: None,
+                filtered_indices: Vec::new(),
+                selected_pkg_names: HashSet::new(),
+            },
+            ..AppState::default()
+        };
+
+        let mouse_event = MouseEvent {
+            kind: MouseEventKind::ScrollDown,
+            column: 0,
+            row: 0,
+            modifiers: KeyModifiers::empty(),
+        };
+
+        let handled = handle_updates_modal(mouse_event, 0, 0, false, &mut app);
+        assert_eq!(handled, Some(false));
+
+        if let Modal::Updates {
+            filtered_indices, ..
+        } = &app.modal
+        {
+            assert!(
+                filtered_indices.is_empty(),
+                "active non-empty filter must preserve an empty match set"
+            );
+        } else {
+            panic!("updates modal should remain open");
+        }
     }
 }

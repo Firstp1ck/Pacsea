@@ -24,11 +24,17 @@ use std::fmt::Write;
 /// - Should be called after spawning external processes (like terminals) that might disable mouse capture.
 /// - Safe to call multiple times.
 /// - In headless/test mode (`PACSEA_TEST_HEADLESS=1`), this is a no-op to prevent mouse escape sequences from appearing in test output.
+/// - If terminal raw mode is not active, this is a no-op to avoid leaking mouse-reporting sequences into normal shell sessions (e.g. tests/doctests).
 /// - On Windows, this is a no-op as mouse capture is handled differently.
 pub fn ensure_mouse_capture() {
     // Skip mouse capture in headless/test mode to prevent escape sequences in test output
     if std::env::var("PACSEA_TEST_HEADLESS").ok().as_deref() == Some("1") {
     } else {
+        // Only enable mouse reporting when the app already owns the terminal in raw mode.
+        // This prevents leaking SGR mouse escape sequences during cargo test/doctest runs.
+        if !crossterm::terminal::is_raw_mode_enabled().unwrap_or(false) {
+            return;
+        }
         #[cfg(not(target_os = "windows"))]
         {
             use crossterm::execute;
