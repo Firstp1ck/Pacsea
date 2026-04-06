@@ -767,6 +767,18 @@ pub enum Modal {
         scroll: u16,
         /// Selected row index.
         selected: usize,
+        /// Whether slash-filter text mode is active.
+        filter_active: bool,
+        /// Current slash-filter query text.
+        filter_query: String,
+        /// Caret position (character index) within `filter_query`.
+        filter_caret: usize,
+        /// Last selected package identity used for restoration across filter changes.
+        last_selected_pkg_name: Option<String>,
+        /// Visible updates rows as original-entry indices after applying filter.
+        filtered_indices: Vec<usize>,
+        /// Selected package names for batch preflight actions.
+        selected_pkg_names: HashSet<String>,
     },
     /// TUI Optional Dependencies chooser: selectable rows with install status.
     OptionalDeps {
@@ -920,6 +932,17 @@ mod tests {
             items: Vec::new(),
             selected: 0,
             scroll: 0,
+        };
+        let _ = super::Modal::Updates {
+            entries: vec![("pkg".into(), "1".into(), "2".into())],
+            scroll: 0,
+            selected: 0,
+            filter_active: false,
+            filter_query: String::new(),
+            filter_caret: 0,
+            last_selected_pkg_name: None,
+            filtered_indices: vec![0],
+            selected_pkg_names: std::collections::HashSet::new(),
         };
         let _ = super::Modal::OptionalDeps {
             rows: Vec::new(),

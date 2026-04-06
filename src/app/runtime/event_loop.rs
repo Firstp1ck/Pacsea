@@ -213,10 +213,17 @@ fn handle_updates_list(app: &mut AppState, count: usize, list: Vec<String>) {
         app.pending_updates_modal = false;
         let updates_file = crate::theme::lists_dir().join("available_updates.txt");
         let entries = parse_updates_file(&updates_file);
+        let filtered_indices: Vec<usize> = (0..entries.len()).collect();
         app.modal = crate::state::Modal::Updates {
             entries,
             scroll: 0,
             selected: 0,
+            filter_active: false,
+            filter_query: String::new(),
+            filter_caret: 0,
+            last_selected_pkg_name: None,
+            filtered_indices,
+            selected_pkg_names: std::collections::HashSet::new(),
         };
     }
 }

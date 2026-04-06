@@ -572,6 +572,14 @@ pub struct AppState {
     pub updates_modal_rect: Option<(u16, u16, u16, u16)>,
     /// Inner content rectangle for scrollable updates list.
     pub updates_modal_content_rect: Option<(u16, u16, u16, u16)>,
+    /// Per-entry starting rendered line indices for the updates modal content.
+    ///
+    /// Each value maps an entry index to its first rendered line in the wrapped pane output.
+    pub updates_modal_entry_line_starts: Vec<u16>,
+    /// Total rendered line count across all updates entries after wrapping.
+    pub updates_modal_total_lines: u16,
+    /// Timestamp when `g` was pressed in Updates modal awaiting chord completion.
+    pub updates_modal_pending_g_at: Option<Instant>,
 
     // Help modal scroll and hit-testing
     /// Scroll offset (lines) for the Help modal content.

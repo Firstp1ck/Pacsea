@@ -278,6 +278,99 @@ pub fn move_news_selection(app: &mut AppState, delta: isize) {
     update_news_url(app);
 }
 
+/// What: Compute updates-modal scroll offset that keeps the selected entry visible.
+///
+/// Inputs:
+/// - `entry_line_starts`: Mapping from entry index to first rendered line in wrapped output.
+/// - `total_lines`: Total rendered line count across wrapped updates rows.
+/// - `content_rect`: Optional updates content rectangle tuple `(x, y, width, height)`.
+/// - `selected`: Selected entry index.
+/// - `total_items`: Number of entries in the updates list.
+/// - `current_scroll`: Existing scroll offset before adjustment.
+///
+/// Output:
+/// - Returns the next clamped scroll offset as `u16`.
+///
+/// Details:
+/// - Derives `visible_lines` from `content_rect` height and falls back to `1` when absent.
+/// - Uses rendered-line mapping to support wrapped rows consistently.
+/// - Clamps output to valid range to prevent underflow/overscroll.
+#[must_use]
+pub fn compute_updates_modal_scroll_for_selection(
+    entry_line_starts: &[u16],
+    total_lines: u16,
+    content_rect: Option<(u16, u16, u16, u16)>,
+    selected: usize,
+    total_items: usize,
+    current_scroll: u16,
+) -> u16 {
+    let selected_line = entry_line_starts
+        .get(selected)
+        .copied()
+        .unwrap_or_else(|| u16::try_from(selected).unwrap_or(u16::MAX));
+    let visible_lines = content_rect.map_or(1, |(_, _, _, h)| h.max(1));
+    let mut scroll = current_scroll;
+
+    if selected_line < scroll {
+        scroll = selected_line;
+    } else if selected_line >= scroll.saturating_add(visible_lines) {
+        scroll = selected_line.saturating_sub(visible_lines.saturating_sub(1));
+    }
+
+    let fallback_total = u16::try_from(total_items).unwrap_or(u16::MAX);
+    let max_scroll = total_lines
+        .max(fallback_total)
+        .saturating_sub(visible_lines);
+    scroll.min(max_scroll)
+}
+
+/// What: Compute visible updates indices for a slash-filter query.
+///
+/// Inputs:
+/// - `entries`: Full updates entries (`name`, `old_version`, `new_version`).
+/// - `query`: Filter query string entered in Updates modal.
+///
+/// Output:
+/// - Stable vector of original-entry indices that match query order.
+///
+/// Details:
+/// - Empty/whitespace query returns all entries.
+/// - Matching is fuzzy + case-insensitive against package name and source label.
+/// - Source labels are `pacman` for official packages and `AUR` for AUR packages.
+#[must_use]
+pub fn compute_updates_filtered_indices(
+    entries: &[(String, String, String)],
+    query: &str,
+) -> Vec<usize> {
+    let normalized = query.trim();
+    if normalized.is_empty() {
+        return (0..entries.len()).collect();
+    }
+
+    let query_lower = normalized.to_lowercase();
+
+    entries
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, (name, _, _))| {
+            let source_label = if crate::index::find_package_by_name(name).is_some() {
+                "pacman"
+            } else {
+                "aur"
+            };
+            let name_lower = name.to_lowercase();
+            let matches_name = crate::util::fuzzy_match_rank(&name_lower, &query_lower).is_some();
+            let matches_source =
+                crate::util::fuzzy_match_rank(source_label, &query_lower).is_some();
+            if matches_name || matches_source {
+                Some(idx)
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
 /// Synchronize details URL and content with currently selected news item.
 /// Also triggers content fetching if channel is provided and content is not cached.
 pub fn update_news_url(app: &mut AppState) {
@@ -761,5 +854,138 @@ mod tests {
             app.aur_vote_state_by_pkgbase.get("pacsea-bin"),
             Some(crate::state::app_state::AurVoteStateUi::Voted)
         ));
+    }
+
+    #[test]
+    /// What: Ensure missing updates content rect falls back to one visible line.
+    ///
+    /// Inputs:
+    /// - Wrapped line starts with no viewport rect and selection on later entry.
+    ///
+    /// Output:
+    /// - Scroll moves to selected line and remains clamped.
+    ///
+    /// Details:
+    /// - Guards deterministic behavior when geometry is unavailable.
+    fn updates_scroll_fallback_visible_lines_when_rect_missing() {
+        let scroll = compute_updates_modal_scroll_for_selection(&[0, 3, 5], 7, None, 1, 3, 0);
+        assert_eq!(scroll, 3);
+    }
+
+    #[test]
+    /// What: Ensure tiny viewport heights still keep selected wrapped line visible.
+    ///
+    /// Inputs:
+    /// - Height-1 and height-2 content rects with later selected entries.
+    ///
+    /// Output:
+    /// - Scroll adjusts forward without overshooting bounds.
+    ///
+    /// Details:
+    /// - Prevents regressions in very small terminal layouts.
+    fn updates_scroll_handles_tiny_viewport_heights() {
+        let height_one = Some((0, 0, 40, 1));
+        let scroll_one =
+            compute_updates_modal_scroll_for_selection(&[0, 3, 5], 7, height_one, 1, 3, 0);
+        assert_eq!(scroll_one, 3);
+
+        let height_two = Some((0, 0, 40, 2));
+        let scroll_two =
+            compute_updates_modal_scroll_for_selection(&[0, 3, 5], 7, height_two, 2, 3, 0);
+        assert_eq!(scroll_two, 4);
+    }
+
+    #[test]
+    /// What: Ensure large viewport clamps updates modal scroll to top.
+    ///
+    /// Inputs:
+    /// - Viewport height greater than total rendered lines.
+    ///
+    /// Output:
+    /// - Scroll returns to zero.
+    ///
+    /// Details:
+    /// - Confirms no overscroll when all rows fit on screen.
+    fn updates_scroll_clamps_to_zero_when_viewport_exceeds_total() {
+        let large_rect = Some((0, 0, 40, 20));
+        let scroll =
+            compute_updates_modal_scroll_for_selection(&[0, 3, 5], 7, large_rect, 2, 3, 10);
+        assert_eq!(scroll, 0);
+    }
+
+    #[test]
+    /// What: Ensure updates filter returns all indices for empty query.
+    ///
+    /// Inputs:
+    /// - Three updates entries and an empty query.
+    ///
+    /// Output:
+    /// - Returns all original entry indices in stable order.
+    ///
+    /// Details:
+    /// - Guards no-op filter behavior when slash mode is entered/cleared.
+    fn updates_filter_returns_all_indices_for_empty_query() {
+        let entries = vec![
+            ("ripgrep".to_string(), "13".to_string(), "14".to_string()),
+            ("fd".to_string(), "8".to_string(), "9".to_string()),
+            ("bat".to_string(), "1".to_string(), "2".to_string()),
+        ];
+        let indices = compute_updates_filtered_indices(&entries, "");
+        assert_eq!(indices, vec![0, 1, 2]);
+    }
+
+    #[test]
+    /// What: Ensure updates filter performs fuzzy case-insensitive package matching.
+    ///
+    /// Inputs:
+    /// - Entries containing "ripgrep" and query "RG".
+    ///
+    /// Output:
+    /// - Includes the "ripgrep" entry index.
+    ///
+    /// Details:
+    /// - Validates phase-4 matcher behavior for shorthand package queries.
+    fn updates_filter_matches_package_name_fuzzy_case_insensitive() {
+        let entries = vec![
+            ("ripgrep".to_string(), "13".to_string(), "14".to_string()),
+            ("fd".to_string(), "8".to_string(), "9".to_string()),
+        ];
+        let indices = compute_updates_filtered_indices(&entries, "RG");
+        assert_eq!(indices, vec![0]);
+    }
+
+    #[test]
+    /// What: Ensure updates filter can match source labels.
+    ///
+    /// Inputs:
+    /// - Entries expected to include AUR rows and query "aur".
+    ///
+    /// Output:
+    /// - Every returned index maps to an AUR package.
+    ///
+    /// Details:
+    /// - Verifies source-label matching path used by slash filter.
+    fn updates_filter_matches_source_label() {
+        let entries = vec![
+            (
+                "pacsea-bin".to_string(),
+                "0.9".to_string(),
+                "1.0".to_string(),
+            ),
+            (
+                "pacsea-git".to_string(),
+                "0.9".to_string(),
+                "1.0".to_string(),
+            ),
+        ];
+        let indices = compute_updates_filtered_indices(&entries, "aur");
+        assert!(
+            !indices.is_empty(),
+            "expected at least one AUR package available in fixture"
+        );
+        for idx in indices {
+            let (name, _, _) = &entries[idx];
+            assert!(crate::index::find_package_by_name(name).is_none());
+        }
     }
 }

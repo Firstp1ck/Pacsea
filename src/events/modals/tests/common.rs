@@ -1,6 +1,7 @@
 //! Common test utilities for modal key event handling tests.
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use tokio::sync::mpsc;
 
 use crate::state::{AppState, PreflightAction, PreflightTab, modal::PreflightHeaderChips};
 
@@ -160,6 +161,12 @@ pub(super) fn create_test_modals() -> Vec<(crate::state::Modal, &'static str)> {
                 entries: vec![("pkg".to_string(), "1.0".to_string(), "2.0".to_string())],
                 scroll: 0,
                 selected: 0,
+                filter_active: false,
+                filter_query: String::new(),
+                filter_caret: 0,
+                last_selected_pkg_name: None,
+                filtered_indices: vec![0],
+                selected_pkg_names: std::collections::HashSet::new(),
             },
             "Updates",
         ),
@@ -206,4 +213,144 @@ pub(super) fn create_test_modals() -> Vec<(crate::state::Modal, &'static str)> {
         ),
         (crate::state::Modal::ImportHelp, "ImportHelp"),
     ]
+}
+
+#[test]
+/// What: Verify updates jump keys are no-ops for an empty updates list.
+///
+/// Inputs:
+/// - Empty `Updates` modal and `Home`/`End`/`g`/`G` key events.
+///
+/// Output:
+/// - Handler preserves a valid empty selection state.
+///
+/// Details:
+/// - Guards edge cases where navigation parity keys are used before data is present.
+fn updates_navigation_keys_are_safe_when_empty() {
+    let mut app = new_app();
+    app.modal = crate::state::Modal::Updates {
+        entries: vec![],
+        scroll: 0,
+        selected: 0,
+        filter_active: false,
+        filter_query: String::new(),
+        filter_caret: 0,
+        last_selected_pkg_name: None,
+        filtered_indices: vec![],
+        selected_pkg_names: std::collections::HashSet::new(),
+    };
+    let (add_tx, _add_rx) = mpsc::unbounded_channel();
+
+    for key in [
+        key_event(KeyCode::Home, KeyModifiers::empty()),
+        key_event(KeyCode::End, KeyModifiers::empty()),
+        key_event(KeyCode::Char('g'), KeyModifiers::empty()),
+        key_event(KeyCode::Char('g'), KeyModifiers::empty()),
+        key_event(KeyCode::Char('G'), KeyModifiers::empty()),
+    ] {
+        super::handle_modal_key(key, &mut app, &add_tx);
+    }
+
+    match &app.modal {
+        crate::state::Modal::Updates {
+            entries,
+            selected,
+            filtered_indices,
+            ..
+        } => {
+            assert!(entries.is_empty());
+            assert_eq!(*selected, 0);
+            assert!(filtered_indices.is_empty());
+        }
+        _ => panic!("Expected Updates modal to remain active"),
+    }
+}
+
+#[test]
+/// What: Verify `a` selects only visible filtered rows in updates modal.
+///
+/// Inputs:
+/// - Updates modal with three entries and a filtered subset of two indices.
+///
+/// Output:
+/// - Selected package-name set contains only the filtered subset names.
+///
+/// Details:
+/// - Ensures batch-selection respects current filtered visibility.
+fn updates_select_all_respects_filtered_subset() {
+    let mut app = new_app();
+    app.modal = crate::state::Modal::Updates {
+        entries: vec![
+            ("alpha".to_string(), "1".to_string(), "2".to_string()),
+            ("beta".to_string(), "1".to_string(), "2".to_string()),
+            ("gamma".to_string(), "1".to_string(), "2".to_string()),
+        ],
+        scroll: 0,
+        selected: 0,
+        filter_active: false,
+        filter_query: String::new(),
+        filter_caret: 0,
+        last_selected_pkg_name: None,
+        filtered_indices: vec![0, 2],
+        selected_pkg_names: std::collections::HashSet::new(),
+    };
+    let (add_tx, _add_rx) = mpsc::unbounded_channel();
+
+    super::handle_modal_key(
+        key_event(KeyCode::Char('a'), KeyModifiers::empty()),
+        &mut app,
+        &add_tx,
+    );
+
+    match &app.modal {
+        crate::state::Modal::Updates {
+            selected_pkg_names, ..
+        } => {
+            assert!(selected_pkg_names.contains("alpha"));
+            assert!(selected_pkg_names.contains("gamma"));
+            assert!(!selected_pkg_names.contains("beta"));
+        }
+        _ => panic!("Expected Updates modal to remain active"),
+    }
+}
+
+#[test]
+/// What: Verify pressing Enter in updates modal transitions away from updates state.
+///
+/// Inputs:
+/// - Updates modal with one selected package-name and Enter key event.
+///
+/// Output:
+/// - Modal transitions to a non-`Updates` state.
+///
+/// Details:
+/// - Intentionally avoids over-constraining internal package-selection precedence semantics.
+fn updates_enter_transitions_to_next_modal_state() {
+    let mut app = new_app();
+    let mut selected_pkg_names = std::collections::HashSet::new();
+    selected_pkg_names.insert("alpha".to_string());
+    app.modal = crate::state::Modal::Updates {
+        entries: vec![
+            ("alpha".to_string(), "1".to_string(), "2".to_string()),
+            ("beta".to_string(), "1".to_string(), "2".to_string()),
+        ],
+        scroll: 0,
+        selected: 0,
+        filter_active: false,
+        filter_query: String::new(),
+        filter_caret: 0,
+        last_selected_pkg_name: Some("alpha".to_string()),
+        filtered_indices: vec![0, 1],
+        selected_pkg_names,
+    };
+    let (add_tx, _add_rx) = mpsc::unbounded_channel();
+
+    let consumed = super::handle_modal_key(
+        key_event(KeyCode::Enter, KeyModifiers::empty()),
+        &mut app,
+        &add_tx,
+    );
+
+    assert!(consumed);
+    assert!(!matches!(app.modal, crate::state::Modal::Updates { .. }));
 }
