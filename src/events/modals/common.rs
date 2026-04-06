@@ -1054,6 +1054,7 @@ pub(super) fn handle_updates(
             filter_caret,
             last_selected_pkg_name,
             filtered_indices,
+            selected_pkg_names,
             &sync_scroll,
             app,
         ) {
@@ -1265,6 +1266,24 @@ fn recompute_updates_filter_state(
 }
 
 /// What: Handle key input while updates slash-filter text mode is active.
+///
+/// Inputs:
+/// - `ke`: Key event.
+/// - `entries`, `scroll`, `selected`, `filter_*`, `last_selected_pkg_name`, `filtered_indices`:
+///   Same roles as in [`handle_updates`].
+/// - `selected_pkg_names`: Multi-select marks for batch preflight.
+/// - `sync_scroll`, `app`: Scroll sync closure and app state for filter recomputation.
+///
+/// Output:
+/// - `true` when the key was consumed by filter editing (including Space toggle); `false` to fall
+///   through to normal navigation when applicable.
+///
+/// Details:
+/// - Space toggles the mark on the focused row (same as outside filter mode) and does not insert
+///   into the query string.
+/// - Arrow and page keys fall through (`_ => false`) to list navigation in [`handle_updates`].
+/// - Unmodified and Shift+letter `KeyCode::Char` inputs (the full Latin alphabet for search) insert
+///   into the query; `Home` / `End` move the filter caret.
 #[allow(clippy::too_many_arguments)]
 fn handle_updates_filter_editing(
     ke: KeyEvent,
@@ -1276,6 +1295,7 @@ fn handle_updates_filter_editing(
     filter_caret: &mut usize,
     last_selected_pkg_name: &mut Option<String>,
     filtered_indices: &mut Vec<usize>,
+    selected_pkg_names: &mut std::collections::HashSet<String>,
     sync_scroll: &impl Fn(&AppState, &mut u16, usize, &[usize]),
     app: &AppState,
 ) -> bool {
@@ -1355,6 +1375,14 @@ fn handle_updates_filter_editing(
             }
             true
         }
+        KeyCode::Char(' ') => {
+            if let Some((name, _, _)) = entries.get(*selected)
+                && !selected_pkg_names.remove(name)
+            {
+                selected_pkg_names.insert(name.clone());
+            }
+            true
+        }
         KeyCode::Char(ch)
             if ke.modifiers.is_empty() || ke.modifiers == crossterm::event::KeyModifiers::SHIFT =>
         {
@@ -1373,17 +1401,11 @@ fn handle_updates_filter_editing(
             );
             true
         }
-        KeyCode::Up
-        | KeyCode::Down
-        | KeyCode::PageUp
-        | KeyCode::PageDown
-        | KeyCode::Enter
-        | KeyCode::Tab => true,
+        KeyCode::Enter | KeyCode::Tab => true,
         KeyCode::Char('k' | 'j' | 'g' | 'G')
-            if ke.modifiers.is_empty()
-                || ke
-                    .modifiers
-                    .contains(crossterm::event::KeyModifiers::CONTROL) =>
+            if ke
+                .modifiers
+                .contains(crossterm::event::KeyModifiers::CONTROL) =>
         {
             true
         }
@@ -2300,6 +2322,238 @@ mod tests {
         );
         assert!(filter_active);
         assert_eq!(selected, 0);
+    }
+
+    #[test]
+    /// What: Verify Space in slash-filter mode toggles the multi-select mark for the focused row.
+    ///
+    /// Inputs:
+    /// - Active filter with a matching row; Space keypresses.
+    ///
+    /// Output:
+    /// - `selected_pkg_names` gains then loses the focused package name.
+    ///
+    /// Details:
+    /// - Space must not append to `filter_query` (regression guard vs generic `Char` insertion).
+    fn test_handle_updates_space_in_filter_mode_toggles_mark() {
+        let mut app = crate::state::AppState::default();
+        let entries = vec![
+            ("alpha".to_string(), "1".to_string(), "2".to_string()),
+            ("beta".to_string(), "1".to_string(), "2".to_string()),
+        ];
+        let mut selected = 0usize;
+        let mut scroll = 0u16;
+        let mut filter_active = true;
+        let mut filter_query = "al".to_string();
+        let mut filter_caret = 2usize;
+        let mut last_selected_pkg_name = Some("alpha".to_string());
+        let mut filtered_indices =
+            crate::events::utils::compute_updates_filtered_indices(&entries, &filter_query);
+        let mut selected_pkg_names = std::collections::HashSet::new();
+
+        let _ = handle_updates(
+            test_key_event(KeyCode::Char(' ')),
+            &mut app,
+            &entries,
+            &mut scroll,
+            &mut selected,
+            &mut filter_active,
+            &mut filter_query,
+            &mut filter_caret,
+            &mut last_selected_pkg_name,
+            &mut filtered_indices,
+            &mut selected_pkg_names,
+        );
+        assert_eq!(filter_query, "al");
+        assert!(selected_pkg_names.contains("alpha"));
+
+        let _ = handle_updates(
+            test_key_event(KeyCode::Char(' ')),
+            &mut app,
+            &entries,
+            &mut scroll,
+            &mut selected,
+            &mut filter_active,
+            &mut filter_query,
+            &mut filter_caret,
+            &mut last_selected_pkg_name,
+            &mut filtered_indices,
+            &mut selected_pkg_names,
+        );
+        assert!(!selected_pkg_names.contains("alpha"));
+    }
+
+    #[test]
+    /// What: Verify Down/Up reach list navigation while slash-filter mode stays active.
+    ///
+    /// Inputs:
+    /// - Active filter with empty query (all rows visible); Down then Up.
+    ///
+    /// Output:
+    /// - Selection moves on the filtered list; filter remains active.
+    ///
+    /// Details:
+    /// - Regression guard: filter editing must not swallow arrow keys as no-ops.
+    fn test_handle_updates_filter_mode_arrow_navigates_list() {
+        let mut app = crate::state::AppState::default();
+        let entries = vec![
+            ("alpha".to_string(), "1".to_string(), "2".to_string()),
+            ("beta".to_string(), "1".to_string(), "2".to_string()),
+        ];
+        let mut selected = 0usize;
+        let mut scroll = 0u16;
+        let mut filter_active = true;
+        let mut filter_query = String::new();
+        let mut filter_caret = 0usize;
+        let mut last_selected_pkg_name = Some("alpha".to_string());
+        let mut filtered_indices = vec![0, 1];
+        let mut selected_pkg_names = std::collections::HashSet::new();
+
+        let _ = handle_updates(
+            test_key_event(KeyCode::Down),
+            &mut app,
+            &entries,
+            &mut scroll,
+            &mut selected,
+            &mut filter_active,
+            &mut filter_query,
+            &mut filter_caret,
+            &mut last_selected_pkg_name,
+            &mut filtered_indices,
+            &mut selected_pkg_names,
+        );
+        assert_eq!(selected, 1);
+        assert!(filter_active);
+
+        let _ = handle_updates(
+            test_key_event(KeyCode::Up),
+            &mut app,
+            &entries,
+            &mut scroll,
+            &mut selected,
+            &mut filter_active,
+            &mut filter_query,
+            &mut filter_caret,
+            &mut last_selected_pkg_name,
+            &mut filtered_indices,
+            &mut selected_pkg_names,
+        );
+        assert_eq!(selected, 0);
+        assert!(filter_active);
+    }
+
+    #[test]
+    /// What: Verify `j` in filter mode edits the query instead of moving list selection.
+    ///
+    /// Inputs:
+    /// - Active filter with caret after `a`; `j` keypress.
+    ///
+    /// Output:
+    /// - Query becomes `aj`; focused entry index unchanged.
+    ///
+    /// Details:
+    /// - `j` / `k` are filter text in slash mode; arrows still move the list.
+    fn test_handle_updates_filter_mode_j_inserts_into_query() {
+        let mut app = crate::state::AppState::default();
+        let entries = vec![
+            ("alpha".to_string(), "1".to_string(), "2".to_string()),
+            ("beta".to_string(), "1".to_string(), "2".to_string()),
+        ];
+        let mut selected = 0usize;
+        let mut scroll = 0u16;
+        let mut filter_active = true;
+        let mut filter_query = "a".to_string();
+        let mut filter_caret = 1usize;
+        let mut last_selected_pkg_name = Some("alpha".to_string());
+        let mut filtered_indices =
+            crate::events::utils::compute_updates_filtered_indices(&entries, &filter_query);
+        let mut selected_pkg_names = std::collections::HashSet::new();
+
+        let _ = handle_updates(
+            test_key_event(KeyCode::Char('j')),
+            &mut app,
+            &entries,
+            &mut scroll,
+            &mut selected,
+            &mut filter_active,
+            &mut filter_query,
+            &mut filter_caret,
+            &mut last_selected_pkg_name,
+            &mut filtered_indices,
+            &mut selected_pkg_names,
+        );
+        assert_eq!(filter_query, "aj");
+        assert_eq!(filter_caret, 2);
+        assert_eq!(selected, 0);
+        assert!(filter_active);
+    }
+
+    #[test]
+    /// What: Verify `g` and Shift+`g` (`G`) insert into the slash-filter query.
+    ///
+    /// Inputs:
+    /// - Active filter with empty query; `g` then `G` (`Char('G')` + shift modifier).
+    ///
+    /// Output:
+    /// - Query becomes `gG`; list navigation shortcuts stay disabled for those keys in filter mode.
+    ///
+    /// Details:
+    /// - Regression guard: every ASCII letter must be available for package-name search.
+    fn test_handle_updates_filter_mode_g_and_shift_g_insert_into_query() {
+        let mut app = crate::state::AppState::default();
+        let entries = vec![
+            ("gamma".to_string(), "1".to_string(), "2".to_string()),
+            ("other".to_string(), "1".to_string(), "2".to_string()),
+        ];
+        let mut selected = 0usize;
+        let mut scroll = 0u16;
+        let mut filter_active = true;
+        let mut filter_query = String::new();
+        let mut filter_caret = 0usize;
+        let mut last_selected_pkg_name = Some("gamma".to_string());
+        let mut filtered_indices =
+            crate::events::utils::compute_updates_filtered_indices(&entries, &filter_query);
+        let mut selected_pkg_names = std::collections::HashSet::new();
+
+        let _ = handle_updates(
+            test_key_event(KeyCode::Char('g')),
+            &mut app,
+            &entries,
+            &mut scroll,
+            &mut selected,
+            &mut filter_active,
+            &mut filter_query,
+            &mut filter_caret,
+            &mut last_selected_pkg_name,
+            &mut filtered_indices,
+            &mut selected_pkg_names,
+        );
+        assert_eq!(filter_query, "g");
+        assert_eq!(filter_caret, 1);
+
+        let shift_g = KeyEvent {
+            code: KeyCode::Char('G'),
+            modifiers: KeyModifiers::SHIFT,
+            kind: crossterm::event::KeyEventKind::Press,
+            state: crossterm::event::KeyEventState::empty(),
+        };
+        let _ = handle_updates(
+            shift_g,
+            &mut app,
+            &entries,
+            &mut scroll,
+            &mut selected,
+            &mut filter_active,
+            &mut filter_query,
+            &mut filter_caret,
+            &mut last_selected_pkg_name,
+            &mut filtered_indices,
+            &mut selected_pkg_names,
+        );
+        assert_eq!(filter_query, "gG");
+        assert_eq!(filter_caret, 2);
+        assert_eq!(selected, 0);
+        assert!(filter_active);
     }
 
     #[test]

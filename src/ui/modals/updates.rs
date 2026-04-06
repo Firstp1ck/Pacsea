@@ -367,18 +367,11 @@ fn strip_shared_numeric_pkgrel<'a>(
     };
     let old_rel = &old_version[old_dash + 1..];
     let new_rel = &new_version[new_dash + 1..];
-    if old_rel != new_rel
-        || old_rel.is_empty()
-        || !old_rel.chars().all(|c| c.is_ascii_digit())
-    {
+    if old_rel != new_rel || old_rel.is_empty() || !old_rel.chars().all(|c| c.is_ascii_digit()) {
         return (old_version, new_version, "");
     }
     let suffix = &old_version[old_dash..];
-    (
-        &old_version[..old_dash],
-        &new_version[..new_dash],
-        suffix,
-    )
+    (&old_version[..old_dash], &new_version[..new_dash], suffix)
 }
 
 /// What: Split old/new versions into shared and changed segments (core pkgver only).
@@ -448,8 +441,7 @@ fn split_version_diff_core(
 /// - Shared prefix/suffix remain default text color.
 /// - Changed segments are highlighted per column (`old` red, `new` green).
 fn split_version_diff(old_version: &str, new_version: &str) -> (String, String, String, String) {
-    let (old_core, new_core, pkgrel_suffix) =
-        strip_shared_numeric_pkgrel(old_version, new_version);
+    let (old_core, new_core, pkgrel_suffix) = strip_shared_numeric_pkgrel(old_version, new_version);
     let (p, oc, mut ss, nc) = split_version_diff_core(old_core, new_core);
     ss.push_str(pkgrel_suffix);
     (p, oc, ss, nc)
