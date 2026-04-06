@@ -72,7 +72,7 @@ pub fn check_package_in_lists(package: &PackageItem, app: &AppState) -> PackageL
 ///
 /// Details:
 /// - For official packages, determines label from repo/owner and selects color
-///   based on whether it's an optional repo (sapphire) or standard (green).
+///   based on dynamic repo mapping (mauve), optional repos (sapphire), or standard (green).
 /// - For AUR packages, returns "AUR" with yellow color.
 pub fn determine_source_label_and_color(
     source: &Source,
@@ -88,7 +88,10 @@ pub fn determine_source_label_and_color(
                 .map(|d| d.owner.clone())
                 .unwrap_or_default();
             let label = crate::logic::distro::label_for_official(repo, package_name, &owner);
-            let color = if label == "EOS"
+            let repo_lower = repo.to_lowercase();
+            let color = if app.repo_results_filter_by_name.contains_key(&repo_lower) {
+                theme.mauve
+            } else if label == "EOS"
                 || label == "CachyOS"
                 || label == "Artix"
                 || label == "OMNI"
@@ -402,6 +405,22 @@ mod tests {
         let (label, color) = determine_source_label_and_color(&source, "test-pkg", &app, &theme);
         assert_eq!(label, "core");
         assert_eq!(color, theme.green);
+    }
+
+    #[test]
+    fn test_determine_source_label_and_color_dynamic_repo_is_mauve() {
+        let mut app = crate::state::AppState::default();
+        app.repo_results_filter_by_name
+            .insert("core".to_string(), "my-core".to_string());
+        let theme = crate::theme::theme();
+        let source = Source::Official {
+            repo: "core".to_string(),
+            arch: "x86_64".to_string(),
+        };
+
+        let (label, color) = determine_source_label_and_color(&source, "test-pkg", &app, &theme);
+        assert_eq!(label, "core");
+        assert_eq!(color, theme.mauve);
     }
 
     #[test]

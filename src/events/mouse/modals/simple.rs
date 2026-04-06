@@ -346,12 +346,14 @@ pub(super) fn handle_updates_modal(
         ref mut scroll,
         ref entries,
         ref mut selected,
+        filter_active,
+        ref filter_query,
         ref mut last_selected_pkg_name,
         ref mut filtered_indices,
         ..
     } = app.modal
     {
-        if filtered_indices.is_empty() {
+        if filtered_indices.is_empty() && (!filter_active || filter_query.trim().is_empty()) {
             *filtered_indices = (0..entries.len()).collect();
         }
         // Left click: select row or close on outside
@@ -483,7 +485,10 @@ fn map_render_line_to_entry(
 
 #[cfg(test)]
 mod tests {
-    use super::map_render_line_to_entry;
+    use super::{handle_updates_modal, map_render_line_to_entry};
+    use crate::state::{AppState, Modal};
+    use crossterm::event::{KeyModifiers, MouseEvent, MouseEventKind};
+    use std::collections::HashSet;
 
     #[test]
     /// What: Ensure render-line hit testing maps wrapped lines to the correct entry.
@@ -504,5 +509,59 @@ mod tests {
         assert_eq!(map_render_line_to_entry(4, &starts, 3), 1);
         assert_eq!(map_render_line_to_entry(5, &starts, 3), 2);
         assert_eq!(map_render_line_to_entry(999, &starts, 3), 2);
+    }
+
+    #[test]
+    /// What: Keep an empty filtered result set empty when the filter is active.
+    ///
+    /// Inputs:
+    /// - Updates modal with `filter_active = true`, non-empty query, and `filtered_indices = []`.
+    /// - A mouse wheel event routed through `handle_updates_modal`.
+    ///
+    /// Output:
+    /// - `filtered_indices` remains empty after handling.
+    ///
+    /// Details:
+    /// - Prevents mouse handling from treating legitimate "0 matches" as uninitialized state.
+    fn updates_modal_mouse_preserves_empty_active_filter_result_set() {
+        let mut app = AppState {
+            modal: Modal::Updates {
+                entries: vec![
+                    ("alpha".to_string(), "1".to_string(), "2".to_string()),
+                    ("bravo".to_string(), "1".to_string(), "2".to_string()),
+                ],
+                scroll: 0,
+                selected: 0,
+                filter_active: true,
+                filter_query: "zzz".to_string(),
+                filter_caret: 3,
+                last_selected_pkg_name: None,
+                filtered_indices: Vec::new(),
+                selected_pkg_names: HashSet::new(),
+            },
+            ..AppState::default()
+        };
+
+        let mouse_event = MouseEvent {
+            kind: MouseEventKind::ScrollDown,
+            column: 0,
+            row: 0,
+            modifiers: KeyModifiers::empty(),
+        };
+
+        let handled = handle_updates_modal(mouse_event, 0, 0, false, &mut app);
+        assert_eq!(handled, Some(false));
+
+        if let Modal::Updates {
+            filtered_indices, ..
+        } = &app.modal
+        {
+            assert!(
+                filtered_indices.is_empty(),
+                "active non-empty filter must preserve an empty match set"
+            );
+        } else {
+            panic!("updates modal should remain open");
+        }
     }
 }

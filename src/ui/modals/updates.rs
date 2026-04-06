@@ -201,21 +201,33 @@ fn wrap_text_to_lines(content: &str, available_width: u16) -> Vec<String> {
     let mut current_width = 0usize;
 
     for word in words {
-        let word_width = word.width();
+        let wrapped_word_parts = split_token_by_display_width(word, width);
+        if wrapped_word_parts.is_empty() {
+            continue;
+        }
+        let word_width = wrapped_word_parts[0].width();
         let separator_width = usize::from(current_width > 0);
         let test_width = current_width + separator_width + word_width;
 
         if test_width > width && current_width > 0 {
             // Wrap to new line
-            lines.push(current_line);
-            current_line = word.to_string();
+            lines.push(std::mem::take(&mut current_line));
+            current_line.clone_from(&wrapped_word_parts[0]);
             current_width = word_width;
         } else {
             if current_width > 0 {
                 current_line.push(' ');
             }
-            current_line.push_str(word);
+            current_line.push_str(&wrapped_word_parts[0]);
             current_width = test_width;
+        }
+
+        for part in wrapped_word_parts.into_iter().skip(1) {
+            if !current_line.is_empty() {
+                lines.push(std::mem::take(&mut current_line));
+            }
+            current_width = part.width();
+            current_line = part;
         }
     }
 
@@ -228,6 +240,51 @@ fn wrap_text_to_lines(content: &str, available_width: u16) -> Vec<String> {
     }
 
     lines
+}
+
+/// What: Hard-wrap a single token into display-width bounded chunks.
+///
+/// Inputs:
+/// - `token`: Word/token to split (no whitespace handling here)
+/// - `max_width`: Maximum display width per output chunk
+///
+/// Output:
+/// - Returns token parts that each fit within `max_width` display cells.
+///
+/// Details:
+/// - Uses Unicode cell width (`unicode_width`) per character.
+/// - Prevents oversized unbroken tokens (e.g. `repo/very-long-name`) from
+///   staying on one logical line and desyncing render-model line mapping.
+fn split_token_by_display_width(token: &str, max_width: usize) -> Vec<String> {
+    if token.is_empty() {
+        return vec![String::new()];
+    }
+
+    let width_limit = max_width.max(1);
+    let mut chunks = Vec::new();
+    let mut current = String::new();
+    let mut current_width = 0usize;
+
+    for ch in token.chars() {
+        let ch_width = ch.width().unwrap_or(0);
+        if current_width + ch_width > width_limit && !current.is_empty() {
+            chunks.push(current);
+            current = String::new();
+            current_width = 0;
+        }
+        current.push(ch);
+        current_width += ch_width;
+    }
+
+    if !current.is_empty() {
+        chunks.push(current);
+    }
+
+    if chunks.is_empty() {
+        chunks.push(String::new());
+    }
+
+    chunks
 }
 
 /// What: Build all three line vectors for update entries with proper alignment.
@@ -602,7 +659,8 @@ pub fn render_updates(
         Paragraph::new(heading_line).style(Style::default().fg(th.text).bg(th.mantle));
     f.render_widget(heading_para, header_chunk);
 
-    let display_indices: Vec<usize> = if filtered_indices.is_empty() {
+    let filter_has_query = filter_active && !filter_query.trim().is_empty();
+    let display_indices: Vec<usize> = if filtered_indices.is_empty() && !filter_has_query {
         (0..entries.len()).collect()
     } else {
         filtered_indices.to_vec()
@@ -617,7 +675,7 @@ pub fn render_updates(
         .unwrap_or(0);
 
     if display_entries.is_empty() {
-        let empty_message = if filter_active && !filter_query.trim().is_empty() {
+        let empty_message = if filter_has_query {
             "No updates match filter".to_string()
         } else {
             i18n::t(app, "app.modals.updates_window.none")
@@ -791,6 +849,30 @@ mod tests {
             build_update_lines_from_model(&model, &theme(), 0, &std::collections::HashSet::new());
         assert_eq!(lines.left.len(), lines.center.len());
         assert_eq!(lines.center.len(), lines.right.len());
+    }
+
+    #[test]
+    /// What: Ensure unbroken `repo/name` text hard-wraps in render model.
+    ///
+    /// Inputs:
+    /// - Single entry with a very long package name and narrow left pane.
+    ///
+    /// Output:
+    /// - Row render height is greater than one line.
+    ///
+    /// Details:
+    /// - Guards against whitespace-only wrapping regressions that break line-based
+    ///   hit-testing and keyboard navigation in updates modal.
+    fn updates_row_model_wraps_long_unbroken_repo_name_tokens() {
+        let entries = vec![(
+            "supercalifragilisticexpialidociouspackage".to_string(),
+            "1.0.0".to_string(),
+            "2.0.0".to_string(),
+        )];
+        let model = build_update_render_model(&AppState::default(), &theme(), &entries, 12);
+        assert_eq!(model.blocks.len(), 1);
+        assert!(model.blocks[0].row_render_height > 1);
+        assert!(model.total_lines > 1);
     }
 
     #[test]

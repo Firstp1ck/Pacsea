@@ -1033,7 +1033,7 @@ pub(super) fn handle_updates(
                 *scroll,
             );
         };
-    if filtered_indices.is_empty() {
+    if filtered_indices.is_empty() && (!*filter_active || filter_query.trim().is_empty()) {
         *filtered_indices = (0..entries.len()).collect();
     }
     if *selected >= entries.len() {
@@ -2389,6 +2389,53 @@ mod tests {
         assert_eq!(selected, 1);
         assert_eq!(last_selected_pkg_name, Some("beta".to_string()));
         assert!(!filtered_indices.is_empty());
+    }
+
+    #[test]
+    /// What: Verify active non-empty filter preserves an empty match set.
+    ///
+    /// Inputs:
+    /// - Active slash filter, query text with no matching entries, and navigation key press.
+    ///
+    /// Output:
+    /// - Filtered indices stay empty and are not replaced with the unfiltered list.
+    ///
+    /// Details:
+    /// - Prevents regression where "0 matches" becomes indistinguishable from "no filter".
+    fn test_handle_updates_active_filter_does_not_refill_empty_results() {
+        let mut app = crate::state::AppState::default();
+        let entries = vec![
+            ("alpha".to_string(), "1".to_string(), "2".to_string()),
+            ("beta".to_string(), "1".to_string(), "2".to_string()),
+        ];
+        let mut selected = 0usize;
+        let mut scroll = 0u16;
+        let mut filter_active = true;
+        let mut filter_query = "zzz".to_string();
+        let mut filter_caret = 3usize;
+        let mut last_selected_pkg_name = Some("alpha".to_string());
+        let mut filtered_indices =
+            crate::events::utils::compute_updates_filtered_indices(&entries, &filter_query);
+        let mut selected_pkg_names = std::collections::HashSet::new();
+        assert!(filtered_indices.is_empty());
+
+        let _ = handle_updates(
+            test_key_event(KeyCode::Down),
+            &mut app,
+            &entries,
+            &mut scroll,
+            &mut selected,
+            &mut filter_active,
+            &mut filter_query,
+            &mut filter_caret,
+            &mut last_selected_pkg_name,
+            &mut filtered_indices,
+            &mut selected_pkg_names,
+        );
+
+        assert!(filter_active);
+        assert_eq!(filter_query, "zzz");
+        assert!(filtered_indices.is_empty());
     }
 
     #[test]

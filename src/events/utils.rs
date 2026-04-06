@@ -336,7 +336,7 @@ pub fn compute_updates_modal_scroll_for_selection(
 /// Details:
 /// - Empty/whitespace query returns all entries.
 /// - Matching is fuzzy + case-insensitive against package name and source label.
-/// - Source labels are `pacman` for official packages and `AUR` for AUR packages.
+/// - Source labels are lowercase: `pacman` for official packages and `aur` for AUR packages.
 #[must_use]
 pub fn compute_updates_filtered_indices(
     entries: &[(String, String, String)],
