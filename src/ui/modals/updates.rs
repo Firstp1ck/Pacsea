@@ -2,14 +2,14 @@ use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Direction, Layout},
     prelude::Rect,
-    style::{Modifier, Style},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, BorderType, Borders, Clear, Paragraph},
 };
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::i18n;
-use crate::state::AppState;
+use crate::state::{AppState, Source};
 use crate::theme::{Theme, theme};
 
 /// What: Collection of line vectors for the three panes in the updates modal.
@@ -45,10 +45,16 @@ struct UpdateLines {
 struct UpdateEntryRenderBlock {
     /// Original package name used for source/tool tag lookup.
     name: String,
-    /// Wrapped lines for the left pane (`name - old_version`).
+    /// Repo label shown in `repo/pkg`.
+    repo_label: String,
+    /// Repo color matching results list semantics.
+    repo_color: Color,
+    /// Wrapped lines for the first pane (`repo/name`).
     left_wrapped: Vec<String>,
-    /// Wrapped lines for the right pane (`name - new_version`).
-    right_wrapped: Vec<String>,
+    /// Old version displayed in the second pane.
+    old_version: String,
+    /// New version displayed in the third pane.
+    new_version: String,
     /// Number of rendered lines this entry occupies across all panes.
     row_render_height: u16,
 }
@@ -113,25 +119,57 @@ fn calculate_modal_rect(area: Rect) -> Rect {
     }
 }
 
-/// What: Determine which tool will be used to install/update a package.
+/// What: Determine updates repo label and color to match results list behavior.
 ///
 /// Inputs:
-/// - `pkg_name`: Name of the package
+/// - `pkg_name`: Name of the package.
+/// - `app`: Application state with index metadata and dynamic repo mapping.
+/// - `th`: Active theme.
 ///
 /// Output:
-/// - Returns "pacman" for official packages, "AUR" for AUR packages
+/// - Returns `(label, color)` for the `REPO` segment.
 ///
 /// Details:
-/// - Checks if package exists in official index first
-/// - For AUR packages, returns "AUR" regardless of which helper is installed
-fn get_install_tool(pkg_name: &str) -> &'static str {
-    // Check if it's in official repos
-    if crate::index::find_package_by_name(pkg_name).is_some() {
-        return "pacman";
+/// - Uses same label mapping as results (`label_for_official` for official repos).
+/// - Uses same colors for known repos; custom repos from user config are mauve (purple).
+fn determine_updates_repo_label_and_color(
+    pkg_name: &str,
+    app: &AppState,
+    th: &Theme,
+) -> (String, Color) {
+    let Some(pkg) = crate::index::find_package_by_name(pkg_name) else {
+        return ("aur".to_string(), th.yellow);
+    };
+    match pkg.source {
+        Source::Official { repo, .. } => {
+            let owner = app
+                .details_cache
+                .get(pkg_name)
+                .map(|d| d.owner.clone())
+                .unwrap_or_default();
+            let label = crate::logic::distro::label_for_official(&repo, pkg_name, &owner);
+            let repo_lower = repo.to_lowercase();
+            let color = if app.repo_results_filter_by_name.contains_key(&repo_lower) {
+                th.mauve
+            } else if label == "EOS"
+                || label == "CachyOS"
+                || label == "Artix"
+                || label == "OMNI"
+                || label == "UNI"
+                || label == "LIB32"
+                || label == "GALAXY"
+                || label == "WORLD"
+                || label == "SYSTEM"
+                || label == "Manjaro"
+            {
+                th.sapphire
+            } else {
+                th.green
+            };
+            (label.to_lowercase(), color)
+        }
+        Source::Aur => ("aur".to_string(), th.yellow),
     }
-
-    // It's an AUR package
-    "AUR"
 }
 
 /// What: Wrap text into lines that fit within the given width.
@@ -212,29 +250,30 @@ fn wrap_text_to_lines(content: &str, available_width: u16) -> Vec<String> {
 /// - Highlights the selected entry with cursor indicator
 /// - All three panes have the same number of lines per entry for proper alignment
 fn build_update_render_model(
+    app: &AppState,
+    th: &Theme,
     entries: &[(String, String, String)],
     left_width: u16,
-    right_width: u16,
 ) -> UpdateRenderModel {
     let mut blocks = Vec::new();
     let mut entry_line_starts = Vec::new();
     let mut running_line: u16 = 0;
 
     for (name, old_version, new_version) in entries {
-        let left_text = format!("{name} - {old_version}     ");
-        let right_text = format!("     {name} - {new_version}");
+        let (repo_label, repo_color) = determine_updates_repo_label_and_color(name, app, th);
+        let left_text = format!("{repo_label}/{name}");
         let left_wrapped = wrap_text_to_lines(&left_text, left_width);
-        let right_wrapped = wrap_text_to_lines(&right_text, right_width);
-
         let left_count = u16::try_from(left_wrapped.len()).unwrap_or(u16::MAX);
-        let right_count = u16::try_from(right_wrapped.len()).unwrap_or(u16::MAX);
-        let row_render_height = left_count.max(right_count).max(1);
+        let row_render_height = left_count.max(1);
 
         entry_line_starts.push(running_line);
         blocks.push(UpdateEntryRenderBlock {
             name: name.clone(),
+            repo_label,
+            repo_color,
             left_wrapped,
-            right_wrapped,
+            old_version: old_version.clone(),
+            new_version: new_version.clone(),
             row_render_height,
         });
         running_line = running_line.saturating_add(row_render_height);
@@ -245,6 +284,58 @@ fn build_update_render_model(
         total_lines: running_line,
         entry_line_starts,
     }
+}
+
+/// What: Split old/new versions into shared and changed segments.
+///
+/// Inputs:
+/// - `old_version`: Currently installed version.
+/// - `new_version`: Target version after update.
+///
+/// Output:
+/// - Tuple `(shared_prefix, old_changed, shared_suffix, new_changed)`.
+///
+/// Details:
+/// - Uses char-based common prefix/suffix detection.
+/// - Shared prefix/suffix remain default text color.
+/// - Changed segments are highlighted per column (`old` red, `new` green).
+fn split_version_diff(old_version: &str, new_version: &str) -> (String, String, String, String) {
+    let old_chars: Vec<char> = old_version.chars().collect();
+    let new_chars: Vec<char> = new_version.chars().collect();
+    let min_len = old_chars.len().min(new_chars.len());
+
+    let mut prefix_len = 0usize;
+    while prefix_len < min_len && old_chars[prefix_len] == new_chars[prefix_len] {
+        prefix_len += 1;
+    }
+
+    let old_remaining = old_chars.len().saturating_sub(prefix_len);
+    let new_remaining = new_chars.len().saturating_sub(prefix_len);
+    let max_suffix = old_remaining.min(new_remaining);
+
+    let mut suffix_len = 0usize;
+    while suffix_len < max_suffix {
+        let old_idx = old_chars.len().saturating_sub(1 + suffix_len);
+        let new_idx = new_chars.len().saturating_sub(1 + suffix_len);
+        if old_chars[old_idx] != new_chars[new_idx] {
+            break;
+        }
+        suffix_len += 1;
+    }
+
+    let old_changed_end = old_chars.len().saturating_sub(suffix_len);
+    let new_changed_end = new_chars.len().saturating_sub(suffix_len);
+
+    let shared_prefix = old_chars[..prefix_len].iter().collect::<String>();
+    let old_changed = old_chars[prefix_len..old_changed_end]
+        .iter()
+        .collect::<String>();
+    let shared_suffix = old_chars[old_changed_end..].iter().collect::<String>();
+    let new_changed = new_chars[prefix_len..new_changed_end]
+        .iter()
+        .collect::<String>();
+
+    (shared_prefix, old_changed, shared_suffix, new_changed)
 }
 
 /// What: Build pane lines from the shared updates row model.
@@ -273,18 +364,14 @@ fn build_update_lines_from_model(
     let focused_style = Style::default().fg(th.mauve).add_modifier(Modifier::BOLD);
     let selected_style = Style::default().fg(th.green).add_modifier(Modifier::BOLD);
     let focused_selected_style = Style::default().fg(th.yellow).add_modifier(Modifier::BOLD);
-    let center_style = Style::default().fg(th.mauve).add_modifier(Modifier::BOLD);
+    let old_changed_style = Style::default().fg(th.red).add_modifier(Modifier::BOLD);
+    let new_changed_style = Style::default().fg(th.green).add_modifier(Modifier::BOLD);
 
     for (idx, block) in model.blocks.iter().enumerate() {
         let is_focused = idx == focused;
         let is_selected = selected_pkg_names.contains(&block.name);
-        let tool = get_install_tool(&block.name);
-        let tool_color = match tool {
-            "pacman" => th.green,
-            "AUR" => th.yellow,
-            _ => th.overlay1,
-        };
-        let last_right_line_idx = block.right_wrapped.len().saturating_sub(1);
+        let (shared_prefix, old_changed, shared_suffix, new_changed) =
+            split_version_diff(&block.old_version, &block.new_version);
 
         for line_idx in 0..usize::from(block.row_render_height) {
             let left_line = block
@@ -299,36 +386,61 @@ fn build_update_lines_from_model(
                     (false, true) => ("● ", selected_style),
                     (false, false) => ("  ", text_style),
                 };
-                left_lines.push(Line::from(vec![
-                    Span::styled(marker, marker_style),
-                    Span::styled(left_line, text_style),
-                ]));
+                let mut left_spans = vec![Span::styled(marker, marker_style)];
+                if let Some(split_idx) = left_line.find('/') {
+                    let repo_part = left_line[..split_idx].to_string();
+                    let pkg_part = left_line[split_idx..].to_string();
+                    let repo_style = if repo_part == block.repo_label {
+                        Style::default().fg(block.repo_color)
+                    } else {
+                        text_style
+                    };
+                    left_spans.push(Span::styled(repo_part, repo_style));
+                    left_spans.push(Span::styled(pkg_part, text_style));
+                } else {
+                    left_spans.push(Span::styled(left_line, text_style));
+                }
+                left_lines.push(Line::from(left_spans));
             } else {
                 left_lines.push(Line::from(Span::styled(left_line, text_style)));
             }
 
             if line_idx == 0 {
-                center_lines.push(Line::from(Span::styled("     →     ", center_style)));
+                let mut old_spans: Vec<Span<'static>> = Vec::new();
+                if !shared_prefix.is_empty() {
+                    old_spans.push(Span::styled(shared_prefix.clone(), text_style));
+                }
+                if !old_changed.is_empty() {
+                    old_spans.push(Span::styled(old_changed.clone(), old_changed_style));
+                }
+                if !shared_suffix.is_empty() {
+                    old_spans.push(Span::styled(shared_suffix.clone(), text_style));
+                }
+                if old_spans.is_empty() {
+                    old_spans.push(Span::styled(block.old_version.clone(), text_style));
+                }
+                center_lines.push(Line::from(old_spans));
             } else {
-                center_lines.push(Line::from(Span::styled("", center_style)));
+                center_lines.push(Line::from(Span::styled("", text_style)));
             }
 
-            let right_line = block
-                .right_wrapped
-                .get(line_idx)
-                .cloned()
-                .unwrap_or_default();
-            if line_idx == last_right_line_idx {
-                right_lines.push(Line::from(vec![
-                    Span::styled(right_line, text_style),
-                    Span::styled(" ", text_style),
-                    Span::styled(
-                        format!("[{tool}]"),
-                        Style::default().fg(tool_color).add_modifier(Modifier::BOLD),
-                    ),
-                ]));
+            if line_idx == 0 {
+                let mut new_spans: Vec<Span<'static>> = vec![Span::styled("-> ", text_style)];
+                if !shared_prefix.is_empty() {
+                    new_spans.push(Span::styled(shared_prefix.clone(), text_style));
+                }
+                if !new_changed.is_empty() {
+                    new_spans.push(Span::styled(new_changed.clone(), new_changed_style));
+                }
+                if !shared_suffix.is_empty() {
+                    new_spans.push(Span::styled(shared_suffix.clone(), text_style));
+                }
+                if shared_prefix.is_empty() && new_changed.is_empty() && shared_suffix.is_empty() {
+                    new_spans.push(Span::styled(block.new_version.clone(), text_style));
+                }
+                right_lines.push(Line::from(new_spans));
             } else {
-                right_lines.push(Line::from(Span::styled(right_line, text_style)));
+                right_lines.push(Line::from(Span::styled("", text_style)));
             }
         }
     }
@@ -521,17 +633,16 @@ pub fn render_updates(
         let pane_chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
-                Constraint::Percentage(48), // Left pane (old versions)
-                Constraint::Length(11), // Center arrow with spacing (5 spaces + arrow + 5 spaces = 11 chars)
-                Constraint::Percentage(48), // Right pane (new versions)
+                Constraint::Percentage(40), // Left pane (`repo/name`)
+                Constraint::Percentage(26), // Old version
+                Constraint::Percentage(34), // `->` + new version
             ])
             .split(content_chunk);
 
-        // Calculate pane widths for wrapping calculations
+        // Calculate first-column width for wrapping calculations
         let left_width = pane_chunks[0].width;
-        let right_width = pane_chunks[2].width;
 
-        let update_model = build_update_render_model(&display_entries, left_width, right_width);
+        let update_model = build_update_render_model(app, &th, &display_entries, left_width);
         let update_lines =
             build_update_lines_from_model(&update_model, &th, selected_visible, selected_pkg_names);
         app.updates_modal_entry_line_starts = update_model.entry_line_starts;
@@ -542,7 +653,7 @@ pub fn render_updates(
             f,
             update_lines.left,
             pane_chunks[0],
-            Alignment::Right,
+            Alignment::Left,
             scroll,
             &th,
         );
@@ -550,7 +661,7 @@ pub fn render_updates(
             f,
             update_lines.center,
             pane_chunks[1],
-            Alignment::Center,
+            Alignment::Left,
             scroll,
             &th,
         );
@@ -644,7 +755,7 @@ mod tests {
                 "1234567890.1234567899".to_string(),
             ),
         ];
-        let model = build_update_render_model(&entries, 16, 16);
+        let model = build_update_render_model(&AppState::default(), &theme(), &entries, 16);
         assert_eq!(model.entry_line_starts.len(), 2);
         assert_eq!(model.entry_line_starts[0], 0);
         assert!(model.entry_line_starts[1] > model.entry_line_starts[0]);
@@ -675,7 +786,7 @@ mod tests {
                 "2.1.0".to_string(),
             ),
         ];
-        let model = build_update_render_model(&entries, 14, 14);
+        let model = build_update_render_model(&AppState::default(), &theme(), &entries, 14);
         let lines =
             build_update_lines_from_model(&model, &theme(), 0, &std::collections::HashSet::new());
         assert_eq!(lines.left.len(), lines.center.len());
@@ -881,7 +992,7 @@ mod tests {
             ("alpha".to_string(), "1.0".to_string(), "2.0".to_string()),
             ("beta".to_string(), "1.0".to_string(), "2.0".to_string()),
         ];
-        let model = build_update_render_model(&entries, 24, 24);
+        let model = build_update_render_model(&AppState::default(), &theme(), &entries, 24);
         let selected_pkg_names = std::collections::HashSet::from(["beta".to_string()]);
         let lines = build_update_lines_from_model(&model, &theme(), 0, &selected_pkg_names);
 
@@ -897,10 +1008,129 @@ mod tests {
     /// What: Ensure focused+selected rows use a dedicated marker.
     fn updates_markers_show_focused_selected_marker() {
         let entries = vec![("alpha".to_string(), "1.0".to_string(), "2.0".to_string())];
-        let model = build_update_render_model(&entries, 24, 24);
+        let model = build_update_render_model(&AppState::default(), &theme(), &entries, 24);
         let selected_pkg_names = std::collections::HashSet::from(["alpha".to_string()]);
         let lines = build_update_lines_from_model(&model, &theme(), 0, &selected_pkg_names);
         let marker = lines.left[0].spans[0].content.as_ref();
         assert_eq!(marker, "◉ ");
+    }
+
+    #[test]
+    /// What: Ensure unknown packages use yay-like `aur/` source prefix.
+    fn updates_source_prefix_defaults_to_aur_for_unknown_packages() {
+        let app = AppState::default();
+        let th = theme();
+        let (label, color) =
+            determine_updates_repo_label_and_color("definitely-not-a-real-package", &app, &th);
+        assert_eq!(label, "aur");
+        assert_eq!(color, th.yellow);
+    }
+
+    #[test]
+    /// What: Ensure official packages render with yay-like `extra/` prefix when present.
+    fn updates_source_prefix_uses_extra_for_known_official_packages() {
+        if crate::index::find_package_by_name("ripgrep").is_none() {
+            return;
+        }
+        let app = AppState::default();
+        let th = theme();
+        let (label, color) = determine_updates_repo_label_and_color("ripgrep", &app, &th);
+        assert_eq!(label, "extra");
+        assert_eq!(color, th.green);
+    }
+
+    #[test]
+    /// What: Ensure updates row text follows yay-like layout with arrow separator.
+    fn updates_rows_render_yay_like_layout() {
+        let entries = vec![(
+            "zz-test-aur-pkg".to_string(),
+            "1.0.0-1".to_string(),
+            "1.0.1-1".to_string(),
+        )];
+        let model = build_update_render_model(&AppState::default(), &theme(), &entries, 64);
+        let lines =
+            build_update_lines_from_model(&model, &theme(), 0, &std::collections::HashSet::new());
+
+        let left_row: String = lines.left[0]
+            .spans
+            .iter()
+            .skip(1)
+            .map(|span| span.content.as_ref())
+            .collect();
+        let arrow = lines.center[0].spans[0].content.as_ref();
+        let right_row = lines.right[0].spans[0].content.as_ref();
+
+        assert!(left_row.contains("aur/zz-test-aur-pkg"));
+        assert_eq!(arrow, "1.0.");
+        assert_eq!(right_row, "-> ");
+    }
+
+    #[test]
+    /// What: Ensure repo label in first column uses source-matching colors.
+    fn updates_repo_label_uses_results_colors() {
+        let entries = vec![(
+            "zz-color-test-aur".to_string(),
+            "1.0.0".to_string(),
+            "1.0.1".to_string(),
+        )];
+        let model = build_update_render_model(&AppState::default(), &theme(), &entries, 64);
+        let lines =
+            build_update_lines_from_model(&model, &theme(), 0, &std::collections::HashSet::new());
+        let th = theme();
+        let left_spans = &lines.left[0].spans;
+
+        assert!(
+            left_spans
+                .iter()
+                .any(|span| span.content.as_ref().contains("aur"))
+        );
+        assert!(
+            left_spans
+                .iter()
+                .any(|span| span.style.fg == Some(th.yellow))
+        );
+    }
+
+    #[test]
+    /// What: Ensure version differences are highlighted by changed segments.
+    fn updates_versions_highlight_changed_chars_in_expected_columns() {
+        let entries = vec![(
+            "demo".to_string(),
+            "1.2.3-1".to_string(),
+            "1.2.4-2".to_string(),
+        )];
+        let model = build_update_render_model(&AppState::default(), &theme(), &entries, 32);
+        let lines =
+            build_update_lines_from_model(&model, &theme(), 0, &std::collections::HashSet::new());
+        let th = theme();
+
+        let old_line = &lines.center[0];
+        let new_line = &lines.right[0];
+
+        let old_combined: String = old_line
+            .spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect();
+        let new_combined: String = new_line
+            .spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect();
+
+        assert_eq!(old_combined, "1.2.3-1");
+        assert_eq!(new_combined, "-> 1.2.4-2");
+        assert!(
+            old_line
+                .spans
+                .iter()
+                .any(|span| span.style.fg == Some(th.red))
+        );
+        assert!(
+            new_line
+                .spans
+                .iter()
+                .any(|span| span.style.fg == Some(th.green))
+        );
     }
 }
