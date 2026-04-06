@@ -4,6 +4,7 @@ use std::sync::atomic::AtomicBool;
 use crossterm::event::Event as CEvent;
 use tokio::sync::mpsc;
 
+use crate::app::runtime::workers::UpdateCheckPayload;
 use crate::app::runtime::workers::aur_vote::{
     AurVoteRequest, AurVoteResponse, AurVoteStateRequest, AurVoteStateResponse,
 };
@@ -94,10 +95,10 @@ pub struct Channels {
     pub news_content_req_tx: mpsc::UnboundedSender<String>,
     /// Response channel for news article content (URL, content).
     pub news_content_res_rx: mpsc::UnboundedReceiver<(String, String)>,
-    /// Sender for system updates information (count, package names).
-    pub updates_tx: mpsc::UnboundedSender<(usize, Vec<String>)>,
+    /// Sender for system updates information (payload includes count, names, authoritative flag).
+    pub updates_tx: mpsc::UnboundedSender<UpdateCheckPayload>,
     /// Receiver for system updates information in the main event loop.
-    pub updates_rx: mpsc::UnboundedReceiver<(usize, Vec<String>)>,
+    pub updates_rx: mpsc::UnboundedReceiver<UpdateCheckPayload>,
     /// Sender for remote announcements.
     pub announcement_tx: mpsc::UnboundedSender<crate::announcements::RemoteAnnouncement>,
     /// Receiver for remote announcements in the main event loop.
@@ -310,9 +311,9 @@ struct UtilityChannels {
     /// Receiver for news article content responses.
     news_content_res_rx: mpsc::UnboundedReceiver<(String, String)>,
     /// Sender for system updates information.
-    updates_tx: mpsc::UnboundedSender<(usize, Vec<String>)>,
+    updates_tx: mpsc::UnboundedSender<UpdateCheckPayload>,
     /// Receiver for system updates information.
-    updates_rx: mpsc::UnboundedReceiver<(usize, Vec<String>)>,
+    updates_rx: mpsc::UnboundedReceiver<UpdateCheckPayload>,
     /// Sender for remote announcements.
     announcement_tx: mpsc::UnboundedSender<crate::announcements::RemoteAnnouncement>,
     /// Receiver for remote announcements.
@@ -463,7 +464,7 @@ fn create_utility_channels() -> UtilityChannels {
         mpsc::unbounded_channel::<crate::state::types::NewsFeedItem>();
     let (news_content_req_tx, news_content_req_rx) = mpsc::unbounded_channel::<String>();
     let (news_content_res_tx, news_content_res_rx) = mpsc::unbounded_channel::<(String, String)>();
-    let (updates_tx, updates_rx) = mpsc::unbounded_channel::<(usize, Vec<String>)>();
+    let (updates_tx, updates_rx) = mpsc::unbounded_channel::<UpdateCheckPayload>();
     let (announcement_tx, announcement_rx) =
         mpsc::unbounded_channel::<crate::announcements::RemoteAnnouncement>();
     let (executor_req_tx, executor_req_rx) =

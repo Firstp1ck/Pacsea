@@ -143,6 +143,7 @@ en-US:
       dry_run_disabled: "Dry-run mode disabled"
       cascade_mode_enabled: "Cascade mode enabled"
       cascade_mode_disabled: "Cascade mode disabled"
+      update_check_degraded: "Update check is degraded (stale pacman DB or sandbox). Prefer pacman-contrib (checkupdates), or sync: sudo pacman -Sy"
       gnome_terminal_warning: "Continuing without gnome-terminal may cause unexpected behavior"
       repo_apply_wait_exec_finish: "Wait until the command finishes (log shows completion), then press Enter for the next step."
       repo_overlap_no_sync_list: "Repository \"{}\": pacman reported no package list (sync DB missing, wrong section name vs repos.conf, or empty repo)."
@@ -151,7 +152,9 @@ en-US:
       authentication_failed: "Authentication failed or was cancelled. Operation aborted."
     updates_button:
       available: "Updates available ({})"
+      available_degraded: "Updates available ({}) — check may be incomplete"
       none: "No updates available"
+      none_maybe_stale: "No updates detected (database may be stale)"
       loading: "Checking updates..."
       locked: "🔒 Locked"
       locked_with_time: "🔒 Locked: {} min"

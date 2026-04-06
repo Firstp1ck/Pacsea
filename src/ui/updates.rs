@@ -48,7 +48,13 @@ pub fn render_updates_button(f: &mut Frame, app: &mut AppState, area: Rect) {
             i18n::t(app, "app.updates_button.loading")
         } else if let Some(count) = app.updates_count {
             if count > 0 {
-                i18n::t_fmt1(app, "app.updates_button.available", count)
+                if app.updates_last_check_authoritative == Some(false) {
+                    i18n::t_fmt1(app, "app.updates_button.available_degraded", count)
+                } else {
+                    i18n::t_fmt1(app, "app.updates_button.available", count)
+                }
+            } else if app.updates_last_check_authoritative == Some(false) {
+                i18n::t(app, "app.updates_button.none_maybe_stale")
             } else {
                 i18n::t(app, "app.updates_button.none")
             }

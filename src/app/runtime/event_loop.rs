@@ -197,18 +197,34 @@ fn handle_index_notification(app: &mut AppState, channels: &Channels) -> bool {
 ///
 /// Inputs:
 /// - `app`: Application state
-/// - `count`: Number of available updates
-/// - `list`: List of update package names
+/// - `payload`: Update check result from the background worker
 ///
 /// Output: None (modifies app state in place)
 ///
 /// Details:
-/// - Updates app state with update count and list
+/// - Updates app state with update count, list, and whether the official-repo probe was authoritative
+/// - Shows a transient toast when the check ran in degraded mode (stale DB / sandbox issues)
 /// - If pending updates modal is set, opens the updates modal
-fn handle_updates_list(app: &mut AppState, count: usize, list: Vec<String>) {
+fn handle_updates_list(
+    app: &mut AppState,
+    payload: crate::app::runtime::workers::UpdateCheckPayload,
+) {
+    let count = payload.count;
+    let list = payload.package_names;
+    app.updates_last_check_authoritative = Some(payload.authoritative);
     app.updates_count = Some(count);
     app.updates_list = list;
     app.updates_loading = false;
+    if !payload.authoritative {
+        app.toast_message = Some(i18n::t(app, "app.toasts.update_check_degraded"));
+        app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(8));
+        tracing::info!(
+            authoritative = false,
+            reasons = %payload.reason_codes.join(","),
+            strategy = payload.official_strategy,
+            "update check completed in degraded mode for official repositories"
+        );
+    }
     if app.pending_updates_modal {
         app.pending_updates_modal = false;
         let updates_file = crate::theme::lists_dir().join("available_updates.txt");
@@ -678,7 +694,7 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
             handle_status(app, &txt, color);
             false
         }
-        Some((count, list)) = channels.updates_rx.recv() => { handle_updates_list(app, count, list); false }
+        Some(payload) = channels.updates_rx.recv() => { handle_updates_list(app, payload); false }
         Some(aur_vote_response) = channels.aur_vote_res_rx.recv() => { handle_aur_vote_response(app, aur_vote_response); false }
         Some(aur_vote_state_response) = channels.aur_vote_state_res_rx.recv() => { handle_aur_vote_state_response(app, aur_vote_state_response); false }
         Some(executor_output) = channels.executor_res_rx.recv() => {
@@ -1305,6 +1321,8 @@ mod tests {
     use super::handle_aur_vote_response;
     use super::handle_aur_vote_state_response;
     use super::handle_news_content;
+    use super::handle_updates_list;
+    use crate::app::runtime::workers::UpdateCheckPayload;
     use crate::state::AppState;
     use crate::state::types::{NewsFeedItem, NewsFeedSource};
 
@@ -1386,6 +1404,57 @@ mod tests {
         assert!(!app.news_content_loading);
         assert_eq!(app.news_content, Some("payload".to_string()));
         assert!(app.news_content_cache.contains_key("https://example.com/a"));
+    }
+
+    #[test]
+    /// What: Verify degraded update-check payloads set authoritative flag and user toast.
+    ///
+    /// Inputs:
+    /// - Default `AppState` and a synthetic [`UpdateCheckPayload`] with `authoritative` false.
+    ///
+    /// Output:
+    /// - `updates_last_check_authoritative` is `Some(false)` and a toast is scheduled.
+    ///
+    /// Details:
+    /// - Ensures silent failure modes surface guidance instead of looking like a clean zero-update state.
+    fn handle_updates_list_degraded_surfaces_toast() {
+        let mut app = AppState::default();
+        let payload = UpdateCheckPayload {
+            count: 0,
+            package_names: Vec::new(),
+            authoritative: false,
+            reason_codes: vec!["stale_db_fallback".to_string()],
+            official_strategy: "stale_pacman_qu",
+        };
+        handle_updates_list(&mut app, payload);
+        assert_eq!(app.updates_last_check_authoritative, Some(false));
+        assert!(app.toast_message.is_some());
+        assert!(app.toast_expires_at.is_some());
+    }
+
+    #[test]
+    /// What: Verify authoritative update-check payloads do not set a degraded toast.
+    ///
+    /// Inputs:
+    /// - Default `AppState` and a synthetic authoritative [`UpdateCheckPayload`].
+    ///
+    /// Output:
+    /// - `updates_last_check_authoritative` is `Some(true)`; no toast from this handler.
+    ///
+    /// Details:
+    /// - Guards against noisy toasts on the happy path.
+    fn handle_updates_list_authoritative_skips_degraded_toast() {
+        let mut app = AppState::default();
+        let payload = UpdateCheckPayload {
+            count: 2,
+            package_names: vec!["a".to_string(), "b".to_string()],
+            authoritative: true,
+            reason_codes: Vec::new(),
+            official_strategy: "checkupdates_db",
+        };
+        handle_updates_list(&mut app, payload);
+        assert_eq!(app.updates_last_check_authoritative, Some(true));
+        assert!(app.toast_message.is_none());
     }
 
     #[test]

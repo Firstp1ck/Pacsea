@@ -417,6 +417,8 @@ pub struct AppState {
     pub news_button_rect: Option<(u16, u16, u16, u16)>,
     /// Whether updates check is currently in progress.
     pub updates_loading: bool,
+    /// Whether the last completed update check used an authoritative official-repo source (`None` before first result).
+    pub updates_last_check_authoritative: Option<bool>,
     /// Flag to trigger refresh of updates list after package installation/update.
     pub refresh_updates: bool,
     /// Flag to indicate that Updates modal should open after refresh completes.

@@ -143,6 +143,7 @@ de-DE:
       dry_run_disabled: "Trockenlaufmodus deaktiviert"
       cascade_mode_enabled: "Kaskadenmodus aktiviert"
       cascade_mode_disabled: "Kaskadenmodus deaktiviert"
+      update_check_degraded: "Update-Prüfung eingeschränkt (veraltete pacman-DB oder Sandbox). pacman-contrib (checkupdates) nutzen oder sync: sudo pacman -Sy"
       gnome_terminal_warning: "Fortsetzen ohne gnome-terminal kann zu unerwartetem Verhalten führen"
       repo_apply_wait_exec_finish: "Warte, bis der Befehl fertig ist (Log zeigt Abschluss), dann Enter für den nächsten Schritt."
       repo_overlap_no_sync_list: "Repository \"{}\": pacman lieferte keine Paketliste (Sync-DB fehlt, falscher Abschnittsname vs. repos.conf oder leeres Repo)."
@@ -151,7 +152,9 @@ de-DE:
       authentication_failed: "Authentifizierung fehlgeschlagen oder abgebrochen. Vorgang abgebrochen."
     updates_button:
       available: "Updates verfügbar ({})"
+      available_degraded: "Updates verfügbar ({}) — Prüfung evtl. unvollständig"
       none: "Keine Updates verfügbar"
+      none_maybe_stale: "Keine Updates erkannt (Datenbank evtl. veraltet)"
       loading: "Prüfe Updates..."
       locked: "🔒 Gesperrt"
       locked_with_time: "🔒 Gesperrt: {} Min"

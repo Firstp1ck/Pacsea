@@ -1,3 +1,41 @@
+/// What: Parse `pkg oldver -> newver` from a single pacman-style upgrade line.
+///
+/// Inputs:
+/// - `trimmed`: One nonempty line (already newline-trimmed; may include a `repo/pkg` prefix).
+///
+/// Output:
+/// - `Some((package_name, old_version, new_version))` when the line is valid; `None` otherwise.
+///
+/// Details:
+/// - Splits on the **first** ` -> ` so `old_version` stays the installed version field.
+/// - If the post-arrow fragment still contains ` -> ` (merged upgrade chains), uses the **last**
+///   segment as `new_version` only.
+/// - Takes `package_name` as the substring before the first run of whitespace in the pre-arrow span;
+///   everything after that whitespace (until the arrow) is `old_version`.
+fn parse_pacman_upgrade_triple(trimmed: &str) -> Option<(String, String, String)> {
+    let arrow_pos = trimmed.find(" -> ")?;
+    let before_arrow = trimmed[..arrow_pos].trim();
+    let after_arrow = trimmed[arrow_pos + 4..].trim();
+    let new_version = after_arrow.rsplit(" -> ").next()?.trim();
+    if new_version.is_empty() {
+        return None;
+    }
+    let first_ws = before_arrow.find(char::is_whitespace)?;
+    let name = before_arrow[..first_ws].trim();
+    if name.is_empty() {
+        return None;
+    }
+    let old_version = before_arrow[first_ws..].trim();
+    if old_version.is_empty() {
+        return None;
+    }
+    Some((
+        name.to_string(),
+        old_version.to_string(),
+        new_version.to_string(),
+    ))
+}
+
 /// What: Parse packages from pacman -Qu output.
 ///
 /// Inputs:
@@ -16,20 +54,7 @@ pub fn parse_checkupdates(output: &[u8]) -> Vec<(String, String, String)> {
             if trimmed.is_empty() {
                 None
             } else {
-                // Parse "package-name old_version -> new_version" format
-                trimmed.find(" -> ").and_then(|arrow_pos| {
-                    let before_arrow = &trimmed[..arrow_pos];
-                    let after_arrow = &trimmed[arrow_pos + 4..];
-                    let parts: Vec<&str> = before_arrow.split_whitespace().collect();
-                    if parts.len() >= 2 {
-                        let name = parts[0].to_string();
-                        let old_version = parts[1..].join(" "); // In case version has spaces
-                        let new_version = after_arrow.trim().to_string();
-                        Some((name, old_version, new_version))
-                    } else {
-                        None
-                    }
-                })
+                parse_pacman_upgrade_triple(trimmed)
             }
         })
         .collect()
@@ -121,20 +146,7 @@ pub fn parse_qua(output: &[u8]) -> Vec<(String, String, String)> {
             if trimmed.is_empty() {
                 None
             } else {
-                // Parse "package old -> new" format
-                trimmed.find(" -> ").and_then(|arrow_pos| {
-                    let before_arrow = &trimmed[..arrow_pos];
-                    let after_arrow = &trimmed[arrow_pos + 4..];
-                    let parts: Vec<&str> = before_arrow.split_whitespace().collect();
-                    if parts.len() >= 2 {
-                        let name = parts[0].to_string();
-                        let old_version = parts[1..].join(" "); // In case version has spaces
-                        let new_version = after_arrow.trim().to_string();
-                        Some((name, old_version, new_version))
-                    } else {
-                        None
-                    }
-                })
+                parse_pacman_upgrade_triple(trimmed)
             }
         })
         .collect()
@@ -214,5 +226,25 @@ mod tests {
                 "2:7.1.0-1".to_string()
             )
         );
+    }
+
+    /// What: Verify chained `->` fragments after the first transition collapse to the final version.
+    ///
+    /// Inputs:
+    /// - A malformed line with an extra `old ->` segment before the real target version
+    ///
+    /// Output:
+    /// - `new_version` is only the last segment; `old_version` matches the installed field
+    ///
+    /// Details:
+    /// - Prevents UI column three from showing `oldver -> newver` when only `newver` is intended
+    #[test]
+    fn test_parse_checkupdates_collapses_chained_new_version() {
+        let line = "libraw 0.22.0-2 -> 0.22.0-2 -> 0.22.1-1\n";
+        let entries = parse_checkupdates(line.as_bytes());
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].0, "libraw");
+        assert_eq!(entries[0].1, "0.22.0-2");
+        assert_eq!(entries[0].2, "0.22.1-1");
     }
 }

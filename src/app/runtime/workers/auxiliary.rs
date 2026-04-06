@@ -264,7 +264,7 @@ pub fn spawn_auxiliary_workers(
     official_index_path: &std::path::Path,
     net_err_tx: &mpsc::UnboundedSender<String>,
     index_notify_tx: &mpsc::UnboundedSender<()>,
-    updates_tx: &mpsc::UnboundedSender<(usize, Vec<String>)>,
+    updates_tx: &mpsc::UnboundedSender<super::UpdateCheckPayload>,
     updates_refresh_interval: u64,
     installed_packages_mode: crate::state::InstalledPackagesMode,
     get_announcement: bool,

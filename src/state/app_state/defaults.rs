@@ -319,6 +319,7 @@ pub(super) type DefaultClickableRectsState = (
     Option<(u16, u16, u16, u16)>,
     Option<(u16, u16, u16, u16)>,
     bool,
+    Option<bool>,
     bool,
     bool,
     bool,
@@ -672,7 +673,7 @@ pub(super) const fn default_scroll_prefetch_state() -> (u32, Option<Instant>, bo
 /// Inputs: None.
 ///
 /// Output:
-/// - Tuple of clickable rectangle fields: `url_button_rect`, `vt_url_rect`, `install_import_rect`, `install_export_rect`, `arch_status_text`, `arch_status_rect`, `arch_status_color`, `updates_count`, `updates_list`, `updates_button_rect`, `news_button_rect`, `updates_loading`, `refresh_updates`, `pending_updates_modal`, `faillock_locked`, `faillock_lockout_until`, `faillock_remaining_minutes`.
+/// - Tuple of clickable rectangle fields: `url_button_rect`, `vt_url_rect`, `install_import_rect`, `install_export_rect`, `arch_status_text`, `arch_status_rect`, `arch_status_color`, `updates_count`, `updates_list`, `updates_button_rect`, `news_button_rect`, `updates_loading`, `updates_last_check_authoritative`, `refresh_updates`, `pending_updates_modal`, `faillock_locked`, `faillock_lockout_until`, `faillock_remaining_minutes`.
 ///
 /// Details:
 /// - All rectangles start as None, updates check is loading by default.
@@ -691,6 +692,7 @@ pub(super) fn default_clickable_rects_state() -> DefaultClickableRectsState {
         None,
         None,
         true,
+        None,
         false,
         false,
         false,

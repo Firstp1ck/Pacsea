@@ -20,5 +20,7 @@ pub mod search;
 pub mod updates;
 /// Helper functions for update checking (system checks, temp DB).
 mod updates_helpers;
+/// [`UpdateCheckPayload`] sent from the updates worker to the UI event loop.
+pub use updates_helpers::UpdateCheckPayload;
 /// Parsing functions for update command output.
 mod updates_parsing;

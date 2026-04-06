@@ -17,6 +17,7 @@ use super::super::persist::{
     maybe_flush_sandbox_cache, maybe_flush_services_cache,
 };
 use super::super::recent::{maybe_save_news_recent, maybe_save_recent};
+use super::workers::UpdateCheckPayload;
 use super::workers::aur_vote::{AurVoteRequest, AurVoteStateRequest};
 use crate::install::ExecutorRequest;
 use crate::sources::VoteAction;
@@ -679,7 +680,7 @@ pub fn handle_tick(
         Vec<PackageItem>,
         crate::state::modal::PreflightAction,
     )>,
-    updates_tx: &mpsc::UnboundedSender<(usize, Vec<String>)>,
+    updates_tx: &mpsc::UnboundedSender<UpdateCheckPayload>,
     aur_vote_req_tx: &mpsc::UnboundedSender<AurVoteRequest>,
     aur_vote_state_req_tx: &mpsc::UnboundedSender<AurVoteStateRequest>,
     executor_req_tx: &mpsc::UnboundedSender<crate::install::ExecutorRequest>,

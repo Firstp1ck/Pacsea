@@ -790,6 +790,8 @@ pub fn curl_args(url: &str, extra_args: &[&str]) -> Vec<String> {
 /// - Parses format: "name - `old_version` -> name - `new_version`"
 /// - Returns `None` for empty lines or invalid formats
 /// - Uses `rfind` to find the last occurrence of " - " to handle package names that may contain dashes
+/// - Normalizes the right-hand side with the same ` -> ` rules as pacman parsing so a merged
+///   `oldver -> newver` chain never becomes a single `new_version` string in column three
 /// # Examples
 /// ```
 /// use pacsea::util::parse_update_entry;
@@ -823,12 +825,22 @@ pub fn parse_update_entry(line: &str) -> Option<(String, String, String)> {
         before_arrow.rfind(" - ").and_then(|old_dash_pos| {
             let name = before_arrow[..old_dash_pos].trim().to_string();
             let old_version = before_arrow[old_dash_pos + 3..].trim().to_string();
+            if name.is_empty() || old_version.is_empty() {
+                return None;
+            }
 
-            // Parse "name - new_version" from after_arrow
-            after_arrow.rfind(" - ").map(|new_dash_pos| {
-                let new_version = after_arrow[new_dash_pos + 3..].trim().to_string();
-                (name, old_version, new_version)
-            })
+            let rhs_tail = after_arrow.rsplit(" -> ").next()?.trim();
+            if rhs_tail.is_empty() {
+                return None;
+            }
+            let new_version = rhs_tail.rfind(" - ").map_or_else(
+                || rhs_tail.to_string(),
+                |new_dash_pos| rhs_tail[new_dash_pos + 3..].trim().to_string(),
+            );
+            if new_version.is_empty() {
+                return None;
+            }
+            Some((name, old_version, new_version))
         })
     })
 }
@@ -1055,5 +1067,29 @@ mod tests {
     fn util_ts_to_date_boundaries() {
         assert_eq!(ts_to_date(Some(946_684_800)), "2000-01-01 00:00:00");
         assert_eq!(ts_to_date(Some(946_684_799)), "1999-12-31 23:59:59");
+    }
+
+    #[test]
+    /// What: Ensure `parse_update_entry` collapses chained ` -> ` on the right-hand side.
+    ///
+    /// Inputs:
+    /// - Update line with duplicated old/target transition in the stored format
+    ///
+    /// Output:
+    /// - Parsed `new_version` is a single target version string
+    ///
+    /// Details:
+    /// - Guards the updates modal third column against `old -> new` redundantly shown as `new`
+    fn util_parse_update_entry_collapses_rhs_chain() {
+        let line = "libraw - 0.22.0-2 -> libraw - 0.22.0-2 -> 0.22.1-1";
+        let parsed = parse_update_entry(line);
+        assert_eq!(
+            parsed,
+            Some((
+                "libraw".to_string(),
+                "0.22.0-2".to_string(),
+                "0.22.1-1".to_string()
+            ))
+        );
     }
 }

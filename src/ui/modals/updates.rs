@@ -343,20 +343,58 @@ fn build_update_render_model(
     }
 }
 
-/// What: Split old/new versions into shared and changed segments.
+/// What: When both versions end with the same `-pkgrel` and `pkgrel` is ASCII digits, return the
+/// core strings without that suffix plus the shared `-pkgrel` fragment.
 ///
 /// Inputs:
-/// - `old_version`: Currently installed version.
-/// - `new_version`: Target version after update.
+/// - `old_version` / `new_version`: Full version strings from pacman.
+///
+/// Output:
+/// - `(old_core, new_core, suffix)` where `suffix` is empty when no shared numeric pkgrel applies.
+///
+/// Details:
+/// - Matches Arch’s usual `pkgver-pkgrel` display shape so identical `pkgrel` does not steal
+///   characters from the per-column diff highlight.
+fn strip_shared_numeric_pkgrel<'a>(
+    old_version: &'a str,
+    new_version: &'a str,
+) -> (&'a str, &'a str, &'a str) {
+    let Some(old_dash) = old_version.rfind('-') else {
+        return (old_version, new_version, "");
+    };
+    let Some(new_dash) = new_version.rfind('-') else {
+        return (old_version, new_version, "");
+    };
+    let old_rel = &old_version[old_dash + 1..];
+    let new_rel = &new_version[new_dash + 1..];
+    if old_rel != new_rel
+        || old_rel.is_empty()
+        || !old_rel.chars().all(|c| c.is_ascii_digit())
+    {
+        return (old_version, new_version, "");
+    }
+    let suffix = &old_version[old_dash..];
+    (
+        &old_version[..old_dash],
+        &new_version[..new_dash],
+        suffix,
+    )
+}
+
+/// What: Split old/new versions into shared and changed segments (core pkgver only).
+///
+/// Inputs:
+/// - `old_version` / `new_version`: Comparable version strings (often without shared `-pkgrel`).
 ///
 /// Output:
 /// - Tuple `(shared_prefix, old_changed, shared_suffix, new_changed)`.
 ///
 /// Details:
 /// - Uses char-based common prefix/suffix detection.
-/// - Shared prefix/suffix remain default text color.
-/// - Changed segments are highlighted per column (`old` red, `new` green).
-fn split_version_diff(old_version: &str, new_version: &str) -> (String, String, String, String) {
+fn split_version_diff_core(
+    old_version: &str,
+    new_version: &str,
+) -> (String, String, String, String) {
     let old_chars: Vec<char> = old_version.chars().collect();
     let new_chars: Vec<char> = new_version.chars().collect();
     let min_len = old_chars.len().min(new_chars.len());
@@ -393,6 +431,28 @@ fn split_version_diff(old_version: &str, new_version: &str) -> (String, String, 
         .collect::<String>();
 
     (shared_prefix, old_changed, shared_suffix, new_changed)
+}
+
+/// What: Split old/new versions into shared and changed segments.
+///
+/// Inputs:
+/// - `old_version`: Currently installed version.
+/// - `new_version`: Target version after update.
+///
+/// Output:
+/// - Tuple `(shared_prefix, old_changed, shared_suffix, new_changed)`.
+///
+/// Details:
+/// - Strips an identical numeric `pkgrel` suffix (Arch `pkgver-pkgrel`) before diffing so `-1`
+///   stays neutral when only `pkgver` changes.
+/// - Shared prefix/suffix remain default text color.
+/// - Changed segments are highlighted per column (`old` red, `new` green).
+fn split_version_diff(old_version: &str, new_version: &str) -> (String, String, String, String) {
+    let (old_core, new_core, pkgrel_suffix) =
+        strip_shared_numeric_pkgrel(old_version, new_version);
+    let (p, oc, mut ss, nc) = split_version_diff_core(old_core, new_core);
+    ss.push_str(pkgrel_suffix);
+    (p, oc, ss, nc)
 }
 
 /// What: Build pane lines from the shared updates row model.
@@ -1214,5 +1274,24 @@ mod tests {
                 .iter()
                 .any(|span| span.style.fg == Some(th.green))
         );
+    }
+
+    #[test]
+    /// What: Keep identical numeric `pkgrel` out of red/green diff segments.
+    ///
+    /// Inputs:
+    /// - Two versions differing only in `pkgver` with the same `-N` release suffix
+    ///
+    /// Output:
+    /// - `split_version_diff` attaches the shared `-N` only to `shared_suffix`
+    ///
+    /// Details:
+    /// - Avoids misleading highlights on the release field when only upstream digits change
+    fn split_version_diff_strips_identical_pkgrel() {
+        let (p, oc, ss, nc) = super::split_version_diff("0.8.9-1", "0.9.2-1");
+        assert_eq!(p, "0.");
+        assert_eq!(oc, "8.9");
+        assert_eq!(nc, "9.2");
+        assert_eq!(ss, "-1");
     }
 }

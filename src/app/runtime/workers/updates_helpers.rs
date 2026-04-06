@@ -33,6 +33,98 @@ pub fn check_aur_helper() -> (bool, bool, &'static str) {
     (has_paru, has_yay, helper)
 }
 
+/// What: Payload from the background package update check worker.
+///
+/// Inputs:
+/// - N/A (constructed by the worker).
+///
+/// Output:
+/// - Carries update count, package name list, whether the official-repo probe was authoritative,
+///   and ordered machine-readable reason codes for logs/diagnostics.
+///
+/// Details:
+/// - `authoritative` is `false` when the official repo list came only from a degraded path
+///   (e.g. stale system `pacman` db) or when the worker panicked.
+#[derive(Debug, Clone)]
+pub struct UpdateCheckPayload {
+    /// What: Count of packages in `package_names` after deduplication.
+    pub count: usize,
+    /// What: Sorted package names with available updates (official + AUR combined).
+    pub package_names: Vec<String>,
+    /// What: When `true`, the official repository list came from a synced or `checkupdates` path.
+    pub authoritative: bool,
+    /// What: Machine-readable reason codes from non-authoritative or failed sub-steps.
+    pub reason_codes: Vec<String>,
+    /// What: Which official-repo strategy produced the repo portion (e.g. `checkupdates_db`).
+    pub official_strategy: &'static str,
+}
+
+impl UpdateCheckPayload {
+    /// What: Build an empty payload used when the worker task panics.
+    ///
+    /// Inputs:
+    /// - None.
+    ///
+    /// Output:
+    /// - Payload with zero updates and `authoritative` false.
+    ///
+    /// Details:
+    /// - Marks `reason_codes` with `worker_panic` for log-based triage.
+    pub fn worker_panic() -> Self {
+        Self {
+            count: 0,
+            package_names: Vec::new(),
+            authoritative: false,
+            reason_codes: vec!["worker_panic".to_string()],
+            official_strategy: "none",
+        }
+    }
+}
+
+/// Libalpm / pacman sandbox could not apply Landlock rules (non-root temp sync).
+pub const REASON_LANDLOCK_SANDBOX_FAILURE: &str = "landlock_sandbox_failure";
+/// Switching to sandbox user `alpm` failed during pacman operations.
+pub const REASON_ALPM_SANDBOX_FAILURE: &str = "alpm_sandbox_failure";
+/// Generic permission / operation-not-permitted style failure text.
+pub const REASON_PERMISSION_DENIED: &str = "permission_denied";
+/// `fakeroot pacman -Sy --dbpath` failed for the temp database.
+pub const REASON_TEMP_DB_SYNC_FAILED: &str = "temp_db_sync_failed";
+/// `checkupdates` exited with an error (not 0 or 1).
+pub const REASON_CHECKUPDATES_FAILED: &str = "checkupdates_failed";
+/// Fell back to system `pacman -Qu` without a fresh sync.
+pub const REASON_STALE_DB_FALLBACK: &str = "stale_db_fallback";
+/// `fakeroot` was missing so temp-db sync was skipped.
+pub const REASON_FAKEROOT_UNAVAILABLE: &str = "fakeroot_unavailable";
+/// `checkupdates` was missing when needed as a non-root fresh sync path.
+pub const REASON_CHECKUPDATES_UNAVAILABLE: &str = "checkupdates_unavailable";
+
+/// What: Map pacman-related stderr to structured reason codes for logs and metrics.
+///
+/// Inputs:
+/// - `stderr`: Raw stderr text from pacman or fakeroot-wrapped pacman.
+///
+/// Output:
+/// - Possibly empty vector of reason code strings (no duplicates enforced here).
+///
+/// Details:
+/// - Matching is ASCII-lowercased substring search to tolerate localized prefix text.
+pub fn classify_pacman_stderr_for_update_check(stderr: &str) -> Vec<String> {
+    let lower = stderr.to_lowercase();
+    let mut out = Vec::new();
+    if lower.contains("landlock") {
+        out.push(REASON_LANDLOCK_SANDBOX_FAILURE.to_string());
+    }
+    if lower.contains("alpm") && lower.contains("sandbox") {
+        out.push(REASON_ALPM_SANDBOX_FAILURE.to_string());
+    }
+    if lower.contains("operation not permitted")
+        || lower.contains("die operation ist nicht erlaubt")
+    {
+        out.push(REASON_PERMISSION_DENIED.to_string());
+    }
+    out
+}
+
 /// What: Check if fakeroot is available on the system.
 ///
 /// Output:
@@ -139,7 +231,8 @@ pub fn setup_temp_db() -> Option<std::path::PathBuf> {
 /// - `temp_db`: Path to the temporary database directory
 ///
 /// Output:
-/// - `true` if sync succeeds, `false` otherwise
+/// - `Ok(())` on success
+/// - `Err(message)` with trimmed stderr or IO message on failure
 ///
 /// Details:
 /// - Uses fakeroot to run `pacman -Sy` without root privileges
@@ -147,7 +240,7 @@ pub fn setup_temp_db() -> Option<std::path::PathBuf> {
 /// - Uses `--logfile /dev/null` to prevent log file creation
 /// - Logs stderr on failure to help diagnose sync issues
 #[cfg(not(target_os = "windows"))]
-pub fn sync_temp_db(temp_db: &std::path::Path) -> bool {
+pub fn sync_temp_db(temp_db: &std::path::Path) -> Result<(), String> {
     use std::process::{Command, Stdio};
 
     let output = Command::new("fakeroot")
@@ -160,22 +253,77 @@ pub fn sync_temp_db(temp_db: &std::path::Path) -> bool {
         .output();
 
     match output {
-        Ok(o) if o.status.success() => true,
+        Ok(o) if o.status.success() => Ok(()),
         Ok(o) => {
-            // Log stderr to help diagnose sync failures
-            let stderr = String::from_utf8_lossy(&o.stderr);
-            if !stderr.trim().is_empty() {
+            let stderr = String::from_utf8_lossy(&o.stderr).trim().to_string();
+            if !stderr.is_empty() {
                 tracing::warn!(
                     "Temp database sync failed (exit code: {:?}): {}",
                     o.status.code(),
-                    stderr.trim()
+                    stderr
                 );
             }
-            false
+            Err(stderr)
         }
         Err(e) => {
             tracing::warn!("Failed to execute fakeroot pacman -Sy: {}", e);
-            false
+            Err(e.to_string())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// What: Verify Landlock-related pacman stderr yields the landlock reason code.
+    ///
+    /// Inputs:
+    /// - Sample stderr line from pacman mentioning Landlock.
+    ///
+    /// Output:
+    /// - Classification includes `REASON_LANDLOCK_SANDBOX_FAILURE`.
+    ///
+    /// Details:
+    /// - Regression guard for fakeroot/temp-db sync failures on hardened kernels.
+    #[test]
+    fn classify_stderr_detects_landlock() {
+        let msg = "Fehler: restricting filesystem access failed because the Landlock ruleset could not be applied";
+        let v = classify_pacman_stderr_for_update_check(msg);
+        assert!(v.iter().any(|s| s == REASON_LANDLOCK_SANDBOX_FAILURE));
+    }
+
+    /// What: Verify alpm sandbox user failure text yields the alpm reason code.
+    ///
+    /// Inputs:
+    /// - Sample stderr mentioning the `alpm` sandbox user switch failure.
+    ///
+    /// Output:
+    /// - Classification includes `REASON_ALPM_SANDBOX_FAILURE`.
+    ///
+    /// Details:
+    /// - Matches both German and English error prefixes indirectly via key tokens.
+    #[test]
+    fn classify_stderr_detects_alpm_sandbox() {
+        let msg = "Fehler: switching to sandbox user 'alpm' failed!";
+        let v = classify_pacman_stderr_for_update_check(msg);
+        assert!(v.iter().any(|s| s == REASON_ALPM_SANDBOX_FAILURE));
+    }
+
+    /// What: Verify German permission-denied text is classified.
+    ///
+    /// Inputs:
+    /// - Localized permission-denied phrase.
+    ///
+    /// Output:
+    /// - Classification includes `REASON_PERMISSION_DENIED`.
+    ///
+    /// Details:
+    /// - Ensures STDERR triage is not English-only.
+    #[test]
+    fn classify_stderr_detects_german_permission_denied() {
+        let msg = "Die Operation ist nicht erlaubt";
+        let v = classify_pacman_stderr_for_update_check(msg);
+        assert!(v.iter().any(|s| s == REASON_PERMISSION_DENIED));
     }
 }
