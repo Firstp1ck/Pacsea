@@ -917,6 +917,7 @@ pub fn handle_tick(
         if let Ok(mut check_result) = check_result_arc.lock()
             && let Some(is_ready) = check_result.take()
         {
+            app.aur_ssh_help_ready = Some(is_ready);
             if let crate::state::Modal::OptionalDeps { rows, .. } = &mut app.modal
                 && let Some(row) = rows.iter_mut().find(|row| row.package == "aur-ssh-setup")
             {
@@ -927,6 +928,11 @@ pub fn handle_tick(
                 } else {
                     "Setup".to_string()
                 });
+            }
+            if let crate::state::Modal::StartupSetupSelector { selected, .. } = &mut app.modal
+                && is_ready
+            {
+                selected.remove(&crate::state::modal::StartupSetupTask::SshAurSetup);
             }
         } else {
             app.pending_aur_ssh_help_check_result = Some(check_result_arc);

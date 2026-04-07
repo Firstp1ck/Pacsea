@@ -394,6 +394,7 @@ pub(super) type DefaultModalRectsState = (
     Vec<(u16, u16, u16, String)>,
     Vec<crate::announcements::RemoteAnnouncement>,
     Option<Vec<crate::state::NewsItem>>,
+    Vec<crate::state::modal::StartupSetupTask>,
     bool,
     Option<(u16, u16, u16, u16)>,
     Option<(u16, u16, u16, u16)>,
@@ -823,10 +824,12 @@ pub(super) const fn default_mouse_hit_test_state() -> DefaultMouseHitTestState {
 /// Inputs: None.
 ///
 /// Output:
-/// - Tuple of modal rectangle fields: `news_rect`, `news_list_rect`, `announcement_rect`, `announcement_urls`, `pending_announcements`, `pending_news`, `trigger_startup_news_fetch`, `updates_modal_rect`, `updates_modal_content_rect`, `help_scroll`, `help_rect`, `preflight_tab_rects`, `preflight_content_rect`.
+/// - Tuple of modal rectangle fields: `news_rect`, `news_list_rect`, `announcement_rect`, `announcement_urls`, `pending_announcements`, `pending_news`, `pending_startup_setup_steps`, `trigger_startup_news_fetch`, `updates_modal_rect`, `updates_modal_content_rect`, `help_scroll`, `help_rect`, `preflight_tab_rects`, `preflight_content_rect`.
 ///
 /// Details:
-/// - All modal rectangles start as None, help scroll starts at 0, `announcement_urls` and `pending_announcements` start as empty Vec, `pending_news` starts as None, `trigger_startup_news_fetch` starts as false.
+/// - All modal rectangles start as None, help scroll starts at 0, `announcement_urls`, `pending_announcements`,
+///   and `pending_startup_setup_steps` start as empty Vec, `pending_news` starts as None,
+///   `trigger_startup_news_fetch` starts as false.
 pub(super) const fn default_modal_rects_state() -> DefaultModalRectsState {
     (
         None,
@@ -835,6 +838,7 @@ pub(super) const fn default_modal_rects_state() -> DefaultModalRectsState {
         Vec::new(),
         Vec::new(),
         None,
+        Vec::new(),
         false,
         None,
         None,

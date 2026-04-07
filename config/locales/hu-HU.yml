@@ -606,6 +606,25 @@ hu-HU:
         pkg_updates: "Hivatalos csomagfrissítések"
         date_selection: "Életkor legfeljebb"
         footer_hint: "Fel/Le: kiválasztás  •  Szóköz: be/ki  •  Enter: mentés  •  Esc: megszakítás"
+      startup_setup_selector:
+        # TODO: translate to hungarian
+        title: "Startup Setup Selector"
+        # TODO: translate to hungarian
+        heading: "Choose startup setup tasks to run now"
+        items:
+          # TODO: translate to hungarian
+          arch_news: "Arch news setup"
+          # TODO: translate to hungarian
+          ssh_aur_setup: "SSH AUR setup for voting"
+          # TODO: translate to hungarian
+          optional_deps_missing: "Check missing optional dependencies"
+          # TODO: translate to hungarian
+          aur_sleuth_setup: "aur-sleuth setup"
+          # TODO: translate to hungarian
+          virustotal_setup: "VirusTotal API setup"
+        # TODO: translate to hungarian
+        # TODO: translate to hungarian
+        footer_hint: "Up/Down: select  •  Space: toggle  •  Enter: run selected  •  Esc: maybe later  •  R: never show again"
       announcement:
         footer_hint: "r: Megjelölés olvasottként | Enter/Esc: Eltüntetés (megjelenítés újra)"
       updates_window:

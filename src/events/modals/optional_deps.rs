@@ -4,6 +4,26 @@ use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::state::AppState;
 
+/// What: Open one of the setup pseudo-packages used by first-startup orchestration.
+///
+/// Inputs:
+/// - `app`: Mutable application state.
+/// - `package`: Pseudo-package id (`aur-ssh-setup`, `aur-sleuth-setup`, `virustotal-setup`).
+///
+/// Output:
+/// - Sets `app.modal` or spawns setup terminal command depending on selected setup.
+pub(super) fn open_setup_package(app: &mut AppState, package: &str) {
+    let row = crate::state::types::OptionalDepRow {
+        label: package.to_string(),
+        package: package.to_string(),
+        installed: false,
+        selectable: true,
+        note: Some("Setup".to_string()),
+    };
+    let (new_modal, _) = handle_optional_deps_enter(app, &row);
+    app.modal = new_modal;
+}
+
 /// What: Handle key events for `OptionalDeps` modal.
 ///
 /// Inputs:
@@ -26,6 +46,9 @@ pub(super) fn handle_optional_deps(
     match ke.code {
         KeyCode::Esc | KeyCode::Char('q') => {
             app.modal = crate::state::Modal::None;
+            if !app.pending_startup_setup_steps.is_empty() {
+                super::common::show_next_startup_setup_step(app);
+            }
             Some(false)
         }
         KeyCode::Up | KeyCode::Char('k') => {
@@ -397,6 +420,9 @@ pub(super) fn handle_ssh_setup_modal(
             KeyCode::Esc | KeyCode::Char('q' | '\n' | '\r') | KeyCode::Enter,
         ) => {
             app.modal = crate::state::Modal::None;
+            if !app.pending_startup_setup_steps.is_empty() {
+                super::common::show_next_startup_setup_step(app);
+            }
             Some(false)
         }
         (crate::state::SshSetupStep::Intro, KeyCode::Enter | KeyCode::Char('\n' | '\r')) => {
@@ -426,6 +452,9 @@ pub(super) fn handle_ssh_setup_modal(
             app.toast_message = Some("SSH setup cancelled (existing config kept).".to_string());
             app.toast_expires_at =
                 Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
+            if !app.pending_startup_setup_steps.is_empty() {
+                super::common::show_next_startup_setup_step(app);
+            }
             Some(false)
         }
         (

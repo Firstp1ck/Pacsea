@@ -229,3 +229,38 @@ fn ssh_setup_confirm_overwrite_cancel_closes_modal() {
     assert_eq!(result, Some(false));
     assert!(matches!(app.modal, crate::state::Modal::None));
 }
+
+#[test]
+/// What: Verify startup optional-deps Esc advances to next queued startup setup step.
+fn optional_deps_esc_advances_startup_queue() {
+    let mut app = AppState {
+        pending_startup_setup_steps: vec![crate::state::modal::StartupSetupTask::VirusTotalSetup],
+        ..AppState::default()
+    };
+    let rows = vec![create_test_row("test-pkg", false, true)];
+    app.modal = crate::state::Modal::OptionalDeps {
+        rows: rows.clone(),
+        selected: 0,
+    };
+
+    let mut selected = 0;
+    let ke = KeyEvent::new(KeyCode::Esc, KeyModifiers::empty());
+    let _ = handle_optional_deps(ke, &mut app, &rows, &mut selected);
+
+    assert!(matches!(
+        app.modal,
+        crate::state::Modal::VirusTotalSetup { .. }
+    ));
+    assert!(app.pending_startup_setup_steps.is_empty());
+}
+
+#[test]
+/// What: Verify direct setup opener routes to `VirusTotal` setup modal.
+fn open_setup_package_opens_virustotal_modal() {
+    let mut app = AppState::default();
+    super::open_setup_package(&mut app, "virustotal-setup");
+    assert!(matches!(
+        app.modal,
+        crate::state::Modal::VirusTotalSetup { .. }
+    ));
+}

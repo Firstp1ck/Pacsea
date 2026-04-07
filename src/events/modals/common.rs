@@ -6,6 +6,85 @@ use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::state::{AppState, PackageItem, Source};
 
+/// What: Build startup setup steps in dependency-aware execution order.
+#[must_use]
+pub(super) fn startup_setup_steps_in_priority(
+    selected: &std::collections::HashSet<crate::state::modal::StartupSetupTask>,
+) -> Vec<crate::state::modal::StartupSetupTask> {
+    let mut steps = Vec::new();
+    let ordered = [
+        crate::state::modal::StartupSetupTask::OptionalDepsMissing,
+        crate::state::modal::StartupSetupTask::SshAurSetup,
+        crate::state::modal::StartupSetupTask::AurSleuthSetup,
+        crate::state::modal::StartupSetupTask::VirusTotalSetup,
+        crate::state::modal::StartupSetupTask::ArchNews,
+    ];
+    for step in ordered {
+        if selected.contains(&step) {
+            steps.push(step);
+        }
+    }
+    steps
+}
+
+/// What: Advance first-startup selected setup steps one by one until a modal opens.
+///
+/// Inputs:
+/// - `app`: Application state containing pending startup setup queue.
+///
+/// Output:
+/// - Opens the next setup modal when available, or resumes normal startup popup sequence.
+pub(super) fn show_next_startup_setup_step(app: &mut AppState) {
+    while matches!(app.modal, crate::state::Modal::None) {
+        let Some(next_step) = app.pending_startup_setup_steps.first().copied() else {
+            show_next_pending_announcement(app);
+            return;
+        };
+        app.pending_startup_setup_steps.remove(0);
+        match next_step {
+            crate::state::modal::StartupSetupTask::ArchNews => {
+                let prefs = crate::theme::settings();
+                app.modal = crate::state::Modal::NewsSetup {
+                    show_arch_news: prefs.startup_news_show_arch_news,
+                    show_advisories: prefs.startup_news_show_advisories,
+                    show_aur_updates: prefs.startup_news_show_aur_updates,
+                    show_aur_comments: prefs.startup_news_show_aur_comments,
+                    show_pkg_updates: prefs.startup_news_show_pkg_updates,
+                    max_age_days: prefs.startup_news_max_age_days,
+                    cursor: 0,
+                };
+            }
+            crate::state::modal::StartupSetupTask::OptionalDepsMissing => {
+                let rows: Vec<crate::state::types::OptionalDepRow> =
+                    crate::events::mouse::menu_options::build_optional_deps_rows(app)
+                        .into_iter()
+                        .filter(|row| {
+                            !row.installed
+                                && row.selectable
+                                && !matches!(
+                                    row.package.as_str(),
+                                    "aur-ssh-setup" | "virustotal-setup" | "aur-sleuth-setup"
+                                )
+                        })
+                        .collect();
+                if rows.is_empty() {
+                    continue;
+                }
+                app.modal = crate::state::Modal::OptionalDeps { rows, selected: 0 };
+            }
+            crate::state::modal::StartupSetupTask::SshAurSetup => {
+                super::optional_deps::open_setup_package(app, "aur-ssh-setup");
+            }
+            crate::state::modal::StartupSetupTask::AurSleuthSetup => {
+                super::optional_deps::open_setup_package(app, "aur-sleuth-setup");
+            }
+            crate::state::modal::StartupSetupTask::VirusTotalSetup => {
+                super::optional_deps::open_setup_package(app, "virustotal-setup");
+            }
+        }
+    }
+}
+
 /// What: Show next pending announcement from queue if available.
 ///
 /// Inputs:

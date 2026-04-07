@@ -554,6 +554,16 @@ de-DE:
         pkg_updates: "Offizielle Paket-Updates"
         date_selection: "Maximales Alter"
         footer_hint: "Hoch/Runter: auswählen  •  Leertaste: umschalten  •  Enter: speichern  •  Esc: abbrechen"
+      startup_setup_selector:
+        title: "Start-Setup-Auswahl"
+        heading: "Wähle die Setup-Schritte für den ersten Start"
+        items:
+          arch_news: "Arch-News-Setup"
+          ssh_aur_setup: "SSH-AUR-Setup fürs Voting"
+          optional_deps_missing: "Fehlende optionale Abhängigkeiten prüfen"
+          aur_sleuth_setup: "aur-sleuth-Setup"
+          virustotal_setup: "VirusTotal-API-Setup"
+        footer_hint: "Hoch/Runter: auswählen  •  Leertaste: umschalten  •  Enter: Auswahl ausführen  •  Esc: vielleicht später  •  R: nie wieder anzeigen"
       announcement:
         footer_hint: "r: Als gelesen markieren | Enter/Esc: Schließen (erneut anzeigen)"
       updates_window:

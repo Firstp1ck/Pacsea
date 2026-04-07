@@ -174,6 +174,21 @@ pub enum SshSetupStep {
     Result,
 }
 
+/// What: Selectable startup setup tasks presented in the first-run setup selector.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum StartupSetupTask {
+    /// Configure startup Arch/feeds news preferences.
+    ArchNews,
+    /// Configure SSH for AUR vote/unvote operations.
+    SshAurSetup,
+    /// Review and install missing optional dependencies.
+    OptionalDepsMissing,
+    /// Configure aur-sleuth integration.
+    AurSleuthSetup,
+    /// Configure `VirusTotal` API key.
+    VirusTotalSetup,
+}
+
 impl CascadeMode {
     /// Return the `pacman` flag sequence corresponding to this `CascadeMode`.
     #[must_use]
@@ -856,6 +871,13 @@ pub enum Modal {
         /// Current cursor position (0-5 for toggles, 6-8 for date buttons).
         cursor: usize,
     },
+    /// First-startup selector for choosing which setup flows to run.
+    StartupSetupSelector {
+        /// Currently highlighted row index.
+        cursor: usize,
+        /// Selected startup setup tasks to execute.
+        selected: std::collections::HashSet<StartupSetupTask>,
+    },
     /// Password prompt for sudo authentication.
     PasswordPrompt {
         /// Purpose of the password prompt.
@@ -979,6 +1001,10 @@ mod tests {
             input: String::new(),
             cursor: 0,
             error: None,
+        };
+        let _ = super::Modal::StartupSetupSelector {
+            cursor: 0,
+            selected: std::collections::HashSet::new(),
         };
         let _ = super::Modal::Preflight {
             items: Vec::new(),

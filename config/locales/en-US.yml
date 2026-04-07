@@ -554,6 +554,16 @@ en-US:
         pkg_updates: "Official Package Updates"
         date_selection: "Maximum age"
         footer_hint: "Up/Down: select  •  Space: toggle  •  Enter: save  •  Esc: cancel"
+      startup_setup_selector:
+        title: "Startup Setup Selector"
+        heading: "Choose startup setup tasks to run now"
+        items:
+          arch_news: "Arch news setup"
+          ssh_aur_setup: "SSH AUR setup for voting"
+          optional_deps_missing: "Check missing optional dependencies"
+          aur_sleuth_setup: "aur-sleuth setup"
+          virustotal_setup: "VirusTotal API setup"
+        footer_hint: "Up/Down: select  •  Space: toggle  •  Enter: run selected  •  Esc: maybe later  •  R: never show again"
       announcement:
         footer_hint: "r: Mark as read | Enter/Esc: Dismiss (show again)"
       updates_window:

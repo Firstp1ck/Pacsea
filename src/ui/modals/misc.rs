@@ -10,6 +10,7 @@ use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 use super::common::render_simple_list_modal;
 use crate::state::{
     AppState,
+    modal::StartupSetupTask,
     types::{OptionalDepRow, RepositoryKeyTrust, RepositoryModalRow, RepositoryPacmanStatus},
 };
 use crate::theme::theme;
@@ -647,6 +648,113 @@ pub fn render_news_setup(
         f,
         area,
         &crate::i18n::t(app, "app.modals.news_setup.title"),
+        lines,
+    );
+}
+
+/// What: Render the first-startup setup selector checklist modal.
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `area`: Full screen area
+/// - `app`: Application state for localized strings
+/// - `cursor`: Focused selector row
+/// - `selected`: Set of selected setup tasks
+///
+/// Output:
+/// - Draws the selector modal with checklist rows and key hints.
+pub fn render_startup_setup_selector(
+    f: &mut Frame,
+    area: Rect,
+    app: &AppState,
+    cursor: usize,
+    selected: &std::collections::HashSet<StartupSetupTask>,
+) {
+    let th = theme();
+    let ssh_setup_ready = app.aur_ssh_help_ready.unwrap_or(false);
+    let mut lines: Vec<Line<'static>> = Vec::new();
+    lines.push(Line::from(Span::styled(
+        crate::i18n::t(app, "app.modals.startup_setup_selector.heading"),
+        Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+    )));
+    lines.push(Line::from(""));
+
+    let items = [
+        (
+            StartupSetupTask::ArchNews,
+            crate::i18n::t(app, "app.modals.startup_setup_selector.items.arch_news"),
+        ),
+        (
+            StartupSetupTask::SshAurSetup,
+            crate::i18n::t(app, "app.modals.startup_setup_selector.items.ssh_aur_setup"),
+        ),
+        (
+            StartupSetupTask::OptionalDepsMissing,
+            crate::i18n::t(
+                app,
+                "app.modals.startup_setup_selector.items.optional_deps_missing",
+            ),
+        ),
+        (
+            StartupSetupTask::AurSleuthSetup,
+            crate::i18n::t(
+                app,
+                "app.modals.startup_setup_selector.items.aur_sleuth_setup",
+            ),
+        ),
+        (
+            StartupSetupTask::VirusTotalSetup,
+            crate::i18n::t(
+                app,
+                "app.modals.startup_setup_selector.items.virustotal_setup",
+            ),
+        ),
+    ];
+
+    for (idx, (task, label)) in items.iter().enumerate() {
+        let disabled = matches!(task, StartupSetupTask::SshAurSetup) && ssh_setup_ready;
+        let mark = if selected.contains(task) {
+            "[x]"
+        } else {
+            "[ ]"
+        };
+        let style = if disabled {
+            Style::default().fg(th.overlay1)
+        } else if idx == cursor {
+            Style::default()
+                .fg(th.text)
+                .add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
+        } else {
+            Style::default().fg(th.subtext1)
+        };
+        lines.push(Line::from(vec![
+            Span::styled(
+                format!("{mark} "),
+                if disabled {
+                    Style::default().fg(th.overlay1)
+                } else {
+                    Style::default().fg(th.mauve).add_modifier(Modifier::BOLD)
+                },
+            ),
+            Span::styled(label.clone(), style),
+            if disabled {
+                Span::styled(" (already configured)", Style::default().fg(th.overlay1))
+            } else {
+                Span::raw("")
+            },
+        ]));
+    }
+
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        crate::i18n::t(app, "app.modals.startup_setup_selector.footer_hint"),
+        Style::default().fg(th.overlay1),
+    )));
+
+    render_simple_list_modal(
+        f,
+        area,
+        &crate::i18n::t(app, "app.modals.startup_setup_selector.title"),
         lines,
     );
 }

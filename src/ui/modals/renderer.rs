@@ -453,6 +453,14 @@ struct NewsSetupContext {
     cursor: usize,
 }
 
+/// What: Context struct grouping `StartupSetupSelector` modal fields.
+struct StartupSetupSelectorContext {
+    /// Current selector cursor row.
+    cursor: usize,
+    /// Selected setup tasks in the selector checklist.
+    selected: std::collections::HashSet<crate::state::modal::StartupSetupTask>,
+}
+
 /// What: Context struct grouping `WarnAurRepoDuplicate` modal fields.
 ///
 /// Inputs: None (constructed from `Modal` variant).
@@ -782,6 +790,10 @@ impl ModalRenderer for Modal {
                     cursor,
                 };
                 render_news_setup_modal(f, app, area, ctx)
+            }
+            Self::StartupSetupSelector { cursor, selected } => {
+                let ctx = StartupSetupSelectorContext { cursor, selected };
+                render_startup_setup_selector_modal(f, app, area, ctx)
             }
             Self::WarnAurRepoDuplicate {
                 dup_names,
@@ -1344,6 +1356,21 @@ fn render_news_setup_modal(
         show_pkg_updates,
         max_age_days,
         cursor,
+    }
+}
+
+/// What: Render `StartupSetupSelector` modal and return reconstructed state.
+#[allow(clippy::needless_pass_by_value)]
+fn render_startup_setup_selector_modal(
+    f: &mut Frame,
+    app: &AppState,
+    area: Rect,
+    ctx: StartupSetupSelectorContext,
+) -> Modal {
+    misc::render_startup_setup_selector(f, area, app, ctx.cursor, &ctx.selected);
+    Modal::StartupSetupSelector {
+        cursor: ctx.cursor,
+        selected: ctx.selected,
     }
 }
 
