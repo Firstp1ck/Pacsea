@@ -55,6 +55,9 @@ pub(super) fn handle_modal_mouse(
         crate::state::Modal::Updates { .. } => {
             simple::handle_updates_modal(m, mx, my, is_left_down, app)
         }
+        crate::state::Modal::OptionalDeps { .. } => {
+            simple::handle_optional_deps_modal(m, mx, my, is_left_down, app)
+        }
         _ => None,
     }
 }

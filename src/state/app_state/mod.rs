@@ -574,6 +574,8 @@ pub struct AppState {
     // Updates modal mouse hit-testing
     /// Outer rectangle of the Updates modal (including borders) when visible.
     pub updates_modal_rect: Option<(u16, u16, u16, u16)>,
+    /// Clickable rectangle for the `Wizard` button in the Optional Deps modal.
+    pub optional_deps_wizard_rect: Option<(u16, u16, u16, u16)>,
     /// Inner content rectangle for scrollable updates list.
     pub updates_modal_content_rect: Option<(u16, u16, u16, u16)>,
     /// Per-entry starting rendered line indices for the updates modal content.

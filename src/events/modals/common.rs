@@ -163,7 +163,7 @@ pub(super) fn show_next_pending_announcement(app: &mut AppState) {
         "no more pending announcements"
     );
 
-    // After all announcements are shown, check for pending news
+    // After all announcements are shown, check for pending news.
     tracing::debug!(
         pending_news_exists = app.pending_news.is_some(),
         news_loading = app.news_loading,
@@ -177,9 +177,9 @@ pub(super) fn show_next_pending_announcement(app: &mut AppState) {
             news_loading_before = app.news_loading,
             "showing pending news after announcements"
         );
-        // Clear loading flag when news modal is actually shown
+        // Clear loading flag when news modal is actually shown.
         app.news_loading = false;
-        // Convert NewsItem to NewsFeedItem for the modal, filtering out read items
+        // Convert NewsItem to NewsFeedItem for the modal, filtering out read items.
         let feed_items: Vec<crate::state::types::NewsFeedItem> = news_items
             .into_iter()
             .filter(|item| {
@@ -197,7 +197,7 @@ pub(super) fn show_next_pending_announcement(app: &mut AppState) {
                 packages: Vec::new(),
             })
             .collect();
-        // Only show modal if there are unread items
+        // Only show modal if there are unread items.
         if feed_items.is_empty() {
             tracing::debug!("all pending news items have been read, not showing modal");
         } else {

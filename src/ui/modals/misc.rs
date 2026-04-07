@@ -29,14 +29,25 @@ use crate::theme::theme;
 /// Details:
 /// - Marks installed rows, shows optional notes, and reuses the common simple modal renderer for
 ///   consistent styling.
+#[allow(clippy::many_single_char_names)]
 pub fn render_optional_deps(
     f: &mut Frame,
     area: Rect,
     rows: &[OptionalDepRow],
     selected: usize,
-    app: &crate::state::AppState,
+    app: &mut crate::state::AppState,
 ) {
     let th = theme();
+    let w = area.width.saturating_sub(8).min(80);
+    let h = area.height.saturating_sub(8).min(20);
+    let x = area.x + (area.width.saturating_sub(w)) / 2;
+    let y = area.y + (area.height.saturating_sub(h)) / 2;
+    let rect = ratatui::prelude::Rect {
+        x,
+        y,
+        width: w,
+        height: h,
+    };
     // Build content lines with selection and install status markers
     let mut lines: Vec<Line<'static>> = Vec::new();
     lines.push(Line::from(Span::styled(
@@ -90,11 +101,46 @@ pub fn render_optional_deps(
         Style::default().fg(th.subtext1),
     )));
 
-    render_simple_list_modal(
-        f,
-        area,
-        &crate::i18n::t(app, "app.modals.optional_deps.title"),
-        lines,
+    f.render_widget(Clear, rect);
+    let boxw = Paragraph::new(lines)
+        .style(Style::default().fg(th.text).bg(th.mantle))
+        .wrap(Wrap { trim: true })
+        .block(
+            Block::default()
+                .title(Span::styled(
+                    format!(
+                        " {} ",
+                        crate::i18n::t(app, "app.modals.optional_deps.title")
+                    ),
+                    Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+                ))
+                .borders(Borders::ALL)
+                .border_type(BorderType::Double)
+                .border_style(Style::default().fg(th.mauve))
+                .style(Style::default().bg(th.mantle)),
+        );
+    f.render_widget(boxw, rect);
+
+    // Top-right Wizard button.
+    let wizard_label = "[Wizard]";
+    let wizard_w = u16::try_from(wizard_label.len()).unwrap_or(8);
+    let wizard_x = rect.x + rect.width.saturating_sub(wizard_w + 2);
+    let wizard_y = rect.y;
+    app.optional_deps_wizard_rect = Some((wizard_x, wizard_y, wizard_w, 1));
+    f.render_widget(
+        Paragraph::new(Line::from(Span::styled(
+            wizard_label,
+            Style::default()
+                .fg(th.mauve)
+                .bg(th.surface2)
+                .add_modifier(Modifier::BOLD),
+        ))),
+        Rect {
+            x: wizard_x,
+            y: wizard_y,
+            width: wizard_w,
+            height: 1,
+        },
     );
 }
 

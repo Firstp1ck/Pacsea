@@ -1178,7 +1178,7 @@ fn render_optional_deps_modal(
     f: &mut Frame,
     area: Rect,
     ctx: OptionalDepsContext,
-    app: &AppState,
+    app: &mut AppState,
 ) -> Modal {
     misc::render_optional_deps(f, area, &ctx.rows, ctx.selected, app);
     Modal::OptionalDeps {
