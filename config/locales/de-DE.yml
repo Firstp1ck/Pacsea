@@ -557,6 +557,7 @@ de-DE:
       startup_setup_selector:
         title: "Start-Setup-Auswahl"
         heading: "Wähle die Setup-Schritte für den ersten Start"
+        disabled_suffix_already_configured: " (bereits konfiguriert)"
         items:
           arch_news: "Arch-News-Setup"
           ssh_aur_setup: "SSH-AUR-Setup fürs Voting"
@@ -573,6 +574,7 @@ de-DE:
       optional_deps:
         title: " Optionale Abhängigkeiten "
         heading: "TUI Optionale Abhängigkeiten"
+        wizard_button: "[Assistent]"
         markers:
           installed: "✔ installiert"
           not_installed: "⏺ nicht installiert"

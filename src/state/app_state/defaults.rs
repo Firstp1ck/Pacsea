@@ -4,7 +4,9 @@ use lru::LruCache;
 use ratatui::widgets::ListState;
 use serde_json;
 use std::fs;
-use std::{collections::HashMap, collections::HashSet, path::PathBuf, time::Instant};
+use std::{
+    collections::HashMap, collections::HashSet, collections::VecDeque, path::PathBuf, time::Instant,
+};
 
 use crate::state::modal::Modal;
 use crate::state::types::{
@@ -394,7 +396,7 @@ pub(super) type DefaultModalRectsState = (
     Vec<(u16, u16, u16, String)>,
     Vec<crate::announcements::RemoteAnnouncement>,
     Option<Vec<crate::state::NewsItem>>,
-    Vec<crate::state::modal::StartupSetupTask>,
+    VecDeque<crate::state::modal::StartupSetupTask>,
     bool,
     Option<(u16, u16, u16, u16)>,
     Option<(u16, u16, u16, u16)>,
@@ -839,7 +841,7 @@ pub(super) const fn default_modal_rects_state() -> DefaultModalRectsState {
         Vec::new(),
         Vec::new(),
         None,
-        Vec::new(),
+        VecDeque::new(),
         false,
         None,
         None,

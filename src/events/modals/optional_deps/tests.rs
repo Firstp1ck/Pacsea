@@ -2,6 +2,7 @@
 
 use crate::state::{AppState, types::OptionalDepRow};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use std::collections::VecDeque;
 
 use crate::events::modals::optional_deps::handle_optional_deps;
 
@@ -234,7 +235,9 @@ fn ssh_setup_confirm_overwrite_cancel_closes_modal() {
 /// What: Verify startup optional-deps Esc advances to next queued startup setup step.
 fn optional_deps_esc_advances_startup_queue() {
     let mut app = AppState {
-        pending_startup_setup_steps: vec![crate::state::modal::StartupSetupTask::VirusTotalSetup],
+        pending_startup_setup_steps: VecDeque::from([
+            crate::state::modal::StartupSetupTask::VirusTotalSetup,
+        ]),
         ..AppState::default()
     };
     let rows = vec![create_test_row("test-pkg", false, true)];

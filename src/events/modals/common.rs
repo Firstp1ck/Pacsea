@@ -1,5 +1,6 @@
 //! Common modal handlers (Alert, Help, News, `PreflightExec`, `PostSummary`, `GnomeTerminalPrompt`).
 
+use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
 use crossterm::event::{KeyCode, KeyEvent};
@@ -10,8 +11,8 @@ use crate::state::{AppState, PackageItem, Source};
 #[must_use]
 pub(super) fn startup_setup_steps_in_priority(
     selected: &std::collections::HashSet<crate::state::modal::StartupSetupTask>,
-) -> Vec<crate::state::modal::StartupSetupTask> {
-    let mut steps = Vec::new();
+) -> VecDeque<crate::state::modal::StartupSetupTask> {
+    let mut steps = VecDeque::new();
     let ordered = [
         crate::state::modal::StartupSetupTask::OptionalDepsMissing,
         crate::state::modal::StartupSetupTask::SshAurSetup,
@@ -21,7 +22,7 @@ pub(super) fn startup_setup_steps_in_priority(
     ];
     for step in ordered {
         if selected.contains(&step) {
-            steps.push(step);
+            steps.push_back(step);
         }
     }
     steps
@@ -36,11 +37,10 @@ pub(super) fn startup_setup_steps_in_priority(
 /// - Opens the next setup modal when available, or resumes normal startup popup sequence.
 pub(super) fn show_next_startup_setup_step(app: &mut AppState) {
     while matches!(app.modal, crate::state::Modal::None) {
-        let Some(next_step) = app.pending_startup_setup_steps.first().copied() else {
+        let Some(next_step) = app.pending_startup_setup_steps.pop_front() else {
             show_next_pending_announcement(app);
             return;
         };
-        app.pending_startup_setup_steps.remove(0);
         match next_step {
             crate::state::modal::StartupSetupTask::ArchNews => {
                 let prefs = crate::theme::settings();
@@ -73,6 +73,9 @@ pub(super) fn show_next_startup_setup_step(app: &mut AppState) {
                 app.modal = crate::state::Modal::OptionalDeps { rows, selected: 0 };
             }
             crate::state::modal::StartupSetupTask::SshAurSetup => {
+                if app.aur_ssh_help_ready.unwrap_or(false) {
+                    continue;
+                }
                 super::optional_deps::open_setup_package(app, "aur-ssh-setup");
             }
             crate::state::modal::StartupSetupTask::AurSleuthSetup => {
@@ -1642,6 +1645,32 @@ mod tests {
             _ => panic!("Expected Announcement modal"),
         }
         assert!(app.pending_announcements.is_empty());
+    }
+
+    #[test]
+    /// What: Verify startup queue skips `SshAurSetup` when SSH is already ready.
+    ///
+    /// Inputs:
+    /// - `AppState` with startup queue containing `SshAurSetup` then `ArchNews`.
+    /// - `aur_ssh_help_ready` set to `Some(true)`.
+    ///
+    /// Output:
+    /// - Opens the next eligible setup modal (`NewsSetup`) instead of `SshAurSetup`.
+    ///
+    /// Details:
+    /// - Revalidates queue entries at open time so stale queued SSH setup cannot open.
+    fn test_show_next_startup_setup_step_skips_ssh_step_when_ready() {
+        let mut app = crate::state::AppState::default();
+        app.aur_ssh_help_ready = Some(true);
+        app.pending_startup_setup_steps = std::collections::VecDeque::from([
+            crate::state::modal::StartupSetupTask::SshAurSetup,
+            crate::state::modal::StartupSetupTask::ArchNews,
+        ]);
+
+        show_next_startup_setup_step(&mut app);
+
+        assert!(matches!(app.modal, crate::state::Modal::NewsSetup { .. }));
+        assert!(app.pending_startup_setup_steps.is_empty());
     }
 
     #[test]

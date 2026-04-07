@@ -24,11 +24,14 @@ use crate::theme::theme;
 /// - `selected`: Index of the currently highlighted row
 ///
 /// Output:
-/// - Draws the modal content and highlights the selected row; no state mutations besides rendering.
+/// - Draws the modal content, highlights the selected row, and updates
+///   `app.optional_deps_wizard_rect` for mouse hit-testing.
 ///
 /// Details:
 /// - Marks installed rows, shows optional notes, and reuses the common simple modal renderer for
 ///   consistent styling.
+/// - Stores the rendered `[Wizard]` button bounds in app state so pointer interactions can detect
+///   clicks on the button.
 #[allow(clippy::many_single_char_names)]
 pub fn render_optional_deps(
     f: &mut Frame,
@@ -122,14 +125,14 @@ pub fn render_optional_deps(
     f.render_widget(boxw, rect);
 
     // Top-right Wizard button.
-    let wizard_label = "[Wizard]";
-    let wizard_w = u16::try_from(wizard_label.len()).unwrap_or(8);
+    let wizard_label = crate::i18n::t(app, "app.modals.optional_deps.wizard_button");
+    let wizard_w = u16::try_from(UnicodeWidthStr::width(wizard_label.as_str())).unwrap_or(8);
     let wizard_x = rect.x + rect.width.saturating_sub(wizard_w + 2);
     let wizard_y = rect.y;
     app.optional_deps_wizard_rect = Some((wizard_x, wizard_y, wizard_w, 1));
     f.render_widget(
         Paragraph::new(Line::from(Span::styled(
-            wizard_label,
+            wizard_label.as_str(),
             Style::default()
                 .fg(th.mauve)
                 .bg(th.surface2)
@@ -784,7 +787,13 @@ pub fn render_startup_setup_selector(
             ),
             Span::styled(label.clone(), style),
             if disabled {
-                Span::styled(" (already configured)", Style::default().fg(th.overlay1))
+                Span::styled(
+                    crate::i18n::t(
+                        app,
+                        "app.modals.startup_setup_selector.disabled_suffix_already_configured",
+                    ),
+                    Style::default().fg(th.overlay1),
+                )
             } else {
                 Span::raw("")
             },

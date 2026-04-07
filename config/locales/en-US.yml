@@ -573,6 +573,7 @@ en-US:
       optional_deps:
         title: " Optional Deps "
         heading: "TUI Optional Deps"
+        wizard_button: "[Wizard]"
         markers:
           installed: "✔ installed"
           not_installed: "⏺ not installed"

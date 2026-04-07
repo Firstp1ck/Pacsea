@@ -1254,13 +1254,14 @@ pub(super) fn handle_startup_setup_selector_modal(
                 }
             }
             KeyCode::Char(' ') => {
+                let max_cursor = STARTUP_SETUP_SELECTOR_ITEMS.saturating_sub(1);
+                *cursor = (*cursor).min(max_cursor);
                 let task = match *cursor {
                     0 => crate::state::modal::StartupSetupTask::ArchNews,
                     1 => crate::state::modal::StartupSetupTask::SshAurSetup,
                     2 => crate::state::modal::StartupSetupTask::OptionalDepsMissing,
                     3 => crate::state::modal::StartupSetupTask::AurSleuthSetup,
-                    4 => crate::state::modal::StartupSetupTask::VirusTotalSetup,
-                    _ => return false,
+                    _ => crate::state::modal::StartupSetupTask::VirusTotalSetup,
                 };
                 if !startup_selector_task_selectable(task, app) {
                     app.modal = Modal::StartupSetupSelector {
@@ -1819,6 +1820,7 @@ pub(super) fn handle_import_help_modal(
 mod tests {
     use super::*;
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+    use std::collections::VecDeque;
 
     #[test]
     fn startup_selector_enter_builds_and_starts_queue() {
@@ -1839,14 +1841,16 @@ mod tests {
         assert!(matches!(app.modal, Modal::VirusTotalSetup { .. }));
         assert_eq!(
             app.pending_startup_setup_steps,
-            vec![crate::state::modal::StartupSetupTask::ArchNews]
+            VecDeque::from([crate::state::modal::StartupSetupTask::ArchNews])
         );
     }
 
     #[test]
     fn startup_selector_esc_skips_all() {
         let mut app = AppState {
-            pending_startup_setup_steps: vec![crate::state::modal::StartupSetupTask::ArchNews],
+            pending_startup_setup_steps: VecDeque::from([
+                crate::state::modal::StartupSetupTask::ArchNews,
+            ]),
             ..AppState::default()
         };
         let modal = Modal::StartupSetupSelector {
@@ -1861,5 +1865,29 @@ mod tests {
         assert!(handled);
         assert!(matches!(app.modal, Modal::None));
         assert!(app.pending_startup_setup_steps.is_empty());
+    }
+
+    #[test]
+    fn startup_selector_space_with_out_of_range_cursor_keeps_modal_and_clamps() {
+        let mut app = AppState::default();
+        let selected = std::collections::HashSet::new();
+        let modal = Modal::StartupSetupSelector {
+            cursor: usize::MAX,
+            selected,
+        };
+
+        let handled = handle_startup_setup_selector_modal(
+            KeyEvent::new(KeyCode::Char(' '), KeyModifiers::empty()),
+            &mut app,
+            modal,
+        );
+
+        assert!(!handled);
+        match &app.modal {
+            Modal::StartupSetupSelector { cursor, .. } => {
+                assert_eq!(*cursor, STARTUP_SETUP_SELECTOR_ITEMS - 1);
+            }
+            _ => panic!("startup selector modal should remain active"),
+        }
     }
 }

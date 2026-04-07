@@ -611,6 +611,8 @@ hu-HU:
         title: "Startup Setup Selector"
         # TODO: translate to hungarian
         heading: "Choose startup setup tasks to run now"
+        # TODO: translate to hungarian
+        disabled_suffix_already_configured: " (already configured)"
         items:
           # TODO: translate to hungarian
           arch_news: "Arch news setup"
@@ -634,6 +636,8 @@ hu-HU:
       optional_deps:
         title: " Nem kötelező függőségek "
         heading: "A PacSea nem kötelező függőségei"
+        # TODO: translate to hungarian
+        wizard_button: "[Wizard]"
         markers:
           installed: "✔ telepítve"
           not_installed: "⏺ nincs telepítve"

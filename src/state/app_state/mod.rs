@@ -2,7 +2,9 @@
 
 use lru::LruCache;
 use ratatui::widgets::ListState;
-use std::{collections::HashMap, collections::HashSet, path::PathBuf, time::Instant};
+use std::{
+    collections::HashMap, collections::HashSet, collections::VecDeque, path::PathBuf, time::Instant,
+};
 
 use crate::sources::VoteAction;
 use crate::state::modal::{
@@ -567,7 +569,7 @@ pub struct AppState {
     /// Pending news to show after all announcements are dismissed.
     pub pending_news: Option<Vec<crate::state::NewsItem>>,
     /// Startup setup steps queued from first-run setup selector.
-    pub pending_startup_setup_steps: Vec<crate::state::modal::StartupSetupTask>,
+    pub pending_startup_setup_steps: VecDeque<crate::state::modal::StartupSetupTask>,
     /// Flag to trigger startup news fetch after `NewsSetup` is completed.
     pub trigger_startup_news_fetch: bool,
 
