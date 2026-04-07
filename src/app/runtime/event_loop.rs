@@ -189,6 +189,8 @@ fn handle_remote_announcement(
 /// - Marks index loading as complete and triggers a tick
 fn handle_index_notification(app: &mut AppState, channels: &Channels) -> bool {
     app.loading_index = false;
+    // Re-run query once the index is ready so first-launch results are populated.
+    crate::logic::send_query(app, &channels.query_tx);
     let _ = channels.tick_tx.send(());
     false
 }
@@ -1320,8 +1322,10 @@ pub async fn run_event_loop(
 mod tests {
     use super::handle_aur_vote_response;
     use super::handle_aur_vote_state_response;
+    use super::handle_index_notification;
     use super::handle_news_content;
     use super::handle_updates_list;
+    use crate::app::runtime::background::Channels;
     use crate::app::runtime::workers::UpdateCheckPayload;
     use crate::state::AppState;
     use crate::state::types::{NewsFeedItem, NewsFeedSource};
@@ -1455,6 +1459,34 @@ mod tests {
         handle_updates_list(&mut app, payload);
         assert_eq!(app.updates_last_check_authoritative, Some(true));
         assert!(app.toast_message.is_none());
+    }
+
+    #[tokio::test]
+    /// What: Ensure index-ready notification re-runs current query.
+    ///
+    /// Inputs:
+    /// - `AppState` with `loading_index=true` and default query counters.
+    /// - Runtime channels instance.
+    ///
+    /// Output:
+    /// - `loading_index` is cleared.
+    /// - `latest_query_id` advances, confirming a query dispatch was triggered.
+    ///
+    /// Details:
+    /// - Prevents first-launch empty result list after async index refresh finishes.
+    async fn handle_index_notification_retriggers_query() {
+        let mut app = AppState {
+            loading_index: true,
+            ..AppState::default()
+        };
+        let channels = Channels::new(std::path::PathBuf::from("/tmp"));
+        let latest_before = app.latest_query_id;
+
+        let should_exit = handle_index_notification(&mut app, &channels);
+
+        assert!(!should_exit);
+        assert!(!app.loading_index);
+        assert!(app.latest_query_id > latest_before);
     }
 
     #[test]

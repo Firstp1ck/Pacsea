@@ -1074,6 +1074,7 @@ pub(super) fn handle_news_setup_modal(ke: KeyEvent, app: &mut AppState, mut moda
                 } else {
                     app.modal = crate::state::Modal::None;
                 }
+                super::common::show_next_pending_announcement(app);
                 return true;
             }
             KeyCode::Up => {
@@ -1125,6 +1126,7 @@ pub(super) fn handle_news_setup_modal(ke: KeyEvent, app: &mut AppState, mut moda
 
                 // Close modal
                 app.modal = crate::state::Modal::None;
+                super::common::show_next_pending_announcement(app);
                 return true;
             }
             _ => {}

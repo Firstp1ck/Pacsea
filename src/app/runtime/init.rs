@@ -565,19 +565,39 @@ fn check_version_announcement(app: &mut AppState) {
             return;
         }
 
-        // Show version announcement modal
-        app.modal = crate::state::Modal::Announcement {
-            title: announcement.title.to_string(),
-            content: announcement.content.to_string(),
-            id: version_id,
-            scroll: 0,
-        };
-        tracing::info!(
-            current_version = CURRENT_VERSION,
-            base_version = %current_base_version,
-            announcement_version = announcement.version,
-            "showing version announcement modal"
-        );
+        if matches!(app.modal, crate::state::Modal::None) {
+            // Show version announcement modal immediately.
+            app.modal = crate::state::Modal::Announcement {
+                title: announcement.title.to_string(),
+                content: announcement.content.to_string(),
+                id: version_id,
+                scroll: 0,
+            };
+            tracing::info!(
+                current_version = CURRENT_VERSION,
+                base_version = %current_base_version,
+                announcement_version = announcement.version,
+                "showing version announcement modal"
+            );
+        } else {
+            // Keep first-run/setup modal flow intact and defer version announcement.
+            app.pending_announcements
+                .push(crate::announcements::RemoteAnnouncement {
+                    id: version_id,
+                    title: announcement.title.to_string(),
+                    content: announcement.content.to_string(),
+                    min_version: None,
+                    max_version: None,
+                    expires: None,
+                });
+            tracing::info!(
+                current_version = CURRENT_VERSION,
+                base_version = %current_base_version,
+                announcement_version = announcement.version,
+                queue_size = app.pending_announcements.len(),
+                "queued version announcement modal because another modal is open"
+            );
+        }
     }
     // Note: Remote announcements will be queued if they arrive while embedded is showing
     // and will be shown when embedded is dismissed via show_next_pending_announcement()
@@ -916,6 +936,40 @@ mod tests {
         // Keymap should be initialized (it's a struct, not a string)
         // Just verify it's not the default empty state by checking a field
         // (KeyMap has many fields, we just verify it's been set)
+    }
+
+    #[test]
+    /// What: Verify version announcement is queued when another startup modal is already open.
+    ///
+    /// Inputs:
+    /// - `AppState` with `NewsSetup` already open.
+    ///
+    /// Output:
+    /// - Existing modal remains `NewsSetup`.
+    /// - Version announcement is pushed into `pending_announcements`.
+    ///
+    /// Details:
+    /// - Prevents first-run setup flow from being overwritten by version announcement display.
+    fn check_version_announcement_queues_when_modal_already_open() {
+        let mut app = new_app();
+        app.modal = crate::state::Modal::NewsSetup {
+            show_arch_news: true,
+            show_advisories: true,
+            show_aur_updates: true,
+            show_aur_comments: true,
+            show_pkg_updates: true,
+            max_age_days: Some(30),
+            cursor: 0,
+        };
+        let pending_before = app.pending_announcements.len();
+
+        check_version_announcement(&mut app);
+
+        assert!(matches!(app.modal, crate::state::Modal::NewsSetup { .. }));
+        assert_eq!(
+            app.pending_announcements.len(),
+            pending_before.saturating_add(1)
+        );
     }
 
     #[test]

@@ -25,46 +25,9 @@ pub fn handle_search_results(
         return;
     }
 
-    // Check cache before processing
+    // Always process incoming worker results, even if query text is unchanged.
+    // Startup index refresh can produce newer non-empty data for the same empty query.
     let query_text = app.input.trim().to_string();
-    let cache_hit = if let Some(cached_query) = &app.search_cache_query {
-        cached_query == &query_text
-            && app.search_cache_fuzzy == app.fuzzy_search_enabled
-            && app.search_cache_results.is_some()
-    } else {
-        false
-    };
-
-    // If cache hit, use cached results and skip processing new_results
-    if cache_hit && let Some(cached_results) = &app.search_cache_results {
-        let prev_selected_name = app.results.get(app.selected).map(|p| p.name.clone());
-        app.all_results = cached_results.clone();
-        crate::logic::apply_filters_and_sort_preserve_selection(app);
-        let new_sel = prev_selected_name
-            .and_then(|name| app.results.iter().position(|p| p.name == name))
-            .unwrap_or(0);
-        app.selected = new_sel.min(app.results.len().saturating_sub(1));
-        app.list_state.select(if app.results.is_empty() {
-            None
-        } else {
-            Some(app.selected)
-        });
-        if let Some(item) = app.results.get(app.selected).cloned() {
-            app.details_focus = Some(item.name.clone());
-            crate::logic::clear_stale_pkgbuild_checks_for_selection(app, item.name.as_str());
-            if let Some(cached) = app.details_cache.get(&item.name).cloned() {
-                app.details = cached;
-            } else {
-                let _ = details_req_tx.send(item);
-            }
-        }
-        crate::events::utils::queue_selected_aur_vote_state_check(app);
-        crate::logic::set_allowed_ring(app, 30);
-        if !app.need_ring_prefetch {
-            crate::logic::ring_prefetch_from_selected(app, details_req_tx);
-        }
-        return; // Early return on cache hit
-    }
 
     let prev_selected_name = app.results.get(app.selected).map(|p| p.name.clone());
     // Respect installed-only mode: keep results restricted to explicit installs
@@ -351,6 +314,52 @@ mod tests {
         assert_eq!(app.results[0].name, "new-package");
         // Cache should be updated
         assert_eq!(app.search_cache_query.as_deref(), Some("hello"));
+        assert_eq!(app.search_cache_results.as_ref().map(Vec::len), Some(1));
+    }
+
+    #[tokio::test]
+    /// What: Verify newer results replace stale cached results for identical query text.
+    ///
+    /// Inputs:
+    /// - `AppState` with empty-query cache containing zero results.
+    /// - Incoming `SearchResults` for the same query ID/text with one package.
+    ///
+    /// Output:
+    /// - New incoming result is applied and displayed.
+    ///
+    /// Details:
+    /// - Reproduces startup flow where first empty query caches an empty list before index is ready.
+    /// - Ensures later index-backed results are not discarded by cache short-circuiting.
+    async fn handle_search_results_prefers_fresh_results_over_stale_cache() {
+        let mut app = new_app();
+        app.latest_query_id = 5;
+        app.input.clear();
+        app.search_cache_query = Some(String::new());
+        app.search_cache_fuzzy = app.fuzzy_search_enabled;
+        app.search_cache_results = Some(Vec::new());
+
+        let (details_tx, _details_rx) = mpsc::unbounded_channel();
+        let (index_tx, _index_rx) = mpsc::unbounded_channel();
+        let fresh_results = SearchResults {
+            id: 5,
+            items: vec![PackageItem {
+                name: "linux".to_string(),
+                version: "6.0".to_string(),
+                description: "Kernel".to_string(),
+                source: Source::Official {
+                    repo: "core".to_string(),
+                    arch: "x86_64".to_string(),
+                },
+                popularity: None,
+                out_of_date: None,
+                orphaned: false,
+            }],
+        };
+
+        handle_search_results(&mut app, fresh_results, &details_tx, &index_tx);
+
+        assert_eq!(app.results.len(), 1);
+        assert_eq!(app.results[0].name, "linux");
         assert_eq!(app.search_cache_results.as_ref().map(Vec::len), Some(1));
     }
 

@@ -16,7 +16,7 @@ use crate::state::{AppState, PackageItem, Source};
 /// Details:
 /// - Checks if there are pending announcements in the queue
 /// - Shows the first valid announcement if modal is currently None
-fn show_next_pending_announcement(app: &mut AppState) {
+pub(super) fn show_next_pending_announcement(app: &mut AppState) {
     const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
     // Only show if no modal is currently displayed
