@@ -1,10 +1,92 @@
 //! Common modal handlers (Alert, Help, News, `PreflightExec`, `PostSummary`, `GnomeTerminalPrompt`).
 
+use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
 use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::state::{AppState, PackageItem, Source};
+
+/// What: Build startup setup steps in dependency-aware execution order.
+#[must_use]
+pub(super) fn startup_setup_steps_in_priority(
+    selected: &std::collections::HashSet<crate::state::modal::StartupSetupTask>,
+) -> VecDeque<crate::state::modal::StartupSetupTask> {
+    let mut steps = VecDeque::new();
+    let ordered = [
+        crate::state::modal::StartupSetupTask::OptionalDepsMissing,
+        crate::state::modal::StartupSetupTask::SshAurSetup,
+        crate::state::modal::StartupSetupTask::AurSleuthSetup,
+        crate::state::modal::StartupSetupTask::VirusTotalSetup,
+        crate::state::modal::StartupSetupTask::ArchNews,
+    ];
+    for step in ordered {
+        if selected.contains(&step) {
+            steps.push_back(step);
+        }
+    }
+    steps
+}
+
+/// What: Advance first-startup selected setup steps one by one until a modal opens.
+///
+/// Inputs:
+/// - `app`: Application state containing pending startup setup queue.
+///
+/// Output:
+/// - Opens the next setup modal when available, or resumes normal startup popup sequence.
+pub(super) fn show_next_startup_setup_step(app: &mut AppState) {
+    while matches!(app.modal, crate::state::Modal::None) {
+        let Some(next_step) = app.pending_startup_setup_steps.pop_front() else {
+            show_next_pending_announcement(app);
+            return;
+        };
+        match next_step {
+            crate::state::modal::StartupSetupTask::ArchNews => {
+                let prefs = crate::theme::settings();
+                app.modal = crate::state::Modal::NewsSetup {
+                    show_arch_news: prefs.startup_news_show_arch_news,
+                    show_advisories: prefs.startup_news_show_advisories,
+                    show_aur_updates: prefs.startup_news_show_aur_updates,
+                    show_aur_comments: prefs.startup_news_show_aur_comments,
+                    show_pkg_updates: prefs.startup_news_show_pkg_updates,
+                    max_age_days: prefs.startup_news_max_age_days,
+                    cursor: 0,
+                };
+            }
+            crate::state::modal::StartupSetupTask::OptionalDepsMissing => {
+                let rows: Vec<crate::state::types::OptionalDepRow> =
+                    crate::events::mouse::menu_options::build_optional_deps_rows(app)
+                        .into_iter()
+                        .filter(|row| {
+                            !row.installed
+                                && row.selectable
+                                && !matches!(
+                                    row.package.as_str(),
+                                    "aur-ssh-setup" | "virustotal-setup" | "aur-sleuth-setup"
+                                )
+                        })
+                        .collect();
+                if rows.is_empty() {
+                    continue;
+                }
+                app.modal = crate::state::Modal::OptionalDeps { rows, selected: 0 };
+            }
+            crate::state::modal::StartupSetupTask::SshAurSetup => {
+                if app.aur_ssh_help_ready.unwrap_or(false) {
+                    continue;
+                }
+                super::optional_deps::open_setup_package(app, "aur-ssh-setup");
+            }
+            crate::state::modal::StartupSetupTask::AurSleuthSetup => {
+                super::optional_deps::open_setup_package(app, "aur-sleuth-setup");
+            }
+            crate::state::modal::StartupSetupTask::VirusTotalSetup => {
+                super::optional_deps::open_setup_package(app, "virustotal-setup");
+            }
+        }
+    }
+}
 
 /// What: Show next pending announcement from queue if available.
 ///
@@ -84,7 +166,7 @@ pub(super) fn show_next_pending_announcement(app: &mut AppState) {
         "no more pending announcements"
     );
 
-    // After all announcements are shown, check for pending news
+    // After all announcements are shown, check for pending news.
     tracing::debug!(
         pending_news_exists = app.pending_news.is_some(),
         news_loading = app.news_loading,
@@ -98,9 +180,9 @@ pub(super) fn show_next_pending_announcement(app: &mut AppState) {
             news_loading_before = app.news_loading,
             "showing pending news after announcements"
         );
-        // Clear loading flag when news modal is actually shown
+        // Clear loading flag when news modal is actually shown.
         app.news_loading = false;
-        // Convert NewsItem to NewsFeedItem for the modal, filtering out read items
+        // Convert NewsItem to NewsFeedItem for the modal, filtering out read items.
         let feed_items: Vec<crate::state::types::NewsFeedItem> = news_items
             .into_iter()
             .filter(|item| {
@@ -118,7 +200,7 @@ pub(super) fn show_next_pending_announcement(app: &mut AppState) {
                 packages: Vec::new(),
             })
             .collect();
-        // Only show modal if there are unread items
+        // Only show modal if there are unread items.
         if feed_items.is_empty() {
             tracing::debug!("all pending news items have been read, not showing modal");
         } else {
@@ -1563,6 +1645,34 @@ mod tests {
             _ => panic!("Expected Announcement modal"),
         }
         assert!(app.pending_announcements.is_empty());
+    }
+
+    #[test]
+    /// What: Verify startup queue skips `SshAurSetup` when SSH is already ready.
+    ///
+    /// Inputs:
+    /// - `AppState` with startup queue containing `SshAurSetup` then `ArchNews`.
+    /// - `aur_ssh_help_ready` set to `Some(true)`.
+    ///
+    /// Output:
+    /// - Opens the next eligible setup modal (`NewsSetup`) instead of `SshAurSetup`.
+    ///
+    /// Details:
+    /// - Revalidates queue entries at open time so stale queued SSH setup cannot open.
+    fn test_show_next_startup_setup_step_skips_ssh_step_when_ready() {
+        let mut app = crate::state::AppState {
+            aur_ssh_help_ready: Some(true),
+            pending_startup_setup_steps: std::collections::VecDeque::from([
+                crate::state::modal::StartupSetupTask::SshAurSetup,
+                crate::state::modal::StartupSetupTask::ArchNews,
+            ]),
+            ..Default::default()
+        };
+
+        show_next_startup_setup_step(&mut app);
+
+        assert!(matches!(app.modal, crate::state::Modal::NewsSetup { .. }));
+        assert!(app.pending_startup_setup_steps.is_empty());
     }
 
     #[test]

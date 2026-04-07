@@ -2,7 +2,9 @@
 
 use lru::LruCache;
 use ratatui::widgets::ListState;
-use std::{collections::HashMap, collections::HashSet, path::PathBuf, time::Instant};
+use std::{
+    collections::HashMap, collections::HashSet, collections::VecDeque, path::PathBuf, time::Instant,
+};
 
 use crate::sources::VoteAction;
 use crate::state::modal::{
@@ -566,12 +568,16 @@ pub struct AppState {
     pub pending_announcements: Vec<crate::announcements::RemoteAnnouncement>,
     /// Pending news to show after all announcements are dismissed.
     pub pending_news: Option<Vec<crate::state::NewsItem>>,
+    /// Startup setup steps queued from first-run setup selector.
+    pub pending_startup_setup_steps: VecDeque<crate::state::modal::StartupSetupTask>,
     /// Flag to trigger startup news fetch after `NewsSetup` is completed.
     pub trigger_startup_news_fetch: bool,
 
     // Updates modal mouse hit-testing
     /// Outer rectangle of the Updates modal (including borders) when visible.
     pub updates_modal_rect: Option<(u16, u16, u16, u16)>,
+    /// Clickable rectangle for the `Wizard` button in the Optional Deps modal.
+    pub optional_deps_wizard_rect: Option<(u16, u16, u16, u16)>,
     /// Inner content rectangle for scrollable updates list.
     pub updates_modal_content_rect: Option<(u16, u16, u16, u16)>,
     /// Per-entry starting rendered line indices for the updates modal content.
@@ -883,4 +889,6 @@ pub struct AppState {
     pub pending_file_sync_result: Option<FileSyncResult>,
     /// Background AUR SSH validation result handle for Optional Deps status refresh.
     pub pending_aur_ssh_help_check_result: Option<std::sync::Arc<std::sync::Mutex<Option<bool>>>>,
+    /// Latest AUR SSH help validation result (`Some(true/false)`) from the background check.
+    pub aur_ssh_help_ready: Option<bool>,
 }

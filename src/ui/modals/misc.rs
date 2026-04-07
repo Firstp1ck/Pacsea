@@ -10,6 +10,7 @@ use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 use super::common::render_simple_list_modal;
 use crate::state::{
     AppState,
+    modal::StartupSetupTask,
     types::{OptionalDepRow, RepositoryKeyTrust, RepositoryModalRow, RepositoryPacmanStatus},
 };
 use crate::theme::theme;
@@ -23,19 +24,33 @@ use crate::theme::theme;
 /// - `selected`: Index of the currently highlighted row
 ///
 /// Output:
-/// - Draws the modal content and highlights the selected row; no state mutations besides rendering.
+/// - Draws the modal content, highlights the selected row, and updates
+///   `app.optional_deps_wizard_rect` for mouse hit-testing.
 ///
 /// Details:
 /// - Marks installed rows, shows optional notes, and reuses the common simple modal renderer for
 ///   consistent styling.
+/// - Stores the rendered `[Wizard]` button bounds in app state so pointer interactions can detect
+///   clicks on the button.
+#[allow(clippy::many_single_char_names)]
 pub fn render_optional_deps(
     f: &mut Frame,
     area: Rect,
     rows: &[OptionalDepRow],
     selected: usize,
-    app: &crate::state::AppState,
+    app: &mut crate::state::AppState,
 ) {
     let th = theme();
+    let w = area.width.saturating_sub(8).min(80);
+    let h = area.height.saturating_sub(8).min(20);
+    let x = area.x + (area.width.saturating_sub(w)) / 2;
+    let y = area.y + (area.height.saturating_sub(h)) / 2;
+    let rect = ratatui::prelude::Rect {
+        x,
+        y,
+        width: w,
+        height: h,
+    };
     // Build content lines with selection and install status markers
     let mut lines: Vec<Line<'static>> = Vec::new();
     lines.push(Line::from(Span::styled(
@@ -89,11 +104,46 @@ pub fn render_optional_deps(
         Style::default().fg(th.subtext1),
     )));
 
-    render_simple_list_modal(
-        f,
-        area,
-        &crate::i18n::t(app, "app.modals.optional_deps.title"),
-        lines,
+    f.render_widget(Clear, rect);
+    let boxw = Paragraph::new(lines)
+        .style(Style::default().fg(th.text).bg(th.mantle))
+        .wrap(Wrap { trim: true })
+        .block(
+            Block::default()
+                .title(Span::styled(
+                    format!(
+                        " {} ",
+                        crate::i18n::t(app, "app.modals.optional_deps.title")
+                    ),
+                    Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+                ))
+                .borders(Borders::ALL)
+                .border_type(BorderType::Double)
+                .border_style(Style::default().fg(th.mauve))
+                .style(Style::default().bg(th.mantle)),
+        );
+    f.render_widget(boxw, rect);
+
+    // Top-right Wizard button.
+    let wizard_label = crate::i18n::t(app, "app.modals.optional_deps.wizard_button");
+    let wizard_w = u16::try_from(UnicodeWidthStr::width(wizard_label.as_str())).unwrap_or(8);
+    let wizard_x = rect.x + rect.width.saturating_sub(wizard_w + 2);
+    let wizard_y = rect.y;
+    app.optional_deps_wizard_rect = Some((wizard_x, wizard_y, wizard_w, 1));
+    f.render_widget(
+        Paragraph::new(Line::from(Span::styled(
+            wizard_label.as_str(),
+            Style::default()
+                .fg(th.mauve)
+                .bg(th.surface2)
+                .add_modifier(Modifier::BOLD),
+        ))),
+        Rect {
+            x: wizard_x,
+            y: wizard_y,
+            width: wizard_w,
+            height: 1,
+        },
     );
 }
 
@@ -647,6 +697,119 @@ pub fn render_news_setup(
         f,
         area,
         &crate::i18n::t(app, "app.modals.news_setup.title"),
+        lines,
+    );
+}
+
+/// What: Render the first-startup setup selector checklist modal.
+///
+/// Inputs:
+/// - `f`: Frame to render into
+/// - `area`: Full screen area
+/// - `app`: Application state for localized strings
+/// - `cursor`: Focused selector row
+/// - `selected`: Set of selected setup tasks
+///
+/// Output:
+/// - Draws the selector modal with checklist rows and key hints.
+pub fn render_startup_setup_selector(
+    f: &mut Frame,
+    area: Rect,
+    app: &AppState,
+    cursor: usize,
+    selected: &std::collections::HashSet<StartupSetupTask>,
+) {
+    let th = theme();
+    let ssh_setup_ready = app.aur_ssh_help_ready.unwrap_or(false);
+    let mut lines: Vec<Line<'static>> = Vec::new();
+    lines.push(Line::from(Span::styled(
+        crate::i18n::t(app, "app.modals.startup_setup_selector.heading"),
+        Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+    )));
+    lines.push(Line::from(""));
+
+    let items = [
+        (
+            StartupSetupTask::ArchNews,
+            crate::i18n::t(app, "app.modals.startup_setup_selector.items.arch_news"),
+        ),
+        (
+            StartupSetupTask::SshAurSetup,
+            crate::i18n::t(app, "app.modals.startup_setup_selector.items.ssh_aur_setup"),
+        ),
+        (
+            StartupSetupTask::OptionalDepsMissing,
+            crate::i18n::t(
+                app,
+                "app.modals.startup_setup_selector.items.optional_deps_missing",
+            ),
+        ),
+        (
+            StartupSetupTask::AurSleuthSetup,
+            crate::i18n::t(
+                app,
+                "app.modals.startup_setup_selector.items.aur_sleuth_setup",
+            ),
+        ),
+        (
+            StartupSetupTask::VirusTotalSetup,
+            crate::i18n::t(
+                app,
+                "app.modals.startup_setup_selector.items.virustotal_setup",
+            ),
+        ),
+    ];
+
+    for (idx, (task, label)) in items.iter().enumerate() {
+        let disabled = matches!(task, StartupSetupTask::SshAurSetup) && ssh_setup_ready;
+        let mark = if selected.contains(task) {
+            "[x]"
+        } else {
+            "[ ]"
+        };
+        let style = if disabled {
+            Style::default().fg(th.overlay1)
+        } else if idx == cursor {
+            Style::default()
+                .fg(th.text)
+                .add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
+        } else {
+            Style::default().fg(th.subtext1)
+        };
+        lines.push(Line::from(vec![
+            Span::styled(
+                format!("{mark} "),
+                if disabled {
+                    Style::default().fg(th.overlay1)
+                } else {
+                    Style::default().fg(th.mauve).add_modifier(Modifier::BOLD)
+                },
+            ),
+            Span::styled(label.clone(), style),
+            if disabled {
+                Span::styled(
+                    crate::i18n::t(
+                        app,
+                        "app.modals.startup_setup_selector.disabled_suffix_already_configured",
+                    ),
+                    Style::default().fg(th.overlay1),
+                )
+            } else {
+                Span::raw("")
+            },
+        ]));
+    }
+
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        crate::i18n::t(app, "app.modals.startup_setup_selector.footer_hint"),
+        Style::default().fg(th.overlay1),
+    )));
+
+    render_simple_list_modal(
+        f,
+        area,
+        &crate::i18n::t(app, "app.modals.startup_setup_selector.title"),
         lines,
     );
 }

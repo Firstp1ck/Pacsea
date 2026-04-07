@@ -654,18 +654,18 @@ pub fn initialize_app_state(
 
     check_gnome_terminal(app, headless);
 
-    // Show NewsSetup modal on first launch if not configured
+    // Show startup setup selector modal on first launch if startup news is not configured.
     if !headless && !prefs.startup_news_configured {
         // Only show if no other modal is already set (e.g., GnomeTerminalPrompt)
         if matches!(app.modal, crate::state::Modal::None) {
-            app.modal = crate::state::Modal::NewsSetup {
-                show_arch_news: prefs.startup_news_show_arch_news,
-                show_advisories: prefs.startup_news_show_advisories,
-                show_aur_updates: prefs.startup_news_show_aur_updates,
-                show_aur_comments: prefs.startup_news_show_aur_comments,
-                show_pkg_updates: prefs.startup_news_show_pkg_updates,
-                max_age_days: prefs.startup_news_max_age_days,
+            let ssh_command = crate::theme::settings().aur_vote_ssh_command;
+            app.pending_aur_ssh_help_check_result = Some(
+                crate::logic::ssh_setup::spawn_aur_ssh_help_check(ssh_command),
+            );
+            app.aur_ssh_help_ready = None;
+            app.modal = crate::state::Modal::StartupSetupSelector {
                 cursor: 0,
+                selected: std::collections::HashSet::new(),
             };
         }
     } else if !headless && prefs.startup_news_configured {
@@ -939,33 +939,44 @@ mod tests {
     }
 
     #[test]
+    /// What: Verify first startup shows startup setup selector modal.
+    fn initialize_app_state_shows_startup_selector_when_news_unconfigured() {
+        let mut app = new_app();
+        let mut prefs = crate::theme::settings();
+        prefs.startup_news_configured = false;
+        let _flags = initialize_app_state(&mut app, false, false, &prefs);
+        assert!(matches!(
+            app.modal,
+            crate::state::Modal::StartupSetupSelector { .. }
+        ));
+    }
+
+    #[test]
     /// What: Verify version announcement is queued when another startup modal is already open.
     ///
     /// Inputs:
-    /// - `AppState` with `NewsSetup` already open.
+    /// - `AppState` with `StartupSetupSelector` already open.
     ///
     /// Output:
-    /// - Existing modal remains `NewsSetup`.
+    /// - Existing modal remains `StartupSetupSelector`.
     /// - Version announcement is pushed into `pending_announcements`.
     ///
     /// Details:
     /// - Prevents first-run setup flow from being overwritten by version announcement display.
     fn check_version_announcement_queues_when_modal_already_open() {
         let mut app = new_app();
-        app.modal = crate::state::Modal::NewsSetup {
-            show_arch_news: true,
-            show_advisories: true,
-            show_aur_updates: true,
-            show_aur_comments: true,
-            show_pkg_updates: true,
-            max_age_days: Some(30),
+        app.modal = crate::state::Modal::StartupSetupSelector {
             cursor: 0,
+            selected: std::collections::HashSet::new(),
         };
         let pending_before = app.pending_announcements.len();
 
         check_version_announcement(&mut app);
 
-        assert!(matches!(app.modal, crate::state::Modal::NewsSetup { .. }));
+        assert!(matches!(
+            app.modal,
+            crate::state::Modal::StartupSetupSelector { .. }
+        ));
         assert_eq!(
             app.pending_announcements.len(),
             pending_before.saturating_add(1)

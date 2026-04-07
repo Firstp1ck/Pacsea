@@ -333,8 +333,10 @@ impl Default for AppState {
             announcement_urls,
             pending_announcements,
             pending_news,
+            pending_startup_setup_steps,
             trigger_startup_news_fetch,
             updates_modal_rect,
+            optional_deps_wizard_rect,
             updates_modal_content_rect,
             help_scroll,
             help_rect,
@@ -613,8 +615,10 @@ impl Default for AppState {
             announcement_urls,
             pending_announcements,
             pending_news,
+            pending_startup_setup_steps,
             trigger_startup_news_fetch,
             updates_modal_rect,
+            optional_deps_wizard_rect,
             updates_modal_content_rect,
             updates_modal_entry_line_starts: Vec::new(),
             updates_modal_total_lines: 0,
@@ -748,6 +752,7 @@ impl Default for AppState {
             pending_executor_password: None,
             pending_file_sync_result: None,
             pending_aur_ssh_help_check_result: None,
+            aur_ssh_help_ready: None,
         }
     }
 }

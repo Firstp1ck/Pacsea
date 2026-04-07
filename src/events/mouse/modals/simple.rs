@@ -458,6 +458,37 @@ pub(super) fn handle_updates_modal(
     None
 }
 
+/// Handle mouse events for `OptionalDeps` modal.
+///
+/// What: Start startup setup wizard when clicking the top-right `Wizard` button.
+pub(super) fn handle_optional_deps_modal(
+    _m: MouseEvent,
+    mx: u16,
+    my: u16,
+    is_left_down: bool,
+    app: &mut AppState,
+) -> Option<bool> {
+    if is_left_down
+        && let Some((x, y, w, h)) = app.optional_deps_wizard_rect
+        && mx >= x
+        && mx < x + w
+        && my >= y
+        && my < y + h
+    {
+        let ssh_command = crate::theme::settings().aur_vote_ssh_command;
+        app.pending_aur_ssh_help_check_result = Some(
+            crate::logic::ssh_setup::spawn_aur_ssh_help_check(ssh_command),
+        );
+        app.aur_ssh_help_ready = None;
+        app.modal = crate::state::Modal::StartupSetupSelector {
+            cursor: 0,
+            selected: std::collections::HashSet::new(),
+        };
+        return Some(false);
+    }
+    None
+}
+
 /// What: Resolve a rendered line index to the owning updates entry index.
 ///
 /// Inputs:

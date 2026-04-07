@@ -7,6 +7,23 @@ use super::restore;
 use crate::install::ExecutorRequest;
 use crate::state::{AppState, Modal, PackageItem};
 
+/// Startup selector item count.
+const STARTUP_SETUP_SELECTOR_ITEMS: usize = 5;
+
+/// What: Check whether a startup selector task can be toggled by the user.
+#[must_use]
+fn startup_selector_task_selectable(
+    task: crate::state::modal::StartupSetupTask,
+    app: &AppState,
+) -> bool {
+    match task {
+        crate::state::modal::StartupSetupTask::SshAurSetup => {
+            !app.aur_ssh_help_ready.unwrap_or(false)
+        }
+        _ => true,
+    }
+}
+
 /// What: Handle key events for Alert modal, including restoration logic.
 ///
 /// Inputs:
@@ -1074,7 +1091,11 @@ pub(super) fn handle_news_setup_modal(ke: KeyEvent, app: &mut AppState, mut moda
                 } else {
                     app.modal = crate::state::Modal::None;
                 }
-                super::common::show_next_pending_announcement(app);
+                if app.pending_startup_setup_steps.is_empty() {
+                    super::common::show_next_pending_announcement(app);
+                } else {
+                    super::common::show_next_startup_setup_step(app);
+                }
                 return true;
             }
             KeyCode::Up => {
@@ -1126,7 +1147,11 @@ pub(super) fn handle_news_setup_modal(ke: KeyEvent, app: &mut AppState, mut moda
 
                 // Close modal
                 app.modal = crate::state::Modal::None;
-                super::common::show_next_pending_announcement(app);
+                if app.pending_startup_setup_steps.is_empty() {
+                    super::common::show_next_pending_announcement(app);
+                } else {
+                    super::common::show_next_startup_setup_step(app);
+                }
                 return true;
             }
             _ => {}
@@ -1170,7 +1195,16 @@ pub(super) fn handle_virustotal_setup_modal(
         ref mut cursor,
     } = modal
     {
+        let should_advance = matches!(ke.code, KeyCode::Esc)
+            || (matches!(ke.code, KeyCode::Enter | KeyCode::Char('\n' | '\r'))
+                && !input.trim().is_empty());
         super::scan::handle_virustotal_setup(ke, app, input, cursor);
+        if should_advance
+            && matches!(app.modal, Modal::None)
+            && !app.pending_startup_setup_steps.is_empty()
+        {
+            super::common::show_next_startup_setup_step(app);
+        }
         restore::restore_if_not_closed_with_esc(
             app,
             &ke,
@@ -1179,6 +1213,85 @@ pub(super) fn handle_virustotal_setup_modal(
                 cursor: *cursor,
             },
         );
+    }
+    false
+}
+
+/// What: Handle key events for `StartupSetupSelector` modal.
+pub(super) fn handle_startup_setup_selector_modal(
+    ke: KeyEvent,
+    app: &mut AppState,
+    mut modal: Modal,
+) -> bool {
+    if let Modal::StartupSetupSelector {
+        ref mut cursor,
+        ref mut selected,
+    } = modal
+    {
+        match ke.code {
+            KeyCode::Esc => {
+                app.pending_startup_setup_steps.clear();
+                app.modal = Modal::None;
+                super::common::show_next_pending_announcement(app);
+                return true;
+            }
+            KeyCode::Char('r' | 'R') => {
+                // Never show startup selector again.
+                crate::theme::save_startup_news_configured(true);
+                app.pending_startup_setup_steps.clear();
+                app.modal = Modal::None;
+                super::common::show_next_pending_announcement(app);
+                return true;
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                if *cursor > 0 {
+                    *cursor -= 1;
+                }
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                if *cursor + 1 < STARTUP_SETUP_SELECTOR_ITEMS {
+                    *cursor += 1;
+                }
+            }
+            KeyCode::Char(' ') => {
+                let max_cursor = STARTUP_SETUP_SELECTOR_ITEMS.saturating_sub(1);
+                *cursor = (*cursor).min(max_cursor);
+                let task = match *cursor {
+                    0 => crate::state::modal::StartupSetupTask::ArchNews,
+                    1 => crate::state::modal::StartupSetupTask::SshAurSetup,
+                    2 => crate::state::modal::StartupSetupTask::OptionalDepsMissing,
+                    3 => crate::state::modal::StartupSetupTask::AurSleuthSetup,
+                    _ => crate::state::modal::StartupSetupTask::VirusTotalSetup,
+                };
+                if !startup_selector_task_selectable(task, app) {
+                    app.modal = Modal::StartupSetupSelector {
+                        cursor: *cursor,
+                        selected: selected.clone(),
+                    };
+                    return false;
+                }
+                if selected.contains(&task) {
+                    selected.remove(&task);
+                } else {
+                    selected.insert(task);
+                }
+            }
+            KeyCode::Enter | KeyCode::Char('\n' | '\r') => {
+                if app.aur_ssh_help_ready.unwrap_or(false) {
+                    selected.remove(&crate::state::modal::StartupSetupTask::SshAurSetup);
+                }
+                app.pending_startup_setup_steps =
+                    super::common::startup_setup_steps_in_priority(selected);
+                app.modal = Modal::None;
+                super::common::show_next_startup_setup_step(app);
+                return true;
+            }
+            _ => {}
+        }
+        app.modal = Modal::StartupSetupSelector {
+            cursor: *cursor,
+            selected: selected.clone(),
+        };
     }
     false
 }
@@ -1701,4 +1814,80 @@ pub(super) fn handle_import_help_modal(
 ) -> bool {
     super::import::handle_import_help(ke, app, add_tx);
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+    use std::collections::VecDeque;
+
+    #[test]
+    fn startup_selector_enter_builds_and_starts_queue() {
+        let mut app = AppState::default();
+        let mut selected = std::collections::HashSet::new();
+        selected.insert(crate::state::modal::StartupSetupTask::ArchNews);
+        selected.insert(crate::state::modal::StartupSetupTask::VirusTotalSetup);
+        let modal = Modal::StartupSetupSelector {
+            cursor: 0,
+            selected,
+        };
+        let handled = handle_startup_setup_selector_modal(
+            KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()),
+            &mut app,
+            modal,
+        );
+        assert!(handled);
+        assert!(matches!(app.modal, Modal::VirusTotalSetup { .. }));
+        assert_eq!(
+            app.pending_startup_setup_steps,
+            VecDeque::from([crate::state::modal::StartupSetupTask::ArchNews])
+        );
+    }
+
+    #[test]
+    fn startup_selector_esc_skips_all() {
+        let mut app = AppState {
+            pending_startup_setup_steps: VecDeque::from([
+                crate::state::modal::StartupSetupTask::ArchNews,
+            ]),
+            ..AppState::default()
+        };
+        let modal = Modal::StartupSetupSelector {
+            cursor: 0,
+            selected: std::collections::HashSet::new(),
+        };
+        let handled = handle_startup_setup_selector_modal(
+            KeyEvent::new(KeyCode::Esc, KeyModifiers::empty()),
+            &mut app,
+            modal,
+        );
+        assert!(handled);
+        assert!(matches!(app.modal, Modal::None));
+        assert!(app.pending_startup_setup_steps.is_empty());
+    }
+
+    #[test]
+    fn startup_selector_space_with_out_of_range_cursor_keeps_modal_and_clamps() {
+        let mut app = AppState::default();
+        let selected = std::collections::HashSet::new();
+        let modal = Modal::StartupSetupSelector {
+            cursor: usize::MAX,
+            selected,
+        };
+
+        let handled = handle_startup_setup_selector_modal(
+            KeyEvent::new(KeyCode::Char(' '), KeyModifiers::empty()),
+            &mut app,
+            modal,
+        );
+
+        assert!(!handled);
+        match &app.modal {
+            Modal::StartupSetupSelector { cursor, .. } => {
+                assert_eq!(*cursor, STARTUP_SETUP_SELECTOR_ITEMS - 1);
+            }
+            _ => panic!("startup selector modal should remain active"),
+        }
+    }
 }
