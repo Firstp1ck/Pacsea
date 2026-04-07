@@ -96,7 +96,9 @@ pub fn handle_news_button(app: &mut AppState) -> bool {
         app.toast_message = Some(crate::i18n::t(app, "app.toasts.no_new_news"));
         app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
     } else {
-        app.news_selected = app.news_selected.min(app.news_results.len().saturating_sub(1));
+        app.news_selected = app
+            .news_selected
+            .min(app.news_results.len().saturating_sub(1));
         app.news_list_state.select(Some(app.news_selected));
     }
     false
@@ -1021,20 +1023,19 @@ mod tests {
 
     // Removed: News options menu no longer includes a News age entry.
 
-    /// What: Test that `handle_news_button` preserves `pending_news` for multiple opens.
+    /// What: Test that `handle_news_button` preserves `pending_news` for repeated presses.
     ///
     /// Inputs:
     /// - `AppState` with `news_ready` set to true and `pending_news` populated
     ///
     /// Output:
-    /// - Modal opens with news items on first call
+    /// - App mode switches to `News`
     /// - `pending_news` remains available after first call
-    /// - Modal opens with news items on second call
+    /// - Repeated call keeps mode in `News`
     /// - `pending_news` remains available after second call
     ///
     /// Details:
-    /// - Tests the bug fix where `pending_news` was consumed on first open
-    /// - Verifies that news items are available for subsequent opens
+    /// - Regression guard for preserving `pending_news` on repeated button presses.
     #[test]
     fn test_handle_news_button_preserves_pending_news() {
         let mut app = crate::state::AppState::default();
@@ -1056,17 +1057,11 @@ mod tests {
         app.news_ready = true;
         app.pending_news = Some(news_items);
 
-        // First call - should open modal with items
+        // First call - should switch to News mode
         handle_news_button(&mut app);
 
-        // Verify modal was opened with items
-        if let crate::state::Modal::News { items, .. } = &app.modal {
-            assert_eq!(items.len(), 2, "Modal should have 2 items on first open");
-            assert_eq!(items[0].title, "Test News 1");
-            assert_eq!(items[1].title, "Test News 2");
-        } else {
-            panic!("Modal should be News variant after first call");
-        }
+        // Verify app switched modes and did not consume pending_news
+        assert!(matches!(app.app_mode, AppMode::News));
 
         // Verify pending_news is still available (not consumed)
         assert!(
@@ -1078,20 +1073,10 @@ mod tests {
             assert_eq!(pending[0].title, "Test News 1");
         }
 
-        // Close modal
-        app.modal = crate::state::Modal::None;
-
-        // Second call - should still open modal with items
+        // Second call - should still keep News mode and preserve pending_news
         handle_news_button(&mut app);
 
-        // Verify modal was opened again with items
-        if let crate::state::Modal::News { items, .. } = &app.modal {
-            assert_eq!(items.len(), 2, "Modal should have 2 items on second open");
-            assert_eq!(items[0].title, "Test News 1");
-            assert_eq!(items[1].title, "Test News 2");
-        } else {
-            panic!("Modal should be News variant after second call");
-        }
+        assert!(matches!(app.app_mode, AppMode::News));
 
         // Verify pending_news is still available after second call
         assert!(
