@@ -1660,12 +1660,14 @@ mod tests {
     /// Details:
     /// - Revalidates queue entries at open time so stale queued SSH setup cannot open.
     fn test_show_next_startup_setup_step_skips_ssh_step_when_ready() {
-        let mut app = crate::state::AppState::default();
-        app.aur_ssh_help_ready = Some(true);
-        app.pending_startup_setup_steps = std::collections::VecDeque::from([
-            crate::state::modal::StartupSetupTask::SshAurSetup,
-            crate::state::modal::StartupSetupTask::ArchNews,
-        ]);
+        let mut app = crate::state::AppState {
+            aur_ssh_help_ready: Some(true),
+            pending_startup_setup_steps: std::collections::VecDeque::from([
+                crate::state::modal::StartupSetupTask::SshAurSetup,
+                crate::state::modal::StartupSetupTask::ArchNews,
+            ]),
+            ..Default::default()
+        };
 
         show_next_startup_setup_step(&mut app);
 
