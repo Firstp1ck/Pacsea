@@ -55,7 +55,12 @@ hu-HU:
         clipboard: "Vágólap"
         aur_helper: "AUR-segéd"
         security: "Biztonság"
+        # TODO: translate to hungarian
+        privilege: "Privilege"
         downgrade: "Visszafejlesztési eszköz"
+      items:
+        # TODO: translate to hungarian
+        sudo_timestamp_setup: "sudo credential cache (sudoers)"
     search_mode_fuzzy: "KÖZELÍTŐ"
     search_mode_normal: "NORMÁL"
 
@@ -84,6 +89,8 @@ hu-HU:
       clipboard_copy: "Másolás a vágólapra"
       connection_issue: "Kapcsolati probléma"
       optional_deps: "Nem kötelező függőségek"
+      # TODO: translate to hungarian
+      sudo_timestamp_setup: "Sudo credential cache"
       install_gnome_terminal: "Gnome Terminál telepítése"
       virustotal: "VirusTotal"
       arch_linux_news: "Arch Linux hírek"
@@ -535,7 +542,7 @@ hu-HU:
           # TODO: translate to hungarian
           - "  • r: refresh signing key for the selected row (pacman-key recv + lsign; Linux)"
           # TODO: translate to hungarian
-          - "  • s: open the in-tree repos.conf example for setup hints"
+          - "  • s: open the shipped repos.conf template (read-only copy) for setup hints"
           # TODO: translate to hungarian
           - "  • Up/Down/j/k, PgUp/PgDn, Home/End: navigate  •  Esc or q: close"
         system_update_lines:
@@ -621,6 +628,8 @@ hu-HU:
           # TODO: translate to hungarian
           optional_deps_missing: "Check missing optional dependencies"
           # TODO: translate to hungarian
+          sudo_timestamp_setup: "Sudo credential cache (sudoers)"
+          # TODO: translate to hungarian
           aur_sleuth_setup: "aur-sleuth setup"
           # TODO: translate to hungarian
           virustotal_setup: "VirusTotal API setup"
@@ -649,7 +658,7 @@ hu-HU:
         heading: "Configured repositories"
         parse_error: "repos.conf:"
         # TODO: translate to hungarian
-        empty: "No [[repo]] entries in repos.conf. Add definitions via the Config menu or copy config/examples/repos_example.conf."
+        empty: "No [[repo]] entries in repos.conf. Add definitions via the Config menu."
         col:
           repo: "Repo"
           filter: "Filter"
@@ -677,7 +686,7 @@ hu-HU:
         # TODO: translate to hungarian
         setup_example_started: "Opening {} in your editor…"
         # TODO: translate to hungarian
-        setup_example_write_failed: "Could not write the repos.conf example to your Pacsea config directory."
+        setup_example_write_failed: "Could not write the repos.conf template to your Pacsea config directory."
         refresh_key:
           # TODO: translate to hungarian
           unsupported_platform: "Key refresh is only available on Linux."
@@ -689,7 +698,7 @@ hu-HU:
           # TODO: translate to hungarian
           persist_failed: "Could not update repos.conf:"
         # TODO: translate to hungarian
-        footer_hint: "Space: toggle+apply  •  Enter: apply  •  o: edit repos.conf  •  r: refresh key  •  s: example  •  Nav  •  Esc/Q"
+        footer_hint: "Space: toggle+apply  •  Enter: apply  •  o: edit repos.conf  •  r: refresh key  •  s: template  •  Nav  •  Esc/Q"
         apply:
           # TODO: translate to hungarian
           fix_repos_conf: "Fix repos.conf errors before applying (see message above)."
@@ -712,6 +721,27 @@ hu-HU:
         body_line1: "Gnome környezet észlelve, de nincs telepítve Gnome Terminál (Gnome Terminál vagy Gnome Konzol/KGX)."
         hint: "Nyomja meg az Entert a Gnome Terminál telepítéséhez vagy az Esc gombot a megszakításhoz"
         warning: "A megszakítás váratlan viselkedéshez vezethet."
+      # TODO: translate to hungarian (entire sudo_timestamp_setup block)
+      sudo_timestamp_setup:
+        title: " Sudo credential cache "
+        select_heading: "Long installs or updates can hit sudo again when the default credential cache expires. Extending timestamp_timeout in sudoers is recommended before large AUR builds."
+        option_10m: "10 minutes (timestamp_timeout=10)"
+        option_30m: "30 minutes (timestamp_timeout=30)"
+        option_infinity: "No expiry for this session (timestamp_timeout=-1; until sudo -k or reboot per policy)"
+        option_skip: "Skip — I will configure sudo myself"
+        select_footer: "Up/Down: choose  •  Enter: continue  •  Esc/Q: close"
+        instructions_note_tui: "Pacsea cannot edit sudoers inside this TUI. Use the lines below, or press T to run a helper script in a real terminal (you will enter your password there)."
+        instructions_heading_ten: "Sudoers: 10 minute credential cache"
+        instructions_heading_thirty: "Sudoers: 30 minute credential cache"
+        instructions_heading_infinity: "Sudoers: credential cache for this session (timestamp_timeout=-1)"
+        label_dropin_contents: "Suggested drop-in (global Defaults):"
+        label_user_scoped: "Alternative (current user only):"
+        label_manual: "Manual install (validate before enabling):"
+        manual_step_1: "  1) sudo visudo -f /etc/sudoers.d/99-pacsea-timestamp"
+        manual_step_2: "  2) Paste the global or user-scoped lines above, save, exit."
+        manual_step_3: "  3) sudo chmod 0440 /etc/sudoers.d/99-pacsea-timestamp"
+        instructions_footer: "Up/Down: scroll  •  Esc: back  •  Enter/Q: done  •  T: terminal helper"
+        dry_run_terminal_skipped: "Dry-run: terminal helper not started"
       virustotal:
         title: " VirusTotal "
         heading: "VirusTotal API-beállítás"

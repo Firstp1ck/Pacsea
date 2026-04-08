@@ -20,6 +20,7 @@ pub mod selection;
 pub mod services;
 pub mod sort;
 pub mod ssh_setup;
+pub mod sudo_timestamp_setup;
 pub mod summary;
 
 // Re-export public APIs to preserve existing import paths (crate::logic::...)

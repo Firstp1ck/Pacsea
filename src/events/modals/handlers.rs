@@ -8,7 +8,7 @@ use crate::install::ExecutorRequest;
 use crate::state::{AppState, Modal, PackageItem};
 
 /// Startup selector item count.
-const STARTUP_SETUP_SELECTOR_ITEMS: usize = 5;
+const STARTUP_SETUP_SELECTOR_ITEMS: usize = 6;
 
 /// What: Check whether a startup selector task can be toggled by the user.
 #[must_use]
@@ -1217,6 +1217,40 @@ pub(super) fn handle_virustotal_setup_modal(
     false
 }
 
+/// What: Handle key events for `SudoTimestampSetup` modal.
+///
+/// Inputs:
+/// - `ke`: Key event
+/// - `app`: Mutable application state
+/// - `modal`: `SudoTimestampSetup` modal variant
+///
+/// Output:
+/// - `false` (never stops propagation)
+///
+/// Details:
+/// - Advances the first-startup queue when the wizard completes while a queue is pending.
+#[allow(clippy::needless_pass_by_value)] // Matches `handle_modal_key` ownership pattern (`std::mem::take`).
+pub(super) fn handle_sudo_timestamp_setup_modal(
+    ke: KeyEvent,
+    app: &mut AppState,
+    modal: Modal,
+) -> bool {
+    let Modal::SudoTimestampSetup { mut setup } = modal else {
+        return false;
+    };
+    let finished =
+        super::sudo_timestamp_setup::handle_sudo_timestamp_setup_key(ke, app, &mut setup);
+    if finished {
+        app.modal = Modal::None;
+        if !app.pending_startup_setup_steps.is_empty() {
+            super::common::show_next_startup_setup_step(app);
+        }
+    } else {
+        app.modal = Modal::SudoTimestampSetup { setup };
+    }
+    false
+}
+
 /// What: Handle key events for `StartupSetupSelector` modal.
 pub(super) fn handle_startup_setup_selector_modal(
     ke: KeyEvent,
@@ -1260,7 +1294,8 @@ pub(super) fn handle_startup_setup_selector_modal(
                     0 => crate::state::modal::StartupSetupTask::ArchNews,
                     1 => crate::state::modal::StartupSetupTask::SshAurSetup,
                     2 => crate::state::modal::StartupSetupTask::OptionalDepsMissing,
-                    3 => crate::state::modal::StartupSetupTask::AurSleuthSetup,
+                    3 => crate::state::modal::StartupSetupTask::SudoTimestampSetup,
+                    4 => crate::state::modal::StartupSetupTask::AurSleuthSetup,
                     _ => crate::state::modal::StartupSetupTask::VirusTotalSetup,
                 };
                 if !startup_selector_task_selectable(task, app) {

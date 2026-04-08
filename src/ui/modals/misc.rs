@@ -10,7 +10,7 @@ use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 use super::common::render_simple_list_modal;
 use crate::state::{
     AppState,
-    modal::StartupSetupTask,
+    modal::{StartupSetupTask, SudoTimestampSetupModalState, SudoTimestampSetupPhase},
     types::{OptionalDepRow, RepositoryKeyTrust, RepositoryModalRow, RepositoryPacmanStatus},
 };
 use crate::theme::theme;
@@ -745,6 +745,13 @@ pub fn render_startup_setup_selector(
             ),
         ),
         (
+            StartupSetupTask::SudoTimestampSetup,
+            crate::i18n::t(
+                app,
+                "app.modals.startup_setup_selector.items.sudo_timestamp_setup",
+            ),
+        ),
+        (
             StartupSetupTask::AurSleuthSetup,
             crate::i18n::t(
                 app,
@@ -1076,6 +1083,99 @@ pub fn render_import_help(f: &mut Frame, area: Rect, app: &crate::state::AppStat
             Block::default()
                 .title(Span::styled(
                     crate::i18n::t(app, "app.modals.import_help.title"),
+                    Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+                ))
+                .borders(Borders::ALL)
+                .border_type(BorderType::Double)
+                .border_style(Style::default().fg(th.mauve))
+                .style(Style::default().bg(th.mantle)),
+        );
+    f.render_widget(boxw, rect);
+}
+
+/// What: Render the sudo `timestamp_timeout` setup wizard modal.
+///
+/// Inputs:
+/// - `f`: Frame to render into.
+/// - `area`: Full screen area used to center the modal.
+/// - `app`: Application state for localized strings.
+/// - `setup`: Wizard state (phase + cursor + scroll).
+///
+/// Output:
+/// - Draws the select list or instruction pane with scrolling.
+///
+/// Details:
+/// - Complements key handling in [`crate::events::modals::sudo_timestamp_setup`].
+#[allow(clippy::too_many_lines, clippy::many_single_char_names)]
+pub fn render_sudo_timestamp_setup(
+    f: &mut Frame,
+    area: Rect,
+    app: &AppState,
+    setup: SudoTimestampSetupModalState,
+) {
+    let th = theme();
+    let w = area.width.saturating_sub(8).min(102);
+    let h = 22_u16.min(area.height.saturating_sub(4));
+    let x = area.x + (area.width.saturating_sub(w)) / 2;
+    let y = area.y + (area.height.saturating_sub(h)) / 2;
+    let rect = Rect::new(x, y, w, h);
+    f.render_widget(Clear, rect);
+
+    let mut lines: Vec<Line<'static>> = Vec::new();
+
+    match setup.phase {
+        SudoTimestampSetupPhase::Select => {
+            lines.push(Line::from(Span::styled(
+                crate::i18n::t(app, "app.modals.sudo_timestamp_setup.select_heading"),
+                Style::default().fg(th.text),
+            )));
+            lines.push(Line::from(""));
+            let option_keys = [
+                "app.modals.sudo_timestamp_setup.option_10m",
+                "app.modals.sudo_timestamp_setup.option_30m",
+                "app.modals.sudo_timestamp_setup.option_infinity",
+                "app.modals.sudo_timestamp_setup.option_skip",
+            ];
+            for (idx, key) in option_keys.iter().enumerate() {
+                let label = crate::i18n::t(app, key);
+                let style = if idx == setup.select_cursor {
+                    Style::default()
+                        .fg(th.text)
+                        .add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
+                } else {
+                    Style::default().fg(th.subtext1)
+                };
+                lines.push(Line::from(Span::styled(label, style)));
+            }
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                crate::i18n::t(app, "app.modals.sudo_timestamp_setup.select_footer"),
+                Style::default().fg(th.overlay1),
+            )));
+        }
+        SudoTimestampSetupPhase::Instructions { choice, scroll } => {
+            let body =
+                crate::logic::sudo_timestamp_setup::sudo_timestamp_instruction_lines(app, choice);
+            let start = (scroll as usize).min(body.len());
+            let end = (start
+                + crate::logic::sudo_timestamp_setup::SUDO_TIMESTAMP_INSTRUCTION_VIEWPORT_LINES)
+                .min(body.len());
+            lines.extend(body[start..end].iter().cloned());
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                crate::i18n::t(app, "app.modals.sudo_timestamp_setup.instructions_footer"),
+                Style::default().fg(th.overlay1),
+            )));
+        }
+    }
+
+    let boxw = Paragraph::new(lines)
+        .style(Style::default().fg(th.text).bg(th.mantle))
+        .wrap(Wrap { trim: true })
+        .block(
+            Block::default()
+                .title(Span::styled(
+                    crate::i18n::t(app, "app.modals.sudo_timestamp_setup.title"),
                     Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
                 ))
                 .borders(Borders::ALL)

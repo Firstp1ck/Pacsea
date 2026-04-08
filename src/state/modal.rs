@@ -183,11 +183,77 @@ pub enum StartupSetupTask {
     SshAurSetup,
     /// Review and install missing optional dependencies.
     OptionalDepsMissing,
+    /// Optional wizard: extend `sudo` credential cache for long installs/updates (`sudoers`).
+    SudoTimestampSetup,
     /// Configure aur-sleuth integration.
     AurSleuthSetup,
     /// Configure `VirusTotal` API key.
     VirusTotalSetup,
 }
+
+/// What: User-selected `sudo` credential cache duration in the optional setup wizard.
+///
+/// Inputs:
+/// - Chosen by the user in [`Modal::SudoTimestampSetup`].
+///
+/// Output:
+/// - Maps to `timestamp_timeout` minutes in `sudoers`, or `-1` for no expiry in the session.
+///
+/// Details:
+/// - See `sudoers(5)` `timestamp_timeout`. This only affects policy once applied on the system.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SudoTimestampChoice {
+    /// Cache sudo credentials for ten minutes after a successful password prompt.
+    TenMinutes,
+    /// Cache sudo credentials for thirty minutes after a successful password prompt.
+    ThirtyMinutes,
+    /// Use `timestamp_timeout=-1` (do not expire until `sudo -k` or reboot, per sudo policy).
+    Infinity,
+}
+
+/// What: Active phase of the sudo timestamp setup wizard.
+///
+/// Inputs:
+/// - Driven by key events in the sudo timestamp setup handler.
+///
+/// Output:
+/// - Tells the renderer whether to show the option list or the instruction pane.
+///
+/// Details:
+/// - The select phase uses [`SudoTimestampSetupModalState::select_cursor`]; instructions carry their own scroll.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SudoTimestampSetupPhase {
+    /// User is picking a recommended `timestamp_timeout` or skipping.
+    Select,
+    /// User is reading copy-paste / terminal instructions for the chosen option.
+    Instructions {
+        /// Selected duration mapping.
+        choice: SudoTimestampChoice,
+        /// Vertical scroll offset in lines for long instruction text.
+        scroll: u16,
+    },
+}
+
+/// What: Stateful fields for [`Modal::SudoTimestampSetup`].
+///
+/// Inputs:
+/// - Constructed when opening the wizard from optional deps or startup setup.
+///
+/// Output:
+/// - Updated by the sudo timestamp setup key handler and read by the renderer.
+///
+/// Details:
+/// - `select_cursor` is kept when switching to instructions so Esc returns to the same row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SudoTimestampSetupModalState {
+    /// Current wizard phase.
+    pub phase: SudoTimestampSetupPhase,
+    /// Row index in the select phase (`0..SUDO_TIMESTAMP_SELECT_ROWS`).
+    pub select_cursor: usize,
+}
+
+/// Row count for [`SudoTimestampSetupModalState::select_cursor`] (10m, 30m, infinity, skip).
+pub const SUDO_TIMESTAMP_SELECT_ROWS: usize = 4;
 
 impl CascadeMode {
     /// Return the `pacman` flag sequence corresponding to this `CascadeMode`.
@@ -852,6 +918,11 @@ pub enum Modal {
         /// Cursor position within the input buffer.
         cursor: usize,
     },
+    /// Optional wizard: configure `sudo` `timestamp_timeout` via `sudoers` drop-in (instructions / terminal).
+    SudoTimestampSetup {
+        /// Wizard phase and cursor state.
+        setup: SudoTimestampSetupModalState,
+    },
     /// Information dialog explaining the Import file format.
     ImportHelp,
     /// Setup dialog for startup news popup configuration.
@@ -986,6 +1057,12 @@ mod tests {
         let _ = super::Modal::VirusTotalSetup {
             input: String::new(),
             cursor: 0,
+        };
+        let _ = super::Modal::SudoTimestampSetup {
+            setup: super::SudoTimestampSetupModalState {
+                phase: super::SudoTimestampSetupPhase::Select,
+                select_cursor: 0,
+            },
         };
         let _ = super::Modal::ImportHelp;
         let _ = super::Modal::PasswordPrompt {

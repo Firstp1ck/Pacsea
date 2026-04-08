@@ -210,7 +210,7 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
     }
 
-    /// What: Verify the `repos.conf` skeleton string still documents a commented `[[repo]]` example.
+    /// What: Verify the `repos.conf` skeleton matches the shipped `config/repos.conf` template.
     ///
     /// Inputs:
     /// - None.
@@ -219,17 +219,25 @@ mod tests {
     /// - None.
     ///
     /// Details:
-    /// - Guards an accidentally emptied `REPOS_SKELETON_CONTENT` in `skeletons.rs` (keep `config/repos.conf` in sync).
+    /// - Guards an accidentally emptied `REPOS_SKELETON_CONTENT` / broken `include_str!` path.
     #[test]
-    fn repos_skeleton_embeds_commented_repo_example() {
+    fn repos_skeleton_embeds_disabled_repo_recipes() {
         use crate::theme::config::skeletons::REPOS_SKELETON_CONTENT;
         assert!(
-            REPOS_SKELETON_CONTENT.contains("# [[repo]]"),
-            "repos skeleton should include a commented-out [[repo]] example"
+            REPOS_SKELETON_CONTENT.contains("[[repo]]"),
+            "repos skeleton should include [[repo]] entries"
         );
         assert!(
-            REPOS_SKELETON_CONTENT.contains("results_filter"),
-            "repos skeleton should document results_filter"
+            REPOS_SKELETON_CONTENT.contains("enabled = false"),
+            "repos skeleton should ship rows disabled by default"
+        );
+        assert!(
+            REPOS_SKELETON_CONTENT.contains("chaotic-aur"),
+            "repos skeleton should include chaotic-aur"
+        );
+        assert!(
+            REPOS_SKELETON_CONTENT.contains("Pacsea"),
+            "repos skeleton should identify itself"
         );
     }
 

@@ -10,6 +10,7 @@ mod password;
 mod repositories;
 mod restore;
 mod scan;
+mod sudo_timestamp_setup;
 mod system_update;
 
 #[cfg(test)]
@@ -74,6 +75,9 @@ pub(super) fn handle_modal_key(
         Modal::SshAurSetup { .. } => handlers::handle_ssh_setup_modal(ke, app, modal),
         Modal::ScanConfig { .. } => handlers::handle_scan_config_modal(ke, app, modal),
         Modal::VirusTotalSetup { .. } => handlers::handle_virustotal_setup_modal(ke, app, modal),
+        Modal::SudoTimestampSetup { .. } => {
+            handlers::handle_sudo_timestamp_setup_modal(ke, app, modal)
+        }
         Modal::NewsSetup { .. } => handlers::handle_news_setup_modal(ke, app, modal),
         Modal::StartupSetupSelector { .. } => {
             handlers::handle_startup_setup_selector_modal(ke, app, modal)

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Check Pacsea repos example TOML: parse/validate like repos.conf, optional HTTP reachability.
+# Check Pacsea repos.conf TOML (shipped skeleton): parse/validate like user repos.conf, optional HTTP reachability.
 #
 # Validates: TOML parse, required name/results_filter, canonical results_filter key, duplicate
 # name (case-insensitive), rejected preset=, http(s) server and mirrorlist_url, key_id hex length
@@ -46,7 +46,7 @@ unset -v _fc_lc
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-DEFAULT_CONF="${REPO_ROOT}/config/examples/repos_example.conf"
+DEFAULT_CONF="${REPO_ROOT}/config/repos.conf"
 
 OFFLINE=0
 SKIP_KEYS=0
@@ -550,7 +550,7 @@ def main() -> int:
         if preset is not None:
             err(
                 f"{label}: `preset` is not supported; use a full [[repo]] block "
-                "(see config/examples in the Pacsea tree)."
+                "(see config/repos.conf in the Pacsea tree)."
             )
 
         name = non_empty_trim(row.get("name"))

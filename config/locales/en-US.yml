@@ -52,7 +52,10 @@ en-US:
         clipboard: "Clipboard"
         aur_helper: "AUR Helper"
         security: "Security"
+        privilege: "Privilege"
         downgrade: "Downgrade-Tool"
+      items:
+        sudo_timestamp_setup: "sudo credential cache (sudoers)"
     search_mode_fuzzy: "FUZZY"
     search_mode_normal: "NORMAL"
 
@@ -81,6 +84,7 @@ en-US:
       clipboard_copy: "Clipboard Copy"
       connection_issue: "Connection issue"
       optional_deps: "Optional Deps"
+      sudo_timestamp_setup: "Sudo credential cache"
       install_gnome_terminal: "Install a GNOME Terminal"
       virustotal: "VirusTotal"
       arch_linux_news: "Arch Linux News"
@@ -480,7 +484,7 @@ en-US:
           - "  • Enter: apply plan (curl/keys/drop-in/sync)"
           - "  • o: open ~/.config/pacsea/repos.conf in your editor"
           - "  • r: refresh signing key for the selected row (pacman-key recv + lsign; Linux)"
-          - "  • s: open the in-tree repos.conf example for setup hints"
+          - "  • s: open the shipped repos.conf template (read-only copy) for setup hints"
           - "  • Up/Down/j/k, PgUp/PgDn, Home/End: navigate  •  Esc or q: close"
         foreign_overlap_help_lines:
           - "  • After a full Repositories apply, press Enter only after the log shows completion; then you may get the AUR/repo overlap wizard (Linux)"
@@ -557,10 +561,12 @@ en-US:
       startup_setup_selector:
         title: "Startup Setup Selector"
         heading: "Choose startup setup tasks to run now"
+        disabled_suffix_already_configured: " (already configured)"
         items:
           arch_news: "Arch news setup"
           ssh_aur_setup: "SSH AUR setup for voting"
           optional_deps_missing: "Check missing optional dependencies"
+          sudo_timestamp_setup: "Sudo credential cache (sudoers)"
           aur_sleuth_setup: "aur-sleuth setup"
           virustotal_setup: "VirusTotal API setup"
         footer_hint: "Up/Down: select  •  Space: toggle  •  Enter: run selected  •  Esc: maybe later  •  R: never show again"
@@ -582,7 +588,7 @@ en-US:
         title: " Repositories "
         heading: "Configured repositories"
         parse_error: "repos.conf:"
-        empty: "No [[repo]] entries in repos.conf. Add definitions via the Config menu or copy config/examples/repos_example.conf."
+        empty: "No [[repo]] entries in repos.conf. Add definitions via the Config menu."
         col:
           repo: "Repo"
           filter: "Filter"
@@ -604,14 +610,14 @@ en-US:
           create_failed: "Could not create repos.conf in your config directory."
           started: "Opening {} in your editor…"
         setup_example_started: "Opening {} in your editor…"
-        setup_example_write_failed: "Could not write the repos.conf example to your Pacsea config directory."
+        setup_example_write_failed: "Could not write the repos.conf template to your Pacsea config directory."
         refresh_key:
           unsupported_platform: "Key refresh is only available on Linux."
         toggle:
           unsupported_platform: "Toggling managed repos is only available on Linux."
           not_managed: "Toggle only works for repos active from pacsea-repos.conf (disable), or rows with enabled=false and a server/mirrorlist in repos.conf (re-enable). Edit pacman.conf for other sources."
           persist_failed: "Could not update repos.conf:"
-        footer_hint: "Space: toggle+apply  •  Enter: apply  •  o: edit repos.conf  •  r: refresh key  •  s: example  •  Nav  •  Esc/Q"
+        footer_hint: "Space: toggle+apply  •  Enter: apply  •  o: edit repos.conf  •  r: refresh key  •  s: template  •  Nav  •  Esc/Q"
         apply:
           fix_repos_conf: "Fix repos.conf errors before applying (see message above)."
           no_rows: "No repositories to apply. Add [[repo]] rows in repos.conf first."
@@ -627,6 +633,26 @@ en-US:
         body_line1: "GNOME was detected, but no GNOME terminal (gnome-terminal or gnome-console/kgx) is installed."
         hint: "Press Enter to install gnome-terminal  •  Esc to cancel"
         warning: "Cancel may lead to unexpected behavior."
+      sudo_timestamp_setup:
+        title: " Sudo credential cache "
+        select_heading: "Long installs or updates can hit sudo again when the default credential cache expires. Extending timestamp_timeout in sudoers is recommended before large AUR builds."
+        option_10m: "10 minutes (timestamp_timeout=10)"
+        option_30m: "30 minutes (timestamp_timeout=30)"
+        option_infinity: "No expiry for this session (timestamp_timeout=-1; until sudo -k or reboot per policy)"
+        option_skip: "Skip — I will configure sudo myself"
+        select_footer: "Up/Down: choose  •  Enter: continue  •  Esc/Q: close"
+        instructions_note_tui: "Pacsea cannot edit sudoers inside this TUI. Use the lines below, or press T to run a helper script in a real terminal (you will enter your password there)."
+        instructions_heading_ten: "Sudoers: 10 minute credential cache"
+        instructions_heading_thirty: "Sudoers: 30 minute credential cache"
+        instructions_heading_infinity: "Sudoers: credential cache for this session (timestamp_timeout=-1)"
+        label_dropin_contents: "Suggested drop-in (global Defaults):"
+        label_user_scoped: "Alternative (current user only):"
+        label_manual: "Manual install (validate before enabling):"
+        manual_step_1: "  1) sudo visudo -f /etc/sudoers.d/99-pacsea-timestamp"
+        manual_step_2: "  2) Paste the global or user-scoped lines above, save, exit."
+        manual_step_3: "  3) sudo chmod 0440 /etc/sudoers.d/99-pacsea-timestamp"
+        instructions_footer: "Up/Down: scroll  •  Esc: back  •  Enter/Q: done  •  T: terminal helper"
+        dry_run_terminal_skipped: "Dry-run: terminal helper not started"
       virustotal:
         title: " VirusTotal "
         heading: "VirusTotal API Setup"
