@@ -146,24 +146,18 @@ hu-HU:
       dry_run_disabled: "Próbafuttatás letiltva"
       cascade_mode_enabled: "Lépcsőzetes mód engedélyezve"
       cascade_mode_disabled: "Lépcsőzetes mód letiltva"
-      # TODO: translate to hungarian
-      update_check_degraded: "Update check is degraded (stale pacman DB or sandbox). Prefer pacman-contrib (checkupdates), or sync: sudo pacman -Sy"
+      update_check_degraded: "A frissítésellenőrzés korlátozott (elavult pacman DB vagy homokozó). Használja inkább a pacman-contrib-ot (checkupdates), vagy szinkronizáljon: sudo pacman -Sy"
       gnome_terminal_warning: "Gnome Terminál nélkül a program váratlanul viselkedhet"
-      # TODO: translate to hungarian
-      repo_apply_wait_exec_finish: "Wait until the command finishes (log shows completion), then press Enter for the next step."
-      # TODO: translate to hungarian
-      repo_overlap_no_sync_list: "Repository \"{}\": pacman reported no package list (sync DB missing, wrong section name vs repos.conf, or empty repo)."
-      # TODO: translate to hungarian
-      repo_overlap_no_matching_names: "You have foreign installs, but none share a pkgname with repository \"{}\". Packages already installed from that repo are sync installs (not listed by pacman -Qm)."
+      repo_apply_wait_exec_finish: "Várja meg, amíg a parancs befejeződik (a napló jelzi a kész állapotot), majd nyomja meg az Entert a következő lépéshez."
+      repo_overlap_no_sync_list: "„{}” tároló: a pacman nem jelzett csomaglistát (hiányzó szinkronizációs adatbázis, hibás szakasznév a repos.conf fájlban, vagy üres tároló)."
+      repo_overlap_no_matching_names: "Külső (foreign) telepítések találhatók, de egyik csomagnév sem egyezik a(z) „{}” tárolóban lévőkkel. Az ebből a tárolóból már telepített csomagok szinkronizált telepítések (nem listázza a pacman -Qm)."
     errors:
       authentication_failed: "Nem sikerült a hitelesítés vagy meg lett szakítva. Művelet megszakítva."
     updates_button:
       available: "({}) frissítés érhető el"
-      # TODO: translate to hungarian
-      available_degraded: "Updates available ({}) — check may be incomplete"
+      available_degraded: "Frissítések érhetők el ({}) — az ellenőrzés hiányos lehet"
       none: "Nincsenek elérhető frissítések"
-      # TODO: translate to hungarian
-      none_maybe_stale: "No updates detected (database may be stale)"
+      none_maybe_stale: "Nincsenek frissítések (az adatbázis elavult lehet)"
       loading: "Frissítések ellenőrzése…"
       locked: "🔒 Zárolt"
       locked_with_time: "🔒 Zárolás {} perc múlva"
@@ -310,12 +304,9 @@ hu-HU:
         artix_galaxy: "GALAXY"
         artix_world: "WORLD"
         artix_system: "SYSTEM"
-        # TODO: translate to hungarian
-        custom_repos: "Repos"
-        # TODO: translate to hungarian
-        custom_repos_all: "All custom"
-        # TODO: translate to hungarian
-        custom_repos_menu_title: "Custom repo filters"
+        custom_repos: "Tárolók"
+        custom_repos_all: "Összes egyéni"
+        custom_repos_menu_title: "Egyéni tárolószűrők"
         blackarch: "BlackArch"
         manjaro: "Manjaro"
       sort_menu:
@@ -329,8 +320,7 @@ hu-HU:
           settings: "Beállítások → settings.conf"
           theme: "Téma → theme.conf"
           keybindings: "Billentyűparancsok → keybinds.conf"
-          # TODO: translate to hungarian
-          repos: "Repositories -> repos.conf"
+          repos: "Tárolók → repos.conf"
       panels_menu:
         show_recent: "Legutóbbi megjelenítése"
         hide_recent: "Legutóbbi elrejtése"
@@ -352,8 +342,7 @@ hu-HU:
         news_age_days: "Az elmúlt {} nap hírei"
         news_age_all: "Az elmúlt összes nap hírei"
         tui_optional_deps: "A PacSea nem kötelező függőségei"
-        # TODO: translate to hungarian
-        repositories: "Repositories"
+        repositories: "Tárolók"
     news:
       filters:
         arch: "Arch"
@@ -386,10 +375,8 @@ hu-HU:
         heading_update: "Rendszergazdai jogosultság szükséges a rendszer frissítéséhez"
         heading_downgrade: "Rendszergazdai jogosultság szükséges a csomagok visszafejlesztéséhez"
         heading_file_sync: "Rendszergazdai jogosultság szükséges a fájladatbázis szinkronizálásához"
-        # TODO: translate to hungarian
-        heading_repo_apply: "Administrative privileges required to apply repository configuration"
-        # TODO: translate to hungarian
-        heading_repo_foreign_migrate: "Administrative privileges required to migrate foreign packages to sync"
+        heading_repo_apply: "Rendszergazdai jogosultság szükséges a tárolókonfiguráció érvényesítéséhez"
+        heading_repo_foreign_migrate: "Rendszergazdai jogosultság szükséges a külső csomagok szinkronizált állapotba való átköltöztetéséhez"
         package_label_singular: "Csomag:"
         package_label_plural: "Csomagok:"
         password_label: "[sudo] adja meg a jelszavát:"
@@ -420,57 +407,33 @@ hu-HU:
         confirm_hint: "Nyomja meg az Entert az újratelepítés megerősítéséhez vagy az Esc gombot a megszakításhoz"
         and_more: "… és további {}"
       foreign_overlap:
-        # TODO: translate to hungarian
-        title: " AUR vs new repository "
-        # TODO: translate to hungarian
-        warn_step0_line1: "Listed packages below, installed from the AUR on your system, use the same name as packages now available from [{}]."
-        # TODO: translate to hungarian
-        warn_step0_line2: "Updates will switch to the repository package from [{}]. That build is not always the same as the AUR one."
+        title: " AUR vs. új tároló "
+        warn_step0_line1: "Az alább felsorolt, AUR-ból telepített csomagok neve megegyezik a(z) [{}] tárolóban elérhető csomagokéval."
+        warn_step0_line2: "A frissítések a(z) [{}] tároló csomagjára fognak váltani. Ez az összeállítás nem feltétlenül azonos az AUR-ból származóval."
         warn_step0_detail1: ""
-        # TODO: translate to hungarian
-        warn_step0_detail2: "Skipping migration may lead to broken packages. AUR helpers often prioritize the repositories added to pacman.conf."
-        # TODO: translate to hungarian
-        warn_step0_detail3: "Repo packages can differ from AUR builds (version, compile options, optional dependencies). Things can change if you start using the repo build instead."
-        # TODO: translate to hungarian
-        warn_step0_detail4: "Esc or q closes this wizard without applying anything from here. Use ↑/↓ to scroll through the full list before you continue."
-        # TODO: translate to hungarian
-        warn_step1_line: "Migration will reinstall packages from the repository, replacing your current AUR-installed packages."
+        warn_step0_detail2: "Az átköltöztetés kihagyása hibás csomagokhoz vezethet. Az AUR-segédek gyakran előnyben részesítik a pacman.conf fájlhoz hozzáadott tárolókat."
+        warn_step0_detail3: "A tárolóban lévő csomagok eltérhetnek az AUR-os változatoktól (verzió, összeállítási beállítások, nem kötelező függőségek). Változások léphetnek fel, ha a tárolóváltozatot kezdi használni."
+        warn_step0_detail4: "Az Esc vagy q bezárja ezt a varázslót anélkül, hogy bármit is módosítana. A folytatás előtt használja a ↑/↓ gombokat a teljes lista áttekintéséhez."
+        warn_step1_line: "Az átköltöztetéskor a csomagok újra lesznek telepítve a tárolóból, lecserélve a jelenlegi AUR-ból származó telepítéseket."
         warn_step1_detail1: ""
-        # TODO: translate to hungarian
-        warn_step1_detail2: "Following commands will be run: pacman -Rns --noconfirm removes the AUR install and dependencies no longer needed (other packages can be removed if nothing depends on them). After that, pacman -S --needed --noconfirm installs the same packages from the added repository."
-        # TODO: translate to hungarian
-        warn_step1_detail3: "Packages will update normally via pacman -Syu (pulls packages from the added repository)."
-        # TODO: translate to hungarian
-        warn_step1_detail4: "Read the package list and command summary carefully before sudo. The repo package may not match what your AUR PKGBUILD gave you."
-        # TODO: translate to hungarian
-        list_heading: "Affected packages (AUR install; repository also ships this name):"
-        # TODO: translate to hungarian
-        select_heading: "Space: toggle migrate  •  Enter: open final confirm if any selected, or close if none selected"
-        # TODO: translate to hungarian
-        final_heading: "Privileged command (summary): pacman -Rns --noconfirm … then pacman -S --needed --noconfirm …"
-        # TODO: translate to hungarian
-        final_hint: "y: confirm and open sudo  •  Esc: back to selection"
-        # TODO: translate to hungarian
-        warn_ack_hint: "Enter: continue  •  ↑/↓: scroll list  •  Esc/q: cancel"
-        # TODO: translate to hungarian
-        migrate_empty_plan: "No migration commands were built."
-        # TODO: translate to hungarian
-        missing_migrate_commands: "Missing migration command plan."
-        # TODO: translate to hungarian
-        cancel_revert_empty_section: "Cannot turn off the repository: missing section name."
-        # TODO: translate to hungarian
-        cancel_revert_failed: "Could not turn off the repository after cancel: {}"
+        warn_step1_detail2: "A következő parancsok futnak le: a pacman -Rns --noconfirm eltávolítja az AUR-ból származó telepítést és a már nem szükséges függőségeket (más csomagok is eltávolításra kerülhetnek, ha semmi sem függ tőlük). Ezután a pacman -S --needed --noconfirm telepíti ugyanezeket a csomagokat a hozzáadott tárolóból."
+        warn_step1_detail3: "A csomagok ezután normál módon frissülnek a pacman -Syu paranccsal (a hozzáadott tárolóból töltődnek le)."
+        warn_step1_detail4: "A sudo előtt figyelmesen olvassa el a csomaglistát és a parancsok összegzését. A tároló csomagja nem feltétlenül egyezik meg azzal, amit az AUR PKGBUILD-je nyújtott."
+        list_heading: "Érintett csomagok (AUR-ból származó telepítés; a tárolóban is megtalálható ezen a néven):"
+        select_heading: "Szóköz: átköltöztetés be/ki • Enter: végső megerősítés megnyitása (ha van kijelölt), vagy bezárás"
+        final_heading: "Emelt szintű parancs (összegzés): pacman -Rns --noconfirm … majd pacman -S --needed --noconfirm …"
+        final_hint: "y: megerősítés és sudo megnyitása • Esc: vissza a kiválasztáshoz"
+        warn_ack_hint: "Enter: folytatás • ↑/↓: lista görgetése • Esc/q: megszakítás"
+        migrate_empty_plan: "Nem jöttek létre átköltöztetési parancsok."
+        missing_migrate_commands: "Hiányzó átköltöztetési parancsterv."
+        cancel_revert_empty_section: "A tároló nem kapcsolható ki: hiányzó szakasznév."
+        cancel_revert_failed: "Nem sikerült kikapcsolni a tárolót a megszakítás után: {}"
       warn_aur_repo_duplicate:
-        # TODO: translate to hungarian
-        title: " AUR install vs repository row "
-        # TODO: translate to hungarian
-        line1: "You chose an AUR install, but the same pkgname also appears as a sync/repository row in the current results."
-        # TODO: translate to hungarian
-        line2: "Helpers may prefer the repository unless forced to AUR; future pacman -Syu may replace the AUR install."
-        # TODO: translate to hungarian
-        names_heading: "Affected package names:"
-        # TODO: translate to hungarian
-        hint: "Enter: continue AUR install  •  Esc/q: cancel"
+        title: " AUR-ból származó telepítés vs. tárolósor "
+        line1: "AUR-ból származó telepítést választott, de ugyanez a csomagnév szinkronizált/tárolóbeli sorként is szerepel a találatok között."
+        line2: "A segédprogramok a tárolót részesíthetik előnyben, hacsak nem kényszeríti az AUR-t; a jövőbeli pacman -Syu lecserélheti az AUR-ból származó telepítést."
+        names_heading: "Érintett csomagok nevei:"
+        hint: "Enter: AUR-ból származó csomag telepítésének folytatása • Esc/q: megszakítás"
       confirm_aur_update:
         title: "  - Folytatja az AUR-frissítést? "
         pacman_failed: "Nem sikerült frissíteni a csomagokat a pacman paranccsal (kilépési kód: {})."
@@ -504,10 +467,8 @@ hu-HU:
           mouse: "Egér:"
           system_update_dialog: "Rendszerfrissítési párbeszédablak:"
           news_dialog: "Hírek párbeszédablak:"
-          # TODO: translate to hungarian
-          repositories_modal: "Repositories modal:"
-          # TODO: translate to hungarian
-          foreign_overlap_dialog: "Repository overlap / AUR vs repo warning:"
+          repositories_modal: "Tárolók párbeszédablak:"
+          foreign_overlap_dialog: "Tárolóátfedés / AUR vs. tároló / figyelmeztetés:"
         mouse_lines:
           - "  • Listák (találatok/legutóbbi/telepítés) és PKGBUILD görgetése egérgörgővel"
           - "  • PKGBUILD be/ki: kattintson a „PKGBUILD megjelenítése” gombra a részleteknél"
@@ -515,29 +476,19 @@ hu-HU:
           - "  • Részletek webcímének megnyitása: Ctrl+Shift+Bal kattintás a webcímre"
           - "  • Találati címsor: kattintson a Rendezés/Beállítások/Panelek/Konfiguráció gombra a menük megnyitásához"
           - "  • Szűrők be/ki (AUR/core/extra/multilib/EOS/cachyos/Artix): kattintson a címkéjükre"
-          # TODO: translate to hungarian
-          - "  • Custom repos.conf filters: click the [Repos] v chip to open the overflow menu"
+          - "  • Egyedi repos.conf szűrők: kattintson a [Tárolók] v gombra a bővített menü megnyitásához"
           - "  • Arch Linux állapot (jobb felső): kattintson a status.archlinux.org megnyitásához"
         foreign_overlap_help_lines:
-          # TODO: translate to hungarian
-          - "  • After a full Repositories apply, press Enter only after the log shows completion; then you may get the AUR/repo overlap wizard (Linux)"
-          # TODO: translate to hungarian
-          - "  • Wizard: Enter twice to acknowledge warnings; Esc/q on the first warning turns the repository off in repos.conf and queues apply; later steps: Space toggles migrate, y confirms sudo (Esc backs out)"
-          # TODO: translate to hungarian
-          - "  • Installing from an AUR results row while the same pkgname exists as an official row shows a red warning first"
+          - "  • A tárolók teljes érvényesítése után csak akkor nyomjon Entert, ha a napló jelzi a befejezést; ezután megjelenhet az AUR/tárolóátfedés-varázsló (Linux)"
+          - "  • Varázsló: Erősítse meg kétszer a figyelmeztetések elfogadásához; Esc/q az első figyelmeztetésnél kikapcsolja a tárolót a repos.conf fájlban; későbbi lépések: Szóköz az átköltöztetés be-/kikapcsolásához, y a sudo megerősítéséhez (Esc visszalép)"
+          - "  • Ha egy AUR-os találati sorból telepít, miközben ugyanez a csomagnév létezik hivatalos sorként is, először egy piros figyelmeztetés jelenik meg"
         repositories_modal_lines:
-          # TODO: translate to hungarian
-          - "  • Space: toggle enabled in repos.conf and apply (managed drop-in rows only; Linux)"
-          # TODO: translate to hungarian
-          - "  • Enter: apply plan (curl/keys/drop-in/sync)"
-          # TODO: translate to hungarian
-          - "  • o: open ~/.config/pacsea/repos.conf in your editor"
-          # TODO: translate to hungarian
-          - "  • r: refresh signing key for the selected row (pacman-key recv + lsign; Linux)"
-          # TODO: translate to hungarian
-          - "  • s: open the in-tree repos.conf example for setup hints"
-          # TODO: translate to hungarian
-          - "  • Up/Down/j/k, PgUp/PgDn, Home/End: navigate  •  Esc or q: close"
+          - "  • Szóköz: engedélyezés/letiltás a repos.conf fájlban és érvényesítés (csak kezelt drop-in soroknál; Linux)"
+          - "  • Enter: terv érvényesítése (curl/kulcsok/drop-in/szinkronizálás)"
+          - "  • o: a ~/.config/pacsea/repos.conf megnyitása a szerkesztőben"
+          - "  • r: aláíró kulcs frissítése a kiválasztott sorhoz (pacman-key recv + lsign; Linux)"
+          - "  • s: a beépített repos.conf példa megnyitása beállítási tippekért"
+          - "  • Fel/Le/j/k, PgUp/PgDn, Home/End: navigáció  •  Esc vagy q: bezárás"
         system_update_lines:
           - "  • Megnyitás: Beállítások → Rendszer frissítése"
           - "  • Fel/Le: mozgás • Szóköz: be/ki • Balra/Jobbra: országváltás • Enter: futtatás • Esc: bezárás"
@@ -607,26 +558,16 @@ hu-HU:
         date_selection: "Életkor legfeljebb"
         footer_hint: "Fel/Le: kiválasztás  •  Szóköz: be/ki  •  Enter: mentés  •  Esc: megszakítás"
       startup_setup_selector:
-        # TODO: translate to hungarian
-        title: "Startup Setup Selector"
-        # TODO: translate to hungarian
-        heading: "Choose startup setup tasks to run now"
-        # TODO: translate to hungarian
-        disabled_suffix_already_configured: " (already configured)"
+        title: "Indítási beállításválasztó"
+        heading: "Válassza ki a most futtatandó beállítási feladatokat"
+        disabled_suffix_already_configured: " (már konfigurálva)"
         items:
-          # TODO: translate to hungarian
-          arch_news: "Arch news setup"
-          # TODO: translate to hungarian
-          ssh_aur_setup: "SSH AUR setup for voting"
-          # TODO: translate to hungarian
-          optional_deps_missing: "Check missing optional dependencies"
-          # TODO: translate to hungarian
-          aur_sleuth_setup: "aur-sleuth setup"
-          # TODO: translate to hungarian
-          virustotal_setup: "VirusTotal API setup"
-        # TODO: translate to hungarian
-        # TODO: translate to hungarian
-        footer_hint: "Up/Down: select  •  Space: toggle  •  Enter: run selected  •  Esc: maybe later  •  R: never show again"
+          arch_news: "Arch hírek beállítása"
+          ssh_aur_setup: "SSH AUR beállítás szavazáshoz"
+          optional_deps_missing: "Hiányzó, nem kötelező függőségek ellenőrzése"
+          aur_sleuth_setup: "aur-sleuth beállítása"
+          virustotal_setup: "VirusTotal API beállítása"
+        footer_hint: "Fel/Le: kiválasztás  •  Szóköz: be/ki  •  Enter: kijelöltek futtatása  •  Esc: talán később  •  R: ne mutassa többet"
       announcement:
         footer_hint: "r: Megjelölés olvasottként | Enter/Esc: Eltüntetés (megjelenítés újra)"
       updates_window:
@@ -636,23 +577,19 @@ hu-HU:
       optional_deps:
         title: " Nem kötelező függőségek "
         heading: "A PacSea nem kötelező függőségei"
-        # TODO: translate to hungarian
-        wizard_button: "[Wizard]"
+        wizard_button: "[Varázsló]"
         markers:
           installed: "✔ telepítve"
           not_installed: "⏺ nincs telepítve"
         footer_hint: "Fel/Le: kiválasztás • Enter: telepítés • Esc: bezárás"
       repositories:
-        # TODO: translate to hungarian
-        title: " Repositories "
-        # TODO: translate to hungarian
-        heading: "Configured repositories"
+        title: " Tárolók "
+        heading: "Konfigurált tárolók"
         parse_error: "repos.conf:"
-        # TODO: translate to hungarian
-        empty: "No [[repo]] entries in repos.conf. Add definitions via the Config menu or copy config/examples/repos_example.conf."
+        empty: "Nincsenek [[repo]] bejegyzések a repos.conf fájlban. Adjon meg definíciókat a konfiguráció menüben, vagy másolja le a config/examples/repos_example.conf fájlt."
         col:
           repo: "Repo"
-          filter: "Filter"
+          filter: "Szűrő"
           pacman: "Pacman"
           key: "Kulcs"
         pacman:
@@ -665,47 +602,29 @@ hu-HU:
           not_trusted: "hiányzik"
           unknown: "ismeretlen"
         warnings_prefix: "pacman.conf:"
-        # TODO: translate to hungarian
-        unsupported_platform: "The Repositories modal is only supported on Linux (pacman)."
+        unsupported_platform: "A tárolók párbeszédablaka csak Linuxon (pacman) támogatott."
         open_config:
-          # TODO: translate to hungarian
-          mkdir_failed: "Could not create the Pacsea config directory for repos.conf."
-          # TODO: translate to hungarian
-          create_failed: "Could not create repos.conf in your config directory."
-          # TODO: translate to hungarian
-          started: "Opening {} in your editor…"
-        # TODO: translate to hungarian
-        setup_example_started: "Opening {} in your editor…"
-        # TODO: translate to hungarian
-        setup_example_write_failed: "Could not write the repos.conf example to your Pacsea config directory."
+          mkdir_failed: "Nem sikerült létrehozni a Pacsea konfigurációs könyvtárát a repos.conf számára."
+          create_failed: "Nem sikerült létrehozni a repos.conf fájlt a konfigurációs könyvtárban."
+          started: "{} megnyitása a szerkesztőben…"
+        setup_example_started: "{} megnyitása a szerkesztőben…"
+        setup_example_write_failed: "Nem sikerült a repos.conf példát a Pacsea konfigurációs könyvtárába írni."
         refresh_key:
-          # TODO: translate to hungarian
-          unsupported_platform: "Key refresh is only available on Linux."
+          unsupported_platform: "A kulcsfrissítés csak Linuxon érhető el."
         toggle:
-          # TODO: translate to hungarian
-          unsupported_platform: "Toggling managed repos is only available on Linux."
-          # TODO: translate to hungarian
-          not_managed: "Toggle only works for repos active from pacsea-repos.conf (disable), or rows with enabled=false and a server/mirrorlist in repos.conf (re-enable). Edit pacman.conf for other sources."
-          # TODO: translate to hungarian
-          persist_failed: "Could not update repos.conf:"
-        # TODO: translate to hungarian
-        footer_hint: "Space: toggle+apply  •  Enter: apply  •  o: edit repos.conf  •  r: refresh key  •  s: example  •  Nav  •  Esc/Q"
+          unsupported_platform: "A kezelt tárolók be-/kikapcsolása csak Linuxon érhető el."
+          not_managed: "A be-/kikapcsolás csak a pacsea-repos.conf fájlból aktív tárolóknál (letiltás), vagy az enabled=false értékkel és kiszolgálóval/tükörlistával rendelkező soroknál (visszakapcsolás) működik. Más forrásokhoz szerkessze a pacman.conf fájlt."
+          persist_failed: "Nem sikerült frissíteni a repos.conf fájlt:"
+        footer_hint: "Szóköz: be/ki+érvényesítés  •  Enter: érvényesítés  •  o: repos.conf szerkesztése  •  r: kulcsfrissítés  •  s: példa  •  ↑/↓  •  Esc/Q"
         apply:
-          # TODO: translate to hungarian
-          fix_repos_conf: "Fix repos.conf errors before applying (see message above)."
-          # TODO: translate to hungarian
-          no_rows: "No repositories to apply. Add [[repo]] rows in repos.conf first."
-          # TODO: translate to hungarian
-          no_selection: "No row selected."
-          # TODO: translate to hungarian
-          no_config_path: "Could not resolve repos.conf path."
-          # TODO: translate to hungarian
-          read_failed: "Could not read"
+          fix_repos_conf: "Érvényesítés előtt javítsa a repos.conf fájl hibáit (lásd a fenti üzenetet)."
+          no_rows: "Nincsenek érvényesítendő tárolók. Előbb adjon hozzá [[repo]] sorokat a repos.conf fájlhoz."
+          no_selection: "Nincs sor kiválasztva."
+          no_config_path: "Nem sikerült feloldani a repos.conf fájl elérési útját."
+          read_failed: "Nem sikerült beolvasni"
           parse_failed: "repos.conf:"
-          # TODO: translate to hungarian
-          empty_plan: "No apply steps were generated."
-          # TODO: translate to hungarian
-          missing_commands: "No repository apply commands found."
+          empty_plan: "Nem jöttek létre érvenyesítési lépések."
+          missing_commands: "Nem találhatók tárolóérvényesítési parancsok."
       gnome_terminal_prompt:
         title: " Gnome Terminál telepítése "
         heading: "Gnome Terminál vagy Konzol ajánlott"
