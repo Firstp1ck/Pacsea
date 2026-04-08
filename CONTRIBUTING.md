@@ -89,7 +89,13 @@ Before committing, ensure all of the following pass:
    cargo test -- --test-threads=1
    ```
 
-5. **Check complexity (for new code):**
+5. **Run security checks (if tools installed):**
+   ```bash
+   ./dev/scripts/security-check.sh
+   ```
+   This runs `cargo audit`, `cargo deny`, `gitleaks`, and the fmt/clippy checks in one pass. Missing tools are skipped with install instructions.
+
+6. **Check complexity (for new code):**
    ```bash
    # Run complexity tests to ensure new functions meet thresholds
    cargo test complexity -- --nocapture
@@ -274,6 +280,8 @@ Step-by-step testing instructions.
 - [ ] Updated docs if behavior, options, or keybinds changed
 - [ ] For UI changes: included screenshots and updated `Images/` if applicable
 - [ ] Changes respect `--dry-run` and degrade gracefully if `pacman`/`paru`/`yay` are unavailable
+- [ ] `cargo audit` clean (no new high/critical advisories introduced)
+- [ ] Shell commands use `shell_single_quote()` for external data (package names, paths)
 - [ ] If config keys changed: updated README/wiki sections for `settings.conf`, `theme.conf`, and `keybinds.conf`
 - [ ] Not a packaging change for AUR (otherwise propose in `pacsea-bin` or `pacsea-git` repos)
 
@@ -307,6 +315,13 @@ If new config keys were added, document them here.
   - Update [Configuration wiki](https://github.com/Firstp1ck/Pacsea/wiki/Configuration)
   - Update README if it's a major feature
   - Ensure backward compatibility when possible
+
+### Security
+- **Shell commands**: Never interpolate external data (package names, paths, user input) directly into shell strings. Use `shell_single_quote()` from `src/install/utils.rs` or pass arguments via `Command::new().arg()`.
+- **Credentials**: Never log passwords or tokens. Redact sensitive values before writing to disk. Use `0o600` permissions for files that could contain credential traces.
+- **Network**: All HTTP requests go through `curl_args()`. Never disable TLS verification on Linux. Validate URLs start with `http://` or `https://` before fetching.
+- **Dependencies**: Run `cargo audit` after adding or updating crates. High/critical advisories block merges.
+- Full rules and rationale: [`CLAUDE.md` → Security rules](CLAUDE.md) and [`dev/SECURITY_REMEDIATION_GUIDE.md`](dev/SECURITY_REMEDIATION_GUIDE.md).
 
 ### Platform behavior
 - **Dry-run**: All commands must respect `--dry-run` flag

@@ -51,3 +51,5 @@ dev/COMMIT/*
 dev/PR/*
 
 pacsea.log
+
+dev/SECURITY_AUDIT_REPORT.md

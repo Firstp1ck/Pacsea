@@ -1,0 +1,117 @@
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Weekly Monday 06:00 UTC — catch new advisories between PRs
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+
+  # ── Dependency vulnerability scan ──────────────────────────────────────
+  # Checks Cargo.lock against the RustSec advisory database.
+  # Fails on any vulnerability with severity >= medium.
+  cargo-audit:
+    name: cargo audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: Run cargo audit
+        run: cargo audit
+
+  # ── Clippy with security-relevant lints ────────────────────────────────
+  # The main rust.yml only runs build + test. Clippy catches:
+  # - unwrap_used (deny) — panic vectors
+  # - pedantic / nursery (deny) — broad safety net
+  # - cognitive_complexity (warn → error via -D warnings)
+  # - missing_docs / missing_docs_in_private_items (warn → error)
+  clippy:
+    name: clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Run clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+  # ── Format check ──────────────────────────────────────────────────────
+  # Ensures no unformatted code slips through.
+  fmt:
+    name: rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+  # ── Dependency diff review on PRs ──────────────────────────────────────
+  # Flags new/changed dependencies with known vulnerabilities or
+  # restrictive licenses before they land in main.
+  dependency-review:
+    name: dependency review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          deny-licenses: AGPL-3.0-only, GPL-3.0-only
+          comment-summary-in-pr: on-failure
+
+  # ── Secret scanning ────────────────────────────────────────────────────
+  # Scans commits for accidentally committed secrets (API keys, tokens,
+  # private keys, passwords). Complements GitHub's built-in secret
+  # scanning with broader pattern coverage.
+  secrets:
+    name: secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── Cargo deny (advisories + license + ban) ────────────────────────────
+  # More comprehensive than cargo-audit alone: also checks licenses and
+  # can ban specific crates. Uses deny.toml for configuration.
+  cargo-deny:
+    name: cargo deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run cargo deny
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check

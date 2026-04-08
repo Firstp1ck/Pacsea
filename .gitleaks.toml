@@ -1,0 +1,24 @@
+# gitleaks configuration — suppress false positives
+# https://github.com/gitleaks/gitleaks#configuration
+
+[allowlist]
+  description = "Pacsea false positive suppressions"
+
+  # Generated rustdoc JS files contain Rust constant names (KEYCTL_CAPS0_*, FSCRYPT_*)
+  # that trigger generic-api-key due to entropy. These are not secrets.
+  paths = [
+    '''doc/.*\.js$''',
+  ]
+
+  # Test files with intentionally fake API keys / patterns
+  commits = [
+    "c2bc699bf3dddd75dd4d0c64f5b9084fe8806d82",
+    "8c8e90760b773a70d3a6f5358cf901f6123a3db9",
+  ]
+
+  # Placeholder/example VirusTotal key in shipped config template
+  regexTarget = "match"
+  regexes = [
+    '''abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890''',
+    '''b83e91a6ddb14ce20edddd2ad056abac5bd63338eb371becadd08b88fb1b20f4''',
+  ]
