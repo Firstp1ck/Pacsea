@@ -413,7 +413,7 @@ hu-HU:
         warn_step0_detail1: ""
         warn_step0_detail2: "Az átköltöztetés kihagyása hibás csomagokhoz vezethet. Az AUR-segédek gyakran előnyben részesítik a pacman.conf fájlhoz hozzáadott tárolókat."
         warn_step0_detail3: "A tárolóban lévő csomagok eltérhetnek az AUR-os változatoktól (verzió, összeállítási beállítások, nem kötelező függőségek). Változások léphetnek fel, ha a tárolóváltozatot kezdi használni."
-        warn_step0_detail4: "Az Esc vagy q bezárja ezt a varázslót anélkül, hogy bármit módosítana. A folytatás előtt használja a ↑/↓ gombokat a teljes lista áttekintéséhez."
+        warn_step0_detail4: "Az Esc vagy q bezárja ezt a varázslót anélkül, hogy bármit is módosítana. A folytatás előtt használja a ↑/↓ gombokat a teljes lista áttekintéséhez."
         warn_step1_line: "Az átköltöztetéskor a csomagok újra lesznek telepítve a tárolóból, lecserélve a jelenlegi AUR-ból származó telepítéseket."
         warn_step1_detail1: ""
         warn_step1_detail2: "A következő parancsok futnak le: a pacman -Rns --noconfirm eltávolítja az AUR-ból származó telepítést és a már nem szükséges függőségeket (más csomagok is eltávolításra kerülhetnek, ha semmi sem függ tőlük). Ezután a pacman -S --needed --noconfirm telepíti ugyanezeket a csomagokat a hozzáadott tárolóból."
@@ -432,7 +432,7 @@ hu-HU:
         title: " AUR-ból származó telepítés vs. tárolósor "
         line1: "AUR-ból származó telepítést választott, de ugyanez a csomagnév szinkronizált/tárolóbeli sorként is szerepel a találatok között."
         line2: "A segédprogramok a tárolót részesíthetik előnyben, hacsak nem kényszeríti az AUR-t; a jövőbeli pacman -Syu lecserélheti az AUR-ból származó telepítést."
-        names_heading: "Érintett csomagnevek:"
+        names_heading: "Érintett csomagok nevei:"
         hint: "Enter: AUR-ból származó csomag telepítésének folytatása • Esc/q: megszakítás"
       confirm_aur_update:
         title: "  - Folytatja az AUR-frissítést? "
@@ -468,7 +468,7 @@ hu-HU:
           system_update_dialog: "Rendszerfrissítési párbeszédablak:"
           news_dialog: "Hírek párbeszédablak:"
           repositories_modal: "Tárolók párbeszédablak:"
-          foreign_overlap_dialog: "Tárolóátfedés / AUR vs. tároló figyelmeztetés:"
+          foreign_overlap_dialog: "Tárolóátfedés / AUR vs. tároló / figyelmeztetés:"
         mouse_lines:
           - "  • Listák (találatok/legutóbbi/telepítés) és PKGBUILD görgetése egérgörgővel"
           - "  • PKGBUILD be/ki: kattintson a „PKGBUILD megjelenítése” gombra a részleteknél"
@@ -479,8 +479,8 @@ hu-HU:
           - "  • Egyedi repos.conf szűrők: kattintson a [Tárolók] v gombra a bővített menü megnyitásához"
           - "  • Arch Linux állapot (jobb felső): kattintson a status.archlinux.org megnyitásához"
         foreign_overlap_help_lines:
-          - "  • A tárolók teljes érvényesítése után csak akkor nyomjon Entert, ha a napló jelzi a befejezést; ezután megjelenhet az AUR/tároló átfedés varázsló (Linux)"
-          - "  • Varázsló: Nyomja meg kétszer az Entert a figyelmeztetések elfogadásához; Esc/q az első figyelmeztetésnél kikapcsolja a tárolót a repos.conf fájlban; későbbi lépések: Szóköz az átköltöztetés váltásához, y a sudo megerősítéséhez (Esc visszalép)"
+          - "  • A tárolók teljes érvényesítése után csak akkor nyomjon Entert, ha a napló jelzi a befejezést; ezután megjelenhet az AUR/tárolóátfedés-varázsló (Linux)"
+          - "  • Varázsló: Erősítse meg kétszer a figyelmeztetések elfogadásához; Esc/q az első figyelmeztetésnél kikapcsolja a tárolót a repos.conf fájlban; későbbi lépések: Szóköz az átköltöztetés be-/kikapcsolásához, y a sudo megerősítéséhez (Esc visszalép)"
           - "  • Ha egy AUR-os találati sorból telepít, miközben ugyanez a csomagnév létezik hivatalos sorként is, először egy piros figyelmeztetés jelenik meg"
         repositories_modal_lines:
           - "  • Szóköz: engedélyezés/letiltás a repos.conf fájlban és érvényesítés (csak kezelt drop-in soroknál; Linux)"
@@ -612,10 +612,10 @@ hu-HU:
         refresh_key:
           unsupported_platform: "A kulcsfrissítés csak Linuxon érhető el."
         toggle:
-          unsupported_platform: "A kezelt tárolók kapcsolása csak Linuxon érhető el."
-          not_managed: "A kapcsoló csak a pacsea-repos.conf fájlból aktív tárolóknál (letiltás), vagy az enabled=false értékkel és kiszolgálóval/tükörlistával rendelkező soroknál (visszakapcsolás) működik. Más forrásokhoz szerkessze a pacman.conf fájlt."
+          unsupported_platform: "A kezelt tárolók be-/kikapcsolása csak Linuxon érhető el."
+          not_managed: "A be-/kikapcsolás csak a pacsea-repos.conf fájlból aktív tárolóknál (letiltás), vagy az enabled=false értékkel és kiszolgálóval/tükörlistával rendelkező soroknál (visszakapcsolás) működik. Más forrásokhoz szerkessze a pacman.conf fájlt."
           persist_failed: "Nem sikerült frissíteni a repos.conf fájlt:"
-        footer_hint: "Szóköz: be/ki+érvényesítés  •  Enter: érvényesítés  •  o: repos.conf szerkesztése  •  r: kulcsfrissítés  •  s: példa  •  Nav  •  Esc/Q"
+        footer_hint: "Szóköz: be/ki+érvényesítés  •  Enter: érvényesítés  •  o: repos.conf szerkesztése  •  r: kulcsfrissítés  •  s: példa  •  ↑/↓  •  Esc/Q"
         apply:
           fix_repos_conf: "Érvényesítés előtt javítsa a repos.conf fájl hibáit (lásd a fenti üzenetet)."
           no_rows: "Nincsenek érvényesítendő tárolók. Előbb adjon hozzá [[repo]] sorokat a repos.conf fájlhoz."
