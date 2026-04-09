@@ -7,6 +7,8 @@ use crate::args::utils;
 #[cfg(not(target_os = "windows"))]
 use pacsea::install::shell_single_quote;
 #[cfg(not(target_os = "windows"))]
+use pacsea::state::SecureString;
+#[cfg(not(target_os = "windows"))]
 use pacsea::theme;
 #[cfg(not(target_os = "windows"))]
 use std::path::Path;
@@ -607,7 +609,7 @@ impl UpdateState {
 /// - Validates that password is not empty (after trimming whitespace).
 /// - Empty passwords are rejected early to prevent sudo failures.
 #[cfg(not(target_os = "windows"))]
-fn prompt_and_validate_password(write_log: &(dyn Fn(&str) + Send + Sync)) -> Option<String> {
+fn prompt_and_validate_password(write_log: &(dyn Fn(&str) + Send + Sync)) -> Option<SecureString> {
     use std::io::IsTerminal;
 
     let settings = theme::settings();
@@ -658,7 +660,7 @@ fn prompt_and_validate_password(write_log: &(dyn Fn(&str) + Send + Sync)) -> Opt
             }
             write_log("Password obtained from user (not logged)");
             // Return trimmed password to ensure consistency with validation
-            Some(trimmed_pass.to_string())
+            Some(SecureString::from(trimmed_pass))
         }
         Err(e) => {
             eprintln!("{}", i18n::t_fmt1("app.cli.update.error_prefix", &e));
@@ -1142,6 +1144,14 @@ pub fn handle_update(no_color: bool) -> ! {
     let settings = theme::settings();
     let interactive_auth = pacsea::logic::password::resolve_auth_mode(&settings)
         == pacsea::logic::privilege::AuthMode::Interactive;
+    let readiness = pacsea::logic::long_run_auth::evaluate_long_run_auth_readiness(&settings);
+    if readiness.should_warn {
+        println!(
+            "{}",
+            warning_color(&i18n::t("app.cli.update.long_run_auth_warning"), no_color)
+        );
+        write_log("WARN: long-run auth readiness indicates possible mid-run re-auth prompt");
+    }
 
     // Initialize update state
     let mut state = UpdateState::new();

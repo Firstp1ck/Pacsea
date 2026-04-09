@@ -59,7 +59,7 @@ fn ui_direct_install_password_prompt_structure() {
         modal: Modal::PasswordPrompt {
             purpose: PasswordPurpose::Install,
             items,
-            input: String::new(),
+            input: pacsea::state::SecureString::default(),
             cursor: 0,
             error: None,
         },
@@ -174,7 +174,7 @@ fn ui_direct_remove_password_prompt_structure() {
         modal: Modal::PasswordPrompt {
             purpose: PasswordPurpose::Remove,
             items,
-            input: String::new(),
+            input: pacsea::state::SecureString::default(),
             cursor: 0,
             error: None,
         },
@@ -223,7 +223,7 @@ fn ui_direct_install_modal_transition() {
         modal: Modal::PasswordPrompt {
             purpose: PasswordPurpose::Install,
             items: items.clone(),
-            input: "testpassword".to_string(),
+            input: "testpassword".into(),
             cursor: 12,
             error: None,
         },
@@ -292,7 +292,7 @@ fn ui_direct_remove_modal_transition() {
         modal: Modal::PasswordPrompt {
             purpose: PasswordPurpose::Remove,
             items: items.clone(),
-            input: "testpassword".to_string(),
+            input: "testpassword".into(),
             cursor: 12,
             error: None,
         },

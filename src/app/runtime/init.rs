@@ -666,6 +666,7 @@ pub fn initialize_app_state(
             app.modal = crate::state::Modal::StartupSetupSelector {
                 cursor: 0,
                 selected: std::collections::HashSet::new(),
+                active_privilege_tool: crate::logic::privilege::active_tool().ok(),
             };
         }
     } else if !headless && prefs.startup_news_configured {
@@ -968,6 +969,7 @@ mod tests {
         app.modal = crate::state::Modal::StartupSetupSelector {
             cursor: 0,
             selected: std::collections::HashSet::new(),
+            active_privilege_tool: None,
         };
         let pending_before = app.pending_announcements.len();
 

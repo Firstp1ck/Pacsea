@@ -572,6 +572,8 @@ pub struct AppState {
     pub pending_startup_setup_steps: VecDeque<crate::state::modal::StartupSetupTask>,
     /// Flag to trigger startup news fetch after `NewsSetup` is completed.
     pub trigger_startup_news_fetch: bool,
+    /// Session-scoped latch to avoid repeatedly showing long-run auth preflight warning text.
+    pub long_run_auth_preflight_warned: bool,
 
     // Updates modal mouse hit-testing
     /// Outer rectangle of the Updates modal (including borders) when visible.
@@ -884,7 +886,7 @@ pub struct AppState {
     /// AUR update command to execute conditionally if pacman fails (for system update).
     pub pending_aur_update_command: Option<String>,
     /// Password obtained from password prompt, stored temporarily for reinstall confirmation flow.
-    pub pending_executor_password: Option<String>,
+    pub pending_executor_password: Option<crate::state::SecureString>,
     /// File database sync result from background thread (checked in tick handler).
     pub pending_file_sync_result: Option<FileSyncResult>,
     /// Background AUR SSH validation result handle for Optional Deps status refresh.

@@ -702,6 +702,7 @@ pub fn open_url(url: &str) {
 /// Details:
 /// - Base arguments: `-sSLf` (silent, show errors, follow redirects, fail on HTTP errors)
 /// - Windows: Adds `-k` to skip SSL verification
+/// - Adds `--max-filesize 10485760` to cap response bodies at 10 MiB
 /// - Adds User-Agent header to avoid being blocked by APIs
 /// - Appends `extra_args` and `url` at the end
 /// # Examples
@@ -744,11 +745,14 @@ pub fn curl_args(url: &str, extra_args: &[&str]) -> Vec<String> {
     // Add default timeouts to prevent indefinite hangs:
     // --connect-timeout 30: fail if connection not established within 30 seconds
     // --max-time 90: fail if entire operation exceeds 90 seconds
+    // --max-filesize 10485760: cap response body to 10 MiB to avoid excessive memory use
     // Note: archlinux.org has DDoS protection that can make responses slower
     args.push("--connect-timeout".to_string());
     args.push("30".to_string());
     args.push("--max-time".to_string());
     args.push("90".to_string());
+    args.push("--max-filesize".to_string());
+    args.push("10485760".to_string());
 
     // Add browser-like headers to work with archlinux.org's DDoS protection.
     // Using a Firefox-like User-Agent helps bypass bot detection while still
@@ -1090,6 +1094,25 @@ mod tests {
                 "0.22.0-2".to_string(),
                 "0.22.1-1".to_string()
             ))
+        );
+    }
+
+    #[test]
+    /// What: Ensure curl argument defaults include an explicit response-size limit.
+    ///
+    /// Inputs:
+    /// - A sample HTTPS URL and no extra arguments.
+    ///
+    /// Output:
+    /// - The generated curl args include `--max-filesize 10485760`.
+    ///
+    /// Details:
+    /// - Protects against oversized HTTP responses that could exhaust memory.
+    fn util_curl_args_include_max_filesize_limit() {
+        let args = curl_args("https://example.com/feed", &[]);
+        assert!(
+            args.windows(2)
+                .any(|pair| { pair[0] == "--max-filesize" && pair[1] == "10485760" })
         );
     }
 }

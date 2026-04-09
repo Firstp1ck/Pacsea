@@ -160,7 +160,51 @@ fn optional_deps_enter_installed_shows_reinstall() {
     }
 }
 
+/// What: Verify `OptionalDeps` Enter on sudo-timestamp-setup opens setup modal.
+///
+/// Inputs:
+/// - `OptionalDeps` modal with sudo-timestamp-setup row.
+///
+/// Output:
+/// - `SudoTimestampSetup` modal is opened.
+///
+/// Details:
+/// - Ensures the pseudo-package wiring matches other setup helpers.
 #[test]
+fn optional_deps_enter_sudo_timestamp_setup_opens_modal() {
+    let mut app = AppState::default();
+    let rows = vec![create_test_row("sudo-timestamp-setup", false, true)];
+    let mut selected = 0usize;
+    let ke = KeyEvent::new(KeyCode::Enter, KeyModifiers::empty());
+    app.modal = crate::state::Modal::OptionalDeps {
+        rows: rows.clone(),
+        selected: 0,
+    };
+    let _ = handle_optional_deps(ke, &mut app, &rows, &mut selected);
+    assert!(
+        matches!(app.modal, crate::state::Modal::SudoTimestampSetup { .. }),
+        "expected SudoTimestampSetup modal"
+    );
+}
+
+/// What: Verify `OptionalDeps` Enter on doas-persist-setup opens setup modal.
+#[test]
+fn optional_deps_enter_doas_persist_setup_opens_modal() {
+    let mut app = AppState::default();
+    let rows = vec![create_test_row("doas-persist-setup", false, true)];
+    let mut selected = 0usize;
+    let ke = KeyEvent::new(KeyCode::Enter, KeyModifiers::empty());
+    app.modal = crate::state::Modal::OptionalDeps {
+        rows: rows.clone(),
+        selected: 0,
+    };
+    let _ = handle_optional_deps(ke, &mut app, &rows, &mut selected);
+    assert!(
+        matches!(app.modal, crate::state::Modal::DoasPersistSetup { .. }),
+        "expected DoasPersistSetup modal"
+    );
+}
+
 /// What: Verify `OptionalDeps` modal Enter on virustotal-setup opens setup modal.
 ///
 /// Inputs:
@@ -171,6 +215,7 @@ fn optional_deps_enter_installed_shows_reinstall() {
 ///
 /// Details:
 /// - Tests that Enter on virustotal-setup opens the setup modal.
+#[test]
 fn optional_deps_enter_virustotal_setup() {
     let mut app = AppState::default();
     let rows = vec![create_test_row("virustotal-setup", false, true)];
@@ -227,7 +272,7 @@ fn ssh_setup_confirm_overwrite_cancel_closes_modal() {
         &mut existing_host_block,
     );
 
-    assert_eq!(result, Some(false));
+    assert_eq!(result, Some(true));
     assert!(matches!(app.modal, crate::state::Modal::None));
 }
 

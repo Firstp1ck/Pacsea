@@ -10,7 +10,10 @@ use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 use super::common::render_simple_list_modal;
 use crate::state::{
     AppState,
-    modal::StartupSetupTask,
+    modal::{
+        DoasPersistSetupModalState, DoasPersistSetupPhase, StartupSetupTask,
+        SudoTimestampSetupModalState, SudoTimestampSetupPhase,
+    },
     types::{OptionalDepRow, RepositoryKeyTrust, RepositoryModalRow, RepositoryPacmanStatus},
 };
 use crate::theme::theme;
@@ -709,6 +712,7 @@ pub fn render_news_setup(
 /// - `app`: Application state for localized strings
 /// - `cursor`: Focused selector row
 /// - `selected`: Set of selected setup tasks
+/// - `active_tool`: Cached privilege tool resolved outside the render path
 ///
 /// Output:
 /// - Draws the selector modal with checklist rows and key hints.
@@ -718,6 +722,7 @@ pub fn render_startup_setup_selector(
     app: &AppState,
     cursor: usize,
     selected: &std::collections::HashSet<StartupSetupTask>,
+    active_tool: Option<crate::logic::privilege::PrivilegeTool>,
 ) {
     let th = theme();
     let ssh_setup_ready = app.aur_ssh_help_ready.unwrap_or(false);
@@ -745,6 +750,20 @@ pub fn render_startup_setup_selector(
             ),
         ),
         (
+            StartupSetupTask::SudoTimestampSetup,
+            crate::i18n::t(
+                app,
+                "app.modals.startup_setup_selector.items.sudo_timestamp_setup",
+            ),
+        ),
+        (
+            StartupSetupTask::DoasPersistSetup,
+            crate::i18n::t(
+                app,
+                "app.modals.startup_setup_selector.items.doas_persist_setup",
+            ),
+        ),
+        (
             StartupSetupTask::AurSleuthSetup,
             crate::i18n::t(
                 app,
@@ -761,7 +780,9 @@ pub fn render_startup_setup_selector(
     ];
 
     for (idx, (task, label)) in items.iter().enumerate() {
-        let disabled = matches!(task, StartupSetupTask::SshAurSetup) && ssh_setup_ready;
+        let disabled_suffix_key =
+            startup_setup_disabled_suffix_key(*task, ssh_setup_ready, active_tool);
+        let disabled = disabled_suffix_key.is_some();
         let mark = if selected.contains(task) {
             "[x]"
         } else {
@@ -786,17 +807,15 @@ pub fn render_startup_setup_selector(
                 },
             ),
             Span::styled(label.clone(), style),
-            if disabled {
-                Span::styled(
-                    crate::i18n::t(
-                        app,
-                        "app.modals.startup_setup_selector.disabled_suffix_already_configured",
-                    ),
-                    Style::default().fg(th.overlay1),
-                )
-            } else {
-                Span::raw("")
-            },
+            disabled_suffix_key.map_or_else(
+                || Span::raw(""),
+                |suffix_key| {
+                    Span::styled(
+                        crate::i18n::t(app, suffix_key),
+                        Style::default().fg(th.overlay1),
+                    )
+                },
+            ),
         ]));
     }
 
@@ -812,6 +831,135 @@ pub fn render_startup_setup_selector(
         &crate::i18n::t(app, "app.modals.startup_setup_selector.title"),
         lines,
     );
+}
+
+/// What: Resolve the disable-state suffix key for a startup setup task.
+///
+/// Inputs:
+/// - `task`: Startup setup task currently being rendered.
+/// - `ssh_setup_ready`: Whether SSH-based AUR setup is already configured.
+/// - `active_tool`: Resolved privilege tool for the current runtime.
+///
+/// Output:
+/// - Translation key for a disabled-state suffix, or `None` when the task is enabled.
+///
+/// Details:
+/// - Returns `disabled_suffix_already_configured` only when the task is truly completed.
+/// - For privilege-specific tasks, returns dedicated suffixes when another tool is active.
+const fn startup_setup_disabled_suffix_key(
+    task: StartupSetupTask,
+    ssh_setup_ready: bool,
+    active_tool: Option<crate::logic::privilege::PrivilegeTool>,
+) -> Option<&'static str> {
+    match task {
+        StartupSetupTask::SshAurSetup if ssh_setup_ready => {
+            Some("app.modals.startup_setup_selector.disabled_suffix_already_configured")
+        }
+        StartupSetupTask::SudoTimestampSetup
+            if !matches!(
+                active_tool,
+                Some(crate::logic::privilege::PrivilegeTool::Sudo)
+            ) =>
+        {
+            Some("app.modals.startup_setup_selector.disabled_suffix_requires_sudo")
+        }
+        StartupSetupTask::DoasPersistSetup
+            if !matches!(
+                active_tool,
+                Some(crate::logic::privilege::PrivilegeTool::Doas)
+            ) =>
+        {
+            Some("app.modals.startup_setup_selector.disabled_suffix_requires_doas")
+        }
+        _ => None,
+    }
+}
+
+/// What: Render the `doas` `persist` setup wizard modal.
+///
+/// Inputs:
+/// - `f`: Frame to render into.
+/// - `area`: Full screen area used to center the modal.
+/// - `app`: Application state for localized strings.
+/// - `setup`: Wizard state (phase + cursor + scroll).
+///
+/// Output:
+/// - Draws the select list or instruction pane with scrolling.
+#[allow(clippy::many_single_char_names)]
+pub fn render_doas_persist_setup(
+    f: &mut Frame,
+    area: Rect,
+    app: &AppState,
+    setup: DoasPersistSetupModalState,
+) {
+    let th = theme();
+    let w = area.width.saturating_sub(8).min(102);
+    let h = 22_u16.min(area.height.saturating_sub(4));
+    let x = area.x + (area.width.saturating_sub(w)) / 2;
+    let y = area.y + (area.height.saturating_sub(h)) / 2;
+    let rect = Rect::new(x, y, w, h);
+    f.render_widget(Clear, rect);
+
+    let mut lines: Vec<Line<'static>> = Vec::new();
+    match setup.phase {
+        DoasPersistSetupPhase::Select => {
+            lines.push(Line::from(Span::styled(
+                crate::i18n::t(app, "app.modals.doas_persist_setup.select_heading"),
+                Style::default().fg(th.text),
+            )));
+            lines.push(Line::from(""));
+            let option_keys = [
+                "app.modals.doas_persist_setup.option_wheel",
+                "app.modals.doas_persist_setup.option_user",
+                "app.modals.doas_persist_setup.option_skip",
+            ];
+            for (idx, key) in option_keys.iter().enumerate() {
+                let label = crate::i18n::t(app, key);
+                let style = if idx == setup.select_cursor {
+                    Style::default()
+                        .fg(th.text)
+                        .add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
+                } else {
+                    Style::default().fg(th.subtext1)
+                };
+                lines.push(Line::from(Span::styled(label, style)));
+            }
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                crate::i18n::t(app, "app.modals.doas_persist_setup.select_footer"),
+                Style::default().fg(th.overlay1),
+            )));
+        }
+        DoasPersistSetupPhase::Instructions { choice, scroll } => {
+            let body =
+                crate::logic::doas_persist_setup::doas_persist_instruction_lines(app, choice);
+            let start = (scroll as usize).min(body.len());
+            let end = (start
+                + crate::logic::doas_persist_setup::DOAS_PERSIST_INSTRUCTION_VIEWPORT_LINES)
+                .min(body.len());
+            lines.extend(body[start..end].iter().cloned());
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                crate::i18n::t(app, "app.modals.doas_persist_setup.instructions_footer"),
+                Style::default().fg(th.overlay1),
+            )));
+        }
+    }
+    let boxw = Paragraph::new(lines)
+        .style(Style::default().fg(th.text).bg(th.mantle))
+        .wrap(Wrap { trim: true })
+        .block(
+            Block::default()
+                .title(Span::styled(
+                    crate::i18n::t(app, "app.modals.doas_persist_setup.title"),
+                    Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+                ))
+                .borders(Borders::ALL)
+                .border_type(BorderType::Double)
+                .border_style(Style::default().fg(th.mauve))
+                .style(Style::default().bg(th.mantle)),
+        );
+    f.render_widget(boxw, rect);
 }
 
 /// What: Render the prompt encouraging installation of GNOME Terminal in GNOME environments.
@@ -1086,6 +1234,99 @@ pub fn render_import_help(f: &mut Frame, area: Rect, app: &crate::state::AppStat
     f.render_widget(boxw, rect);
 }
 
+/// What: Render the sudo `timestamp_timeout` setup wizard modal.
+///
+/// Inputs:
+/// - `f`: Frame to render into.
+/// - `area`: Full screen area used to center the modal.
+/// - `app`: Application state for localized strings.
+/// - `setup`: Wizard state (phase + cursor + scroll).
+///
+/// Output:
+/// - Draws the select list or instruction pane with scrolling.
+///
+/// Details:
+/// - Complements key handling in [`crate::events::modals::sudo_timestamp_setup`].
+#[allow(clippy::too_many_lines, clippy::many_single_char_names)]
+pub fn render_sudo_timestamp_setup(
+    f: &mut Frame,
+    area: Rect,
+    app: &AppState,
+    setup: SudoTimestampSetupModalState,
+) {
+    let th = theme();
+    let w = area.width.saturating_sub(8).min(102);
+    let h = 22_u16.min(area.height.saturating_sub(4));
+    let x = area.x + (area.width.saturating_sub(w)) / 2;
+    let y = area.y + (area.height.saturating_sub(h)) / 2;
+    let rect = Rect::new(x, y, w, h);
+    f.render_widget(Clear, rect);
+
+    let mut lines: Vec<Line<'static>> = Vec::new();
+
+    match setup.phase {
+        SudoTimestampSetupPhase::Select => {
+            lines.push(Line::from(Span::styled(
+                crate::i18n::t(app, "app.modals.sudo_timestamp_setup.select_heading"),
+                Style::default().fg(th.text),
+            )));
+            lines.push(Line::from(""));
+            let option_keys = [
+                "app.modals.sudo_timestamp_setup.option_10m",
+                "app.modals.sudo_timestamp_setup.option_30m",
+                "app.modals.sudo_timestamp_setup.option_infinity",
+                "app.modals.sudo_timestamp_setup.option_skip",
+            ];
+            for (idx, key) in option_keys.iter().enumerate() {
+                let label = crate::i18n::t(app, key);
+                let style = if idx == setup.select_cursor {
+                    Style::default()
+                        .fg(th.text)
+                        .add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
+                } else {
+                    Style::default().fg(th.subtext1)
+                };
+                lines.push(Line::from(Span::styled(label, style)));
+            }
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                crate::i18n::t(app, "app.modals.sudo_timestamp_setup.select_footer"),
+                Style::default().fg(th.overlay1),
+            )));
+        }
+        SudoTimestampSetupPhase::Instructions { choice, scroll } => {
+            let body =
+                crate::logic::sudo_timestamp_setup::sudo_timestamp_instruction_lines(app, choice);
+            let start = (scroll as usize).min(body.len());
+            let end = (start
+                + crate::logic::sudo_timestamp_setup::SUDO_TIMESTAMP_INSTRUCTION_VIEWPORT_LINES)
+                .min(body.len());
+            lines.extend(body[start..end].iter().cloned());
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                crate::i18n::t(app, "app.modals.sudo_timestamp_setup.instructions_footer"),
+                Style::default().fg(th.overlay1),
+            )));
+        }
+    }
+
+    let boxw = Paragraph::new(lines)
+        .style(Style::default().fg(th.text).bg(th.mantle))
+        .wrap(Wrap { trim: true })
+        .block(
+            Block::default()
+                .title(Span::styled(
+                    crate::i18n::t(app, "app.modals.sudo_timestamp_setup.title"),
+                    Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+                ))
+                .borders(Borders::ALL)
+                .border_type(BorderType::Double)
+                .border_style(Style::default().fg(th.mauve))
+                .style(Style::default().bg(th.mantle)),
+        );
+    f.render_widget(boxw, rect);
+}
+
 /// What: Render a simple loading indicator modal.
 ///
 /// Inputs:
@@ -1139,7 +1380,9 @@ pub fn render_loading(f: &mut Frame, area: Rect, message: &str) {
 mod truncate_and_pad_tests {
     use unicode_width::UnicodeWidthStr;
 
-    use super::{pad_right_display, truncate_display};
+    use super::{pad_right_display, startup_setup_disabled_suffix_key, truncate_display};
+    use crate::logic::privilege::PrivilegeTool;
+    use crate::state::modal::StartupSetupTask;
 
     #[test]
     fn truncate_display_ascii_short_unchanged() {
@@ -1177,5 +1420,34 @@ mod truncate_and_pad_tests {
         let s = pad_right_display("国", 6);
         assert_eq!(s.width(), 6);
         assert_eq!(s, "国    ");
+    }
+
+    #[test]
+    fn startup_setup_doas_disabled_suffix_requires_doas_when_tool_missing() {
+        let suffix =
+            startup_setup_disabled_suffix_key(StartupSetupTask::DoasPersistSetup, false, None);
+        assert_eq!(
+            suffix,
+            Some("app.modals.startup_setup_selector.disabled_suffix_requires_doas")
+        );
+    }
+
+    #[test]
+    fn startup_setup_doas_disabled_suffix_none_when_doas_active() {
+        let suffix = startup_setup_disabled_suffix_key(
+            StartupSetupTask::DoasPersistSetup,
+            false,
+            Some(PrivilegeTool::Doas),
+        );
+        assert_eq!(suffix, None);
+    }
+
+    #[test]
+    fn startup_setup_ssh_suffix_only_marks_already_configured() {
+        let suffix = startup_setup_disabled_suffix_key(StartupSetupTask::SshAurSetup, true, None);
+        assert_eq!(
+            suffix,
+            Some("app.modals.startup_setup_selector.disabled_suffix_already_configured")
+        );
     }
 }

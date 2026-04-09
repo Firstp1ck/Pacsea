@@ -370,7 +370,7 @@ pub(super) fn handle_proceed_install(
         app.modal = crate::state::Modal::PasswordPrompt {
             purpose: crate::state::modal::PasswordPurpose::Install,
             items: packages,
-            input: String::new(),
+            input: crate::state::SecureString::default(),
             cursor: 0,
             error: None,
         };
@@ -433,7 +433,7 @@ pub(super) fn handle_proceed_remove(
         app.modal = crate::state::Modal::PasswordPrompt {
             purpose: crate::state::modal::PasswordPurpose::Remove,
             items,
-            input: String::new(),
+            input: crate::state::SecureString::default(),
             cursor: 0,
             error: None,
         };
@@ -636,7 +636,7 @@ pub(super) fn handle_p_key(app: &mut AppState) -> bool {
             app.modal = crate::state::Modal::PasswordPrompt {
                 purpose: crate::state::modal::PasswordPurpose::Downgrade,
                 items,
-                input: String::new(),
+                input: crate::state::SecureString::default(),
                 cursor: 0,
                 error: None,
             };

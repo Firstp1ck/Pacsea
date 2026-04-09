@@ -69,7 +69,8 @@ pacsea
 
 | Feature | Description |
 |---------|-------------|
-| **Integrated Process Execution** | Operations execute within the TUI with real-time output streaming and progress bars. Supports configurable privilege escalation (`sudo`/`doas`/auto), passwordless mode when available, and an optional interactive authentication handoff so sudo/doas can prompt in the terminal when needed (password or PAM/fingerprint via fprintd, when configured) |
+| **Integrated Process Execution** | Operations execute within the TUI with real-time output streaming and progress bars. Supports configurable privilege escalation (`sudo`/`doas`/auto), passwordless mode when available, and optional interactive authentication handoff so sudo/doas can prompt in the terminal when needed (password or PAM/fingerprint via fprintd, when configured) |
+| **Privilege setup wizards** | Built-in setup flows for `sudo` timestamp caching and `doas persist`, including guided steps, validation checklists, and context-aware visibility based on your selected privilege tool |
 | **News feed & advisories** | Unified news feed combining Arch news, security advisories, package update notifications, and AUR package comments. Includes offline access with automatic caching, filtering by source or date, search with history, bookmarking, read/unread tracking, and background updates |
 | **Security Scan for AUR Packages** | Comprehensive security scanning workflow with multiple tools (ClamAV, Trivy, Semgrep, ShellCheck, VirusTotal, custom patterns, aur-sleuth) and detailed scan summaries |
 | **Fuzzy Search** | Toggle flexible fuzzy search mode to find packages even without exact names |
@@ -88,6 +89,7 @@ pacsea
 | **Distro-aware updates** | Automatic detection and use of appropriate mirror tools for Manjaro, EndeavourOS, CachyOS, Artix, and standard Arch |
 | **Updates modal** | View available updates with Preflight integration for safe installation |
 | **Helpful tools** | System update dialog with Force Sync mode (-Syyu), AUR update confirmation when pacman fails, distro-aware mirror management, and Arch News popup |
+| **Long-run auth readiness checks** | Pacsea evaluates whether your current privilege/auth setup can complete long-running actions and shows a one-time warning with next steps before update/install/remove tasks start |
 | **AUR package voting (SSH)** | Vote and unvote AUR packages directly from search results through an SSH-based workflow, including guided setup and connection checks |
 | **Announcements** | Version-specific and remote announcements shown at startup with clickable URLs and persistent read status |
 
@@ -154,7 +156,7 @@ Pacsea uses configuration files in `~/.config/pacsea/`:
 - `settings.conf` — app behavior (layout, defaults, visibility, scans, news, custom repo filter toggles, etc.)
 - `theme.conf` — colors and styling
 - `keybinds.conf` — keyboard shortcuts
-- `repos.conf` (optional) — third-party sync repo recipes for search, filters, and the Repositories modal; example: [`config/examples/repos_example.conf`](config/examples/repos_example.conf)
+- `repos.conf` (optional) — third-party sync repo recipes for search, filters, and the Repositories modal; baseline template: [`config/repos.conf`](config/repos.conf)
 
 Opening any of these from the app uses your `VISUAL` or `EDITOR` environment variable.
 

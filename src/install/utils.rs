@@ -42,6 +42,39 @@ pub fn is_powershell_available() -> bool {
     command_on_path("powershell.exe") || command_on_path("pwsh.exe")
 }
 
+#[cfg(target_os = "windows")]
+/// What: Build a safe `cmd.exe` echo command for arbitrary text.
+///
+/// Inputs:
+/// - `msg`: Message text displayed by `cmd /K`.
+///
+/// Output:
+/// - A command string beginning with `echo(` and escaped for `cmd.exe`.
+///
+/// Details:
+/// - Escapes command metacharacters so text cannot break out of the echo context.
+/// - Doubles `%` to prevent environment-variable expansion.
+/// - Escapes `!` to avoid delayed-expansion surprises.
+/// - Converts newline boundaries into chained `echo(` calls.
+#[must_use]
+pub fn cmd_echo_command(msg: &str) -> String {
+    let mut out = String::from("echo(");
+    for ch in msg.chars() {
+        match ch {
+            '\r' => {}
+            '\n' => out.push_str(" & echo("),
+            '^' | '&' | '|' | '<' | '>' | '(' | ')' => {
+                out.push('^');
+                out.push(ch);
+            }
+            '%' => out.push_str("%%"),
+            '!' => out.push_str("^!"),
+            _ => out.push(ch),
+        }
+    }
+    out
+}
+
 #[cfg(not(target_os = "windows"))]
 /// What: Return whether `p` is a regular file with at least one executable bit set (Unix).
 ///
@@ -169,6 +202,51 @@ pub fn shell_single_quote(s: &str) -> String {
     }
     out.push('\'');
     out
+}
+
+/// What: Check whether a package name matches the strict allowlist used for shell-bound install commands.
+///
+/// Input:
+/// - `name`: Candidate package name to validate.
+///
+/// Output:
+/// - `true` when `name` is non-empty and every byte is one of `a-z`, `0-9`, `@`, `.`, `_`, `+`, `-`.
+///
+/// Details:
+/// - This is a defense-in-depth gate before shell interpolation, matching security guidance from the audit.
+/// - The validator is intentionally strict and accepts only lowercase ASCII letters.
+#[must_use]
+pub fn is_safe_package_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.bytes().all(|byte| {
+            byte.is_ascii_lowercase()
+                || byte.is_ascii_digit()
+                || matches!(byte, b'@' | b'.' | b'_' | b'+' | b'-')
+        })
+}
+
+/// What: Validate a list of package names against the strict install-command allowlist.
+///
+/// Inputs:
+/// - `names`: Package names that will be interpolated into shell command strings.
+/// - `context`: Human-readable operation context for actionable error messages.
+///
+/// Output:
+/// - `Ok(())` when all names are valid, otherwise `Err` with the first invalid package.
+///
+/// Details:
+/// - Centralises validation so all install builders apply the same safety policy.
+/// - Call this before quoting/interpolation and abort command construction when validation fails.
+pub fn validate_package_names(names: &[String], context: &str) -> Result<(), String> {
+    if let Some(invalid) = names
+        .iter()
+        .find(|name| !is_safe_package_name(name.as_str()))
+    {
+        return Err(format!(
+            "Invalid package name '{invalid}' for {context}. Allowed pattern: ^[a-z\\d@._+-]+$"
+        ));
+    }
+    Ok(())
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -384,6 +462,27 @@ mod tests {
         assert_eq!(super::shell_single_quote(""), "''");
         assert_eq!(super::shell_single_quote("abc"), "'abc'");
         assert_eq!(super::shell_single_quote("a'b"), "'a'\"'\"'b'");
+    }
+
+    #[test]
+    /// What: Verify strict package-name validator allows only the documented safe pattern.
+    ///
+    /// Inputs:
+    /// - Representative valid and invalid package names.
+    ///
+    /// Output:
+    /// - Returns `true` for valid lowercase names and `false` for disallowed characters/casing.
+    ///
+    /// Details:
+    /// - Guards the defense-in-depth allowlist used before shell interpolation.
+    fn utils_is_safe_package_name_strict_allowlist() {
+        assert!(super::is_safe_package_name("ripgrep"));
+        assert!(super::is_safe_package_name("lib32-foo+bar"));
+        assert!(super::is_safe_package_name("qt6-base@beta.1"));
+        assert!(!super::is_safe_package_name(""));
+        assert!(!super::is_safe_package_name("Ripgrep"));
+        assert!(!super::is_safe_package_name("bad;name"));
+        assert!(!super::is_safe_package_name("bad name"));
     }
 
     #[test]

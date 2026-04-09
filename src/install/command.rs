@@ -2,7 +2,7 @@
 
 use crate::state::{PackageItem, Source};
 
-use super::utils::shell_single_quote;
+use super::utils::{shell_single_quote, validate_package_names};
 
 /// What: Flag sequence for a non-interactive `paru`/`yay` `-S` install of **AUR-only** targets.
 ///
@@ -71,14 +71,19 @@ pub fn build_install_command(
     password: Option<&str>,
     dry_run: bool,
 ) -> Result<(String, bool), String> {
+    validate_package_names(
+        std::slice::from_ref(&item.name),
+        "install command construction",
+    )?;
+    let quoted_name = shell_single_quote(&item.name);
     match &item.source {
         Source::Official { .. } => {
             let tool = crate::logic::privilege::active_tool()?;
             let reinstall = crate::index::is_installed(&item.name);
             let base_cmd = if reinstall {
-                format!("pacman -S --noconfirm {}", item.name)
+                format!("pacman -S --noconfirm {quoted_name}")
             } else {
-                format!("pacman -S --needed --noconfirm {}", item.name)
+                format!("pacman -S --needed --noconfirm {quoted_name}")
             };
             let hold_tail = "; echo; echo 'Finished.'; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
             if dry_run {
@@ -111,18 +116,14 @@ pub fn build_install_command(
             let reinstall = crate::index::is_installed(&item.name);
             let flags = aur_install_helper_flags(reinstall);
             let aur_cmd = if dry_run {
-                let cmd = format!(
-                    "paru {flags} {n} || yay {flags} {n}{hold}",
-                    n = item.name,
-                    hold = hold_tail,
-                    flags = flags
-                );
+                let cmd =
+                    format!("paru {flags} {quoted_name} || yay {flags} {quoted_name}{hold_tail}");
                 let quoted = shell_single_quote(&cmd);
                 format!("echo DRY RUN: {quoted}")
             } else {
                 format!(
                     "{body}{hold}",
-                    body = aur_install_body(flags, &item.name),
+                    body = aur_install_body(flags, &quoted_name),
                     hold = hold_tail
                 )
             };
@@ -170,9 +171,12 @@ mod tests {
 
         let (cmd1, uses_sudo1) = build_install_command(&pkg, None, false).expect("build");
         assert!(uses_sudo1);
+        let quoted_name = crate::install::shell_single_quote("ripgrep");
         assert!(
-            cmd1.contains(&format!("{bin} pacman -S --needed --noconfirm ripgrep")),
-            "expected '{bin} pacman -S --needed --noconfirm ripgrep' in: {cmd1}"
+            cmd1.contains(&format!(
+                "{bin} pacman -S --needed --noconfirm {quoted_name}"
+            )),
+            "expected quoted package name in: {cmd1}"
         );
         assert!(cmd1.contains("Press any key to close"));
 
@@ -180,12 +184,16 @@ mod tests {
         assert!(uses_sudo2);
         if tool.capabilities().supports_stdin_password {
             assert!(
-                cmd2.contains(&format!("{bin} -S pacman -S --needed --noconfirm ripgrep")),
-                "expected '{bin} -S pacman ...' in: {cmd2}"
+                cmd2.contains(&format!(
+                    "{bin} -S pacman -S --needed --noconfirm {quoted_name}"
+                )),
+                "expected quoted package name in password pipe command: {cmd2}"
             );
         } else {
             assert!(
-                cmd2.contains(&format!("{bin} pacman -S --needed --noconfirm ripgrep")),
+                cmd2.contains(&format!(
+                    "{bin} pacman -S --needed --noconfirm {quoted_name}"
+                )),
                 "doas fallback should use plain command: {cmd2}"
             );
         }
@@ -194,8 +202,9 @@ mod tests {
         assert!(uses_sudo3);
         assert!(cmd3.starts_with("echo DRY RUN: '"));
         assert!(
-            cmd3.contains(&format!("{bin} pacman -S --needed --noconfirm ripgrep")),
-            "expected '{bin} pacman ...' in dry-run: {cmd3}"
+            cmd3.contains(&format!("{bin} pacman -S --needed --noconfirm"))
+                && cmd3.contains("ripgrep"),
+            "expected dry-run output to include command and package name: {cmd3}"
         );
     }
 
@@ -225,8 +234,8 @@ mod tests {
         let (cmd1, uses_sudo1) = build_install_command(&pkg, None, false).expect("build");
         assert!(!uses_sudo1);
         assert!(cmd1.contains("command -v paru"));
-        assert!(cmd1.contains("paru -S --aur --needed --noconfirm yay-bin"));
-        assert!(cmd1.contains("yay -S --aur --needed --noconfirm yay-bin"));
+        assert!(cmd1.contains("paru -S --aur --needed --noconfirm 'yay-bin'"));
+        assert!(cmd1.contains("yay -S --aur --needed --noconfirm 'yay-bin'"));
         assert!(cmd1.contains("elif command -v yay"));
         assert!(cmd1.contains("No AUR helper"));
         assert!(cmd1.contains("Press any key to close"));
@@ -235,6 +244,7 @@ mod tests {
         assert!(!uses_sudo2);
         // Dry-run commands are now properly quoted to avoid syntax errors
         assert!(cmd2.starts_with("echo DRY RUN: '"));
-        assert!(cmd2.contains("paru -S --aur --needed --noconfirm yay-bin"));
+        assert!(cmd2.contains("paru -S --aur --needed --noconfirm"));
+        assert!(cmd2.contains("yay-bin"));
     }
 }

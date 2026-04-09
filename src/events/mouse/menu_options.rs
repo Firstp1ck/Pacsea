@@ -410,7 +410,7 @@ fn build_aur_helper_rows(app: &AppState, rows: &mut Vec<crate::state::types::Opt
 /// - Appends security scanner rows to the provided vector
 ///
 /// Details:
-/// - Includes `ClamAV`, `Trivy`, `Semgrep`, `ShellCheck`, `VirusTotal API`, and `aur-sleuth`
+/// - Includes `ClamAV`, `Trivy`, `Semgrep`, `ShellCheck`, `VirusTotal API`, `aur-sleuth`, and sudo cache setup
 fn build_security_scanner_rows(
     app: &AppState,
     rows: &mut Vec<crate::state::types::OptionalDepRow>,
@@ -501,6 +501,53 @@ fn build_security_scanner_rows(
         ssh_setup_ready,
         Some("Setup".to_string()),
     ));
+
+    let active_tool = crate::logic::privilege::active_tool().ok();
+    // Optional sudo credential cache (`sudoers` drop-in) for long install/update sessions.
+    if matches!(
+        active_tool,
+        Some(crate::logic::privilege::PrivilegeTool::Sudo)
+    ) {
+        let sudo_ts_configured =
+            crate::logic::sudo_timestamp_setup::pacsea_sudo_timestamp_drop_in_present();
+        rows.push({
+            let label = crate::i18n::t(app, "app.optional_deps.items.sudo_timestamp_setup");
+            create_optional_dep_row(
+                app,
+                "app.optional_deps.categories.privilege",
+                &label,
+                "sudo-timestamp-setup".to_string(),
+                sudo_ts_configured,
+                Some(if sudo_ts_configured {
+                    "Configured".to_string()
+                } else {
+                    "Setup".to_string()
+                }),
+            )
+        });
+    }
+    if matches!(
+        active_tool,
+        Some(crate::logic::privilege::PrivilegeTool::Doas)
+    ) {
+        let doas_persist_configured =
+            crate::logic::doas_persist_setup::pacsea_doas_persist_configured();
+        rows.push({
+            let label = crate::i18n::t(app, "app.optional_deps.items.doas_persist_setup");
+            create_optional_dep_row(
+                app,
+                "app.optional_deps.categories.privilege",
+                &label,
+                "doas-persist-setup".to_string(),
+                doas_persist_configured,
+                Some(if doas_persist_configured {
+                    "Configured".to_string()
+                } else {
+                    "Setup".to_string()
+                }),
+            )
+        });
+    }
 }
 
 /// What: Build downgrade package row for the optional deps modal.
@@ -545,7 +592,7 @@ fn build_downgrade_rows(app: &AppState, rows: &mut Vec<crate::state::types::Opti
 /// - Mirrors: Detects `Manjaro` (`pacman-mirrors`), `Artix` (`rate-mirrors`), or default (`reflector`).
 /// - AUR helper: Shows installed `paru`/`yay` if present, or both if neither installed.
 /// - Security scanners: Always includes `ClamAV`, `Trivy`, `Semgrep`, `ShellCheck`, `VirusTotal API` setup,
-///   and `aur-sleuth` setup. Marks installed items as non-selectable.
+///   `aur-sleuth` setup, and optional sudo credential-cache (`sudoers`) setup. Marks installed items as non-selectable.
 /// - Downgrade: Includes the `downgrade` package for package downgrade functionality.
 pub fn build_optional_deps_rows(app: &AppState) -> Vec<crate::state::types::OptionalDepRow> {
     let mut rows: Vec<crate::state::types::OptionalDepRow> = Vec::new();

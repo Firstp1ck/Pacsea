@@ -1,7 +1,7 @@
 //! Third-party repository definitions (`repos.conf`) and results-filter wiring.
 //!
 //! Phase 1 parses TOML (user-defined `[[repo]]` rows only) and exposes maps for [`crate::logic::distro::repo_toggle_for`].
-//! Concrete mirror/key examples live in `config/examples/repos_example.conf` in the Pacsea tree (not shipped as presets).
+//! Shipped repo recipes (disabled by default) live in `config/repos.conf` in the Pacsea tree.
 //! Phase 3 adds privileged apply via [`apply_plan`] and the Repositories modal (see `events/modals/repositories.rs`).
 
 mod apply_plan;

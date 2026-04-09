@@ -183,11 +183,143 @@ pub enum StartupSetupTask {
     SshAurSetup,
     /// Review and install missing optional dependencies.
     OptionalDepsMissing,
+    /// Optional wizard: extend `sudo` credential cache for long installs/updates (`sudoers`).
+    SudoTimestampSetup,
+    /// Optional wizard: configure `doas` persist guidance for long installs/updates.
+    DoasPersistSetup,
     /// Configure aur-sleuth integration.
     AurSleuthSetup,
     /// Configure `VirusTotal` API key.
     VirusTotalSetup,
 }
+
+/// What: User-selected `sudo` credential cache duration in the optional setup wizard.
+///
+/// Inputs:
+/// - Chosen by the user in [`Modal::SudoTimestampSetup`].
+///
+/// Output:
+/// - Maps to `timestamp_timeout` minutes in `sudoers`, or `-1` for no expiry in the session.
+///
+/// Details:
+/// - See `sudoers(5)` `timestamp_timeout`. This only affects policy once applied on the system.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SudoTimestampChoice {
+    /// Cache sudo credentials for ten minutes after a successful password prompt.
+    TenMinutes,
+    /// Cache sudo credentials for thirty minutes after a successful password prompt.
+    ThirtyMinutes,
+    /// Use `timestamp_timeout=-1` (do not expire until `sudo -k` or reboot, per sudo policy).
+    Infinity,
+}
+
+/// What: Active phase of the sudo timestamp setup wizard.
+///
+/// Inputs:
+/// - Driven by key events in the sudo timestamp setup handler.
+///
+/// Output:
+/// - Tells the renderer whether to show the option list or the instruction pane.
+///
+/// Details:
+/// - The select phase uses [`SudoTimestampSetupModalState::select_cursor`]; instructions carry their own scroll.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SudoTimestampSetupPhase {
+    /// User is picking a recommended `timestamp_timeout` or skipping.
+    Select,
+    /// User is reading copy-paste / terminal instructions for the chosen option.
+    Instructions {
+        /// Selected duration mapping.
+        choice: SudoTimestampChoice,
+        /// Vertical scroll offset in lines for long instruction text.
+        scroll: u16,
+    },
+}
+
+/// What: Stateful fields for [`Modal::SudoTimestampSetup`].
+///
+/// Inputs:
+/// - Constructed when opening the wizard from optional deps or startup setup.
+///
+/// Output:
+/// - Updated by the sudo timestamp setup key handler and read by the renderer.
+///
+/// Details:
+/// - `select_cursor` is kept when switching to instructions so Esc returns to the same row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SudoTimestampSetupModalState {
+    /// Current wizard phase.
+    pub phase: SudoTimestampSetupPhase,
+    /// Row index in the select phase (`0..SUDO_TIMESTAMP_SELECT_ROWS`).
+    pub select_cursor: usize,
+}
+
+/// Row count for [`SudoTimestampSetupModalState::select_cursor`] (10m, 30m, infinity, skip).
+pub const SUDO_TIMESTAMP_SELECT_ROWS: usize = 4;
+
+/// What: Preset scope for suggested `doas.conf` persist snippets.
+///
+/// Inputs:
+/// - Selected by the user in [`Modal::DoasPersistSetup`].
+///
+/// Output:
+/// - Controls whether generated guidance targets group-level or user-level `permit persist` entries.
+///
+/// Details:
+/// - These options only generate guidance text; the app does not write `/etc/doas.conf` automatically.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DoasPersistChoice {
+    /// Suggest a group-scoped rule (`:wheel`) for systems using wheel-based admin policy.
+    WheelScoped,
+    /// Suggest a user-scoped rule (`$USER`) for least-privilege single-user setups.
+    UserScoped,
+    /// Skip setup and close the wizard.
+    Skip,
+}
+
+/// What: Active phase of the doas persist setup wizard.
+///
+/// Inputs:
+/// - Driven by key events in the doas persist setup handler.
+///
+/// Output:
+/// - Tells the renderer whether to show the option list or checklist instructions.
+///
+/// Details:
+/// - The select phase uses [`DoasPersistSetupModalState::select_cursor`]; instructions carry their own scroll.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DoasPersistSetupPhase {
+    /// User is picking a recommended `doas.conf` persist snippet profile or skipping.
+    Select,
+    /// User is reading copy/paste checklist instructions for the chosen option.
+    Instructions {
+        /// Selected snippet profile.
+        choice: DoasPersistChoice,
+        /// Vertical scroll offset in lines for long instruction text.
+        scroll: u16,
+    },
+}
+
+/// What: Stateful fields for [`Modal::DoasPersistSetup`].
+///
+/// Inputs:
+/// - Constructed when opening the wizard from optional deps or startup setup.
+///
+/// Output:
+/// - Updated by the doas persist setup key handler and read by the renderer.
+///
+/// Details:
+/// - `select_cursor` is preserved so Esc from instructions returns to the same row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DoasPersistSetupModalState {
+    /// Current wizard phase.
+    pub phase: DoasPersistSetupPhase,
+    /// Row index in the select phase (`0..DOAS_PERSIST_SELECT_ROWS`).
+    pub select_cursor: usize,
+}
+
+/// Row count for [`DoasPersistSetupModalState::select_cursor`] (wheel, user, skip).
+pub const DOAS_PERSIST_SELECT_ROWS: usize = 3;
 
 impl CascadeMode {
     /// Return the `pacman` flag sequence corresponding to this `CascadeMode`.
@@ -852,6 +984,16 @@ pub enum Modal {
         /// Cursor position within the input buffer.
         cursor: usize,
     },
+    /// Optional wizard: configure `sudo` `timestamp_timeout` via `sudoers` drop-in (instructions / terminal).
+    SudoTimestampSetup {
+        /// Wizard phase and cursor state.
+        setup: SudoTimestampSetupModalState,
+    },
+    /// Optional wizard: guide `doas` `persist` policy setup via `doas.conf` snippets and checks.
+    DoasPersistSetup {
+        /// Wizard phase and cursor state.
+        setup: DoasPersistSetupModalState,
+    },
     /// Information dialog explaining the Import file format.
     ImportHelp,
     /// Setup dialog for startup news popup configuration.
@@ -877,6 +1019,10 @@ pub enum Modal {
         cursor: usize,
         /// Selected startup setup tasks to execute.
         selected: std::collections::HashSet<StartupSetupTask>,
+        /// Cached active privilege tool resolved when opening the selector.
+        ///
+        /// Avoids repeated PATH lookups during render passes.
+        active_privilege_tool: Option<crate::logic::privilege::PrivilegeTool>,
     },
     /// Password prompt for sudo authentication.
     PasswordPrompt {
@@ -885,7 +1031,7 @@ pub enum Modal {
         /// Packages involved in the operation.
         items: Vec<PackageItem>,
         /// User input buffer for password.
-        input: String,
+        input: crate::state::SecureString,
         /// Cursor position within the input buffer.
         cursor: usize,
         /// Error message if password was incorrect.
@@ -987,24 +1133,37 @@ mod tests {
             input: String::new(),
             cursor: 0,
         };
+        let _ = super::Modal::SudoTimestampSetup {
+            setup: super::SudoTimestampSetupModalState {
+                phase: super::SudoTimestampSetupPhase::Select,
+                select_cursor: 0,
+            },
+        };
+        let _ = super::Modal::DoasPersistSetup {
+            setup: super::DoasPersistSetupModalState {
+                phase: super::DoasPersistSetupPhase::Select,
+                select_cursor: 0,
+            },
+        };
         let _ = super::Modal::ImportHelp;
         let _ = super::Modal::PasswordPrompt {
             purpose: super::PasswordPurpose::Install,
             items: Vec::new(),
-            input: String::new(),
+            input: crate::state::SecureString::default(),
             cursor: 0,
             error: None,
         };
         let _ = super::Modal::PasswordPrompt {
             purpose: super::PasswordPurpose::RepoForeignMigrate,
             items: Vec::new(),
-            input: String::new(),
+            input: crate::state::SecureString::default(),
             cursor: 0,
             error: None,
         };
         let _ = super::Modal::StartupSetupSelector {
             cursor: 0,
             selected: std::collections::HashSet::new(),
+            active_privilege_tool: None,
         };
         let _ = super::Modal::Preflight {
             items: Vec::new(),

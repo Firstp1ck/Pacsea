@@ -8,17 +8,30 @@ use crate::install::ExecutorRequest;
 use crate::state::{AppState, Modal, PackageItem};
 
 /// Startup selector item count.
-const STARTUP_SETUP_SELECTOR_ITEMS: usize = 5;
+const STARTUP_SETUP_SELECTOR_ITEMS: usize = 7;
 
 /// What: Check whether a startup selector task can be toggled by the user.
 #[must_use]
 fn startup_selector_task_selectable(
     task: crate::state::modal::StartupSetupTask,
     app: &AppState,
+    active_tool: Option<crate::logic::privilege::PrivilegeTool>,
 ) -> bool {
     match task {
         crate::state::modal::StartupSetupTask::SshAurSetup => {
             !app.aur_ssh_help_ready.unwrap_or(false)
+        }
+        crate::state::modal::StartupSetupTask::SudoTimestampSetup => {
+            matches!(
+                active_tool,
+                Some(crate::logic::privilege::PrivilegeTool::Sudo)
+            )
+        }
+        crate::state::modal::StartupSetupTask::DoasPersistSetup => {
+            matches!(
+                active_tool,
+                Some(crate::logic::privilege::PrivilegeTool::Doas)
+            )
         }
         _ => true,
     }
@@ -348,7 +361,7 @@ pub(super) fn handle_confirm_batch_update_modal(
                     app.modal = crate::state::Modal::PasswordPrompt {
                         purpose: crate::state::modal::PasswordPurpose::Install,
                         items: items_clone,
-                        input: String::new(),
+                        input: crate::state::SecureString::default(),
                         cursor: 0,
                         error: None,
                     };
@@ -644,7 +657,7 @@ pub(super) fn handle_confirm_reinstall_modal(
                         app.modal = crate::state::Modal::PasswordPrompt {
                             purpose: crate::state::modal::PasswordPurpose::Install,
                             items: items_clone,
-                            input: String::new(),
+                            input: crate::state::SecureString::default(),
                             cursor: 0,
                             error: None,
                         };
@@ -1181,7 +1194,7 @@ pub(super) fn handle_news_setup_modal(ke: KeyEvent, app: &mut AppState, mut moda
 /// - `modal`: `VirusTotalSetup` modal variant
 ///
 /// Output:
-/// - `false` (never stops propagation)
+/// - `true` (always stops propagation while this modal is active)
 ///
 /// Details:
 /// - Delegates to scan handler and restores modal if needed
@@ -1205,16 +1218,83 @@ pub(super) fn handle_virustotal_setup_modal(
         {
             super::common::show_next_startup_setup_step(app);
         }
-        restore::restore_if_not_closed_with_esc(
-            app,
-            &ke,
-            Modal::VirusTotalSetup {
-                input: input.clone(),
-                cursor: *cursor,
-            },
-        );
+        if !(should_advance && matches!(app.modal, Modal::None)) {
+            restore::restore_if_not_closed_with_esc(
+                app,
+                &ke,
+                Modal::VirusTotalSetup {
+                    input: input.clone(),
+                    cursor: *cursor,
+                },
+            );
+        }
+        return true;
     }
     false
+}
+
+/// What: Handle key events for `SudoTimestampSetup` modal.
+///
+/// Inputs:
+/// - `ke`: Key event
+/// - `app`: Mutable application state
+/// - `modal`: `SudoTimestampSetup` modal variant
+///
+/// Output:
+/// - `true` (always stops propagation while this modal is active)
+///
+/// Details:
+/// - Advances the first-startup queue when the wizard completes while a queue is pending.
+#[allow(clippy::needless_pass_by_value)] // Matches `handle_modal_key` ownership pattern (`std::mem::take`).
+pub(super) fn handle_sudo_timestamp_setup_modal(
+    ke: KeyEvent,
+    app: &mut AppState,
+    modal: Modal,
+) -> bool {
+    let Modal::SudoTimestampSetup { mut setup } = modal else {
+        return false;
+    };
+    let finished =
+        super::sudo_timestamp_setup::handle_sudo_timestamp_setup_key(ke, app, &mut setup);
+    if finished {
+        app.modal = Modal::None;
+        if !app.pending_startup_setup_steps.is_empty() {
+            super::common::show_next_startup_setup_step(app);
+        }
+    } else {
+        app.modal = Modal::SudoTimestampSetup { setup };
+    }
+    true
+}
+
+/// What: Handle key events for `DoasPersistSetup` modal.
+///
+/// Inputs:
+/// - `ke`: Key event
+/// - `app`: Mutable application state
+/// - `modal`: `DoasPersistSetup` modal variant
+///
+/// Output:
+/// - `true` (always stops propagation while this modal is active)
+#[allow(clippy::needless_pass_by_value)]
+pub(super) fn handle_doas_persist_setup_modal(
+    ke: KeyEvent,
+    app: &mut AppState,
+    modal: Modal,
+) -> bool {
+    let Modal::DoasPersistSetup { mut setup } = modal else {
+        return false;
+    };
+    let finished = super::doas_persist_setup::handle_doas_persist_setup_key(ke, app, &mut setup);
+    if finished {
+        app.modal = Modal::None;
+        if !app.pending_startup_setup_steps.is_empty() {
+            super::common::show_next_startup_setup_step(app);
+        }
+    } else {
+        app.modal = Modal::DoasPersistSetup { setup };
+    }
+    true
 }
 
 /// What: Handle key events for `StartupSetupSelector` modal.
@@ -1226,6 +1306,7 @@ pub(super) fn handle_startup_setup_selector_modal(
     if let Modal::StartupSetupSelector {
         ref mut cursor,
         ref mut selected,
+        active_privilege_tool,
     } = modal
     {
         match ke.code {
@@ -1260,13 +1341,16 @@ pub(super) fn handle_startup_setup_selector_modal(
                     0 => crate::state::modal::StartupSetupTask::ArchNews,
                     1 => crate::state::modal::StartupSetupTask::SshAurSetup,
                     2 => crate::state::modal::StartupSetupTask::OptionalDepsMissing,
-                    3 => crate::state::modal::StartupSetupTask::AurSleuthSetup,
+                    3 => crate::state::modal::StartupSetupTask::SudoTimestampSetup,
+                    4 => crate::state::modal::StartupSetupTask::DoasPersistSetup,
+                    5 => crate::state::modal::StartupSetupTask::AurSleuthSetup,
                     _ => crate::state::modal::StartupSetupTask::VirusTotalSetup,
                 };
-                if !startup_selector_task_selectable(task, app) {
+                if !startup_selector_task_selectable(task, app, active_privilege_tool) {
                     app.modal = Modal::StartupSetupSelector {
                         cursor: *cursor,
                         selected: selected.clone(),
+                        active_privilege_tool,
                     };
                     return false;
                 }
@@ -1291,6 +1375,7 @@ pub(super) fn handle_startup_setup_selector_modal(
         app.modal = Modal::StartupSetupSelector {
             cursor: *cursor,
             selected: selected.clone(),
+            active_privilege_tool,
         };
     }
     false
@@ -1378,7 +1463,7 @@ pub(super) fn handle_password_prompt_modal(
             if let Some(ref pass) = password {
                 // Validate password before starting execution
                 // Always validate - don't skip even if passwordless sudo might be configured
-                match crate::logic::password::validate_sudo_password(pass) {
+                match crate::logic::password::validate_sudo_password(pass.as_str()) {
                     Ok(true) => {
                         // Password is valid, continue with execution
                     }
@@ -1464,8 +1549,8 @@ pub(super) fn handle_password_prompt_modal(
                         app.modal = crate::state::Modal::PasswordPrompt {
                             purpose: *purpose,
                             items: items.clone(),
-                            input: String::new(), // Clear input field
-                            cursor: 0,            // Reset cursor position
+                            input: crate::state::SecureString::default(), // Clear input field
+                            cursor: 0,                                    // Reset cursor position
                             error: Some(error_msg),
                         };
                         // Don't start execution, keep modal open for retry
@@ -1831,6 +1916,7 @@ mod tests {
         let modal = Modal::StartupSetupSelector {
             cursor: 0,
             selected,
+            active_privilege_tool: None,
         };
         let handled = handle_startup_setup_selector_modal(
             KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()),
@@ -1856,6 +1942,7 @@ mod tests {
         let modal = Modal::StartupSetupSelector {
             cursor: 0,
             selected: std::collections::HashSet::new(),
+            active_privilege_tool: None,
         };
         let handled = handle_startup_setup_selector_modal(
             KeyEvent::new(KeyCode::Esc, KeyModifiers::empty()),
@@ -1874,6 +1961,7 @@ mod tests {
         let modal = Modal::StartupSetupSelector {
             cursor: usize::MAX,
             selected,
+            active_privilege_tool: None,
         };
 
         let handled = handle_startup_setup_selector_modal(
@@ -1889,5 +1977,61 @@ mod tests {
             }
             _ => panic!("startup selector modal should remain active"),
         }
+    }
+
+    #[test]
+    fn sudo_setup_finish_consumes_enter_key() {
+        let mut app = AppState::default();
+        let modal = Modal::SudoTimestampSetup {
+            setup: crate::state::modal::SudoTimestampSetupModalState {
+                phase: crate::state::modal::SudoTimestampSetupPhase::Select,
+                select_cursor: crate::state::modal::SUDO_TIMESTAMP_SELECT_ROWS - 1,
+            },
+        };
+        let handled = handle_sudo_timestamp_setup_modal(
+            KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()),
+            &mut app,
+            modal,
+        );
+        assert!(handled);
+        assert!(matches!(app.modal, Modal::None));
+    }
+
+    #[test]
+    fn doas_setup_finish_consumes_enter_key() {
+        let mut app = AppState::default();
+        let modal = Modal::DoasPersistSetup {
+            setup: crate::state::modal::DoasPersistSetupModalState {
+                phase: crate::state::modal::DoasPersistSetupPhase::Select,
+                select_cursor: crate::state::modal::DOAS_PERSIST_SELECT_ROWS - 1,
+            },
+        };
+        let handled = handle_doas_persist_setup_modal(
+            KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()),
+            &mut app,
+            modal,
+        );
+        assert!(handled);
+        assert!(matches!(app.modal, Modal::None));
+    }
+
+    #[test]
+    fn virustotal_setup_enter_consumes_key_when_closing_modal() {
+        let mut app = AppState::default();
+        app.pending_startup_setup_steps.clear();
+        let modal = Modal::VirusTotalSetup {
+            input: "dummy-api-key".to_string(),
+            cursor: 12,
+        };
+        let handled = handle_virustotal_setup_modal(
+            KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()),
+            &mut app,
+            modal,
+        );
+        assert!(handled);
+        assert!(
+            !matches!(app.modal, Modal::VirusTotalSetup { .. }),
+            "virustotal setup modal should close on Enter with non-empty key"
+        );
     }
 }

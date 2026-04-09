@@ -304,7 +304,7 @@ fn integration_network_error_install_request() {
 
     let request = ExecutorRequest::Install {
         items,
-        password: Some("testpassword".to_string()),
+        password: Some("testpassword".to_string().into()),
         dry_run: false,
     };
 

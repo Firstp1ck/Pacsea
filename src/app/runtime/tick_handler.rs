@@ -898,7 +898,7 @@ pub fn handle_tick(
                         app.modal = crate::state::Modal::PasswordPrompt {
                             purpose: crate::state::modal::PasswordPurpose::FileSync,
                             items: Vec::new(), // No packages involved in file sync
-                            input: String::new(),
+                            input: crate::state::SecureString::default(),
                             cursor: 0,
                             error: None,
                         };
@@ -1205,7 +1205,7 @@ mod tests {
             success: Some(true),
         };
         app.pending_aur_update_command = Some(aur_cmd.clone());
-        app.pending_executor_password = Some("pass".to_string());
+        app.pending_executor_password = Some(crate::state::SecureString::from("pass"));
 
         let (query_tx, _query_rx) = mpsc::unbounded_channel();
         let (details_tx, _details_rx) = mpsc::unbounded_channel();

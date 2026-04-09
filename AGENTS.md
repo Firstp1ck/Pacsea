@@ -159,6 +159,60 @@ If config keys or schema change:
 | Function length | Clippy `too_many_lines` + `clippy.toml` | 150 lines |
 | Data flow / coupling | Manual design review; no lint — match existing module patterns | N/A |
 
+## Security rules
+
+These rules exist to prevent specific vulnerability classes identified in `dev/SECURITY_AUDIT_REPORT.md`. They are **mandatory** — not suggestions.
+
+### Shell command construction
+
+- **Never interpolate package names, file paths, or user input directly into shell command strings.** Always pass them through `shell_single_quote()` from `src/install/utils.rs` first.
+- When building shell commands with multiple package names, quote **each name individually** before joining:
+  ```rust
+  let quoted: Vec<String> = names.iter().map(|n| shell_single_quote(n)).collect();
+  let names_str = quoted.join(" ");
+  ```
+- When adding a new function in `src/install/` that constructs shell commands, verify that **every** variable fragment interpolated into `format!()` is either:
+  1. A constant/static string, **or**
+  2. Passed through `shell_single_quote()`, **or**
+  3. Validated against `^[a-z\d@._+-]+$` before use.
+- **Never use `format!()` with `sh -c` and unsanitized user data.** Prefer `Command::new().arg()` argument passing over string interpolation when possible — `Command` arguments are not interpreted by a shell.
+- On Windows, never pass unescaped strings into `cmd /C` or `cmd /K`. Use PowerShell with proper quoting or escape `&`, `|`, `>`, `<`, `^` for cmd.exe.
+
+### Password and credential handling
+
+- **Never log passwords.** Any function that writes command strings to disk (log files, temp scripts) must redact password pipe patterns (`printf '%s\n' '...' | sudo -S`) before writing. Replace the password with `[REDACTED]`.
+- **Never store passwords in plain `String`.** Use `SecureString` (zeroize-backed) from `src/state/types.rs` for all password fields. If `SecureString` does not exist yet, use `String` but add a `// TODO: migrate to SecureString` comment and a `zeroize` call on the containing struct's `Drop`.
+- When creating files that might contain sensitive data (log files, temp scripts), use `OpenOptions::mode(0o600)` on Unix to prevent world-readable permissions.
+- Never include passwords or credentials in `tracing::info!`, `tracing::debug!`, or `tracing::warn!` output. If you need to log that a password was provided, log `password_provided = true` — never the value.
+
+### Network and HTTP
+
+- All curl invocations must go through `curl_args()` in `src/util/mod.rs`. Do not construct raw curl commands.
+- `curl_args()` must include `--max-filesize 10485760` (10 MB) to prevent memory exhaustion from oversized responses. If this is not yet present, add it.
+- Never disable TLS certificate verification (`-k` / `--insecure`) on Linux builds. The Windows `-k` flag is a known issue tracked for removal.
+- URLs constructed from user input or API data must be validated to start with `http://` or `https://` before passing to curl. See `looks_like_http_url()` in `src/logic/repos/apply_plan.rs` for the pattern.
+
+### File system safety
+
+- **Validate all paths before writing.** Use or extend `is_safe_abs_path()` from `src/logic/repos/apply_plan.rs` for any privileged file write. Reject paths containing `..`.
+- **Create temp files atomically.** Use `OpenOptions::create_new(true).mode(0o700)` instead of `fs::write()` followed by `set_permissions()`. The `create_new` flag prevents symlink-following TOCTOU races.
+- When writing files under `~/.config/pacsea/`, create parent directories with `create_dir_all` but do not set overly permissive modes. Default umask-derived permissions are acceptable for non-sensitive files; use `0o600` for anything that could contain credentials.
+
+### Test environment overrides
+
+- Functions that check `PACSEA_INTEGRATION_TEST` or `PACSEA_TEST_*` environment variables must **not** bypass security checks in release builds. Gate them with `#[cfg(debug_assertions)]` or `#[cfg(test)]` so they compile to no-ops in release mode.
+- Never add new environment-variable-based test overrides that skip authentication, privilege checks, or input validation without a `#[cfg(debug_assertions)]` guard.
+
+### Dependency management
+
+- Run `cargo audit` after adding or updating dependencies. Resolve all **critical** and **high** advisories before merging.
+- Prefer direct dependencies over transitive ones for security-sensitive functionality. If a transitive dependency has an advisory, check if the parent crate can be updated to pull a fixed version.
+- Do not add dependencies that require `unsafe` for their core functionality unless there is no safe alternative and the crate is well-maintained.
+
+### Audit reference
+
+Full findings and remediation steps: `dev/SECURITY_AUDIT_REPORT.md` and `dev/SECURITY_REMEDIATION_GUIDE.md`.
+
 ## General rules
 - No unsolicited `*.md` / wiki / README edits.
 - Preserve dry-run semantics and graceful handling of missing external tools.

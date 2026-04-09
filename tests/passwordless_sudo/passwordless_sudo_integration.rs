@@ -654,7 +654,7 @@ fn integration_update_executor_request_structure() {
 fn integration_update_executor_request_with_password() {
     let request = ExecutorRequest::Update {
         commands: vec!["sudo pacman -Syu --noconfirm".to_string()],
-        password: Some("testpassword".to_string()),
+        password: Some("testpassword".to_string().into()),
         dry_run: false,
     };
 
@@ -713,7 +713,7 @@ fn integration_update_password_prompt_purpose() {
     app.modal = Modal::PasswordPrompt {
         purpose: PasswordPurpose::Update,
         items: Vec::new(), // System update doesn't have package items
-        input: String::new(),
+        input: pacsea::state::SecureString::default(),
         cursor: 0,
         error: None,
     };
@@ -772,7 +772,7 @@ fn integration_downgrade_executor_request_structure() {
 fn integration_downgrade_executor_request_with_password() {
     let request = ExecutorRequest::Downgrade {
         names: vec!["test-pkg".to_string()],
-        password: Some("testpassword".to_string()),
+        password: Some("testpassword".to_string().into()),
         dry_run: false,
     };
 
@@ -831,7 +831,7 @@ fn integration_downgrade_password_prompt_purpose() {
     app.modal = Modal::PasswordPrompt {
         purpose: PasswordPurpose::Downgrade,
         items,
-        input: String::new(),
+        input: pacsea::state::SecureString::default(),
         cursor: 0,
         error: None,
     };
@@ -889,7 +889,7 @@ fn integration_filesync_password_prompt_purpose() {
     app.modal = Modal::PasswordPrompt {
         purpose: PasswordPurpose::FileSync,
         items: Vec::new(),
-        input: String::new(),
+        input: pacsea::state::SecureString::default(),
         cursor: 0,
         error: None,
     };
@@ -943,7 +943,7 @@ fn integration_filesync_custom_command_structure() {
 fn integration_filesync_custom_command_with_password() {
     let request = ExecutorRequest::CustomCommand {
         command: "sudo pacman -Fy".to_string(),
-        password: Some("testpassword".to_string()),
+        password: Some("testpassword".to_string().into()),
         dry_run: false,
     };
 
@@ -1048,7 +1048,7 @@ fn integration_preflight_install_requires_password_when_deactivated() {
         // Create executor request as if proceeding from preflight with password
         let request = ExecutorRequest::Install {
             items,
-            password: Some("testpassword".to_string()),
+            password: Some("testpassword".to_string().into()),
             dry_run: true,
         };
 
@@ -1095,7 +1095,7 @@ fn integration_all_password_purposes_valid() {
         app.modal = Modal::PasswordPrompt {
             purpose,
             items: Vec::new(),
-            input: String::new(),
+            input: pacsea::state::SecureString::default(),
             cursor: 0,
             error: None,
         };
@@ -1125,7 +1125,7 @@ fn integration_all_executor_requests_support_password() {
     // Install with and without password
     let install_with = ExecutorRequest::Install {
         items: vec![create_official_package("pkg")],
-        password: Some("pass".to_string()),
+        password: Some("pass".to_string().into()),
         dry_run: true,
     };
     let install_without = ExecutorRequest::Install {
@@ -1138,7 +1138,7 @@ fn integration_all_executor_requests_support_password() {
     let remove_with = ExecutorRequest::Remove {
         names: vec!["pkg".to_string()],
         cascade: CascadeMode::Basic,
-        password: Some("pass".to_string()),
+        password: Some("pass".to_string().into()),
         dry_run: true,
     };
     let remove_without = ExecutorRequest::Remove {
@@ -1151,7 +1151,7 @@ fn integration_all_executor_requests_support_password() {
     // Update with and without password
     let update_with = ExecutorRequest::Update {
         commands: vec!["cmd".to_string()],
-        password: Some("pass".to_string()),
+        password: Some("pass".to_string().into()),
         dry_run: true,
     };
     let update_without = ExecutorRequest::Update {
@@ -1163,7 +1163,7 @@ fn integration_all_executor_requests_support_password() {
     // Downgrade with and without password
     let downgrade_with = ExecutorRequest::Downgrade {
         names: vec!["pkg".to_string()],
-        password: Some("pass".to_string()),
+        password: Some("pass".to_string().into()),
         dry_run: true,
     };
     let downgrade_without = ExecutorRequest::Downgrade {
@@ -1175,7 +1175,7 @@ fn integration_all_executor_requests_support_password() {
     // Custom command with and without password
     let custom_with = ExecutorRequest::CustomCommand {
         command: "cmd".to_string(),
-        password: Some("pass".to_string()),
+        password: Some("pass".to_string().into()),
         dry_run: true,
     };
     let custom_without = ExecutorRequest::CustomCommand {

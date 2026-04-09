@@ -428,6 +428,18 @@ struct VirusTotalSetupContext {
     cursor: usize,
 }
 
+/// What: Context struct grouping `SudoTimestampSetup` modal fields.
+struct SudoTimestampSetupContext {
+    /// Wizard phase and cursor state.
+    setup: crate::state::modal::SudoTimestampSetupModalState,
+}
+
+/// What: Context struct grouping `DoasPersistSetup` modal fields.
+struct DoasPersistSetupContext {
+    /// Wizard phase and cursor state.
+    setup: crate::state::modal::DoasPersistSetupModalState,
+}
+
 /// What: Context struct grouping `NewsSetup` modal fields to reduce data flow complexity.
 ///
 /// Inputs: None (constructed from Modal variant).
@@ -459,6 +471,8 @@ struct StartupSetupSelectorContext {
     cursor: usize,
     /// Selected setup tasks in the selector checklist.
     selected: std::collections::HashSet<crate::state::modal::StartupSetupTask>,
+    /// Cached privilege tool resolved when opening the selector.
+    active_privilege_tool: Option<crate::logic::privilege::PrivilegeTool>,
 }
 
 /// What: Context struct grouping `WarnAurRepoDuplicate` modal fields.
@@ -506,7 +520,7 @@ struct PasswordPromptContext {
     /// Items involved in the operation requiring authentication.
     items: Vec<crate::state::PackageItem>,
     /// Current password input buffer.
-    input: String,
+    input: crate::state::SecureString,
     /// Cursor position within the input buffer.
     cursor: usize,
     /// Optional error message to display.
@@ -770,6 +784,14 @@ impl ModalRenderer for Modal {
                 let ctx = VirusTotalSetupContext { input, cursor };
                 render_virustotal_setup_modal(f, app, area, ctx)
             }
+            Self::SudoTimestampSetup { setup } => {
+                let ctx = SudoTimestampSetupContext { setup };
+                render_sudo_timestamp_setup_modal(f, app, area, ctx)
+            }
+            Self::DoasPersistSetup { setup } => {
+                let ctx = DoasPersistSetupContext { setup };
+                render_doas_persist_setup_modal(f, app, area, ctx)
+            }
             Self::ImportHelp => render_import_help_modal(f, app, area),
             Self::NewsSetup {
                 show_arch_news,
@@ -791,8 +813,16 @@ impl ModalRenderer for Modal {
                 };
                 render_news_setup_modal(f, app, area, ctx)
             }
-            Self::StartupSetupSelector { cursor, selected } => {
-                let ctx = StartupSetupSelectorContext { cursor, selected };
+            Self::StartupSetupSelector {
+                cursor,
+                selected,
+                active_privilege_tool,
+            } => {
+                let ctx = StartupSetupSelectorContext {
+                    cursor,
+                    selected,
+                    active_privilege_tool,
+                };
                 render_startup_setup_selector_modal(f, app, area, ctx)
             }
             Self::WarnAurRepoDuplicate {
@@ -1300,6 +1330,30 @@ fn render_virustotal_setup_modal(
     }
 }
 
+/// What: Render `SudoTimestampSetup` modal and return reconstructed state.
+#[allow(clippy::needless_pass_by_value)]
+fn render_sudo_timestamp_setup_modal(
+    f: &mut Frame,
+    app: &AppState,
+    area: Rect,
+    ctx: SudoTimestampSetupContext,
+) -> Modal {
+    misc::render_sudo_timestamp_setup(f, area, app, ctx.setup);
+    Modal::SudoTimestampSetup { setup: ctx.setup }
+}
+
+/// What: Render `DoasPersistSetup` modal and return reconstructed state.
+#[allow(clippy::needless_pass_by_value)]
+fn render_doas_persist_setup_modal(
+    f: &mut Frame,
+    app: &AppState,
+    area: Rect,
+    ctx: DoasPersistSetupContext,
+) -> Modal {
+    misc::render_doas_persist_setup(f, area, app, ctx.setup);
+    Modal::DoasPersistSetup { setup: ctx.setup }
+}
+
 /// What: Render `ImportHelp` modal and return reconstructed state.
 fn render_import_help_modal(f: &mut Frame, app: &AppState, area: Rect) -> Modal {
     misc::render_import_help(f, area, app);
@@ -1367,10 +1421,18 @@ fn render_startup_setup_selector_modal(
     area: Rect,
     ctx: StartupSetupSelectorContext,
 ) -> Modal {
-    misc::render_startup_setup_selector(f, area, app, ctx.cursor, &ctx.selected);
+    misc::render_startup_setup_selector(
+        f,
+        area,
+        app,
+        ctx.cursor,
+        &ctx.selected,
+        ctx.active_privilege_tool,
+    );
     Modal::StartupSetupSelector {
         cursor: ctx.cursor,
         selected: ctx.selected,
+        active_privilege_tool: ctx.active_privilege_tool,
     }
 }
 

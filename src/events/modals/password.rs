@@ -2,7 +2,7 @@
 
 use crossterm::event::{KeyCode, KeyEvent};
 
-use crate::state::AppState;
+use crate::state::{AppState, SecureString};
 
 /// What: Handle key events for password prompt modal.
 ///
@@ -21,7 +21,7 @@ use crate::state::AppState;
 pub(super) fn handle_password_prompt(
     ke: KeyEvent,
     app: &mut AppState,
-    input: &mut String,
+    input: &mut SecureString,
     cursor: &mut usize,
 ) -> bool {
     match ke.code {
@@ -93,7 +93,7 @@ mod tests {
     #[test]
     fn key_numpad_enter_carriage_return_returns_true() {
         let mut app = AppState::default();
-        let mut input = String::new();
+        let mut input = crate::state::SecureString::default();
         let mut cursor = 0_usize;
         let ke = key_event(KeyCode::Char('\r'), KeyModifiers::empty());
         let result = handle_password_prompt(ke, &mut app, &mut input, &mut cursor);
@@ -105,7 +105,7 @@ mod tests {
     #[test]
     fn key_numpad_enter_newline_returns_true() {
         let mut app = AppState::default();
-        let mut input = String::new();
+        let mut input = crate::state::SecureString::default();
         let mut cursor = 0_usize;
         let ke = key_event(KeyCode::Char('\n'), KeyModifiers::empty());
         let result = handle_password_prompt(ke, &mut app, &mut input, &mut cursor);
@@ -117,7 +117,7 @@ mod tests {
     #[test]
     fn key_main_enter_returns_true() {
         let mut app = AppState::default();
-        let mut input = String::new();
+        let mut input = crate::state::SecureString::default();
         let mut cursor = 0_usize;
         let ke = key_event(KeyCode::Enter, KeyModifiers::empty());
         let result = handle_password_prompt(ke, &mut app, &mut input, &mut cursor);
@@ -130,13 +130,13 @@ mod tests {
             modal: Modal::PasswordPrompt {
                 purpose: crate::state::modal::PasswordPurpose::Install,
                 items: vec![],
-                input: String::new(),
+                input: crate::state::SecureString::default(),
                 cursor: 0,
                 error: None,
             },
             ..Default::default()
         };
-        let mut input = String::new();
+        let mut input = crate::state::SecureString::default();
         let mut cursor = 0_usize;
         let ke = key_event(KeyCode::Esc, KeyModifiers::empty());
         let result = handle_password_prompt(ke, &mut app, &mut input, &mut cursor);
@@ -147,19 +147,23 @@ mod tests {
     #[test]
     fn key_backspace_returns_false_and_edits() {
         let mut app = AppState::default();
-        let mut input = "ab".to_string();
+        let mut input = crate::state::SecureString::from("ab");
         let mut cursor = 1_usize;
         let ke = key_event(KeyCode::Backspace, KeyModifiers::empty());
         let result = handle_password_prompt(ke, &mut app, &mut input, &mut cursor);
         assert!(!result, "Backspace should return false");
-        assert_eq!(input, "b", "Backspace should remove char before cursor");
+        assert_eq!(
+            input.as_str(),
+            "b",
+            "Backspace should remove char before cursor"
+        );
         assert_eq!(cursor, 0, "cursor should decrement");
     }
 
     #[test]
     fn key_left_right_home_end_return_false() {
         let mut app = AppState::default();
-        let mut input = "ab".to_string();
+        let mut input = crate::state::SecureString::from("ab");
         let mut cursor = 1_usize;
 
         let ke = key_event(KeyCode::Left, KeyModifiers::empty());
@@ -186,12 +190,12 @@ mod tests {
     #[test]
     fn key_char_inserts_and_returns_false() {
         let mut app = AppState::default();
-        let mut input = String::new();
+        let mut input = crate::state::SecureString::default();
         let mut cursor = 0_usize;
         let ke = key_event(KeyCode::Char('x'), KeyModifiers::empty());
         let result = handle_password_prompt(ke, &mut app, &mut input, &mut cursor);
         assert!(!result, "Char should return false");
-        assert_eq!(input, "x", "Char should insert");
+        assert_eq!(input.as_str(), "x", "Char should insert");
         assert_eq!(cursor, 1, "cursor should advance");
     }
 
@@ -199,7 +203,7 @@ mod tests {
     fn submit_with_empty_input() {
         let mut app = AppState::default();
         for code in [KeyCode::Enter, KeyCode::Char('\r'), KeyCode::Char('\n')] {
-            let mut input = String::new();
+            let mut input = crate::state::SecureString::default();
             let mut cursor = 0_usize;
             let ke = key_event(code, KeyModifiers::empty());
             let result = handle_password_prompt(ke, &mut app, &mut input, &mut cursor);
@@ -214,7 +218,7 @@ mod tests {
     fn submit_with_non_empty_input() {
         let mut app = AppState::default();
         for code in [KeyCode::Enter, KeyCode::Char('\r'), KeyCode::Char('\n')] {
-            let mut input = "pass".to_string();
+            let mut input = crate::state::SecureString::from("pass");
             let mut cursor = 4_usize;
             let ke = key_event(code, KeyModifiers::empty());
             let result = handle_password_prompt(ke, &mut app, &mut input, &mut cursor);
@@ -222,7 +226,7 @@ mod tests {
                 result,
                 "submit with non-empty input for {code:?} should return true"
             );
-            assert_eq!(input, "pass", "input must be unchanged");
+            assert_eq!(input.as_str(), "pass", "input must be unchanged");
             assert_eq!(cursor, 4, "cursor must be unchanged");
         }
     }
@@ -230,7 +234,7 @@ mod tests {
     #[test]
     fn control_chars_not_inserted_and_no_submit() {
         let mut app = AppState::default();
-        let mut input = String::new();
+        let mut input = crate::state::SecureString::default();
         let mut cursor = 0_usize;
         for code in [KeyCode::Char('\t'), KeyCode::Char('\x00')] {
             let ke = key_event(code, KeyModifiers::empty());
@@ -243,13 +247,13 @@ mod tests {
     #[test]
     fn other_key_codes_return_false() {
         let mut app = AppState::default();
-        let mut input = "x".to_string();
+        let mut input = crate::state::SecureString::from("x");
         let mut cursor = 1_usize;
         for code in [KeyCode::Tab, KeyCode::Down, KeyCode::Up] {
             let ke = key_event(code, KeyModifiers::empty());
             let result = handle_password_prompt(ke, &mut app, &mut input, &mut cursor);
             assert!(!result, "{code:?} should return false");
-            assert_eq!(input, "x", "input must be unchanged");
+            assert_eq!(input.as_str(), "x", "input must be unchanged");
             assert_eq!(cursor, 1, "cursor must be unchanged");
         }
     }
@@ -257,24 +261,24 @@ mod tests {
     #[test]
     fn cursor_at_start_submit() {
         let mut app = AppState::default();
-        let mut input = "pwd".to_string();
+        let mut input = crate::state::SecureString::from("pwd");
         let mut cursor = 0_usize;
         let ke = key_event(KeyCode::Char('\r'), KeyModifiers::empty());
         let result = handle_password_prompt(ke, &mut app, &mut input, &mut cursor);
         assert!(result);
-        assert_eq!(input, "pwd");
+        assert_eq!(input.as_str(), "pwd");
         assert_eq!(cursor, 0);
     }
 
     #[test]
     fn cursor_in_middle_submit() {
         let mut app = AppState::default();
-        let mut input = "pwd".to_string();
+        let mut input = crate::state::SecureString::from("pwd");
         let mut cursor = 2_usize;
         let ke = key_event(KeyCode::Char('\n'), KeyModifiers::empty());
         let result = handle_password_prompt(ke, &mut app, &mut input, &mut cursor);
         assert!(result);
-        assert_eq!(input, "pwd");
+        assert_eq!(input.as_str(), "pwd");
         assert_eq!(cursor, 2);
     }
 }

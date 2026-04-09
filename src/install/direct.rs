@@ -2,6 +2,22 @@
 
 use crate::state::{AppState, PackageItem, modal::CascadeMode};
 
+/// What: Show one-time long-run auth preflight guidance when readiness is at risk.
+fn maybe_show_long_run_auth_preflight(app: &mut AppState) {
+    if app.long_run_auth_preflight_warned {
+        return;
+    }
+    let settings = crate::theme::settings();
+    let readiness = crate::logic::long_run_auth::evaluate_long_run_auth_readiness(&settings);
+    if readiness.should_warn {
+        app.long_run_auth_preflight_warned = true;
+        app.toast_message = Some(crate::logic::long_run_auth::build_long_run_warning_message(
+            app,
+        ));
+        app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(8));
+    }
+}
+
 /// What: Start integrated install process for a single package (bypassing preflight).
 ///
 /// Inputs:
@@ -23,6 +39,7 @@ pub fn start_integrated_install(app: &mut AppState, item: &PackageItem, dry_run:
     use crate::state::modal::PreflightHeaderChips;
 
     app.dry_run = dry_run;
+    maybe_show_long_run_auth_preflight(app);
     let items = vec![item.clone()];
     let header_chips = PreflightHeaderChips::default();
 
@@ -71,7 +88,7 @@ pub fn start_integrated_install(app: &mut AppState, item: &PackageItem, dry_run:
         app.modal = crate::state::Modal::PasswordPrompt {
             purpose: crate::state::modal::PasswordPurpose::Install,
             items,
-            input: String::new(),
+            input: crate::state::SecureString::default(),
             cursor: 0,
             error: None,
         };
@@ -100,6 +117,7 @@ pub fn start_integrated_install_all(app: &mut AppState, items: &[PackageItem], d
     use crate::state::modal::PreflightHeaderChips;
 
     app.dry_run = dry_run;
+    maybe_show_long_run_auth_preflight(app);
     let items_vec = items.to_vec();
     let header_chips = PreflightHeaderChips::default();
 
@@ -148,7 +166,7 @@ pub fn start_integrated_install_all(app: &mut AppState, items: &[PackageItem], d
         app.modal = crate::state::Modal::PasswordPrompt {
             purpose: crate::state::modal::PasswordPurpose::Install,
             items: items_vec,
-            input: String::new(),
+            input: crate::state::SecureString::default(),
             cursor: 0,
             error: None,
         };
@@ -184,6 +202,7 @@ pub fn start_integrated_remove_all(
     use crate::state::modal::PreflightHeaderChips;
 
     app.dry_run = dry_run;
+    maybe_show_long_run_auth_preflight(app);
     app.remove_cascade_mode = cascade_mode;
 
     // Convert names to PackageItem for password prompt (we only need names, so create minimal items)
@@ -243,9 +262,38 @@ pub fn start_integrated_remove_all(
     app.modal = crate::state::Modal::PasswordPrompt {
         purpose: crate::state::modal::PasswordPurpose::Remove,
         items,
-        input: String::new(),
+        input: crate::state::SecureString::default(),
         cursor: 0,
         error: None,
     };
     app.pending_exec_header_chips = Some(header_chips);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::maybe_show_long_run_auth_preflight;
+
+    #[test]
+    fn preflight_warning_is_latched_once_per_session() {
+        let _guard = crate::global_test_mutex_lock();
+        unsafe {
+            std::env::set_var("PACSEA_INTEGRATION_TEST", "1");
+            std::env::set_var("PACSEA_TEST_PRIVILEGE_AVAILABLE", "none");
+        }
+        let mut app = crate::state::AppState::default();
+        assert!(!app.long_run_auth_preflight_warned);
+
+        maybe_show_long_run_auth_preflight(&mut app);
+        let first_toast = app.toast_message.clone();
+        assert!(app.long_run_auth_preflight_warned);
+        assert!(first_toast.is_some());
+
+        maybe_show_long_run_auth_preflight(&mut app);
+        assert_eq!(app.toast_message, first_toast);
+
+        unsafe {
+            std::env::remove_var("PACSEA_TEST_PRIVILEGE_AVAILABLE");
+            std::env::remove_var("PACSEA_INTEGRATION_TEST");
+        }
+    }
 }

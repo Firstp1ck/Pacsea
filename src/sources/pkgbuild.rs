@@ -210,7 +210,8 @@ mod tests {
         let mut curl = bin.clone();
         curl.push("curl");
         // Fail when URL contains '/-/raw/main/' and succeed when '/-/raw/master/'
-        // curl_args creates: ["-sSLf", "--connect-timeout", "30", "--max-time", "60", "-H", "User-Agent: ...", "--max-time", "10", "url"]
+        // curl_args creates defaults like:
+        // ["-sSLf", "--connect-timeout", "30", "--max-time", "90", "--max-filesize", "10485760", ...]
         // Get the last argument by looping through all arguments
         // Use printf instead of echo to avoid trailing newline that confuses the HTTP header parser
         let script = "#!/bin/sh\nfor arg; do :; done\nurl=\"$arg\"\nif echo \"$url\" | grep -q '/-/raw/main/'; then exit 22; fi\nprintf 'pkgrel=2'\n";

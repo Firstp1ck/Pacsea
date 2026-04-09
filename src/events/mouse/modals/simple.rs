@@ -483,6 +483,7 @@ pub(super) fn handle_optional_deps_modal(
         app.modal = crate::state::Modal::StartupSetupSelector {
             cursor: 0,
             selected: std::collections::HashSet::new(),
+            active_privilege_tool: crate::logic::privilege::active_tool().ok(),
         };
         return Some(false);
     }

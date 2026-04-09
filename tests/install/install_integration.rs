@@ -138,7 +138,7 @@ fn integration_executor_request_creation() {
 
     let request = ExecutorRequest::Install {
         items,
-        password: Some("testpass".to_string()),
+        password: Some("testpass".to_string().into()),
         dry_run: false,
     };
 
@@ -187,7 +187,7 @@ fn integration_password_prompt_state() {
         modal: Modal::PasswordPrompt {
             purpose: pacsea::state::modal::PasswordPurpose::Install,
             items,
-            input: "testpassword".to_string(),
+            input: "testpassword".into(),
             cursor: 12,
             error: None,
         },
@@ -203,7 +203,7 @@ fn integration_password_prompt_state() {
         } => {
             assert_eq!(items.len(), 1);
             // Avoid logging password input on assert failure.
-            assert!(input == "testpassword", "Password input mismatch");
+            assert!(input.as_str() == "testpassword", "Password input mismatch");
             assert_eq!(cursor, 12);
         }
         _ => panic!("Expected PasswordPrompt modal"),

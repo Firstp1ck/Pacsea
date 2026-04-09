@@ -130,7 +130,7 @@ fn queue_foreign_migrate_execution(
     app.modal = Modal::PasswordPrompt {
         purpose: PasswordPurpose::RepoForeignMigrate,
         items: Vec::new(),
-        input: String::new(),
+        input: crate::state::SecureString::default(),
         cursor: 0,
         error: None,
     };

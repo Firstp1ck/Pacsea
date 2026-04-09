@@ -1,5 +1,172 @@
 //! Core value types used by Pacsea state.
 
+use zeroize::Zeroize;
+
+/// What: Zeroizing wrapper for sensitive in-memory string data such as passwords.
+///
+/// Inputs:
+/// - Constructed from owned string data via [`From<String>`], [`From<&str>`], or [`SecureString::new`].
+///
+/// Output:
+/// - Provides read-only string access while ensuring secret bytes are wiped on drop.
+///
+/// Details:
+/// - The inner buffer is zeroized before deallocation to reduce residual secret exposure.
+/// - `Debug` output is intentionally redacted and never reveals the secret value.
+#[derive(Clone, Default, PartialEq, Eq)]
+pub struct SecureString(String);
+
+impl SecureString {
+    /// What: Create a new zeroizing string wrapper from owned string data.
+    ///
+    /// Inputs:
+    /// - `value`: Secret string to store.
+    ///
+    /// Output:
+    /// - New [`SecureString`] containing `value`.
+    ///
+    /// Details:
+    /// - Ownership is moved into the wrapper so drop-time zeroization covers this allocation.
+    #[must_use]
+    pub const fn new(value: String) -> Self {
+        Self(value)
+    }
+
+    /// What: Borrow the wrapped secret as an immutable string slice.
+    ///
+    /// Inputs:
+    /// - `self`: Borrowed secure string instance.
+    ///
+    /// Output:
+    /// - `&str` view of the wrapped value.
+    ///
+    /// Details:
+    /// - Intended for short-lived read usage (validation and command construction).
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    /// What: Return the current number of bytes in the wrapped secret.
+    ///
+    /// Inputs:
+    /// - `self`: Borrowed secure string instance.
+    ///
+    /// Output:
+    /// - Byte length of the underlying UTF-8 buffer.
+    ///
+    /// Details:
+    /// - Mirrors `String::len` and is used by cursor movement logic in password input handling.
+    #[must_use]
+    pub const fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// What: Check whether the wrapped secret is empty.
+    ///
+    /// Inputs:
+    /// - `self`: Borrowed secure string instance.
+    ///
+    /// Output:
+    /// - `true` when no bytes are present, otherwise `false`.
+    ///
+    /// Details:
+    /// - Mirrors `String::is_empty`.
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// What: Insert a character into the wrapped secret at a byte index.
+    ///
+    /// Inputs:
+    /// - `idx`: Byte position where `ch` is inserted.
+    /// - `ch`: Character to insert.
+    ///
+    /// Output:
+    /// - Mutates the wrapped secret in place.
+    ///
+    /// Details:
+    /// - Panics if `idx` is not on a valid UTF-8 boundary, matching `String::insert`.
+    pub fn insert(&mut self, idx: usize, ch: char) {
+        self.0.insert(idx, ch);
+    }
+
+    /// What: Remove and return a character from the wrapped secret at a byte index.
+    ///
+    /// Inputs:
+    /// - `idx`: Byte position of the character to remove.
+    ///
+    /// Output:
+    /// - Removed `char` value.
+    ///
+    /// Details:
+    /// - Panics if `idx` is not on a valid UTF-8 boundary, matching `String::remove`.
+    pub fn remove(&mut self, idx: usize) -> char {
+        self.0.remove(idx)
+    }
+
+    /// What: Append a character to the wrapped secret.
+    ///
+    /// Inputs:
+    /// - `ch`: Character to append.
+    ///
+    /// Output:
+    /// - Mutates the wrapped secret in place.
+    ///
+    /// Details:
+    /// - Mirrors `String::push` while keeping ownership in the secure wrapper.
+    pub fn push(&mut self, ch: char) {
+        self.0.push(ch);
+    }
+
+    /// What: Clear all bytes from the wrapped secret.
+    ///
+    /// Inputs:
+    /// - `self`: Mutable secure string instance.
+    ///
+    /// Output:
+    /// - Empties the wrapped string.
+    ///
+    /// Details:
+    /// - Mirrors `String::clear` for controlled reset paths.
+    pub fn clear(&mut self) {
+        self.0.clear();
+    }
+}
+
+impl std::ops::Deref for SecureString {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        self.as_str()
+    }
+}
+
+impl std::fmt::Debug for SecureString {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("SecureString([REDACTED])")
+    }
+}
+
+impl From<String> for SecureString {
+    fn from(value: String) -> Self {
+        Self::new(value)
+    }
+}
+
+impl From<&str> for SecureString {
+    fn from(value: &str) -> Self {
+        Self::new(value.to_string())
+    }
+}
+
+impl Drop for SecureString {
+    fn drop(&mut self) {
+        self.0.zeroize();
+    }
+}
+
 /// Minimal news entry for Arch news modal.
 #[derive(Clone, Debug)]
 pub struct NewsItem {

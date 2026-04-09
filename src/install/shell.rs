@@ -145,45 +145,168 @@ fn try_spawn_terminal(
 /// - `cmd_str`: The command string to write to the script.
 ///
 /// Output:
-/// - Path to the created temporary script file.
+/// - `Ok(path)` when a script is fully written and synced, otherwise an error.
 ///
 /// Details:
 /// - Creates a bash script with executable permissions.
-fn create_temp_script(cmd_str: &str) -> std::path::PathBuf {
-    let mut p = std::env::temp_dir();
-    let ts = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    p.push(format!("pacsea_scan_{}_{}.sh", std::process::id(), ts));
-    let _ = std::fs::write(&p, format!("#!/bin/bash\n{cmd_str}\n"));
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        if let Ok(meta) = std::fs::metadata(&p) {
-            let mut perms = meta.permissions();
-            perms.set_mode(0o700);
-            let _ = std::fs::set_permissions(&p, perms);
+/// - Retries unique `create_new` paths to avoid races.
+/// - Treats partial write failures as retryable and removes broken files.
+fn create_temp_script(cmd_str: &str) -> Result<std::path::PathBuf, std::io::Error> {
+    use std::io::Write;
+
+    let mut last_error: Option<std::io::Error> = None;
+    for attempt in 0_u32..8 {
+        let mut p = std::env::temp_dir();
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        p.push(format!(
+            "pacsea_scan_{}_{}_{}.sh",
+            std::process::id(),
+            ts,
+            attempt
+        ));
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+
+            let file_res = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o700)
+                .open(&p);
+
+            match file_res {
+                Ok(mut file) => {
+                    let write_res = file.write_all(format!("#!/bin/bash\n{cmd_str}\n").as_bytes());
+                    let flush_res = write_res.and_then(|()| file.flush());
+                    if flush_res.is_ok() {
+                        return Ok(p);
+                    }
+                    let _ = std::fs::remove_file(&p);
+                    last_error = flush_res.err();
+                }
+                Err(err) => {
+                    last_error = Some(err);
+                }
+            }
+        }
+
+        #[cfg(not(unix))]
+        {
+            let file_res = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&p);
+
+            match file_res {
+                Ok(mut file) => {
+                    let write_res = file.write_all(format!("#!/bin/bash\n{cmd_str}\n").as_bytes());
+                    let flush_res = write_res.and_then(|()| file.flush());
+                    if flush_res.is_ok() {
+                        return Ok(p);
+                    }
+                    let _ = std::fs::remove_file(&p);
+                    last_error = flush_res.err();
+                }
+                Err(err) => {
+                    last_error = Some(err);
+                }
+            }
         }
     }
-    p
+
+    Err(last_error
+        .unwrap_or_else(|| std::io::Error::other("failed to create and write temporary script")))
 }
 
 #[cfg(not(target_os = "windows"))]
 /// What: Persist the command string to a log file for debugging.
 ///
-/// Input:
+/// Inputs:
 /// - `cmd_str`: The command string to log.
 ///
 /// Output:
 /// - None (writes to log file).
+///
+/// Details:
+/// - Redacts password-bearing `printf '%s\n' ... | sudo -S` segments before persistence.
+/// - Enforces mode `0o600` on Unix for both newly created and pre-existing log files.
 fn persist_command_to_log(cmd_str: &str) {
     let mut lp = crate::theme::logs_dir();
     lp.push("last_terminal_cmd.log");
     if let Some(parent) = lp.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    let _ = std::fs::write(&lp, format!("{cmd_str}\n"));
+    persist_command_to_log_path(&lp, cmd_str);
+}
+
+#[cfg(not(target_os = "windows"))]
+/// What: Persist a command string to a specific log file path using strict owner-only permissions.
+///
+/// Inputs:
+/// - `log_path`: Destination path for the persisted command log.
+/// - `cmd_str`: Command string to redact and write.
+///
+/// Output:
+/// - None (best-effort file write).
+///
+/// Details:
+/// - Uses `mode(0o600)` for newly created files.
+/// - Calls `set_permissions(0o600)` after open so existing files are tightened as well.
+fn persist_command_to_log_path(log_path: &std::path::Path, cmd_str: &str) {
+    use std::io::Write;
+    use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+
+    let redacted = redact_password_pipe_for_log(cmd_str);
+    if let Ok(mut file) = std::fs::OpenOptions::new()
+        .create(true)
+        .truncate(true)
+        .write(true)
+        .mode(0o600)
+        .open(log_path)
+    {
+        let _ = std::fs::set_permissions(log_path, std::fs::Permissions::from_mode(0o600));
+        let _ = file.write_all(format!("{redacted}\n").as_bytes());
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+/// What: Redact password-bearing shell password pipes in command logs.
+///
+/// Inputs:
+/// - `cmd_str`: Command string that may contain `printf '%s\n' <password> | sudo -S ...`.
+///
+/// Output:
+/// - Copy of `cmd_str` where password arguments in matching `printf` pipes are replaced with `[REDACTED]`.
+///
+/// Details:
+/// - Targets the exact prefix used by privilege builders: `printf '%s\n'`.
+/// - Keeps the surrounding command structure intact for debugging while removing sensitive material.
+#[must_use]
+fn redact_password_pipe_for_log(cmd_str: &str) -> String {
+    let marker = "printf '%s\\n' ";
+    let mut out = String::with_capacity(cmd_str.len());
+    let mut rest = cmd_str;
+
+    while let Some(start_idx) = rest.find(marker) {
+        let (before, after_start) = rest.split_at(start_idx);
+        out.push_str(before);
+        out.push_str(marker);
+        let after_marker = &after_start[marker.len()..];
+        if let Some(pipe_idx) = after_marker.find(" | ") {
+            out.push_str("'[REDACTED]'");
+            rest = &after_marker[pipe_idx..];
+        } else {
+            out.push_str(after_marker);
+            rest = "";
+        }
+    }
+
+    out.push_str(rest);
+    out
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -325,9 +448,21 @@ pub fn spawn_shell_commands_in_terminal_with_hold(cmds: &[String], hold: bool) {
     } else {
         joined
     };
-    let script_path = create_temp_script(&cmd_str);
-    let script_path_str = script_path.to_string_lossy().to_string();
-    let script_exec = format!("bash {}", shell_single_quote(&script_path_str));
+    let (script_exec, script_ref_for_log) = match create_temp_script(&cmd_str) {
+        Ok(script_path) => {
+            let script_path_str = script_path.to_string_lossy().to_string();
+            (
+                format!("bash {}", shell_single_quote(&script_path_str)),
+                script_path_str,
+            )
+        }
+        Err(err) => {
+            log_to_terminal_log(&format!(
+                "temp script create failed, using inline command fallback: {err}\n"
+            ));
+            (cmd_str.clone(), "<inline>".to_string())
+        }
+    };
 
     persist_command_to_log(&cmd_str);
 
@@ -340,7 +475,7 @@ pub fn spawn_shell_commands_in_terminal_with_hold(cmds: &[String], hold: bool) {
         "env desktop={} wayland={} script={} cmd_len={}\n",
         desktop_env,
         is_wayland,
-        script_path_str,
+        script_ref_for_log,
         cmd_str.len()
     ));
 
@@ -435,6 +570,111 @@ mod tests {
             std::env::remove_var("PACSEA_TEST_OUT");
         }
     }
+
+    #[test]
+    /// What: Ensure password-bearing privilege pipes are redacted before log persistence.
+    ///
+    /// Inputs:
+    /// - Command string containing the `printf '%s\n' '<password>' | sudo -S ...` pattern.
+    ///
+    /// Output:
+    /// - Returned log string includes `[REDACTED]` and omits the original password.
+    ///
+    /// Details:
+    /// - Guards against leaking sudo password fragments when command logs are written to disk.
+    fn shell_redacts_password_pipe_for_log() {
+        let input =
+            "printf '%s\\n' 'pa'\"'\"'ss' | sudo -S pacman -S --noconfirm 'ripgrep' && echo done";
+        let redacted = super::redact_password_pipe_for_log(input);
+        assert!(redacted.contains("printf '%s\\n' '[REDACTED]' | sudo -S"));
+        assert!(!redacted.contains("pa'\"'\"'ss"));
+        assert!(redacted.contains("pacman -S --noconfirm 'ripgrep' && echo done"));
+    }
+
+    #[test]
+    /// What: Ensure command log persistence tightens permissions on an existing file.
+    ///
+    /// Inputs:
+    /// - Temporary log file pre-created with mode `0o644`.
+    ///
+    /// Output:
+    /// - File mode is forced to `0o600` after persistence.
+    ///
+    /// Details:
+    /// - Verifies post-open chmod behavior for pre-existing logs where `mode(0o600)` alone
+    ///   does not retroactively adjust permissions.
+    fn shell_persist_command_log_forces_mode_on_existing_file() {
+        use std::fs;
+        use std::os::unix::fs::PermissionsExt;
+
+        let mut dir = std::env::temp_dir();
+        dir.push(format!(
+            "pacsea_test_shell_log_mode_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("System time is before UNIX epoch")
+                .as_nanos()
+        ));
+        fs::create_dir_all(&dir).expect("create test directory");
+        let log_path = dir.join("last_terminal_cmd.log");
+
+        fs::write(&log_path, b"old").expect("create test log file");
+        let mut perms = fs::metadata(&log_path)
+            .expect("read test log metadata")
+            .permissions();
+        perms.set_mode(0o644);
+        fs::set_permissions(&log_path, perms).expect("set broad test log permissions");
+
+        super::persist_command_to_log_path(&log_path, "echo test");
+
+        let mode = fs::metadata(&log_path)
+            .expect("read updated log metadata")
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode, 0o600);
+
+        let _ = fs::remove_file(&log_path);
+        let _ = fs::remove_dir(&dir);
+    }
+
+    #[test]
+    /// What: Ensure temp script creation fails when temp dir is invalid.
+    ///
+    /// Inputs:
+    /// - `TMPDIR` pointing to a non-existent nested directory.
+    ///
+    /// Output:
+    /// - `create_temp_script` returns `Err`.
+    ///
+    /// Details:
+    /// - Verifies we do not return a non-existent script path after repeated failures.
+    fn create_temp_script_returns_error_when_open_fails() {
+        let original_tmpdir = std::env::var_os("TMPDIR");
+        let mut invalid_tmp = std::env::temp_dir();
+        invalid_tmp.push(format!(
+            "pacsea_missing_tmp_parent_{}/nested",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("System time is before UNIX epoch")
+                .as_nanos()
+        ));
+        unsafe {
+            std::env::set_var("TMPDIR", invalid_tmp.display().to_string());
+        }
+
+        let result = super::create_temp_script("echo hello");
+        assert!(result.is_err(), "expected temp script creation failure");
+
+        unsafe {
+            if let Some(v) = original_tmpdir {
+                std::env::set_var("TMPDIR", v);
+            } else {
+                std::env::remove_var("TMPDIR");
+            }
+        }
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -476,7 +716,7 @@ pub fn spawn_shell_commands_in_terminal(cmds: &[String]) {
                 "Pacsea Update",
                 "cmd",
                 "/K",
-                &format!("echo {msg}"),
+                &super::utils::cmd_echo_command(&msg),
             ])
             .spawn();
     }

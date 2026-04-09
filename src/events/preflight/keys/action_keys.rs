@@ -147,7 +147,7 @@ pub(super) fn handle_enter_key(app: &mut AppState) -> bool {
                     app.modal = crate::state::Modal::PasswordPrompt {
                         purpose: crate::state::modal::PasswordPurpose::Downgrade,
                         items: items_clone,
-                        input: String::new(),
+                        input: crate::state::SecureString::default(),
                         cursor: 0,
                         error: None,
                     };
@@ -178,7 +178,7 @@ pub fn start_execution(
     items: &[crate::state::PackageItem],
     action: crate::state::PreflightAction,
     header_chips: crate::state::modal::PreflightHeaderChips,
-    password: Option<String>,
+    password: Option<crate::state::SecureString>,
 ) {
     use crate::install::ExecutorRequest;
 
