@@ -286,6 +286,26 @@ fn ssh_setup_confirm_overwrite_cancel_closes_modal() {
 }
 
 #[test]
+/// What: Verify SSH setup result screen is not dismissed by Enter.
+fn ssh_setup_result_enter_keeps_modal_open() {
+    let mut app = AppState::default();
+    let mut step = crate::state::SshSetupStep::Result;
+    let mut status_lines = vec!["Failed: HOME environment is not set.".to_string()];
+    let mut existing_host_block = None;
+
+    let result = super::handle_ssh_setup_modal(
+        KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()),
+        &mut app,
+        &mut step,
+        &mut status_lines,
+        &mut existing_host_block,
+    );
+
+    assert_eq!(result, None);
+    assert!(matches!(app.modal, crate::state::Modal::None));
+}
+
+#[test]
 /// What: Verify startup optional-deps Esc advances to next queued startup setup step.
 fn optional_deps_esc_advances_startup_queue() {
     let mut app = AppState {

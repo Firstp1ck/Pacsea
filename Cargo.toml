@@ -54,7 +54,7 @@ toml = "1.1.2"
 zeroize = "1.8.2"
 
 [target.'cfg(unix)'.dependencies]
-nix = { version = "0.31.2", features = ["poll", "fs"], default-features = false }
+nix = { version = "0.31.2", features = ["poll", "fs", "user"], default-features = false }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_System_Threading"] }

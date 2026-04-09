@@ -527,10 +527,9 @@ pub(super) fn handle_ssh_setup_modal(
             crate::util::open_url(crate::logic::ssh_setup::AUR_ACCOUNT_URL);
             Some(false)
         }
-        (crate::state::SshSetupStep::Intro, KeyCode::Esc | KeyCode::Char('q'))
-        | (
-            crate::state::SshSetupStep::Result,
-            KeyCode::Esc | KeyCode::Char('q' | '\n' | '\r') | KeyCode::Enter,
+        (
+            crate::state::SshSetupStep::Intro | crate::state::SshSetupStep::Result,
+            KeyCode::Esc | KeyCode::Char('q'),
         ) => {
             app.modal = crate::state::Modal::None;
             if !app.pending_startup_setup_steps.is_empty() {

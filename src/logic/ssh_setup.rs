@@ -275,6 +275,41 @@ fn home_dir() -> Option<PathBuf> {
         .ok()
         .filter(|v| !v.trim().is_empty())
         .map(PathBuf::from)
+        .or_else(resolve_home_dir_unix_passwd)
+}
+
+/// What: Resolve home dir via passwd database on Unix.
+///
+/// Inputs: None.
+///
+/// Output:
+/// - `Some(path)` when current uid has a valid passwd home entry.
+///
+/// Details:
+/// - Acts as fallback when `HOME` is unset/empty in the app process environment.
+#[cfg(unix)]
+fn resolve_home_dir_unix_passwd() -> Option<PathBuf> {
+    use nix::unistd::{Uid, User};
+
+    let uid = Uid::current();
+    User::from_uid(uid)
+        .ok()
+        .flatten()
+        .and_then(|user| (!user.dir.as_os_str().is_empty()).then_some(user.dir))
+}
+
+/// What: Non-Unix fallback for home-dir resolution.
+///
+/// Inputs: None.
+///
+/// Output:
+/// - Always `None` on non-Unix targets.
+///
+/// Details:
+/// - Placeholder so `home_dir()` can call a single cross-platform fallback symbol.
+#[cfg(not(unix))]
+fn resolve_home_dir_unix_passwd() -> Option<PathBuf> {
+    None
 }
 
 /// What: Build the target host block text for AUR SSH voting.
