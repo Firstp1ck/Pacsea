@@ -1193,7 +1193,7 @@ pub(super) fn handle_news_setup_modal(ke: KeyEvent, app: &mut AppState, mut moda
 /// - `modal`: `VirusTotalSetup` modal variant
 ///
 /// Output:
-/// - `false` (never stops propagation)
+/// - `true` (always stops propagation while this modal is active)
 ///
 /// Details:
 /// - Delegates to scan handler and restores modal if needed
@@ -1217,14 +1217,17 @@ pub(super) fn handle_virustotal_setup_modal(
         {
             super::common::show_next_startup_setup_step(app);
         }
-        restore::restore_if_not_closed_with_esc(
-            app,
-            &ke,
-            Modal::VirusTotalSetup {
-                input: input.clone(),
-                cursor: *cursor,
-            },
-        );
+        if !(should_advance && matches!(app.modal, Modal::None)) {
+            restore::restore_if_not_closed_with_esc(
+                app,
+                &ke,
+                Modal::VirusTotalSetup {
+                    input: input.clone(),
+                    cursor: *cursor,
+                },
+            );
+        }
+        return true;
     }
     false
 }
@@ -1237,7 +1240,7 @@ pub(super) fn handle_virustotal_setup_modal(
 /// - `modal`: `SudoTimestampSetup` modal variant
 ///
 /// Output:
-/// - `false` (never stops propagation)
+/// - `true` (always stops propagation while this modal is active)
 ///
 /// Details:
 /// - Advances the first-startup queue when the wizard completes while a queue is pending.
@@ -1260,7 +1263,7 @@ pub(super) fn handle_sudo_timestamp_setup_modal(
     } else {
         app.modal = Modal::SudoTimestampSetup { setup };
     }
-    false
+    true
 }
 
 /// What: Handle key events for `DoasPersistSetup` modal.
@@ -1271,7 +1274,7 @@ pub(super) fn handle_sudo_timestamp_setup_modal(
 /// - `modal`: `DoasPersistSetup` modal variant
 ///
 /// Output:
-/// - `false` (never stops propagation)
+/// - `true` (always stops propagation while this modal is active)
 #[allow(clippy::needless_pass_by_value)]
 pub(super) fn handle_doas_persist_setup_modal(
     ke: KeyEvent,
@@ -1290,7 +1293,7 @@ pub(super) fn handle_doas_persist_setup_modal(
     } else {
         app.modal = Modal::DoasPersistSetup { setup };
     }
-    false
+    true
 }
 
 /// What: Handle key events for `StartupSetupSelector` modal.
@@ -1967,5 +1970,61 @@ mod tests {
             }
             _ => panic!("startup selector modal should remain active"),
         }
+    }
+
+    #[test]
+    fn sudo_setup_finish_consumes_enter_key() {
+        let mut app = AppState::default();
+        let modal = Modal::SudoTimestampSetup {
+            setup: crate::state::modal::SudoTimestampSetupModalState {
+                phase: crate::state::modal::SudoTimestampSetupPhase::Select,
+                select_cursor: crate::state::modal::SUDO_TIMESTAMP_SELECT_ROWS - 1,
+            },
+        };
+        let handled = handle_sudo_timestamp_setup_modal(
+            KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()),
+            &mut app,
+            modal,
+        );
+        assert!(handled);
+        assert!(matches!(app.modal, Modal::None));
+    }
+
+    #[test]
+    fn doas_setup_finish_consumes_enter_key() {
+        let mut app = AppState::default();
+        let modal = Modal::DoasPersistSetup {
+            setup: crate::state::modal::DoasPersistSetupModalState {
+                phase: crate::state::modal::DoasPersistSetupPhase::Select,
+                select_cursor: crate::state::modal::DOAS_PERSIST_SELECT_ROWS - 1,
+            },
+        };
+        let handled = handle_doas_persist_setup_modal(
+            KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()),
+            &mut app,
+            modal,
+        );
+        assert!(handled);
+        assert!(matches!(app.modal, Modal::None));
+    }
+
+    #[test]
+    fn virustotal_setup_enter_consumes_key_when_closing_modal() {
+        let mut app = AppState::default();
+        app.pending_startup_setup_steps.clear();
+        let modal = Modal::VirusTotalSetup {
+            input: "dummy-api-key".to_string(),
+            cursor: 12,
+        };
+        let handled = handle_virustotal_setup_modal(
+            KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()),
+            &mut app,
+            modal,
+        );
+        assert!(handled);
+        assert!(
+            !matches!(app.modal, Modal::VirusTotalSetup { .. }),
+            "virustotal setup modal should close on Enter with non-empty key"
+        );
     }
 }

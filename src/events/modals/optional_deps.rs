@@ -445,7 +445,7 @@ pub(super) fn handle_ssh_setup_modal(
             if !app.pending_startup_setup_steps.is_empty() {
                 super::common::show_next_startup_setup_step(app);
             }
-            Some(false)
+            Some(true)
         }
         (crate::state::SshSetupStep::Intro, KeyCode::Enter | KeyCode::Char('\n' | '\r')) => {
             let ssh_command = crate::theme::settings().aur_vote_ssh_command;
@@ -477,7 +477,7 @@ pub(super) fn handle_ssh_setup_modal(
             if !app.pending_startup_setup_steps.is_empty() {
                 super::common::show_next_startup_setup_step(app);
             }
-            Some(false)
+            Some(true)
         }
         (
             crate::state::SshSetupStep::ConfirmOverwrite,
