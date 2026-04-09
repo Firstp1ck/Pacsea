@@ -1,6 +1,8 @@
 //! SSH setup workflow helpers for AUR voting.
 
 use std::fs;
+use std::fs::OpenOptions;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
@@ -178,6 +180,16 @@ pub fn run_aur_ssh_setup(overwrite_existing_host: bool) -> AurSshSetupResult {
             ));
         }
     }
+    let known_hosts_path = match ensure_known_hosts_file_exists(&ssh_dir, &mut lines) {
+        Ok(path) => path,
+        Err(err) => {
+            return AurSshSetupResult::Completed(AurSshSetupReport {
+                success: false,
+                lines: vec![setup_failure_line("known_hosts", err)],
+            });
+        }
+    };
+    maybe_seed_known_hosts_with_aur_entry(&known_hosts_path, &mut lines);
 
     let key_path = ssh_dir.join(AUR_KEY_NAME);
     if key_path.exists() {
@@ -273,6 +285,107 @@ pub fn run_aur_ssh_setup(overwrite_existing_host: bool) -> AurSshSetupResult {
         success: true,
         lines,
     })
+}
+
+/// What: Ensure the `~/.ssh/known_hosts` file exists and has restrictive permissions.
+///
+/// Inputs:
+/// - `ssh_dir`: Existing `~/.ssh` directory path.
+/// - `lines`: Status lines accumulator for UI diagnostics.
+///
+/// Output:
+/// - `Ok(path)` with `known_hosts` path when ready.
+/// - `Err(reason)` when file creation/opening fails.
+fn ensure_known_hosts_file_exists(
+    ssh_dir: &Path,
+    lines: &mut Vec<String>,
+) -> Result<PathBuf, String> {
+    let known_hosts_path = ssh_dir.join("known_hosts");
+    if known_hosts_path.exists() {
+        lines.push(format!(
+            "known_hosts file ready: '{}'",
+            known_hosts_path.display()
+        ));
+    } else {
+        OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(false)
+            .open(&known_hosts_path)
+            .map_err(|err| format!("could not create '{}': {err}", known_hosts_path.display()))?;
+        lines.push(format!(
+            "Created known_hosts file: '{}'",
+            known_hosts_path.display()
+        ));
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if let Err(err) = fs::set_permissions(&known_hosts_path, fs::Permissions::from_mode(0o600))
+        {
+            lines.push(format!(
+                "Warning: could not set '{}' permissions to 600: {err}",
+                known_hosts_path.display()
+            ));
+        }
+    }
+    Ok(known_hosts_path)
+}
+
+/// What: Try to add `aur.archlinux.org` host key to `known_hosts`.
+///
+/// Inputs:
+/// - `known_hosts_path`: Absolute `known_hosts` file path.
+/// - `lines`: Status lines accumulator for UI diagnostics.
+///
+/// Output:
+/// - None (best-effort, non-fatal).
+fn maybe_seed_known_hosts_with_aur_entry(known_hosts_path: &Path, lines: &mut Vec<String>) {
+    let content = fs::read_to_string(known_hosts_path).unwrap_or_default();
+    if content.contains(AUR_HOST) {
+        lines.push("known_hosts already contains aur.archlinux.org entry.".to_string());
+        return;
+    }
+    let output = Command::new("ssh-keyscan").args(["-H", AUR_HOST]).output();
+    match output {
+        Ok(out) if out.status.success() && !out.stdout.is_empty() => {
+            match OpenOptions::new().append(true).open(known_hosts_path) {
+                Ok(mut file) => {
+                    if let Err(err) = file.write_all(&out.stdout) {
+                        lines.push(format!(
+                            "Warning: failed to append AUR host key to '{}': {err}",
+                            known_hosts_path.display()
+                        ));
+                    } else {
+                        lines.push("Added aur.archlinux.org host key to known_hosts.".to_string());
+                    }
+                }
+                Err(err) => {
+                    lines.push(format!(
+                        "Warning: failed to open '{}' for host key append: {err}",
+                        known_hosts_path.display()
+                    ));
+                }
+            }
+        }
+        Ok(out) => {
+            let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+            lines.push(format!(
+                "Warning: could not fetch AUR host key via ssh-keyscan (exit {}): {}",
+                out.status.code().unwrap_or(-1),
+                if stderr.is_empty() {
+                    "no stderr output".to_string()
+                } else {
+                    stderr
+                }
+            ));
+        }
+        Err(err) => {
+            lines.push(format!(
+                "Warning: ssh-keyscan unavailable for known_hosts seeding: {err}"
+            ));
+        }
+    }
 }
 
 /// What: Validate AUR SSH connectivity after the user applies the public key.
@@ -622,5 +735,30 @@ mod tests {
             ssh_public_key_line_from_status_lines(&lines).as_deref(),
             Some("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIABCD user@host")
         );
+    }
+
+    #[test]
+    fn ensure_known_hosts_file_exists_creates_missing_file() {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |d| d.as_nanos());
+        let ssh_dir = std::env::temp_dir().join(format!(
+            "pacsea_ssh_known_hosts_{}_{}",
+            std::process::id(),
+            stamp
+        ));
+        fs::create_dir_all(&ssh_dir).expect("should create temp ssh dir");
+        let mut lines = Vec::new();
+        let path = ensure_known_hosts_file_exists(&ssh_dir, &mut lines)
+            .expect("should create known_hosts");
+        assert!(path.exists(), "known_hosts file should exist");
+        assert!(
+            lines
+                .iter()
+                .any(|line| line.contains("Created known_hosts file")),
+            "status lines should mention known_hosts creation"
+        );
+        let _ = fs::remove_file(path);
+        let _ = fs::remove_dir(ssh_dir);
     }
 }
