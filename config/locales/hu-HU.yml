@@ -572,6 +572,10 @@ hu-HU:
         title: "Indítási beállításválasztó"
         heading: "Válassza ki a most futtatandó beállítási feladatokat"
         disabled_suffix_already_configured: " (már konfigurálva)"
+        # TODO: translate to hungarian
+        disabled_suffix_requires_sudo: " (requires sudo)"
+        # TODO: translate to hungarian
+        disabled_suffix_requires_doas: " (requires doas)"
         items:
           arch_news: "Arch hírek beállítása"
           ssh_aur_setup: "SSH AUR beállítás szavazáshoz"

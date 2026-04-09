@@ -564,6 +564,8 @@ en-US:
         title: "Startup Setup Selector"
         heading: "Choose startup setup tasks to run now"
         disabled_suffix_already_configured: " (already configured)"
+        disabled_suffix_requires_sudo: " (requires sudo)"
+        disabled_suffix_requires_doas: " (requires doas)"
         items:
           arch_news: "Arch news setup"
           ssh_aur_setup: "SSH AUR setup for voting"

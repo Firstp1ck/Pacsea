@@ -564,6 +564,8 @@ de-DE:
         title: "Start-Setup-Auswahl"
         heading: "Wähle die Setup-Schritte für den ersten Start"
         disabled_suffix_already_configured: " (bereits konfiguriert)"
+        disabled_suffix_requires_sudo: " (benötigt sudo)"
+        disabled_suffix_requires_doas: " (benötigt doas)"
         items:
           arch_news: "Arch-News-Setup"
           ssh_aur_setup: "SSH-AUR-Setup fürs Voting"
