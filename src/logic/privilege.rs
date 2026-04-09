@@ -787,14 +787,39 @@ pub fn validate_password(tool: PrivilegeTool, password: &str) -> Result<bool, St
 ///
 /// Details: Guards test-only env overrides so production never honors them.
 fn is_integration_test_context() -> bool {
-    #[cfg(any(test, debug_assertions))]
-    {
-        std::env::var("PACSEA_INTEGRATION_TEST").is_ok_and(|v| v == "1")
+    if !std::env::var("PACSEA_INTEGRATION_TEST").is_ok_and(|v| v == "1") {
+        return false;
     }
-    #[cfg(not(any(test, debug_assertions)))]
+
+    // Keep test-only overrides available in integration tests even when they run in
+    // release mode (`cargo test --release`), while preventing normal release app runs
+    // from honoring these bypass env vars.
+    #[cfg(debug_assertions)]
     {
-        false
+        return true;
     }
+
+    is_running_cargo_test_binary()
+}
+
+/// What: Determine whether the current executable is a Cargo-generated test binary.
+///
+/// Inputs:
+/// - None.
+///
+/// Output:
+/// - `true` when running from `target/*/deps/*` test artifacts, otherwise `false`.
+///
+/// Details:
+/// - Integration tests compile the library without `cfg(test)`, so this runtime check keeps
+///   `PACSEA_INTEGRATION_TEST` overrides functional for `cargo test --release`.
+/// - Normal `cargo run --release` / installed binaries do not execute from `target/*/deps`.
+fn is_running_cargo_test_binary() -> bool {
+    let Ok(exe) = std::env::current_exe() else {
+        return false;
+    };
+    exe.components()
+        .any(|component| component.as_os_str() == "deps")
 }
 
 /// What: Public wrapper for [`is_integration_test_context`].
