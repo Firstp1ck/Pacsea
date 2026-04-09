@@ -15,6 +15,7 @@ const STARTUP_SETUP_SELECTOR_ITEMS: usize = 7;
 fn startup_selector_task_selectable(
     task: crate::state::modal::StartupSetupTask,
     app: &AppState,
+    active_tool: Option<crate::logic::privilege::PrivilegeTool>,
 ) -> bool {
     match task {
         crate::state::modal::StartupSetupTask::SshAurSetup => {
@@ -22,14 +23,14 @@ fn startup_selector_task_selectable(
         }
         crate::state::modal::StartupSetupTask::SudoTimestampSetup => {
             matches!(
-                crate::logic::privilege::active_tool(),
-                Ok(crate::logic::privilege::PrivilegeTool::Sudo)
+                active_tool,
+                Some(crate::logic::privilege::PrivilegeTool::Sudo)
             )
         }
         crate::state::modal::StartupSetupTask::DoasPersistSetup => {
             matches!(
-                crate::logic::privilege::active_tool(),
-                Ok(crate::logic::privilege::PrivilegeTool::Doas)
+                active_tool,
+                Some(crate::logic::privilege::PrivilegeTool::Doas)
             )
         }
         _ => true,
@@ -1305,6 +1306,7 @@ pub(super) fn handle_startup_setup_selector_modal(
     if let Modal::StartupSetupSelector {
         ref mut cursor,
         ref mut selected,
+        active_privilege_tool,
     } = modal
     {
         match ke.code {
@@ -1344,10 +1346,11 @@ pub(super) fn handle_startup_setup_selector_modal(
                     5 => crate::state::modal::StartupSetupTask::AurSleuthSetup,
                     _ => crate::state::modal::StartupSetupTask::VirusTotalSetup,
                 };
-                if !startup_selector_task_selectable(task, app) {
+                if !startup_selector_task_selectable(task, app, active_privilege_tool) {
                     app.modal = Modal::StartupSetupSelector {
                         cursor: *cursor,
                         selected: selected.clone(),
+                        active_privilege_tool,
                     };
                     return false;
                 }
@@ -1372,6 +1375,7 @@ pub(super) fn handle_startup_setup_selector_modal(
         app.modal = Modal::StartupSetupSelector {
             cursor: *cursor,
             selected: selected.clone(),
+            active_privilege_tool,
         };
     }
     false
@@ -1912,6 +1916,7 @@ mod tests {
         let modal = Modal::StartupSetupSelector {
             cursor: 0,
             selected,
+            active_privilege_tool: None,
         };
         let handled = handle_startup_setup_selector_modal(
             KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()),
@@ -1937,6 +1942,7 @@ mod tests {
         let modal = Modal::StartupSetupSelector {
             cursor: 0,
             selected: std::collections::HashSet::new(),
+            active_privilege_tool: None,
         };
         let handled = handle_startup_setup_selector_modal(
             KeyEvent::new(KeyCode::Esc, KeyModifiers::empty()),
@@ -1955,6 +1961,7 @@ mod tests {
         let modal = Modal::StartupSetupSelector {
             cursor: usize::MAX,
             selected,
+            active_privilege_tool: None,
         };
 
         let handled = handle_startup_setup_selector_modal(

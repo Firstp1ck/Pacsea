@@ -24,7 +24,6 @@ pub(super) fn handle_password_prompt(
     input: &mut SecureString,
     cursor: &mut usize,
 ) -> bool {
-    let input_buf = input.as_mut_string();
     match ke.code {
         KeyCode::Esc => {
             app.modal = crate::state::Modal::None;
@@ -35,8 +34,8 @@ pub(super) fn handle_password_prompt(
             true
         }
         KeyCode::Backspace => {
-            if *cursor > 0 && *cursor <= input_buf.len() {
-                input_buf.remove(*cursor - 1);
+            if *cursor > 0 && *cursor <= input.len() {
+                input.remove(*cursor - 1);
                 *cursor -= 1;
             }
             false
@@ -48,7 +47,7 @@ pub(super) fn handle_password_prompt(
             false
         }
         KeyCode::Right => {
-            if *cursor < input_buf.len() {
+            if *cursor < input.len() {
                 *cursor += 1;
             }
             false
@@ -58,17 +57,17 @@ pub(super) fn handle_password_prompt(
             false
         }
         KeyCode::End => {
-            *cursor = input_buf.len();
+            *cursor = input.len();
             false
         }
         KeyCode::Char(ch) => {
             if !ch.is_control() {
-                if *cursor <= input_buf.len() {
-                    input_buf.insert(*cursor, ch);
+                if *cursor <= input.len() {
+                    input.insert(*cursor, ch);
                     *cursor += 1;
                 } else {
-                    input_buf.push(ch);
-                    *cursor = input_buf.len();
+                    input.push(ch);
+                    *cursor = input.len();
                 }
             }
             false

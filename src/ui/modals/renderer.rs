@@ -471,6 +471,8 @@ struct StartupSetupSelectorContext {
     cursor: usize,
     /// Selected setup tasks in the selector checklist.
     selected: std::collections::HashSet<crate::state::modal::StartupSetupTask>,
+    /// Cached privilege tool resolved when opening the selector.
+    active_privilege_tool: Option<crate::logic::privilege::PrivilegeTool>,
 }
 
 /// What: Context struct grouping `WarnAurRepoDuplicate` modal fields.
@@ -811,8 +813,16 @@ impl ModalRenderer for Modal {
                 };
                 render_news_setup_modal(f, app, area, ctx)
             }
-            Self::StartupSetupSelector { cursor, selected } => {
-                let ctx = StartupSetupSelectorContext { cursor, selected };
+            Self::StartupSetupSelector {
+                cursor,
+                selected,
+                active_privilege_tool,
+            } => {
+                let ctx = StartupSetupSelectorContext {
+                    cursor,
+                    selected,
+                    active_privilege_tool,
+                };
                 render_startup_setup_selector_modal(f, app, area, ctx)
             }
             Self::WarnAurRepoDuplicate {
@@ -1411,10 +1421,18 @@ fn render_startup_setup_selector_modal(
     area: Rect,
     ctx: StartupSetupSelectorContext,
 ) -> Modal {
-    misc::render_startup_setup_selector(f, area, app, ctx.cursor, &ctx.selected);
+    misc::render_startup_setup_selector(
+        f,
+        area,
+        app,
+        ctx.cursor,
+        &ctx.selected,
+        ctx.active_privilege_tool,
+    );
     Modal::StartupSetupSelector {
         cursor: ctx.cursor,
         selected: ctx.selected,
+        active_privilege_tool: ctx.active_privilege_tool,
     }
 }
 

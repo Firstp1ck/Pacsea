@@ -18,7 +18,7 @@ jobs:
 
   # ── Dependency vulnerability scan ──────────────────────────────────────
   # Checks Cargo.lock against the RustSec advisory database.
-  # Fails on any vulnerability with severity >= medium.
+  # Fails when cargo-audit reports known advisories in dependencies.
   cargo-audit:
     name: cargo audit
     runs-on: ubuntu-latest

@@ -1019,6 +1019,10 @@ pub enum Modal {
         cursor: usize,
         /// Selected startup setup tasks to execute.
         selected: std::collections::HashSet<StartupSetupTask>,
+        /// Cached active privilege tool resolved when opening the selector.
+        ///
+        /// Avoids repeated PATH lookups during render passes.
+        active_privilege_tool: Option<crate::logic::privilege::PrivilegeTool>,
     },
     /// Password prompt for sudo authentication.
     PasswordPrompt {
@@ -1159,6 +1163,7 @@ mod tests {
         let _ = super::Modal::StartupSetupSelector {
             cursor: 0,
             selected: std::collections::HashSet::new(),
+            active_privilege_tool: None,
         };
         let _ = super::Modal::Preflight {
             items: Vec::new(),

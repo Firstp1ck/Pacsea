@@ -712,6 +712,7 @@ pub fn render_news_setup(
 /// - `app`: Application state for localized strings
 /// - `cursor`: Focused selector row
 /// - `selected`: Set of selected setup tasks
+/// - `active_tool`: Cached privilege tool resolved outside the render path
 ///
 /// Output:
 /// - Draws the selector modal with checklist rows and key hints.
@@ -721,10 +722,10 @@ pub fn render_startup_setup_selector(
     app: &AppState,
     cursor: usize,
     selected: &std::collections::HashSet<StartupSetupTask>,
+    active_tool: Option<crate::logic::privilege::PrivilegeTool>,
 ) {
     let th = theme();
     let ssh_setup_ready = app.aur_ssh_help_ready.unwrap_or(false);
-    let active_tool = crate::logic::privilege::active_tool().ok();
     let mut lines: Vec<Line<'static>> = Vec::new();
     lines.push(Line::from(Span::styled(
         crate::i18n::t(app, "app.modals.startup_setup_selector.heading"),

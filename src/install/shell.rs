@@ -145,14 +145,16 @@ fn try_spawn_terminal(
 /// - `cmd_str`: The command string to write to the script.
 ///
 /// Output:
-/// - Path to the created temporary script file.
+/// - `Ok(path)` when a script is fully written and synced, otherwise an error.
 ///
 /// Details:
 /// - Creates a bash script with executable permissions.
-fn create_temp_script(cmd_str: &str) -> std::path::PathBuf {
+/// - Retries unique `create_new` paths to avoid races.
+/// - Treats partial write failures as retryable and removes broken files.
+fn create_temp_script(cmd_str: &str) -> Result<std::path::PathBuf, std::io::Error> {
     use std::io::Write;
 
-    let mut created = std::env::temp_dir();
+    let mut last_error: Option<std::io::Error> = None;
     for attempt in 0_u32..8 {
         let mut p = std::env::temp_dir();
         let ts = std::time::SystemTime::now()
@@ -176,9 +178,19 @@ fn create_temp_script(cmd_str: &str) -> std::path::PathBuf {
                 .mode(0o700)
                 .open(&p);
 
-            if let Ok(mut file) = file_res {
-                let _ = file.write_all(format!("#!/bin/bash\n{cmd_str}\n").as_bytes());
-                return p;
+            match file_res {
+                Ok(mut file) => {
+                    let write_res = file.write_all(format!("#!/bin/bash\n{cmd_str}\n").as_bytes());
+                    let flush_res = write_res.and_then(|()| file.flush());
+                    if flush_res.is_ok() {
+                        return Ok(p);
+                    }
+                    let _ = std::fs::remove_file(&p);
+                    last_error = flush_res.err();
+                }
+                Err(err) => {
+                    last_error = Some(err);
+                }
             }
         }
 
@@ -189,22 +201,31 @@ fn create_temp_script(cmd_str: &str) -> std::path::PathBuf {
                 .create_new(true)
                 .open(&p);
 
-            if let Ok(mut file) = file_res {
-                let _ = file.write_all(format!("#!/bin/bash\n{cmd_str}\n").as_bytes());
-                return p;
+            match file_res {
+                Ok(mut file) => {
+                    let write_res = file.write_all(format!("#!/bin/bash\n{cmd_str}\n").as_bytes());
+                    let flush_res = write_res.and_then(|()| file.flush());
+                    if flush_res.is_ok() {
+                        return Ok(p);
+                    }
+                    let _ = std::fs::remove_file(&p);
+                    last_error = flush_res.err();
+                }
+                Err(err) => {
+                    last_error = Some(err);
+                }
             }
         }
-
-        created = p;
     }
 
-    created
+    Err(last_error
+        .unwrap_or_else(|| std::io::Error::other("failed to create and write temporary script")))
 }
 
 #[cfg(not(target_os = "windows"))]
 /// What: Persist the command string to a log file for debugging.
 ///
-/// Input:
+/// Inputs:
 /// - `cmd_str`: The command string to log.
 ///
 /// Output:
@@ -212,24 +233,42 @@ fn create_temp_script(cmd_str: &str) -> std::path::PathBuf {
 ///
 /// Details:
 /// - Redacts password-bearing `printf '%s\n' ... | sudo -S` segments before persistence.
-/// - Creates log files with mode `0o600` on Unix so only the owner can read/write.
+/// - Enforces mode `0o600` on Unix for both newly created and pre-existing log files.
 fn persist_command_to_log(cmd_str: &str) {
-    use std::io::Write;
-    use std::os::unix::fs::OpenOptionsExt;
-
     let mut lp = crate::theme::logs_dir();
     lp.push("last_terminal_cmd.log");
     if let Some(parent) = lp.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
+    persist_command_to_log_path(&lp, cmd_str);
+}
+
+#[cfg(not(target_os = "windows"))]
+/// What: Persist a command string to a specific log file path using strict owner-only permissions.
+///
+/// Inputs:
+/// - `log_path`: Destination path for the persisted command log.
+/// - `cmd_str`: Command string to redact and write.
+///
+/// Output:
+/// - None (best-effort file write).
+///
+/// Details:
+/// - Uses `mode(0o600)` for newly created files.
+/// - Calls `set_permissions(0o600)` after open so existing files are tightened as well.
+fn persist_command_to_log_path(log_path: &std::path::Path, cmd_str: &str) {
+    use std::io::Write;
+    use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+
     let redacted = redact_password_pipe_for_log(cmd_str);
     if let Ok(mut file) = std::fs::OpenOptions::new()
         .create(true)
         .truncate(true)
         .write(true)
         .mode(0o600)
-        .open(&lp)
+        .open(log_path)
     {
+        let _ = std::fs::set_permissions(log_path, std::fs::Permissions::from_mode(0o600));
         let _ = file.write_all(format!("{redacted}\n").as_bytes());
     }
 }
@@ -409,9 +448,21 @@ pub fn spawn_shell_commands_in_terminal_with_hold(cmds: &[String], hold: bool) {
     } else {
         joined
     };
-    let script_path = create_temp_script(&cmd_str);
-    let script_path_str = script_path.to_string_lossy().to_string();
-    let script_exec = format!("bash {}", shell_single_quote(&script_path_str));
+    let (script_exec, script_ref_for_log) = match create_temp_script(&cmd_str) {
+        Ok(script_path) => {
+            let script_path_str = script_path.to_string_lossy().to_string();
+            (
+                format!("bash {}", shell_single_quote(&script_path_str)),
+                script_path_str,
+            )
+        }
+        Err(err) => {
+            log_to_terminal_log(&format!(
+                "temp script create failed, using inline command fallback: {err}\n"
+            ));
+            (cmd_str.clone(), "<inline>".to_string())
+        }
+    };
 
     persist_command_to_log(&cmd_str);
 
@@ -424,7 +475,7 @@ pub fn spawn_shell_commands_in_terminal_with_hold(cmds: &[String], hold: bool) {
         "env desktop={} wayland={} script={} cmd_len={}\n",
         desktop_env,
         is_wayland,
-        script_path_str,
+        script_ref_for_log,
         cmd_str.len()
     ));
 
@@ -538,6 +589,91 @@ mod tests {
         assert!(redacted.contains("printf '%s\\n' '[REDACTED]' | sudo -S"));
         assert!(!redacted.contains("pa'\"'\"'ss"));
         assert!(redacted.contains("pacman -S --noconfirm 'ripgrep' && echo done"));
+    }
+
+    #[test]
+    /// What: Ensure command log persistence tightens permissions on an existing file.
+    ///
+    /// Inputs:
+    /// - Temporary log file pre-created with mode `0o644`.
+    ///
+    /// Output:
+    /// - File mode is forced to `0o600` after persistence.
+    ///
+    /// Details:
+    /// - Verifies post-open chmod behavior for pre-existing logs where `mode(0o600)` alone
+    ///   does not retroactively adjust permissions.
+    fn shell_persist_command_log_forces_mode_on_existing_file() {
+        use std::fs;
+        use std::os::unix::fs::PermissionsExt;
+
+        let mut dir = std::env::temp_dir();
+        dir.push(format!(
+            "pacsea_test_shell_log_mode_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("System time is before UNIX epoch")
+                .as_nanos()
+        ));
+        fs::create_dir_all(&dir).expect("create test directory");
+        let log_path = dir.join("last_terminal_cmd.log");
+
+        fs::write(&log_path, b"old").expect("create test log file");
+        let mut perms = fs::metadata(&log_path)
+            .expect("read test log metadata")
+            .permissions();
+        perms.set_mode(0o644);
+        fs::set_permissions(&log_path, perms).expect("set broad test log permissions");
+
+        super::persist_command_to_log_path(&log_path, "echo test");
+
+        let mode = fs::metadata(&log_path)
+            .expect("read updated log metadata")
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode, 0o600);
+
+        let _ = fs::remove_file(&log_path);
+        let _ = fs::remove_dir(&dir);
+    }
+
+    #[test]
+    /// What: Ensure temp script creation fails when temp dir is invalid.
+    ///
+    /// Inputs:
+    /// - `TMPDIR` pointing to a non-existent nested directory.
+    ///
+    /// Output:
+    /// - `create_temp_script` returns `Err`.
+    ///
+    /// Details:
+    /// - Verifies we do not return a non-existent script path after repeated failures.
+    fn create_temp_script_returns_error_when_open_fails() {
+        let original_tmpdir = std::env::var_os("TMPDIR");
+        let mut invalid_tmp = std::env::temp_dir();
+        invalid_tmp.push(format!(
+            "pacsea_missing_tmp_parent_{}/nested",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("System time is before UNIX epoch")
+                .as_nanos()
+        ));
+        unsafe {
+            std::env::set_var("TMPDIR", invalid_tmp.display().to_string());
+        }
+
+        let result = super::create_temp_script("echo hello");
+        assert!(result.is_err(), "expected temp script creation failure");
+
+        unsafe {
+            if let Some(v) = original_tmpdir {
+                std::env::set_var("TMPDIR", v);
+            } else {
+                std::env::remove_var("TMPDIR");
+            }
+        }
     }
 }
 
