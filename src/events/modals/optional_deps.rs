@@ -659,9 +659,11 @@ pub(super) fn handle_ssh_setup_modal(
                 app.toast_message = Some(
                     "SSH validation failed. Review details in the SSH setup window.".to_string(),
                 );
-                app.toast_expires_at =
-                    Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
+            } else {
+                app.toast_message = Some("AUR SSH connection verified successfully.".to_string());
             }
+            app.toast_expires_at =
+                Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
             Some(true)
         }
         _ => None,
