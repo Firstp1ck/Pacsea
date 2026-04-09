@@ -490,6 +490,55 @@ pub(super) fn handle_optional_deps_modal(
     None
 }
 
+/// What: Handle mouse clicks on the AUR SSH setup modal copy row.
+///
+/// Inputs:
+/// - `mx`: Mouse column coordinate.
+/// - `my`: Mouse row coordinate.
+/// - `is_left_down`: Whether the primary button was pressed.
+/// - `app`: Application state (`ssh_setup_copy_key_rect` and `SshAurSetup` status lines).
+///
+/// Output:
+/// - `Some(false)` when the copy action ran and the toast was updated.
+/// - `None` when the click missed the copy row or no public key line is available.
+///
+/// Details:
+/// - Uses `wl-copy` or `xclip` via `try_copy_aur_ssh_public_key_from_status_lines`, matching the `C` shortcut.
+pub(super) fn handle_ssh_aur_setup_modal(
+    _m: MouseEvent,
+    mx: u16,
+    my: u16,
+    is_left_down: bool,
+    app: &mut AppState,
+) -> Option<bool> {
+    if !is_left_down {
+        return None;
+    }
+    let (x, y, w, h) = app.ssh_setup_copy_key_rect?;
+    if mx < x || mx >= x.saturating_add(w) || my < y || my >= y.saturating_add(h) {
+        return None;
+    }
+    let status_lines = match &app.modal {
+        crate::state::Modal::SshAurSetup { status_lines, .. } => status_lines.as_slice(),
+        _ => return None,
+    };
+    match crate::logic::ssh_setup::try_copy_aur_ssh_public_key_from_status_lines(status_lines) {
+        None => None,
+        Some(Ok(())) => {
+            app.toast_message = Some(crate::i18n::t(app, "app.toasts.copied_to_clipboard"));
+            app.toast_expires_at =
+                Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
+            Some(false)
+        }
+        Some(Err(msg)) => {
+            app.toast_message = Some(msg);
+            app.toast_expires_at =
+                Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
+            Some(false)
+        }
+    }
+}
+
 /// What: Resolve a rendered line index to the owning updates entry index.
 ///
 /// Inputs:

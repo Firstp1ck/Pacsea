@@ -26,6 +26,7 @@ mod simple;
 /// Details:
 /// - Help modal: Supports scrolling within content area and closes on outside click.
 /// - `VirusTotalSetup` modal: Opens URL when clicking the link area; consumes all other events.
+/// - `SshAurSetup` modal: Copies the public key when clicking the copy row (when shown).
 /// - Preflight modal: Handles tab clicks, package group header toggles, service restart decisions,
 ///   and scroll navigation for Deps/Files/Services tabs.
 /// - News modal: Handles item selection, URL opening, and scroll navigation; closes on outside click.
@@ -57,6 +58,9 @@ pub(super) fn handle_modal_mouse(
         }
         crate::state::Modal::OptionalDeps { .. } => {
             simple::handle_optional_deps_modal(m, mx, my, is_left_down, app)
+        }
+        crate::state::Modal::SshAurSetup { .. } => {
+            simple::handle_ssh_aur_setup_modal(m, mx, my, is_left_down, app)
         }
         _ => None,
     }

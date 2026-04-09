@@ -527,6 +527,25 @@ pub(super) fn handle_ssh_setup_modal(
             crate::util::open_url(crate::logic::ssh_setup::AUR_ACCOUNT_URL);
             Some(false)
         }
+        (_, KeyCode::Char('c' | 'C')) => {
+            match crate::logic::ssh_setup::try_copy_aur_ssh_public_key_from_status_lines(
+                status_lines,
+            ) {
+                None => None,
+                Some(Ok(())) => {
+                    app.toast_message = Some(crate::i18n::t(app, "app.toasts.copied_to_clipboard"));
+                    app.toast_expires_at =
+                        Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
+                    Some(false)
+                }
+                Some(Err(msg)) => {
+                    app.toast_message = Some(msg);
+                    app.toast_expires_at =
+                        Some(std::time::Instant::now() + std::time::Duration::from_secs(5));
+                    Some(false)
+                }
+            }
+        }
         (
             crate::state::SshSetupStep::Intro
             | crate::state::SshSetupStep::ApplyKeyOnAur
@@ -565,7 +584,6 @@ pub(super) fn handle_ssh_setup_modal(
                             Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
                     } else {
                         *step = crate::state::SshSetupStep::ApplyKeyOnAur;
-                        crate::util::open_url(crate::logic::ssh_setup::AUR_ACCOUNT_URL);
                     }
                 }
                 crate::logic::ssh_setup::AurSshSetupResult::NeedsOverwrite {
@@ -620,7 +638,6 @@ pub(super) fn handle_ssh_setup_modal(
                     Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
             } else {
                 *step = crate::state::SshSetupStep::ApplyKeyOnAur;
-                crate::util::open_url(crate::logic::ssh_setup::AUR_ACCOUNT_URL);
             }
             Some(false)
         }

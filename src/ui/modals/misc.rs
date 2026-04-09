@@ -1,7 +1,8 @@
 use ratatui::{
     Frame,
+    layout::{Alignment, Constraint, Direction, Layout},
     prelude::Rect,
-    style::{Modifier, Style},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, BorderType, Borders, Clear, Paragraph, Wrap},
 };
@@ -16,7 +17,7 @@ use crate::state::{
     },
     types::{OptionalDepRow, RepositoryKeyTrust, RepositoryModalRow, RepositoryPacmanStatus},
 };
-use crate::theme::theme;
+use crate::theme::{Theme, theme};
 
 /// What: Render the optional dependencies modal with install status indicators.
 ///
@@ -427,61 +428,25 @@ fn key_trust_label(app: &AppState, kt: RepositoryKeyTrust) -> String {
     }
 }
 
-/// What: Render the guided AUR SSH setup modal.
+/// What: Compose wrapped body lines for the AUR SSH setup modal.
 ///
 /// Inputs:
-/// - `f`: Frame to render into.
-/// - `area`: Full screen area used to center the modal.
-/// - `step`: Current SSH setup step.
-/// - `status_lines`: Current status/instruction lines.
-/// - `existing_host_block`: Existing host block shown during overwrite confirmation.
+/// - `accent`: Step accent color for section headers.
+/// - `th`: Active theme palette.
+/// - `status_lines`: Setup status lines from logic.
+/// - `existing_host_block`: Optional host block preview text.
 ///
 /// Output:
-/// - Draws the SSH setup modal content.
-#[allow(clippy::many_single_char_names)]
-pub fn render_ssh_aur_setup(
-    f: &mut Frame,
-    area: Rect,
-    step: crate::state::SshSetupStep,
+/// - Paragraph lines for the scrollable body (excludes footer shortcut row).
+///
+/// Details:
+/// - Applies per-line styling for failures, warnings, and the public key line.
+fn build_ssh_aur_setup_scrollable_lines(
+    accent: Color,
+    th: &Theme,
     status_lines: &[String],
     existing_host_block: Option<&str>,
-) {
-    let th = theme();
-    let w = area.width.saturating_sub(8).min(100);
-    let h = area.height.saturating_sub(6).min(24);
-    let x = area.x + (area.width.saturating_sub(w)) / 2;
-    let y = area.y + (area.height.saturating_sub(h)) / 2;
-    let rect = Rect {
-        x,
-        y,
-        width: w,
-        height: h,
-    };
-    f.render_widget(Clear, rect);
-
-    let (title, accent, footer) = match step {
-        crate::state::SshSetupStep::Intro => (
-            "AUR SSH Setup",
-            th.mauve,
-            "Enter: run setup  |  O: open AUR login page  |  Esc: cancel",
-        ),
-        crate::state::SshSetupStep::ConfirmOverwrite => (
-            "AUR SSH Setup: Confirm Overwrite",
-            th.yellow,
-            "Y/Enter: overwrite block  |  N/Esc: keep existing config  |  O: open login page",
-        ),
-        crate::state::SshSetupStep::ApplyKeyOnAur => (
-            "AUR SSH Setup: Apply Key on AUR",
-            th.sapphire,
-            "Y/Enter: I applied key, test connection  |  O: open login page  |  Esc: cancel",
-        ),
-        crate::state::SshSetupStep::Result => (
-            "AUR SSH Setup: Result",
-            th.green,
-            "Esc: close  |  O: open login page",
-        ),
-    };
-
+) -> Vec<Line<'static>> {
     let mut lines: Vec<Line<'static>> = Vec::new();
     lines.push(Line::from(Span::styled(
         "Status",
@@ -528,26 +493,150 @@ pub fn render_ssh_aur_setup(
         format!("- {}", crate::logic::ssh_setup::AUR_ACCOUNT_URL),
         Style::default().fg(th.sapphire),
     )));
-    lines.push(Line::from(""));
-    lines.push(Line::from(Span::styled(
-        footer,
-        Style::default()
-            .fg(th.overlay1)
-            .add_modifier(Modifier::BOLD),
-    )));
+    lines
+}
 
-    let paragraph = Paragraph::new(lines).wrap(Wrap { trim: true }).block(
-        Block::default()
-            .title(Span::styled(
-                title,
-                Style::default().fg(accent).add_modifier(Modifier::BOLD),
-            ))
-            .borders(Borders::ALL)
-            .border_type(BorderType::Double)
-            .border_style(Style::default().fg(accent))
-            .style(Style::default().bg(th.mantle)),
-    );
-    f.render_widget(paragraph, rect);
+/// What: Render the guided AUR SSH setup modal.
+///
+/// Inputs:
+/// - `f`: Frame to render into.
+/// - `area`: Full screen area used to center the modal.
+/// - `step`: Current SSH setup step.
+/// - `status_lines`: Current status/instruction lines.
+/// - `existing_host_block`: Existing host block shown during overwrite confirmation.
+/// - `app`: Mutable app state (stores copy-button hit rect when a public key line is present).
+///
+/// Output:
+/// - Draws the SSH setup modal content.
+#[allow(clippy::many_single_char_names)]
+pub fn render_ssh_aur_setup(
+    f: &mut Frame,
+    area: Rect,
+    step: crate::state::SshSetupStep,
+    status_lines: &[String],
+    existing_host_block: Option<&str>,
+    app: &mut AppState,
+) {
+    let th = theme();
+    app.ssh_setup_copy_key_rect = None;
+    let w = area.width.saturating_sub(8).min(100);
+    let h = area.height.saturating_sub(6).min(24);
+    let x = area.x + (area.width.saturating_sub(w)) / 2;
+    let y = area.y + (area.height.saturating_sub(h)) / 2;
+    let rect = Rect {
+        x,
+        y,
+        width: w,
+        height: h,
+    };
+    f.render_widget(Clear, rect);
+
+    let (title, accent, footer_base) = match step {
+        crate::state::SshSetupStep::Intro => (
+            "AUR SSH Setup",
+            th.mauve,
+            "Enter: run setup  |  O: open AUR login page  |  Esc: cancel",
+        ),
+        crate::state::SshSetupStep::ConfirmOverwrite => (
+            "AUR SSH Setup: Confirm Overwrite",
+            th.yellow,
+            "Y/Enter: overwrite block  |  N/Esc: keep existing config  |  O: open login page",
+        ),
+        crate::state::SshSetupStep::ApplyKeyOnAur => (
+            "AUR SSH Setup: Apply Key on AUR",
+            th.sapphire,
+            "Y/Enter: I applied key, test connection  |  O: open login page  |  Esc: cancel",
+        ),
+        crate::state::SshSetupStep::Result => (
+            "AUR SSH Setup: Result",
+            th.green,
+            "Esc: close  |  O: open login page",
+        ),
+    };
+
+    let show_copy =
+        crate::logic::ssh_setup::ssh_public_key_line_from_status_lines(status_lines).is_some();
+    let footer = if show_copy {
+        format!("{footer_base}  |  C: copy public key")
+    } else {
+        footer_base.to_string()
+    };
+
+    let lines =
+        build_ssh_aur_setup_scrollable_lines(accent, &th, status_lines, existing_host_block);
+
+    let block = Block::default()
+        .title(Span::styled(
+            title,
+            Style::default().fg(accent).add_modifier(Modifier::BOLD),
+        ))
+        .borders(Borders::ALL)
+        .border_type(BorderType::Double)
+        .border_style(Style::default().fg(accent))
+        .style(Style::default().bg(th.mantle));
+
+    let inner = block.inner(rect);
+    f.render_widget(Paragraph::new("").block(block), rect);
+
+    let chunks = if show_copy && inner.height > 2 {
+        Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Min(0),
+                Constraint::Length(1),
+                Constraint::Length(1),
+            ])
+            .split(inner)
+    } else {
+        Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Min(0), Constraint::Length(1)])
+            .split(inner)
+    };
+
+    let body_area = chunks[0];
+    let content_paragraph = Paragraph::new(lines)
+        .wrap(Wrap { trim: true })
+        .style(Style::default().bg(th.mantle));
+    f.render_widget(content_paragraph, body_area);
+
+    if show_copy && inner.height > 2 {
+        let copy_area = chunks[1];
+        app.ssh_setup_copy_key_rect =
+            Some((copy_area.x, copy_area.y, copy_area.width, copy_area.height));
+        let copy_label = "  Copy public key  ";
+        let copy_paragraph = Paragraph::new(Line::from(Span::styled(
+            copy_label,
+            Style::default()
+                .fg(th.mantle)
+                .bg(th.mauve)
+                .add_modifier(Modifier::BOLD),
+        )))
+        .alignment(Alignment::Center)
+        .style(Style::default().bg(th.mantle));
+        f.render_widget(copy_paragraph, copy_area);
+        let footer_area = chunks[2];
+        let footer_paragraph = Paragraph::new(Line::from(Span::styled(
+            footer,
+            Style::default()
+                .fg(th.overlay1)
+                .add_modifier(Modifier::BOLD),
+        )))
+        .alignment(Alignment::Center)
+        .style(Style::default().bg(th.mantle));
+        f.render_widget(footer_paragraph, footer_area);
+    } else {
+        let footer_area = chunks[1];
+        let footer_paragraph = Paragraph::new(Line::from(Span::styled(
+            footer,
+            Style::default()
+                .fg(th.overlay1)
+                .add_modifier(Modifier::BOLD),
+        )))
+        .alignment(Alignment::Center)
+        .style(Style::default().bg(th.mantle));
+        f.render_widget(footer_paragraph, footer_area);
+    }
 }
 
 #[allow(clippy::too_many_arguments)]

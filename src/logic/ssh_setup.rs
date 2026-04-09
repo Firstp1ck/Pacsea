@@ -12,6 +12,46 @@ const AUR_KEY_NAME: &str = "aur_key";
 /// Login URL shown in the setup flow.
 pub const AUR_ACCOUNT_URL: &str = "https://aur.archlinux.org/login";
 
+/// What: Extract the first OpenSSH public key line from setup status lines.
+///
+/// Inputs:
+/// - `status_lines`: Lines produced by `run_aur_ssh_setup` / validation (may include labels and hints).
+///
+/// Output:
+/// - Trimmed key line (for example `ssh-ed25519 AAAA... comment`) when found.
+///
+/// Details:
+/// - Matches lines whose trimmed text starts with `ssh-` (covers `ssh-ed25519`, `ssh-rsa`, etc.).
+#[must_use]
+pub fn ssh_public_key_line_from_status_lines(status_lines: &[String]) -> Option<String> {
+    status_lines.iter().find_map(|line| {
+        let trimmed = line.trim();
+        trimmed.starts_with("ssh-").then(|| trimmed.to_string())
+    })
+}
+
+/// What: Copy the first OpenSSH public key line from setup status lines to the clipboard.
+///
+/// Inputs:
+/// - `status_lines`: Modal status lines that may include a line starting with `ssh-`.
+///
+/// Output:
+/// - `None` when no public key line is present.
+/// - `Some(Ok(()))` when `wl-copy` or `xclip` accepted the key text.
+/// - `Some(Err(message))` when a key line exists but clipboard copy failed.
+///
+/// Details:
+/// - Delegates to `crate::util::clipboard::copy_plain_text_to_clipboard` (no PKGBUILD suffix).
+#[must_use]
+pub fn try_copy_aur_ssh_public_key_from_status_lines(
+    status_lines: &[String],
+) -> Option<Result<(), String>> {
+    let key_line = ssh_public_key_line_from_status_lines(status_lines)?;
+    Some(crate::util::clipboard::copy_plain_text_to_clipboard(
+        &key_line,
+    ))
+}
+
 /// What: Check whether `openssh` is installed on the system.
 ///
 /// Inputs: None.
@@ -127,6 +167,7 @@ pub fn run_aur_ssh_setup(overwrite_existing_host: bool) -> AurSshSetupResult {
             )],
         });
     }
+    lines.push(format!("SSH directory ready: '{}'", ssh_dir.display()));
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -567,6 +608,19 @@ mod tests {
         assert_eq!(
             line,
             "Failed [connection check]: network timeout".to_string()
+        );
+    }
+
+    #[test]
+    fn ssh_public_key_line_from_status_finds_first_key_line() {
+        let lines = vec![
+            "Key exists: '/home/u/.ssh/aur_key'".to_string(),
+            "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIABCD user@host".to_string(),
+            "Next step: open https://example.test/login".to_string(),
+        ];
+        assert_eq!(
+            ssh_public_key_line_from_status_lines(&lines).as_deref(),
+            Some("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIABCD user@host")
         );
     }
 }

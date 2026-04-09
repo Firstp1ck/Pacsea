@@ -765,7 +765,7 @@ impl ModalRenderer for Modal {
                     status_lines,
                     existing_host_block,
                 };
-                render_ssh_setup_modal(f, area, ctx)
+                render_ssh_setup_modal(f, app, area, ctx)
             }
             Self::ScanConfig {
                 do_clamav,
@@ -1262,13 +1262,19 @@ fn render_repositories_modal(
 }
 
 /// What: Render `SshAurSetup` modal and return reconstructed state.
-fn render_ssh_setup_modal(f: &mut Frame, area: Rect, ctx: SshAurSetupContext) -> Modal {
+fn render_ssh_setup_modal(
+    f: &mut Frame,
+    app: &mut AppState,
+    area: Rect,
+    ctx: SshAurSetupContext,
+) -> Modal {
     misc::render_ssh_aur_setup(
         f,
         area,
         ctx.step,
         &ctx.status_lines,
         ctx.existing_host_block.as_deref(),
+        app,
     );
     Modal::SshAurSetup {
         step: ctx.step,

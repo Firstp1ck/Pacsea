@@ -4,6 +4,7 @@
 //! to keep hot paths fast and reduce compile times. They are used by networking,
 //! indexing, and UI code.
 
+pub mod clipboard;
 pub mod config;
 pub mod curl;
 pub mod pacman;
