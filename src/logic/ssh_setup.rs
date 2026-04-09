@@ -97,7 +97,6 @@ pub fn is_aur_ssh_setup_configured() -> bool {
 ///
 /// Inputs:
 /// - `overwrite_existing_host`: Whether to overwrite a conflicting existing host block.
-/// - `ssh_command`: SSH binary path or name used for validation command execution.
 ///
 /// Output:
 /// - `AurSshSetupResult` with either completion report or explicit overwrite request.
@@ -106,21 +105,26 @@ pub fn is_aur_ssh_setup_configured() -> bool {
 /// - Creates `~/.ssh` if missing.
 /// - Generates `~/.ssh/aur_key` via `ssh-keygen` if not present.
 /// - Writes/updates minimal `Host aur.archlinux.org` block.
-/// - Validates with `ssh -o BatchMode=yes -o ConnectTimeout=10 aur@aur.archlinux.org help`.
 #[must_use]
-pub fn run_aur_ssh_setup(overwrite_existing_host: bool, ssh_command: &str) -> AurSshSetupResult {
+pub fn run_aur_ssh_setup(overwrite_existing_host: bool) -> AurSshSetupResult {
     let mut lines = Vec::new();
     let Some(home) = home_dir() else {
         return AurSshSetupResult::Completed(AurSshSetupReport {
             success: false,
-            lines: vec!["Failed: HOME environment is not set.".to_string()],
+            lines: vec![setup_failure_line(
+                "home",
+                "could not resolve your home directory (HOME may be unset in this session)",
+            )],
         });
     };
     let ssh_dir = home.join(".ssh");
     if let Err(err) = fs::create_dir_all(&ssh_dir) {
         return AurSshSetupResult::Completed(AurSshSetupReport {
             success: false,
-            lines: vec![format!("Failed to create '{}': {err}", ssh_dir.display())],
+            lines: vec![setup_failure_line(
+                "directory creation",
+                format!("could not create '{}': {err}", ssh_dir.display()),
+            )],
         });
     }
     #[cfg(unix)]
@@ -150,7 +154,7 @@ pub fn run_aur_ssh_setup(overwrite_existing_host: bool, ssh_command: &str) -> Au
             Ok(out) => {
                 let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
                 lines.push(format!(
-                    "Failed to generate SSH key (exit {}): {}",
+                    "Failed [keygen]: ssh-keygen exited with code {}: {}",
                     out.status.code().unwrap_or(-1),
                     if stderr.is_empty() {
                         "no stderr output".to_string()
@@ -164,7 +168,10 @@ pub fn run_aur_ssh_setup(overwrite_existing_host: bool, ssh_command: &str) -> Au
                 });
             }
             Err(err) => {
-                lines.push(format!("Failed to run ssh-keygen: {err}"));
+                lines.push(setup_failure_line(
+                    "keygen",
+                    format!("could not run ssh-keygen: {err}"),
+                ));
                 return AurSshSetupResult::Completed(AurSshSetupReport {
                     success: false,
                     lines,
@@ -183,9 +190,9 @@ pub fn run_aur_ssh_setup(overwrite_existing_host: bool, ssh_command: &str) -> Au
         }
         Ok(None) => {}
         Err(err) => {
-            lines.push(format!(
-                "Failed to update '{}': {err}",
-                config_path.display()
+            lines.push(setup_failure_line(
+                "config update",
+                format!("could not update '{}': {err}", config_path.display()),
             ));
             return AurSshSetupResult::Completed(AurSshSetupReport {
                 success: false,
@@ -194,25 +201,75 @@ pub fn run_aur_ssh_setup(overwrite_existing_host: bool, ssh_command: &str) -> Au
         }
     }
 
+    let pub_key_path = key_path.with_extension("pub");
+    match fs::read_to_string(&pub_key_path) {
+        Ok(pub_key) => {
+            let trimmed = pub_key.trim();
+            if trimmed.is_empty() {
+                lines.push(
+                    "Warning: public key file is empty. Re-run setup or regenerate key."
+                        .to_string(),
+                );
+            } else {
+                lines.push(format!(
+                    "Public key file: '{}' (copy this into your AUR account).",
+                    pub_key_path.display()
+                ));
+                lines.push(trimmed.to_string());
+            }
+        }
+        Err(err) => {
+            lines.push(format!(
+                "Warning: could not read public key '{}': {err}",
+                pub_key_path.display()
+            ));
+        }
+    }
+    lines.push(format!(
+        "Next step: open {AUR_ACCOUNT_URL} and paste the public key."
+    ));
+    AurSshSetupResult::Completed(AurSshSetupReport {
+        success: true,
+        lines,
+    })
+}
+
+/// What: Validate AUR SSH connectivity after the user applies the public key.
+///
+/// Inputs:
+/// - `ssh_command`: SSH binary path or name used for validation command execution.
+///
+/// Output:
+/// - `AurSshSetupReport` with success flag and validation-specific status lines.
+#[must_use]
+pub fn validate_aur_ssh_setup_connection(ssh_command: &str) -> AurSshSetupReport {
+    let Some(home) = home_dir() else {
+        return AurSshSetupReport {
+            success: false,
+            lines: vec![setup_failure_line(
+                "home",
+                "could not resolve your home directory (HOME may be unset in this session)",
+            )],
+        };
+    };
+    let key_path = home.join(".ssh").join(AUR_KEY_NAME);
     let validation = Command::new(ssh_command)
         .args(["-o", "BatchMode=yes", "-o", "ConnectTimeout=10"])
         .arg("aur@aur.archlinux.org")
         .arg("help")
         .output();
     match validation {
-        Ok(out) if out.status.success() => {
-            lines.push("Validation OK: 'ssh aur@aur.archlinux.org help' succeeded.".to_string());
-            AurSshSetupResult::Completed(AurSshSetupReport {
-                success: true,
-                lines,
-            })
-        }
+        Ok(out) if out.status.success() => AurSshSetupReport {
+            success: true,
+            lines: vec!["Validation OK: 'ssh aur@aur.archlinux.org help' succeeded.".to_string()],
+        },
         Ok(out) => {
             let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
             let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
             let detail = if stderr.is_empty() { stdout } else { stderr };
+            let mut lines = Vec::new();
             lines.push(format!(
-                "Validation failed (exit {}): {}",
+                "Failed [connection check]: ssh validation exited with code {}: {}",
                 out.status.code().unwrap_or(-1),
                 if detail.is_empty() {
                     "no output".to_string()
@@ -225,19 +282,24 @@ pub fn run_aur_ssh_setup(overwrite_existing_host: bool, ssh_command: &str) -> Au
                 key_path.with_extension("pub").display(),
                 AUR_ACCOUNT_URL
             ));
-            AurSshSetupResult::Completed(AurSshSetupReport {
+            AurSshSetupReport {
                 success: false,
                 lines,
-            })
+            }
         }
-        Err(err) => {
-            lines.push(format!("Failed to run SSH validation: {err}"));
-            AurSshSetupResult::Completed(AurSshSetupReport {
-                success: false,
-                lines,
-            })
-        }
+        Err(err) => AurSshSetupReport {
+            success: false,
+            lines: vec![setup_failure_line(
+                "connection check",
+                format!("could not run ssh validation command '{ssh_command}': {err}"),
+            )],
+        },
     }
+}
+
+/// What: Build a standardized setup failure line with stage context.
+fn setup_failure_line(stage: &str, detail: impl AsRef<str>) -> String {
+    format!("Failed [{stage}]: {}", detail.as_ref())
 }
 
 /// What: Spawn a background SSH validation check for AUR endpoint readiness.
@@ -497,5 +559,14 @@ mod tests {
         unsafe {
             std::env::remove_var("PACSEA_TEST_OPENSSH_INSTALLED");
         }
+    }
+
+    #[test]
+    fn setup_failure_line_includes_stage_and_detail() {
+        let line = setup_failure_line("connection check", "network timeout");
+        assert_eq!(
+            line,
+            "Failed [connection check]: network timeout".to_string()
+        );
     }
 }

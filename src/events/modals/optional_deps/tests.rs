@@ -306,6 +306,26 @@ fn ssh_setup_result_enter_keeps_modal_open() {
 }
 
 #[test]
+/// What: Verify SSH setup apply-key step can be cancelled with Esc.
+fn ssh_setup_apply_key_esc_closes_modal() {
+    let mut app = AppState::default();
+    let mut step = crate::state::SshSetupStep::ApplyKeyOnAur;
+    let mut status_lines = vec!["Public key ready.".to_string()];
+    let mut existing_host_block = None;
+
+    let result = super::handle_ssh_setup_modal(
+        KeyEvent::new(KeyCode::Esc, KeyModifiers::empty()),
+        &mut app,
+        &mut step,
+        &mut status_lines,
+        &mut existing_host_block,
+    );
+
+    assert_eq!(result, Some(true));
+    assert!(matches!(app.modal, crate::state::Modal::None));
+}
+
+#[test]
 /// What: Verify startup optional-deps Esc advances to next queued startup setup step.
 fn optional_deps_esc_advances_startup_queue() {
     let mut app = AppState {

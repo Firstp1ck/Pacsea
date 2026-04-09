@@ -170,6 +170,8 @@ pub enum SshSetupStep {
     Intro,
     /// Confirmation step shown when an existing host block needs overwrite approval.
     ConfirmOverwrite,
+    /// Step where user copies key, applies it on AUR, then confirms for validation.
+    ApplyKeyOnAur,
     /// Result step containing final status lines.
     Result,
 }

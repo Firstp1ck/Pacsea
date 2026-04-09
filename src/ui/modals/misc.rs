@@ -470,10 +470,15 @@ pub fn render_ssh_aur_setup(
             th.yellow,
             "Y/Enter: overwrite block  |  N/Esc: keep existing config  |  O: open account page",
         ),
+        crate::state::SshSetupStep::ApplyKeyOnAur => (
+            "AUR SSH Setup: Apply Key on AUR",
+            th.sapphire,
+            "Y/Enter: I applied key, test connection  |  O: open account page  |  Esc: cancel",
+        ),
         crate::state::SshSetupStep::Result => (
             "AUR SSH Setup: Result",
             th.green,
-            "Enter/Esc: close  |  O: open account page",
+            "Esc: close  |  O: open account page",
         ),
     };
 

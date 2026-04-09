@@ -528,7 +528,9 @@ pub(super) fn handle_ssh_setup_modal(
             Some(false)
         }
         (
-            crate::state::SshSetupStep::Intro | crate::state::SshSetupStep::Result,
+            crate::state::SshSetupStep::Intro
+            | crate::state::SshSetupStep::ApplyKeyOnAur
+            | crate::state::SshSetupStep::Result,
             KeyCode::Esc | KeyCode::Char('q'),
         ) => {
             app.modal = crate::state::Modal::None;
@@ -548,20 +550,22 @@ pub(super) fn handle_ssh_setup_modal(
                 tracing::warn!("SSH setup blocked: openssh is not installed");
                 return Some(true);
             }
-            let ssh_command = crate::theme::settings().aur_vote_ssh_command;
-            match crate::logic::ssh_setup::run_aur_ssh_setup(false, &ssh_command) {
+            match crate::logic::ssh_setup::run_aur_ssh_setup(false) {
                 crate::logic::ssh_setup::AurSshSetupResult::Completed(report) => {
                     let failed = !report.success;
-                    *step = crate::state::SshSetupStep::Result;
                     *status_lines = report.lines;
                     *existing_host_block = None;
                     if failed {
+                        *step = crate::state::SshSetupStep::Result;
                         tracing::error!("SSH setup failed: {}", status_lines.join(" | "));
                         app.toast_message = Some(
                             "SSH setup failed. Review details in the SSH setup window.".to_string(),
                         );
                         app.toast_expires_at =
                             Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
+                    } else {
+                        *step = crate::state::SshSetupStep::ApplyKeyOnAur;
+                        crate::util::open_url(crate::logic::ssh_setup::AUR_ACCOUNT_URL);
                     }
                 }
                 crate::logic::ssh_setup::AurSshSetupResult::NeedsOverwrite {
@@ -592,8 +596,7 @@ pub(super) fn handle_ssh_setup_modal(
             crate::state::SshSetupStep::ConfirmOverwrite,
             KeyCode::Char('y' | 'Y' | '\n' | '\r') | KeyCode::Enter,
         ) => {
-            let ssh_command = crate::theme::settings().aur_vote_ssh_command;
-            let report = match crate::logic::ssh_setup::run_aur_ssh_setup(true, &ssh_command) {
+            let report = match crate::logic::ssh_setup::run_aur_ssh_setup(true) {
                 crate::logic::ssh_setup::AurSshSetupResult::Completed(report) => report,
                 crate::logic::ssh_setup::AurSshSetupResult::NeedsOverwrite { lines, .. } => {
                     crate::logic::ssh_setup::AurSshSetupReport {
@@ -603,16 +606,42 @@ pub(super) fn handle_ssh_setup_modal(
                 }
             };
             let failed = !report.success;
-            *step = crate::state::SshSetupStep::Result;
             *status_lines = report.lines;
             *existing_host_block = None;
             if failed {
+                *step = crate::state::SshSetupStep::Result;
                 tracing::error!(
                     "SSH setup failed after overwrite confirm: {}",
                     status_lines.join(" | ")
                 );
                 app.toast_message =
                     Some("SSH setup failed. Review details in the SSH setup window.".to_string());
+                app.toast_expires_at =
+                    Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
+            } else {
+                *step = crate::state::SshSetupStep::ApplyKeyOnAur;
+                crate::util::open_url(crate::logic::ssh_setup::AUR_ACCOUNT_URL);
+            }
+            Some(true)
+        }
+        (
+            crate::state::SshSetupStep::ApplyKeyOnAur,
+            KeyCode::Char('y' | 'Y' | '\n' | '\r') | KeyCode::Enter,
+        ) => {
+            let ssh_command = crate::theme::settings().aur_vote_ssh_command;
+            let report = crate::logic::ssh_setup::validate_aur_ssh_setup_connection(&ssh_command);
+            let failed = !report.success;
+            *step = crate::state::SshSetupStep::Result;
+            *status_lines = report.lines;
+            *existing_host_block = None;
+            if failed {
+                tracing::error!(
+                    "SSH setup validation failed after user confirmation: {}",
+                    status_lines.join(" | ")
+                );
+                app.toast_message = Some(
+                    "SSH validation failed. Review details in the SSH setup window.".to_string(),
+                );
                 app.toast_expires_at =
                     Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
             }
