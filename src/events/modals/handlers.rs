@@ -845,9 +845,11 @@ pub(super) fn handle_optional_deps_modal(
     if let Modal::OptionalDeps {
         ref rows,
         ref mut selected,
+        ref mut selected_pkg_names,
     } = modal
     {
-        let should_stop = super::optional_deps::handle_optional_deps(ke, app, rows, selected);
+        let should_stop =
+            super::optional_deps::handle_optional_deps(ke, app, rows, selected, selected_pkg_names);
         return restore::restore_if_not_closed_with_option_result(
             app,
             &ke,
@@ -855,6 +857,7 @@ pub(super) fn handle_optional_deps_modal(
             Modal::OptionalDeps {
                 rows: rows.clone(),
                 selected: *selected,
+                selected_pkg_names: selected_pkg_names.clone(),
             },
         );
     }

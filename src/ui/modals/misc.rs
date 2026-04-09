@@ -41,6 +41,7 @@ pub fn render_optional_deps(
     area: Rect,
     rows: &[OptionalDepRow],
     selected: usize,
+    selected_pkg_names: &std::collections::HashSet<String>,
     app: &mut crate::state::AppState,
 ) {
     let th = theme();
@@ -64,6 +65,15 @@ pub fn render_optional_deps(
 
     for (i, row) in rows.iter().enumerate() {
         let is_sel = selected == i;
+        let selected_mark = if !row.installed && row.selectable {
+            if selected_pkg_names.contains(&row.package) {
+                "[x]"
+            } else {
+                "[ ]"
+            }
+        } else {
+            "   "
+        };
         let (mark, color) = if row.installed {
             (
                 crate::i18n::t(app, "app.modals.optional_deps.markers.installed"),
@@ -84,7 +94,10 @@ pub fn render_optional_deps(
             Style::default().fg(th.text)
         };
         let mut segs: Vec<Span> = Vec::new();
-        segs.push(Span::styled(format!("{}  ", row.label), style));
+        segs.push(Span::styled(
+            format!("{selected_mark} {}  ", row.label),
+            style,
+        ));
         segs.push(Span::styled(
             format!("[{}]", row.package),
             Style::default().fg(th.overlay1),

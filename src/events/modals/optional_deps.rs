@@ -42,6 +42,7 @@ pub(super) fn handle_optional_deps(
     app: &mut AppState,
     rows: &[crate::state::types::OptionalDepRow],
     selected: &mut usize,
+    selected_pkg_names: &mut std::collections::HashSet<String>,
 ) -> Option<bool> {
     match ke.code {
         KeyCode::Esc | KeyCode::Char('q') => {
@@ -63,8 +64,41 @@ pub(super) fn handle_optional_deps(
             }
             Some(false)
         }
+        KeyCode::Char(' ') => {
+            if let Some(row) = rows.get(*selected)
+                && row.selectable
+                && !row.installed
+                && !is_setup_package(&row.package)
+            {
+                if selected_pkg_names.contains(&row.package) {
+                    selected_pkg_names.remove(&row.package);
+                } else {
+                    selected_pkg_names.insert(row.package.clone());
+                }
+            }
+            Some(false)
+        }
         KeyCode::Enter | KeyCode::Char('\n' | '\r') => {
             if let Some(row) = rows.get(*selected) {
+                if row.selectable && !row.installed && !is_setup_package(&row.package) {
+                    let selected_rows: Vec<crate::state::types::OptionalDepRow> = rows
+                        .iter()
+                        .filter(|r| {
+                            r.selectable
+                                && !r.installed
+                                && !is_setup_package(&r.package)
+                                && selected_pkg_names.contains(&r.package)
+                        })
+                        .cloned()
+                        .collect();
+                    if !selected_rows.is_empty() {
+                        let (new_modal, should_stop) =
+                            handle_optional_deps_batch_install(app, &selected_rows);
+                        app.modal = new_modal;
+                        selected_pkg_names.clear();
+                        return Some(should_stop);
+                    }
+                }
                 match handle_optional_deps_enter(app, row) {
                     (new_modal, true) => {
                         app.modal = new_modal;
@@ -81,6 +115,70 @@ pub(super) fn handle_optional_deps(
         }
         _ => None,
     }
+}
+
+/// What: Check whether a row package id represents a setup pseudo-package.
+#[must_use]
+fn is_setup_package(package: &str) -> bool {
+    matches!(
+        package,
+        "aur-ssh-setup"
+            | "virustotal-setup"
+            | "sudo-timestamp-setup"
+            | "doas-persist-setup"
+            | "aur-sleuth-setup"
+    )
+}
+
+/// What: Start a batch install for selected optional dependency rows.
+///
+/// Inputs:
+/// - `app`: Mutable app state.
+/// - `selected_rows`: Installable, non-setup rows selected by the user.
+///
+/// Output:
+/// - `(new_modal, should_stop_propagation)` tuple.
+fn handle_optional_deps_batch_install(
+    app: &mut AppState,
+    selected_rows: &[crate::state::types::OptionalDepRow],
+) -> (crate::state::Modal, bool) {
+    use crate::state::{PackageItem, Source};
+
+    if selected_rows.len() == 1 {
+        return handle_optional_deps_enter(app, &selected_rows[0]);
+    }
+
+    let packages: Vec<PackageItem> = selected_rows
+        .iter()
+        .map(|row| {
+            crate::index::find_package_by_name(&row.package).unwrap_or_else(|| PackageItem {
+                name: row.package.clone(),
+                version: String::new(),
+                description: String::new(),
+                source: Source::Aur,
+                popularity: None,
+                out_of_date: None,
+                orphaned: false,
+            })
+        })
+        .collect();
+
+    let aur_count = packages
+        .iter()
+        .filter(|item| matches!(item.source, Source::Aur))
+        .count();
+    let header_chips = crate::state::modal::PreflightHeaderChips {
+        package_count: packages.len(),
+        download_bytes: 0,
+        install_delta_bytes: 0,
+        aur_count,
+        risk_score: 0,
+        risk_level: crate::state::modal::RiskLevel::Low,
+    };
+
+    // Reuse standard install flow so auth handoff/password prompt semantics stay consistent.
+    let _ = crate::events::preflight::keys::handle_proceed_install(app, packages, header_chips);
+    (app.modal.clone(), false)
 }
 
 /// What: Handle Enter key in `OptionalDeps` modal.
@@ -101,7 +199,6 @@ fn handle_optional_deps_enter(
     app: &mut AppState,
     row: &crate::state::types::OptionalDepRow,
 ) -> (crate::state::Modal, bool) {
-    use crate::install::ExecutorRequest;
     use crate::state::{PackageItem, Source};
 
     // Setup flows need interactive terminal, keep as-is
@@ -379,33 +476,20 @@ fn handle_optional_deps_enter(
         // For rate-mirrors and semgrep-bin, use AUR helper if available
         let use_aur_helper = is_aur || pkg == "rate-mirrors" || pkg == "semgrep-bin";
 
-        // Transition to PreflightExec modal
-        app.modal = crate::state::Modal::PreflightExec {
-            items: vec![package_item.clone()],
-            action: crate::state::PreflightAction::Install,
-            tab: crate::state::PreflightTab::Summary,
-            verbose: false,
-            log_lines: Vec::new(),
-            success: None,
-            abortable: false,
-            header_chips: crate::state::modal::PreflightHeaderChips {
-                package_count: 1,
-                download_bytes: 0,
-                install_delta_bytes: 0,
-                aur_count: usize::from(use_aur_helper),
-                risk_score: 0,
-                risk_level: crate::state::modal::RiskLevel::Low,
-            },
+        let header_chips = crate::state::modal::PreflightHeaderChips {
+            package_count: 1,
+            download_bytes: 0,
+            install_delta_bytes: 0,
+            aur_count: usize::from(use_aur_helper),
+            risk_score: 0,
+            risk_level: crate::state::modal::RiskLevel::Low,
         };
-
-        // Store executor request for processing in tick handler
-        app.pending_executor_request = Some(ExecutorRequest::Install {
-            items: vec![package_item],
-            password: None, // Password will be prompted if needed for official packages
-            dry_run: app.dry_run,
-        });
-
-        return (app.modal.clone(), true);
+        let _ = crate::events::preflight::keys::handle_proceed_install(
+            app,
+            vec![package_item],
+            header_chips,
+        );
+        return (app.modal.clone(), false);
     }
 
     (crate::state::Modal::None, false)
@@ -451,9 +535,20 @@ pub(super) fn handle_ssh_setup_modal(
             let ssh_command = crate::theme::settings().aur_vote_ssh_command;
             match crate::logic::ssh_setup::run_aur_ssh_setup(false, &ssh_command) {
                 crate::logic::ssh_setup::AurSshSetupResult::Completed(report) => {
+                    let failed = !report.success;
                     *step = crate::state::SshSetupStep::Result;
                     *status_lines = report.lines;
                     *existing_host_block = None;
+                    if failed {
+                        app.toast_message =
+                            Some("SSH setup failed. Continuing startup setup.".to_string());
+                        app.toast_expires_at =
+                            Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
+                        app.modal = crate::state::Modal::None;
+                        if !app.pending_startup_setup_steps.is_empty() {
+                            super::common::show_next_startup_setup_step(app);
+                        }
+                    }
                 }
                 crate::logic::ssh_setup::AurSshSetupResult::NeedsOverwrite {
                     existing_block,
@@ -493,9 +588,19 @@ pub(super) fn handle_ssh_setup_modal(
                     }
                 }
             };
+            let failed = !report.success;
             *step = crate::state::SshSetupStep::Result;
             *status_lines = report.lines;
             *existing_host_block = None;
+            if failed {
+                app.toast_message = Some("SSH setup failed. Continuing startup setup.".to_string());
+                app.toast_expires_at =
+                    Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
+                app.modal = crate::state::Modal::None;
+                if !app.pending_startup_setup_steps.is_empty() {
+                    super::common::show_next_startup_setup_step(app);
+                }
+            }
             Some(true)
         }
         _ => None,

@@ -329,8 +329,8 @@ fn build_terminal_candidates(is_gnome: bool) -> Vec<(&'static str, &'static [&'s
         ("alacritty", &["-e", "bash", "-lc"], false),
         ("ghostty", &["-e", "bash", "-lc"], false),
         ("kitty", &["bash", "-lc"], false),
-        ("xterm", &["-hold", "-e", "bash", "-lc"], false),
         ("konsole", &["-e", "bash", "-lc"], false),
+        ("xterm", &["-hold", "-e", "bash", "-lc"], false),
         ("xfce4-terminal", &[], true),
         ("tilix", &["--", "bash", "-lc"], false),
         ("mate-terminal", &["--", "bash", "-lc"], false),
@@ -339,11 +339,11 @@ fn build_terminal_candidates(is_gnome: bool) -> Vec<(&'static str, &'static [&'s
         ("alacritty", &["-e", "bash", "-lc"], false),
         ("ghostty", &["-e", "bash", "-lc"], false),
         ("kitty", &["bash", "-lc"], false),
-        ("xterm", &["-hold", "-e", "bash", "-lc"], false),
+        ("konsole", &["-e", "bash", "-lc"], false),
         ("gnome-terminal", &["--", "bash", "-lc"], false),
         ("gnome-console", &["--", "bash", "-lc"], false),
         ("kgx", &["--", "bash", "-lc"], false),
-        ("konsole", &["-e", "bash", "-lc"], false),
+        ("xterm", &["-hold", "-e", "bash", "-lc"], false),
         ("xfce4-terminal", &[], true),
         ("tilix", &["--", "bash", "-lc"], false),
         ("mate-terminal", &["--", "bash", "-lc"], false),
@@ -441,10 +441,10 @@ pub fn spawn_shell_commands_in_terminal_with_hold(cmds: &[String], hold: bool) {
     if cmds.is_empty() {
         return;
     }
-    let hold_tail = "; echo; echo 'Finished.'; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
+    let hold_tail = "echo; echo 'Finished.'; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
     let joined = cmds.join(" && ");
     let cmd_str = if hold {
-        format!("{joined}{hold_tail}")
+        format!("{joined}\n{hold_tail}")
     } else {
         joined
     };
@@ -673,6 +673,82 @@ mod tests {
             } else {
                 std::env::remove_var("TMPDIR");
             }
+        }
+    }
+
+    #[test]
+    /// What: Ensure multiline command hold-tail is appended with valid shell syntax.
+    ///
+    /// Inputs:
+    /// - A multiline shell snippet executed through `spawn_shell_commands_in_terminal_with_hold`.
+    ///
+    /// Output:
+    /// - Generated temp script does not contain a line starting with `;`.
+    ///
+    /// Details:
+    /// - Guards against malformed hold-tail composition that causes bash syntax errors near line end.
+    fn shell_hold_tail_for_multiline_script_has_no_leading_semicolon_line() {
+        use std::fs;
+        use std::os::unix::fs::PermissionsExt;
+        use std::path::PathBuf;
+
+        let mut dir: PathBuf = std::env::temp_dir();
+        dir.push(format!(
+            "pacsea_test_shell_hold_tail_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("System time is before UNIX epoch")
+                .as_nanos()
+        ));
+        fs::create_dir_all(&dir).expect("create test directory");
+        let out_path = dir.join("args.txt");
+        let term_path = dir.join("gnome-terminal");
+        let recorder = "#!/bin/sh\n: > \"$PACSEA_TEST_OUT\"\nfor a in \"$@\"; do printf '%s\n' \"$a\" >> \"$PACSEA_TEST_OUT\"; done\n";
+        fs::write(&term_path, recorder.as_bytes()).expect("write fake gnome-terminal");
+        let mut perms = fs::metadata(&term_path)
+            .expect("read fake terminal metadata")
+            .permissions();
+        perms.set_mode(0o755);
+        fs::set_permissions(&term_path, perms).expect("set fake terminal executable");
+
+        let orig_path = std::env::var_os("PATH");
+        unsafe {
+            std::env::set_var("PATH", dir.display().to_string());
+            std::env::set_var("PACSEA_TEST_OUT", out_path.display().to_string());
+        }
+
+        let cmds = vec!["set -e\nprintf 'hello\\n'".to_string()];
+        super::spawn_shell_commands_in_terminal_with_hold(&cmds, true);
+
+        let mut attempts = 0;
+        while !out_path.exists() && attempts < 50 {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+            attempts += 1;
+        }
+        let body = fs::read_to_string(&out_path).expect("fake terminal args file written");
+        let lines: Vec<&str> = body.lines().collect();
+        assert!(lines.len() >= 4, "expected at least 4 args, got: {body}");
+        let script_exec = lines[3];
+        let script_path = script_exec
+            .split('\'')
+            .nth(1)
+            .expect("script path quoted in bash invocation");
+        let generated = fs::read_to_string(script_path).expect("read generated temp script");
+        assert!(
+            !generated
+                .lines()
+                .any(|line| line.trim_start().starts_with(';')),
+            "generated script must not include leading semicolon lines: {generated}"
+        );
+
+        unsafe {
+            if let Some(v) = orig_path {
+                std::env::set_var("PATH", v);
+            } else {
+                std::env::remove_var("PATH");
+            }
+            std::env::remove_var("PACSEA_TEST_OUT");
         }
     }
 }

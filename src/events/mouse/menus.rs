@@ -608,7 +608,11 @@ fn handle_repositories_option(app: &mut AppState) {
 /// - Spawns a background AUR SSH help check like other optional-deps entry points.
 fn handle_optional_deps_option(app: &mut AppState) {
     let rows = menu_options::build_optional_deps_rows(app);
-    app.modal = crate::state::Modal::OptionalDeps { rows, selected: 0 };
+    app.modal = crate::state::Modal::OptionalDeps {
+        rows,
+        selected: 0,
+        selected_pkg_names: std::collections::HashSet::new(),
+    };
     let ssh_command = crate::theme::settings().aur_vote_ssh_command;
     app.pending_aur_ssh_help_check_result = Some(
         crate::logic::ssh_setup::spawn_aur_ssh_help_check(ssh_command),

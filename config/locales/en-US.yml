@@ -588,7 +588,7 @@ en-US:
         markers:
           installed: "✔ installed"
           not_installed: "⏺ not installed"
-        footer_hint: "Up/Down: select  •  Enter: install  •  Esc: close"
+        footer_hint: "Up/Down: select  •  Space: toggle selection  •  Enter: install selected/current  •  Esc: close"
       repositories:
         title: " Repositories "
         heading: "Configured repositories"

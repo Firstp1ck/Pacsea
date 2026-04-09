@@ -52,7 +52,11 @@ fn ui_optional_deps_modal_structure() {
     ];
 
     let app = AppState {
-        modal: Modal::OptionalDeps { rows, selected: 1 },
+        modal: Modal::OptionalDeps {
+            rows,
+            selected: 1,
+            selected_pkg_names: std::collections::HashSet::new(),
+        },
         ..Default::default()
     };
 
@@ -60,6 +64,7 @@ fn ui_optional_deps_modal_structure() {
         Modal::OptionalDeps {
             rows: ref modal_rows,
             selected,
+            ..
         } => {
             assert_eq!(modal_rows.len(), 4);
             assert_eq!(selected, 1);

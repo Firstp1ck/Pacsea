@@ -45,11 +45,13 @@ fn optional_deps_esc_closes_modal() {
     app.modal = crate::state::Modal::OptionalDeps {
         rows: rows.clone(),
         selected: 0,
+        selected_pkg_names: std::collections::HashSet::new(),
     };
 
     let mut selected = 0;
+    let mut selected_pkg_names = std::collections::HashSet::new();
     let ke = KeyEvent::new(KeyCode::Esc, KeyModifiers::empty());
-    let result = handle_optional_deps(ke, &mut app, &rows, &mut selected);
+    let result = handle_optional_deps(ke, &mut app, &rows, &mut selected, &mut selected_pkg_names);
 
     match app.modal {
         crate::state::Modal::None => {}
@@ -78,11 +80,13 @@ fn optional_deps_navigation() {
     app.modal = crate::state::Modal::OptionalDeps {
         rows: rows.clone(),
         selected: 0,
+        selected_pkg_names: std::collections::HashSet::new(),
     };
 
     let mut selected = 0;
+    let mut selected_pkg_names = std::collections::HashSet::new();
     let ke = KeyEvent::new(KeyCode::Down, KeyModifiers::empty());
-    let _ = handle_optional_deps(ke, &mut app, &rows, &mut selected);
+    let _ = handle_optional_deps(ke, &mut app, &rows, &mut selected, &mut selected_pkg_names);
 
     assert_eq!(selected, 1, "Selection should move down");
 }
@@ -105,26 +109,21 @@ fn optional_deps_enter_installs() {
     app.modal = crate::state::Modal::OptionalDeps {
         rows: rows.clone(),
         selected: 0,
+        selected_pkg_names: std::collections::HashSet::new(),
     };
 
     let mut selected = 0;
+    let mut selected_pkg_names = std::collections::HashSet::new();
     let ke = KeyEvent::new(KeyCode::Enter, KeyModifiers::empty());
-    let result = handle_optional_deps(ke, &mut app, &rows, &mut selected);
+    let result = handle_optional_deps(ke, &mut app, &rows, &mut selected, &mut selected_pkg_names);
 
-    // Should return Some(true) when installation is triggered
-    assert_eq!(result, Some(true));
-    // Modal should transition to PreflightExec after installation is triggered
+    // Install flow now delegates to preflight proceed logic.
+    assert_eq!(result, Some(false));
+    // Modal should transition to auth/preflight execution path.
     match app.modal {
-        crate::state::Modal::PreflightExec { .. } => {
-            // Expected - installation now uses executor pattern and transitions to PreflightExec
-        }
-        _ => panic!("Expected modal to transition to PreflightExec after installation"),
+        crate::state::Modal::PreflightExec { .. } | crate::state::Modal::PasswordPrompt { .. } => {}
+        _ => panic!("Expected modal to transition to PreflightExec or PasswordPrompt"),
     }
-    // Verify that pending_executor_request is set
-    assert!(
-        app.pending_executor_request.is_some(),
-        "Optional deps installation should set pending_executor_request"
-    );
 }
 
 #[test]
@@ -145,11 +144,13 @@ fn optional_deps_enter_installed_shows_reinstall() {
     app.modal = crate::state::Modal::OptionalDeps {
         rows: rows.clone(),
         selected: 0,
+        selected_pkg_names: std::collections::HashSet::new(),
     };
 
     let mut selected = 0;
+    let mut selected_pkg_names = std::collections::HashSet::new();
     let ke = KeyEvent::new(KeyCode::Enter, KeyModifiers::empty());
-    let result = handle_optional_deps(ke, &mut app, &rows, &mut selected);
+    let result = handle_optional_deps(ke, &mut app, &rows, &mut selected, &mut selected_pkg_names);
 
     // Should return Some(false) when showing reinstall confirmation
     assert_eq!(result, Some(false));
@@ -179,8 +180,10 @@ fn optional_deps_enter_sudo_timestamp_setup_opens_modal() {
     app.modal = crate::state::Modal::OptionalDeps {
         rows: rows.clone(),
         selected: 0,
+        selected_pkg_names: std::collections::HashSet::new(),
     };
-    let _ = handle_optional_deps(ke, &mut app, &rows, &mut selected);
+    let mut selected_pkg_names = std::collections::HashSet::new();
+    let _ = handle_optional_deps(ke, &mut app, &rows, &mut selected, &mut selected_pkg_names);
     assert!(
         matches!(app.modal, crate::state::Modal::SudoTimestampSetup { .. }),
         "expected SudoTimestampSetup modal"
@@ -197,8 +200,10 @@ fn optional_deps_enter_doas_persist_setup_opens_modal() {
     app.modal = crate::state::Modal::OptionalDeps {
         rows: rows.clone(),
         selected: 0,
+        selected_pkg_names: std::collections::HashSet::new(),
     };
-    let _ = handle_optional_deps(ke, &mut app, &rows, &mut selected);
+    let mut selected_pkg_names = std::collections::HashSet::new();
+    let _ = handle_optional_deps(ke, &mut app, &rows, &mut selected, &mut selected_pkg_names);
     assert!(
         matches!(app.modal, crate::state::Modal::DoasPersistSetup { .. }),
         "expected DoasPersistSetup modal"
@@ -222,11 +227,13 @@ fn optional_deps_enter_virustotal_setup() {
     app.modal = crate::state::Modal::OptionalDeps {
         rows: rows.clone(),
         selected: 0,
+        selected_pkg_names: std::collections::HashSet::new(),
     };
 
     let mut selected = 0;
     let ke = KeyEvent::new(KeyCode::Enter, KeyModifiers::empty());
-    let _ = handle_optional_deps(ke, &mut app, &rows, &mut selected);
+    let mut selected_pkg_names = std::collections::HashSet::new();
+    let _ = handle_optional_deps(ke, &mut app, &rows, &mut selected, &mut selected_pkg_names);
 
     match app.modal {
         crate::state::Modal::VirusTotalSetup { .. } => {}
@@ -242,10 +249,12 @@ fn optional_deps_enter_aur_ssh_setup_opens_modal() {
     app.modal = crate::state::Modal::OptionalDeps {
         rows: rows.clone(),
         selected: 0,
+        selected_pkg_names: std::collections::HashSet::new(),
     };
     let mut selected = 0;
     let ke = KeyEvent::new(KeyCode::Enter, KeyModifiers::empty());
-    let result = handle_optional_deps(ke, &mut app, &rows, &mut selected);
+    let mut selected_pkg_names = std::collections::HashSet::new();
+    let result = handle_optional_deps(ke, &mut app, &rows, &mut selected, &mut selected_pkg_names);
 
     assert_eq!(result, Some(false));
     match app.modal {
@@ -289,11 +298,13 @@ fn optional_deps_esc_advances_startup_queue() {
     app.modal = crate::state::Modal::OptionalDeps {
         rows: rows.clone(),
         selected: 0,
+        selected_pkg_names: std::collections::HashSet::new(),
     };
 
     let mut selected = 0;
     let ke = KeyEvent::new(KeyCode::Esc, KeyModifiers::empty());
-    let _ = handle_optional_deps(ke, &mut app, &rows, &mut selected);
+    let mut selected_pkg_names = std::collections::HashSet::new();
+    let _ = handle_optional_deps(ke, &mut app, &rows, &mut selected, &mut selected_pkg_names);
 
     assert!(matches!(
         app.modal,

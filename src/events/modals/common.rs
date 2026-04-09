@@ -76,7 +76,11 @@ pub(super) fn show_next_startup_setup_step(app: &mut AppState) {
                 if rows.is_empty() {
                     continue;
                 }
-                app.modal = crate::state::Modal::OptionalDeps { rows, selected: 0 };
+                app.modal = crate::state::Modal::OptionalDeps {
+                    rows,
+                    selected: 0,
+                    selected_pkg_names: std::collections::HashSet::new(),
+                };
             }
             crate::state::modal::StartupSetupTask::SshAurSetup => {
                 if app.aur_ssh_help_ready.unwrap_or(false) {
@@ -360,6 +364,10 @@ pub(super) fn handle_preflight_exec(
                 app.pending_repositories_modal_resume = None;
             }
             app.modal = crate::state::Modal::None;
+            if success == Some(false) && !app.pending_startup_setup_steps.is_empty() {
+                show_next_startup_setup_step(app);
+                return true;
+            }
             if reopen_ok {
                 super::repositories::reopen_repositories_modal_if_pending(app);
             }

@@ -174,6 +174,7 @@ pub(super) fn create_test_modals() -> Vec<(crate::state::Modal, &'static str)> {
             crate::state::Modal::OptionalDeps {
                 rows: vec![],
                 selected: 0,
+                selected_pkg_names: std::collections::HashSet::new(),
             },
             "OptionalDeps",
         ),

@@ -933,6 +933,8 @@ pub enum Modal {
         rows: Vec<OptionalDepRow>,
         /// Selected row index.
         selected: usize,
+        /// Selected package names for batch install actions.
+        selected_pkg_names: HashSet<String>,
     },
     /// Read-only Repositories viewer: `repos.conf` vs live `pacman.conf` / includes.
     Repositories {
@@ -1115,6 +1117,7 @@ mod tests {
         let _ = super::Modal::OptionalDeps {
             rows: Vec::new(),
             selected: 0,
+            selected_pkg_names: std::collections::HashSet::new(),
         };
         let _ = super::Modal::Repositories {
             rows: Vec::new(),

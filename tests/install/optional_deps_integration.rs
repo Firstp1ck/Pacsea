@@ -52,7 +52,11 @@ fn integration_optional_deps_modal_state() {
     ];
 
     let app = AppState {
-        modal: Modal::OptionalDeps { rows, selected: 0 },
+        modal: Modal::OptionalDeps {
+            rows,
+            selected: 0,
+            selected_pkg_names: std::collections::HashSet::new(),
+        },
         ..Default::default()
     };
 
@@ -60,6 +64,7 @@ fn integration_optional_deps_modal_state() {
         Modal::OptionalDeps {
             rows: ref modal_rows,
             selected,
+            ..
         } => {
             assert_eq!(modal_rows.len(), 3);
             assert_eq!(selected, 0);
@@ -118,7 +123,11 @@ fn integration_optional_deps_command_structure() {
 fn integration_optional_deps_virustotal_setup() {
     let rows = vec![create_test_row("virustotal-setup", false, true)];
     let mut app = AppState {
-        modal: Modal::OptionalDeps { rows, selected: 0 },
+        modal: Modal::OptionalDeps {
+            rows,
+            selected: 0,
+            selected_pkg_names: std::collections::HashSet::new(),
+        },
         ..Default::default()
     };
 

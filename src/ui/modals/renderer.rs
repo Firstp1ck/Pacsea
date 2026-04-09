@@ -388,6 +388,8 @@ struct OptionalDepsContext {
     rows: Vec<OptionalDepRow>,
     /// Currently selected row index.
     selected: usize,
+    /// Selected package names for batch install.
+    selected_pkg_names: std::collections::HashSet<String>,
 }
 
 /// What: Context for the read-only Repositories modal.
@@ -725,8 +727,16 @@ impl ModalRenderer for Modal {
                 };
                 render_updates_modal(f, app, area, ctx)
             }
-            Self::OptionalDeps { rows, selected } => {
-                let ctx = OptionalDepsContext { rows, selected };
+            Self::OptionalDeps {
+                rows,
+                selected,
+                selected_pkg_names,
+            } => {
+                let ctx = OptionalDepsContext {
+                    rows,
+                    selected,
+                    selected_pkg_names,
+                };
                 render_optional_deps_modal(f, area, ctx, app)
             }
             Self::Repositories {
@@ -1210,10 +1220,18 @@ fn render_optional_deps_modal(
     ctx: OptionalDepsContext,
     app: &mut AppState,
 ) -> Modal {
-    misc::render_optional_deps(f, area, &ctx.rows, ctx.selected, app);
+    misc::render_optional_deps(
+        f,
+        area,
+        &ctx.rows,
+        ctx.selected,
+        &ctx.selected_pkg_names,
+        app,
+    );
     Modal::OptionalDeps {
         rows: ctx.rows,
         selected: ctx.selected,
+        selected_pkg_names: ctx.selected_pkg_names,
     }
 }
 
