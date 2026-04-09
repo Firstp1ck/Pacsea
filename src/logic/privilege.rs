@@ -796,10 +796,13 @@ fn is_integration_test_context() -> bool {
     // from honoring these bypass env vars.
     #[cfg(debug_assertions)]
     {
-        return true;
+        true
     }
 
-    is_running_cargo_test_binary()
+    #[cfg(not(debug_assertions))]
+    {
+        is_running_cargo_test_binary()
+    }
 }
 
 /// What: Determine whether the current executable is a Cargo-generated test binary.
@@ -814,6 +817,7 @@ fn is_integration_test_context() -> bool {
 /// - Integration tests compile the library without `cfg(test)`, so this runtime check keeps
 ///   `PACSEA_INTEGRATION_TEST` overrides functional for `cargo test --release`.
 /// - Normal `cargo run --release` / installed binaries do not execute from `target/*/deps`.
+#[cfg(not(debug_assertions))]
 fn is_running_cargo_test_binary() -> bool {
     let Ok(exe) = std::env::current_exe() else {
         return false;

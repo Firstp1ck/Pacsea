@@ -1098,12 +1098,11 @@ pub(super) fn handle_news_setup_modal(ke: KeyEvent, app: &mut AppState, mut moda
     {
         match ke.code {
             KeyCode::Esc => {
-                // Cancel - restore previous modal or close
-                if let Some(prev_modal) = app.previous_modal.take() {
-                    app.modal = prev_modal;
-                } else {
-                    app.modal = crate::state::Modal::None;
-                }
+                // Cancel startup-news setup and continue startup flow.
+                // Do not restore previous modal here: previous_modal is used by
+                // unrelated flows (e.g. scan/preflight) and can be stale.
+                app.previous_modal = None;
+                app.modal = crate::state::Modal::None;
                 if app.pending_startup_setup_steps.is_empty() {
                     super::common::show_next_pending_announcement(app);
                 } else {
@@ -2032,6 +2031,51 @@ mod tests {
         assert!(
             !matches!(app.modal, Modal::VirusTotalSetup { .. }),
             "virustotal setup modal should close on Enter with non-empty key"
+        );
+    }
+
+    #[test]
+    fn news_setup_esc_does_not_restore_stale_previous_modal() {
+        let mut app = AppState::default();
+        app.pending_startup_setup_steps.clear();
+        app.previous_modal = Some(Modal::News {
+            items: vec![crate::state::types::NewsFeedItem {
+                id: "news-1".to_string(),
+                date: "2026-01-01".to_string(),
+                title: "Old news".to_string(),
+                summary: None,
+                url: Some("https://example.com/news-1".to_string()),
+                source: crate::state::types::NewsFeedSource::ArchNews,
+                severity: None,
+                packages: Vec::new(),
+            }],
+            selected: 0,
+            scroll: 0,
+        });
+        let modal = Modal::NewsSetup {
+            show_arch_news: true,
+            show_advisories: true,
+            show_aur_updates: true,
+            show_aur_comments: true,
+            show_pkg_updates: true,
+            max_age_days: Some(30),
+            cursor: 0,
+        };
+
+        let handled = handle_news_setup_modal(
+            KeyEvent::new(KeyCode::Esc, KeyModifiers::empty()),
+            &mut app,
+            modal,
+        );
+
+        assert!(handled);
+        assert!(
+            !matches!(app.modal, Modal::News { .. }),
+            "Esc in NewsSetup must not resurrect stale News modal"
+        );
+        assert!(
+            app.previous_modal.is_none(),
+            "stale previous_modal should be cleared on cancel"
         );
     }
 }

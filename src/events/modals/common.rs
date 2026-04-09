@@ -178,57 +178,13 @@ pub(super) fn show_next_pending_announcement(app: &mut AppState) {
         "no more pending announcements"
     );
 
-    // After all announcements are shown, check for pending news.
+    // Startup auto-popup for pending news is disabled by design.
+    // Keep pending_news untouched so News mode can still consume/render data.
     tracing::debug!(
         pending_news_exists = app.pending_news.is_some(),
         news_loading = app.news_loading,
-        "checking for pending news after announcements"
+        "startup pending news auto-popup disabled"
     );
-    if let Some(news_items) = app.pending_news.take()
-        && !news_items.is_empty()
-    {
-        tracing::info!(
-            news_items_count = news_items.len(),
-            news_loading_before = app.news_loading,
-            "showing pending news after announcements"
-        );
-        // Clear loading flag when news modal is actually shown.
-        app.news_loading = false;
-        // Convert NewsItem to NewsFeedItem for the modal, filtering out read items.
-        let feed_items: Vec<crate::state::types::NewsFeedItem> = news_items
-            .into_iter()
-            .filter(|item| {
-                // Filter out items marked as read by ID or URL
-                !app.news_read_ids.contains(&item.url) && !app.news_read_urls.contains(&item.url)
-            })
-            .map(|item| crate::state::types::NewsFeedItem {
-                id: item.url.clone(),
-                date: item.date,
-                title: item.title,
-                summary: None,
-                url: Some(item.url),
-                source: crate::state::types::NewsFeedSource::ArchNews,
-                severity: None,
-                packages: Vec::new(),
-            })
-            .collect();
-        // Only show modal if there are unread items.
-        if feed_items.is_empty() {
-            tracing::debug!("all pending news items have been read, not showing modal");
-        } else {
-            app.modal = crate::state::Modal::News {
-                items: feed_items,
-                selected: 0,
-                scroll: 0,
-            };
-            tracing::info!(
-                news_loading_after = app.news_loading,
-                "pending news modal set, loading flag cleared"
-            );
-        }
-    } else if app.pending_news.is_some() {
-        tracing::debug!("pending news exists but is empty, not showing");
-    }
 }
 
 /// What: Handle key events for Alert modal.
@@ -1834,18 +1790,18 @@ mod tests {
     }
 
     #[test]
-    /// What: Verify `show_next_pending_announcement` shows pending news after all announcements.
+    /// What: Verify startup flow does not auto-show pending news modal.
     ///
     /// Inputs:
     /// - `AppState` with no pending announcements but pending news.
     ///
     /// Output:
-    /// - Shows News modal after announcements are exhausted.
+    /// - Does not show News modal automatically.
     ///
     /// Details:
-    /// - After all announcements are shown, pending news should be displayed.
+    /// - Pending news remains queued for News mode consumption.
     #[allow(clippy::field_reassign_with_default)]
-    fn test_show_next_pending_announcement_shows_news_after() {
+    fn test_show_next_pending_announcement_does_not_auto_show_news() {
         let mut app = crate::state::AppState::default();
         app.modal = crate::state::Modal::None;
 
@@ -1858,15 +1814,11 @@ mod tests {
 
         show_next_pending_announcement(&mut app);
 
-        // Should show news modal
-        match &app.modal {
-            crate::state::Modal::News { items, .. } => {
-                assert_eq!(items.len(), 1);
-                assert_eq!(items[0].title, "Test News");
-            }
-            _ => panic!("Expected News modal"),
-        }
-        assert!(app.pending_news.is_none());
+        assert!(
+            matches!(app.modal, crate::state::Modal::None),
+            "startup flow must not auto-open News modal"
+        );
+        assert!(app.pending_news.is_some());
     }
 
     #[test]
