@@ -1,34 +1,22 @@
 ## What's New
 
-### Custom and third-party repositories
+Compared to **v0.8.0**, this release improves first-run setup, the updates experience, and the optional **AUR voting** SSH wizard. Everything below is new or different in **v0.8.1**; unchanged areas (custom repos, PKGBUILD checks, core voting behavior, etc.) are not repeated here.
 
-- Configure extra repos in **`repos.conf`**, edit them from the app, and apply changes when you are ready (with privilege prompts when needed).
-- Search and filters can include packages from those repos, with sensible handling when the same package name appears more than once.
-- Toggle managed entries on or off; disabled repos are ignored until you enable them again. The repositories screen can refresh with up-to-date status after related dialogs.
-- First run seeds a starter file; **`repos_example.conf`** ships as a copy-paste reference.
+### ✨ Features
 
-### After you add a repo
+- **Startup setup**: A selector runs optional setup tasks in order (optional dependencies, AUR SSH, VirusTotal, news, and related steps). Optional dependencies includes a **[Wizard]** entry. New **sudo timestamp** and **doas persist** setup wizards; install/update/remove can warn when long sessions may hit auth limits.
+- **AUR SSH setup**: Guided flow through local key/config, pasting the key on AUR, then a live SSH check. Copy the public key with **C** or the copy row; open the AUR login with **O** when you need it. More reliable first connection to AUR (including host-key handling). Success feedback appears after the remote check succeeds.
+- **Updates**: Layout shows **repo/name** and **old → new** versions with clearer diff highlighting. Slash filter, multi-select, and navigation behave more predictably, including with wrapped lines and the mouse. The app can indicate when an update list may be incomplete and why.
 
-- If packages you installed also exist in the new repo, a short guided flow explains the situation and helps you choose what to do next (including optional cleanup). Preview-only mode stays accurate; canceling or errors should not leave the UI stuck.
+### 🛡 Security & reliability
 
-### Overlapping names (AUR vs other sources)
+- Tighter handling around privileged commands, temporary scripts, and saved command logs.
 
-- AUR installs go through your helper in a way that avoids wrong-source surprises when a community mirror lists the same name.
-- Selecting an AUR hit that also appears as a normal Arch listing can show a one-time warning before you continue.
+### 🐛 Fixes
 
-### Optional: AUR voting
+- Calmer first-run order between setup dialogs and version announcements.
+- Clearer labels when a setup task is unavailable (for example wrong privilege tool).
+- Setup dialogs no longer leave stray keypresses for the next screen.
+- Startup news no longer pops up on its own; leaving news setup does not resurrect an old Arch news window.
+- Optional dependency batch installs go through the same auth/preflight path as other installs; terminal integration fixes for multiline follow-up commands and fallback ordering.
 
-- Vote or unvote AUR packages from search when enabled, using SSH to the AUR.
-- Built-in **SSH AUR setup** helps you configure the host entry in your SSH config.
-- Honors your SSH command, timeout, and preview-only mode (no fake vote state).
-
-### Optional: PKGBUILD checks
-
-- Run **ShellCheck** and **Namcap** on the selected package build file from the details view when those tools are installed (timeouts and missing tools handled gracefully).
-- Switch between the PKGBUILD text and check results in the details pane; settings cover raw output and ShellCheck excludes.
-
-### Bug fixes
-
-- **Repositories:** Stricter validation for paths, server URLs, signing keys, and filter keys; safer behavior when apply is interrupted or does not complete successfully.
-- **PKGBUILD checks:** More reliable when starting a check; time limits handled inside the app; clearer messaging when a checker is not installed.
-- **Lists and filters:** Better column alignment when names use wide characters (e.g. some non-Latin scripts).
