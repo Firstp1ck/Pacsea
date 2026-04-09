@@ -42,7 +42,7 @@ optdepends=(
 
 provides=("pacsea=${pkgver}")
 conflicts=('pacsea' 'pacsea-git')
-source=("Pacsea::https://github.com/Firstp1ck/Pacsea/releases/download/${_tag}/Pacsea"
+source=("Pacsea::https://github.com/Firstp1ck/Pacsea/releases/download/${_tag}/pacsea"
         "Pacsea-${_tag}.tar.gz::https://github.com/Firstp1ck/Pacsea/archive/refs/tags/${_tag}.tar.gz")
 sha256sums=('f256da16e88d677cd1cff5d6ff35a0d18758e146358071a6cc2ea43b82d9d57c'
             '88d5d8641146402e2ca2da9c0e7e2abe7121cd9bb9cb257aee3ea6b064f213c9')

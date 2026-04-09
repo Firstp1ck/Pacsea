@@ -123,6 +123,48 @@ function validate_semver
     end
 end
 
+function wait_for_release_asset
+    set -l tag $argv[1]
+    set -l asset_name $argv[2]
+    set -l max_attempts 15
+    set -l sleep_seconds 8
+    set -l asset_url "https://github.com/Firstp1ck/Pacsea/releases/download/$tag/$asset_name"
+    
+    log_info "Checking release asset availability: $asset_url"
+    
+    for i in (seq 1 $max_attempts)
+        if curl -fsIL "$asset_url" >/dev/null 2>&1
+            log_success "Release asset is available (attempt $i/$max_attempts)"
+            return 0
+        end
+        
+        if test $i -lt $max_attempts
+            log_warn "Asset not ready yet (attempt $i/$max_attempts), retrying in $sleep_seconds seconds..."
+            sleep $sleep_seconds
+        end
+    end
+    
+    log_error "Release asset is still unavailable after $max_attempts attempts"
+    log_error "URL checked: $asset_url"
+    return 1
+end
+
+function extract_first_sha256
+    set -l pkgbuild_file $argv[1]
+    
+    if not test -f "$pkgbuild_file"
+        return 1
+    end
+    
+    set -l first_sha (string match -r -g '[0-9a-f]{64}' (cat "$pkgbuild_file") | head -n 1)
+    if test -n "$first_sha"
+        echo "$first_sha"
+        return 0
+    end
+    
+    return 1
+end
+
 function get_current_version
     grep -m1 '^version = ' "$PACSEA_DIR/Cargo.toml" | sed 's/version = "\(.*\)"/\1/'
 end
@@ -611,6 +653,21 @@ function phase5_aur_update
     log_info "Check: https://github.com/Firstp1ck/Pacsea/actions"
     wait_for_user "Press Enter when GitHub Action has completed..."
     
+    # Verify the binary is actually downloadable before running update-sha.
+    set -l tag "v$new_ver"
+    set -l asset_name "pacsea"
+    
+    if test "$DRY_RUN" = true
+        log_info "[DRY-RUN] Would verify release asset availability: $tag/$asset_name"
+    else
+        wait_for_release_asset "$tag" "$asset_name"
+        if test $status -ne 0
+            if not confirm_continue "Release asset is not ready yet. Continue anyway?"
+                return 1
+            end
+        end
+    end
+    
     if test "$DRY_RUN" = true
         log_info "[DRY-RUN] Would change to $AUR_BIN_DIR"
         log_info "[DRY-RUN] Would run update-sha"
@@ -619,11 +676,33 @@ function phase5_aur_update
         log_info "Changed to: $AUR_BIN_DIR"
         log_info "Running update-sha (interactive)..."
         
+        set -l pkgbuild_file "$AUR_BIN_DIR/PKGBUILD"
+        set -l sha_before (extract_first_sha256 "$pkgbuild_file")
+        if test -n "$sha_before"
+            log_info "Current SHA before update-sha: $sha_before"
+        else
+            log_warn "Could not parse existing SHA from $pkgbuild_file"
+        end
+        
         # Run update-sha - this is interactive
         update-sha
         
         if test $status -eq 0
-            log_success "SHA sums updated"
+            set -l sha_after (extract_first_sha256 "$pkgbuild_file")
+            if test -n "$sha_after"
+                log_info "SHA after update-sha: $sha_after"
+            else
+                log_warn "Could not parse SHA after update-sha from $pkgbuild_file"
+            end
+            
+            if test -n "$sha_before"; and test -n "$sha_after"; and test "$sha_before" = "$sha_after"
+                log_warn "SHA did not change after update-sha"
+                if not confirm_continue "SHA unchanged. Continue anyway?"
+                    return 1
+                end
+            else
+                log_success "SHA sums updated"
+            end
         else
             log_warn "update-sha may have failed or was cancelled"
             if not confirm_continue "Continue anyway?"
