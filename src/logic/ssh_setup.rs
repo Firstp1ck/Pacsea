@@ -9,8 +9,8 @@ use std::sync::{Arc, Mutex};
 const AUR_HOST: &str = "aur.archlinux.org";
 /// Fixed SSH key file name for the guided setup flow.
 const AUR_KEY_NAME: &str = "aur_key";
-/// Account URL shown in the setup flow.
-pub const AUR_ACCOUNT_URL: &str = "https://aur.archlinux.org/account";
+/// Login URL shown in the setup flow.
+pub const AUR_ACCOUNT_URL: &str = "https://aur.archlinux.org/login";
 
 /// What: Check whether `openssh` is installed on the system.
 ///

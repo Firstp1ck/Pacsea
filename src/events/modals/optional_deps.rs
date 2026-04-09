@@ -548,7 +548,7 @@ pub(super) fn handle_ssh_setup_modal(
                     status_lines.push(warning);
                 }
                 tracing::warn!("SSH setup blocked: openssh is not installed");
-                return Some(true);
+                return Some(false);
             }
             match crate::logic::ssh_setup::run_aur_ssh_setup(false) {
                 crate::logic::ssh_setup::AurSshSetupResult::Completed(report) => {
@@ -577,7 +577,7 @@ pub(super) fn handle_ssh_setup_modal(
                     *existing_host_block = Some(existing_block);
                 }
             }
-            Some(true)
+            Some(false)
         }
         (
             crate::state::SshSetupStep::ConfirmOverwrite,
@@ -622,7 +622,7 @@ pub(super) fn handle_ssh_setup_modal(
                 *step = crate::state::SshSetupStep::ApplyKeyOnAur;
                 crate::util::open_url(crate::logic::ssh_setup::AUR_ACCOUNT_URL);
             }
-            Some(true)
+            Some(false)
         }
         (
             crate::state::SshSetupStep::ApplyKeyOnAur,
