@@ -16,6 +16,7 @@ pub(super) fn startup_setup_steps_in_priority(
     let ordered = [
         crate::state::modal::StartupSetupTask::OptionalDepsMissing,
         crate::state::modal::StartupSetupTask::SudoTimestampSetup,
+        crate::state::modal::StartupSetupTask::DoasPersistSetup,
         crate::state::modal::StartupSetupTask::SshAurSetup,
         crate::state::modal::StartupSetupTask::AurSleuthSetup,
         crate::state::modal::StartupSetupTask::VirusTotalSetup,
@@ -68,6 +69,7 @@ pub(super) fn show_next_startup_setup_step(app: &mut AppState) {
                                         | "virustotal-setup"
                                         | "aur-sleuth-setup"
                                         | "sudo-timestamp-setup"
+                                        | "doas-persist-setup"
                                 )
                         })
                         .collect();
@@ -90,6 +92,9 @@ pub(super) fn show_next_startup_setup_step(app: &mut AppState) {
             }
             crate::state::modal::StartupSetupTask::SudoTimestampSetup => {
                 super::optional_deps::open_setup_package(app, "sudo-timestamp-setup");
+            }
+            crate::state::modal::StartupSetupTask::DoasPersistSetup => {
+                super::optional_deps::open_setup_package(app, "doas-persist-setup");
             }
         }
     }

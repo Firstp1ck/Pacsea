@@ -187,6 +187,24 @@ fn optional_deps_enter_sudo_timestamp_setup_opens_modal() {
     );
 }
 
+/// What: Verify `OptionalDeps` Enter on doas-persist-setup opens setup modal.
+#[test]
+fn optional_deps_enter_doas_persist_setup_opens_modal() {
+    let mut app = AppState::default();
+    let rows = vec![create_test_row("doas-persist-setup", false, true)];
+    let mut selected = 0usize;
+    let ke = KeyEvent::new(KeyCode::Enter, KeyModifiers::empty());
+    app.modal = crate::state::Modal::OptionalDeps {
+        rows: rows.clone(),
+        selected: 0,
+    };
+    let _ = handle_optional_deps(ke, &mut app, &rows, &mut selected);
+    assert!(
+        matches!(app.modal, crate::state::Modal::DoasPersistSetup { .. }),
+        "expected DoasPersistSetup modal"
+    );
+}
+
 /// What: Verify `OptionalDeps` modal Enter on virustotal-setup opens setup modal.
 ///
 /// Inputs:

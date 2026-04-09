@@ -617,6 +617,7 @@ impl Default for AppState {
             pending_news,
             pending_startup_setup_steps,
             trigger_startup_news_fetch,
+            long_run_auth_preflight_warned: false,
             updates_modal_rect,
             optional_deps_wizard_rect,
             updates_modal_content_rect,

@@ -1144,6 +1144,14 @@ pub fn handle_update(no_color: bool) -> ! {
     let settings = theme::settings();
     let interactive_auth = pacsea::logic::password::resolve_auth_mode(&settings)
         == pacsea::logic::privilege::AuthMode::Interactive;
+    let readiness = pacsea::logic::long_run_auth::evaluate_long_run_auth_readiness(&settings);
+    if readiness.should_warn {
+        println!(
+            "{}",
+            warning_color(&i18n::t("app.cli.update.long_run_auth_warning"), no_color)
+        );
+        write_log("WARN: long-run auth readiness indicates possible mid-run re-auth prompt");
+    }
 
     // Initialize update state
     let mut state = UpdateState::new();

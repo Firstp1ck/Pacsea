@@ -56,6 +56,7 @@ de-DE:
         downgrade: "Downgrade-Tool"
       items:
         sudo_timestamp_setup: "sudo-Anmelde-Cache (sudoers)"
+        doas_persist_setup: "doas-Persistenzrichtlinie"
     search_mode_fuzzy: "FUZZY"
     search_mode_normal: "NORMAL"
 
@@ -85,6 +86,7 @@ de-DE:
       connection_issue: "Verbindungsproblem"
       optional_deps: "Optionale Abhängigkeiten"
       sudo_timestamp_setup: "Sudo-Anmelde-Cache"
+      doas_persist_setup: "Doas-Persistenz"
       install_gnome_terminal: "GNOME-Terminal installieren"
       virustotal: "VirusTotal"
       arch_linux_news: "Arch Linux Neuigkeiten"
@@ -567,6 +569,7 @@ de-DE:
           ssh_aur_setup: "SSH-AUR-Setup fürs Voting"
           optional_deps_missing: "Fehlende optionale Abhängigkeiten prüfen"
           sudo_timestamp_setup: "Sudo-Anmelde-Cache (sudoers)"
+          doas_persist_setup: "Doas-Persistenzrichtlinie"
           aur_sleuth_setup: "aur-sleuth-Setup"
           virustotal_setup: "VirusTotal-API-Setup"
         footer_hint: "Hoch/Runter: auswählen  •  Leertaste: umschalten  •  Enter: Auswahl ausführen  •  Esc: vielleicht später  •  R: nie wieder anzeigen"
@@ -653,6 +656,22 @@ de-DE:
         manual_step_3: "  3) sudo chmod 0440 /etc/sudoers.d/99-pacsea-timestamp"
         instructions_footer: "Hoch/Runter: scrollen  •  Esc: zurück  •  Enter/Q: fertig  •  T: Terminal-Hilfe"
         dry_run_terminal_skipped: "Dry-Run: Terminal-Hilfe nicht gestartet"
+      doas_persist_setup:
+        title: " Doas-Persistenz "
+        select_heading: "Lange Installationen/Updates mit doas funktionieren besser mit persist in doas.conf."
+        option_wheel: "Wheel-Snippet verwenden (permit persist :wheel as root)"
+        option_user: "Benutzer-Snippet verwenden (permit persist <user> as root)"
+        option_skip: "Überspringen — doas manuell konfigurieren"
+        select_footer: "Hoch/Runter: wählen  •  Enter: weiter  •  Esc/Q: schließen"
+        instructions_heading: "Doas persist: Snippet und Prüf-Checkliste"
+        instructions_note: "Pacsea bearbeitet /etc/doas.conf nicht automatisch. Snippet kopieren und vor Aktivierung prüfen."
+        label_snippet: "Vorgeschlagenes doas.conf-Snippet:"
+        label_checks: "Prüf-Checkliste:"
+        instructions_footer: "Hoch/Runter: scrollen  •  Esc: zurück  •  Enter/T: Terminal-Prüfung"
+        dry_run_terminal_skipped: "Dry-Run: Terminal-Prüfung nicht gestartet"
+        preflight_warning_1: "Warnung: doas kann bei langen Vorgängen erneut Authentifizierung verlangen."
+        preflight_warning_2: "Konfiguriere doas persist (und ggf. PAM-Fingerprint), um Unterbrechungen zu reduzieren."
+        preflight_warning_3: "Pacsea delegiert interaktive Authentifizierung an Terminal/PAM."
       virustotal:
         title: " VirusTotal "
         heading: "VirusTotal API-Einrichtung"
@@ -885,6 +904,7 @@ de-DE:
     cli:
       update:
         starting: "Aktualisiere Systempakete (pacman -Syu)..."
+        long_run_auth_warning: "Warnung: Lange Vorgänge können für erneute Authentifizierung pausieren, wenn doas persist/PAM nicht konfiguriert ist."
         password_prompt: "[sudo] Passwort für {}: "
         pacman_success: "✓ Pacman-Update erfolgreich abgeschlossen"
         pacman_failed: "✗ Pacman-Update fehlgeschlagen"

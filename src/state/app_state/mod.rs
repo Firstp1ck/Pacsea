@@ -572,6 +572,8 @@ pub struct AppState {
     pub pending_startup_setup_steps: VecDeque<crate::state::modal::StartupSetupTask>,
     /// Flag to trigger startup news fetch after `NewsSetup` is completed.
     pub trigger_startup_news_fetch: bool,
+    /// Session-scoped latch to avoid repeatedly showing long-run auth preflight warning text.
+    pub long_run_auth_preflight_warned: bool,
 
     // Updates modal mouse hit-testing
     /// Outer rectangle of the Updates modal (including borders) when visible.

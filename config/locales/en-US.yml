@@ -56,6 +56,7 @@ en-US:
         downgrade: "Downgrade-Tool"
       items:
         sudo_timestamp_setup: "sudo credential cache (sudoers)"
+        doas_persist_setup: "doas persist policy setup"
     search_mode_fuzzy: "FUZZY"
     search_mode_normal: "NORMAL"
 
@@ -85,6 +86,7 @@ en-US:
       connection_issue: "Connection issue"
       optional_deps: "Optional Deps"
       sudo_timestamp_setup: "Sudo credential cache"
+      doas_persist_setup: "Doas persist setup"
       install_gnome_terminal: "Install a GNOME Terminal"
       virustotal: "VirusTotal"
       arch_linux_news: "Arch Linux News"
@@ -567,6 +569,7 @@ en-US:
           ssh_aur_setup: "SSH AUR setup for voting"
           optional_deps_missing: "Check missing optional dependencies"
           sudo_timestamp_setup: "Sudo credential cache (sudoers)"
+          doas_persist_setup: "Doas persist policy setup"
           aur_sleuth_setup: "aur-sleuth setup"
           virustotal_setup: "VirusTotal API setup"
         footer_hint: "Up/Down: select  •  Space: toggle  •  Enter: run selected  •  Esc: maybe later  •  R: never show again"
@@ -653,6 +656,22 @@ en-US:
         manual_step_3: "  3) sudo chmod 0440 /etc/sudoers.d/99-pacsea-timestamp"
         instructions_footer: "Up/Down: scroll  •  Esc: back  •  Enter/Q: done  •  T: terminal helper"
         dry_run_terminal_skipped: "Dry-run: terminal helper not started"
+      doas_persist_setup:
+        title: " Doas persist setup "
+        select_heading: "Long installs or updates with doas work best when persist policy is configured in doas.conf."
+        option_wheel: "Use wheel-scoped snippet (permit persist :wheel as root)"
+        option_user: "Use user-scoped snippet (permit persist <user> as root)"
+        option_skip: "Skip — I will configure doas manually"
+        select_footer: "Up/Down: choose  •  Enter: continue  •  Esc/Q: close"
+        instructions_heading: "Doas persist: snippet and verification checklist"
+        instructions_note: "Pacsea does not edit /etc/doas.conf automatically. Copy a safe snippet and validate before enabling."
+        label_snippet: "Suggested doas.conf snippet:"
+        label_checks: "Validation checklist:"
+        instructions_footer: "Up/Down: scroll  •  Esc: back  •  Enter/T: open terminal checks"
+        dry_run_terminal_skipped: "Dry-run: terminal checks not started"
+        preflight_warning_1: "Long-run auth warning: doas may require re-authentication during long operations."
+        preflight_warning_2: "Configure doas persist policy (and PAM fingerprint where available) to reduce interruptions."
+        preflight_warning_3: "Pacsea delegates interactive authentication to the terminal/PAM flow."
       virustotal:
         title: " VirusTotal "
         heading: "VirusTotal API Setup"
@@ -885,6 +904,7 @@ en-US:
     cli:
       update:
         starting: "Updating system packages (pacman -Syu)..."
+        long_run_auth_warning: "Warning: Long-running operations may pause for re-authentication unless doas persist/PAM policy is configured."
         password_prompt: "[sudo] password for {}: "
         pacman_success: "✓ Pacman update completed successfully"
         pacman_failed: "✗ Pacman update failed"

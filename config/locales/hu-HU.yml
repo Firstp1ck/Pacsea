@@ -61,6 +61,8 @@ hu-HU:
       items:
         # TODO: translate to hungarian
         sudo_timestamp_setup: "sudo credential cache (sudoers)"
+        # TODO: translate to hungarian
+        doas_persist_setup: "doas persist policy setup"
     search_mode_fuzzy: "KÖZELÍTŐ"
     search_mode_normal: "NORMÁL"
 
@@ -91,6 +93,8 @@ hu-HU:
       optional_deps: "Nem kötelező függőségek"
       # TODO: translate to hungarian
       sudo_timestamp_setup: "Sudo credential cache"
+      # TODO: translate to hungarian
+      doas_persist_setup: "Doas persist setup"
       install_gnome_terminal: "Gnome Terminál telepítése"
       virustotal: "VirusTotal"
       arch_linux_news: "Arch Linux hírek"
@@ -572,6 +576,10 @@ hu-HU:
           arch_news: "Arch hírek beállítása"
           ssh_aur_setup: "SSH AUR beállítás szavazáshoz"
           optional_deps_missing: "Hiányzó, nem kötelező függőségek ellenőrzése"
+          # TODO: translate to hungarian
+          sudo_timestamp_setup: "Sudo credential cache (sudoers)"
+          # TODO: translate to hungarian
+          doas_persist_setup: "Doas persist policy setup"
           aur_sleuth_setup: "aur-sleuth beállítása"
           virustotal_setup: "VirusTotal API beállítása"
         footer_hint: "Fel/Le: kiválasztás  •  Szóköz: be/ki  •  Enter: kijelöltek futtatása  •  Esc: talán később  •  R: ne mutassa többet"
@@ -659,6 +667,23 @@ hu-HU:
         manual_step_3: "  3) sudo chmod 0440 /etc/sudoers.d/99-pacsea-timestamp"
         instructions_footer: "Up/Down: scroll  •  Esc: back  •  Enter/Q: done  •  T: terminal helper"
         dry_run_terminal_skipped: "Dry-run: terminal helper not started"
+      # TODO: translate to hungarian (entire doas_persist_setup block)
+      doas_persist_setup:
+        title: " Doas persist setup "
+        select_heading: "Long installs or updates with doas work best when persist policy is configured in doas.conf."
+        option_wheel: "Use wheel-scoped snippet (permit persist :wheel as root)"
+        option_user: "Use user-scoped snippet (permit persist <user> as root)"
+        option_skip: "Skip — I will configure doas manually"
+        select_footer: "Up/Down: choose  •  Enter: continue  •  Esc/Q: close"
+        instructions_heading: "Doas persist: snippet and verification checklist"
+        instructions_note: "Pacsea does not edit /etc/doas.conf automatically. Copy a safe snippet and validate before enabling."
+        label_snippet: "Suggested doas.conf snippet:"
+        label_checks: "Validation checklist:"
+        instructions_footer: "Up/Down: scroll  •  Esc: back  •  Enter/T: open terminal checks"
+        dry_run_terminal_skipped: "Dry-run: terminal checks not started"
+        preflight_warning_1: "Long-run auth warning: doas may require re-authentication during long operations."
+        preflight_warning_2: "Configure doas persist policy (and PAM fingerprint where available) to reduce interruptions."
+        preflight_warning_3: "Pacsea delegates interactive authentication to the terminal/PAM flow."
       virustotal:
         title: " VirusTotal "
         heading: "VirusTotal API-beállítás"
@@ -892,6 +917,8 @@ hu-HU:
       update:
         password_prompt: "[sudo] {} jelszava: "
         starting: "Csomagok frissítése (pacman -Syu)…"
+        # TODO: translate to hungarian
+        long_run_auth_warning: "Warning: Long-running operations may pause for re-authentication unless doas persist/PAM policy is configured."
         pacman_success: "✓ A csomagok sikeresen frissítve lettek a pacman paranccsal"
         pacman_failed: "✗ Nem sikerült frissíteni a csomagokat a pacman paranccsal"
         pacman_exec_failed: "✗ Nem sikerült végrehajtani a csomagok frissítését a pacman paranccsal"

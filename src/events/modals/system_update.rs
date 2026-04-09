@@ -167,6 +167,8 @@ fn handle_system_update_enter(
     countries: &[String],
     mirror_count: u16,
 ) {
+    maybe_show_long_run_auth_preflight_warning(app);
+
     let mut cmds: Vec<String> = Vec::new();
     if do_mirrors {
         let sel = if country_idx < countries.len() {
@@ -333,4 +335,27 @@ fn handle_system_update_enter(
         cursor: 0,
         error: None,
     };
+}
+
+/// What: Show one-time long-run auth preflight guidance for system update flows.
+///
+/// Inputs:
+/// - `app`: Mutable application state.
+///
+/// Output:
+/// - Sets a warning toast and latches the session guard when guidance should be shown.
+///
+/// Details:
+/// - Uses long-run auth readiness evaluation from current settings.
+/// - Warning is only shown once per session via `long_run_auth_preflight_warned`.
+fn maybe_show_long_run_auth_preflight_warning(app: &mut AppState) {
+    let settings = crate::theme::settings();
+    let readiness = crate::logic::long_run_auth::evaluate_long_run_auth_readiness(&settings);
+    if readiness.should_warn && !app.long_run_auth_preflight_warned {
+        app.long_run_auth_preflight_warned = true;
+        app.toast_message = Some(crate::logic::long_run_auth::build_long_run_warning_message(
+            app,
+        ));
+        app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(8));
+    }
 }

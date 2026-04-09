@@ -185,6 +185,8 @@ pub enum StartupSetupTask {
     OptionalDepsMissing,
     /// Optional wizard: extend `sudo` credential cache for long installs/updates (`sudoers`).
     SudoTimestampSetup,
+    /// Optional wizard: configure `doas` persist guidance for long installs/updates.
+    DoasPersistSetup,
     /// Configure aur-sleuth integration.
     AurSleuthSetup,
     /// Configure `VirusTotal` API key.
@@ -254,6 +256,70 @@ pub struct SudoTimestampSetupModalState {
 
 /// Row count for [`SudoTimestampSetupModalState::select_cursor`] (10m, 30m, infinity, skip).
 pub const SUDO_TIMESTAMP_SELECT_ROWS: usize = 4;
+
+/// What: Preset scope for suggested `doas.conf` persist snippets.
+///
+/// Inputs:
+/// - Selected by the user in [`Modal::DoasPersistSetup`].
+///
+/// Output:
+/// - Controls whether generated guidance targets group-level or user-level `permit persist` entries.
+///
+/// Details:
+/// - These options only generate guidance text; the app does not write `/etc/doas.conf` automatically.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DoasPersistChoice {
+    /// Suggest a group-scoped rule (`:wheel`) for systems using wheel-based admin policy.
+    WheelScoped,
+    /// Suggest a user-scoped rule (`$USER`) for least-privilege single-user setups.
+    UserScoped,
+    /// Skip setup and close the wizard.
+    Skip,
+}
+
+/// What: Active phase of the doas persist setup wizard.
+///
+/// Inputs:
+/// - Driven by key events in the doas persist setup handler.
+///
+/// Output:
+/// - Tells the renderer whether to show the option list or checklist instructions.
+///
+/// Details:
+/// - The select phase uses [`DoasPersistSetupModalState::select_cursor`]; instructions carry their own scroll.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DoasPersistSetupPhase {
+    /// User is picking a recommended `doas.conf` persist snippet profile or skipping.
+    Select,
+    /// User is reading copy/paste checklist instructions for the chosen option.
+    Instructions {
+        /// Selected snippet profile.
+        choice: DoasPersistChoice,
+        /// Vertical scroll offset in lines for long instruction text.
+        scroll: u16,
+    },
+}
+
+/// What: Stateful fields for [`Modal::DoasPersistSetup`].
+///
+/// Inputs:
+/// - Constructed when opening the wizard from optional deps or startup setup.
+///
+/// Output:
+/// - Updated by the doas persist setup key handler and read by the renderer.
+///
+/// Details:
+/// - `select_cursor` is preserved so Esc from instructions returns to the same row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DoasPersistSetupModalState {
+    /// Current wizard phase.
+    pub phase: DoasPersistSetupPhase,
+    /// Row index in the select phase (`0..DOAS_PERSIST_SELECT_ROWS`).
+    pub select_cursor: usize,
+}
+
+/// Row count for [`DoasPersistSetupModalState::select_cursor`] (wheel, user, skip).
+pub const DOAS_PERSIST_SELECT_ROWS: usize = 3;
 
 impl CascadeMode {
     /// Return the `pacman` flag sequence corresponding to this `CascadeMode`.
@@ -923,6 +989,11 @@ pub enum Modal {
         /// Wizard phase and cursor state.
         setup: SudoTimestampSetupModalState,
     },
+    /// Optional wizard: guide `doas` `persist` policy setup via `doas.conf` snippets and checks.
+    DoasPersistSetup {
+        /// Wizard phase and cursor state.
+        setup: DoasPersistSetupModalState,
+    },
     /// Information dialog explaining the Import file format.
     ImportHelp,
     /// Setup dialog for startup news popup configuration.
@@ -1061,6 +1132,12 @@ mod tests {
         let _ = super::Modal::SudoTimestampSetup {
             setup: super::SudoTimestampSetupModalState {
                 phase: super::SudoTimestampSetupPhase::Select,
+                select_cursor: 0,
+            },
+        };
+        let _ = super::Modal::DoasPersistSetup {
+            setup: super::DoasPersistSetupModalState {
+                phase: super::DoasPersistSetupPhase::Select,
                 select_cursor: 0,
             },
         };

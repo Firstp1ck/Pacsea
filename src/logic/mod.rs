@@ -3,11 +3,13 @@
 pub mod aur_official_catalog_dup;
 pub mod deps;
 pub mod distro;
+pub mod doas_persist_setup;
 pub mod faillock;
 pub mod files;
 pub mod filter;
 pub mod gating;
 pub mod lists;
+pub mod long_run_auth;
 pub mod password;
 pub mod pkgbuild_checks;
 pub mod prefetch;

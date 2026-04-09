@@ -8,7 +8,7 @@ use crate::install::ExecutorRequest;
 use crate::state::{AppState, Modal, PackageItem};
 
 /// Startup selector item count.
-const STARTUP_SETUP_SELECTOR_ITEMS: usize = 6;
+const STARTUP_SETUP_SELECTOR_ITEMS: usize = 7;
 
 /// What: Check whether a startup selector task can be toggled by the user.
 #[must_use]
@@ -19,6 +19,18 @@ fn startup_selector_task_selectable(
     match task {
         crate::state::modal::StartupSetupTask::SshAurSetup => {
             !app.aur_ssh_help_ready.unwrap_or(false)
+        }
+        crate::state::modal::StartupSetupTask::SudoTimestampSetup => {
+            matches!(
+                crate::logic::privilege::active_tool(),
+                Ok(crate::logic::privilege::PrivilegeTool::Sudo)
+            )
+        }
+        crate::state::modal::StartupSetupTask::DoasPersistSetup => {
+            matches!(
+                crate::logic::privilege::active_tool(),
+                Ok(crate::logic::privilege::PrivilegeTool::Doas)
+            )
         }
         _ => true,
     }
@@ -1251,6 +1263,36 @@ pub(super) fn handle_sudo_timestamp_setup_modal(
     false
 }
 
+/// What: Handle key events for `DoasPersistSetup` modal.
+///
+/// Inputs:
+/// - `ke`: Key event
+/// - `app`: Mutable application state
+/// - `modal`: `DoasPersistSetup` modal variant
+///
+/// Output:
+/// - `false` (never stops propagation)
+#[allow(clippy::needless_pass_by_value)]
+pub(super) fn handle_doas_persist_setup_modal(
+    ke: KeyEvent,
+    app: &mut AppState,
+    modal: Modal,
+) -> bool {
+    let Modal::DoasPersistSetup { mut setup } = modal else {
+        return false;
+    };
+    let finished = super::doas_persist_setup::handle_doas_persist_setup_key(ke, app, &mut setup);
+    if finished {
+        app.modal = Modal::None;
+        if !app.pending_startup_setup_steps.is_empty() {
+            super::common::show_next_startup_setup_step(app);
+        }
+    } else {
+        app.modal = Modal::DoasPersistSetup { setup };
+    }
+    false
+}
+
 /// What: Handle key events for `StartupSetupSelector` modal.
 pub(super) fn handle_startup_setup_selector_modal(
     ke: KeyEvent,
@@ -1295,7 +1337,8 @@ pub(super) fn handle_startup_setup_selector_modal(
                     1 => crate::state::modal::StartupSetupTask::SshAurSetup,
                     2 => crate::state::modal::StartupSetupTask::OptionalDepsMissing,
                     3 => crate::state::modal::StartupSetupTask::SudoTimestampSetup,
-                    4 => crate::state::modal::StartupSetupTask::AurSleuthSetup,
+                    4 => crate::state::modal::StartupSetupTask::DoasPersistSetup,
+                    5 => crate::state::modal::StartupSetupTask::AurSleuthSetup,
                     _ => crate::state::modal::StartupSetupTask::VirusTotalSetup,
                 };
                 if !startup_selector_task_selectable(task, app) {

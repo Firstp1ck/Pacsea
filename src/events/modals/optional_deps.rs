@@ -8,7 +8,7 @@ use crate::state::AppState;
 ///
 /// Inputs:
 /// - `app`: Mutable application state.
-/// - `package`: Pseudo-package id (`aur-ssh-setup`, `aur-sleuth-setup`, `virustotal-setup`, `sudo-timestamp-setup`).
+/// - `package`: Pseudo-package id (`aur-ssh-setup`, `aur-sleuth-setup`, `virustotal-setup`, `sudo-timestamp-setup`, `doas-persist-setup`).
 ///
 /// Output:
 /// - Sets `app.modal` or spawns setup terminal command depending on selected setup.
@@ -140,6 +140,17 @@ fn handle_optional_deps_enter(
             crate::state::Modal::SudoTimestampSetup {
                 setup: crate::state::modal::SudoTimestampSetupModalState {
                     phase: crate::state::modal::SudoTimestampSetupPhase::Select,
+                    select_cursor: 0,
+                },
+            },
+            false,
+        );
+    }
+    if row.package == "doas-persist-setup" {
+        return (
+            crate::state::Modal::DoasPersistSetup {
+                setup: crate::state::modal::DoasPersistSetupModalState {
+                    phase: crate::state::modal::DoasPersistSetupPhase::Select,
                     select_cursor: 0,
                 },
             },

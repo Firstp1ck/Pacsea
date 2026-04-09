@@ -434,6 +434,12 @@ struct SudoTimestampSetupContext {
     setup: crate::state::modal::SudoTimestampSetupModalState,
 }
 
+/// What: Context struct grouping `DoasPersistSetup` modal fields.
+struct DoasPersistSetupContext {
+    /// Wizard phase and cursor state.
+    setup: crate::state::modal::DoasPersistSetupModalState,
+}
+
 /// What: Context struct grouping `NewsSetup` modal fields to reduce data flow complexity.
 ///
 /// Inputs: None (constructed from Modal variant).
@@ -779,6 +785,10 @@ impl ModalRenderer for Modal {
             Self::SudoTimestampSetup { setup } => {
                 let ctx = SudoTimestampSetupContext { setup };
                 render_sudo_timestamp_setup_modal(f, app, area, ctx)
+            }
+            Self::DoasPersistSetup { setup } => {
+                let ctx = DoasPersistSetupContext { setup };
+                render_doas_persist_setup_modal(f, app, area, ctx)
             }
             Self::ImportHelp => render_import_help_modal(f, app, area),
             Self::NewsSetup {
@@ -1320,6 +1330,18 @@ fn render_sudo_timestamp_setup_modal(
 ) -> Modal {
     misc::render_sudo_timestamp_setup(f, area, app, ctx.setup);
     Modal::SudoTimestampSetup { setup: ctx.setup }
+}
+
+/// What: Render `DoasPersistSetup` modal and return reconstructed state.
+#[allow(clippy::needless_pass_by_value)]
+fn render_doas_persist_setup_modal(
+    f: &mut Frame,
+    app: &AppState,
+    area: Rect,
+    ctx: DoasPersistSetupContext,
+) -> Modal {
+    misc::render_doas_persist_setup(f, area, app, ctx.setup);
+    Modal::DoasPersistSetup { setup: ctx.setup }
 }
 
 /// What: Render `ImportHelp` modal and return reconstructed state.

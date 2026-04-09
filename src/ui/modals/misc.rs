@@ -10,7 +10,10 @@ use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 use super::common::render_simple_list_modal;
 use crate::state::{
     AppState,
-    modal::{StartupSetupTask, SudoTimestampSetupModalState, SudoTimestampSetupPhase},
+    modal::{
+        DoasPersistSetupModalState, DoasPersistSetupPhase, StartupSetupTask,
+        SudoTimestampSetupModalState, SudoTimestampSetupPhase,
+    },
     types::{OptionalDepRow, RepositoryKeyTrust, RepositoryModalRow, RepositoryPacmanStatus},
 };
 use crate::theme::theme;
@@ -721,6 +724,7 @@ pub fn render_startup_setup_selector(
 ) {
     let th = theme();
     let ssh_setup_ready = app.aur_ssh_help_ready.unwrap_or(false);
+    let active_tool = crate::logic::privilege::active_tool().ok();
     let mut lines: Vec<Line<'static>> = Vec::new();
     lines.push(Line::from(Span::styled(
         crate::i18n::t(app, "app.modals.startup_setup_selector.heading"),
@@ -752,6 +756,13 @@ pub fn render_startup_setup_selector(
             ),
         ),
         (
+            StartupSetupTask::DoasPersistSetup,
+            crate::i18n::t(
+                app,
+                "app.modals.startup_setup_selector.items.doas_persist_setup",
+            ),
+        ),
+        (
             StartupSetupTask::AurSleuthSetup,
             crate::i18n::t(
                 app,
@@ -768,7 +779,17 @@ pub fn render_startup_setup_selector(
     ];
 
     for (idx, (task, label)) in items.iter().enumerate() {
-        let disabled = matches!(task, StartupSetupTask::SshAurSetup) && ssh_setup_ready;
+        let disabled = (matches!(task, StartupSetupTask::SshAurSetup) && ssh_setup_ready)
+            || (matches!(task, StartupSetupTask::SudoTimestampSetup)
+                && !matches!(
+                    active_tool,
+                    Some(crate::logic::privilege::PrivilegeTool::Sudo)
+                ))
+            || (matches!(task, StartupSetupTask::DoasPersistSetup)
+                && !matches!(
+                    active_tool,
+                    Some(crate::logic::privilege::PrivilegeTool::Doas)
+                ));
         let mark = if selected.contains(task) {
             "[x]"
         } else {
@@ -819,6 +840,93 @@ pub fn render_startup_setup_selector(
         &crate::i18n::t(app, "app.modals.startup_setup_selector.title"),
         lines,
     );
+}
+
+/// What: Render the `doas` `persist` setup wizard modal.
+///
+/// Inputs:
+/// - `f`: Frame to render into.
+/// - `area`: Full screen area used to center the modal.
+/// - `app`: Application state for localized strings.
+/// - `setup`: Wizard state (phase + cursor + scroll).
+///
+/// Output:
+/// - Draws the select list or instruction pane with scrolling.
+#[allow(clippy::many_single_char_names)]
+pub fn render_doas_persist_setup(
+    f: &mut Frame,
+    area: Rect,
+    app: &AppState,
+    setup: DoasPersistSetupModalState,
+) {
+    let th = theme();
+    let w = area.width.saturating_sub(8).min(102);
+    let h = 22_u16.min(area.height.saturating_sub(4));
+    let x = area.x + (area.width.saturating_sub(w)) / 2;
+    let y = area.y + (area.height.saturating_sub(h)) / 2;
+    let rect = Rect::new(x, y, w, h);
+    f.render_widget(Clear, rect);
+
+    let mut lines: Vec<Line<'static>> = Vec::new();
+    match setup.phase {
+        DoasPersistSetupPhase::Select => {
+            lines.push(Line::from(Span::styled(
+                crate::i18n::t(app, "app.modals.doas_persist_setup.select_heading"),
+                Style::default().fg(th.text),
+            )));
+            lines.push(Line::from(""));
+            let option_keys = [
+                "app.modals.doas_persist_setup.option_wheel",
+                "app.modals.doas_persist_setup.option_user",
+                "app.modals.doas_persist_setup.option_skip",
+            ];
+            for (idx, key) in option_keys.iter().enumerate() {
+                let label = crate::i18n::t(app, key);
+                let style = if idx == setup.select_cursor {
+                    Style::default()
+                        .fg(th.text)
+                        .add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
+                } else {
+                    Style::default().fg(th.subtext1)
+                };
+                lines.push(Line::from(Span::styled(label, style)));
+            }
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                crate::i18n::t(app, "app.modals.doas_persist_setup.select_footer"),
+                Style::default().fg(th.overlay1),
+            )));
+        }
+        DoasPersistSetupPhase::Instructions { choice, scroll } => {
+            let body =
+                crate::logic::doas_persist_setup::doas_persist_instruction_lines(app, choice);
+            let start = (scroll as usize).min(body.len());
+            let end = (start
+                + crate::logic::doas_persist_setup::DOAS_PERSIST_INSTRUCTION_VIEWPORT_LINES)
+                .min(body.len());
+            lines.extend(body[start..end].iter().cloned());
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                crate::i18n::t(app, "app.modals.doas_persist_setup.instructions_footer"),
+                Style::default().fg(th.overlay1),
+            )));
+        }
+    }
+    let boxw = Paragraph::new(lines)
+        .style(Style::default().fg(th.text).bg(th.mantle))
+        .wrap(Wrap { trim: true })
+        .block(
+            Block::default()
+                .title(Span::styled(
+                    crate::i18n::t(app, "app.modals.doas_persist_setup.title"),
+                    Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+                ))
+                .borders(Borders::ALL)
+                .border_type(BorderType::Double)
+                .border_style(Style::default().fg(th.mauve))
+                .style(Style::default().bg(th.mantle)),
+        );
+    f.render_widget(boxw, rect);
 }
 
 /// What: Render the prompt encouraging installation of GNOME Terminal in GNOME environments.
