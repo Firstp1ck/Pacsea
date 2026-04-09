@@ -463,33 +463,48 @@ pub fn render_ssh_aur_setup(
         crate::state::SshSetupStep::Intro => (
             "AUR SSH Setup",
             th.mauve,
-            "Enter: run setup  |  O: open AUR account page  |  Esc: cancel",
+            "Enter: run setup  |  O: open AUR login page  |  Esc: cancel",
         ),
         crate::state::SshSetupStep::ConfirmOverwrite => (
             "AUR SSH Setup: Confirm Overwrite",
             th.yellow,
-            "Y/Enter: overwrite block  |  N/Esc: keep existing config  |  O: open account page",
+            "Y/Enter: overwrite block  |  N/Esc: keep existing config  |  O: open login page",
         ),
         crate::state::SshSetupStep::ApplyKeyOnAur => (
             "AUR SSH Setup: Apply Key on AUR",
             th.sapphire,
-            "Y/Enter: I applied key, test connection  |  O: open account page  |  Esc: cancel",
+            "Y/Enter: I applied key, test connection  |  O: open login page  |  Esc: cancel",
         ),
         crate::state::SshSetupStep::Result => (
             "AUR SSH Setup: Result",
             th.green,
-            "Esc: close  |  O: open account page",
+            "Esc: close  |  O: open login page",
         ),
     };
 
     let mut lines: Vec<Line<'static>> = Vec::new();
+    lines.push(Line::from(Span::styled(
+        "Status",
+        Style::default().fg(accent).add_modifier(Modifier::BOLD),
+    )));
+    lines.push(Line::from(""));
     for line in status_lines {
-        let line_style = if line.starts_with("Warning:") {
+        let line_style = if line.starts_with("Failed [") {
+            Style::default().fg(th.red).add_modifier(Modifier::BOLD)
+        } else if line.starts_with("Warning:") {
             Style::default().fg(th.yellow).add_modifier(Modifier::BOLD)
+        } else if line.starts_with("Public key file:") {
+            Style::default().fg(th.green)
+        } else if line.starts_with("ssh-") {
+            Style::default()
+                .fg(th.lavender)
+                .add_modifier(Modifier::BOLD)
+        } else if line.starts_with("Next step:") {
+            Style::default().fg(th.sapphire)
         } else {
             Style::default().fg(th.text)
         };
-        lines.push(Line::from(Span::styled(line.clone(), line_style)));
+        lines.push(Line::from(Span::styled(format!("- {line}"), line_style)));
     }
     if let Some(block) = existing_host_block {
         lines.push(Line::from(""));
@@ -506,16 +521,19 @@ pub fn render_ssh_aur_setup(
     }
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(
-        format!(
-            "AUR account page: {}",
-            crate::logic::ssh_setup::AUR_ACCOUNT_URL
-        ),
+        "AUR login page",
+        Style::default().fg(accent).add_modifier(Modifier::BOLD),
+    )));
+    lines.push(Line::from(Span::styled(
+        format!("- {}", crate::logic::ssh_setup::AUR_ACCOUNT_URL),
         Style::default().fg(th.sapphire),
     )));
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(
         footer,
-        Style::default().fg(th.overlay1),
+        Style::default()
+            .fg(th.overlay1)
+            .add_modifier(Modifier::BOLD),
     )));
 
     let paragraph = Paragraph::new(lines).wrap(Wrap { trim: true }).block(
