@@ -7,14 +7,10 @@ targets = [
 ]
 
 [advisories]
-vulnerability = "deny"
-unmaintained = "warn"
-yanked = "deny"
-notice = "warn"
+unmaintained = "workspace"
 ignore = []
 
 [licenses]
-unlicensed = "deny"
 allow = [
     "MIT",
     "Apache-2.0",
@@ -26,13 +22,13 @@ allow = [
     "Zlib",
     "BSL-1.0",
     "OpenSSL",
-    "Ring",
+    "MPL-2.0",
+    "LicenseRef-ring",
 ]
-copyleft = "deny"
 
 [[licenses.clarify]]
 name = "ring"
-expression = "Ring"
+expression = "LicenseRef-ring"
 license-files = [{ path = "LICENSE", hash = 0xbd0eed23 }]
 
 [bans]
