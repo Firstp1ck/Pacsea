@@ -58,7 +58,7 @@ fn integration_custom_command_creation() {
 fn integration_custom_command_with_password() {
     let request = ExecutorRequest::CustomCommand {
         command: "sudo pacman -Fy".to_string(),
-        password: Some("testpassword".to_string()),
+        password: Some("testpassword".to_string().into()),
         dry_run: false,
     };
 
@@ -141,7 +141,7 @@ fn integration_custom_command_paru_install() {
 
     let request = ExecutorRequest::CustomCommand {
         command: command.clone(),
-        password: Some("testpassword".to_string()),
+        password: Some("testpassword".to_string().into()),
         dry_run: false,
     };
 
@@ -171,7 +171,7 @@ fn integration_custom_command_yay_install() {
 
     let request = ExecutorRequest::CustomCommand {
         command: command.clone(),
-        password: Some("testpassword".to_string()),
+        password: Some("testpassword".to_string().into()),
         dry_run: false,
     };
 
@@ -199,7 +199,7 @@ fn integration_custom_command_yay_install() {
 fn integration_custom_command_file_sync() {
     let request = ExecutorRequest::CustomCommand {
         command: "sudo pacman -Fy".to_string(),
-        password: Some("testpassword".to_string()),
+        password: Some("testpassword".to_string().into()),
         dry_run: false,
     };
 
@@ -234,7 +234,7 @@ fn integration_custom_command_password_prompt() {
     app.modal = Modal::PasswordPrompt {
         purpose: PasswordPurpose::FileSync,
         items: vec![],
-        input: String::new(),
+        input: pacsea::state::SecureString::default(),
         cursor: 0,
         error: None,
     };
@@ -264,7 +264,7 @@ fn integration_custom_command_to_preflight_exec() {
         modal: Modal::PasswordPrompt {
             purpose: PasswordPurpose::FileSync,
             items: vec![],
-            input: "testpassword".to_string(),
+            input: "testpassword".into(),
             cursor: 12,
             error: None,
         },

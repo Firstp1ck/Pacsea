@@ -221,7 +221,7 @@ fn integration_reinstall_confirmation_proceeds_to_password() {
     app.modal = Modal::PasswordPrompt {
         purpose: PasswordPurpose::Install,
         items: vec![pkg],
-        input: String::new(),
+        input: pacsea::state::SecureString::default(),
         cursor: 0,
         error: None,
     };

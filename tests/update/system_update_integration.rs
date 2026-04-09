@@ -224,7 +224,7 @@ fn integration_system_update_uses_executor_not_terminal() {
     app.modal = pacsea::state::Modal::PasswordPrompt {
         purpose: pacsea::state::modal::PasswordPurpose::Update,
         items: Vec::new(),
-        input: String::new(),
+        input: pacsea::state::SecureString::default(),
         cursor: 0,
         error: None,
     };
@@ -250,7 +250,7 @@ fn integration_system_update_uses_executor_not_terminal() {
     // 1. Take pending_update_commands
     // 2. Create ExecutorRequest::Update
     // 3. Transition to PreflightExec
-    let password = Some("test_password".to_string());
+    let password = Some("test_password".to_string().into());
     let update_cmds = app
         .pending_update_commands
         .take()
@@ -357,7 +357,7 @@ fn integration_system_update_pacman_command() {
 
     let request = ExecutorRequest::Update {
         commands: vec![pacman_cmd],
-        password: Some("testpassword".to_string()),
+        password: Some("testpassword".to_string().into()),
         dry_run: false,
     };
 
@@ -435,7 +435,7 @@ fn integration_system_update_cache_command() {
 
     let request = ExecutorRequest::Update {
         commands: vec![cache_cmd],
-        password: Some("testpassword".to_string()),
+        password: Some("testpassword".to_string().into()),
         dry_run: false,
     };
 
@@ -477,7 +477,7 @@ fn integration_system_update_full_sequence() {
 
     let request = ExecutorRequest::Update {
         commands,
-        password: Some("testpassword".to_string()),
+        password: Some("testpassword".to_string().into()),
         dry_run: false,
     };
 
@@ -525,7 +525,7 @@ fn integration_system_update_password_prompt() {
     app.modal = Modal::PasswordPrompt {
         purpose: PasswordPurpose::Update,
         items: vec![],
-        input: String::new(),
+        input: pacsea::state::SecureString::default(),
         cursor: 0,
         error: None,
     };
@@ -558,7 +558,7 @@ fn integration_system_update_to_preflight_exec() {
         modal: Modal::PasswordPrompt {
             purpose: PasswordPurpose::Update,
             items: vec![],
-            input: "testpassword".to_string(),
+            input: "testpassword".into(),
             cursor: 12,
             error: None,
         },
@@ -750,7 +750,7 @@ fn integration_system_update_network_failure() {
 
     let request = ExecutorRequest::Update {
         commands,
-        password: Some("testpassword".to_string()),
+        password: Some("testpassword".to_string().into()),
         dry_run: false,
     };
 

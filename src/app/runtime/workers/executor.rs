@@ -26,7 +26,7 @@ use crate::install::{
 #[allow(clippy::needless_pass_by_value)] // Values are moved into spawn_blocking closure
 fn handle_install_request(
     items: Vec<crate::state::PackageItem>,
-    password: Option<String>,
+    password: Option<crate::state::SecureString>,
     dry_run: bool,
     res_tx: mpsc::UnboundedSender<ExecutorOutput>,
 ) {
@@ -102,7 +102,7 @@ fn handle_install_request(
 #[allow(clippy::needless_pass_by_value)] // Values are moved into spawn_blocking closure
 fn handle_remove_request(
     names: Vec<String>,
-    password: Option<String>,
+    password: Option<crate::state::SecureString>,
     cascade: crate::state::modal::CascadeMode,
     dry_run: bool,
     res_tx: mpsc::UnboundedSender<ExecutorOutput>,
@@ -137,7 +137,7 @@ fn handle_remove_request(
 #[allow(clippy::needless_pass_by_value)] // Values are moved into spawn_blocking closure
 fn handle_downgrade_request(
     names: Vec<String>,
-    password: Option<String>,
+    password: Option<crate::state::SecureString>,
     dry_run: bool,
     res_tx: mpsc::UnboundedSender<ExecutorOutput>,
 ) {
@@ -170,7 +170,7 @@ fn handle_downgrade_request(
 #[allow(clippy::needless_pass_by_value)] // Values are moved into spawn_blocking closure
 fn handle_update_request(
     commands: Vec<String>,
-    password: Option<String>,
+    password: Option<crate::state::SecureString>,
     dry_run: bool,
     res_tx: mpsc::UnboundedSender<ExecutorOutput>,
 ) {
@@ -251,7 +251,7 @@ fn handle_scan_request(
 #[allow(clippy::needless_pass_by_value)] // Values are moved into spawn_blocking closure
 fn handle_custom_command_request(
     command: String,
-    password: Option<String>,
+    password: Option<crate::state::SecureString>,
     dry_run: bool,
     res_tx: mpsc::UnboundedSender<ExecutorOutput>,
 ) {
@@ -655,7 +655,7 @@ fn send_finish_message(
 #[allow(clippy::needless_pass_by_value)] // Pass by value needed for move into closure
 fn execute_command_pty(
     cmd: &str,
-    _password: Option<String>,
+    _password: Option<crate::state::SecureString>,
     res_tx: mpsc::UnboundedSender<ExecutorOutput>,
 ) {
     use portable_pty::{CommandBuilder, PtySize, native_pty_system};

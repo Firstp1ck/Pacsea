@@ -61,7 +61,7 @@ fn integration_password_prompt_install_purpose() {
         modal: Modal::PasswordPrompt {
             purpose: PasswordPurpose::Install,
             items: items.clone(),
-            input: String::new(),
+            input: pacsea::state::SecureString::default(),
             cursor: 0,
             error: None,
         },
@@ -111,7 +111,7 @@ fn integration_password_prompt_remove_purpose() {
         modal: Modal::PasswordPrompt {
             purpose: PasswordPurpose::Remove,
             items,
-            input: String::new(),
+            input: pacsea::state::SecureString::default(),
             cursor: 0,
             error: None,
         },
@@ -142,7 +142,7 @@ fn integration_password_prompt_update_purpose() {
         modal: Modal::PasswordPrompt {
             purpose: PasswordPurpose::Update,
             items: vec![],
-            input: String::new(),
+            input: pacsea::state::SecureString::default(),
             cursor: 0,
             error: None,
         },
@@ -182,7 +182,7 @@ fn integration_password_prompt_downgrade_purpose() {
         modal: Modal::PasswordPrompt {
             purpose: PasswordPurpose::Downgrade,
             items,
-            input: String::new(),
+            input: pacsea::state::SecureString::default(),
             cursor: 0,
             error: None,
         },
@@ -213,7 +213,7 @@ fn integration_password_prompt_filesync_purpose() {
         modal: Modal::PasswordPrompt {
             purpose: PasswordPurpose::FileSync,
             items: vec![],
-            input: String::new(),
+            input: pacsea::state::SecureString::default(),
             cursor: 0,
             error: None,
         },
@@ -246,7 +246,7 @@ fn integration_password_prompt_input_capture() {
         modal: Modal::PasswordPrompt {
             purpose: PasswordPurpose::Install,
             items: vec![],
-            input: "secretpassword".to_string(),
+            input: "secretpassword".into(),
             cursor: 14,
             error: None,
         },
@@ -256,7 +256,7 @@ fn integration_password_prompt_input_capture() {
     match app.modal {
         Modal::PasswordPrompt { input, cursor, .. } => {
             // Avoid logging password input on assert failure.
-            assert!(input == "secretpassword", "Password input mismatch");
+            assert!(input.as_str() == "secretpassword", "Password input mismatch");
             assert_eq!(cursor, 14);
             // Note: Actual masking is done in UI rendering, not in state
         }
@@ -280,7 +280,7 @@ fn integration_password_prompt_incorrect_password_error() {
         modal: Modal::PasswordPrompt {
             purpose: PasswordPurpose::Install,
             items: vec![],
-            input: String::new(),
+            input: pacsea::state::SecureString::default(),
             cursor: 0,
             error: Some("Incorrect password. Please try again.".to_string()),
         },
@@ -323,7 +323,7 @@ fn integration_password_prompt_cancellation() {
                     arch: "x86_64".into(),
                 },
             )],
-            input: "partial".to_string(),
+            input: "partial".into(),
             cursor: 7,
             error: None,
         },
@@ -361,7 +361,7 @@ fn integration_password_prompt_submission_to_preflight_exec() {
         modal: Modal::PasswordPrompt {
             purpose: PasswordPurpose::Install,
             items: items.clone(),
-            input: "testpassword".to_string(),
+            input: "testpassword".into(),
             cursor: 12,
             error: None,
         },
@@ -445,7 +445,7 @@ fn integration_password_prompt_multiple_packages() {
         modal: Modal::PasswordPrompt {
             purpose: PasswordPurpose::Install,
             items: items.clone(),
-            input: String::new(),
+            input: pacsea::state::SecureString::default(),
             cursor: 0,
             error: None,
         },
@@ -493,7 +493,7 @@ fn integration_password_prompt_retry_preserves_items() {
         modal: Modal::PasswordPrompt {
             purpose: PasswordPurpose::Install,
             items: items.clone(),
-            input: "wrongpassword".to_string(),
+            input: "wrongpassword".into(),
             cursor: 13,
             error: None,
         },
@@ -551,7 +551,7 @@ fn integration_password_prompt_empty_password() {
         modal: Modal::PasswordPrompt {
             purpose: PasswordPurpose::Install,
             items: vec![],
-            input: "   ".to_string(), // Whitespace only
+            input: "   ".into(), // Whitespace only
             cursor: 3,
             error: None,
         },
@@ -599,7 +599,7 @@ fn integration_password_prompt_timeout_error() {
         modal: Modal::PasswordPrompt {
             purpose: PasswordPurpose::Install,
             items: items.clone(),
-            input: String::new(),
+            input: pacsea::state::SecureString::default(),
             cursor: 0,
             error: Some("Password prompt timed out. Please try again.".to_string()),
         },
@@ -652,7 +652,7 @@ fn integration_password_prompt_timeout_preserves_context() {
         modal: Modal::PasswordPrompt {
             purpose: PasswordPurpose::Install,
             items: items.clone(),
-            input: String::new(),
+            input: pacsea::state::SecureString::default(),
             cursor: 0,
             error: Some("Password prompt timed out. Please try again.".to_string()),
         },

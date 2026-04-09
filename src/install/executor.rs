@@ -1,5 +1,6 @@
 //! PTY-based command executor for in-TUI execution.
 
+use crate::state::SecureString;
 use crate::state::{PackageItem, modal::CascadeMode};
 
 /// What: Request types for command execution.
@@ -19,7 +20,7 @@ pub enum ExecutorRequest {
         /// Packages to install.
         items: Vec<PackageItem>,
         /// Optional sudo password for official packages.
-        password: Option<String>,
+        password: Option<SecureString>,
         /// Whether to run in dry-run mode.
         dry_run: bool,
     },
@@ -28,7 +29,7 @@ pub enum ExecutorRequest {
         /// Package names to remove.
         names: Vec<String>,
         /// Optional sudo password.
-        password: Option<String>,
+        password: Option<SecureString>,
         /// Cascade removal mode.
         cascade: CascadeMode,
         /// Whether to run in dry-run mode.
@@ -39,7 +40,7 @@ pub enum ExecutorRequest {
         /// Package names to downgrade.
         names: Vec<String>,
         /// Optional sudo password.
-        password: Option<String>,
+        password: Option<SecureString>,
         /// Whether to run in dry-run mode.
         dry_run: bool,
     },
@@ -48,7 +49,7 @@ pub enum ExecutorRequest {
         /// Command string to execute.
         command: String,
         /// Optional sudo password for commands that need sudo (e.g., makepkg -si).
-        password: Option<String>,
+        password: Option<SecureString>,
         /// Whether to run in dry-run mode.
         dry_run: bool,
     },
@@ -57,7 +58,7 @@ pub enum ExecutorRequest {
         /// Commands to execute in sequence.
         commands: Vec<String>,
         /// Optional sudo password for commands that need sudo.
-        password: Option<String>,
+        password: Option<SecureString>,
         /// Whether to run in dry-run mode.
         dry_run: bool,
     },
@@ -136,7 +137,7 @@ pub fn build_install_command_for_executor(
     dry_run: bool,
 ) -> Result<String, String> {
     use super::command::{aur_install_body, aur_install_helper_flags};
-    use super::utils::shell_single_quote;
+    use super::utils::{shell_single_quote, validate_package_names};
     use crate::state::Source;
 
     let mut official: Vec<String> = Vec::new();
@@ -148,6 +149,13 @@ pub fn build_install_command_for_executor(
             Source::Aur => aur.push(item.name.clone()),
         }
     }
+    validate_package_names(&official, "executor install command (official)")?;
+    validate_package_names(&aur, "executor install command (AUR)")?;
+    let official_quoted: Vec<String> = official
+        .iter()
+        .map(|name| shell_single_quote(name))
+        .collect();
+    let aur_quoted: Vec<String> = aur.iter().map(|name| shell_single_quote(name)).collect();
 
     let installed_set = crate::logic::deps::get_installed_packages();
     let provided_set = crate::logic::deps::get_provided_packages(&installed_set);
@@ -171,14 +179,14 @@ pub fn build_install_command_for_executor(
         "--needed --noconfirm"
     };
 
-    let aur_names = aur.join(" ");
+    let aur_names = aur_quoted.join(" ");
 
     if dry_run {
         if !aur.is_empty() && !official.is_empty() {
             let tool = crate::logic::privilege::active_tool()?;
             let off_cmd = crate::logic::privilege::build_privilege_command(
                 tool,
-                &format!("pacman -S {pacman_flags} {}", official.join(" ")),
+                &format!("pacman -S {pacman_flags} {}", official_quoted.join(" ")),
             );
             let aur_cmd = format!(
                 "(paru -S --aur {aur_cli_suffix} {aur_names} || yay -S --aur {aur_cli_suffix} {aur_names})",
@@ -196,7 +204,7 @@ pub fn build_install_command_for_executor(
             let tool = crate::logic::privilege::active_tool()?;
             let cmd = crate::logic::privilege::build_privilege_command(
                 tool,
-                &format!("pacman -S {pacman_flags} {}", official.join(" ")),
+                &format!("pacman -S {pacman_flags} {}", official_quoted.join(" ")),
             );
             let quoted = shell_single_quote(&cmd);
             Ok(format!("echo DRY RUN: {quoted}"))
@@ -205,7 +213,7 @@ pub fn build_install_command_for_executor(
         }
     } else if !aur.is_empty() && !official.is_empty() {
         let tool = crate::logic::privilege::active_tool()?;
-        let install_cmd = format!("pacman -S {pacman_flags} {}", official.join(" "));
+        let install_cmd = format!("pacman -S {pacman_flags} {}", official_quoted.join(" "));
         let official_chain = password.map_or_else(
             || {
                 let sync = crate::logic::privilege::build_privilege_command(tool, "pacman -Sy");
@@ -244,7 +252,7 @@ pub fn build_install_command_for_executor(
         Ok(aur_install_body(aur_s_flags, &aur_names))
     } else if !official.is_empty() {
         let tool = crate::logic::privilege::active_tool()?;
-        let install_cmd = format!("pacman -S {pacman_flags} {}", official.join(" "));
+        let install_cmd = format!("pacman -S {pacman_flags} {}", official_quoted.join(" "));
         Ok(password.map_or_else(
             || {
                 let sync = crate::logic::privilege::build_privilege_command(tool, "pacman -Sy");
@@ -628,16 +636,19 @@ mod tests {
         let cmd1 =
             build_install_command_for_executor(std::slice::from_ref(&official_pkg), None, false)
                 .expect("build install");
+        let quoted_name = crate::install::shell_single_quote("ripgrep");
         if is_installed {
             assert!(
-                cmd1.contains(&format!("{bin} pacman -S --noconfirm ripgrep")),
-                "expected '{bin} pacman -S --noconfirm ripgrep' in: {cmd1}"
+                cmd1.contains(&format!("{bin} pacman -S --noconfirm {quoted_name}")),
+                "expected quoted package name in: {cmd1}"
             );
             assert!(!cmd1.contains("--needed"));
         } else {
             assert!(
-                cmd1.contains(&format!("{bin} pacman -S --needed --noconfirm ripgrep")),
-                "expected '{bin} pacman -S --needed --noconfirm ripgrep' in: {cmd1}"
+                cmd1.contains(&format!(
+                    "{bin} pacman -S --needed --noconfirm {quoted_name}"
+                )),
+                "expected quoted package name in: {cmd1}"
             );
         }
         assert!(!cmd1.contains("Press any key to close"));
@@ -653,13 +664,15 @@ mod tests {
             assert!(cmd2.contains("printf "), "expected printf in: {cmd2}");
             if is_installed {
                 assert!(
-                    cmd2.contains(&format!("{bin} -S pacman -S --noconfirm ripgrep")),
-                    "expected '{bin} -S pacman ...' in: {cmd2}"
+                    cmd2.contains(&format!("{bin} -S pacman -S --noconfirm {quoted_name}")),
+                    "expected quoted package name in password command: {cmd2}"
                 );
             } else {
                 assert!(
-                    cmd2.contains(&format!("{bin} -S pacman -S --needed --noconfirm ripgrep")),
-                    "expected '{bin} -S pacman ...' in: {cmd2}"
+                    cmd2.contains(&format!(
+                        "{bin} -S pacman -S --needed --noconfirm {quoted_name}"
+                    )),
+                    "expected quoted package name in password command: {cmd2}"
                 );
             }
         } else {

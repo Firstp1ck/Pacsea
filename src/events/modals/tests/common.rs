@@ -201,7 +201,7 @@ pub(super) fn create_test_modals() -> Vec<(crate::state::Modal, &'static str)> {
             crate::state::Modal::PasswordPrompt {
                 purpose: crate::state::modal::PasswordPurpose::Install,
                 items: vec![],
-                input: String::new(),
+                input: crate::state::SecureString::default(),
                 cursor: 0,
                 error: None,
             },

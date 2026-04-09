@@ -348,7 +348,7 @@ pub(super) fn handle_confirm_batch_update_modal(
                     app.modal = crate::state::Modal::PasswordPrompt {
                         purpose: crate::state::modal::PasswordPurpose::Install,
                         items: items_clone,
-                        input: String::new(),
+                        input: crate::state::SecureString::default(),
                         cursor: 0,
                         error: None,
                     };
@@ -644,7 +644,7 @@ pub(super) fn handle_confirm_reinstall_modal(
                         app.modal = crate::state::Modal::PasswordPrompt {
                             purpose: crate::state::modal::PasswordPurpose::Install,
                             items: items_clone,
-                            input: String::new(),
+                            input: crate::state::SecureString::default(),
                             cursor: 0,
                             error: None,
                         };
@@ -1413,7 +1413,7 @@ pub(super) fn handle_password_prompt_modal(
             if let Some(ref pass) = password {
                 // Validate password before starting execution
                 // Always validate - don't skip even if passwordless sudo might be configured
-                match crate::logic::password::validate_sudo_password(pass) {
+                match crate::logic::password::validate_sudo_password(pass.as_str()) {
                     Ok(true) => {
                         // Password is valid, continue with execution
                     }
@@ -1499,8 +1499,8 @@ pub(super) fn handle_password_prompt_modal(
                         app.modal = crate::state::Modal::PasswordPrompt {
                             purpose: *purpose,
                             items: items.clone(),
-                            input: String::new(), // Clear input field
-                            cursor: 0,            // Reset cursor position
+                            input: crate::state::SecureString::default(), // Clear input field
+                            cursor: 0,                                    // Reset cursor position
                             error: Some(error_msg),
                         };
                         // Don't start execution, keep modal open for retry

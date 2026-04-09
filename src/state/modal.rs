@@ -956,7 +956,7 @@ pub enum Modal {
         /// Packages involved in the operation.
         items: Vec<PackageItem>,
         /// User input buffer for password.
-        input: String,
+        input: crate::state::SecureString,
         /// Cursor position within the input buffer.
         cursor: usize,
         /// Error message if password was incorrect.
@@ -1068,14 +1068,14 @@ mod tests {
         let _ = super::Modal::PasswordPrompt {
             purpose: super::PasswordPurpose::Install,
             items: Vec::new(),
-            input: String::new(),
+            input: crate::state::SecureString::default(),
             cursor: 0,
             error: None,
         };
         let _ = super::Modal::PasswordPrompt {
             purpose: super::PasswordPurpose::RepoForeignMigrate,
             items: Vec::new(),
-            input: String::new(),
+            input: crate::state::SecureString::default(),
             cursor: 0,
             error: None,
         };

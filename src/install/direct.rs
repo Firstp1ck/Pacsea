@@ -71,7 +71,7 @@ pub fn start_integrated_install(app: &mut AppState, item: &PackageItem, dry_run:
         app.modal = crate::state::Modal::PasswordPrompt {
             purpose: crate::state::modal::PasswordPurpose::Install,
             items,
-            input: String::new(),
+            input: crate::state::SecureString::default(),
             cursor: 0,
             error: None,
         };
@@ -148,7 +148,7 @@ pub fn start_integrated_install_all(app: &mut AppState, items: &[PackageItem], d
         app.modal = crate::state::Modal::PasswordPrompt {
             purpose: crate::state::modal::PasswordPurpose::Install,
             items: items_vec,
-            input: String::new(),
+            input: crate::state::SecureString::default(),
             cursor: 0,
             error: None,
         };
@@ -243,7 +243,7 @@ pub fn start_integrated_remove_all(
     app.modal = crate::state::Modal::PasswordPrompt {
         purpose: crate::state::modal::PasswordPurpose::Remove,
         items,
-        input: String::new(),
+        input: crate::state::SecureString::default(),
         cursor: 0,
         error: None,
     };

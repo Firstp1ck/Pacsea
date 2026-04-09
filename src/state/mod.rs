@@ -13,7 +13,7 @@ pub use modal::{Modal, PreflightAction, PreflightTab, SshSetupStep};
 pub use types::{
     ArchStatusColor, Focus, InstalledPackagesMode, NewsItem, PackageDetails, PackageItem,
     PkgbuildCheckRequest, PkgbuildCheckResponse, QueryInput, RightPaneFocus, SearchResults,
-    SortMode, Source,
+    SecureString, SortMode, Source,
 };
 
 #[cfg(test)]

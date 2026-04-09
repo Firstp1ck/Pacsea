@@ -329,7 +329,7 @@ pub fn spawn_remove_all(names: &[String], dry_run: bool, cascade_mode: CascadeMo
                     "Pacsea Remove",
                     "cmd",
                     "/K",
-                    &format!("echo {msg}"),
+                    &super::utils::cmd_echo_command(&msg),
                 ])
                 .spawn();
         }

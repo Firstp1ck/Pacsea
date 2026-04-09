@@ -781,7 +781,7 @@ fn queue_repo_apply_execution(
     app.modal = crate::state::Modal::PasswordPrompt {
         purpose: crate::state::modal::PasswordPurpose::RepoApply,
         items: Vec::new(),
-        input: String::new(),
+        input: crate::state::SecureString::default(),
         cursor: 0,
         error: None,
     };

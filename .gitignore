@@ -53,3 +53,11 @@ dev/PR/*
 pacsea.log
 
 dev/SECURITY_AUDIT_REPORT.md
+
+# Security: prevent accidental secret commits
+.env
+.env.*
+*.pem
+*.key
+credentials.json
+service-account.json

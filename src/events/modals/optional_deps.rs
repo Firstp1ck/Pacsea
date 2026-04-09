@@ -334,7 +334,7 @@ fn handle_optional_deps_enter(
                 app.modal = crate::state::Modal::PasswordPrompt {
                     purpose: crate::state::modal::PasswordPurpose::Install,
                     items: vec![item],
-                    input: String::new(),
+                    input: crate::state::SecureString::default(),
                     cursor: 0,
                     error: None,
                 };

@@ -150,23 +150,55 @@ fn try_spawn_terminal(
 /// Details:
 /// - Creates a bash script with executable permissions.
 fn create_temp_script(cmd_str: &str) -> std::path::PathBuf {
-    let mut p = std::env::temp_dir();
-    let ts = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    p.push(format!("pacsea_scan_{}_{}.sh", std::process::id(), ts));
-    let _ = std::fs::write(&p, format!("#!/bin/bash\n{cmd_str}\n"));
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        if let Ok(meta) = std::fs::metadata(&p) {
-            let mut perms = meta.permissions();
-            perms.set_mode(0o700);
-            let _ = std::fs::set_permissions(&p, perms);
+    use std::io::Write;
+
+    let mut created = std::env::temp_dir();
+    for attempt in 0_u32..8 {
+        let mut p = std::env::temp_dir();
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        p.push(format!(
+            "pacsea_scan_{}_{}_{}.sh",
+            std::process::id(),
+            ts,
+            attempt
+        ));
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+
+            let file_res = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o700)
+                .open(&p);
+
+            if let Ok(mut file) = file_res {
+                let _ = file.write_all(format!("#!/bin/bash\n{cmd_str}\n").as_bytes());
+                return p;
+            }
         }
+
+        #[cfg(not(unix))]
+        {
+            let file_res = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&p);
+
+            if let Ok(mut file) = file_res {
+                let _ = file.write_all(format!("#!/bin/bash\n{cmd_str}\n").as_bytes());
+                return p;
+            }
+        }
+
+        created = p;
     }
-    p
+
+    created
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -177,13 +209,65 @@ fn create_temp_script(cmd_str: &str) -> std::path::PathBuf {
 ///
 /// Output:
 /// - None (writes to log file).
+///
+/// Details:
+/// - Redacts password-bearing `printf '%s\n' ... | sudo -S` segments before persistence.
+/// - Creates log files with mode `0o600` on Unix so only the owner can read/write.
 fn persist_command_to_log(cmd_str: &str) {
+    use std::io::Write;
+    use std::os::unix::fs::OpenOptionsExt;
+
     let mut lp = crate::theme::logs_dir();
     lp.push("last_terminal_cmd.log");
     if let Some(parent) = lp.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    let _ = std::fs::write(&lp, format!("{cmd_str}\n"));
+    let redacted = redact_password_pipe_for_log(cmd_str);
+    if let Ok(mut file) = std::fs::OpenOptions::new()
+        .create(true)
+        .truncate(true)
+        .write(true)
+        .mode(0o600)
+        .open(&lp)
+    {
+        let _ = file.write_all(format!("{redacted}\n").as_bytes());
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+/// What: Redact password-bearing shell password pipes in command logs.
+///
+/// Inputs:
+/// - `cmd_str`: Command string that may contain `printf '%s\n' <password> | sudo -S ...`.
+///
+/// Output:
+/// - Copy of `cmd_str` where password arguments in matching `printf` pipes are replaced with `[REDACTED]`.
+///
+/// Details:
+/// - Targets the exact prefix used by privilege builders: `printf '%s\n'`.
+/// - Keeps the surrounding command structure intact for debugging while removing sensitive material.
+#[must_use]
+fn redact_password_pipe_for_log(cmd_str: &str) -> String {
+    let marker = "printf '%s\\n' ";
+    let mut out = String::with_capacity(cmd_str.len());
+    let mut rest = cmd_str;
+
+    while let Some(start_idx) = rest.find(marker) {
+        let (before, after_start) = rest.split_at(start_idx);
+        out.push_str(before);
+        out.push_str(marker);
+        let after_marker = &after_start[marker.len()..];
+        if let Some(pipe_idx) = after_marker.find(" | ") {
+            out.push_str("'[REDACTED]'");
+            rest = &after_marker[pipe_idx..];
+        } else {
+            out.push_str(after_marker);
+            rest = "";
+        }
+    }
+
+    out.push_str(rest);
+    out
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -435,6 +519,26 @@ mod tests {
             std::env::remove_var("PACSEA_TEST_OUT");
         }
     }
+
+    #[test]
+    /// What: Ensure password-bearing privilege pipes are redacted before log persistence.
+    ///
+    /// Inputs:
+    /// - Command string containing the `printf '%s\n' '<password>' | sudo -S ...` pattern.
+    ///
+    /// Output:
+    /// - Returned log string includes `[REDACTED]` and omits the original password.
+    ///
+    /// Details:
+    /// - Guards against leaking sudo password fragments when command logs are written to disk.
+    fn shell_redacts_password_pipe_for_log() {
+        let input =
+            "printf '%s\\n' 'pa'\"'\"'ss' | sudo -S pacman -S --noconfirm 'ripgrep' && echo done";
+        let redacted = super::redact_password_pipe_for_log(input);
+        assert!(redacted.contains("printf '%s\\n' '[REDACTED]' | sudo -S"));
+        assert!(!redacted.contains("pa'\"'\"'ss"));
+        assert!(redacted.contains("pacman -S --noconfirm 'ripgrep' && echo done"));
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -476,7 +580,7 @@ pub fn spawn_shell_commands_in_terminal(cmds: &[String]) {
                 "Pacsea Update",
                 "cmd",
                 "/K",
-                &format!("echo {msg}"),
+                &super::utils::cmd_echo_command(&msg),
             ])
             .spawn();
     }

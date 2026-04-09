@@ -512,7 +512,7 @@ struct PasswordPromptContext {
     /// Items involved in the operation requiring authentication.
     items: Vec<crate::state::PackageItem>,
     /// Current password input buffer.
-    input: String,
+    input: crate::state::SecureString,
     /// Cursor position within the input buffer.
     cursor: usize,
     /// Optional error message to display.

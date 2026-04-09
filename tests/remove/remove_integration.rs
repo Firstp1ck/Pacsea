@@ -137,7 +137,7 @@ fn integration_remove_executor_request_creation() {
 
     let request = ExecutorRequest::Remove {
         names,
-        password: Some("testpass".to_string()),
+        password: Some("testpass".to_string().into()),
         cascade: CascadeMode::Cascade,
         dry_run: false,
     };

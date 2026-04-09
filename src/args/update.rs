@@ -7,6 +7,8 @@ use crate::args::utils;
 #[cfg(not(target_os = "windows"))]
 use pacsea::install::shell_single_quote;
 #[cfg(not(target_os = "windows"))]
+use pacsea::state::SecureString;
+#[cfg(not(target_os = "windows"))]
 use pacsea::theme;
 #[cfg(not(target_os = "windows"))]
 use std::path::Path;
@@ -607,7 +609,7 @@ impl UpdateState {
 /// - Validates that password is not empty (after trimming whitespace).
 /// - Empty passwords are rejected early to prevent sudo failures.
 #[cfg(not(target_os = "windows"))]
-fn prompt_and_validate_password(write_log: &(dyn Fn(&str) + Send + Sync)) -> Option<String> {
+fn prompt_and_validate_password(write_log: &(dyn Fn(&str) + Send + Sync)) -> Option<SecureString> {
     use std::io::IsTerminal;
 
     let settings = theme::settings();
@@ -658,7 +660,7 @@ fn prompt_and_validate_password(write_log: &(dyn Fn(&str) + Send + Sync)) -> Opt
             }
             write_log("Password obtained from user (not logged)");
             // Return trimmed password to ensure consistency with validation
-            Some(trimmed_pass.to_string())
+            Some(SecureString::from(trimmed_pass))
         }
         Err(e) => {
             eprintln!("{}", i18n::t_fmt1("app.cli.update.error_prefix", &e));

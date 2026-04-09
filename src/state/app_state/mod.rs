@@ -884,7 +884,7 @@ pub struct AppState {
     /// AUR update command to execute conditionally if pacman fails (for system update).
     pub pending_aur_update_command: Option<String>,
     /// Password obtained from password prompt, stored temporarily for reinstall confirmation flow.
-    pub pending_executor_password: Option<String>,
+    pub pending_executor_password: Option<crate::state::SecureString>,
     /// File database sync result from background thread (checked in tick handler).
     pub pending_file_sync_result: Option<FileSyncResult>,
     /// Background AUR SSH validation result handle for Optional Deps status refresh.

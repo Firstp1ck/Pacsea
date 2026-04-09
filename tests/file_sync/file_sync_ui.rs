@@ -25,7 +25,7 @@ fn ui_file_sync_password_prompt_structure() {
         modal: Modal::PasswordPrompt {
             purpose: PasswordPurpose::FileSync,
             items: vec![],
-            input: String::new(),
+            input: pacsea::state::SecureString::default(),
             cursor: 0,
             error: None,
         },
@@ -81,7 +81,7 @@ fn ui_file_sync_preflight_exec_structure() {
         },
         pending_executor_request: Some(pacsea::install::ExecutorRequest::CustomCommand {
             command: "sudo pacman -Fy".to_string(),
-            password: Some("testpassword".to_string()),
+            password: Some("testpassword".to_string().into()),
             dry_run: false,
         }),
         ..Default::default()
@@ -141,7 +141,7 @@ fn ui_file_sync_modal_transition() {
         modal: Modal::PasswordPrompt {
             purpose: PasswordPurpose::FileSync,
             items: vec![],
-            input: "testpassword".to_string(),
+            input: "testpassword".into(),
             cursor: 12,
             error: None,
         },

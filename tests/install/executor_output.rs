@@ -492,7 +492,7 @@ fn integration_executor_request_install() {
 
     let request = ExecutorRequest::Install {
         items: items.clone(),
-        password: Some("testpassword".to_string()),
+        password: Some("testpassword".to_string().into()),
         dry_run: false,
     };
 
@@ -531,7 +531,7 @@ fn integration_executor_request_remove() {
 
     let request = ExecutorRequest::Remove {
         names: names.clone(),
-        password: Some("testpassword".to_string()),
+        password: Some("testpassword".to_string().into()),
         cascade: CascadeMode::Cascade,
         dry_run: false,
     };
@@ -570,7 +570,7 @@ fn integration_executor_request_downgrade() {
 
     let request = ExecutorRequest::Downgrade {
         names: names.clone(),
-        password: Some("testpassword".to_string()),
+        password: Some("testpassword".to_string().into()),
         dry_run: false,
     };
 
@@ -604,7 +604,7 @@ fn integration_executor_request_downgrade() {
 fn integration_executor_request_custom_command() {
     let request = ExecutorRequest::CustomCommand {
         command: "makepkg -si".to_string(),
-        password: Some("testpassword".to_string()),
+        password: Some("testpassword".to_string().into()),
         dry_run: false,
     };
 
@@ -642,7 +642,7 @@ fn integration_executor_request_update() {
 
     let request = ExecutorRequest::Update {
         commands: commands.clone(),
-        password: Some("testpassword".to_string()),
+        password: Some("testpassword".to_string().into()),
         dry_run: false,
     };
 

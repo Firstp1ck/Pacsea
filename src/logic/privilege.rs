@@ -787,7 +787,14 @@ pub fn validate_password(tool: PrivilegeTool, password: &str) -> Result<bool, St
 ///
 /// Details: Guards test-only env overrides so production never honors them.
 fn is_integration_test_context() -> bool {
-    std::env::var("PACSEA_INTEGRATION_TEST").is_ok_and(|v| v == "1")
+    #[cfg(any(test, debug_assertions))]
+    {
+        std::env::var("PACSEA_INTEGRATION_TEST").is_ok_and(|v| v == "1")
+    }
+    #[cfg(not(any(test, debug_assertions)))]
+    {
+        false
+    }
 }
 
 /// What: Public wrapper for [`is_integration_test_context`].

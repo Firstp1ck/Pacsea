@@ -10,7 +10,9 @@ use super::command::{aur_install_body, aur_install_helper_flags};
 #[cfg(not(target_os = "windows"))]
 use super::logging::log_installed;
 #[cfg(not(target_os = "windows"))]
-use super::utils::{choose_terminal_index_prefer_path, command_on_path, shell_single_quote};
+use super::utils::{
+    choose_terminal_index_prefer_path, command_on_path, shell_single_quote, validate_package_names,
+};
 
 #[cfg(not(target_os = "windows"))]
 /// What: Build the shell command string for batch package installation.
@@ -38,6 +40,13 @@ fn build_batch_install_command(
     aur: &[String],
     dry_run: bool,
 ) -> Result<String, String> {
+    validate_package_names(official, "batch install command (official)")?;
+    validate_package_names(aur, "batch install command (AUR)")?;
+    let official_quoted: Vec<String> = official
+        .iter()
+        .map(|name| shell_single_quote(name))
+        .collect();
+    let aur_quoted: Vec<String> = aur.iter().map(|name| shell_single_quote(name)).collect();
     let hold_tail = "; echo; echo 'Finished.'; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
 
     let installed_set = crate::logic::deps::get_installed_packages();
@@ -67,11 +76,11 @@ fn build_batch_install_command(
             let tool = crate::logic::privilege::active_tool()?;
             let off_cmd = crate::logic::privilege::build_privilege_command(
                 tool,
-                &format!("pacman -S {pacman_dry_flags} {}", official.join(" ")),
+                &format!("pacman -S {pacman_dry_flags} {}", official_quoted.join(" ")),
             );
             let cmd = format!(
                 "{off_cmd} && (paru -S --aur {aur_cli_suffix} {n} || yay -S --aur {aur_cli_suffix} {n}){hold}",
-                n = aur.join(" "),
+                n = aur_quoted.join(" "),
                 hold = hold_tail
             );
             let quoted = shell_single_quote(&cmd);
@@ -79,7 +88,7 @@ fn build_batch_install_command(
         } else if !aur.is_empty() {
             let cmd = format!(
                 "(paru -S --aur {aur_cli_suffix} {n} || yay -S --aur {aur_cli_suffix} {n}){hold}",
-                n = aur.join(" "),
+                n = aur_quoted.join(" "),
                 hold = hold_tail
             );
             let quoted = shell_single_quote(&cmd);
@@ -90,7 +99,7 @@ fn build_batch_install_command(
                 "{}{hold}",
                 crate::logic::privilege::build_privilege_command(
                     tool,
-                    &format!("pacman -S {pacman_dry_flags} {}", official.join(" "))
+                    &format!("pacman -S {pacman_dry_flags} {}", official_quoted.join(" "))
                 ),
                 hold = hold_tail
             );
@@ -108,12 +117,12 @@ fn build_batch_install_command(
         });
 
         let tool = crate::logic::privilege::active_tool()?;
-        let aur_body = aur_install_body(aur_s_flags, &aur.join(" "));
+        let aur_body = aur_install_body(aur_s_flags, &aur_quoted.join(" "));
         if has_versions && reinstall_any {
             Ok(format!(
                 "{} bash -c 'pacman -Sy --noconfirm && pacman -S --noconfirm {n}' && {aur_body}{hold}",
                 tool.binary_name(),
-                n = official.join(" "),
+                n = official_quoted.join(" "),
                 aur_body = aur_body,
                 hold = hold_tail
             ))
@@ -122,7 +131,10 @@ fn build_batch_install_command(
                 "{} && {aur_body}{hold}",
                 crate::logic::privilege::build_privilege_command(
                     tool,
-                    &format!("pacman -S --needed --noconfirm {}", official.join(" "))
+                    &format!(
+                        "pacman -S --needed --noconfirm {}",
+                        official_quoted.join(" ")
+                    )
                 ),
                 aur_body = aur_body,
                 hold = hold_tail
@@ -131,7 +143,7 @@ fn build_batch_install_command(
     } else if !aur.is_empty() {
         Ok(format!(
             "{body}{hold}",
-            body = aur_install_body(aur_s_flags, &aur.join(" ")),
+            body = aur_install_body(aur_s_flags, &aur_quoted.join(" ")),
             hold = hold_tail
         ))
     } else if !official.is_empty() {
@@ -148,7 +160,7 @@ fn build_batch_install_command(
             Ok(format!(
                 "{} bash -c 'pacman -Sy --noconfirm && pacman -S --noconfirm {n}'{hold}",
                 tool.binary_name(),
-                n = official.join(" "),
+                n = official_quoted.join(" "),
                 hold = hold_tail
             ))
         } else {
@@ -156,7 +168,10 @@ fn build_batch_install_command(
                 "{}{hold}",
                 crate::logic::privilege::build_privilege_command(
                     tool,
-                    &format!("pacman -S --needed --noconfirm {}", official.join(" "))
+                    &format!(
+                        "pacman -S --needed --noconfirm {}",
+                        official_quoted.join(" ")
+                    )
                 ),
                 hold = hold_tail
             ))
@@ -483,7 +498,7 @@ pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
                     "Pacsea Install",
                     "cmd",
                     "/K",
-                    &format!("echo {msg}"),
+                    &super::utils::cmd_echo_command(&msg),
                 ])
                 .spawn();
         }

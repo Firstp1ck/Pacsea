@@ -222,7 +222,7 @@ fn integration_executor_request_downgrade_with_password() {
 
     let request = ExecutorRequest::Downgrade {
         names,
-        password: Some("testpassword".to_string()),
+        password: Some("testpassword".to_string().into()),
         dry_run: false,
     };
 
@@ -331,7 +331,7 @@ fn integration_downgrade_password_prompt() {
     app.modal = Modal::PasswordPrompt {
         purpose: PasswordPurpose::Downgrade,
         items: vec![pkg],
-        input: String::new(),
+        input: pacsea::state::SecureString::default(),
         cursor: 0,
         error: None,
     };
@@ -371,7 +371,7 @@ fn integration_downgrade_to_preflight_exec() {
         modal: Modal::PasswordPrompt {
             purpose: PasswordPurpose::Downgrade,
             items: vec![pkg],
-            input: "testpassword".to_string(),
+            input: "testpassword".into(),
             cursor: 12,
             error: None,
         },
@@ -460,7 +460,7 @@ fn integration_downgrade_multiple_packages() {
 
     let request = ExecutorRequest::Downgrade {
         names,
-        password: Some("testpassword".to_string()),
+        password: Some("testpassword".to_string().into()),
         dry_run: false,
     };
 

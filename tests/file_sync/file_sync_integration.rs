@@ -42,7 +42,7 @@ fn integration_file_sync_fallback_password_prompt() {
         app.modal = Modal::PasswordPrompt {
             purpose: PasswordPurpose::FileSync,
             items: vec![],
-            input: String::new(),
+            input: pacsea::state::SecureString::default(),
             cursor: 0,
             error: None,
         };
@@ -128,7 +128,7 @@ fn integration_file_sync_executor_request() {
         modal: Modal::PasswordPrompt {
             purpose: PasswordPurpose::FileSync,
             items: vec![],
-            input: "testpassword".to_string(),
+            input: "testpassword".into(),
             cursor: 12,
             error: None,
         },
