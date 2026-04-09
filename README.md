@@ -31,7 +31,12 @@ Browse Arch news, security advisories, package updates, and AUR comments in a un
 
 ![News feed view (v0.7.1)](Images/News_feed_v0.7.1.png "News feed view (v0.7.1)")
 
+## Demo
+
+**Part 1** of a multipart walkthrough: [Pacsea demo on YouTube](https://youtu.be/QlAh0Fu1Ges)
+
 ## Table of Contents
+- [Demo](#demo)
 - [Quick start](#quick-start)
 - [Features](#features)
 - [Usage](#usage)
