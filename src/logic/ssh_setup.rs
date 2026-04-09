@@ -12,6 +12,24 @@ const AUR_KEY_NAME: &str = "aur_key";
 /// Account URL shown in the setup flow.
 pub const AUR_ACCOUNT_URL: &str = "https://aur.archlinux.org/account";
 
+/// What: Check whether `openssh` is installed on the system.
+///
+/// Inputs: None.
+///
+/// Output:
+/// - `true` when `openssh` is detected as installed.
+///
+/// Details:
+/// - Uses Pacsea installed-package index (`openssh` package name).
+#[must_use]
+pub fn is_openssh_installed() -> bool {
+    #[cfg(test)]
+    if let Ok(v) = std::env::var("PACSEA_TEST_OPENSSH_INSTALLED") {
+        return v == "1";
+    }
+    crate::index::is_installed("openssh")
+}
+
 /// What: Workflow result for attempting SSH setup actions.
 ///
 /// Inputs:
@@ -429,5 +447,20 @@ mod tests {
         assert!(body.contains("Host aur.archlinux.org"));
         assert!(body.contains("IdentityFile ~/.ssh/aur_key"));
         let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn openssh_check_honors_test_override() {
+        unsafe {
+            std::env::set_var("PACSEA_TEST_OPENSSH_INSTALLED", "1");
+        }
+        assert!(is_openssh_installed());
+        unsafe {
+            std::env::set_var("PACSEA_TEST_OPENSSH_INSTALLED", "0");
+        }
+        assert!(!is_openssh_installed());
+        unsafe {
+            std::env::remove_var("PACSEA_TEST_OPENSSH_INSTALLED");
+        }
     }
 }

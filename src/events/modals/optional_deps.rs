@@ -203,19 +203,26 @@ fn handle_optional_deps_enter(
 
     // Setup flows need interactive terminal, keep as-is
     if row.package == "aur-ssh-setup" {
+        let mut status_lines = vec![
+            "This setup will create '~/.ssh/aur_key' if missing.".to_string(),
+            "It will add/update Host aur.archlinux.org in '~/.ssh/config'.".to_string(),
+            "Then it validates with: ssh aur@aur.archlinux.org help".to_string(),
+            format!(
+                "After setup, upload '~/.ssh/aur_key.pub' to {}",
+                crate::logic::ssh_setup::AUR_ACCOUNT_URL
+            ),
+            "Press Enter to run, O to open account page, Esc to cancel.".to_string(),
+        ];
+        if !crate::logic::ssh_setup::is_openssh_installed() {
+            status_lines.push(
+                "Warning: openssh is not installed. Install openssh first, then run setup."
+                    .to_string(),
+            );
+        }
         return (
             crate::state::Modal::SshAurSetup {
                 step: crate::state::SshSetupStep::Intro,
-                status_lines: vec![
-                    "This setup will create '~/.ssh/aur_key' if missing.".to_string(),
-                    "It will add/update Host aur.archlinux.org in '~/.ssh/config'.".to_string(),
-                    "Then it validates with: ssh aur@aur.archlinux.org help".to_string(),
-                    format!(
-                        "After setup, upload '~/.ssh/aur_key.pub' to {}",
-                        crate::logic::ssh_setup::AUR_ACCOUNT_URL
-                    ),
-                    "Press Enter to run, O to open account page, Esc to cancel.".to_string(),
-                ],
+                status_lines,
                 existing_host_block: None,
             },
             false,
@@ -532,6 +539,16 @@ pub(super) fn handle_ssh_setup_modal(
             Some(true)
         }
         (crate::state::SshSetupStep::Intro, KeyCode::Enter | KeyCode::Char('\n' | '\r')) => {
+            if !crate::logic::ssh_setup::is_openssh_installed() {
+                let warning =
+                    "Warning: openssh is not installed. Install openssh first, then run setup."
+                        .to_string();
+                if !status_lines.iter().any(|line| line == &warning) {
+                    status_lines.push(warning);
+                }
+                tracing::warn!("SSH setup blocked: openssh is not installed");
+                return Some(true);
+            }
             let ssh_command = crate::theme::settings().aur_vote_ssh_command;
             match crate::logic::ssh_setup::run_aur_ssh_setup(false, &ssh_command) {
                 crate::logic::ssh_setup::AurSshSetupResult::Completed(report) => {
@@ -540,14 +557,12 @@ pub(super) fn handle_ssh_setup_modal(
                     *status_lines = report.lines;
                     *existing_host_block = None;
                     if failed {
-                        app.toast_message =
-                            Some("SSH setup failed. Continuing startup setup.".to_string());
+                        tracing::error!("SSH setup failed: {}", status_lines.join(" | "));
+                        app.toast_message = Some(
+                            "SSH setup failed. Review details in the SSH setup window.".to_string(),
+                        );
                         app.toast_expires_at =
                             Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
-                        app.modal = crate::state::Modal::None;
-                        if !app.pending_startup_setup_steps.is_empty() {
-                            super::common::show_next_startup_setup_step(app);
-                        }
                     }
                 }
                 crate::logic::ssh_setup::AurSshSetupResult::NeedsOverwrite {
@@ -593,13 +608,14 @@ pub(super) fn handle_ssh_setup_modal(
             *status_lines = report.lines;
             *existing_host_block = None;
             if failed {
-                app.toast_message = Some("SSH setup failed. Continuing startup setup.".to_string());
+                tracing::error!(
+                    "SSH setup failed after overwrite confirm: {}",
+                    status_lines.join(" | ")
+                );
+                app.toast_message =
+                    Some("SSH setup failed. Review details in the SSH setup window.".to_string());
                 app.toast_expires_at =
                     Some(std::time::Instant::now() + std::time::Duration::from_secs(4));
-                app.modal = crate::state::Modal::None;
-                if !app.pending_startup_setup_steps.is_empty() {
-                    super::common::show_next_startup_setup_step(app);
-                }
             }
             Some(true)
         }

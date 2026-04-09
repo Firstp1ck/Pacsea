@@ -441,6 +441,10 @@ pub(super) fn handle_post_summary(
         // Close modal and stop propagation to prevent key from reaching other handlers
         KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q' | '\n' | '\r') => {
             app.modal = crate::state::Modal::None;
+            if !app.pending_startup_setup_steps.is_empty() {
+                show_next_startup_setup_step(app);
+                return true;
+            }
             super::repositories::reopen_repositories_modal_if_pending(app);
             true // Stop propagation - prevents Enter from opening preflight again
         }

@@ -479,10 +479,12 @@ pub fn render_ssh_aur_setup(
 
     let mut lines: Vec<Line<'static>> = Vec::new();
     for line in status_lines {
-        lines.push(Line::from(Span::styled(
-            line.clone(),
-            Style::default().fg(th.text),
-        )));
+        let line_style = if line.starts_with("Warning:") {
+            Style::default().fg(th.yellow).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(th.text)
+        };
+        lines.push(Line::from(Span::styled(line.clone(), line_style)));
     }
     if let Some(block) = existing_host_block {
         lines.push(Line::from(""));
