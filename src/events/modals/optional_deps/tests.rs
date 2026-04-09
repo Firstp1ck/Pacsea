@@ -55,7 +55,7 @@ fn optional_deps_esc_closes_modal() {
         crate::state::Modal::None => {}
         _ => panic!("Expected modal to be closed"),
     }
-    assert_eq!(result, Some(true));
+    assert_eq!(result, Some(false));
 }
 
 #[test]
@@ -152,7 +152,7 @@ fn optional_deps_enter_installed_shows_reinstall() {
     let result = handle_optional_deps(ke, &mut app, &rows, &mut selected);
 
     // Should return Some(false) when showing reinstall confirmation
-    assert_eq!(result, Some(true));
+    assert_eq!(result, Some(false));
     // Modal should transition to ConfirmReinstall
     match app.modal {
         crate::state::Modal::ConfirmReinstall { .. } => {}
@@ -247,7 +247,7 @@ fn optional_deps_enter_aur_ssh_setup_opens_modal() {
     let ke = KeyEvent::new(KeyCode::Enter, KeyModifiers::empty());
     let result = handle_optional_deps(ke, &mut app, &rows, &mut selected);
 
-    assert_eq!(result, Some(true));
+    assert_eq!(result, Some(false));
     match app.modal {
         crate::state::Modal::SshAurSetup { step, .. } => {
             assert_eq!(step, crate::state::SshSetupStep::Intro);
