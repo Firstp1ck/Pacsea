@@ -1,7 +1,7 @@
 {
-  "id": "2026-04-05-iptables-nft-to-iptables",
-  "title": "iptables: iptables-nft replaced by iptables; legacy is iptables-legacy",
-  "content": "The old **iptables-nft** package name is replaced by **iptables**, and the legacy backend is available as **iptables-legacy**.\n\n**When switching packages** (among iptables-nft, iptables, iptables-legacy), check for **.pacsave** files in `/etc/iptables/` and restore your rules if needed:\n\n- `/etc/iptables/iptables.rules.pacsave`\n- `/etc/iptables/ip6tables.rules.pacsave`\n\nMost setups should work unchanged, but users relying on uncommon xtables extensions or legacy-only behavior should test carefully and use **iptables-legacy** if required.",
+  "id": "2026-04-10-arch-news-iptables-kea",
+  "title": "Arch News: iptables nft backend default + kea manual intervention",
+  "content": "## 1) iptables now defaults to nft backend\n\n`iptables-nft` is replaced by `iptables`. Legacy backend is available as `iptables-legacy`.\n\nImportant steps:\n- If you switch between `iptables-nft`, `iptables`, and `iptables-legacy`, check and restore rule backups if needed:\n  - `/etc/iptables/iptables.rules.pacsave`\n  - `/etc/iptables/ip6tables.rules.pacsave`\n- Test your firewall rules after upgrade.\n- If you rely on legacy-only behavior or uncommon xtables extensions, use `iptables-legacy`.\n\n## 2) kea >= 1:3.0.3-6 requires manual intervention\n\n`kea` services now run as dedicated `kea` user instead of `root`.\n\nImportant steps (for systems using kea):\n- Fix ownership after upgrade:\n  - `chown kea: /var/lib/kea/* /var/log/kea/* /run/lock/kea/logger_lockfile`\n- Restart kea services:\n  - `systemctl try-restart kea-ctrl-agent.service kea-dhcp{4,6,-ddns}.service`\n- Add required users to the `kea` group if they need access to kea files/logs/config.",
   "min_version": "0.7.0",
   "max_version": null,
   "expires": null
