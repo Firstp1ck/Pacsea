@@ -5,10 +5,15 @@
 #       documentation, building, and AUR publishing.
 #
 # Usage:
-#   ./release.fish [--dry-run] [version]
+#   ./release.fish [--dry-run] [--pkgrel MODE] [version]
 #
 # Options:
 #   --dry-run    Preview all changes without executing them
+#   --pkgrel     How to adjust AUR PKGBUILD pkgrel after setting pkgver:
+#                reset — set pkgrel to 1 (use when pkgver bumps)
+#                keep  — leave pkgrel unchanged
+#                bump  — increment numeric pkgrel by 1 (same pkgver, packaging change)
+#                If omitted and stdin is a TTY, you are prompted; else defaults to reset.
 #   version      New version (e.g., 0.6.2). If not provided, will prompt.
 #
 # Details:
@@ -28,6 +33,8 @@ set -g AUR_BIN_DIR "$HOME/aur-packages/pacsea-bin"
 set -g AUR_GIT_DIR "$HOME/aur-packages/pacsea-git"
 set -g WIKI_DIR "$HOME/Dokumente/GitHub/Pacsea.wiki"
 set -g DRY_RUN false
+set -g PKGREL_MODE ''
+set -g PKGREL_FROM_CLI false
 
 # Colors for output - use functions to avoid variable interpolation issues
 function _red; set_color red; end
@@ -416,6 +423,77 @@ end
 # Phase 3: PKGBUILD Updates
 # ============================================================================
 
+function apply_pkgrel_to_pkgbuild
+    set -l pkgbuild $argv[1]
+    set -l mode $argv[2]
+    switch $mode
+        case reset
+            sed -i 's/^pkgrel=.*/pkgrel=1/' "$pkgbuild"
+        case keep
+            true
+        case bump
+            set -l line (grep -m1 -E '^pkgrel=[0-9]+' "$pkgbuild" 2>/dev/null | string trim)
+            if test -z "$line"
+                log_error "Could not read numeric pkgrel from $pkgbuild (needed for bump)"
+                return 1
+            end
+            set -l current (string replace -r '^pkgrel=' '' $line)
+            if not string match -qr '^[0-9]+$' -- $current
+                log_error "Could not read numeric pkgrel from $pkgbuild (needed for bump)"
+                return 1
+            end
+            set -l next (math $current + 1)
+            sed -i "s/^pkgrel=.*/pkgrel=$next/" "$pkgbuild"
+        case '*'
+            log_error "Invalid PKGREL_MODE: $mode (expected reset, keep, or bump)"
+            return 1
+    end
+end
+
+function phase3_dry_run_pkgrel_msg
+    switch $PKGREL_MODE
+        case reset
+            log_info "[DRY-RUN] Would set pkgrel to 1"
+        case keep
+            log_info "[DRY-RUN] Would leave pkgrel unchanged"
+        case bump
+            log_info "[DRY-RUN] Would bump pkgrel by 1"
+    end
+end
+
+function prompt_pkgrel_mode_interactive_if_needed
+    if test "$PKGREL_FROM_CLI" = true
+        return 0
+    end
+    if test -t 0
+        echo
+        _cyan; echo "AUR PKGBUILD: how should pkgrel change after pkgver is set?"; _reset
+        echo "  1) reset — pkgrel=1 (new version release)"
+        echo "  2) keep  — leave pkgrel as-is"
+        echo "  3) bump  — pkgrel +1 (same pkgver, packaging-only change)"
+        while true
+            _cyan; echo -n "Choose [1-3] (default 1): "; _reset
+            read -l choice
+            switch $choice
+                case '' 1
+                    set -g PKGREL_MODE reset
+                    break
+                case 2
+                    set -g PKGREL_MODE keep
+                    break
+                case 3
+                    set -g PKGREL_MODE bump
+                    break
+                case '*'
+                    log_warn "Enter 1, 2, or 3"
+            end
+        end
+    else
+        set -g PKGREL_MODE reset
+        log_info "Non-interactive stdin: using AUR pkgrel mode reset (pass --pkgrel keep|bump|reset to set explicitly)"
+    end
+end
+
 function phase3_pkgbuild_updates
     set -l new_ver $argv[1]
     
@@ -426,14 +504,13 @@ function phase3_pkgbuild_updates
     
     if test "$DRY_RUN" = true
         log_info "[DRY-RUN] Would update pkgver to $new_ver in $AUR_BIN_DIR/PKGBUILD"
-        log_info "[DRY-RUN] Would reset pkgrel to 1"
+        phase3_dry_run_pkgrel_msg
     else
         if test -f "$AUR_BIN_DIR/PKGBUILD"
-            # Update pkgver
             sed -i "s/^pkgver=.*/pkgver=$new_ver/" "$AUR_BIN_DIR/PKGBUILD"
-            # Reset pkgrel to 1
-            sed -i "s/^pkgrel=.*/pkgrel=1/" "$AUR_BIN_DIR/PKGBUILD"
-            log_success "Updated $AUR_BIN_DIR/PKGBUILD"
+            apply_pkgrel_to_pkgbuild "$AUR_BIN_DIR/PKGBUILD" "$PKGREL_MODE"
+            or return 1
+            log_success "Updated $AUR_BIN_DIR/PKGBUILD (pkgrel mode: $PKGREL_MODE)"
         else
             log_error "PKGBUILD not found at $AUR_BIN_DIR/PKGBUILD"
             return 1
@@ -445,15 +522,14 @@ function phase3_pkgbuild_updates
     
     if test "$DRY_RUN" = true
         log_info "[DRY-RUN] Would update pkgver to $new_ver in $AUR_GIT_DIR/PKGBUILD"
-        log_info "[DRY-RUN] Would reset pkgrel to 1"
+        phase3_dry_run_pkgrel_msg
         log_info "[DRY-RUN] Would remove git commit suffixes"
     else
         if test -f "$AUR_GIT_DIR/PKGBUILD"
-            # Update pkgver (remove any git commit suffix like .r3.g6867376)
             sed -i "s/^pkgver=.*/pkgver=$new_ver/" "$AUR_GIT_DIR/PKGBUILD"
-            # Reset pkgrel to 1
-            sed -i "s/^pkgrel=.*/pkgrel=1/" "$AUR_GIT_DIR/PKGBUILD"
-            log_success "Updated $AUR_GIT_DIR/PKGBUILD"
+            apply_pkgrel_to_pkgbuild "$AUR_GIT_DIR/PKGBUILD" "$PKGREL_MODE"
+            or return 1
+            log_success "Updated $AUR_GIT_DIR/PKGBUILD (pkgrel mode: $PKGREL_MODE)"
         else
             log_error "PKGBUILD not found at $AUR_GIT_DIR/PKGBUILD"
             return 1
@@ -659,10 +735,17 @@ function phase5_aur_update
     
     if test "$DRY_RUN" = true
         log_info "[DRY-RUN] Would verify release asset availability: $tag/$asset_name"
+        log_info "[DRY-RUN] Would verify release asset availability: $tag/pacsea-aarch64"
     else
         wait_for_release_asset "$tag" "$asset_name"
         if test $status -ne 0
             if not confirm_continue "Release asset is not ready yet. Continue anyway?"
+                return 1
+            end
+        end
+        wait_for_release_asset "$tag" "pacsea-aarch64"
+        if test $status -ne 0
+            if not confirm_continue "aarch64 release asset is not ready yet. Continue anyway?"
                 return 1
             end
         end
@@ -1227,26 +1310,54 @@ end
 
 function main
     set -l new_version ""
+    set -l i 1
     
-    # Parse arguments
-    for arg in $argv
+    while test $i -le (count $argv)
+        set -l arg $argv[$i]
         switch $arg
             case '--dry-run'
                 set DRY_RUN true
                 log_warn "DRY RUN MODE - No changes will be made"
+            case '--pkgrel'
+                set i (math $i + 1)
+                if test $i -gt (count $argv)
+                    log_error "--pkgrel requires an argument: reset, keep, or bump"
+                    return 1
+                end
+                set -g PKGREL_MODE $argv[$i]
+                set -g PKGREL_FROM_CLI true
             case '-h' '--help'
-                echo "Usage: release.fish [--dry-run] [version]"
+                echo "Usage: release.fish [--dry-run] [--pkgrel MODE] [version]"
                 echo
                 echo "Options:"
-                echo "  --dry-run    Preview all changes without executing them"
-                echo "  -h, --help   Show this help message"
+                echo "  --dry-run       Preview all changes without executing them"
+                echo "  --pkgrel MODE   AUR pkgrel after pkgver update: reset, keep, or bump (omit = prompt if TTY)"
+                echo "  -h, --help      Show this help message"
                 echo
                 echo "If version is not provided, you will be prompted to enter it."
                 return 0
             case '*'
+                if string match -q '--*' -- $arg
+                    log_error "Unknown option: $arg"
+                    return 1
+                end
                 if test -z "$new_version"
                     set new_version $arg
+                else
+                    log_error "Unexpected argument: $arg"
+                    return 1
                 end
+        end
+        set i (math $i + 1)
+    end
+    
+    if test "$PKGREL_FROM_CLI" = true
+        switch $PKGREL_MODE
+            case reset keep bump
+                true
+            case '*'
+                log_error "Invalid --pkgrel value: $PKGREL_MODE (use reset, keep, or bump)"
+                return 1
         end
     end
     
@@ -1272,8 +1383,13 @@ function main
     # Get version if not provided
     if test -z "$new_version"
         set -l current (get_current_version)
-        _cyan; echo -n "Enter new version (current: $current): "; _reset
-        read new_version
+        if test "$DRY_RUN" = true
+            set new_version $current
+            log_info "DRY-RUN: using current Cargo.toml version: $new_version"
+        else
+            _cyan; echo -n "Enter new version (current: $current): "; _reset
+            read new_version
+        end
     end
     
     # Validate version
@@ -1282,10 +1398,22 @@ function main
         return 1
     end
     
+    prompt_pkgrel_mode_interactive_if_needed
+    or return 1
+    
+    switch $PKGREL_MODE
+        case reset keep bump
+            true
+        case '*'
+            log_error "Invalid pkgrel mode: $PKGREL_MODE"
+            return 1
+    end
+    
     # Confirm before starting
     echo
     _blue; echo -n "[INFO] "; _reset; echo -n "Release version: "; _bold; echo $new_version; _reset
     _blue; echo -n "[INFO] "; _reset; echo -n "Current version: "; _bold; echo (get_current_version); _reset
+    _blue; echo -n "[INFO] "; _reset; echo -n "AUR pkgrel mode: "; _bold; echo $PKGREL_MODE; _reset
     echo
     
     if not confirm_continue "Start release process?"

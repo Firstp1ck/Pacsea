@@ -12,10 +12,10 @@ set -euo pipefail
 #
 # What it does:
 #   - Derives repository, version, and tag from PKGBUILD or user input
-#   - Downloads binary artifact from GitHub releases
+#   - Downloads binary artifact(s) from GitHub releases
 #   - Downloads source tarball from GitHub releases
-#   - Computes SHA-256 checksums for both artifacts
-#   - Updates sha256sums array in PKGBUILD (up to 9 entries)
+#   - Computes SHA-256 checksums for both artifacts (or x86_64+aarch64+tarball for split PKGBUILDs)
+#   - Updates sha256sums / sha256sums_x86_64 / sha256sums_aarch64 or a single sha256sums array (up to 9 entries)
 #   - Optionally updates .SRCINFO file
 #   - Preserves PKGBUILD formatting
 #   - Performs no-op if checksums are unchanged
@@ -66,6 +66,7 @@ PACKAGE_NAME=""
 STEP=0
 REPO_FROM_CLI=false
 ASSET_FROM_CLI=false
+BINARY_FROM_CLI=false
 
 # Exit codes
 E_NO_PKG=10
@@ -210,6 +211,72 @@ curl_retry() {
   return 1
 }
 
+# Replace quoted checksum entries in a PKGBUILD sha256sums* array (multi-line safe).
+#
+# Args:
+# - $1: PKGBUILD path
+# - $2: array variable name (e.g. sha256sums or sha256sums_x86_64)
+# - $3: number of entries to set (1..9)
+# - $4..$12: sha256 values for entries 1..9 (omit trailing empties)
+pkgbuild_replace_sha256_array() {
+  local pkgfile="${1:?}"
+  local var="${2:?}"
+  local desired_n="${3:?}"
+  local sha1="${4:-}" sha2="${5:-}" sha3="${6:-}" sha4="${7:-}" sha5="${8:-}"
+  local sha6="${9:-}" sha7="${10:-}" sha8="${11:-}" sha9="${12:-}"
+  local tmp
+  tmp="$(mktemp)"
+  awk -v var="$var" -v desired_n="$desired_n" \
+      -v sha1="$sha1" -v sha2="$sha2" -v sha3="$sha3" -v sha4="$sha4" -v sha5="$sha5" \
+      -v sha6="$sha6" -v sha7="$sha7" -v sha8="$sha8" -v sha9="$sha9" '
+    function repl(i) {
+      if (i==1) return sha1;
+      else if (i==2) return sha2;
+      else if (i==3) return sha3;
+      else if (i==4) return sha4;
+      else if (i==5) return sha5;
+      else if (i==6) return sha6;
+      else if (i==7) return sha7;
+      else if (i==8) return sha8;
+      else if (i==9) return sha9;
+      return "";
+    }
+    BEGIN{ inarr=0; idx=0 }
+    {
+      if (!inarr) {
+        line_head=$0
+        while (length(line_head)>0 && (substr(line_head,1,1)==" " || substr(line_head,1,1)=="\t")) line_head=substr(line_head,2)
+        if (index(line_head, var "(")==1 || index(line_head, var "=(")==1) { inarr=1 }
+      }
+      if (inarr) {
+        line=$0
+        out=""
+        while (match(line, /"[^"]*"|\047[^\047]*\047/)) {
+          pre=substr(line,1,RSTART-1)
+          tok=substr(line,RSTART,RLENGTH)
+          post=substr(line,RSTART+RLENGTH)
+          idx++
+          r=repl(idx)
+          if (length(r) > 0) { tok=sprintf("%c%s%c", 39, r, 39) }
+          out=out pre tok
+          line=post
+        }
+        $0=out line
+        if ($0 ~ /\)/) {
+          add=""
+          for (k=idx+1; k<=desired_n; k++) {
+            r=repl(k)
+            if (length(r) > 0) add=add sprintf(" %c%s%c", 39, r, 39)
+          }
+          if (length(add) > 0) sub(/\)/, add ")")
+          inarr=0
+        }
+      }
+      print
+    }
+  ' "$pkgfile" > "$tmp" && mv "$tmp" "$pkgfile"
+}
+
 is_interactive() {
   [[ -t 0 ]]
 }
@@ -235,7 +302,7 @@ if [[ $# -gt 0 ]]; then
       -T|--tag-prefix)
         TAG_PREFIX="$2"; shift 2;;
       -B|--binary-url)
-        BINARY_URL="$2"; shift 2;;
+        BINARY_URL="$2"; BINARY_FROM_CLI=true; shift 2;;
       -S|--source-url)
         SOURCE_URL="$2"; shift 2;;
       -y|--yes)
@@ -535,6 +602,88 @@ echo "ℹ️ Asset:      ${ASSET_NAME}" >&2
 echo "ℹ️ Binary URL: ${BINARY_URL}" >&2
 echo "ℹ️ Source URL: ${SOURCE_URL}" >&2
 
+# pacsea-bin split: source=(tarball), per-arch binaries in source_x86_64 / source_aarch64.
+if grep -Eq '^[[:space:]]*source_x86_64=\(' "$PKGFILE" && grep -Eq '^[[:space:]]*source_aarch64=\(' "$PKGFILE"; then
+  if [[ "${BINARY_FROM_CLI}" == true ]]; then
+    die "This PKGBUILD uses split x86_64/aarch64 binaries; omit --binary-url and use --repo/--tag or PKGBUILD inference."
+  fi
+  if [[ "$REPO" != */* ]]; then
+    die "Unable to infer full GitHub repo (OWNER/REPO) for multi-arch download. Provide --repo OWNER/REPO."
+  fi
+
+  bin_url_x86="https://github.com/${REPO}/releases/download/${TAG}/pacsea"
+  bin_url_arm="https://github.com/${REPO}/releases/download/${TAG}/pacsea-aarch64"
+
+  log_step "Downloading artifacts for ${TAG} (x86_64 + aarch64 + source)"
+  tmpdir=$(mktemp -d)
+  trap 'rm -rf "$tmpdir"' EXIT
+
+  bin_x86_path="$tmpdir/pacsea"
+  bin_arm_path="$tmpdir/pacsea-aarch64"
+  src_path="$tmpdir/src-${TAG}.tar.gz"
+
+  if ! curl_retry "$bin_url_x86" "$bin_x86_path"; then
+    die_code $E_DOWNLOAD "Failed to download x86_64 binary from $bin_url_x86"
+  fi
+  if ! curl_retry "$bin_url_arm" "$bin_arm_path"; then
+    die_code $E_DOWNLOAD "Failed to download aarch64 binary from $bin_url_arm"
+  fi
+  if ! curl_retry "$SOURCE_URL" "$src_path"; then
+    die_code $E_DOWNLOAD "Failed to download source from $SOURCE_URL"
+  fi
+
+  log_step "Computing sha256 sums (multi-arch)"
+  sha_x86=$(sha256sum "$bin_x86_path" | awk '{print $1}')
+  sha_arm=$(sha256sum "$bin_arm_path" | awk '{print $1}')
+  sha_src=$(sha256sum "$src_path" | awk '{print $1}')
+
+  echo "ℹ️ x86_64 binary: $sha_x86" >&2
+  echo "ℹ️ aarch64 binary: $sha_arm" >&2
+  echo "ℹ️ source tarball: $sha_src" >&2
+
+  if ! $DRY_RUN; then
+    if [[ "$YES" != true ]]; then
+      if ! is_interactive; then
+        die_code $E_NONINTERACTIVE "Confirmation required. Re-run with --yes for non-interactive mode."
+      fi
+      read -r -p "Proceed to update sha256sums, sha256sums_x86_64, sha256sums_aarch64 in $PKGFILE? [Y/n] " ans
+      ans=${ans:-Y}
+      if [[ ! "$ans" =~ ^[Yy]$ ]]; then
+        echo "Aborted." >&2
+        exit 0
+      fi
+    fi
+  fi
+
+  if $DRY_RUN; then
+    echo "ℹ️ [dry-run] Would set sha256sums=( $sha_src )" >&2
+    echo "ℹ️ [dry-run] Would set sha256sums_x86_64=( $sha_x86 )" >&2
+    echo "ℹ️ [dry-run] Would set sha256sums_aarch64=( $sha_arm )" >&2
+    exit 0
+  fi
+
+  log_step "Updating checksum arrays (multi-arch)"
+  pkgbuild_replace_sha256_array "$PKGFILE" "sha256sums" 1 "$sha_src"
+  pkgbuild_replace_sha256_array "$PKGFILE" "sha256sums_x86_64" 1 "$sha_x86"
+  pkgbuild_replace_sha256_array "$PKGFILE" "sha256sums_aarch64" 1 "$sha_arm"
+  echo "✅ Updated sha256sums, sha256sums_x86_64, sha256sums_aarch64 in $PKGFILE" >&2
+
+  if [[ "$UPDATE_SRCINFO" == true ]]; then
+    if command -v makepkg >/dev/null 2>&1; then
+      makepkg --printsrcinfo > "$(dirname "$PKGFILE")/.SRCINFO" || die_code $E_PARSE "Failed to update .SRCINFO"
+      echo "✅ Updated .SRCINFO" >&2
+    else
+      echo "⚠️ makepkg not found; skipping .SRCINFO update" >&2
+    fi
+  fi
+
+  echo >&2
+  echo "ℹ️ Next steps:" >&2
+  echo "  ℹ️ makepkg --printsrcinfo > .SRCINFO" >&2
+  echo "  ℹ️ git add . && git commit -m 'Update checksums for ${TAG}'" >&2
+  exit 0
+fi
+
 #############################################
 # Download artifacts and compute hashes
 #############################################
@@ -789,55 +938,8 @@ if $DRY_RUN; then
   fi
 else
   log_step "Updating ${sha_var} array (multi-line safe)"
-  awk -v var="${sha_var}" -v desired_n="$desired_n" \
-      -v sha1="$sha1" -v sha2="$sha2" -v sha3="$sha3" -v sha4="$sha4" -v sha5="$sha5" -v sha6="$sha6" -v sha7="$sha7" -v sha8="$sha8" -v sha9="$sha9" '
-    function repl(i) {
-      if (i==1) return sha1;
-      else if (i==2) return sha2;
-      else if (i==3) return sha3;
-      else if (i==4) return sha4;
-      else if (i==5) return sha5;
-      else if (i==6) return sha6;
-      else if (i==7) return sha7;
-      else if (i==8) return sha8;
-      else if (i==9) return sha9;
-      return "";
-    }
-    BEGIN{ inarr=0; idx=0 }
-    {
-      if (!inarr) {
-        line_head=$0
-        while (length(line_head)>0 && (substr(line_head,1,1)==" " || substr(line_head,1,1)=="\t")) line_head=substr(line_head,2)
-        if (index(line_head, var "(")==1 || index(line_head, var "=(")==1) { inarr=1 }
-      }
-      if (inarr) {
-        line=$0
-        out=""
-        while (match(line, /"[^"]*"|\047[^\047]*\047/)) {
-          pre=substr(line,1,RSTART-1)
-          tok=substr(line,RSTART,RLENGTH)
-          post=substr(line,RSTART+RLENGTH)
-          idx++
-          r=repl(idx)
-          if (length(r) > 0) { tok=sprintf("%c%s%c", 39, r, 39) }
-          out=out pre tok
-          line=post
-        }
-        $0=out line
-        # If array closes on this line, insert any missing entries before )
-        if ($0 ~ /\)/) {
-          add=""
-          for (k=idx+1; k<=desired_n; k++) {
-            r=repl(k)
-            if (length(r) > 0) add=add sprintf(" %c%s%c", 39, r, 39)
-          }
-          if (length(add) > 0) sub(/\)/, add ")")
-          inarr=0
-        }
-      }
-      print
-    }
-  ' "$PKGFILE" > "$PKGFILE.tmp" && mv "$PKGFILE.tmp" "$PKGFILE"
+  pkgbuild_replace_sha256_array "$PKGFILE" "$sha_var" "$desired_n" \
+    "$sha1" "$sha2" "$sha3" "$sha4" "$sha5" "$sha6" "$sha7" "$sha8" "$sha9"
   echo "✅ Updated ${sha_var} in $PKGFILE" >&2
   if [[ "$UPDATE_SRCINFO" == true ]]; then
     if command -v makepkg >/dev/null 2>&1; then

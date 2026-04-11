@@ -5,12 +5,17 @@ Automated release process using `release.fish`.
 ## Usage
 
 ```fish
-# Full release
+# Full release — if you omit --pkgrel, the script prompts (TTY) for reset / keep / bump
 ./dev/scripts/release.fish 0.7.0
 
-# Preview (dry-run)
+# Non-interactive / explicit: same pkgver, packaging-only change (e.g. new binary arch)
+./dev/scripts/release.fish --pkgrel bump 0.7.0
+
+# Preview (dry-run) — still prompts for pkgrel when stdin is a TTY unless you pass --pkgrel
 ./dev/scripts/release.fish --dry-run 0.7.0
 ```
+
+`release.sh` accepts the same `--pkgrel reset|keep|bump`; without it, TTY prompt or non-TTY default `reset`.
 
 ## Pre-flight Checks
 
@@ -33,9 +38,8 @@ Before starting, the script verifies:
 8. **[Cursor]** Run `/wiki-update`
 
 ### Phase 3: PKGBUILD Updates
-9. Update `pkgver` in `~/aur-packages/pacsea-bin/PKGBUILD`
-10. Update `pkgver` in `~/aur-packages/pacsea-git/PKGBUILD`
-11. Reset `pkgrel=1` in both
+9. Update `pkgver` in `~/aur-packages/pacsea-bin/PKGBUILD` and `pacsea-git`
+10. Adjust `pkgrel` in both: interactive menu if `--pkgrel` omitted (TTY), else `--pkgrel reset|keep|bump`; non-TTY defaults to `reset`
 
 ### Phase 4: Build and Release
 12. Run `cargo-dev` (tests/checks)
