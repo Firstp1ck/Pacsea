@@ -4,13 +4,111 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v0.1.0); must be an existing tag or ref'
+        required: true
+        type: string
 
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
+  get-version:
+    name: Get version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+      release_notes: ${{ steps.version.outputs.release_notes }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || github.ref }}
+
+      - name: Get version, prerelease flag, and release notes
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+            IS_TAG_PUSH="false"
+          else
+            VERSION="${GITHUB_REF#refs/tags/}"
+            IS_TAG_PUSH="true"
+          fi
+          echo "Release version: $VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+          STRIP="${VERSION#v}"
+          MAJOR=$(echo "$STRIP" | cut -d. -f1)
+          if [ "$MAJOR" -lt 1 ] 2>/dev/null; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          RELEASE_FILE="Release-docs/RELEASE_${VERSION}.md"
+
+          if [ -f "$RELEASE_FILE" ]; then
+            echo "Found release notes file: $RELEASE_FILE"
+            RELEASE_NOTES=$(tail -n +3 "$RELEASE_FILE")
+            DELIMITER="RELEASE_NOTES_$(date +%s)_$$"
+            {
+              echo "release_notes<<$DELIMITER"
+              echo "$RELEASE_NOTES"
+              echo "$DELIMITER"
+            } >> "$GITHUB_OUTPUT"
+          elif [ "$IS_TAG_PUSH" = "true" ]; then
+            TAG_TYPE=$(git cat-file -t "$VERSION" 2>/dev/null || echo "")
+            if [ "$TAG_TYPE" = "tag" ]; then
+              TAG_NOTES=$(git show "$VERSION" --format='%B' --no-patch 2>/dev/null || echo "")
+              TAG_NOTES=$(echo "$TAG_NOTES" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+              if [ -n "$TAG_NOTES" ]; then
+                echo "Found release notes in tag annotation"
+                DELIMITER="RELEASE_NOTES_$(date +%s)_$$"
+                {
+                  echo "release_notes<<$DELIMITER"
+                  echo "$TAG_NOTES"
+                  echo "$DELIMITER"
+                } >> "$GITHUB_OUTPUT"
+              else
+                echo "Tag is annotated but has no message, using default"
+                DELIMITER="RELEASE_NOTES_$(date +%s)_$$"
+                {
+                  echo "release_notes<<$DELIMITER"
+                  echo "Release $VERSION"
+                  echo "$DELIMITER"
+                } >> "$GITHUB_OUTPUT"
+              fi
+            else
+              echo "Tag is lightweight (no annotation), using default"
+              DELIMITER="RELEASE_NOTES_$(date +%s)_$$"
+              {
+                echo "release_notes<<$DELIMITER"
+                echo "Release $VERSION"
+                echo "$DELIMITER"
+              } >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "Workflow triggered manually and no release file found, using default release notes"
+            DELIMITER="RELEASE_NOTES_$(date +%s)_$$"
+            {
+              echo "release_notes<<$DELIMITER"
+              echo "Release $VERSION"
+              echo "$DELIMITER"
+            } >> "$GITHUB_OUTPUT"
+          fi
 
   build-linux:
+    name: Build Linux (${{ matrix.asset }})
+    needs: get-version
     strategy:
       matrix:
         include:
@@ -24,6 +122,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ needs.get-version.outputs.version }}
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -56,14 +155,10 @@ jobs:
           path: ${{ matrix.asset }}
 
   publish-release:
-    needs: build-linux
+    name: Publish release
+    needs: [get-version, build-linux]
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
       - name: Download built binaries
         uses: actions/download-artifact@v4
         with:
@@ -71,31 +166,33 @@ jobs:
           path: release-files
           merge-multiple: true
 
-      - name: Get tag name and check prerelease
-        id: tag
+      - name: Create release body
+        id: release-body
+        env:
+          RELEASE_NOTES: ${{ needs.get-version.outputs.release_notes }}
         run: |
-          TAG="${{ github.ref_name }}"
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          printf '%s' "$RELEASE_NOTES" > /tmp/release_body.txt
 
-          VERSION="${TAG#v}"
-          MAJOR=$(echo "$VERSION" | cut -d. -f1)
+          DELIMITER="RELEASE_BODY_$(date +%s)_$$"
+          {
+            echo "body<<$DELIMITER"
+            cat /tmp/release_body.txt
+            echo ""
+            echo "$DELIMITER"
+          } >> "$GITHUB_OUTPUT"
 
-          if [ "$MAJOR" -lt 1 ] 2>/dev/null; then
-            echo "prerelease=true" >> $GITHUB_OUTPUT
-          else
-            echo "prerelease=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Create or Update Release and Upload Assets
+      - name: Create or update release and upload assets
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.tag.outputs.tag }}
-          name: Release ${{ steps.tag.outputs.tag }}
+          tag_name: ${{ needs.get-version.outputs.version }}
+          name: Release ${{ needs.get-version.outputs.version }}
+          body: ${{ steps.release-body.outputs.body }}
           files: |
             release-files/pacsea
             release-files/pacsea-aarch64
           draft: false
-          prerelease: ${{ steps.tag.outputs.prerelease == 'true' }}
+          prerelease: ${{ needs.get-version.outputs.prerelease == 'true' }}
           generate_release_notes: false
           fail_on_unmatched_files: true
-          token: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
