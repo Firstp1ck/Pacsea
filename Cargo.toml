@@ -49,7 +49,7 @@ portable-pty = "0.9"
 strip-ansi-escapes = "0.2"
 lru = "0.16.3"
 ego-tree = "0.11.0"
-rand = "0.10.0"
+rand = "0.10.1"
 toml = "1.1.2"
 zeroize = "1.8.2"
 
