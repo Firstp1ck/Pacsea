@@ -4,6 +4,9 @@
 [![Made with Rust](https://img.shields.io/badge/Made%20with-Rust-orange.svg)](https://www.rust-lang.org/)
 [![Target: Arch Linux](https://img.shields.io/badge/Target-Arch%20Linux-1793D1?logo=arch-linux&logoColor=white)](https://archlinux.org/)
 
+[![x86_64](https://img.shields.io/badge/CPU-x86__64-blue.svg)](.)
+[![aarch64](https://img.shields.io/badge/CPU-aarch64-blue.svg)](.)
+
 [![Pacsea Health](https://oss-health-monitor.vercel.app/api/badge/Firstp1ck/Pacsea)](https://github.com/volotat/OSS-Health-Monitor)
 
 Pacsea is a TUI application for browsing and installing Arch and AUR packages. It includes an integrated Arch news and advisory feed, keyboard-first navigation, and optional support for extra package repositories you configure yourself.
