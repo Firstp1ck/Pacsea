@@ -13,18 +13,25 @@ permissions:
 jobs:
 
   build-linux:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            asset: pacsea
+          - runner: ubuntu-24.04-arm
+            asset: pacsea-aarch64
+    runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
-      
+
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -37,10 +44,35 @@ jobs:
             libwayland-dev \
             libwayland-client0 \
             libwayland-egl1
-      
+
       - name: Build Release
         run: cargo build --release
-      
+
+      - name: Stage binary for upload
+        run: cp target/release/pacsea "${{ matrix.asset }}"
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: asset-${{ matrix.asset }}
+          path: ${{ matrix.asset }}
+
+  publish-release:
+    needs: build-linux
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download built binaries
+        uses: actions/download-artifact@v4
+        with:
+          pattern: asset-*
+          path: release-files
+          merge-multiple: true
+
       - name: Get tag name and check prerelease
         id: tag
         run: |
@@ -50,28 +82,26 @@ jobs:
             TAG="${{ github.ref_name }}"
           fi
           echo "tag=$TAG" >> $GITHUB_OUTPUT
-          
-          # Extract version number (remove 'v' prefix if present)
+
           VERSION="${TAG#v}"
-          # Extract major version (first number before the dot)
           MAJOR=$(echo "$VERSION" | cut -d. -f1)
-          
-          # Prerelease if major version < 1
+
           if [ "$MAJOR" -lt 1 ] 2>/dev/null; then
             echo "prerelease=true" >> $GITHUB_OUTPUT
           else
             echo "prerelease=false" >> $GITHUB_OUTPUT
           fi
-      
-      - name: Create or Update Release and Upload Asset
+
+      - name: Create or Update Release and Upload Assets
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
           name: Release ${{ steps.tag.outputs.tag }}
-          files: target/release/pacsea
+          files: |
+            release-files/pacsea
+            release-files/pacsea-aarch64
           draft: false
           prerelease: ${{ steps.tag.outputs.prerelease == 'true' }}
           generate_release_notes: false
-          fail_on_unmatched_files: false
+          fail_on_unmatched_files: true
           token: ${{ secrets.GITHUB_TOKEN }}
-
