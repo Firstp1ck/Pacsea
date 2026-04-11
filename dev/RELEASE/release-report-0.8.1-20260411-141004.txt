@@ -1,0 +1,1715 @@
+Pacsea release log started: 2026-04-11T14:10:04+02:00
+Report file: /mnt/SSD_NVME_4TB/GitHub/pacsea/dev/RELEASE/release-report-pending-20260411-141004.txt
+
+
+[1;36m╔════════════════════════════════════════════════════════════════════════╗[0m
+[1;36m║                    PACSEA RELEASE AUTOMATION                          ║[0m
+[1;36m╚════════════════════════════════════════════════════════════════════════╝[0m
+
+[0;34m[INFO] [0mChecking prerequisites...
+[0;32m[SUCCESS] [0mAll prerequisites met
+[0;34m[INFO] [0mChecking release layout directories (AUR clones, optional wiki)...
+[0;32m[SUCCESS] [0mpacsea-bin AUR directory: /home/firstpick/aur-packages/pacsea-bin
+[0;32m[SUCCESS] [0mpacsea-git AUR directory: /home/firstpick/aur-packages/pacsea-git
+[0;32m[SUCCESS] [0mWiki directory: /mnt/SSD_NVME_4TB/GitHub/Pacsea.wiki
+[0;34m[INFO] [0mRunning pre-flight checks...
+[0;32m[SUCCESS] [0mOn main branch
+[0;31m[ERROR] [0mWorking directory is not clean
+[0;34m[INFO] [0mUncommitted changes:
+?? dev/RELEASE/
+
+[0;36mContinue with uncommitted changes? [Y/n]: [0m[0;36mEnter new version (current: 0.8.1): [0m[0;34m[INFO] [0mUpdated report filename with version: /mnt/SSD_NVME_4TB/GitHub/pacsea/dev/RELEASE/release-report-0.8.1-20260411-141004.txt
+
+[0;36mAUR PKGBUILD: how should pkgrel change after pkgver is set?[0m
+  1) reset — pkgrel=1 (new version release)
+  2) keep  — leave pkgrel as-is
+  3) bump  — pkgrel +1 (same pkgver, packaging-only change)
+[0;36mChoose [1-3] (default 1): [0m
+[0;34m[INFO] [0mRelease version: [1m0.8.1[0m
+[0;34m[INFO] [0mCurrent version: [1m0.8.1[0m
+[0;34m[INFO] [0mAUR pkgrel mode: [1mkeep[0m
+
+[0;36mStart release process? [Y/n]: [0m
+[1;32m════════════════════════════════════════════════════════════════════════[0m
+[1;32m  PHASE: 1. Version Update[0m
+[1;32m════════════════════════════════════════════════════════════════════════[0m
+[0;34m[INFO] [0mCurrent version: [1m0.8.1[0m
+[0;34m[INFO] [0mNew version: [1m0.8.1[0m
+
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;36m  STEP: Updating Cargo.toml[0m
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;32m[SUCCESS] [0mUpdated Cargo.toml
+
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;36m  STEP: Updating Cargo.lock[0m
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.21s
+[0;32m[SUCCESS] [0mCargo.lock updated
+
+[1;32m════════════════════════════════════════════════════════════════════════[0m
+[1;32m  PHASE: 2. Documentation[0m
+[1;32m════════════════════════════════════════════════════════════════════════[0m
+
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;36m  STEP: Generate Release Notes[0m
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;34m[INFO] [0mFollow [1m.cursor/commands/release-new.md[0m (version 0.8.1) with your AI/IDE tooling.
+[0;36mAfter completing the release-new workflow, press Enter...[0m[0;32m[SUCCESS] [0mRelease file created: /mnt/SSD_NVME_4TB/GitHub/pacsea/Documents/RELEASE_v0.8.1.md
+
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;36m  STEP: Updating CHANGELOG.md[0m
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;34m[INFO] [0mVersion 0.8.1 already exists, replacing in place...
+[0;32m[SUCCESS] [0mCHANGELOG.md updated
+
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;36m  STEP: Auto-generate Announcement[0m
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;34m[INFO] [0mExtracting full ## What's New section from release file...
+[0;32m[SUCCESS] [0mGenerated announcement (1908 bytes) at: /mnt/SSD_NVME_4TB/GitHub/pacsea/dev/ANNOUNCEMENTS/version_announcement_content.md
+
+[0;36m--- Announcement Preview ---[0m
+## What's New
+
+Compared to **v0.8.0**, this release improves first-run setup, the updates experience, and the optional **AUR voting** SSH wizard. Everything below is new or different in **v0.8.1**; unchanged areas (custom repos, PKGBUILD checks, core voting behavior, etc.) are not repeated here.
+
+### ✨ Features
+
+- **Startup setup**: A selector runs optional setup tasks in order (optional dependencies, AUR SSH, VirusTotal, news, and related steps). Optional dependencies includes a **[Wizard]** entry. New **sudo timestamp** and **doas persist** setup wizards; install/update/remove can warn when long sessions may hit auth limits.
+- **AUR SSH setup**: Guided flow through local key/config, pasting the key on AUR, then a live SSH check. Copy the public key with **C** or the copy row; open the AUR login with **O** when you need it. More reliable first connection to AUR (including host-key handling). Success feedback appears after the remote check succeeds.
+- **Updates**: Layout shows **repo/name** and **old → new** versions with clearer diff highlighting. Slash filter, multi-select, and navigation behave more predictably, including with wrapped lines and the mouse. The app can indicate when an update list may be incomplete and why.
+
+### 🛡 Security & reliability
+
+- Tighter handling around privileged commands, temporary scripts, and saved command logs.
+
+### 🐛 Fixes
+
+- Calmer first-run order between setup dialogs and version announcements.
+- Clearer labels when a setup task is unavailable (for example wrong privilege tool).
+- Setup dialogs no longer leave stray keypresses for the next screen.
+- Startup news no longer pops up on its own; leaving news setup does not resurrect an old Arch news window.
+- Optional dependency batch installs go through the same auth/preflight path as other installs; terminal integration fixes for multiline follow-up commands and fallback ordering.
+
+[0;36m--- End Preview ---[0m
+
+[0;36mAccept this announcement? [Y/n]: [0m
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;36m  STEP: Update Version Announcement in Code[0m
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+Updating existing announcement for version 0.8.1
+Successfully updated /mnt/SSD_NVME_4TB/GitHub/pacsea/src/announcements.rs
+[0;32m[SUCCESS] [0mAnnouncement updated in code
+
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;36m  STEP: Update README[0m
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;34m[INFO] [0mFollow [1m.cursor/commands/readme-update.md[0m with your AI/IDE tooling.
+[0;36mAfter completing the readme-update workflow, press Enter...[0m[0;32m[SUCCESS] [0mREADME update complete
+
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;36m  STEP: Update Wiki[0m
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;34m[INFO] [0mFollow [1m.cursor/commands/wiki-update.md[0m with your AI/IDE tooling.
+[0;36mAfter completing the wiki-update workflow, press Enter...[0m[0;32m[SUCCESS] [0mWiki update complete
+[0;34m[INFO] [0mSkipping SECURITY.md update (patch release only)
+
+[1;32m════════════════════════════════════════════════════════════════════════[0m
+[1;32m  PHASE: 3. PKGBUILD Updates[0m
+[1;32m════════════════════════════════════════════════════════════════════════[0m
+
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;36m  STEP: Update pacsea-bin PKGBUILD[0m
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;32m[SUCCESS] [0mUpdated /home/firstpick/aur-packages/pacsea-bin/PKGBUILD (pkgrel mode: keep)
+
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;36m  STEP: Update pacsea-git PKGBUILD[0m
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[0;32m[SUCCESS] [0mUpdated /home/firstpick/aur-packages/pacsea-git/PKGBUILD (pkgrel mode: keep)
+[0;32m[SUCCESS] [0mPKGBUILD updates complete
+
+[1;32m════════════════════════════════════════════════════════════════════════[0m
+[1;32m  PHASE: 4. Build and Release[0m
+[1;32m════════════════════════════════════════════════════════════════════════[0m
+
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;36m  STEP: Running quality and security checks[0m
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+    Checking pacsea v0.8.1 (/mnt/SSD_NVME_4TB/GitHub/pacsea)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 11.93s
+   Compiling pacsea v0.8.1 (/mnt/SSD_NVME_4TB/GitHub/pacsea)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 7.44s
+     Running unittests src/lib.rs (target/debug/deps/pacsea-94577b0a9e3cfb93)
+
+running 995 tests
+test announcements::tests::test_extract_base_version ... ok
+test announcements::tests::test_is_expired ... ok
+test announcements::tests::test_is_expired_empty_string ... ok
+test announcements::tests::test_is_expired_malformed_dates ... ok
+test announcements::tests::test_is_expired_today ... ok
+test announcements::tests::test_remote_announcement_deserialize_invalid ... ok
+test announcements::tests::test_remote_announcement_deserialize_optional_null ... ok
+test announcements::tests::test_remote_announcement_deserialize_optional_omitted ... ok
+test announcements::tests::test_remote_announcement_deserialize_valid ... ok
+test announcements::tests::test_version_matches ... ok
+test announcements::tests::test_version_matches_boundaries ... ok
+test announcements::tests::test_version_matches_different_segments ... ok
+test announcements::tests::test_version_matches_no_bounds ... ok
+test announcements::tests::test_version_matches_non_numeric_segments ... ok
+test announcements::tests::test_version_matches_prerelease ... ok
+test app::deps_cache::tests::compute_signature_orders_package_names ... ok
+test app::deps_cache::tests::load_cache_rejects_signature_mismatch ... ok
+test app::deps_cache::tests::save_and_load_cache_roundtrip ... ok
+test app::files_cache::tests::compute_signature_orders_package_names ... ok
+test app::files_cache::tests::load_cache_rejects_signature_mismatch ... ok
+test app::files_cache::tests::save_and_load_cache_roundtrip ... ok
+test app::persist::tests::flush_aur_vote_state_writes_stable_entries_only ... ok
+test app::persist::tests::flush_cache_writes_and_clears_flag ... ok
+test app::persist::tests::flush_deps_cache_writes_and_clears_flag ... ok
+test app::persist::tests::flush_deps_cache_writes_empty_when_install_list_empty ... ok
+test app::persist::tests::flush_files_cache_writes_and_clears_flag ... ok
+test app::persist::tests::flush_files_cache_writes_empty_when_install_list_empty ... ok
+test app::persist::tests::flush_install_throttle_and_write ... ok
+test app::persist::tests::flush_news_read_ids_noop_when_not_dirty ... ok
+test app::persist::tests::flush_news_read_ids_writes_and_clears_flag ... ok
+test app::persist::tests::flush_news_read_ids_writes_valid_json ... ok
+test app::persist::tests::flush_news_read_noop_when_not_dirty ... ok
+test app::persist::tests::flush_news_read_writes_and_clears_flag ... ok
+test app::persist::tests::flush_news_read_writes_valid_json ... ok
+test app::persist::tests::flush_recent_writes_and_clears_flag ... ok
+test app::persist::tests::flush_sandbox_cache_writes_empty_when_install_list_empty ... ok
+test app::persist::tests::flush_services_cache_writes_empty_when_install_list_empty ... ok
+test app::recent::tests::maybe_save_recent_rules ... ok
+test app::recent::tests::news_recent_respects_debounce_and_changes ... ok
+test app::recent::tests::recent_dedup_case_insensitive ... ok
+test app::recent::tests::recent_eviction_respects_capacity ... ok
+test app::runtime::cleanup::tests::cleanup_on_exit_cancels_preflight_operations ... ok
+test app::runtime::event_loop::startup_news_tests::test_filter_already_read_items ... ok
+test app::runtime::event_loop::tests::handle_aur_vote_response_already_voted_syncs_cache ... ok
+test app::runtime::event_loop::tests::handle_aur_vote_response_auth_failure_sets_alert ... ok
+test app::runtime::event_loop::tests::handle_aur_vote_response_dry_run_does_not_mark_cache_dirty ... ok
+test app::runtime::event_loop::tests::handle_aur_vote_response_not_voted_syncs_cache ... ok
+test app::runtime::event_loop::tests::handle_aur_vote_response_success_sets_toast ... ok
+test app::runtime::event_loop::tests::handle_aur_vote_state_response_unsupported_keeps_stable_cache ... ok
+test app::runtime::event_loop::tests::handle_aur_vote_state_response_unsupported_maps_to_unknown ... ok
+test app::runtime::event_loop::tests::handle_aur_vote_state_response_updates_cache ... ok
+test app::runtime::event_loop::tests::handle_index_notification_retriggers_query ... ok
+test app::runtime::event_loop::tests::handle_news_content_keeps_loading_for_mismatched_url ... ok
+test app::runtime::event_loop::tests::handle_news_content_updates_current_selection ... ok
+test app::runtime::event_loop::tests::handle_updates_list_authoritative_skips_degraded_toast ... ok
+test app::runtime::event_loop::tests::handle_updates_list_degraded_surfaces_toast ... ok
+test app::runtime::handlers::files::tests::handle_file_result_updates_cache ... ok
+test app::runtime::handlers::install::tests::handle_add_to_install_list_adds_and_triggers_resolution ... ok
+test app::runtime::handlers::install::tests::handle_dependency_result_respects_cancellation ... ok
+test app::runtime::handlers::install::tests::handle_dependency_result_updates_cache ... ok
+test app::runtime::handlers::sandbox::tests::handle_sandbox_result_updates_cache ... ok
+test app::runtime::handlers::search::tests::handle_details_update_updates_cache_and_details ... ok
+test app::runtime::handlers::search::tests::handle_preview_uses_cache_when_available ... ok
+test app::runtime::handlers::search::tests::handle_search_results_ignores_stale_results ... ok
+test app::runtime::handlers::search::tests::handle_search_results_prefers_fresh_results_over_stale_cache ... ok
+test app::runtime::handlers::search::tests::handle_search_results_updates_when_id_matches ... ok
+test app::runtime::handlers::services::tests::handle_service_result_updates_cache ... ok
+test app::runtime::init::tests::check_version_announcement_queues_when_modal_already_open ... ok
+test app::runtime::init::tests::initialize_app_state_loads_settings ... ok
+test app::runtime::init::tests::initialize_app_state_sets_dry_run_flag ... ok
+test app::runtime::init::tests::initialize_app_state_shows_startup_selector_when_news_unconfigured ... ok
+test app::runtime::init::tests::initialize_cache_files_creates_empty_placeholders ... ok
+test app::runtime::init::tests::initialize_locale_system_fallback_when_config_missing ... ok
+test app::runtime::init::tests::trigger_initial_resolutions_skips_when_install_list_empty ... ok
+test app::runtime::init::tests::trigger_initial_resolutions_triggers_when_needed ... ok
+test app::runtime::tick_handler::tests::handle_news_opens_modal_when_available ... ok
+test app::runtime::tick_handler::tests::handle_news_shows_toast_when_empty ... ok
+test app::runtime::tick_handler::tests::handle_pkgbuild_check_result_ignores_wrong_package ... ok
+test app::runtime::tick_handler::tests::handle_pkgbuild_check_result_keeps_missing_tools_out_of_findings ... ok
+test app::runtime::tick_handler::tests::handle_pkgbuild_result_updates_when_focused ... ok
+test app::runtime::tick_handler::tests::handle_status_updates_text_and_color ... ok
+test app::runtime::tick_handler::tests::handle_summary_result_updates_modal ... ok
+test app::runtime::tick_handler::tests::handle_tick_clears_queues_when_cancelled ... ok
+test app::runtime::tick_handler::tests::handle_tick_dispatches_pending_aur_vote_state_request ... ok
+test app::runtime::tick_handler::tests::handle_tick_file_sync_failure_interactive_queues_passwordless_custom_command ... [?1006l[?1015l[?1003l[?1002l[?1000lok
+test app::runtime::tick_handler::tests::handle_tick_file_sync_failure_prompt_doas_queues_tool_managed_auth_command ... [?1006l[?1015l[?1003l[?1002l[?1000lok
+test app::runtime::tick_handler::tests::handle_tick_processes_cache_flushing ... ok
+test app::runtime::tick_handler::tests::handle_tick_processes_pkgbuild_debounce ... ok
+test app::runtime::tick_handler::tests::handle_tick_queues_aur_after_system_update_success ... ok
+test app::runtime::workers::aur_vote::tests::process_vote_request_dry_run_success ... ok
+test app::runtime::workers::aur_vote::tests::process_vote_request_missing_ssh_binary_error ... ok
+test app::runtime::workers::aur_vote::tests::process_vote_state_request_missing_ssh_binary_error ... ok
+test app::runtime::workers::details::tests::parse_namcap_output ... ok
+test app::runtime::workers::details::tests::parse_shellcheck_gcc_output ... ok
+test app::runtime::workers::details::tests::run_tool_with_timeout_invokes_binary_without_coreutils_timeout ... ok
+test app::runtime::workers::details::tests::shellcheck_exclude_flag_none_when_empty ... ok
+test app::runtime::workers::details::tests::shellcheck_exclude_flag_trims_and_joins ... ok
+test app::runtime::workers::news_content::tests::test_news_content_worker_error_format ... ok
+test app::runtime::workers::search::tests::deduplicate_keeps_aur_and_official_same_name ... ok
+test app::runtime::workers::search::tests::deduplicate_removes_same_repo_and_name ... ok
+test app::runtime::workers::updates_helpers::tests::classify_stderr_detects_alpm_sandbox ... ok
+test app::runtime::workers::updates_helpers::tests::classify_stderr_detects_german_permission_denied ... ok
+test app::runtime::workers::updates_helpers::tests::classify_stderr_detects_landlock ... ok
+test app::runtime::workers::updates_parsing::tests::test_parse_checkupdates_collapses_chained_new_version ... ok
+test app::runtime::workers::updates_parsing::tests::test_parse_checkupdates_extracts_correct_versions ... ok
+test app::runtime::workers::updates_parsing::tests::test_parse_checkupdates_multiple_packages ... ok
+test app::sandbox_cache::tests::compute_signature_orders_package_names ... ok
+test app::sandbox_cache::tests::load_cache_partial_match ... ok
+test app::sandbox_cache::tests::load_cache_partial_no_overlap ... ok
+test app::sandbox_cache::tests::load_cache_rejects_signature_mismatch ... ok
+test app::sandbox_cache::tests::save_and_load_cache_roundtrip ... ok
+test app::services_cache::tests::compute_signature_orders_package_names ... ok
+test app::services_cache::tests::load_cache_rejects_signature_mismatch ... ok
+test app::services_cache::tests::save_and_load_cache_roundtrip ... ok
+test events::distro::tests::mirror_update_artix_includes_backup ... ok
+test events::distro::tests::mirror_update_artix_includes_installation_checks ... ok
+test events::distro::tests::mirror_update_artix_regional_includes_country_validation ... ok
+test events::distro::tests::mirror_update_includes_distro_specific_helpers ... ok
+test events::distro::tests::mirror_update_regional_propagates_country_argument ... ok
+test events::distro::tests::mirror_update_worldwide_includes_artix_path ... ok
+test events::distro::tests::mirror_update_worldwide_includes_fasttrack_path ... ok
+test events::global::tests::global_escape_closes_dropdowns ... ok
+test events::global::tests::global_exit_chord_requests_shutdown ... ok
+test events::global::tests::global_help_overlay_opens_modal ... ok
+test events::global::tests::global_show_pkgbuild_requests_content ... ok
+test events::install::tests::install_clear_list ... ok
+test events::install::tests::install_delete_last_item ... ok
+test events::install::tests::install_delete_removes_item ... ok
+test events::install::tests::install_enter_bypasses_preflight_with_skip_flag ... ok
+test events::install::tests::install_enter_opens_confirm_install ... ok
+test events::install::tests::install_enter_with_empty_list ... ok
+test events::install::tests::install_esc_returns_to_search ... ok
+test events::install::tests::install_navigation_down ... ok
+test events::install::tests::install_navigation_up ... ok
+test events::install::tests::install_pane_find_mode_cancel ... ok
+test events::install::tests::install_pane_find_mode_entry ... ok
+test events::install::tests::load_news_bookmark_without_cached_content_clears_loading_flag ... ok
+test events::modals::common::news_tests::test_calculate_news_scroll_for_selection ... ok
+test events::modals::common::news_tests::test_handle_news_mark_all_read ... ok
+test events::modals::common::news_tests::test_handle_news_mark_all_read_insert_mode ... ok
+test events::modals::common::news_tests::test_handle_news_mark_read ... ok
+test events::modals::common::news_tests::test_handle_news_mark_read_insert_mode ... ok
+test events::modals::common::news_tests::test_handle_news_navigation ... ok
+test events::modals::common::tests::test_collect_selected_update_items_preserves_entry_order ... ok
+test events::modals::common::tests::test_handle_announcement_dismiss_temporary ... ok
+test events::modals::common::tests::test_handle_announcement_mark_read ... ok
+test events::modals::common::tests::test_handle_announcement_page_scroll ... ok
+test events::modals::common::tests::test_handle_announcement_scroll ... ok
+test events::modals::common::tests::test_handle_announcement_shows_next_after_read ... ok
+test events::modals::common::tests::test_handle_updates_a_selects_all_visible_rows ... ok
+test events::modals::common::tests::test_handle_updates_active_filter_does_not_refill_empty_results ... ok
+test events::modals::common::tests::test_handle_updates_expired_pending_g_does_not_jump ... ok
+test events::modals::common::tests::test_handle_updates_filter_changes_preserve_hidden_selection ... ok
+test events::modals::common::tests::test_handle_updates_filter_esc_clears_and_exits ... ok
+test events::modals::common::tests::test_handle_updates_filter_mode_arrow_navigates_list ... ok
+test events::modals::common::tests::test_handle_updates_filter_mode_g_and_shift_g_insert_into_query ... ok
+test events::modals::common::tests::test_handle_updates_filter_mode_j_inserts_into_query ... ok
+test events::modals::common::tests::test_handle_updates_filter_restores_selection_by_identity ... ok
+test events::modals::common::tests::test_handle_updates_gg_within_timeout_jumps_first ... ok
+test events::modals::common::tests::test_handle_updates_home_and_end_jump_bounds ... ok
+test events::modals::common::tests::test_handle_updates_non_g_clears_pending_chord ... ok
+test events::modals::common::tests::test_handle_updates_slash_enters_filter_mode ... ok
+test events::modals::common::tests::test_handle_updates_space_in_filter_mode_toggles_mark ... ok
+test events::modals::common::tests::test_handle_updates_space_toggles_selected_package ... ok
+test events::modals::common::tests::test_handle_updates_uppercase_g_jumps_last ... ok
+test events::modals::common::tests::test_show_next_pending_announcement_does_not_auto_show_news ... ok
+test events::modals::common::tests::test_show_next_pending_announcement_shows_valid ... ok
+test events::modals::common::tests::test_show_next_pending_announcement_skips_expired ... ok
+test events::modals::common::tests::test_show_next_pending_announcement_skips_read ... ok
+test events::modals::common::tests::test_show_next_pending_announcement_skips_version_mismatch ... ok
+test events::modals::common::tests::test_show_next_startup_setup_step_skips_ssh_step_when_ready ... ok
+test events::modals::common::tests::test_update_scroll_for_selection_clamps_to_max_scroll ... ok
+test events::modals::common::tests::test_update_scroll_for_selection_uses_rendered_line_starts ... ok
+test events::modals::doas_persist_setup::tests::enter_select_opens_instructions ... ok
+test events::modals::doas_persist_setup::tests::esc_select_closes_modal ... ok
+test events::modals::doas_persist_setup::tests::instruction_scroll_clamps_to_max ... ok
+test events::modals::handlers::tests::doas_setup_finish_consumes_enter_key ... ok
+test events::modals::handlers::tests::news_setup_esc_does_not_restore_stale_previous_modal ... ok
+test events::modals::handlers::tests::startup_selector_enter_builds_and_starts_queue ... ok
+test events::modals::handlers::tests::startup_selector_esc_skips_all ... ok
+test events::modals::handlers::tests::startup_selector_space_with_out_of_range_cursor_keeps_modal_and_clamps ... ok
+test events::modals::handlers::tests::sudo_setup_finish_consumes_enter_key ... ok
+test events::modals::handlers::tests::virustotal_setup_enter_consumes_key_when_closing_modal ... ok
+test events::modals::optional_deps::tests::open_setup_package_opens_virustotal_modal ... ok
+test events::modals::optional_deps::tests::optional_deps_enter_aur_ssh_setup_opens_modal ... ok
+test events::modals::optional_deps::tests::optional_deps_enter_doas_persist_setup_opens_modal ... ok
+test events::modals::optional_deps::tests::optional_deps_enter_installed_shows_reinstall ... ok
+test events::modals::optional_deps::tests::optional_deps_enter_installs ... ok
+test events::modals::optional_deps::tests::optional_deps_enter_sudo_timestamp_setup_opens_modal ... ok
+test events::modals::optional_deps::tests::optional_deps_enter_virustotal_setup ... ok
+test events::modals::optional_deps::tests::optional_deps_esc_advances_startup_queue ... ok
+test events::modals::optional_deps::tests::optional_deps_esc_closes_modal ... ok
+test events::modals::optional_deps::tests::optional_deps_navigation ... ok
+test events::modals::optional_deps::tests::ssh_setup_apply_key_esc_closes_modal ... ok
+test events::modals::optional_deps::tests::ssh_setup_confirm_overwrite_cancel_closes_modal ... ok
+test events::modals::optional_deps::tests::ssh_setup_result_enter_keeps_modal_open ... ok
+test events::modals::password::tests::control_chars_not_inserted_and_no_submit ... ok
+test events::modals::password::tests::cursor_at_start_submit ... ok
+test events::modals::password::tests::cursor_in_middle_submit ... ok
+test events::modals::password::tests::key_backspace_returns_false_and_edits ... ok
+test events::modals::password::tests::key_char_inserts_and_returns_false ... ok
+test events::modals::password::tests::key_esc_closes_modal_returns_false ... ok
+test events::modals::password::tests::key_left_right_home_end_return_false ... ok
+test events::modals::password::tests::key_main_enter_returns_true ... ok
+test events::modals::password::tests::key_numpad_enter_carriage_return_returns_true ... ok
+test events::modals::password::tests::key_numpad_enter_newline_returns_true ... ok
+test events::modals::password::tests::other_key_codes_return_false ... ok
+test events::modals::password::tests::submit_with_empty_input ... ok
+test events::modals::password::tests::submit_with_non_empty_input ... ok
+test events::modals::repositories::repos_conf_example_embed_tests::embedded_repos_example_is_non_empty ... ok
+test events::modals::restore::tests::test_restore_if_not_closed_with_bool_result_doesnt_restore_when_modal_not_none ... ok
+test events::modals::restore::tests::test_restore_if_not_closed_with_bool_result_doesnt_restore_when_true ... ok
+test events::modals::restore::tests::test_restore_if_not_closed_with_bool_result_restores_when_false ... ok
+test events::modals::restore::tests::test_restore_if_not_closed_with_esc_doesnt_restore_when_esc ... ok
+test events::modals::restore::tests::test_restore_if_not_closed_with_esc_doesnt_restore_when_modal_not_none ... ok
+test events::modals::restore::tests::test_restore_if_not_closed_with_esc_restores_when_not_esc ... ok
+test events::modals::restore::tests::test_restore_if_not_closed_with_excluded_keys_doesnt_restore_when_excluded ... ok
+test events::modals::restore::tests::test_restore_if_not_closed_with_excluded_keys_doesnt_restore_when_modal_not_none ... ok
+test events::modals::restore::tests::test_restore_if_not_closed_with_excluded_keys_restores_when_not_excluded ... ok
+test events::modals::restore::tests::test_restore_if_not_closed_with_option_result_doesnt_restore_when_esc ... ok
+test events::modals::restore::tests::test_restore_if_not_closed_with_option_result_doesnt_restore_when_q ... ok
+test events::modals::restore::tests::test_restore_if_not_closed_with_option_result_restores_when_false_and_not_esc ... ok
+test events::modals::restore::tests::test_restore_if_not_closed_with_option_result_restores_when_none ... ok
+test events::modals::restore::tests::test_restore_if_not_closed_with_option_result_returns_true_when_some_true ... ok
+test events::modals::scan::tests::scan_config_enter_executes ... ok
+test events::modals::scan::tests::scan_config_esc_closes_modal ... ok
+test events::modals::scan::tests::scan_config_navigation ... ok
+test events::modals::scan::tests::scan_config_toggle ... ok
+test events::modals::sudo_timestamp_setup::tests::instructions_esc_returns_to_select ... ok
+test events::modals::sudo_timestamp_setup::tests::select_enter_choice_opens_instructions ... ok
+test events::modals::sudo_timestamp_setup::tests::select_enter_skip_closes ... ok
+test events::modals::system_update::tests::system_update_aur_uses_sua_when_only_aur_selected ... ok
+test events::modals::system_update::tests::system_update_aur_uses_sua_when_pacman_selected ... ok
+test events::modals::system_update::tests::system_update_enter_executes ... ok
+test events::modals::system_update::tests::system_update_esc_closes_modal ... ok
+test events::modals::system_update::tests::system_update_force_sync_uses_syyu ... ok
+test events::modals::system_update::tests::system_update_left_right_toggles_force_sync ... ok
+test events::modals::system_update::tests::system_update_navigation ... ok
+test events::modals::system_update::tests::system_update_toggle ... ok
+test events::modals::tests::alert::alert_enter_closes_modal ... ok
+test events::modals::tests::alert::alert_esc_closes_modal ... ok
+test events::modals::tests::alert::alert_numpad_enter_carriage_return_closes_modal ... ok
+test events::modals::tests::alert::alert_numpad_enter_newline_closes_modal ... ok
+test events::modals::tests::common::updates_enter_transitions_to_next_modal_state ... ok
+test events::modals::tests::common::updates_navigation_keys_are_safe_when_empty ... ok
+test events::modals::tests::common::updates_select_all_respects_filtered_subset ... ok
+test events::modals::tests::confirm::confirm_aur_vote_enter_queues_request ... ok
+test events::modals::tests::confirm::confirm_aur_vote_esc_cancels_request ... ok
+test events::modals::tests::confirm::confirm_aur_vote_modal_message_includes_dry_run_hint ... ok
+test events::modals::tests::confirm::confirm_install_esc_closes_modal ... ok
+test events::modals::tests::confirm::confirm_remove_enter_closes_modal ... ok
+test events::modals::tests::confirm::confirm_remove_esc_closes_modal ... ok
+test events::modals::tests::confirm::confirm_remove_numpad_enter_carriage_return_closes_modal ... ok
+test events::modals::tests::confirm::confirm_remove_numpad_enter_newline_closes_modal ... ok
+test events::modals::tests::global_keybinds::global_keybind_ctrl_r_blocked_in_all_modals ... ok
+test events::modals::tests::global_keybinds::global_keybind_ctrl_s_blocked_in_all_modals ... ok
+test events::modals::tests::global_keybinds::global_keybind_ctrl_t_blocked_in_all_modals ... ok
+test events::modals::tests::global_keybinds::global_keybind_ctrl_x_blocked_in_all_modals ... ok
+test events::modals::tests::global_keybinds::global_keybind_f1_blocked_in_all_modals ... ok
+test events::modals::tests::global_keybinds::global_keybinds_work_when_no_modal_open ... ok
+test events::modals::tests::global_keybinds::modal_keybinds_priority_over_global_ctrl_r_in_news ... ok
+test events::modals::tests::help::help_enter_closes_modal ... ok
+test events::modals::tests::help::help_esc_closes_modal ... ok
+test events::modals::tests::help::help_numpad_enter_carriage_return_closes_modal ... ok
+test events::modals::tests::help::help_numpad_enter_newline_closes_modal ... ok
+test events::modals::tests::news::news_ctrl_r_mark_all_read_not_config_reload ... ok
+test events::modals::tests::news::news_enter_preserves_modal ... ok
+test events::modals::tests::news::news_esc_closes_modal ... ok
+test events::modals::tests::news::news_modal_lowercase_r_marks_single_read ... ok
+test events::modals::tests::news::news_navigation_preserves_modal ... ok
+test events::modals::tests::news::news_numpad_enter_carriage_return_keeps_modal_open ... ok
+test events::modals::tests::news::news_numpad_enter_newline_keeps_modal_open ... ok
+test events::modals::tests::news::news_unhandled_key_preserves_modal ... ok
+test events::modals::tests::optional_deps::optional_deps_esc_closes_modal ... ok
+test events::modals::tests::optional_deps::optional_deps_navigation_preserves_modal ... ok
+test events::modals::tests::optional_deps::optional_deps_unhandled_key_preserves_modal ... ok
+test events::modals::tests::other::gnome_terminal_prompt_enter_spawns_terminal ... ok
+test events::modals::tests::other::gnome_terminal_prompt_esc_closes_modal ... ok
+test events::modals::tests::other::gnome_terminal_prompt_numpad_enter_carriage_return_closes_modal ... ok
+test events::modals::tests::other::gnome_terminal_prompt_numpad_enter_newline_closes_modal ... ok
+test events::modals::tests::other::import_help_enter_closes_modal ... ok
+test events::modals::tests::other::import_help_esc_closes_modal ... ok
+test events::modals::tests::other::import_help_numpad_enter_carriage_return_closes_modal ... ok
+test events::modals::tests::other::import_help_numpad_enter_newline_closes_modal ... ok
+test events::modals::tests::post_summary::post_summary_enter_closes_modal ... ok
+test events::modals::tests::post_summary::post_summary_esc_closes_modal ... ok
+test events::modals::tests::post_summary::post_summary_numpad_enter_carriage_return_closes_modal ... ok
+test events::modals::tests::post_summary::post_summary_numpad_enter_newline_closes_modal ... ok
+test events::modals::tests::preflight::preflight_exec_enter_deferred_when_repo_overlap_pending_and_exec_running ... ok
+test events::modals::tests::preflight::preflight_exec_enter_loading_when_no_repo_overlap_pending ... ok
+test events::modals::tests::preflight::preflight_exec_esc_closes_modal ... ok
+test events::modals::tests::preflight::preflight_exec_q_closes_modal ... ok
+test events::modals::tests::scan::scan_config_esc_closes_modal ... ok
+test events::modals::tests::scan::virus_total_setup_numpad_enter_carriage_return_empty_input_keeps_modal_open ... ok
+test events::modals::tests::scan::virus_total_setup_numpad_enter_newline_empty_input_keeps_modal_open ... ok
+test events::modals::tests::scan::virustotal_setup_enter_opens_browser ... ok
+test events::modals::tests::scan::virustotal_setup_esc_closes_modal ... ok
+test events::modals::tests::system_update::system_update_esc_closes_modal ... ok
+test events::modals::tests::system_update::system_update_navigation_preserves_modal ... ok
+test events::modals::tests::system_update::system_update_toggle_works ... ok
+test events::modals::tests::system_update::system_update_unhandled_key_preserves_modal ... ok
+test events::mouse::filters::tests::news_filter_click_toggles_flags_and_refreshes ... ok
+test events::mouse::filters::tests::news_read_filter_click_cycles_status ... ok
+test events::mouse::menus::tests::handle_menus_mouse_leaves_custom_repos_dropdown_open_for_filter_pass ... ok
+test events::mouse::menus::tests::news_age_toggle_sets_toast_and_cycles_value ... ok
+test events::mouse::menus::tests::test_handle_news_button_preserves_pending_news ... ok
+test events::mouse::menus::tests::test_updates_parsing_extracts_correct_versions ... ok
+test events::mouse::modals::simple::tests::map_render_line_to_entry_resolves_wrapped_ranges ... ok
+test events::mouse::modals::simple::tests::updates_modal_mouse_preserves_empty_active_filter_result_set ... ok
+test events::mouse::tests::click_artix_filter_all_on_turns_all_off ... ok
+test events::mouse::tests::click_artix_filter_some_off_turns_all_on ... ok
+test events::mouse::tests::click_artix_filter_toggles_dropdown ... ok
+test events::mouse::tests::click_aur_filter_toggles ... ok
+test events::mouse::tests::click_pkgb_toggle_closes_and_resets ... ok
+test events::mouse::tests::click_pkgb_toggle_opens ... ok
+test events::preflight::keys::tests::test_handle_deps_tab_toggle ... ok
+test events::preflight::modal::tests::test_handle_services_tab_switch_install_uses_cache ... ok
+test events::preflight::modal::tests::test_handle_services_tab_switch_remove_ignores_install_cache ... ok
+test events::preflight::tests::build_file_items_match_expansion ... ok
+test events::preflight::tests::cached_dependencies_load_on_tab_switch ... ok
+test events::preflight::tests::cached_files_load_on_tab_switch ... ok
+test events::preflight::tests::dependencies_filtered_by_required_by_on_cache_load ... ok
+test events::preflight::tests::deps_display_len_collapsed_counts_only_headers ... ok
+test events::preflight::tests::deps_display_len_counts_unique_expanded_dependencies ... ok
+test events::preflight::tests::empty_file_info_handled_correctly ... ok
+test events::preflight::tests::file_display_len_respects_expansion_state ... ok
+test events::preflight::tests::files_displayed_when_file_info_populated ... ok
+test events::preflight::tests::files_filtered_by_package_name_on_cache_load ... ok
+test events::preflight::tests::handle_down_stops_at_last_visible_dependency_row ... ok
+test events::preflight::tests::handle_enter_toggles_dependency_group ... ok
+test events::preflight::tests::handle_service_restart_shortcuts_force_decisions ... ok
+test events::preflight::tests::handle_space_toggles_service_restart_decision ... ok
+test events::preflight::tests::installed_dependencies_are_included_in_list ... ok
+test events::preflight::tests::installed_dependencies_counted_in_display_length ... ok
+test events::preflight::tests::test_all_preflight_keys_return_false ... ok
+test events::preflight::tests::test_enter_key_doesnt_close_tui ... ok
+test events::preflight::tests::test_esc_key_close_modal_doesnt_close_tui ... ok
+test events::preflight::tests::test_f_key_file_sync_doesnt_close_tui ... ok
+test events::preflight::tests::test_keys_return_false_on_all_tabs ... ok
+test events::preflight::tests::test_p_key_proceed_install_doesnt_close_tui ... ok
+test events::preflight::tests::test_p_key_proceed_remove_doesnt_close_tui ... ok
+test events::preflight::tests::test_q_key_quit_modal_doesnt_close_tui ... ok
+test events::recent::tests::recent_enter_uses_query ... ok
+test events::recent::tests::recent_pane_find_flow ... ok
+test events::search::normal_mode::tests::handle_normal_mode_marks_read_via_keybinding ... ok
+test events::search::normal_mode::tests::mark_news_feed_item_sets_read_state ... ok
+test events::search::normal_mode::tests::toggle_news_feed_item_respects_legacy_url_state ... ok
+test events::search::preflight_helpers::tests::create_preflight_modal_insert_mode_resets_cancelled ... ok
+test events::search::preflight_helpers::tests::filter_cached_dependencies_returns_matching ... ok
+test events::search::preflight_helpers::tests::filter_cached_files_returns_matching ... ok
+test events::search::preflight_helpers::tests::trigger_background_resolution_sets_flags_when_cache_empty ... ok
+test events::search::preflight_helpers::tests::trigger_background_resolution_skips_deps_when_cached ... ok
+test events::search::tests::helpers_matches_any_shift_handling ... ok
+test events::search::tests::helpers_navigate_pane_directions ... ok
+test events::search::tests::search_insert_mode_space_adds_items ... ok
+test events::search::tests::search_insert_mode_vote_opens_confirmation_when_enabled ... ok
+test events::search::tests::search_insert_typing_and_backspace ... ok
+test events::search::tests::search_mode_toggle ... ok
+test events::search::tests::search_normal_mode_clear ... ok
+test events::search::tests::search_normal_mode_deletion ... ok
+test events::search::tests::search_normal_mode_navigation ... ok
+test events::search::tests::search_normal_mode_selection ... ok
+test events::search::tests::search_normal_mode_vote_opens_confirmation_when_enabled ... ok
+test events::search::tests::search_normal_mode_vote_rejects_non_aur_package ... ok
+test events::search::tests::search_normal_mode_vote_toggles_to_unvote_when_cached_voted ... ok
+test events::search::tests::search_selection_does_not_queue_vote_state_check_for_official_package ... ok
+test events::search::tests::search_selection_vote_state_check_queues_when_feature_enabled ... ok
+test events::tests::optional_deps_rows_reflect_installed_and_x11_and_reflector ... ok
+test events::tests::optional_deps_rows_wayland_shows_wl_clipboard ... ok
+test events::tests::ui_options_update_system_enter_triggers_xfce4_args_shape ... ok
+test events::utils::tests::byte_index_for_char_basic ... ok
+test events::utils::tests::char_count_basic ... ok
+test events::utils::tests::find_in_install_basic ... ok
+test events::utils::tests::find_in_recent_basic ... ok
+test events::utils::tests::queue_vote_state_check_preserves_stable_cached_state ... ok
+test events::utils::tests::queue_vote_state_check_skips_when_lookup_unsupported ... ok
+test events::utils::tests::refresh_selected_details_requests_when_missing ... ok
+test events::utils::tests::updates_filter_matches_package_name_fuzzy_case_insensitive ... ok
+test events::utils::tests::updates_filter_matches_source_label ... ok
+test events::utils::tests::updates_filter_returns_all_indices_for_empty_query ... ok
+test events::utils::tests::updates_scroll_clamps_to_zero_when_viewport_exceeds_total ... ok
+test events::utils::tests::updates_scroll_fallback_visible_lines_when_rect_missing ... ok
+test events::utils::tests::updates_scroll_handles_tiny_viewport_heights ... ok
+test i18n::detection::tests::test_detect_system_locale_with_env ... ok
+test i18n::detection::tests::test_parse_locale_string ... ok
+test i18n::detection::tests::test_parse_locale_string_edge_cases ... ok
+test i18n::loader::tests::test_is_valid_locale_format ... ok
+test i18n::loader::tests::test_load_locale_file ... ok
+test i18n::loader::tests::test_load_locale_file_empty ... ok
+test i18n::loader::tests::test_load_locale_file_invalid_format ... ok
+test i18n::loader::tests::test_load_locale_file_not_found ... ok
+test i18n::loader::tests::test_locale_loader_caching ... ok
+test i18n::loader::tests::test_parse_locale_yaml ... ok
+test i18n::loader::tests::test_parse_locale_yaml_invalid ... ok
+test i18n::loader::tests::test_parse_locale_yaml_nested ... ok
+test i18n::resolver::tests::test_is_valid_locale_format ... ok
+test i18n::resolver::tests::test_load_default_locale ... ok
+test i18n::resolver::tests::test_load_default_locale_missing ... ok
+test i18n::resolver::tests::test_load_fallbacks ... ok
+test i18n::resolver::tests::test_resolve_locale_empty_settings ... ok
+test i18n::resolver::tests::test_resolve_locale_with_settings ... ok
+test i18n::resolver::tests::test_resolve_with_fallbacks ... ok
+test i18n::resolver::tests::test_resolve_with_fallbacks_cycle_detection ... ok
+test i18n::resolver::tests::test_resolve_with_fallbacks_long_chain ... ok
+test i18n::translations::tests::test_translate ... ok
+test i18n::translations::tests::test_translate_with_fallback ... ok
+test index::distro::tests::artix_repo_rules ... ok
+test index::distro::tests::blackarch_repo_rules ... ok
+test index::distro::tests::eos_and_cachyos_repo_rules ... ok
+test index::distro::tests::eos_name_rule ... ok
+test index::distro::tests::manjaro_name_detection ... ok
+test index::distro::tests::manjaro_name_or_owner_detection ... ok
+test index::enrich::tests::enrich_updates_fields_and_notifies ... ok
+test index::enrich::tests::index_enrich_noop_on_empty_names ... ok
+test index::explicit::tests::explicit_names_returns_cloned_set ... ok
+test index::explicit::tests::explicit_names_returns_empty_when_uninitialized ... ok
+test index::explicit::tests::refresh_explicit_cache_populates_cache_from_pacman_output ... ok
+test index::explicit::tests::refresh_explicit_cache_populates_cache_with_all_explicit_mode ... ok
+test index::fetch::tests::fetch_parses_sl_and_dedups_by_repo_and_name ... ok
+test index::installed::tests::is_installed_checks_membership_in_cached_set ... ok
+test index::installed::tests::is_installed_returns_false_when_uninitialized_or_missing ... ok
+test index::installed::tests::refresh_installed_cache_populates_cache_from_pacman_output ... ok
+test index::persist::tests::index_loads_deduped_and_sorted_after_multiple_writes ... ok
+test index::persist::tests::index_save_writes_current_state_to_disk ... ok
+test index::query::tests::all_official_or_fetch_reads_from_disk_when_empty ... ok
+test index::query::tests::all_official_returns_all_items ... ok
+test index::query::tests::search_official_empty_query_returns_empty ... ok
+test index::query::tests::search_official_fuzzy_vs_normal ... ok
+test index::query::tests::search_official_is_case_insensitive_and_maps_fields ... ok
+test index::tests::find_package_by_name_uses_hashmap ... ok
+test index::tests::rebuild_name_index_populates_hashmap ... ok
+test index::update::tests::update_merges_preserving_enriched_fields_and_notifies_on_name_changes ... ok
+test install::batch::tests::install_batch_uses_gnome_terminal_double_dash ... ok
+test install::command::tests::install_build_install_command_aur_variants ... ok
+test install::command::tests::install_build_install_command_official_variants ... ok
+test install::direct::tests::preflight_warning_is_latched_once_per_session ... ok
+test install::executor::tests::executor_build_downgrade_command_uses_unprivileged_qi_check ... ok
+test install::executor::tests::executor_build_dry_run ... ok
+test install::executor::tests::executor_build_empty_list ... ok
+test install::executor::tests::executor_build_install_command_variants ... ok
+test install::executor::tests::executor_build_mixed_packages ... ok
+test install::executor::tests::executor_build_multiple_official ... ok
+test install::executor::tests::executor_build_password_escaping ... ok
+test install::executor::tests::executor_build_remove_command_variants ... ok
+test install::logging::tests::logging_writes_install_and_remove_logs_under_logs_dir ... ok
+test install::patterns::tests::load_reads_pattern_conf_overrides ... ok
+test install::patterns::tests::load_returns_defaults_when_config_missing ... ok
+test install::patterns::tests::parse_handles_comments_and_whitespace ... ok
+test install::patterns::tests::parse_joins_lines_with_or ... ok
+test install::patterns::tests::parse_uses_defaults_when_empty ... ok
+test install::remove::tests::remove_all_uses_gnome_terminal_double_dash ... ok
+test install::scan::pkg::tests::build_scan_cmds_for_pkg_has_core_steps ... ok
+test install::shell::tests::create_temp_script_returns_error_when_open_fails ... ok
+test install::shell::tests::shell_hold_tail_for_multiline_script_has_no_leading_semicolon_line ... ok
+test install::shell::tests::shell_persist_command_log_forces_mode_on_existing_file ... ok
+test install::shell::tests::shell_redacts_password_pipe_for_log ... ok
+test install::shell::tests::shell_uses_gnome_terminal_double_dash ... ok
+test install::single::tests::install_single_uses_gnome_terminal_double_dash ... ok
+test install::utils::tests::utils_choose_terminal_index_prefers_first_present_in_terms_order ... ok
+test install::utils::tests::utils_command_on_path_detects_executable ... ok
+test install::utils::tests::utils_editor_open_config_command_contains_fallback_chain_and_message ... ok
+test install::utils::tests::utils_editor_open_config_command_order_visual_then_editor_then_fallbacks ... ok
+test install::utils::tests::utils_editor_open_config_command_path_is_shell_single_quoted ... ok
+test install::utils::tests::utils_is_safe_package_name_strict_allowlist ... ok
+test install::utils::tests::utils_resolve_command_on_path_skips_non_executable_file ... ok
+test install::utils::tests::utils_shell_single_quote_handles_edges ... ok
+test logic::aur_official_catalog_dup::tests::detects_aur_when_official_same_name_in_catalog ... ok
+test logic::aur_official_catalog_dup::tests::empty_when_no_official_sibling ... ok
+test logic::deps::parse::tests::parse_dep_spec_basic ... ok
+test logic::deps::parse::tests::parse_dep_spec_equals ... ok
+test logic::deps::parse::tests::parse_dep_spec_with_version ... ok
+test logic::deps::parse::tests::parse_pacman_si_conflicts_basic ... ok
+test logic::deps::parse::tests::parse_pacman_si_conflicts_none ... ok
+test logic::deps::parse::tests::parse_pacman_si_conflicts_with_versions ... ok
+test logic::deps::resolve::tests::resolve_aur_prefers_paru_stub_and_skips_self ... ok
+test logic::deps::resolve::tests::resolve_official_uses_pacman_si_stub ... ok
+test logic::deps::reverse::tests::convert_entry_produces_conflict_reason_and_flags ... ok
+test logic::deps::reverse::tests::has_installed_required_by_returns_false_for_nonexistent_package ... ok
+test logic::deps::reverse::tests::parse_key_value_output_merges_wrapped_lines ... ok
+test logic::deps::reverse::tests::split_ws_or_none_handles_none_and_empty ... ok
+test logic::deps::reverse::tests::update_entry_tracks_root_relations_and_selection ... ok
+test logic::deps::source::tests::is_system_package_detects_core ... ok
+test logic::deps::srcinfo::tests::test_parse_srcinfo_conflicts ... ok
+test logic::deps::srcinfo::tests::test_parse_srcinfo_conflicts_empty ... ok
+test logic::deps::srcinfo::tests::test_parse_srcinfo_deps ... ok
+test logic::deps::status::tests::version_satisfies_defaults_to_true_without_constraint ... ok
+test logic::deps::status::tests::version_satisfies_relational_operators ... ok
+test logic::deps::utils::tests::dependency_priority_orders_by_severity ... ok
+test logic::distro::tests::label_for_official_prefers_special_cases ... ok
+test logic::distro::tests::repo_toggle_blackarch_flag ... ok
+test logic::distro::tests::repo_toggle_respects_individual_flags ... ok
+test logic::distro::tests::repo_toggle_respects_repos_conf_dynamic_filter ... ok
+test logic::distro::tests::repo_toggle_unknown_includes_blackarch_flag ... ok
+test logic::distro::tests::repo_toggle_unknown_only_with_full_whitelist ... ok
+test logic::doas_persist_setup::tests::doas_conf_parser_detects_active_persist_rule ... ok
+test logic::doas_persist_setup::tests::doas_conf_parser_ignores_commented_persist_rule ... ok
+test logic::doas_persist_setup::tests::snippet_generation_uses_expected_forms ... ok
+test logic::doas_persist_setup::tests::validation_commands_include_required_checks ... ok
+test logic::faillock::tests::test_check_faillock_status_handles_errors ... ok
+test logic::faillock::tests::test_faillock_status_structure ... ok
+test logic::faillock::tests::test_parse_faillock_config_custom_values ... ok
+test logic::faillock::tests::test_parse_faillock_config_defaults ... ok
+test logic::faillock::tests::test_parse_faillock_config_with_comments ... ok
+test logic::files::pkgbuild_cache::tests::cache_evicts_oldest_when_capacity_exceeded ... ok
+test logic::files::pkgbuild_cache::tests::cache_hit_returns_same_signature_entry ... ok
+test logic::files::pkgbuild_cache::tests::cache_miss_on_signature_change_reparses ... ok
+test logic::files::pkgbuild_cache::tests::concurrent_parse_does_not_overwrite_newer_entry ... ok
+test logic::files::pkgbuild_cache::tests::flush_and_reload_persists_entries ... ok
+test logic::files::tests::resolve_install_files_marks_changed_and_new_entries ... ok
+test logic::files::tests::resolve_remove_files_marks_pacsave_candidates ... ok
+test logic::files::tests::test_parse_backup_array_content ... ok
+test logic::files::tests::test_parse_backup_from_pkgbuild_multi_line ... ok
+test logic::files::tests::test_parse_backup_from_pkgbuild_single_line ... ok
+test logic::files::tests::test_parse_backup_from_srcinfo ... ok
+test logic::filter::tests::apply_filters_and_preserve_selection ... ok
+test logic::filter::tests::apply_filters_cachyos_and_eos_interaction ... ok
+test logic::filter::tests::logic_filter_unknown_official_inclusion_policy ... ok
+test logic::gating::tests::allowed_only_selected_and_ring ... ok
+test logic::lists::tests::add_to_downgrade_list_behavior ... ok
+test logic::lists::tests::add_to_install_list_behavior ... ok
+test logic::lists::tests::add_to_remove_list_behavior ... ok
+test logic::lists::tests::install_list_hashset_clear_synchronization ... ok
+test logic::lists::tests::install_list_hashset_synchronization ... ok
+test logic::long_run_auth::tests::readiness_is_degraded_when_tool_unresolved ... ok
+test logic::long_run_auth::tests::readiness_is_ready_via_pam_for_doas_interactive ... ok
+test logic::long_run_auth::tests::warning_message_is_three_non_empty_lines ... ok
+test logic::password::tests::test_check_passwordless_sudo_available ... ok
+test logic::password::tests::test_resolve_auth_mode_default_is_prompt ... ok
+test logic::password::tests::test_resolve_auth_mode_env_override ... ok
+test logic::password::tests::test_resolve_auth_mode_explicit_interactive ... ok
+test logic::password::tests::test_resolve_auth_mode_explicit_wins_over_legacy ... ok
+test logic::password::tests::test_resolve_auth_mode_legacy_passwordless_maps ... ok
+test logic::password::tests::test_resolve_auth_mode_prompt_for_doas_forces_interactive ... ok
+test logic::password::tests::test_should_skip_password_modal_interactive ... ok
+test logic::password::tests::test_should_skip_password_modal_interactive_doas ... ok
+test logic::password::tests::test_should_skip_password_modal_prompt ... ok
+test logic::password::tests::test_should_use_interactive_auth_handoff_true_for_prompt_doas ... ok
+test logic::password::tests::test_should_use_passwordless_sudo_false_for_doas_when_passwordless_unavailable ... ok
+test logic::password::tests::test_validate_sudo_password_empty ... ignored, Uses sudo with wrong password - may lock user out. Run with --ignored
+test logic::password::tests::test_validate_sudo_password_invalid ... ignored, Uses sudo with wrong password - may lock user out. Run with --ignored
+test logic::password::tests::test_validate_sudo_password_signature ... ignored, Uses sudo with wrong password - may lock user out. Run with --ignored
+test logic::password::tests::test_validate_sudo_password_special_chars ... ignored, Uses sudo with wrong password - may lock user out. Run with --ignored
+test logic::pkgbuild_checks::tests::clear_stale_drops_results_for_other_package ... ok
+test logic::pkgbuild_checks::tests::clear_stale_keeps_results_for_same_package ... ok
+test logic::pkgbuild_checks::tests::response_matches_details_focus ... ok
+test logic::pkgbuild_checks::tests::response_matches_selected_row ... ok
+test logic::prefetch::tests::prefetch_noop_on_empty_results ... ok
+test logic::prefetch::tests::prefetch_respects_allowed_and_cache ... ok
+test logic::preflight::metadata::tests::test_extract_aur_package_sizes ... ok
+test logic::preflight::metadata::tests::test_fetch_aur_metadata_not_found ... ok
+test logic::preflight::metadata::tests::test_parse_size_to_bytes ... ok
+test logic::preflight::tests::summary_handles_aur_without_metadata ... ok
+test logic::preflight::tests::summary_identifies_core_major_bump ... ok
+test logic::privilege::tests::active_tool_for_mode_auto_none_falls_back_to_sudo ... ok
+test logic::privilege::tests::active_tool_for_mode_explicit_doas_errors_when_missing ... ok
+test logic::privilege::tests::active_tool_for_mode_explicit_sudo_errors_when_missing ... ok
+test logic::privilege::tests::active_tool_returns_ok_with_sudo_or_doas ... ok
+test logic::privilege::tests::auth_mode_always_skips_password_modal ... ok
+test logic::privilege::tests::auth_mode_as_config_key_roundtrip ... ok
+test logic::privilege::tests::auth_mode_default_is_prompt ... ok
+test logic::privilege::tests::auth_mode_display ... ok
+test logic::privilege::tests::auth_mode_from_config_key_case_insensitive ... ok
+test logic::privilege::tests::auth_mode_from_config_key_hyphen_alias ... ok
+test logic::privilege::tests::auth_mode_from_config_key_invalid ... ok
+test logic::privilege::tests::auth_mode_from_config_key_short_alias ... ok
+test logic::privilege::tests::auth_mode_from_config_key_valid ... ok
+test logic::privilege::tests::auth_mode_from_config_key_with_whitespace ... ok
+test logic::privilege::tests::both_tools_produce_distinct_commands ... ok
+test logic::privilege::tests::build_credential_invalidation_doas_returns_none ... ok
+test logic::privilege::tests::build_credential_invalidation_sudo_returns_some ... ok
+test logic::privilege::tests::build_credential_warmup_doas_returns_none ... ok
+test logic::privilege::tests::build_credential_warmup_sudo_returns_some ... ok
+test logic::privilege::tests::build_credential_warmup_uses_printf ... ok
+test logic::privilege::tests::build_password_pipe_doas_returns_none ... ok
+test logic::privilege::tests::build_password_pipe_escapes_special_chars ... ok
+test logic::privilege::tests::build_password_pipe_sudo_returns_some ... ok
+test logic::privilege::tests::build_password_pipe_uses_printf_not_echo ... ok
+test logic::privilege::tests::build_privilege_command_doas ... ok
+test logic::privilege::tests::build_privilege_command_doas_format ... ok
+test logic::privilege::tests::build_privilege_command_sudo ... ok
+test logic::privilege::tests::capabilities_are_complementary ... ok
+test logic::privilege::tests::check_passwordless_doas_test_override ... ok
+test logic::privilege::tests::check_passwordless_test_override_false ... ok
+test logic::privilege::tests::check_passwordless_test_override_true ... ok
+test logic::privilege::tests::detect_fprintd_enrolled_does_not_panic ... ok
+test logic::privilege::tests::detect_pam_fingerprint_doas_does_not_panic ... ok
+test logic::privilege::tests::detect_pam_fingerprint_sudo_does_not_panic ... ok
+test logic::privilege::tests::doas_capabilities_all_disabled ... ok
+test logic::privilege::tests::doas_credential_invalidation_returns_none ... ok
+test logic::privilege::tests::doas_credential_warmup_returns_none ... ok
+test logic::privilege::tests::doas_password_pipe_returns_none ... ok
+test logic::privilege::tests::is_available_test_override_both ... ok
+test logic::privilege::tests::is_available_test_override_none ... ok
+test logic::privilege::tests::is_available_test_override_sudo_only ... ok
+test logic::privilege::tests::is_fingerprint_available_does_not_panic ... ok
+test logic::privilege::tests::is_integration_test_when_set ... ok
+test logic::privilege::tests::is_integration_test_when_unset ... ok
+test logic::privilege::tests::is_integration_test_wrong_value ... ok
+test logic::privilege::tests::mode_as_config_key_roundtrip ... ok
+test logic::privilege::tests::mode_default_is_auto ... ok
+test logic::privilege::tests::mode_display ... ok
+test logic::privilege::tests::mode_from_config_key_case_insensitive ... ok
+test logic::privilege::tests::mode_from_config_key_invalid ... ok
+test logic::privilege::tests::mode_from_config_key_valid ... ok
+test logic::privilege::tests::mode_from_config_key_with_whitespace ... ok
+test logic::privilege::tests::resolve_auto_fails_when_none_available ... ok
+test logic::privilege::tests::resolve_auto_falls_back_to_sudo ... ok
+test logic::privilege::tests::resolve_auto_prefers_doas_when_both_available ... ok
+test logic::privilege::tests::resolve_explicit_doas_fails_when_missing ... ok
+test logic::privilege::tests::resolve_explicit_doas_succeeds ... ok
+test logic::privilege::tests::resolve_explicit_sudo_fails_when_missing ... ok
+test logic::privilege::tests::resolve_explicit_sudo_succeeds ... ok
+test logic::privilege::tests::sudo_capabilities_all_enabled ... ok
+test logic::privilege::tests::tool_binary_name_doas ... ok
+test logic::privilege::tests::tool_binary_name_sudo ... ok
+test logic::privilege::tests::tool_display_matches_binary_name ... ok
+test logic::privilege::tests::validate_password_doas_returns_err ... ok
+test logic::privilege::tests::validate_password_doas_returns_unsupported ... ok
+test logic::query::tests::send_query_increments_and_sends ... ok
+test logic::repos::apply_plan::tests::all_disabled_rows_still_writes_empty_dropin ... ok
+test logic::repos::apply_plan::tests::bundle_contains_recv_lsign_write ... ok
+test logic::repos::apply_plan::tests::commented_marker_line_still_appends_include ... ok
+test logic::repos::apply_plan::tests::dropin_command_contains_safe_default_sig_level ... ok
+test logic::repos::apply_plan::tests::is_safe_abs_path_rejects_dotdot ... ok
+test logic::repos::apply_plan::tests::key_refresh_bundle_only_recv_and_lsign ... ok
+test logic::repos::apply_plan::tests::key_refresh_errors_without_key_id ... ok
+test logic::repos::apply_plan::tests::key_refresh_uses_keyserver_when_configured ... ok
+test logic::repos::apply_plan::tests::mirrorlist_url_fetch_and_include ... ok
+test logic::repos::apply_plan::tests::recv_uses_keyserver_when_configured ... ok
+test logic::repos::apply_plan::tests::selected_row_without_server_errors ... ok
+test logic::repos::apply_plan::tests::server_must_use_http_or_https ... ok
+test logic::repos::apply_plan::tests::skips_include_when_marker_present ... ok
+test logic::repos::config::tests::build_repo_name_to_filter_map_rejects_empty_canonical_key ... ok
+test logic::repos::config::tests::canonical_key_collapses_separators ... ok
+test logic::repos::config::tests::canonical_key_empty_when_no_alphanumerics ... ok
+test logic::repos::config::tests::disable_repo_section_in_repos_conf_if_enabled_disables_once ... ok
+test logic::repos::config::tests::disable_repo_section_in_repos_conf_if_enabled_unknown_section_errors ... ok
+test logic::repos::config::tests::duplicate_name_errors ... ok
+test logic::repos::config::tests::dynamic_visibility_defaults_true ... ok
+test logic::repos::config::tests::dynamic_visibility_respects_settings ... ok
+test logic::repos::config::tests::full_repo_row_builds_map ... ok
+test logic::repos::config::tests::preset_key_is_rejected ... ok
+test logic::repos::config::tests::repos_conf_disabled_with_server_detected_for_reenable ... ok
+test logic::repos::config::tests::repos_conf_index_sl_extras_skip_builtins ... ok
+test logic::repos::config::tests::repos_conf_index_sl_extras_skip_disabled ... ok
+test logic::repos::config::tests::results_filter_without_alphanumerics_rejected ... ok
+test logic::repos::foreign_overlap::tests::overlap_analysis_intersects_snapshot_foreign_with_repo_names ... ok
+test logic::repos::foreign_overlap::tests::parse_qm_lines_include_name_only_rows ... ok
+test logic::repos::foreign_overlap::tests::sl_parsing_collects_second_column ... ok
+test logic::repos::foreign_overlap::tests::unknown_repo_sl_errors_are_recognized_en_de ... ok
+test logic::repos::modal_data::tests::classify_accepts_full_long_and_short_key_forms ... ok
+test logic::repos::modal_data::tests::classify_key_rejects_short_id_not_matching_any_listed_fingerprint_suffix ... ok
+test logic::repos::modal_data::tests::classify_key_rejects_short_id_that_exists_only_across_merged_hex_runs ... ok
+test logic::repos::modal_data::tests::classify_key_trusted_when_short_id_matches_listed_fingerprint_suffix ... ok
+test logic::repos::modal_data::tests::classify_key_unknown_when_keyring_index_unavailable ... ok
+test logic::repos::modal_data::tests::classify_key_unknown_when_normalized_id_shorter_than_eight_hex ... ok
+test logic::repos::modal_data::tests::classify_rejects_short_id_that_is_only_inside_fingerprint ... ok
+test logic::repos::modal_data::tests::classify_rejects_sixteen_hex_that_is_not_long_key_id_suffix ... ok
+test logic::repos::modal_data::tests::classify_unknown_for_nonstandard_hex_lengths ... ok
+test logic::repos::modal_data::tests::hex_digit_runs_splits_non_hex_separators ... ok
+test logic::repos::modal_data::tests::merge_row_with_active_pacman_section ... ok
+test logic::repos::modal_data::tests::repos_parse_error_surfaces ... ok
+test logic::repos::pacman_conf::tests::active_beats_commented_across_files ... ok
+test logic::repos::pacman_conf::tests::active_repo_recorded ... ok
+test logic::repos::pacman_conf::tests::commented_repo_recorded ... ok
+test logic::repos::pacman_conf::tests::include_pulls_in_child_sections ... ok
+test logic::repos::pacman_conf::tests::options_section_not_a_repo ... ok
+test logic::sandbox::tests::test_parse_pkgbuild_conflicts_basic ... ok
+test logic::sandbox::tests::test_parse_pkgbuild_conflicts_filter_so ... ok
+test logic::sandbox::tests::test_parse_pkgbuild_conflicts_multiline ... ok
+test logic::sandbox::tests::test_parse_pkgbuild_conflicts_with_versions ... ok
+test logic::sandbox::tests::test_parse_pkgbuild_deps_append ... ok
+test logic::sandbox::tests::test_parse_pkgbuild_deps_basic ... ok
+test logic::sandbox::tests::test_parse_pkgbuild_deps_filter_invalid_names ... ok
+test logic::sandbox::tests::test_parse_pkgbuild_deps_ignore_other_fields ... ok
+test logic::sandbox::tests::test_parse_pkgbuild_deps_jujutsu_git_scenario ... ok
+test logic::sandbox::tests::test_parse_pkgbuild_deps_makedepends_append ... ok
+test logic::sandbox::tests::test_parse_pkgbuild_deps_multiline ... ok
+test logic::sandbox::tests::test_parse_pkgbuild_deps_unquoted ... ok
+test logic::selection::tests::fast_scroll_sets_gating_and_defers_ring ... ok
+test logic::selection::tests::move_sel_cached_clamps_and_requests_details ... ok
+test logic::selection::tests::move_sel_cached_uses_details_cache ... ok
+test logic::services::systemd::tests::parse_active_units_extracts_first_column ... ok
+test logic::services::tests::recommended_decision_default_is_defer_when_inactive ... ok
+test logic::services::units::tests::extract_service_units_from_file_list_deduplicates_preserving_order ... ok
+test logic::services::units::tests::extract_service_units_from_file_list_filters_correctly ... ok
+test logic::sort::tests::results_signature_is_order_insensitive ... ok
+test logic::sort::tests::sort_aur_popularity_and_official_tiebreaks ... ok
+test logic::sort::tests::sort_bestmatches_no_mode_cache ... ok
+test logic::sort::tests::sort_bestmatches_tiebreak_repo_then_name ... ok
+test logic::sort::tests::sort_cache_hit_repo_then_name ... ok
+test logic::sort::tests::sort_cache_invalid_computes_indices_once ... ok
+test logic::sort::tests::sort_cache_invalidation ... ok
+test logic::sort::tests::sort_cache_miss_on_results_change ... ok
+test logic::sort::tests::sort_cache_mode_switching ... ok
+test logic::sort::tests::sort_preserve_selection_and_best_matches ... ok
+test logic::ssh_setup::tests::block_directives_detected ... ok
+test logic::ssh_setup::tests::block_directives_missing_detected ... ok
+test logic::ssh_setup::tests::ensure_known_hosts_file_exists_creates_missing_file ... ok
+test logic::ssh_setup::tests::find_host_block_returns_range ... ok
+test logic::ssh_setup::tests::openssh_check_honors_test_override ... ok
+test logic::ssh_setup::tests::setup_failure_line_includes_stage_and_detail ... ok
+test logic::ssh_setup::tests::ssh_public_key_line_from_status_finds_first_key_line ... ok
+test logic::ssh_setup::tests::write_or_update_requests_overwrite_for_conflicting_block ... ok
+test logic::ssh_setup::tests::write_or_update_writes_expected_block_when_missing ... ok
+test logic::sudo_timestamp_setup::tests::apply_script_runs_visudo_and_install ... ok
+test logic::sudo_timestamp_setup::tests::sudoers_defaults_line_contains_marker_and_defaults ... ok
+test logic::sudo_timestamp_setup::tests::sudoers_user_scoped_line_contains_username ... ok
+test logic::sudo_timestamp_setup::tests::timestamp_timeout_value_maps_choices ... ok
+test sources::advisories::tests::extract_and_strip_helpers ... ok
+test sources::aur_vote::tests::test_already_voted ... ok
+test sources::aur_vote::tests::test_aur_vote_state_missing_ssh_binary_error ... ok
+test sources::aur_vote::tests::test_auth_failure ... ok
+test sources::aur_vote::tests::test_banned ... ok
+test sources::aur_vote::tests::test_context_default ... ok
+test sources::aur_vote::tests::test_dry_run_unvote ... ok
+test sources::aur_vote::tests::test_dry_run_vote ... ok
+test sources::aur_vote::tests::test_error_display_messages ... ok
+test sources::aur_vote::tests::test_maintenance ... ok
+test sources::aur_vote::tests::test_network_error ... ok
+test sources::aur_vote::tests::test_not_voted ... ok
+test sources::aur_vote::tests::test_package_not_found ... ok
+test sources::aur_vote::tests::test_parse_list_votes_result_auth_failed ... ok
+test sources::aur_vote::tests::test_parse_list_votes_result_not_voted ... ok
+test sources::aur_vote::tests::test_parse_list_votes_result_unsupported_command ... ok
+test sources::aur_vote::tests::test_parse_list_votes_result_voted ... ok
+test sources::aur_vote::tests::test_sanitize_stderr_redacts_ssh_paths ... ok
+test sources::aur_vote::tests::test_sanitize_stderr_truncates_long_output ... ok
+test sources::aur_vote::tests::test_ssh_not_found ... ok
+test sources::aur_vote::tests::test_success_unvote ... ok
+test sources::aur_vote::tests::test_success_vote ... ok
+test sources::aur_vote::tests::test_timeout ... ok
+test sources::aur_vote::tests::test_unexpected_error ... ok
+test sources::aur_vote::tests::test_vote_action_display ... ok
+test sources::aur_vote::tests::test_vote_action_ssh_arg ... ok
+test sources::comments::tests::test_dst_affected_timezones_return_none ... ok
+test sources::comments::tests::test_parse_date_to_timestamp ... ok
+test sources::comments::tests::test_utc_returns_abbreviation ... ok
+test sources::details::size_tests::details_parse_size_bytes_units ... ok
+test sources::details::tests::sources_details_parse_aur_json_defaults_and_popularity ... ok
+test sources::details::tests::sources_details_parse_aur_status_fields ... ok
+test sources::details::tests::sources_details_parse_aur_with_maintainer ... ok
+test sources::details::tests::sources_details_parse_official_json_defaults_and_fields ... ok
+test sources::feeds::tests::build_official_update_item_uses_metadata_date_when_available ... ok
+test sources::feeds::tests::extract_date_from_pkg_json_prefers_last_update ... ok
+test sources::feeds::tests::normalize_pkg_date_handles_rfc3339_and_utc_formats ... ok
+test sources::feeds::tests::sort_news_items_orders_by_date_desc ... ok
+test sources::feeds::tests::sort_news_items_orders_by_severity_then_date ... ok
+test sources::feeds::tests::test_cutoff_date_disables_caching ... ok
+test sources::feeds::tests::test_disk_cache_save_and_load ... ok
+test sources::feeds::tests::test_in_memory_cache_ttl ... ok
+test sources::feeds::tests::test_load_from_disk_cache_handles_ttl_and_corruption ... ok
+test sources::feeds::tests::test_max_age_cutoff_date_calculation ... ok
+test sources::feeds::tests::test_news_feed_context_toggles ... ok
+test sources::feeds::tests::test_seen_map_updates_for_comments ... ok
+test sources::feeds::tests::update_seen_for_comments_emits_on_first_run ... ok
+test sources::feeds::tests::update_seen_for_comments_emits_until_seen_marker ... ok
+test sources::feeds::updates::tests::aur_json_cache_path_deterministic ... ok
+test sources::feeds::updates::tests::aur_json_cache_path_long_list_uses_short_filename ... ok
+test sources::news::tests::advisory_boilerplate_is_removed ... ok
+test sources::news::tests::advisory_html_strips_links_and_keeps_text ... ok
+test sources::news::tests::news_extract_between_and_strip_time_tz ... ok
+test sources::news::tests::test_fetch_arch_news_handles_missing_tags ... ok
+test sources::news::tests::test_fetch_arch_news_respects_cutoff_date ... ok
+test sources::news::tests::test_fetch_arch_news_respects_limit ... ok
+test sources::news::tests::test_parse_news_html_extracts_package_metadata ... ok
+test sources::news::tests::test_parse_news_html_formats_code ... ok
+test sources::news::tests::test_parse_news_html_preserves_lists ... ok
+test sources::news::tests::test_parse_news_html_preserves_pre ... ok
+test sources::news::tests::test_parse_news_html_resolves_links ... ok
+test sources::news::tests_aur::test_extract_aur_pkg_from_url ... ok
+test sources::news::tests_aur::test_render_aur_comments ... ok
+test sources::news::tests_aur::test_render_aur_comments_excludes_invalid_dates ... ok
+test sources::news::tests_aur::test_render_aur_comments_fallback_label ... ok
+test sources::pkgbuild::tests::pkgbuild_fetches_aur_via_curl_text ... ignored, Only run when explicitly mentioned
+test sources::pkgbuild::tests::pkgbuild_fetches_official_main_then_master ... ok
+test sources::search::tests::search_returns_items_on_success_and_error_on_failure ... ok
+test sources::status::html::tests::status_is_aur_down_in_monitors ... ok
+test sources::status::html::tests::status_parse_color_by_percentage_and_outage ... ok
+test sources::status::html::tests::status_parse_detects_some_systems_down_heading ... ok
+test sources::status::html::tests::status_parse_prefers_svg_rect_color ... ok
+test sources::status::html::tests::status_parse_prioritizes_aur_down_over_some_systems_down ... ok
+test sources::status::translate::tests::test_translate_service_degraded_with_percentage ... ok
+test sources::status::translate::tests::test_translate_simple_status ... ok
+test sources::status::translate::tests::test_translate_status_with_aur_pct ... ok
+test sources::status::utils::tests::status_extract_arch_systems_status_color ... ok
+test state::app_state::tests::app_state_default_initializes_paths_and_flags ... ok
+test state::app_state::tests::refresh_news_results_advisories_all_shows_all ... ok
+test state::app_state::tests::refresh_news_results_applies_all_source_filters ... ok
+test state::app_state::tests::refresh_news_results_applies_read_filter ... ok
+test state::app_state::tests::refresh_news_results_sorts_by_severity_then_date ... ok
+test state::app_state::tests::refresh_news_results_sorts_unread_first_then_date ... ok
+test state::modal::tests::modal_default_and_variants_construct ... ok
+test state::types::tests::state_installedpackagesmode_config_roundtrip_and_aliases ... ok
+test state::types::tests::state_sortmode_config_roundtrip_and_aliases ... ok
+test theme::config::tests::tests::config_settings_comprehensive_parameter_check ... ok
+test theme::config::tests::tests::config_theme_skeleton_completeness ... ok
+test theme::config::tests::tests::config_try_load_theme_success_and_errors ... ok
+test theme::config::tests::tests::ensure_theme_keys_present_fills_missing_from_skeleton ... ok
+test theme::config::tests::tests::repos_skeleton_embeds_disabled_repo_recipes ... ok
+test theme::config::theme_loader::tests::shipped_theme_conf_parses_successfully ... ok
+test theme::parsing::tests::parsing_color_and_canon ... ok
+test theme::parsing::tests::parsing_key_identifier_and_chord ... ok
+test theme::parsing::tests::parsing_strip_inline_comment_variants ... ok
+test theme::paths::tests::paths_config_lists_logs_under_home ... ok
+test theme::paths::tests::paths_config_stays_under_temp_home_when_xdg_config_home_was_set ... ok
+test theme::resolve::tests::test_hardcoded_default_theme ... ok
+test theme::resolve::tests::test_normalize_key ... ok
+test theme::resolve::tests::test_parse_color_decimal ... ok
+test theme::resolve::tests::test_parse_color_hex ... ok
+test theme::resolve::tests::test_parse_skeleton_theme ... ok
+test theme::settings::parse_keybinds::tests::test_apply_global_keybind ... ok
+test theme::settings::parse_keybinds::tests::test_apply_install_keybind ... ok
+test theme::settings::parse_keybinds::tests::test_apply_keybind_routing ... ok
+test theme::settings::parse_keybinds::tests::test_apply_news_keybind ... ok
+test theme::settings::parse_keybinds::tests::test_apply_recent_keybind ... ok
+test theme::settings::parse_keybinds::tests::test_apply_search_keybind ... ok
+test theme::settings::parse_keybinds::tests::test_assign_keybind_with_duplicate_check ... ok
+test theme::settings::parse_keybinds::tests::test_parse_keybinds ... ok
+test theme::settings::parse_keybinds::tests::test_parse_news_keybinds ... ok
+test theme::settings::parse_keybinds::tests::test_parse_pkgbuild_checks_keybind ... ok
+test theme::settings::tests::settings_parse_values_and_keybinds_with_defaults_on_invalid_sum ... ok
+test theme::terminal_detect::tests::test_is_supported_name_aliases ... ok
+test theme::terminal_detect::tests::test_is_supported_name_contains ... ok
+test theme::terminal_detect::tests::test_is_supported_name_direct_match ... ok
+test theme::terminal_detect::tests::test_is_supported_name_unsupported ... ok
+test theme::terminal_detect::tests::test_is_supported_name_wezterm ... ok
+test theme::terminal_query::tests::test_luminance ... ok
+test theme::terminal_query::tests::test_parse_rgb_color_2digit ... ok
+test theme::terminal_query::tests::test_parse_rgb_color_4digit ... ok
+test theme::terminal_query::tests::test_theme_from_fg_bg_dark ... ok
+test theme::terminal_query::tests::test_theme_from_fg_bg_light ... ok
+test theme::types::tests::theme_keychord_label_variants ... ok
+test ui::details::pkgbuild::tests::pkgbuild_anchors_track_subsections ... ok
+test ui::details::pkgbuild::tests::pkgbuild_cycle_updates_scroll ... ok
+test ui::details::pkgbuild::tests::pkgbuild_scroll_clamps_wheel_overflow ... ok
+test ui::details::pkgbuild::tests::pkgbuild_scroll_max_idle_falls_back_to_clamp ... ok
+test ui::details::pkgbuild::tests::pkgbuild_scroll_max_sentinel_jumps_to_checks ... ok
+test ui::details::pkgbuild::tests::pkgbuild_subsection_shows_not_installed_when_tool_missing ... ok
+test ui::details::pkgbuild_highlight::tests::highlight_pkgbuild_cache_hit ... ok
+test ui::details::pkgbuild_highlight::tests::highlight_pkgbuild_incremental_appends ... ok
+test ui::details::pkgbuild_highlight::tests::test_highlight_pkgbuild_basic ... ok
+test ui::details::pkgbuild_highlight::tests::test_highlight_pkgbuild_empty ... ok
+test ui::details::tests::details_sets_url_and_pkgb_rects ... ok
+test ui::helpers::logging::tests::change_logger_emits_only_on_change ... ok
+test ui::helpers::tests::details_lines_sizes_and_lists ... ok
+test ui::helpers::tests::filtered_indices_and_details_lines ... ok
+test ui::helpers::tests::filtered_recent_indices_use_news_history ... ok
+test ui::helpers::tests::trigger_recent_preview_noop_when_not_recent_or_invalid ... ok
+test ui::middle::install::tests::install_handles_empty_list ... ok
+test ui::middle::install::tests::install_renders_and_records_rect ... ok
+test ui::middle::install::tests::install_renders_buttons_with_correct_rects ... ok
+test ui::middle::install::tests::install_renders_with_focus_styling ... ok
+test ui::middle::install::tests::install_renders_with_selection ... ok
+test ui::middle::installed_only::tests::installed_only_handles_empty_lists ... ok
+test ui::middle::installed_only::tests::installed_only_hides_buttons ... ok
+test ui::middle::installed_only::tests::installed_only_records_downgrade_rect ... ok
+test ui::middle::installed_only::tests::installed_only_renders_both_lists ... ok
+test ui::middle::installed_only::tests::installed_only_splits_area_correctly ... ok
+test ui::middle::recent::tests::recent_clears_rect_when_area_zero_width ... ok
+test ui::middle::recent::tests::recent_clears_rect_when_hidden ... ok
+test ui::middle::recent::tests::recent_displays_pane_find_when_focused ... ok
+test ui::middle::recent::tests::recent_hides_pane_find_when_unfocused ... ok
+test ui::middle::recent::tests::recent_renders_and_records_rect_when_visible ... ok
+test ui::middle::search::tests::search_handles_empty_input ... ok
+test ui::middle::search::tests::search_renders_and_sets_cursor_when_focused ... ok
+test ui::middle::search::tests::search_renders_when_unfocused ... ok
+test ui::middle::search::tests::search_renders_with_selection_in_normal_mode ... ok
+test ui::middle::search::tests::search_renders_without_selection_when_not_normal_mode ... ok
+test ui::middle::tests::middle_enlarges_right_pane_in_installed_only_mode ... ok
+test ui::middle::tests::middle_handles_zero_width_area ... ok
+test ui::middle::tests::middle_reassigns_space_when_panes_hidden ... ok
+test ui::middle::tests::middle_sets_rects_and_cursor_positions ... ok
+test ui::middle::tests::middle_switches_focus_when_install_hidden ... ok
+test ui::modals::announcement::tests::test_calculate_content_width_empty ... ok
+test ui::modals::announcement::tests::test_calculate_content_width_markdown ... ok
+test ui::modals::announcement::tests::test_calculate_content_width_max ... ok
+test ui::modals::announcement::tests::test_calculate_content_width_single_line ... ok
+test ui::modals::announcement::tests::test_calculate_wrapped_lines_empty ... ok
+test ui::modals::announcement::tests::test_calculate_wrapped_lines_multi_line ... ok
+test ui::modals::announcement::tests::test_calculate_wrapped_lines_single_line ... ok
+test ui::modals::announcement::tests::test_calculate_wrapped_lines_unicode ... ok
+test ui::modals::announcement::tests::test_detect_urls_empty ... ok
+test ui::modals::announcement::tests::test_detect_urls_end_of_text ... ok
+test ui::modals::announcement::tests::test_detect_urls_http ... ok
+test ui::modals::announcement::tests::test_detect_urls_https ... ok
+test ui::modals::announcement::tests::test_detect_urls_multiple ... ok
+test ui::modals::announcement::tests::test_detect_urls_none ... ok
+test ui::modals::announcement::tests::test_detect_urls_parentheses ... ok
+test ui::modals::announcement::tests::test_detect_urls_trailing_punctuation ... ok
+test ui::modals::announcement::tests::test_detect_urls_www ... ok
+test ui::modals::announcement::tests::test_find_url_end ... ok
+test ui::modals::announcement::tests::test_parse_code_block_line ... ok
+test ui::modals::announcement::tests::test_parse_code_block_line_non_code ... ok
+test ui::modals::announcement::tests::test_parse_header_line_h1 ... ok
+test ui::modals::announcement::tests::test_parse_header_line_h2 ... ok
+test ui::modals::announcement::tests::test_parse_header_line_h3 ... ok
+test ui::modals::announcement::tests::test_parse_header_line_non_header ... ok
+test ui::modals::misc::truncate_and_pad_tests::pad_right_display_adds_spaces_by_display_width ... ok
+test ui::modals::misc::truncate_and_pad_tests::pad_right_display_wide_prefix ... ok
+test ui::modals::misc::truncate_and_pad_tests::startup_setup_doas_disabled_suffix_none_when_doas_active ... ok
+test ui::modals::misc::truncate_and_pad_tests::startup_setup_doas_disabled_suffix_requires_doas_when_tool_missing ... ok
+test ui::modals::misc::truncate_and_pad_tests::startup_setup_ssh_suffix_only_marks_already_configured ... ok
+test ui::modals::misc::truncate_and_pad_tests::truncate_display_ascii_long_uses_ellipsis_within_width ... ok
+test ui::modals::misc::truncate_and_pad_tests::truncate_display_ascii_short_unchanged ... ok
+test ui::modals::misc::truncate_and_pad_tests::truncate_display_cjk_respects_display_columns ... ok
+test ui::modals::news::tests::test_calculate_list_rect ... ok
+test ui::modals::news::tests::test_calculate_modal_rect ... ok
+test ui::modals::news::tests::test_compute_item_colors ... ok
+test ui::modals::news::tests::test_format_news_item ... ok
+test ui::modals::news::tests::test_is_critical_news ... ok
+test ui::modals::preflight::helpers::format_tests::test_format_bytes_fractional_kib ... ok
+test ui::modals::preflight::helpers::format_tests::test_format_bytes_fractional_mib ... ok
+test ui::modals::preflight::helpers::format_tests::test_format_bytes_less_than_kib ... ok
+test ui::modals::preflight::helpers::format_tests::test_format_bytes_mib ... ok
+test ui::modals::preflight::helpers::format_tests::test_format_bytes_one ... ok
+test ui::modals::preflight::helpers::format_tests::test_format_bytes_one_gib ... ok
+test ui::modals::preflight::helpers::format_tests::test_format_bytes_one_kib ... ok
+test ui::modals::preflight::helpers::format_tests::test_format_bytes_one_mib ... ok
+test ui::modals::preflight::helpers::format_tests::test_format_bytes_one_pib ... ok
+test ui::modals::preflight::helpers::format_tests::test_format_bytes_one_tib ... ok
+test ui::modals::preflight::helpers::format_tests::test_format_bytes_zero ... ok
+test ui::modals::preflight::helpers::format_tests::test_format_signed_bytes_fractional_negative ... ok
+test ui::modals::preflight::helpers::format_tests::test_format_signed_bytes_fractional_positive ... ok
+test ui::modals::preflight::helpers::format_tests::test_format_signed_bytes_large_negative ... ok
+test ui::modals::preflight::helpers::format_tests::test_format_signed_bytes_large_positive ... ok
+test ui::modals::preflight::helpers::format_tests::test_format_signed_bytes_negative ... ok
+test ui::modals::preflight::helpers::format_tests::test_format_signed_bytes_positive ... ok
+test ui::modals::preflight::helpers::format_tests::test_format_signed_bytes_zero ... ok
+test ui::modals::preflight::helpers::layout_tests::test_calculate_modal_layout_max_constraints ... ok
+test ui::modals::preflight::helpers::layout_tests::test_calculate_modal_layout_offset ... ok
+test ui::modals::preflight::helpers::layout_tests::test_calculate_modal_layout_small ... ok
+test ui::modals::preflight::helpers::layout_tests::test_calculate_modal_layout_standard ... ok
+test ui::modals::preflight::helpers::render_tests::test_render_header_chips_minimal ... ok
+test ui::modals::preflight::helpers::render_tests::test_render_header_chips_negative_delta ... ok
+test ui::modals::preflight::helpers::render_tests::test_render_header_chips_positive_delta ... ok
+test ui::modals::preflight::helpers::render_tests::test_render_header_chips_risk_levels ... ok
+test ui::modals::preflight::helpers::render_tests::test_render_header_chips_with_aur ... ok
+test ui::modals::preflight::helpers::render_tests::test_render_header_chips_zero_delta ... ok
+test ui::modals::preflight::helpers::sync_dependencies_tests::test_sync_dependencies_early_return_remove ... ok
+test ui::modals::preflight::helpers::sync_dependencies_tests::test_sync_dependencies_early_return_wrong_tab ... ok
+test ui::modals::preflight::helpers::sync_dependencies_tests::test_sync_dependencies_filters_by_required_by ... ok
+test ui::modals::preflight::helpers::sync_dependencies_tests::test_sync_dependencies_preserves_selection_on_subsequent_load ... ok
+test ui::modals::preflight::helpers::sync_dependencies_tests::test_sync_dependencies_resets_selection_on_first_load ... ok
+test ui::modals::preflight::helpers::sync_files_tests::test_sync_files_early_return_wrong_tab ... ok
+test ui::modals::preflight::helpers::sync_files_tests::test_sync_files_filters_by_package_name ... ok
+test ui::modals::preflight::helpers::sync_files_tests::test_sync_files_resets_selection_when_files_change ... ok
+test ui::modals::preflight::helpers::sync_sandbox_tests::test_sync_sandbox_early_return_remove ... ok
+test ui::modals::preflight::helpers::sync_sandbox_tests::test_sync_sandbox_early_return_wrong_tab ... ok
+test ui::modals::preflight::helpers::sync_services_tests::test_sync_services_adjusts_selection_out_of_bounds ... ok
+test ui::modals::preflight::helpers::sync_services_tests::test_sync_services_filters_by_providers ... ok
+test ui::modals::preflight::helpers::sync_services_tests::test_sync_services_for_remove_without_cache ... ok
+test ui::modals::tests::modals_set_rects_and_render_variants ... ok
+test ui::modals::updates::tests::footer_help_line_handles_tiny_widths ... ok
+test ui::modals::updates::tests::footer_help_line_keeps_full_text_when_wide ... ok
+test ui::modals::updates::tests::footer_help_line_truncates_with_ellipsis_when_narrow ... ok
+test ui::modals::updates::tests::render_updates_shows_filtered_empty_state_message ... ok
+test ui::modals::updates::tests::render_updates_uses_viewport_height_for_content_rect ... ok
+test ui::modals::updates::tests::split_version_diff_strips_identical_pkgrel ... ok
+test ui::modals::updates::tests::updates_markers_distinguish_focus_and_selection ... ok
+test ui::modals::updates::tests::updates_markers_show_focused_selected_marker ... ok
+test ui::modals::updates::tests::updates_panes_remain_aligned_after_wrapping ... ok
+test ui::modals::updates::tests::updates_repo_label_uses_results_colors ... ok
+test ui::modals::updates::tests::updates_row_model_builds_entry_line_starts ... ok
+test ui::modals::updates::tests::updates_row_model_wraps_long_unbroken_repo_name_tokens ... ok
+test ui::modals::updates::tests::updates_rows_render_yay_like_layout ... ok
+test ui::modals::updates::tests::updates_source_prefix_defaults_to_aur_for_unknown_packages ... ok
+test ui::modals::updates::tests::updates_source_prefix_uses_extra_for_known_official_packages ... ok
+test ui::modals::updates::tests::updates_versions_highlight_changed_chars_in_expected_columns ... ok
+test ui::results::list::tests::test_build_list_item_in_viewport ... ok
+test ui::results::list::tests::test_build_list_item_not_in_viewport ... ok
+test ui::results::list::tests::test_check_package_in_lists ... ok
+test ui::results::list::tests::test_determine_source_label_and_color_aur ... ok
+test ui::results::list::tests::test_determine_source_label_and_color_dynamic_repo_is_mauve ... ok
+test ui::results::list::tests::test_determine_source_label_and_color_official ... ok
+test ui::results::tests::news_filters_leave_gap_between_aur_comments_and_read_toggle ... ok
+test ui::results::tests::results_sets_title_button_rects_and_status_rect ... ok
+test ui::results::utils::tests::detect_blackarch_from_official_source ... ok
+test ui::results::utils::tests::detect_no_blackarch_when_absent ... ok
+test ui::tests::ui_renders_frame_and_sets_rects_and_toast ... ok
+test util::curl::tests::test_get_curl_path_is_cached ... ok
+test util::curl::tests::test_get_curl_path_prefers_absolute_on_unix ... ok
+test util::curl::tests::test_get_curl_path_returns_valid_path ... ok
+test util::curl::tests::test_map_curl_error_common_codes ... ok
+test util::curl::tests::test_redact_url_for_logging_empty_query ... ok
+test util::curl::tests::test_redact_url_for_logging_with_query_params ... ok
+test util::curl::tests::test_redact_url_for_logging_without_query_params ... ok
+test util::tests::util_curl_args_include_max_filesize_limit ... ok
+test util::tests::util_fuzzy_match_rank ... ok
+test util::tests::util_json_extractors_and_u64 ... ok
+test util::tests::util_parse_update_entry_collapses_rhs_chain ... ok
+test util::tests::util_percent_encode ... ok
+test util::tests::util_repo_order_and_rank ... ok
+test util::tests::util_ts_to_date_and_leap ... ok
+test util::tests::util_ts_to_date_boundaries ... ok
+
+test result: ok. 990 passed; 0 failed; 5 ignored; 0 measured; 0 filtered out; finished in 9.78s
+
+     Running unittests src/main.rs (target/debug/deps/pacsea-bf5a4414489adb7b)
+
+running 4 tests
+test args::news::tests::test_news_filtering_defaults_to_all ... ok
+test args::news::tests::test_news_filtering_read ... ok
+test args::news::tests::test_news_filtering_unread ... ok
+test tests::pacsea_timer_formats_time_without_panic ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/config_startup.rs (target/debug/deps/config_startup-947fb4183e17101c)
+
+running 1 test
+test startup_with_invalid_and_missing_config_files_does_not_prevent_boot ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/config_startup_shipped.rs (target/debug/deps/config_startup_shipped-cf5550e4d23bdcb0)
+
+running 1 test
+test startup_with_shipped_configs_does_not_prevent_boot ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/downgrade.rs (target/debug/deps/downgrade-c2657bff8dc7b391)
+
+running 15 tests
+test downgrade_integration::integration_downgrade_command_structure ... ok
+test downgrade_integration::integration_downgrade_command_with_tool_check ... ok
+test downgrade_integration::integration_downgrade_dry_run_command_format ... ok
+test downgrade_integration::integration_downgrade_empty_list ... ok
+test downgrade_integration::integration_downgrade_list_management ... ok
+test downgrade_integration::integration_downgrade_multiple_packages ... ok
+test downgrade_integration::integration_downgrade_pane_focus ... ok
+test downgrade_integration::integration_downgrade_password_prompt ... ok
+test downgrade_integration::integration_downgrade_selection_tracking ... ok
+test downgrade_integration::integration_downgrade_spawns_in_terminal ... ok
+test downgrade_integration::integration_downgrade_to_preflight_exec ... ok
+test downgrade_integration::integration_executor_request_downgrade_dry_run ... ok
+test downgrade_integration::integration_executor_request_downgrade_no_password ... ok
+test downgrade_integration::integration_executor_request_downgrade_with_password ... ok
+test downgrade_ui::ui_downgrade_list_state ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/file_sync.rs (target/debug/deps/file_sync-52369ead40b86f5d)
+
+running 6 tests
+test file_sync_integration::integration_file_sync_executor_request ... ok
+test file_sync_integration::integration_file_sync_fallback_password_prompt ... ok
+test file_sync_integration::integration_file_sync_success ... ok
+test file_sync_ui::ui_file_sync_modal_transition ... ok
+test file_sync_ui::ui_file_sync_password_prompt_structure ... ok
+test file_sync_ui::ui_file_sync_preflight_exec_structure ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/install.rs (target/debug/deps/install-eda279b0511cf0f8)
+
+running 34 tests
+test direct_install_integration::integration_direct_install_executor_request ... ok
+test direct_install_integration::integration_direct_install_multiple_with_official ... ok
+test direct_install_integration::integration_direct_install_single_aur ... ok
+test direct_install_integration::integration_direct_install_single_official ... ok
+test direct_install_integration::integration_direct_remove ... ok
+test direct_install_integration::integration_direct_remove_executor_request ... ok
+test direct_install_ui::ui_direct_install_modal_transition ... ok
+test direct_install_ui::ui_direct_install_password_prompt_structure ... ok
+test direct_install_ui::ui_direct_install_preflight_exec_structure ... ok
+test direct_install_ui::ui_direct_remove_modal_transition ... ok
+test direct_install_ui::ui_direct_remove_password_prompt_structure ... ok
+test editor_config_integration::integration_editor_config_editor_echo_prints_path ... ok
+test editor_config_integration::integration_editor_config_visual_echo_prints_path ... ok
+test install_integration::integration_empty_password_handling ... ok
+test install_integration::integration_executor_output_handling ... ok
+test install_integration::integration_executor_request_creation ... ok
+test install_integration::integration_password_prompt_state ... ok
+test install_integration::integration_preflight_exec_state ... ok
+test install_integration::integration_preflight_modal_state ... ok
+test install_ui::ui_preflight_exec_empty_logs ... ok
+test install_ui::ui_preflight_exec_finished ... ok
+test install_ui::ui_preflight_exec_install_state ... ok
+test install_ui::ui_preflight_exec_many_packages ... ok
+test install_ui::ui_preflight_exec_remove_state ... ok
+test install_ui::ui_preflight_exec_risk_levels ... ok
+test install_ui::ui_preflight_exec_tabs ... ok
+test install_ui::ui_preflight_exec_verbose ... ok
+test optional_deps_integration::integration_optional_deps_aur_sleuth_setup ... ok
+test optional_deps_integration::integration_optional_deps_command_structure ... ok
+test optional_deps_integration::integration_optional_deps_modal_state ... ok
+test optional_deps_integration::integration_optional_deps_row_filtering ... ok
+test optional_deps_integration::integration_optional_deps_uses_executor_not_terminal ... ok
+test optional_deps_integration::integration_optional_deps_virustotal_setup ... ok
+test optional_deps_ui::ui_optional_deps_modal_structure ... ok
+
+test result: ok. 34 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+     Running tests/other.rs (target/debug/deps/other-572c06838b07ef23)
+
+running 37 tests
+test conflict_preservation::test_cached_conflicts_preserved_in_cache_merge ... ok
+test conflict_preservation::test_conflicts_not_overwritten_when_packages_added_sequentially ... ok
+test cyclomatic_complexity::tests::test_cyclomatic_complexity ... ok
+test data_flow_complexity::tests::test_data_flow_complexity ... ok
+test runtime_smoke::runtime_smoke_headless_initializes_and_runs_without_panic ... ok
+test terminals_args_shape::ui_options_update_system_enter_triggers_alacritty_args_shape ... ok
+test terminals_args_shape::ui_options_update_system_enter_triggers_gnome_terminal_args_shape ... ok
+test terminals_args_shape::ui_options_update_system_enter_triggers_kitty_args_shape ... ok
+test terminals_args_shape::ui_options_update_system_enter_triggers_konsole_args_shape ... ok
+test terminals_args_shape::ui_options_update_system_enter_triggers_mate_terminal_args_shape ... ok
+test terminals_args_shape::ui_options_update_system_enter_triggers_tilix_args_shape ... ok
+test terminals_args_shape::ui_options_update_system_enter_triggers_xterm_args_shape ... ok
+test ui_integration::test_dropdowns_render ... ok
+test ui_integration::test_layout_maximum_sizes ... ok
+test ui_integration::test_layout_minimum_sizes ... ok
+test ui_integration::test_layout_pane_hiding ... ok
+test ui_integration::test_layout_responsive ... ok
+test ui_integration::test_modal_alert_renders ... ok
+test ui_integration::test_modal_confirm_renders ... ok
+test ui_integration::test_modal_help_renders ... ok
+test ui_integration::test_modal_news_renders ... ok
+test ui_integration::test_modal_preflight_exec_progress_bars ... ok
+test ui_integration::test_modal_preflight_renders ... ok
+test ui_integration::test_results_selection_highlighting ... ok
+test ui_integration::test_search_input_focus ... ok
+test ui_integration::test_toast_message_renders ... ok
+test ui_integration::test_ui_empty_results_with_query ... ok
+test ui_integration::test_ui_installed_only_mode ... ok
+test ui_integration::test_ui_long_package_names ... ok
+test ui_integration::test_ui_renders_empty_state ... ok
+test ui_integration::test_ui_renders_middle_row ... ok
+test ui_integration::test_ui_renders_with_details ... ok
+test ui_integration::test_ui_renders_with_results ... ok
+test ui_integration::test_ui_resize_handling ... ok
+test ui_integration::test_ui_very_large_terminal ... ok
+test ui_integration::test_ui_very_small_terminal ... ok
+test ui_integration::test_url_button_rect_set ... ok
+
+test result: ok. 37 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.64s
+
+     Running tests/passwordless_sudo.rs (target/debug/deps/passwordless_sudo-d1e3382e6867f754)
+
+running 43 tests
+test passwordless_sudo_tests::interactive_auth_integration::integration_auth_mode_env_takes_precedence ... ok
+test passwordless_sudo_tests::interactive_auth_integration::integration_default_settings_resolve_to_prompt ... ok
+test passwordless_sudo_tests::interactive_auth_integration::integration_install_direct_all_interactive_auth ... [?1006l[?1015l[?1003l[?1002l[?1000lok
+test passwordless_sudo_tests::interactive_auth_integration::integration_install_direct_default_shows_password_prompt ... ok
+test passwordless_sudo_tests::interactive_auth_integration::integration_install_direct_interactive_auth ... [?1006l[?1015l[?1003l[?1002l[?1000lok
+test passwordless_sudo_tests::interactive_auth_integration::integration_remove_direct_interactive_auth ... [?1006l[?1015l[?1003l[?1002l[?1000lok
+test passwordless_sudo_tests::interactive_auth_integration::integration_resolve_auth_mode_interactive_env ... ok
+test passwordless_sudo_tests::interactive_auth_integration::integration_resolve_auth_mode_legacy_passwordless_env ... ok
+test passwordless_sudo_tests::passwordless_sudo_integration::integration_all_executor_requests_support_password ... ok
+test passwordless_sudo_tests::passwordless_sudo_integration::integration_all_password_purposes_valid ... ok
+test passwordless_sudo_tests::passwordless_sudo_integration::integration_downgrade_executor_request_passwordless ... ok
+test passwordless_sudo_tests::passwordless_sudo_integration::integration_downgrade_executor_request_structure ... ok
+test passwordless_sudo_tests::passwordless_sudo_integration::integration_downgrade_executor_request_with_password ... ok
+test passwordless_sudo_tests::passwordless_sudo_integration::integration_downgrade_multiple_packages ... ok
+test passwordless_sudo_tests::passwordless_sudo_integration::integration_downgrade_password_prompt_purpose ... ok
+test passwordless_sudo_tests::passwordless_sudo_integration::integration_empty_package_list_handling ... ok
+test passwordless_sudo_tests::passwordless_sudo_integration::integration_env_var_controls_passwordless_sudo_behavior ... ok
+test passwordless_sudo_tests::passwordless_sudo_integration::integration_filesync_custom_command_passwordless ... ok
+test passwordless_sudo_tests::passwordless_sudo_integration::integration_filesync_custom_command_structure ... ok
+test passwordless_sudo_tests::passwordless_sudo_integration::integration_filesync_custom_command_with_password ... ok
+test passwordless_sudo_tests::passwordless_sudo_integration::integration_filesync_password_prompt_purpose ... ok
+test passwordless_sudo_tests::passwordless_sudo_integration::integration_install_direct_aur_package_passwordless_active ... ok
+test passwordless_sudo_tests::passwordless_sudo_integration::integration_install_direct_aur_package_passwordless_deactivated ... ok
+test passwordless_sudo_tests::passwordless_sudo_integration::integration_install_direct_multiple_packages_passwordless_active ... ok
+test passwordless_sudo_tests::passwordless_sudo_integration::integration_install_direct_multiple_packages_passwordless_deactivated ... ok
+test passwordless_sudo_tests::passwordless_sudo_integration::integration_install_direct_passwordless_sudo_active ... ok
+test passwordless_sudo_tests::passwordless_sudo_integration::integration_install_direct_passwordless_sudo_deactivated ... ok
+test passwordless_sudo_tests::passwordless_sudo_integration::integration_install_shows_password_prompt_when_test_var_not_honored ... ok
+test passwordless_sudo_tests::passwordless_sudo_integration::integration_mixed_package_sources_passwordless_active ... ok
+test passwordless_sudo_tests::passwordless_sudo_integration::integration_mixed_package_sources_passwordless_deactivated ... ok
+test passwordless_sudo_tests::passwordless_sudo_integration::integration_password_prompt_initial_state ... ok
+test passwordless_sudo_tests::passwordless_sudo_integration::integration_preflight_exec_modal_state_passwordless_active ... ok
+test passwordless_sudo_tests::passwordless_sudo_integration::integration_preflight_install_passwordless_sudo_creates_request ... ok
+test passwordless_sudo_tests::passwordless_sudo_integration::integration_preflight_install_requires_password_when_deactivated ... ok
+test passwordless_sudo_tests::passwordless_sudo_integration::integration_remove_always_requires_password_even_with_passwordless_sudo ... ok
+test passwordless_sudo_tests::passwordless_sudo_integration::integration_remove_cascade_mode_requires_password ... ok
+test passwordless_sudo_tests::passwordless_sudo_integration::integration_remove_multiple_packages_requires_password ... ok
+test passwordless_sudo_tests::passwordless_sudo_integration::integration_remove_shows_password_prompt_passwordless_deactivated ... ok
+test passwordless_sudo_tests::passwordless_sudo_integration::integration_sequential_operations_no_state_leak ... ok
+test passwordless_sudo_tests::passwordless_sudo_integration::integration_update_executor_request_passwordless ... ok
+test passwordless_sudo_tests::passwordless_sudo_integration::integration_update_executor_request_structure ... ok
+test passwordless_sudo_tests::passwordless_sudo_integration::integration_update_executor_request_with_password ... ok
+test passwordless_sudo_tests::passwordless_sudo_integration::integration_update_password_prompt_purpose ... ok
+
+test result: ok. 43 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+
+     Running tests/preflight_integration.rs (target/debug/deps/preflight_integration-b6118b1131cb7edc)
+
+running 47 tests
+test preflight_integration::aur_mix::preflight_handles_aur_and_official_package_mix ... ok
+test preflight_integration::auto_scroll::integration_preflight_exec_abortable_flag ... ok
+test preflight_integration::auto_scroll::integration_preflight_exec_ansi_color_output ... ok
+test preflight_integration::auto_scroll::integration_preflight_exec_append_multiple_lines ... ok
+test preflight_integration::auto_scroll::integration_preflight_exec_append_single_line ... ok
+test preflight_integration::auto_scroll::integration_preflight_exec_downgrade_action ... ok
+test preflight_integration::auto_scroll::integration_preflight_exec_empty_log_lines ... ok
+test preflight_integration::auto_scroll::integration_preflight_exec_large_log_output ... ok
+test preflight_integration::auto_scroll::integration_preflight_exec_mixed_output ... ok
+test preflight_integration::auto_scroll::integration_preflight_exec_progress_bar_carriage_return ... ok
+test preflight_integration::auto_scroll::integration_preflight_exec_progress_bar_replace ... ok
+test preflight_integration::auto_scroll::integration_preflight_exec_remove_action ... ok
+test preflight_integration::auto_scroll::integration_preflight_exec_verbose_flag ... ok
+test preflight_integration::cache_sync::preflight_syncs_cache_updates_during_modal_open ... ok
+test preflight_integration::caching::preflight_loads_cached_data_when_packages_already_in_install_list ... ok
+test preflight_integration::conflicts::preflight_all_tabs_load_correctly_when_conflicts_present ... ok
+test preflight_integration::conflicts::preflight_conflicts_not_overwritten_when_packages_added_sequentially ... ok
+test preflight_integration::data_arrival::preflight_cancellation_aborts_in_flight_work ... ok
+test preflight_integration::data_arrival::preflight_handles_out_of_order_data_arrival ... ok
+test preflight_integration::edge_cases::preflight_handles_empty_results_gracefully ... ok
+test preflight_integration::error_handling::preflight_handles_partial_failures_correctly ... ok
+test preflight_integration::large_datasets::preflight_handles_large_datasets_correctly ... ok
+test preflight_integration::package_operations::preflight_independent_loading_when_packages_added_sequentially ... ok
+test preflight_integration::package_operations::preflight_preserves_first_package_when_second_package_added ... ok
+test preflight_integration::persistence::preflight_persists_optional_dependencies_selection ... ok
+test preflight_integration::persistence::preflight_persists_service_restart_decisions_across_tabs ... ok
+test preflight_integration::remove_operations::preflight_remove_action_with_reverse_dependencies ... ok
+test preflight_integration::risk_calculation::integration_combined_risk_calculation ... ok
+test preflight_integration::risk_calculation::integration_confirm_reinstall_header_chips ... ok
+test preflight_integration::risk_calculation::integration_header_chips_default ... ok
+test preflight_integration::risk_calculation::integration_header_chips_high_risk ... ok
+test preflight_integration::risk_calculation::integration_header_chips_low_risk ... ok
+test preflight_integration::risk_calculation::integration_header_chips_medium_risk ... ok
+test preflight_integration::risk_calculation::integration_preflight_exec_header_chips ... ok
+test preflight_integration::risk_calculation::integration_preflight_modal_header_chips ... ok
+test preflight_integration::risk_calculation::integration_risk_level_boundary_10 ... ok
+test preflight_integration::risk_calculation::integration_risk_level_boundary_30 ... ok
+test preflight_integration::risk_calculation::integration_risk_level_default_is_low ... ok
+test preflight_integration::risk_calculation::integration_risk_score_aur_contribution ... ok
+test preflight_integration::risk_calculation::integration_risk_score_many_dependents ... ok
+test preflight_integration::risk_calculation::integration_risk_score_with_dependents ... ok
+test preflight_integration::skip_preflight::test_open_preflight_modal_callable ... ok
+test preflight_integration::skip_preflight::test_open_preflight_modal_multiple_packages ... ok
+test preflight_integration::skip_preflight::test_open_preflight_modal_no_cache ... ok
+test preflight_integration::skip_preflight::test_updates_modal_initialization ... ok
+test preflight_integration::tab_switching::preflight_handles_mixed_completion_states_when_switching_tabs ... ok
+test preflight_integration::tab_variations::preflight_tab_switching_order_variations ... ok
+
+test result: ok. 47 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.54s
+
+     Running tests/remove.rs (target/debug/deps/remove-730f5d837c591559)
+
+running 7 tests
+test remove_integration::integration_remove_cascade_modes ... ok
+test remove_integration::integration_remove_executor_output_handling ... ok
+test remove_integration::integration_remove_executor_request_creation ... ok
+test remove_integration::integration_remove_preflight_modal_state ... ok
+test remove_integration::integration_remove_uses_executor_not_terminal ... ok
+test remove_ui::ui_confirm_remove_modal_rendering ... ok
+test remove_ui::ui_preflight_exec_remove_rendering ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/scan.rs (target/debug/deps/scan-ae87720ce7baa4a7)
+
+running 23 tests
+test scan_integration::integration_scan_all_scanners ... ok
+test scan_integration::integration_scan_clamav_only ... ok
+test scan_integration::integration_scan_command_structure ... ok
+test scan_integration::integration_scan_config_cancellation ... ok
+test scan_integration::integration_scan_config_cursor_navigation ... ok
+test scan_integration::integration_scan_config_modal_state ... ok
+test scan_integration::integration_scan_custom_only ... ok
+test scan_integration::integration_scan_dry_run ... ok
+test scan_integration::integration_scan_mixed_sleuth_and_integrated ... ok
+test scan_integration::integration_scan_multiple_scanners ... ok
+test scan_integration::integration_scan_no_scanners ... ok
+test scan_integration::integration_scan_semgrep_only ... ok
+test scan_integration::integration_scan_shellcheck_only ... ok
+test scan_integration::integration_scan_trivy_only ... ok
+test scan_integration::integration_scan_uses_executor_request ... ok
+test scan_integration::integration_scan_virustotal_only ... ok
+test scan_integration::integration_sleuth_command_building ... ok
+test scan_integration::integration_virustotal_setup_input_handling ... ok
+test scan_integration::integration_virustotal_setup_modal_state ... ok
+test scan_ui::ui_scan_config_modal_structure ... ok
+test scan_ui::ui_scan_modal_transition ... ok
+test scan_ui::ui_scan_preflight_exec_structure ... ok
+test scan_ui::ui_virustotal_setup_modal_structure ... ok
+
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/update.rs (target/debug/deps/update-feb498a45befbde6)
+
+running 31 tests
+test system_update_integration::integration_system_update_all_options ... ok
+test system_update_integration::integration_system_update_aur_command ... ok
+test system_update_integration::integration_system_update_cache_command ... ok
+test system_update_integration::integration_system_update_command_building ... ok
+test system_update_integration::integration_system_update_country_selection ... ok
+test system_update_integration::integration_system_update_cursor_navigation ... ok
+test system_update_integration::integration_system_update_dry_run ... ok
+test system_update_integration::integration_system_update_full_sequence ... ok
+test system_update_integration::integration_system_update_mirror_command ... ok
+test system_update_integration::integration_system_update_modal_state ... ok
+test system_update_integration::integration_system_update_network_error_display ... ok
+test system_update_integration::integration_system_update_network_error_handling ... ok
+test system_update_integration::integration_system_update_network_failure ... ok
+test system_update_integration::integration_system_update_no_options ... ok
+test system_update_integration::integration_system_update_pacman_command ... ok
+test system_update_integration::integration_system_update_password_prompt ... ok
+test system_update_integration::integration_system_update_preserves_install_list ... ok
+test system_update_integration::integration_system_update_to_preflight_exec ... ok
+test system_update_integration::integration_system_update_uses_executor_not_terminal ... ok
+test system_update_ui::ui_system_update_modal_structure ... ok
+test update_flags::test_empty_password_rejected ... ok
+test update_flags::test_individual_exit_codes_in_combined_command ... ignored, Requires actual pacsea binary and system setup
+test update_flags::test_long_running_update_simulation ... ignored, Long-running simulation test, only run manually
+test update_flags::test_sudo_password_timeout_during_long_update ... ignored, Long-running simulation test, only run manually
+test update_flags::test_update_long_flag_triggers_update ... ignored, Long-running simulation test, only run manually
+test update_flags::test_update_short_flag_triggers_update ... ignored, Long-running simulation test, only run manually
+test update_single_integration::integration_single_package_update_flow ... ok
+test update_single_integration::integration_updates_modal_keyboard_flow_filter_multiselect_enter ... ok
+test update_single_integration::integration_updates_modal_mouse_keyboard_interop ... ok
+test update_single_integration::integration_updates_modal_navigation ... ok
+test update_single_integration::integration_updates_modal_state ... ok
+
+test result: ok. 26 passed; 0 failed; 5 ignored; 0 measured; 0 filtered out; finished in 0.40s
+
+   Doc-tests pacsea
+
+running 16 tests
+test src/i18n/mod.rs - i18n (line 35) - compile ... ok
+test src/lib.rs - (line 29) - compile ... ok
+test src/lib.rs - (line 67) ... ignored
+test src/lib.rs - (line 78) ... ok
+test src/lib.rs - (line 94) ... ok
+test src/util/mod.rs - util::arrs (line 193) ... ok
+test src/util/mod.rs - util::curl_args (line 710) ... ok
+test src/util/mod.rs - util::fuzzy_match_rank (line 338) ... ok
+test src/util/mod.rs - util::open_file (line 545) ... ok
+test src/util/mod.rs - util::open_url (line 624) ... ok
+test src/util/mod.rs - util::parse_update_entry (line 801) ... ok
+test src/util/mod.rs - util::percent_encode (line 61) ... ok
+test src/util/mod.rs - util::s (line 103) ... ok
+test src/util/mod.rs - util::ss (line 146) ... ok
+test src/util/mod.rs - util::ts_to_date (line 440) ... ok
+test src/util/mod.rs - util::u64_of (line 245) ... ok
+
+test result: ok. 15 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+all doctests ran in 0.75s; merged doctests compilation took 0.74s
+    Checking pacsea v0.8.1 (/mnt/SSD_NVME_4TB/GitHub/pacsea)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.21s
+    Fetching advisory database from `https://github.com/RustSec/advisory-db.git`
+      Loaded 1043 security advisories (from /home/firstpick/.cargo/advisory-db)
+    Updating crates.io index
+    Scanning Cargo.lock for vulnerabilities (436 crate dependencies)
+Crate:     bincode
+Version:   1.3.3
+Warning:   unmaintained
+Title:     Bincode is unmaintained
+Date:      2025-12-16
+ID:        RUSTSEC-2025-0141
+URL:       https://rustsec.org/advisories/RUSTSEC-2025-0141
+Dependency tree:
+bincode 1.3.3
+└── syntect 5.3.0
+    └── pacsea 0.8.1
+
+Crate:     yaml-rust
+Version:   0.4.5
+Warning:   unmaintained
+Title:     yaml-rust is unmaintained.
+Date:      2024-03-20
+ID:        RUSTSEC-2024-0320
+URL:       https://rustsec.org/advisories/RUSTSEC-2024-0320
+Dependency tree:
+yaml-rust 0.4.5
+└── syntect 5.3.0
+    └── pacsea 0.8.1
+
+Crate:     rand
+Version:   0.8.5
+Warning:   unsound
+Title:     Rand is unsound with a custom logger using `rand::rng()`
+Date:      2026-04-09
+ID:        RUSTSEC-2026-0097
+URL:       https://rustsec.org/advisories/RUSTSEC-2026-0097
+Dependency tree:
+rand 0.8.5
+└── phf_generator 0.11.3
+    ├── phf_macros 0.11.3
+    │   └── phf 0.11.3
+    │       ├── termwiz 0.23.3
+    │       │   └── ratatui-termwiz 0.1.0
+    │       │       └── ratatui 0.30.0
+    │       │           └── pacsea 0.8.1
+    │       ├── terminfo 0.9.0
+    │       │   └── termwiz 0.23.3
+    │       └── csscolorparser 0.6.2
+    │           └── wezterm-color-types 0.3.0
+    │               └── termwiz 0.23.3
+    └── phf_codegen 0.11.3
+        └── terminfo 0.9.0
+
+Crate:     rand
+Version:   0.9.2
+Warning:   unsound
+Title:     Rand is unsound with a custom logger using `rand::rng()`
+Date:      2026-04-09
+ID:        RUSTSEC-2026-0097
+URL:       https://rustsec.org/advisories/RUSTSEC-2026-0097
+Dependency tree:
+rand 0.9.2
+└── quinn-proto 0.11.14
+    └── quinn 0.11.9
+        └── reqwest 0.13.2
+            └── pacsea 0.8.1
+
+Crate:     rand
+Version:   0.10.0
+Warning:   unsound
+Title:     Rand is unsound with a custom logger using `rand::rng()`
+Date:      2026-04-09
+ID:        RUSTSEC-2026-0097
+URL:       https://rustsec.org/advisories/RUSTSEC-2026-0097
+Dependency tree:
+rand 0.10.0
+└── pacsea 0.8.1
+
+warning: 5 allowed warnings found
+warning[duplicate]: found 2 duplicate entries for crate 'cfg_aliases'
+   ┌─ /mnt/SSD_NVME_4TB/GitHub/pacsea/Cargo.lock:19:1
+   │  
+19 │ ╭ cfg_aliases 0.1.1 registry+https://github.com/rust-lang/crates.io-index
+20 │ │ cfg_aliases 0.2.1 registry+https://github.com/rust-lang/crates.io-index
+   │ ╰───────────────────────────────────────────────────────────────────────┘ lock entries
+   │  
+   ├ cfg_aliases v0.1.1
+     └── (build) nix v0.28.0
+         └── portable-pty v0.9.0
+             └── pacsea v0.8.1
+   ├ cfg_aliases v0.2.1
+     └── (build) nix v0.31.2
+         └── pacsea v0.8.1
+
+warning[duplicate]: found 2 duplicate entries for crate 'nix'
+    ┌─ /mnt/SSD_NVME_4TB/GitHub/pacsea/Cargo.lock:124:1
+    │  
+124 │ ╭ nix 0.28.0 registry+https://github.com/rust-lang/crates.io-index
+125 │ │ nix 0.31.2 registry+https://github.com/rust-lang/crates.io-index
+    │ ╰────────────────────────────────────────────────────────────────┘ lock entries
+    │  
+    ├ nix v0.28.0
+      └── portable-pty v0.9.0
+          └── pacsea v0.8.1
+    ├ nix v0.31.2
+      └── pacsea v0.8.1
+
+warning[license-not-encountered]: license was not encountered
+   ┌─ /mnt/SSD_NVME_4TB/GitHub/pacsea/deny.toml:24:6
+   │
+24 │     "OpenSSL",
+   │      ━━━━━━━ unmatched license allowance
+
+warning[license-not-encountered]: license was not encountered
+   ┌─ /mnt/SSD_NVME_4TB/GitHub/pacsea/deny.toml:21:6
+   │
+21 │     "Unicode-DFS-2016",
+   │      ━━━━━━━━━━━━━━━━ unmatched license allowance
+
+warning[license-not-encountered]: license was not encountered
+   ┌─ /mnt/SSD_NVME_4TB/GitHub/pacsea/deny.toml:26:6
+   │
+26 │     "LicenseRef-ring",
+   │      ━━━━━━━━━━━━━━━ unmatched license allowance
+
+warning[duplicate]: found 2 duplicate entries for crate 'thiserror'
+    ┌─ /mnt/SSD_NVME_4TB/GitHub/pacsea/Cargo.lock:214:1
+    │  
+214 │ ╭ thiserror 1.0.69 registry+https://github.com/rust-lang/crates.io-index
+215 │ │ thiserror 2.0.18 registry+https://github.com/rust-lang/crates.io-index
+    │ ╰──────────────────────────────────────────────────────────────────────┘ lock entries
+    │  
+    ├ thiserror v1.0.69
+      └── filedescriptor v0.8.3
+          └── portable-pty v0.9.0
+              └── pacsea v0.8.1
+    ├ thiserror v2.0.18
+      ├── kasuari v0.4.12
+      │   └── ratatui-core v0.1.0
+      │       ├── ratatui v0.30.0
+      │       │   └── pacsea v0.8.1
+      │       ├── ratatui-crossterm v0.1.0
+      │       │   └── ratatui v0.30.0 (*)
+      │       ├── ratatui-macros v0.7.0
+      │       │   └── ratatui v0.30.0 (*)
+      │       └── ratatui-widgets v0.3.0
+      │           ├── ratatui v0.30.0 (*)
+      │           └── ratatui-macros v0.7.0 (*)
+      ├── ratatui-core v0.1.0 (*)
+      ├── syntect v5.3.0
+      │   └── pacsea v0.8.1 (*)
+      └── tracing-appender v0.2.4
+          └── pacsea v0.8.1 (*)
+
+warning[duplicate]: found 2 duplicate entries for crate 'thiserror-impl'
+    ┌─ /mnt/SSD_NVME_4TB/GitHub/pacsea/Cargo.lock:216:1
+    │  
+216 │ ╭ thiserror-impl 1.0.69 registry+https://github.com/rust-lang/crates.io-index
+217 │ │ thiserror-impl 2.0.18 registry+https://github.com/rust-lang/crates.io-index
+    │ ╰───────────────────────────────────────────────────────────────────────────┘ lock entries
+    │  
+    ├ thiserror-impl v1.0.69
+      └── thiserror v1.0.69
+          └── filedescriptor v0.8.3
+              └── portable-pty v0.9.0
+                  └── pacsea v0.8.1
+    ├ thiserror-impl v2.0.18
+      └── thiserror v2.0.18
+          ├── kasuari v0.4.12
+          │   └── ratatui-core v0.1.0
+          │       ├── ratatui v0.30.0
+          │       │   └── pacsea v0.8.1
+          │       ├── ratatui-crossterm v0.1.0
+          │       │   └── ratatui v0.30.0 (*)
+          │       ├── ratatui-macros v0.7.0
+          │       │   └── ratatui v0.30.0 (*)
+          │       └── ratatui-widgets v0.3.0
+          │           ├── ratatui v0.30.0 (*)
+          │           └── ratatui-macros v0.7.0 (*)
+          ├── ratatui-core v0.1.0 (*)
+          ├── syntect v5.3.0
+          │   └── pacsea v0.8.1 (*)
+          └── tracing-appender v0.2.4
+              └── pacsea v0.8.1 (*)
+
+error[unsound]: Rand is unsound with a custom logger using `rand::rng()`
+    ┌─ /mnt/SSD_NVME_4TB/GitHub/pacsea/Cargo.lock:153:1
+    │
+153 │ rand 0.10.0 registry+https://github.com/rust-lang/crates.io-index
+    │ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ unsound advisory detected
+    │
+    ├ ID: RUSTSEC-2026-0097
+    ├ Advisory: https://rustsec.org/advisories/RUSTSEC-2026-0097
+    ├ It has been reported (by @lopopolo) that the `rand` library is [unsound](https://rust-lang.github.io/unsafe-code-guidelines/glossary.html#soundness-of-code--of-a-library) (i.e. that safe code using the public API can cause Undefined Behaviour) when all the following conditions are met:
+      
+      - The `log` and `thread_rng` features are enabled
+      - A [custom logger](https://docs.rs/log/latest/log/#implementing-a-logger) is defined
+      - The custom logger accesses `rand::rng()` (previously `rand::thread_rng()`) and calls any `TryRng` (previously `RngCore`) methods on `ThreadRng`
+      - The `ThreadRng` (attempts to) reseed while called from the custom logger (this happens every 64 kB of generated data)
+      - Trace-level logging is enabled or warn-level logging is enabled and the random source (the `getrandom` crate) is unable to provide a new seed
+      
+      `TryRng` (previously `RngCore`) methods for `ThreadRng` use `unsafe` code to cast `*mut BlockRng<ReseedingCore>` to `&mut BlockRng<ReseedingCore>`. When all the above conditions are met this results in an aliased mutable reference, violating the Stacked Borrows rules. Miri is able to detect this violation in sample code. Since construction of [aliased mutable references is Undefined Behaviour](https://doc.rust-lang.org/stable/nomicon/references.html), the behaviour of optimized builds is hard to predict.
+      
+      Affected versions of `rand` are `>= 0.7, < 0.9.3` and `0.10.0`.
+    ├ Announcement: https://github.com/rust-random/rand/pull/1763
+    ├ Solution: Upgrade to >=0.10.1 OR <0.10.0, >=0.9.3 (try `cargo update -p rand`)
+    ├ rand v0.10.0
+      └── pacsea v0.8.1
+
+advisories FAILED, bans ok, licenses ok, sources ok
+[0;31m[ERROR] [0mcargo deny check failed
+[0;36mContinue despite cargo deny failure? [Y/n]: [0m[90m2:14PM[0m [32mINF[0m [1m1184 commits scanned.[0m
+[90m2:14PM[0m [32mINF[0m [1mscanned ~228475866 bytes (228.48 MB) in 3.17s[0m
+[90m2:14PM[0m [32mINF[0m [1mno leaks found[0m
+[0;32m[SUCCESS] [0mAll quality and security checks completed
+
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;36m  STEP: Building release binary[0m
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+   Compiling pacsea v0.8.1 (/mnt/SSD_NVME_4TB/GitHub/pacsea)
+    Finished `release` profile [optimized] target(s) in 33.29s
+[0;32m[SUCCESS] [0mRelease binary built
+
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
+[1;36m  STEP: Committing and pushing changes[0m
+[0;35m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m
