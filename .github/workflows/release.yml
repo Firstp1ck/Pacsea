@@ -1,8 +1,6 @@
 name: Release
 
 on:
-  release:
-    types: [created]
   push:
     tags:
       - 'v*'
@@ -76,11 +74,7 @@ jobs:
       - name: Get tag name and check prerelease
         id: tag
         run: |
-          if [ -n "${{ github.event.release.tag_name }}" ]; then
-            TAG="${{ github.event.release.tag_name }}"
-          else
-            TAG="${{ github.ref_name }}"
-          fi
+          TAG="${{ github.ref_name }}"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
           VERSION="${TAG#v}"
