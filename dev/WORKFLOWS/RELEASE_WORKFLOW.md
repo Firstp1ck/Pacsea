@@ -30,7 +30,7 @@ Before starting, the script verifies:
 2. Run `cargo check` to update `Cargo.lock`
 
 ### Phase 2: Documentation
-3. **[Cursor]** Run `/release-new {version}` → creates `Documents/RELEASE_v{version}.md`
+3. **[Cursor]** Run `/release-new {version}` → creates `Release-docs/RELEASE_v{version}.md`
 4. Update `CHANGELOG.md` with release notes
 5. Auto-generate announcement from release file
 6. Run `update_version_announcement.py`
@@ -61,7 +61,7 @@ The script pauses at these steps for you to run Cursor commands:
 
 | Step | Command | Output |
 |------|---------|--------|
-| 3 | `/release-new {version}` | `Documents/RELEASE_v{version}.md` |
+| 3 | `/release-new {version}` | `Release-docs/RELEASE_v{version}.md` |
 | 7 | `/readme-update` | Updates `README.md` |
 | 8 | `/wiki-update` | Updates wiki files |
 
@@ -71,7 +71,7 @@ The script pauses at these steps for you to run Cursor commands:
 |------|-------------|
 | `Cargo.toml` | Version number |
 | `Cargo.lock` | Dependency lock |
-| `Documents/RELEASE_v{version}.md` | Release notes |
+| `Release-docs/RELEASE_v{version}.md` | Release notes |
 | `CHANGELOG.md` | Cumulative changelog |
 | `dev/ANNOUNCEMENTS/version_announcement_content.md` | In-app announcement |
 | `src/announcements.rs` | Compiled announcement |

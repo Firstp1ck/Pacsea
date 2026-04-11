@@ -269,7 +269,7 @@ function phase2_documentation
     log_step "Generate Release Notes"
     _blue; echo -n "[INFO] "; _reset; echo -n "Please run: "; _bold; echo "/release-new $new_ver"; _reset
     
-    set -l release_file "$PACSEA_DIR/Documents/RELEASE_v$new_ver.md"
+    set -l release_file "$PACSEA_DIR/Release-docs/RELEASE_v$new_ver.md"
     
     if test "$DRY_RUN" = true
         log_info "[DRY-RUN] Would wait for release notes generation"
@@ -369,7 +369,7 @@ function generate_announcement
     set -l ver $argv[2]
     set -l output_file "$PACSEA_DIR/dev/ANNOUNCEMENTS/version_announcement_content.md"
     
-    # Extract the full "## What's New" body from Documents/RELEASE_v*.md: every line after
+    # Extract the full "## What's New" body from Release-docs/RELEASE_v*.md: every line after
     # "## What's New" until the next level-2 heading (## Technical Details, ## Full Changelog, …).
     # Preserves ### headings, **bold** group titles, and all bullets — no length or count caps.
     # Note: awk variable must not be named `in` (reserved).
@@ -641,7 +641,7 @@ function phase4_build_release
     # Step 4.6: Create GitHub release (binary uploaded by GitHub Action)
     log_step "Creating GitHub Release"
     
-    set -l release_file "$PACSEA_DIR/Documents/RELEASE_v$new_ver.md"
+    set -l release_file "$PACSEA_DIR/Release-docs/RELEASE_v$new_ver.md"
     
     # Determine if this is a prerelease (version < 1.0.0)
     set -l prerelease_flag ""
@@ -1134,7 +1134,7 @@ end
 function update_changelog
     set -l new_ver $argv[1]
     set -l changelog_file "$PACSEA_DIR/CHANGELOG.md"
-    set -l release_file "$PACSEA_DIR/Documents/RELEASE_v$new_ver.md"
+    set -l release_file "$PACSEA_DIR/Release-docs/RELEASE_v$new_ver.md"
     
     log_step "Updating CHANGELOG.md"
     

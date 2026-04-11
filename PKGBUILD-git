@@ -45,7 +45,7 @@ provides=('pacsea')
 source=()
 sha256sums=()
 
-# Custom source function to clone with sparse checkout, excluding Images/ and Documents/
+# Custom source function to clone with sparse checkout, excluding Images/ and Release-docs/
 source() {
   cd "$srcdir" || exit 1
   if [ ! -d Pacsea ]; then
@@ -53,7 +53,7 @@ source() {
   fi
   cd Pacsea || exit 1
   git sparse-checkout init --no-cone
-  git sparse-checkout set '/*' '!/Images' '!/Documents'
+  git sparse-checkout set '/*' '!/Images' '!/Release-docs'
   git checkout 2>/dev/null || true
 }
 

@@ -538,6 +538,6 @@ Open and closed issues on [Firstp1ck/Pacsea](https://github.com/Firstp1ck/Pacsea
 
 ---
 
-*Last updated: 2026-04-04 — synced to **`v0.8.0`** release notes (`Documents/RELEASE_v0.8.0.md`), changelog `v0.7.4...v0.8.0`, and GitHub issues (open/closed) on `Firstp1ck/Pacsea`*  
+*Last updated: 2026-04-04 — synced to **`v0.8.0`** release notes (`Release-docs/RELEASE_v0.8.0.md`), changelog `v0.7.4...v0.8.0`, and GitHub issues (open/closed) on `Firstp1ck/Pacsea`*  
 *PKGBUILD checks, AUR voting, and custom repos are documented as **v0.8.0** features; in-tree `Cargo.toml` may lag the tag until the next version bump*
 
