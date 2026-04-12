@@ -77,6 +77,11 @@ pub fn move_sel_cached(
                 app.pkgb_reload_requested_at = Some(std::time::Instant::now());
                 app.pkgb_reload_requested_for = Some(item.name.clone());
                 app.pkgb_text = None; // Clear old PKGBUILD while loading
+                // Drop the last-successful package id so we never treat "same name as before" as
+                // "already showing this row" when `pkgb_text` is still empty because a stale
+                // in-flight response was ignored (e.g. official fetch completes after the user
+                // moved back to an AUR row).
+                app.pkgb_package_name = None;
             }
         }
 
@@ -207,6 +212,52 @@ mod tests {
         move_sel_cached(&mut app, 0, &tx, &comments_tx);
         assert_eq!(app.details.repository, "AUR");
         assert_eq!(app.details.architecture, "any");
+    }
+
+    #[tokio::test]
+    /// What: When the PKGBUILD pane is open, switching rows clears `pkgb_package_name` so a later
+    /// return to the same AUR row still schedules a fetch if prior responses were dropped.
+    ///
+    /// Inputs:
+    /// - `AppState` with two results (AUR then official), PKGBUILD visible and loaded for the AUR row.
+    ///
+    /// Output:
+    /// - After moving to the official row, `pkgb_text` and `pkgb_package_name` are cleared and a
+    ///   debounced reload targets the official package name.
+    ///
+    /// Details:
+    /// - Without clearing `pkgb_package_name`, an ignored stale response can leave `pkgb_text`
+    ///   empty while the name still matches the AUR row, so `needs_reload` stays false forever.
+    async fn move_sel_cached_clears_pkgb_package_name_when_switching_with_viewer_open() {
+        let mut app = crate::state::AppState {
+            results: vec![
+                crate::state::PackageItem {
+                    name: "aur1".into(),
+                    version: "1".into(),
+                    description: String::new(),
+                    source: crate::state::Source::Aur,
+                    popularity: None,
+                    out_of_date: None,
+                    orphaned: false,
+                },
+                item_official("linux", "core"),
+            ],
+            selected: 0,
+            pkgb_visible: true,
+            pkgb_text: Some("# pkgbuild\n".into()),
+            pkgb_package_name: Some("aur1".into()),
+            ..Default::default()
+        };
+        let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+        let (comments_tx, _comments_rx) = tokio::sync::mpsc::unbounded_channel();
+        move_sel_cached(&mut app, 1, &tx, &comments_tx);
+        assert_eq!(app.selected, 1);
+        assert!(app.pkgb_text.is_none());
+        assert!(
+            app.pkgb_package_name.is_none(),
+            "pkgb_package_name must not outlive cleared text; stale ignores would strand loading state"
+        );
+        assert_eq!(app.pkgb_reload_requested_for.as_deref(), Some("linux"));
     }
 
     #[tokio::test]

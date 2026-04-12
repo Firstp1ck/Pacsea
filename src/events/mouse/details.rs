@@ -299,6 +299,7 @@ fn handle_reload_pkgb_click(mx: u16, my: u16, app: &mut AppState) -> bool {
         app.pkgb_reload_requested_at = Some(std::time::Instant::now());
         app.pkgb_reload_requested_for = Some(item.name);
         app.pkgb_text = None; // Clear old PKGBUILD while loading
+        app.pkgb_package_name = None;
     }
     true
 }

@@ -80,21 +80,26 @@ pub fn spawn_details_worker(
 /// Inputs:
 /// - `pkgb_req_rx`: Channel receiver for PKGBUILD requests
 /// - `pkgb_res_tx`: Channel sender for PKGBUILD responses
+///
+/// Details:
+/// - Dispatches each request on its own async task so a slow or hung official (GitLab) fetch does
+///   not block later AUR fetches. The runtime `handle_pkgbuild_result` path drops responses that no
+///   longer match the focused/selected row.
 pub fn spawn_pkgbuild_worker(
     mut pkgb_req_rx: mpsc::UnboundedReceiver<PackageItem>,
     pkgb_res_tx: mpsc::UnboundedSender<(String, String)>,
 ) {
     tokio::spawn(async move {
         while let Some(item) = pkgb_req_rx.recv().await {
-            let name = item.name.clone();
-            match sources::fetch_pkgbuild_fast(&item).await {
-                Ok(txt) => {
-                    let _ = pkgb_res_tx.send((name, txt));
-                }
-                Err(e) => {
-                    let _ = pkgb_res_tx.send((name, format!("Failed to fetch PKGBUILD: {e}")));
-                }
-            }
+            let res_tx = pkgb_res_tx.clone();
+            tokio::spawn(async move {
+                let name = item.name.clone();
+                let payload = match sources::fetch_pkgbuild_fast(&item).await {
+                    Ok(txt) => (name, txt),
+                    Err(e) => (name, format!("Failed to fetch PKGBUILD: {e}")),
+                };
+                let _ = res_tx.send(payload);
+            });
         }
     });
 }

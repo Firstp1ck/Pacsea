@@ -17,6 +17,8 @@ static PKGBUILD_RATE_LIMITER: Mutex<Option<Instant>> = Mutex::new(None);
 ///
 /// Reduced from 500ms to 200ms for faster preview operations.
 const PKGBUILD_MIN_INTERVAL_MS: u64 = 200;
+/// Extra curl flags for PKGBUILD HTTP fetches (override base connect timeout; cap total time).
+const PKGBUILD_CURL_EXTRA: &[&str] = &["--connect-timeout", "8", "--max-time", "10"];
 
 /// What: Fetch PKGBUILD content for a package from AUR or official Git packaging repos.
 ///
@@ -39,6 +41,8 @@ const PKGBUILD_MIN_INTERVAL_MS: u64 = 200;
 /// - First tries offline methods (yay/paru cache) for fast loading.
 /// - Then tries network with rate limiting and timeout (10s).
 /// - Uses curl with timeout to prevent hanging on slow servers.
+/// - Passes a short `--connect-timeout` after the base `curl_args` flags so it overrides the
+///   default 30s connect wait (important when official GitLab is unreachable).
 pub async fn fetch_pkgbuild_fast(item: &PackageItem) -> Result<String> {
     let name = item.name.clone();
 
@@ -95,7 +99,7 @@ pub async fn fetch_pkgbuild_fast(item: &PackageItem) -> Result<String> {
             // Use curl with timeout to prevent hanging
             let res = tokio::task::spawn_blocking({
                 let url = url.clone();
-                move || crate::util::curl::curl_text_with_args(&url, &["--max-time", "10"])
+                move || crate::util::curl::curl_text_with_args(&url, PKGBUILD_CURL_EXTRA)
             })
             .await??;
             Ok(res)
@@ -107,7 +111,7 @@ pub async fn fetch_pkgbuild_fast(item: &PackageItem) -> Result<String> {
             );
             let main_result = tokio::task::spawn_blocking({
                 let u = url_main.clone();
-                move || crate::util::curl::curl_text_with_args(&u, &["--max-time", "10"])
+                move || crate::util::curl::curl_text_with_args(&u, PKGBUILD_CURL_EXTRA)
             })
             .await;
             if let Ok(Ok(txt)) = main_result {
@@ -119,7 +123,7 @@ pub async fn fetch_pkgbuild_fast(item: &PackageItem) -> Result<String> {
             );
             let txt = tokio::task::spawn_blocking({
                 let u = url_master;
-                move || crate::util::curl::curl_text_with_args(&u, &["--max-time", "10"])
+                move || crate::util::curl::curl_text_with_args(&u, PKGBUILD_CURL_EXTRA)
             })
             .await??;
             Ok(txt)
