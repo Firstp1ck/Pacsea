@@ -580,6 +580,12 @@ pub struct AppState {
     pub updates_modal_rect: Option<(u16, u16, u16, u16)>,
     /// Clickable rectangle for the `Wizard` button in the Optional Deps modal.
     pub optional_deps_wizard_rect: Option<(u16, u16, u16, u16)>,
+    /// Outer rectangle of the Optional Deps modal for wheel hit-testing.
+    pub optional_deps_modal_rect: Option<(u16, u16, u16, u16)>,
+    /// Outer rectangle of the System Update modal for wheel hit-testing.
+    pub system_update_modal_rect: Option<(u16, u16, u16, u16)>,
+    /// Outer rectangle of the Repositories modal for wheel hit-testing.
+    pub repositories_modal_rect: Option<(u16, u16, u16, u16)>,
     /// Clickable row for copying the SSH public key in the AUR SSH setup modal.
     pub ssh_setup_copy_key_rect: Option<(u16, u16, u16, u16)>,
     /// Inner content rectangle for scrollable updates list.

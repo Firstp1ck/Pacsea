@@ -30,6 +30,8 @@ mod simple;
 /// - Preflight modal: Handles tab clicks, package group header toggles, service restart decisions,
 ///   and scroll navigation for Deps/Files/Services tabs.
 /// - News modal: Handles item selection, URL opening, and scroll navigation; closes on outside click.
+/// - `SystemUpdate`, `Repositories`, and `OptionalDeps` modals: wheel moves the focused row/cursor
+///   when the pointer is inside the modal bounds (plus `OptionalDeps` wizard click).
 pub(super) fn handle_modal_mouse(
     m: MouseEvent,
     mx: u16,
@@ -55,6 +57,12 @@ pub(super) fn handle_modal_mouse(
         crate::state::Modal::News { .. } => simple::handle_news_modal(m, mx, my, is_left_down, app),
         crate::state::Modal::Updates { .. } => {
             simple::handle_updates_modal(m, mx, my, is_left_down, app)
+        }
+        crate::state::Modal::SystemUpdate { .. } => {
+            simple::handle_system_update_modal(m, mx, my, is_left_down, app)
+        }
+        crate::state::Modal::Repositories { .. } => {
+            simple::handle_repositories_modal(m, mx, my, is_left_down, app)
         }
         crate::state::Modal::OptionalDeps { .. } => {
             simple::handle_optional_deps_modal(m, mx, my, is_left_down, app)

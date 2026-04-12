@@ -29,13 +29,14 @@ use crate::theme::{Theme, theme};
 ///
 /// Output:
 /// - Draws the modal content, highlights the selected row, and updates
-///   `app.optional_deps_wizard_rect` for mouse hit-testing.
+///   `app.optional_deps_modal_rect` / `app.optional_deps_wizard_rect` for mouse hit-testing.
 ///
 /// Details:
 /// - Marks installed rows, shows optional notes, and reuses the common simple modal renderer for
 ///   consistent styling.
 /// - Stores the rendered `[Wizard]` button bounds in app state so pointer interactions can detect
 ///   clicks on the button.
+/// - Stores the modal outer bounds so the wheel can scroll the selection inside the dialog.
 #[allow(clippy::many_single_char_names)]
 pub fn render_optional_deps(
     f: &mut Frame,
@@ -56,6 +57,7 @@ pub fn render_optional_deps(
         width: w,
         height: h,
     };
+    app.optional_deps_modal_rect = Some((rect.x, rect.y, rect.width, rect.height));
     // Build content lines with selection and install status markers
     let mut lines: Vec<Line<'static>> = Vec::new();
     lines.push(Line::from(Span::styled(
@@ -172,10 +174,10 @@ pub fn render_optional_deps(
 /// - `rows`: Merged repository rows.
 /// - `selected` / `scroll`: List focus and window start.
 /// - `repos_conf_error` / `pacman_warnings`: Optional diagnostics.
-/// - `app`: For i18n lookup.
+/// - `app`: For i18n lookup and storing `repositories_modal_rect` for wheel hit-testing.
 ///
 /// Output:
-/// - Renders a scrollable table-style list; does not mutate app state.
+/// - Renders a scrollable table-style list; updates modal rectangle fields on `app`.
 ///
 /// Details:
 /// - Uses a wider box than `render_simple_list_modal` to fit column hints.
@@ -188,7 +190,7 @@ pub fn render_repositories(
     scroll: u16,
     repos_conf_error: Option<&str>,
     pacman_warnings: &[String],
-    app: &AppState,
+    app: &mut AppState,
 ) {
     const VIEWPORT: usize = 12;
     let th = theme();
@@ -202,6 +204,7 @@ pub fn render_repositories(
         width: box_w,
         height: box_h,
     };
+    app.repositories_modal_rect = Some((rect.x, rect.y, rect.width, rect.height));
     frame.render_widget(Clear, rect);
 
     let mut lines: Vec<Line<'static>> = Vec::new();

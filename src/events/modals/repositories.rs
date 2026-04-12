@@ -455,6 +455,35 @@ pub(super) fn enter_repo_key_refresh(
     Ok(())
 }
 
+/// What: Move the Repositories modal selection by one row for mouse wheel navigation.
+///
+/// Inputs:
+/// - `row_count`: Number of repository data rows.
+/// - `selected`: Mutable selected row index.
+/// - `scroll`: Mutable first visible row index.
+/// - `down`: When true, move toward the next row; when false, toward the previous row.
+///
+/// Output:
+/// - None; updates `selected` and `scroll`.
+///
+/// Details:
+/// - Mirrors Up/Down key handling in [`handle_repositories_modal_keys`].
+pub fn repositories_modal_wheel_step(
+    row_count: usize,
+    selected: &mut usize,
+    scroll: &mut u16,
+    down: bool,
+) {
+    if down {
+        if *selected + 1 < row_count {
+            *selected += 1;
+        }
+    } else if *selected > 0 {
+        *selected -= 1;
+    }
+    clamp_scroll_for_selection(*selected, scroll, row_count);
+}
+
 /// What: Keep the scroll offset so the selected row stays visible.
 ///
 /// Inputs:

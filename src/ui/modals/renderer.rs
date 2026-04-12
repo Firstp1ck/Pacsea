@@ -1065,7 +1065,7 @@ fn render_confirm_remove_modal(
 /// - Takes context by value to avoid cloning when reconstructing the Modal.
 fn render_system_update_modal(
     f: &mut Frame,
-    app: &AppState,
+    app: &mut AppState,
     area: Rect,
     ctx: SystemUpdateContext,
 ) -> Modal {
@@ -1240,7 +1240,7 @@ fn render_repositories_modal(
     f: &mut Frame,
     area: Rect,
     ctx: RepositoriesContext,
-    app: &AppState,
+    app: &mut AppState,
 ) -> Modal {
     misc::render_repositories(
         f,

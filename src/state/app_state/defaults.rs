@@ -402,6 +402,9 @@ pub(super) type DefaultModalRectsState = (
     Option<(u16, u16, u16, u16)>,
     Option<(u16, u16, u16, u16)>,
     Option<(u16, u16, u16, u16)>,
+    Option<(u16, u16, u16, u16)>,
+    Option<(u16, u16, u16, u16)>,
+    Option<(u16, u16, u16, u16)>,
     u16,
     Option<(u16, u16, u16, u16)>,
     [Option<(u16, u16, u16, u16)>; 5],
@@ -828,7 +831,7 @@ pub(super) const fn default_mouse_hit_test_state() -> DefaultMouseHitTestState {
 /// Inputs: None.
 ///
 /// Output:
-/// - Tuple of modal rectangle fields: `news_rect`, `news_list_rect`, `announcement_rect`, `announcement_urls`, `pending_announcements`, `pending_news`, `pending_startup_setup_steps`, `trigger_startup_news_fetch`, `updates_modal_rect`, `optional_deps_wizard_rect`, `ssh_setup_copy_key_rect`, `updates_modal_content_rect`, `help_scroll`, `help_rect`, `preflight_tab_rects`, `preflight_content_rect`.
+/// - Tuple of modal rectangle fields: `news_rect`, `news_list_rect`, `announcement_rect`, `announcement_urls`, `pending_announcements`, `pending_news`, `pending_startup_setup_steps`, `trigger_startup_news_fetch`, `updates_modal_rect`, `optional_deps_wizard_rect`, `optional_deps_modal_rect`, `system_update_modal_rect`, `repositories_modal_rect`, `ssh_setup_copy_key_rect`, `updates_modal_content_rect`, `help_scroll`, `help_rect`, `preflight_tab_rects`, `preflight_content_rect`.
 ///
 /// Details:
 /// - All modal rectangles start as None, help scroll starts at 0, `announcement_urls`, `pending_announcements`,
@@ -844,6 +847,9 @@ pub(super) const fn default_modal_rects_state() -> DefaultModalRectsState {
         None,
         VecDeque::new(),
         false,
+        None,
+        None,
+        None,
         None,
         None,
         None,

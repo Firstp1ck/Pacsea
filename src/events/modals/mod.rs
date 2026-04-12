@@ -10,6 +10,7 @@ mod install;
 mod optional_deps;
 mod password;
 mod repositories;
+pub use repositories::repositories_modal_wheel_step;
 mod restore;
 mod scan;
 mod sudo_timestamp_setup;

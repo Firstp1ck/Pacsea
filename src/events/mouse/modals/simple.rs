@@ -460,31 +460,174 @@ pub(super) fn handle_updates_modal(
 
 /// Handle mouse events for `OptionalDeps` modal.
 ///
-/// What: Start startup setup wizard when clicking the top-right `Wizard` button.
+/// What: Start startup setup wizard when clicking the top-right `Wizard` button; wheel scroll moves
+/// selection inside the modal bounds.
+///
+/// Inputs:
+/// - `m`: Mouse event including wheel deltas.
+/// - `mx` / `my`: Pointer coordinates.
+/// - `is_left_down`: Primary button pressed.
+/// - `app`: Application state and cached modal rectangles.
+///
+/// Output:
+/// - `Some(false)` while this modal is open (events are consumed).
+///
+/// Details:
+/// - Wheel handling matches Up/Down keys in [`crate::events::modals::optional_deps::handle_optional_deps`].
 pub(super) fn handle_optional_deps_modal(
-    _m: MouseEvent,
+    m: MouseEvent,
     mx: u16,
     my: u16,
     is_left_down: bool,
     app: &mut AppState,
 ) -> Option<bool> {
-    if is_left_down
-        && let Some((x, y, w, h)) = app.optional_deps_wizard_rect
-        && mx >= x
-        && mx < x + w
-        && my >= y
-        && my < y + h
+    if let crate::state::Modal::OptionalDeps { rows, selected, .. } = &mut app.modal {
+        if is_left_down
+            && let Some((x, y, w, h)) = app.optional_deps_wizard_rect
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
+            let ssh_command = crate::theme::settings().aur_vote_ssh_command;
+            app.pending_aur_ssh_help_check_result = Some(
+                crate::logic::ssh_setup::spawn_aur_ssh_help_check(ssh_command),
+            );
+            app.aur_ssh_help_ready = None;
+            app.modal = crate::state::Modal::StartupSetupSelector {
+                cursor: 0,
+                selected: std::collections::HashSet::new(),
+                active_privilege_tool: crate::logic::privilege::active_tool().ok(),
+            };
+            return Some(false);
+        }
+
+        if let Some((x, y, w, h)) = app.optional_deps_modal_rect
+            && mx >= x
+            && mx < x + w
+            && my >= y
+            && my < y + h
+        {
+            match m.kind {
+                MouseEventKind::ScrollUp => {
+                    if *selected > 0 {
+                        *selected -= 1;
+                    }
+                    return Some(false);
+                }
+                MouseEventKind::ScrollDown => {
+                    if *selected + 1 < rows.len() {
+                        *selected += 1;
+                    }
+                    return Some(false);
+                }
+                _ => {}
+            }
+        }
+        return Some(false);
+    }
+    None
+}
+
+/// Handle mouse events for the System Update modal.
+///
+/// What: Move the option cursor with the scroll wheel when the pointer is inside the modal.
+///
+/// Inputs:
+/// - `m`: Mouse event.
+/// - `mx` / `my`: Pointer coordinates.
+/// - `is_left_down`: Primary button pressed (reserved; no click actions yet).
+/// - `app`: Application state.
+///
+/// Output:
+/// - `Some(false)` while the modal is open.
+///
+/// Details:
+/// - Cursor range matches keyboard navigation (`0..=4`).
+pub(super) fn handle_system_update_modal(
+    m: MouseEvent,
+    mx: u16,
+    my: u16,
+    _is_left_down: bool,
+    app: &mut AppState,
+) -> Option<bool> {
+    if let crate::state::Modal::SystemUpdate { cursor, .. } = &mut app.modal {
+        let in_modal = app
+            .system_update_modal_rect
+            .is_some_and(|(x, y, w, h)| mx >= x && mx < x + w && my >= y && my < y + h);
+        if in_modal {
+            match m.kind {
+                MouseEventKind::ScrollUp => {
+                    if *cursor > 0 {
+                        *cursor -= 1;
+                    }
+                    return Some(false);
+                }
+                MouseEventKind::ScrollDown => {
+                    let max_cursor = 4;
+                    if *cursor < max_cursor {
+                        *cursor += 1;
+                    }
+                    return Some(false);
+                }
+                _ => {}
+            }
+        }
+        return Some(false);
+    }
+    None
+}
+
+/// Handle mouse events for the Repositories modal.
+///
+/// What: Scroll the repository list with the wheel when the pointer is inside the modal.
+///
+/// Inputs:
+/// - `m`: Mouse event.
+/// - `mx` / `my`: Pointer coordinates.
+/// - `is_left_down`: Primary button pressed (unused; keyboard/Enter drive apply).
+/// - `app`: Application state.
+///
+/// Output:
+/// - `Some(false)` while the modal is open.
+///
+/// Details:
+/// - Delegates row steps to [`crate::events::modals::repositories_modal_wheel_step`].
+pub(super) fn handle_repositories_modal(
+    m: MouseEvent,
+    mx: u16,
+    my: u16,
+    _is_left_down: bool,
+    app: &mut AppState,
+) -> Option<bool> {
+    if let crate::state::Modal::Repositories {
+        selected,
+        scroll,
+        rows,
+        ..
+    } = &mut app.modal
     {
-        let ssh_command = crate::theme::settings().aur_vote_ssh_command;
-        app.pending_aur_ssh_help_check_result = Some(
-            crate::logic::ssh_setup::spawn_aur_ssh_help_check(ssh_command),
-        );
-        app.aur_ssh_help_ready = None;
-        app.modal = crate::state::Modal::StartupSetupSelector {
-            cursor: 0,
-            selected: std::collections::HashSet::new(),
-            active_privilege_tool: crate::logic::privilege::active_tool().ok(),
-        };
+        let row_count = rows.len();
+        let in_modal = app
+            .repositories_modal_rect
+            .is_some_and(|(x, y, w, h)| mx >= x && mx < x + w && my >= y && my < y + h);
+        if in_modal {
+            match m.kind {
+                MouseEventKind::ScrollUp => {
+                    crate::events::modals::repositories_modal_wheel_step(
+                        row_count, selected, scroll, false,
+                    );
+                    return Some(false);
+                }
+                MouseEventKind::ScrollDown => {
+                    crate::events::modals::repositories_modal_wheel_step(
+                        row_count, selected, scroll, true,
+                    );
+                    return Some(false);
+                }
+                _ => {}
+            }
+        }
         return Some(false);
     }
     None
@@ -566,7 +709,13 @@ fn map_render_line_to_entry(
 
 #[cfg(test)]
 mod tests {
-    use super::{handle_updates_modal, map_render_line_to_entry};
+    use super::{
+        handle_optional_deps_modal, handle_repositories_modal, handle_system_update_modal,
+        handle_updates_modal, map_render_line_to_entry,
+    };
+    use crate::state::types::{
+        OptionalDepRow, RepositoryKeyTrust, RepositoryModalRow, RepositoryPacmanStatus,
+    };
     use crate::state::{AppState, Modal};
     use crossterm::event::{KeyModifiers, MouseEvent, MouseEventKind};
     use std::collections::HashSet;
@@ -643,6 +792,184 @@ mod tests {
             );
         } else {
             panic!("updates modal should remain open");
+        }
+    }
+
+    #[test]
+    /// What: Verify wheel down inside the System Update modal moves the cursor.
+    ///
+    /// Inputs:
+    /// - `SystemUpdate` at cursor 0 with a populated `system_update_modal_rect`.
+    /// - `ScrollDown` at coordinates inside the rectangle.
+    ///
+    /// Output:
+    /// - Cursor becomes 1.
+    ///
+    /// Details:
+    /// - Ensures modal mouse routing applies to the update dialog.
+    fn system_update_wheel_inside_moves_cursor() {
+        let mut app = AppState {
+            modal: Modal::SystemUpdate {
+                do_mirrors: false,
+                do_pacman: false,
+                force_sync: false,
+                do_aur: false,
+                do_cache: false,
+                country_idx: 0,
+                countries: vec!["Worldwide".to_string()],
+                mirror_count: 10,
+                cursor: 0,
+            },
+            system_update_modal_rect: Some((10, 10, 40, 14)),
+            ..AppState::default()
+        };
+        let m = MouseEvent {
+            kind: MouseEventKind::ScrollDown,
+            column: 15,
+            row: 12,
+            modifiers: KeyModifiers::empty(),
+        };
+        let _ = handle_system_update_modal(m, 15, 12, false, &mut app);
+        match &app.modal {
+            Modal::SystemUpdate { cursor, .. } => assert_eq!(*cursor, 1),
+            _ => panic!("expected SystemUpdate"),
+        }
+    }
+
+    #[test]
+    /// What: Verify wheel outside the System Update modal rect does not move the cursor.
+    ///
+    /// Inputs:
+    /// - Same modal and rect as the inside test; pointer at (0, 0).
+    ///
+    /// Output:
+    /// - Cursor stays 0.
+    ///
+    /// Details:
+    /// - Prevents stray wheel events from changing focus when the pointer is elsewhere.
+    fn system_update_wheel_outside_rect_ignores_scroll() {
+        let mut app = AppState {
+            modal: Modal::SystemUpdate {
+                do_mirrors: false,
+                do_pacman: false,
+                force_sync: false,
+                do_aur: false,
+                do_cache: false,
+                country_idx: 0,
+                countries: vec!["Worldwide".to_string()],
+                mirror_count: 10,
+                cursor: 0,
+            },
+            system_update_modal_rect: Some((10, 10, 40, 14)),
+            ..AppState::default()
+        };
+        let m = MouseEvent {
+            kind: MouseEventKind::ScrollDown,
+            column: 0,
+            row: 0,
+            modifiers: KeyModifiers::empty(),
+        };
+        let _ = handle_system_update_modal(m, 0, 0, false, &mut app);
+        match &app.modal {
+            Modal::SystemUpdate { cursor, .. } => assert_eq!(*cursor, 0),
+            _ => panic!("expected SystemUpdate"),
+        }
+    }
+
+    fn sample_repo_row(name: &str) -> RepositoryModalRow {
+        RepositoryModalRow {
+            pacman_section_name: name.to_string(),
+            results_filter_display: String::new(),
+            pacman_status: RepositoryPacmanStatus::Absent,
+            source_hint: None,
+            key_trust: RepositoryKeyTrust::NotApplicable,
+        }
+    }
+
+    #[test]
+    /// What: Verify wheel down in the Repositories modal advances selection and scroll.
+    ///
+    /// Inputs:
+    /// - Two repository rows, `repositories_modal_rect` covering the pointer.
+    ///
+    /// Output:
+    /// - Selected index is 1 after `ScrollDown`.
+    ///
+    /// Details:
+    /// - Uses the same scroll clamping as keyboard navigation.
+    fn repositories_wheel_moves_selection() {
+        let rows = vec![sample_repo_row("a"), sample_repo_row("b")];
+        let mut app = AppState {
+            modal: Modal::Repositories {
+                rows,
+                selected: 0,
+                scroll: 0,
+                repos_conf_error: None,
+                pacman_warnings: Vec::new(),
+            },
+            repositories_modal_rect: Some((5, 5, 60, 20)),
+            ..AppState::default()
+        };
+        let m = MouseEvent {
+            kind: MouseEventKind::ScrollDown,
+            column: 10,
+            row: 10,
+            modifiers: KeyModifiers::empty(),
+        };
+        let _ = handle_repositories_modal(m, 10, 10, false, &mut app);
+        match &app.modal {
+            Modal::Repositories { selected, .. } => assert_eq!(*selected, 1),
+            _ => panic!("expected Repositories"),
+        }
+    }
+
+    #[test]
+    /// What: Verify wheel down in the Optional Deps modal advances the selected row.
+    ///
+    /// Inputs:
+    /// - Two optional-dep rows and `optional_deps_modal_rect` around the pointer.
+    ///
+    /// Output:
+    /// - Selected index becomes 1.
+    ///
+    /// Details:
+    /// - Complements wizard click handling on the same modal.
+    fn optional_deps_wheel_moves_selection() {
+        let rows = vec![
+            OptionalDepRow {
+                label: "a".to_string(),
+                package: "pkg-a".to_string(),
+                installed: false,
+                selectable: true,
+                note: None,
+            },
+            OptionalDepRow {
+                label: "b".to_string(),
+                package: "pkg-b".to_string(),
+                installed: false,
+                selectable: true,
+                note: None,
+            },
+        ];
+        let mut app = AppState {
+            modal: Modal::OptionalDeps {
+                rows,
+                selected: 0,
+                selected_pkg_names: HashSet::new(),
+            },
+            optional_deps_modal_rect: Some((8, 8, 50, 18)),
+            ..AppState::default()
+        };
+        let m = MouseEvent {
+            kind: MouseEventKind::ScrollDown,
+            column: 20,
+            row: 12,
+            modifiers: KeyModifiers::empty(),
+        };
+        let _ = handle_optional_deps_modal(m, 20, 12, false, &mut app);
+        match &app.modal {
+            Modal::OptionalDeps { selected, .. } => assert_eq!(*selected, 1),
+            _ => panic!("expected OptionalDeps"),
         }
     }
 }

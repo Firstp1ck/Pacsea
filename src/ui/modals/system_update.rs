@@ -49,10 +49,11 @@ fn checkbox_line(th: &Theme, checked: bool, label: String, style: Style) -> Line
 /// Details:
 /// - Formats checkbox rows, displays the effective country list from settings.
 /// - Pacman update shows sync mode on same line, toggled with Left/Right arrows.
+/// - Records `app.system_update_modal_rect` for mouse wheel hit-testing.
 #[allow(clippy::many_single_char_names, clippy::fn_params_excessive_bools)]
 pub fn render_system_update(
     f: &mut Frame,
-    app: &AppState,
+    app: &mut AppState,
     area: Rect,
     do_mirrors: bool,
     do_pacman: bool,
@@ -75,6 +76,7 @@ pub fn render_system_update(
         width: w,
         height: h,
     };
+    app.system_update_modal_rect = Some((rect.x, rect.y, rect.width, rect.height));
     f.render_widget(Clear, rect);
 
     let mut lines: Vec<Line<'static>> = Vec::new();
