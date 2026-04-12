@@ -147,6 +147,7 @@ fn finalize_artix_visibility_when_menu_cant_fit(
 /// - `results_len`: Number of results
 /// - `inner_width`: Inner width of the area (excluding borders)
 /// - `optional_repos`: Optional repository availability flags
+/// - `reserve_right_menu_cluster`: When `false`, do not reserve width for Config/Panels/Options on this row.
 ///
 /// Output: `TitleLayoutInfo` containing all calculated layout values.
 ///
@@ -158,6 +159,7 @@ pub(super) fn calculate_title_layout_info(
     inner_width: u16,
     optional_repos: &OptionalRepos,
     custom_repos_chip_label: Option<String>,
+    reserve_right_menu_cluster: bool,
 ) -> TitleLayoutInfo {
     let results_title_text = format!("{} ({})", i18n.results_title, results_len);
     let sort_button_label = format!("{} v", i18n.sort_button);
@@ -202,11 +204,15 @@ pub(super) fn calculate_title_layout_info(
     let panels_w = u16::try_from(panels_button_label.width()).unwrap_or(u16::MAX);
     let config_w = u16::try_from(config_button_label.width()).unwrap_or(u16::MAX);
     let menu_w = u16::try_from(menu_button_label.width()).unwrap_or(u16::MAX);
-    let right_w = config_w
-        .saturating_add(1)
-        .saturating_add(panels_w)
-        .saturating_add(1)
-        .saturating_add(options_w);
+    let right_w = if reserve_right_menu_cluster {
+        config_w
+            .saturating_add(1)
+            .saturating_add(panels_w)
+            .saturating_add(1)
+            .saturating_add(options_w)
+    } else {
+        0
+    };
 
     // Determine initial Artix visibility and consumed space
     let (mut show_artix_specific_repos, mut final_consumed_left, pad) =
@@ -256,7 +262,7 @@ pub(super) fn calculate_title_layout_info(
     // If collapsed menu can't fit, ensure Artix filters stay hidden when space is very tight
     // This prevents filters from expanding when the menu dropdown vanishes
     if !use_collapsed_menu && pad < 1 {
-        let (new_show, new_consumed) = finalize_artix_visibility_when_menu_cant_fit(
+        let (new_show, _new_consumed) = finalize_artix_visibility_when_menu_cant_fit(
             show_artix_specific_repos,
             consumed_left,
             inner_width,
@@ -266,30 +272,14 @@ pub(super) fn calculate_title_layout_info(
             &optional_labels,
         );
         show_artix_specific_repos = new_show;
-        final_consumed_left = new_consumed;
     }
-
-    // Calculate padding for collapsed menu (space after accounting for consumed_left + menu_w)
-    let menu_pad = if use_collapsed_menu {
-        inner_width.saturating_sub(final_consumed_left.saturating_add(menu_w))
-    } else {
-        pad
-    };
 
     TitleLayoutInfo {
         results_title_text,
         sort_button_label,
-        options_button_label,
-        panels_button_label,
-        config_button_label,
-        menu_button_label,
         core_labels,
         optional_labels,
-        inner_width,
         show_artix_specific_repos,
-        pad,
-        use_collapsed_menu,
-        menu_pad,
         custom_repos_chip_label,
     }
 }

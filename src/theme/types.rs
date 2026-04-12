@@ -64,6 +64,18 @@ pub struct Settings {
     pub layout_center_pct: u16,
     /// Percentage width allocated to the Install pane (right column).
     pub layout_right_pct: u16,
+    /// Vertical order of the main stack: results list, middle search row, package info (each once).
+    pub main_pane_order: [crate::state::MainVerticalPane; 3],
+    /// Minimum terminal rows for the results list band.
+    pub vertical_min_results: u16,
+    /// Maximum terminal rows for the results list band.
+    pub vertical_max_results: u16,
+    /// Minimum terminal rows for the middle (search) row.
+    pub vertical_min_middle: u16,
+    /// Maximum terminal rows for the middle row.
+    pub vertical_max_middle: u16,
+    /// Minimum terminal rows for package info when that band is shown.
+    pub vertical_min_package_info: u16,
     /// Default value for the application's dry-run mode on startup.
     /// This can be toggled via the `--dry-run` CLI flag.
     pub app_dry_run_default: bool,
@@ -227,6 +239,12 @@ impl Default for Settings {
             layout_left_pct: 20,
             layout_center_pct: 60,
             layout_right_pct: 20,
+            main_pane_order: crate::state::DEFAULT_MAIN_PANE_ORDER,
+            vertical_min_results: 3,
+            vertical_max_results: 17,
+            vertical_min_middle: 3,
+            vertical_max_middle: 5,
+            vertical_min_package_info: 3,
             app_dry_run_default: false,
             keymap: KeyMap::default(),
             sort_mode: crate::state::SortMode::RepoThenName,

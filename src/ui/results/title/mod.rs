@@ -23,6 +23,10 @@ mod rects;
 ///
 /// Details: Provides focused rendering functions for individual title bar components.
 mod rendering;
+/// What: Config/Panels/Options cluster on the updates top row.
+///
+/// Details: Keeps the results title row for sort and repo filters only.
+mod top_bar_menu;
 /// What: Type definitions for title rendering.
 ///
 /// Details: Defines structs and types used for title bar rendering and layout.
@@ -38,8 +42,11 @@ use rects::record_title_rects;
 use rendering::{
     render_artix_filter, render_artix_specific_filters, render_blackarch_filter,
     render_core_filters, render_custom_repos_dynamic_chip, render_manjaro_filter,
-    render_optional_eos_cachyos_filters, render_right_aligned_buttons, render_sort_button,
-    render_title_prefix,
+    render_optional_eos_cachyos_filters, render_sort_button, render_title_prefix,
+};
+
+pub use top_bar_menu::{
+    clear_top_bar_menu_rects, render_top_bar_menu_cluster, top_bar_menu_cluster_width,
 };
 /// What: Build the title-bar chip label for dynamic `repos.conf` filters when any ids exist.
 ///
@@ -62,7 +69,7 @@ pub(super) fn custom_repos_chip_label(
     Some(format!("[{filter_custom_repos_label}] v"))
 }
 
-/// What: Build title spans with Sort button, filter toggles, and right-aligned buttons.
+/// What: Build title spans with Sort button and filter toggles.
 ///
 /// This version takes a context struct to reduce data flow complexity.
 ///
@@ -75,8 +82,7 @@ pub(super) fn custom_repos_chip_label(
 /// - Vector of `Span` widgets forming the title line
 ///
 /// Details:
-/// - Applies theme styling for active buttons, ensures right-side buttons align within the title,
-///   and toggles optional repo chips based on availability flags.
+/// - Applies theme styling for active buttons and toggles optional repo chips based on availability flags.
 /// - Uses pre-computed i18n strings and focused rendering functions to reduce complexity.
 pub fn build_title_spans_from_context(
     app: &AppState,
@@ -94,7 +100,7 @@ pub fn build_title_spans_from_context(
     )
 }
 
-/// What: Build title spans with Sort button, filter toggles, and right-aligned buttons.
+/// What: Build title spans with Sort button and filter toggles.
 ///
 /// This version takes structs instead of individual values to reduce data flow complexity.
 ///
@@ -110,8 +116,7 @@ pub fn build_title_spans_from_context(
 /// - Vector of `Span` widgets forming the title line
 ///
 /// Details:
-/// - Applies theme styling for active buttons, ensures right-side buttons align within the title,
-///   and toggles optional repo chips based on availability flags.
+/// - Applies theme styling for active buttons and toggles optional repo chips based on availability flags.
 /// - Uses pre-computed i18n strings and focused rendering functions to reduce complexity.
 /// - Reuses layout calculation logic from `calculate_title_layout_info`.
 fn build_title_spans_from_values(
@@ -132,6 +137,7 @@ fn build_title_spans_from_values(
         inner_width,
         optional_repos,
         custom_repos_chip_label(app, &i18n.filter_custom_repos),
+        false,
     );
 
     // Build title spans using focused rendering functions
@@ -167,14 +173,6 @@ fn build_title_spans_from_values(
     title_spans.extend(render_custom_repos_dynamic_chip(
         app,
         layout_info.custom_repos_chip_label.as_deref(),
-    ));
-    title_spans.extend(render_right_aligned_buttons(
-        &i18n,
-        menu_states,
-        layout_info.pad,
-        layout_info.use_collapsed_menu,
-        &layout_info.menu_button_label,
-        layout_info.menu_pad,
     ));
 
     title_spans

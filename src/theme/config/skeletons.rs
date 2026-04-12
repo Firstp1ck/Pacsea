@@ -202,6 +202,15 @@ pub const SETTINGS_SKELETON_CONTENT: &str = "# Pacsea settings configuration\n\
 layout_left_pct = 20\n\
 layout_center_pct = 60\n\
 layout_right_pct = 20\n\
+# Main vertical stack order: comma-separated permutation of results, search, package_info\n\
+# Aliases: middle (search row), details (package_info)\n\
+main_pane_order = results, search, package_info\n\
+# Vertical row limits (apply to the pane role, not screen position)\n\
+vertical_min_results = 3\n\
+vertical_max_results = 17\n\
+vertical_min_middle = 3\n\
+vertical_max_middle = 5\n\
+vertical_min_package_info = 3\n\
 # Default dry-run behavior when starting the app (overridden by --dry-run)\n\
 app_dry_run_default = false\n\
 # Middle row visibility (default true)\n\

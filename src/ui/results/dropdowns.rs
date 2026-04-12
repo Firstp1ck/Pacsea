@@ -57,7 +57,9 @@ fn calculate_menu_dimensions(
 /// - Menu rectangle and inner hit-test rectangle
 ///
 /// Details:
-/// - Aligns menu below button, clamps to viewport boundaries.
+/// - Horizontally aligns with the button's left edge (clamped to `results_area` width).
+/// - Vertically opens on the row **below** the button when `button_rect` is `Some`; otherwise falls
+///   back to `results_area.y + 1` (legacy title-row placement without a hit rect).
 fn calculate_menu_rect(
     button_rect: Option<(u16, u16, u16, u16)>,
     menu_width: u16,
@@ -68,7 +70,10 @@ fn calculate_menu_rect(
     let max_x = results_area.x + results_area.width.saturating_sub(rect_w);
     let button_x = button_rect.map_or(max_x, |(x, _, _, _)| x);
     let menu_x = button_x.min(max_x);
-    let menu_y = results_area.y.saturating_add(1);
+    let menu_y = button_rect.map_or_else(
+        || results_area.y.saturating_add(1),
+        |(_, by, _, bh)| by.saturating_add(bh),
+    );
     let rect = Rect {
         x: menu_x,
         y: menu_y,
@@ -551,7 +556,8 @@ fn render_artix_filter_menu(
 /// - Updates `app.collapsed_menu_rect` if menu is rendered
 ///
 /// Details:
-/// - Menu is right-aligned to the button's right edge.
+/// - Menu is right-aligned to the collapsed **Menu** button on the updates row (`collapsed_menu_button_rect`).
+/// - Falls back to the old results-title geometry only if the button rect is missing.
 fn render_collapsed_menu(
     f: &mut Frame,
     app: &mut AppState,
@@ -576,28 +582,31 @@ fn render_collapsed_menu(
         .unwrap_or(0);
     let (w, h, max_num_width) = calculate_menu_dimensions(&opts, results_area, 0);
 
-    // Right-align menu to where "Options" button would be (rightmost position)
     let rect_w = w.saturating_add(2);
-    // Calculate where Options button would be positioned (rightmost)
-    // Match the calculation from title.rs: inner_width = area.width - 2, opt_x = area.x + 1 + inner_width - options_w
-    let options_button_label = format!("{} v", i18n::t(app, "app.results.buttons.options"));
-    let options_w = u16::try_from(options_button_label.width()).unwrap_or(u16::MAX);
-    let inner_width = results_area.width.saturating_sub(2);
-    let opt_x = results_area
-        .x
-        .saturating_add(1) // left border inset
-        .saturating_add(inner_width.saturating_sub(options_w));
-    // Position menu so its right edge aligns with Options button's right edge
-    let opt_right = opt_x.saturating_add(options_w);
-    let menu_x = opt_right.saturating_sub(rect_w);
-    // Clamp to viewport boundaries
     let min_x = results_area.x.saturating_add(1);
     let max_x = results_area
         .x
         .saturating_add(results_area.width)
         .saturating_sub(rect_w);
-    let menu_x = menu_x.max(min_x).min(max_x);
-    let menu_y = results_area.y.saturating_add(1);
+
+    let (menu_x, menu_y) = if let Some((bx, by, bw, bh)) = app.collapsed_menu_button_rect {
+        let btn_right = bx.saturating_add(bw);
+        let mx = btn_right.saturating_sub(rect_w).max(min_x).min(max_x);
+        let my = by.saturating_add(bh);
+        (mx, my)
+    } else {
+        let options_button_label = format!("{} v", i18n::t(app, "app.results.buttons.options"));
+        let options_w = u16::try_from(options_button_label.width()).unwrap_or(u16::MAX);
+        let inner_width = results_area.width.saturating_sub(2);
+        let opt_x = results_area
+            .x
+            .saturating_add(1)
+            .saturating_add(inner_width.saturating_sub(options_w));
+        let opt_right = opt_x.saturating_add(options_w);
+        let mx = opt_right.saturating_sub(rect_w).max(min_x).min(max_x);
+        let my = results_area.y.saturating_add(1);
+        (mx, my)
+    };
 
     let rect = Rect {
         x: menu_x,
@@ -626,14 +635,16 @@ fn render_collapsed_menu(
 /// Inputs:
 /// - `f`: Frame to render into
 /// - `app`: Mutable application state (tracks menu open flags and rects)
-/// - `results_area`: Rect of the results pane used for positioning
+/// - `results_area`: Rect of the results pane (full terminal width; used for horizontal clamp and sizing)
 ///
 /// Output:
 /// - Draws any open dropdowns and records their inner rectangles for hit-testing.
 ///
 /// Details:
-/// - Aligns menus with their buttons, clamps width to viewport, clears background, and numbers rows
-///   for keyboard shortcuts while ensuring menus render above other content.
+/// - Vertical placement for button-backed menus uses each button rect’s `y` (e.g. top-bar triggers),
+///   not the top edge of the results band.
+/// - Clamps width to the results band, clears background, and numbers rows for keyboard shortcuts
+///   while ensuring menus render above other content.
 pub fn render_dropdowns(f: &mut Frame, app: &mut AppState, results_area: Rect) {
     let th = theme();
     render_config_menu(f, app, results_area, th);
@@ -712,4 +723,49 @@ fn render_custom_repos_filter_menu(
         );
     f.render_widget(Clear, rect);
     f.render_widget(menu, rect);
+}
+
+#[cfg(test)]
+mod calculate_menu_rect_tests {
+    use ratatui::layout::Rect;
+
+    use super::calculate_menu_rect;
+
+    /// What: Verify dropdown Y uses the trigger button, not the results pane top.
+    ///
+    /// Inputs:
+    /// - A results `Rect` placed low on the screen (non-default pane order) and a button on row 0.
+    ///
+    /// Output:
+    /// - Menu `y` is directly under the button.
+    ///
+    /// Details:
+    /// - Regression guard for top-bar Config/Panels/Options when `Results` is not the upper band.
+    #[test]
+    fn menu_opens_below_button_when_results_band_is_lower_on_screen() {
+        let results_area = Rect::new(0, 18, 100, 12);
+        let button = Some((70u16, 0u16, 8u16, 1u16));
+        let (rect, _) = calculate_menu_rect(button, 24, 7, results_area);
+        assert_eq!(
+            rect.y, 1,
+            "expected menu directly under top bar, not results_area.y + 1"
+        );
+    }
+
+    /// What: Verify fallback vertical placement when no button rect exists.
+    ///
+    /// Inputs:
+    /// - `button_rect: None` and a sample `results_area`.
+    ///
+    /// Output:
+    /// - Menu `y` is `results_area.y + 1`.
+    ///
+    /// Details:
+    /// - Preserves legacy behavior for callers without hit geometry.
+    #[test]
+    fn menu_y_fallback_without_button_rect() {
+        let results_area = Rect::new(0, 5, 80, 10);
+        let (rect, _) = calculate_menu_rect(None, 20, 5, results_area);
+        assert_eq!(rect.y, 6);
+    }
 }

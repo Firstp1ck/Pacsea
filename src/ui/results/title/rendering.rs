@@ -6,7 +6,7 @@ use ratatui::{
 use crate::state::AppState;
 use crate::theme::theme;
 
-use super::super::{FilterStates, MenuStates, OptionalRepos};
+use super::super::{FilterStates, OptionalRepos};
 use super::types::TitleI18nStrings;
 
 /// What: Get button style based on menu open state.
@@ -17,7 +17,7 @@ use super::types::TitleI18nStrings;
 /// Output: Styled button appearance.
 ///
 /// Details: Returns active style when open, inactive style when closed.
-fn get_button_style(is_open: bool) -> Style {
+pub(super) fn get_button_style(is_open: bool) -> Style {
     let th = theme();
     if is_open {
         Style::default()
@@ -41,7 +41,7 @@ fn get_button_style(is_open: bool) -> Style {
 /// Output: Vector of spans for the button.
 ///
 /// Details: First character is underlined, rest uses normal style.
-fn render_button_with_underline(label: &str, style: Style) -> Vec<Span<'static>> {
+pub(super) fn render_button_with_underline(label: &str, style: Style) -> Vec<Span<'static>> {
     let mut spans = Vec::new();
     if let Some(first) = label.chars().next() {
         let rest = &label[first.len_utf8()..];
@@ -389,63 +389,4 @@ pub(super) fn render_custom_repos_dynamic_chip(
             Style::default().fg(fg).bg(bg).add_modifier(Modifier::BOLD),
         ),
     ]
-}
-
-/// What: Render right-aligned buttons (Config/Lists, Panels, Options) or collapsed Menu button.
-///
-/// Inputs:
-/// - `i18n`: Pre-computed i18n strings
-/// - `menu_states`: Menu open/closed states
-/// - `pad`: Padding space before buttons (for all three buttons case)
-/// - `use_collapsed_menu`: Whether to render collapsed menu button instead of individual buttons
-/// - `menu_button_label`: Label for the collapsed menu button
-/// - `menu_pad`: Padding space for collapsed menu button (calculated separately)
-///
-/// Output: Vector of spans for right-aligned buttons.
-///
-/// Details: Renders either all three buttons or a single collapsed Menu button based on available space.
-pub(super) fn render_right_aligned_buttons(
-    i18n: &TitleI18nStrings,
-    menu_states: &MenuStates,
-    pad: u16,
-    use_collapsed_menu: bool,
-    menu_button_label: &str,
-    menu_pad: u16,
-) -> Vec<Span<'static>> {
-    let mut spans = Vec::new();
-    if use_collapsed_menu {
-        // Render collapsed menu button if we have space for it
-        if menu_pad >= 1 {
-            spans.push(Span::raw(" ".repeat(menu_pad as usize)));
-            let menu_btn_style = get_button_style(menu_states.collapsed_menu_open);
-            spans.extend(render_button_with_underline(
-                menu_button_label,
-                menu_btn_style,
-            ));
-        }
-    } else if pad >= 1 {
-        // Render all three buttons if we have space
-        spans.push(Span::raw(" ".repeat(pad as usize)));
-        let config_button_label = format!("{} v", i18n.config_button);
-        let cfg_btn_style = get_button_style(menu_states.config_menu_open);
-        spans.extend(render_button_with_underline(
-            &config_button_label,
-            cfg_btn_style,
-        ));
-        spans.push(Span::raw(" "));
-        let panels_button_label = format!("{} v", i18n.panels_button);
-        let pan_btn_style = get_button_style(menu_states.panels_menu_open);
-        spans.extend(render_button_with_underline(
-            &panels_button_label,
-            pan_btn_style,
-        ));
-        spans.push(Span::raw(" "));
-        let options_button_label = format!("{} v", i18n.options_button);
-        let opt_btn_style = get_button_style(menu_states.options_menu_open);
-        spans.extend(render_button_with_underline(
-            &options_button_label,
-            opt_btn_style,
-        ));
-    }
-    spans
 }

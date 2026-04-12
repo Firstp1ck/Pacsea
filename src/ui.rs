@@ -1,14 +1,15 @@
 //! TUI rendering for Pacsea.
 //!
 //! This module renders the full terminal user interface using `ratatui`.
-//! The layout is split vertically into three regions:
+//! The main content (below the one-row updates bar) is split vertically into three **bands**
+//! whose **order** is configurable (`main_pane_order` in `settings.conf`):
 //!
-//! 1) Results list (top): shows search matches and keeps the current selection
-//!    centered when possible
-//! 2) Middle row (three columns): Recent (left), Search input (center), and
-//!    Install list (right), each styled based on focus
-//! 3) Details pane (bottom): rich package information with a clickable URL and
-//!    a contextual help footer displaying keybindings
+//! 1) **Results** — search matches list (title row + list), selection centering when possible
+//! 2) **Middle** — three columns: Recent (left), Search input (center), Install list (right)
+//! 3) **Package info** — package details or news body, URL affordances, contextual keybind footer
+//!
+//! Default order is results → middle → package info. Row min/max limits apply to each **role**,
+//! not to a fixed screen position, so limits move with the pane when reordered.
 //!
 //! The renderer also draws modal overlays for alerts and install confirmation.
 //! It updates `app.url_button_rect` to make the URL clickable when available.
@@ -21,6 +22,7 @@ use ratatui::{
 };
 
 use crate::i18n;
+use crate::state::MainVerticalPane;
 use crate::state::types::AppMode;
 use crate::{state::AppState, theme::theme};
 
@@ -73,21 +75,23 @@ struct LayoutConstraints {
 }
 
 impl LayoutConstraints {
-    /// What: Create default layout constraints.
+    /// What: Build constraints from user-tuned vertical limits.
     ///
-    /// Inputs: None
+    /// Inputs:
+    /// - `limits`: Normalized semantic min/max row counts from settings.
     ///
-    /// Output: `LayoutConstraints` with default values
+    /// Output:
+    /// - `LayoutConstraints` for the allocator.
     ///
     /// Details:
-    /// - Returns constraints with standard minimum and maximum heights for all panes.
-    const fn new() -> Self {
+    /// - Values are expected already normalized (`max >= min`, within cap).
+    const fn from_limits(limits: &crate::state::VerticalLayoutLimits) -> Self {
         Self {
-            min_results: 3,
-            min_middle: 3,
-            min_package_info: 3,
-            max_results: 17,
-            max_middle: 5,
+            min_results: limits.min_results,
+            min_middle: limits.min_middle,
+            min_package_info: limits.min_package_info,
+            max_results: limits.max_results,
+            max_middle: limits.max_middle,
         }
     }
 }
@@ -247,6 +251,7 @@ fn allocate_without_package_info(
 ///
 /// Inputs:
 /// - `available_h`: Available height after reserving space for updates button
+/// - `constraints`: Semantic min/max row limits from settings
 ///
 /// Output:
 /// - Returns `LayoutHeights` with calculated heights for all panes
@@ -254,17 +259,42 @@ fn allocate_without_package_info(
 /// Details:
 /// - Implements priority-based layout allocation with min/max constraints.
 /// - Uses match expression to choose allocation strategy based on available space.
-fn calculate_layout_heights(available_h: u16) -> LayoutHeights {
-    let constraints = LayoutConstraints::new();
+fn calculate_layout_heights(available_h: u16, constraints: &LayoutConstraints) -> LayoutHeights {
     let min_top_middle_total = constraints.min_results + constraints.min_middle;
     let space_after_min = available_h.saturating_sub(min_top_middle_total);
 
     match space_after_min {
         s if s >= constraints.min_package_info => {
-            allocate_with_package_info(available_h, &constraints)
+            allocate_with_package_info(available_h, constraints)
         }
-        _ => allocate_without_package_info(available_h, &constraints),
+        _ => allocate_without_package_info(available_h, constraints),
     }
+}
+
+/// What: Map semantic pane heights into top-to-bottom band lengths for `main_pane_order`.
+///
+/// Inputs:
+/// - `order`: User-configured vertical permutation.
+/// - `heights`: Allocator output keyed by pane role.
+///
+/// Output:
+/// - Three band heights matching `order[0]` → top through `order[2]` → bottom.
+///
+/// Details:
+/// - Used by the main `Layout::split` and by unit tests in this module.
+fn vertical_band_lengths_for_order(
+    order: [MainVerticalPane; 3],
+    heights: &LayoutHeights,
+) -> [u16; 3] {
+    let mut out = [0u16; 3];
+    for (i, pane) in order.iter().enumerate() {
+        out[i] = match pane {
+            MainVerticalPane::Results => heights.results,
+            MainVerticalPane::Middle => heights.middle,
+            MainVerticalPane::PackageInfo => heights.details,
+        };
+    }
+    out
 }
 
 /// What: Render toast message overlay in bottom-right corner.
@@ -358,8 +388,8 @@ fn render_toast(f: &mut Frame, app: &AppState, area: ratatui::prelude::Rect) {
 /// - Draws the entire interface and updates hit-test rectangles used by mouse handlers.
 ///
 /// Details:
-/// - Applies global theme/background; renders Results (top), Middle (left/center/right), Details
-///   (bottom), and Modal overlays.
+/// - Applies global theme/background; renders the three main vertical bands in `main_pane_order`,
+///   then modal overlays.
 /// - Keeps results selection centered by adjusting list offset.
 /// - Computes and records clickable rects (URL, Sort/Filters, Options/Config/Panels, status label).
 pub fn ui(f: &mut Frame, app: &mut AppState) {
@@ -371,41 +401,57 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
     let bg = Block::default().style(Style::default().bg(th.base));
     f.render_widget(bg, area);
     let available_h = area.height.saturating_sub(UPDATES_H);
-    let layout = calculate_layout_heights(available_h);
+    let constraints = LayoutConstraints::from_limits(&app.vertical_layout_limits);
+    let layout = calculate_layout_heights(available_h, &constraints);
+    let band_lengths = vertical_band_lengths_for_order(app.main_pane_order, &layout);
 
     // Split area into updates row and main content
     let main_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(UPDATES_H),
-            Constraint::Length(layout.results + layout.middle + layout.details),
+            Constraint::Length(band_lengths[0] + band_lengths[1] + band_lengths[2]),
         ])
         .split(area);
 
     // Render updates button in the top row
     updates::render_updates_button(f, app, main_chunks[0]);
 
-    // Split main content into results, middle, and details
+    // Split main content into the three vertical bands (visual order from settings)
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(layout.results),
-            Constraint::Length(layout.middle),
-            Constraint::Length(layout.details),
+            Constraint::Length(band_lengths[0]),
+            Constraint::Length(band_lengths[1]),
+            Constraint::Length(band_lengths[2]),
         ])
         .split(main_chunks[1]);
 
-    results::render_results(f, app, chunks[0]);
-    middle::render_middle(f, app, chunks[1]);
-    if matches!(app.app_mode, AppMode::News) {
-        details::render_news_details(f, app, chunks[2]);
-    } else {
-        details::render_details(f, app, chunks[2]);
+    let order = app.main_pane_order;
+    let mut results_band: Option<ratatui::prelude::Rect> = None;
+    for (slot, role) in order.iter().enumerate() {
+        let chunk = chunks[slot];
+        match role {
+            MainVerticalPane::Results => {
+                results::render_results(f, app, chunk);
+                results_band = Some(chunk);
+            }
+            MainVerticalPane::Middle => middle::render_middle(f, app, chunk),
+            MainVerticalPane::PackageInfo => {
+                if matches!(app.app_mode, AppMode::News) {
+                    details::render_news_details(f, app, chunk);
+                } else {
+                    details::render_details(f, app, chunk);
+                }
+            }
+        }
     }
     modals::render_modals(f, app, area);
 
     // Render dropdowns last to ensure they appear on top layer (now for both modes)
-    results::render_dropdowns(f, app, chunks[0]);
+    if let Some(r) = results_band {
+        results::render_dropdowns(f, app, r);
+    }
 
     // Render transient toast (bottom-right) if present
     render_toast(f, app, area);
@@ -571,5 +617,75 @@ mod tests {
         let buffer = term.backend().buffer();
         assert_eq!(buffer.area.width, 120);
         assert_eq!(buffer.area.height, 40);
+    }
+
+    #[test]
+    fn vertical_band_lengths_cover_all_six_permutations() {
+        use crate::state::MainVerticalPane::{Middle, PackageInfo, Results};
+        let heights = super::LayoutHeights {
+            results: 11,
+            middle: 22,
+            details: 33,
+        };
+        let cases: [([crate::state::MainVerticalPane; 3], [u16; 3]); 6] = [
+            ([Results, Middle, PackageInfo], [11, 22, 33]),
+            ([Results, PackageInfo, Middle], [11, 33, 22]),
+            ([Middle, Results, PackageInfo], [22, 11, 33]),
+            ([Middle, PackageInfo, Results], [22, 33, 11]),
+            ([PackageInfo, Results, Middle], [33, 11, 22]),
+            ([PackageInfo, Middle, Results], [33, 22, 11]),
+        ];
+        for (order, expected) in cases {
+            assert_eq!(
+                super::vertical_band_lengths_for_order(order, &heights),
+                expected,
+                "order mismatch for {order:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn default_vertical_limits_match_historical_layout_heights() {
+        let constraints =
+            super::LayoutConstraints::from_limits(&crate::state::VerticalLayoutLimits::default());
+        let h39 = super::calculate_layout_heights(39, &constraints);
+        assert_eq!((h39.results, h39.middle, h39.details), (17, 5, 17));
+        let h10 = super::calculate_layout_heights(10, &constraints);
+        assert_eq!((h10.results, h10.middle, h10.details), (3, 4, 3));
+        let h5 = super::calculate_layout_heights(5, &constraints);
+        assert_eq!((h5.results, h5.middle, h5.details), (3, 3, 0));
+    }
+
+    #[test]
+    fn ui_renders_when_main_pane_order_puts_results_last() {
+        use crate::state::MainVerticalPane::{Middle, PackageInfo, Results};
+        use ratatui::{Terminal, backend::TestBackend};
+
+        let backend = TestBackend::new(120, 40);
+        let mut term = Terminal::new(backend).expect("failed to create test terminal");
+        let mut app = crate::state::AppState::default();
+        init_test_translations(&mut app);
+        app.main_pane_order = [PackageInfo, Middle, Results];
+        app.results = vec![crate::state::PackageItem {
+            name: "pkg".into(),
+            version: "1".into(),
+            description: String::new(),
+            source: crate::state::Source::Aur,
+            popularity: None,
+            out_of_date: None,
+            orphaned: false,
+        }];
+        app.all_results = app.results.clone();
+        app.selected = 0;
+        app.list_state.select(Some(0));
+        app.details.url = "https://example.com".into();
+
+        term.draw(|f| {
+            super::ui(f, &mut app);
+        })
+        .expect("draw with reordered panes");
+
+        assert!(app.results_rect.is_some());
+        assert!(app.details_rect.is_some());
     }
 }

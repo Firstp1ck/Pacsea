@@ -21,6 +21,9 @@ mod sort_menu;
 mod status;
 /// Title bar rendering module.
 mod title;
+pub use title::{
+    clear_top_bar_menu_rects, render_top_bar_menu_cluster, top_bar_menu_cluster_width,
+};
 /// Utility functions for results rendering.
 mod utils;
 
@@ -86,14 +89,6 @@ pub struct OptionalRepos {
 pub struct MenuStates {
     /// Whether the sort menu is open.
     pub sort_menu_open: bool,
-    /// Whether the config menu is open.
-    pub config_menu_open: bool,
-    /// Whether the panels menu is open.
-    pub panels_menu_open: bool,
-    /// Whether the options menu is open.
-    pub options_menu_open: bool,
-    /// Whether the collapsed menu is open.
-    pub collapsed_menu_open: bool,
 }
 
 /// What: Filter toggle states.
@@ -150,7 +145,7 @@ pub struct FilterStates {
 /// Details:
 /// - Keeps selection centered when possible; shows repo/labels, versions, descriptions, and
 ///   install markers.
-/// - Builds the title with Sort button, filter toggles, and right-aligned options/config/panels.
+/// - Builds the title with Sort button and filter toggles (Config/Panels/Options render on the updates row).
 /// - Renders dropdown overlays for Sort/Options/Config/Panels when open, and records rects.
 /// - Reduces data flow complexity by extracting all data in one operation and batching mutations.
 pub fn render_results(f: &mut Frame, app: &mut AppState, area: Rect) {
@@ -302,17 +297,59 @@ mod tests {
     use super::*;
     use crate::state::types::NewsFeedSource;
 
-    /// What: Ensure rendering results populates button rectangles and status overlays without panic.
+    /// What: Ensure rendering matches the main UI split: updates row (menu cluster) plus results pane.
     ///
     /// Inputs:
     /// - Single search result plus an operational status message.
     ///
     /// Output:
-    /// - Sort, Options, Config, Panels button rectangles, along with status and results rects, become `Some`.
+    /// - Sort and Config/Panels/Options rects, plus status and results rects, become `Some`.
     ///
     /// Details:
-    /// - Uses a `TestBackend` terminal to exercise layout code and verify hit-test regions are recorded.
-    ///
+    /// - Uses a `TestBackend` terminal, renders `updates::render_updates_button` on a 1-row strip then
+    ///   `render_results` on the remainder, mirroring `crate::ui::ui`.
+    #[test]
+    fn results_sets_title_button_rects_and_status_rect() {
+        use ratatui::{Terminal, backend::TestBackend};
+        let backend = TestBackend::new(120, 20);
+        let mut term = Terminal::new(backend).expect("failed to create test terminal");
+        let mut app = crate::state::AppState::default();
+        init_test_translations(&mut app);
+        // Seed minimal results to render
+        app.results = vec![crate::state::PackageItem {
+            name: "pkg".into(),
+            version: "1".into(),
+            description: String::new(),
+            source: crate::state::Source::Aur,
+            popularity: Some(1.0),
+            out_of_date: None,
+            orphaned: false,
+        }];
+        app.arch_status_text = "All systems operational".into();
+        app.arch_status_color = crate::state::ArchStatusColor::Operational;
+
+        term.draw(|f| {
+            let area = f.area();
+            let chunks = ratatui::layout::Layout::default()
+                .direction(ratatui::layout::Direction::Vertical)
+                .constraints([
+                    ratatui::layout::Constraint::Length(1),
+                    ratatui::layout::Constraint::Min(0),
+                ])
+                .split(area);
+            crate::ui::updates::render_updates_button(f, &mut app, chunks[0]);
+            render_results(f, &mut app, chunks[1]);
+        })
+        .expect("failed to draw test terminal");
+
+        assert!(app.sort_button_rect.is_some());
+        assert!(app.options_button_rect.is_some());
+        assert!(app.config_button_rect.is_some());
+        assert!(app.panels_button_rect.is_some());
+        assert!(app.arch_status_rect.is_some());
+        assert!(app.results_rect.is_some());
+    }
+
     /// What: Initialize minimal English translations for tests.
     ///
     /// Inputs:
@@ -397,40 +434,6 @@ mod tests {
         );
         app.translations = translations.clone();
         app.translations_fallback = translations;
-    }
-
-    #[test]
-    fn results_sets_title_button_rects_and_status_rect() {
-        use ratatui::{Terminal, backend::TestBackend};
-        let backend = TestBackend::new(120, 20);
-        let mut term = Terminal::new(backend).expect("failed to create test terminal");
-        let mut app = crate::state::AppState::default();
-        init_test_translations(&mut app);
-        // Seed minimal results to render
-        app.results = vec![crate::state::PackageItem {
-            name: "pkg".into(),
-            version: "1".into(),
-            description: String::new(),
-            source: crate::state::Source::Aur,
-            popularity: Some(1.0),
-            out_of_date: None,
-            orphaned: false,
-        }];
-        app.arch_status_text = "All systems operational".into();
-        app.arch_status_color = crate::state::ArchStatusColor::Operational;
-
-        term.draw(|f| {
-            let area = f.area();
-            render_results(f, &mut app, area);
-        })
-        .expect("failed to draw test terminal");
-
-        assert!(app.sort_button_rect.is_some());
-        assert!(app.options_button_rect.is_some());
-        assert!(app.config_button_rect.is_some());
-        assert!(app.panels_button_rect.is_some());
-        assert!(app.arch_status_rect.is_some());
-        assert!(app.results_rect.is_some());
     }
 
     #[test]

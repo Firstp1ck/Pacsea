@@ -291,6 +291,12 @@ mod tests {
             "layout_left_pct",
             "layout_center_pct",
             "layout_right_pct",
+            "main_pane_order",
+            "vertical_min_results",
+            "vertical_max_results",
+            "vertical_min_middle",
+            "vertical_max_middle",
+            "vertical_min_package_info",
             "app_dry_run_default",
             "sort_mode",
             "clipboard_suffix",
@@ -417,6 +423,30 @@ mod tests {
         assert_eq!(
             loaded.layout_right_pct, defaults.layout_right_pct,
             "layout_right_pct should match default"
+        );
+        assert_eq!(
+            loaded.main_pane_order, defaults.main_pane_order,
+            "main_pane_order should match default"
+        );
+        assert_eq!(
+            loaded.vertical_min_results, defaults.vertical_min_results,
+            "vertical_min_results should match default"
+        );
+        assert_eq!(
+            loaded.vertical_max_results, defaults.vertical_max_results,
+            "vertical_max_results should match default"
+        );
+        assert_eq!(
+            loaded.vertical_min_middle, defaults.vertical_min_middle,
+            "vertical_min_middle should match default"
+        );
+        assert_eq!(
+            loaded.vertical_max_middle, defaults.vertical_max_middle,
+            "vertical_max_middle should match default"
+        );
+        assert_eq!(
+            loaded.vertical_min_package_info, defaults.vertical_min_package_info,
+            "vertical_min_package_info should match default"
         );
         assert_eq!(
             loaded.app_dry_run_default, defaults.app_dry_run_default,
@@ -834,7 +864,53 @@ mod tests {
         // Test 7: Save functions persist values correctly
         test_save_functions_persist(&settings_path);
 
+        // Test 8: Main vertical order and semantic height limits parse and normalize
+        test_main_pane_layout_keys(&settings_path);
+
         // Explicit drop keeps cleanup before this test returns, while still panic-safe.
         drop(env_guard);
+    }
+
+    /// What: Verify `main_pane_order` and vertical height keys load from disk.
+    ///
+    /// Inputs:
+    /// - `settings_path`: Path to the temporary `settings.conf`.
+    ///
+    /// Output:
+    /// - None (panics on failure).
+    ///
+    /// Details:
+    /// - Uses alias keys `vertical_min_search` / `vertical_min_details`; checks normalization
+    ///   forces `vertical_max_results >= vertical_min_results`.
+    fn test_main_pane_layout_keys(settings_path: &std::path::Path) {
+        use std::fs;
+        fs::write(
+            settings_path,
+            "main_pane_order = package_info, search, results\n\
+             vertical_min_results = 4\n\
+             vertical_max_results = 2\n\
+             vertical_min_search = 5\n\
+             vertical_max_middle = 6\n\
+             vertical_min_details = 2\n",
+        )
+        .expect("Failed to write main pane layout test settings");
+
+        let loaded = crate::theme::settings();
+        assert_eq!(
+            loaded.main_pane_order,
+            [
+                crate::state::MainVerticalPane::PackageInfo,
+                crate::state::MainVerticalPane::Middle,
+                crate::state::MainVerticalPane::Results,
+            ]
+        );
+        assert_eq!(loaded.vertical_min_results, 4);
+        assert_eq!(
+            loaded.vertical_max_results, 4,
+            "max below min should normalize up"
+        );
+        assert_eq!(loaded.vertical_min_middle, 5);
+        assert_eq!(loaded.vertical_max_middle, 6);
+        assert_eq!(loaded.vertical_min_package_info, 2);
     }
 }

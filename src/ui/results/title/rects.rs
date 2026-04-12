@@ -6,7 +6,7 @@ use crate::state::AppState;
 use super::super::OptionalRepos;
 use super::i18n::build_title_i18n_strings;
 use super::layout::calculate_title_layout_info;
-use super::types::{CoreFilterLabels, LayoutState, OptionalReposLabels, TitleLayoutInfo};
+use super::types::{CoreFilterLabels, LayoutState, OptionalReposLabels};
 
 /// What: Record rectangles for core filter buttons (AUR, core, extra, multilib).
 ///
@@ -179,64 +179,6 @@ fn record_optional_repo_rects(
     }
 }
 
-/// What: Record rectangles for right-aligned buttons (Config/Lists, Panels, Options) or collapsed Menu button.
-///
-/// Inputs:
-/// - `app`: Mutable application state (rects will be updated)
-/// - `area`: Target rectangle for the results block
-/// - `layout_info`: Title layout information
-/// - `btn_y`: Y position for buttons
-///
-/// Output: Updates app with right-aligned button rectangles.
-///
-/// Details: Records rectangles for either all three buttons or the collapsed Menu button based on available space.
-fn record_right_aligned_button_rects(
-    app: &mut AppState,
-    area: Rect,
-    layout_info: &TitleLayoutInfo,
-    btn_y: u16,
-) {
-    if layout_info.use_collapsed_menu {
-        // Record collapsed menu button rect if we have space for it
-        if layout_info.menu_pad >= 1 {
-            let menu_w = u16::try_from(layout_info.menu_button_label.width()).unwrap_or(u16::MAX);
-            let menu_x = area
-                .x
-                .saturating_add(1) // left border inset
-                .saturating_add(layout_info.inner_width.saturating_sub(menu_w));
-            app.collapsed_menu_button_rect = Some((menu_x, btn_y, menu_w, 1));
-        } else {
-            app.collapsed_menu_button_rect = None;
-        }
-        // Clear individual button rects
-        app.config_button_rect = None;
-        app.options_button_rect = None;
-        app.panels_button_rect = None;
-    } else if layout_info.pad >= 1 {
-        // Record clickable rects at the computed right edge (Panels to the left of Options)
-        // Use Unicode display width, not byte length, to handle wide characters
-        let options_w = u16::try_from(layout_info.options_button_label.width()).unwrap_or(u16::MAX);
-        let panels_w = u16::try_from(layout_info.panels_button_label.width()).unwrap_or(u16::MAX);
-        let config_w = u16::try_from(layout_info.config_button_label.width()).unwrap_or(u16::MAX);
-        let opt_x = area
-            .x
-            .saturating_add(1) // left border inset
-            .saturating_add(layout_info.inner_width.saturating_sub(options_w));
-        let pan_x = opt_x.saturating_sub(1).saturating_sub(panels_w);
-        let cfg_x = pan_x.saturating_sub(1).saturating_sub(config_w);
-        app.config_button_rect = Some((cfg_x, btn_y, config_w, 1));
-        app.options_button_rect = Some((opt_x, btn_y, options_w, 1));
-        app.panels_button_rect = Some((pan_x, btn_y, panels_w, 1));
-        // Clear collapsed menu button rect
-        app.collapsed_menu_button_rect = None;
-    } else {
-        app.config_button_rect = None;
-        app.options_button_rect = None;
-        app.panels_button_rect = None;
-        app.collapsed_menu_button_rect = None;
-    }
-}
-
 /// What: Record clickable rectangles for title bar controls.
 ///
 /// Inputs:
@@ -261,6 +203,7 @@ pub(super) fn record_title_rects(app: &mut AppState, area: Rect, optional_repos:
         inner_width,
         optional_repos,
         super::custom_repos_chip_label(app, &i18n.filter_custom_repos),
+        false,
     );
 
     // Initialize layout state starting after title and sort button
@@ -306,7 +249,4 @@ pub(super) fn record_title_rects(app: &mut AppState, area: Rect, optional_repos:
     } else {
         app.results_filter_custom_repos_rect = None;
     }
-
-    // Record right-aligned button rects
-    record_right_aligned_button_rects(app, area, &layout_info, btn_y);
 }

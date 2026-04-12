@@ -53,6 +53,12 @@ fn get_layout_value(key: &str, prefs: &Settings) -> Option<String> {
         "layout_left_pct" => Some(prefs.layout_left_pct.to_string()),
         "layout_center_pct" => Some(prefs.layout_center_pct.to_string()),
         "layout_right_pct" => Some(prefs.layout_right_pct.to_string()),
+        "main_pane_order" => Some(crate::state::format_main_pane_order(&prefs.main_pane_order)),
+        "vertical_min_results" => Some(prefs.vertical_min_results.to_string()),
+        "vertical_max_results" => Some(prefs.vertical_max_results.to_string()),
+        "vertical_min_middle" => Some(prefs.vertical_min_middle.to_string()),
+        "vertical_max_middle" => Some(prefs.vertical_max_middle.to_string()),
+        "vertical_min_package_info" => Some(prefs.vertical_min_package_info.to_string()),
         _ => None,
     }
 }

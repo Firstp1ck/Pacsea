@@ -522,6 +522,10 @@ pub struct AppState {
     pub layout_center_pct: u16,
     /// Right pane width percentage.
     pub layout_right_pct: u16,
+    /// Top-to-bottom order of the main vertical stack (results, middle, package info).
+    pub main_pane_order: [crate::state::MainVerticalPane; 3],
+    /// Min/max row counts for vertical layout (semantic per pane, not screen slot).
+    pub vertical_layout_limits: crate::state::VerticalLayoutLimits,
     /// Resolved key bindings from user settings
     pub keymap: KeyMap,
     // Internationalization (i18n)

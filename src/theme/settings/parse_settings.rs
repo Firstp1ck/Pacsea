@@ -47,6 +47,47 @@ fn parse_layout_settings(key: &str, val: &str, settings: &mut Settings) -> bool 
             }
             true
         }
+        "main_pane_order" | "layout_main_pane_order" => {
+            if let Some(order) = crate::state::parse_main_pane_order(val) {
+                settings.main_pane_order = order;
+            } else {
+                tracing::warn!(
+                    value = val,
+                    "invalid main_pane_order (need three distinct tokens: results, search, package_info); keeping previous value"
+                );
+            }
+            true
+        }
+        "vertical_min_results" => {
+            if let Ok(v) = val.parse::<u16>() {
+                settings.vertical_min_results = v;
+            }
+            true
+        }
+        "vertical_max_results" => {
+            if let Ok(v) = val.parse::<u16>() {
+                settings.vertical_max_results = v;
+            }
+            true
+        }
+        "vertical_min_middle" | "vertical_min_search" => {
+            if let Ok(v) = val.parse::<u16>() {
+                settings.vertical_min_middle = v;
+            }
+            true
+        }
+        "vertical_max_middle" | "vertical_max_search" => {
+            if let Ok(v) = val.parse::<u16>() {
+                settings.vertical_max_middle = v;
+            }
+            true
+        }
+        "vertical_min_package_info" | "vertical_min_details" => {
+            if let Ok(v) = val.parse::<u16>() {
+                settings.vertical_min_package_info = v;
+            }
+            true
+        }
         _ => false,
     }
 }

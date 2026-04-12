@@ -312,6 +312,8 @@ impl Default for AppState {
             locale,
             translations,
             translations_fallback,
+            main_pane_order,
+            vertical_layout_limits,
         ) = defaults::default_settings_state();
 
         let (
@@ -600,6 +602,8 @@ impl Default for AppState {
             layout_left_pct,
             layout_center_pct,
             layout_right_pct,
+            main_pane_order,
+            vertical_layout_limits,
             keymap,
             locale,
             translations,

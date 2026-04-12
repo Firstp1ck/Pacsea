@@ -789,10 +789,12 @@ pub(super) const fn default_toast_state() -> (Option<String>, Option<Instant>) {
 /// Inputs: None.
 ///
 /// Output:
-/// - Tuple of settings fields: `layout_left_pct`, `layout_center_pct`, `layout_right_pct`, `keymap`, `locale`, `translations`, `translations_fallback`.
+/// - Tuple of settings fields: layout percentages, `keymap`, locale, translations, `main_pane_order`,
+///   `vertical_layout_limits`.
 ///
 /// Details:
-/// - Default layout percentages, keymap from settings, English locale, empty translation maps.
+/// - Layout percentages and main vertical layout match [`crate::theme::Settings::default`]; English locale;
+///   empty translation maps.
 pub(super) fn default_settings_state() -> (
     u16,
     u16,
@@ -801,15 +803,26 @@ pub(super) fn default_settings_state() -> (
     String,
     crate::i18n::translations::TranslationMap,
     crate::i18n::translations::TranslationMap,
+    [crate::state::MainVerticalPane; 3],
+    crate::state::VerticalLayoutLimits,
 ) {
+    let s = crate::theme::Settings::default();
     (
-        20,
-        60,
-        20,
-        crate::theme::Settings::default().keymap,
+        s.layout_left_pct,
+        s.layout_center_pct,
+        s.layout_right_pct,
+        s.keymap.clone(),
         "en-US".to_string(),
         std::collections::HashMap::new(),
         std::collections::HashMap::new(),
+        s.main_pane_order,
+        crate::state::VerticalLayoutLimits::from_u16s(
+            s.vertical_min_results,
+            s.vertical_max_results,
+            s.vertical_min_middle,
+            s.vertical_max_middle,
+            s.vertical_min_package_info,
+        ),
     )
 }
 

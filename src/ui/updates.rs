@@ -1,5 +1,6 @@
 use ratatui::{
     Frame,
+    layout::{Constraint, Direction, Layout},
     prelude::{Alignment, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
@@ -10,6 +11,12 @@ use unicode_width::UnicodeWidthStr;
 use crate::i18n;
 use crate::state::{AppState, types::AppMode};
 use crate::theme::theme;
+use crate::ui::results::{
+    clear_top_bar_menu_rects, render_top_bar_menu_cluster, top_bar_menu_cluster_width,
+};
+
+/// Minimum width reserved for the Updates/News label before the menu cluster.
+const MIN_UPDATES_LABEL_SLOT: u16 = 8;
 
 /// What: Render the updates available button at the top of the window and lockout status on the right.
 ///
@@ -26,6 +33,8 @@ use crate::theme::theme;
 ///   or "Checking updates..." if still loading
 /// - In News mode: Shows "News Ready" if news are available, "No News available" if no news,
 ///   or "Loading news..." if still loading
+/// - Config/Lists, Panels, and Options (or collapsed Menu) render on this same row to the right of the
+///   updates/news label (before lockout text when present).
 /// - Shows lockout status on the right if user is locked out
 /// - Button is styled similar to other buttons in the UI
 /// - Records clickable rectangle for mouse interaction
@@ -64,18 +73,18 @@ pub fn render_updates_button(f: &mut Frame, app: &mut AppState, area: Rect) {
     };
 
     // Check if lockout status should be displayed
-    let lockout_text = if app.faillock_locked {
+    let lockout_text: Option<String> = if app.faillock_locked {
         app.faillock_remaining_minutes.map_or_else(
-            || Some(crate::i18n::t(app, "app.updates_button.locked")),
+            || Some(i18n::t(app, "app.updates_button.locked")),
             |remaining| {
                 if remaining > 0 {
-                    Some(crate::i18n::t_fmt1(
+                    Some(i18n::t_fmt1(
                         app,
                         "app.updates_button.locked_with_time",
                         remaining,
                     ))
                 } else {
-                    Some(crate::i18n::t(app, "app.updates_button.locked"))
+                    Some(i18n::t(app, "app.updates_button.locked"))
                 }
             },
         )
@@ -83,47 +92,81 @@ pub fn render_updates_button(f: &mut Frame, app: &mut AppState, area: Rect) {
         None
     };
 
-    // Split area if lockout status is shown
-    if let Some(lockout) = &lockout_text {
-        let chunks = ratatui::layout::Layout::default()
-            .direction(ratatui::layout::Direction::Horizontal)
+    let lockout_w = lockout_text.as_ref().map_or(0u16, |lockout| {
+        u16::try_from(lockout.width()).unwrap_or(20).min(
+            area.width
+                .saturating_sub(MIN_UPDATES_LABEL_SLOT.saturating_add(1)),
+        )
+    });
+
+    let width_for_menus_and_label = area.width.saturating_sub(lockout_w);
+    let max_menu_w = width_for_menus_and_label.saturating_sub(MIN_UPDATES_LABEL_SLOT);
+    let menu_cluster_w = top_bar_menu_cluster_width(max_menu_w, app);
+
+    if menu_cluster_w == 0 {
+        clear_top_bar_menu_rects(app);
+    }
+
+    let chunks: Vec<Rect> = match (lockout_w > 0, menu_cluster_w > 0) {
+        (true, true) => Layout::default()
+            .direction(Direction::Horizontal)
             .constraints([
-                ratatui::layout::Constraint::Min(0),
-                ratatui::layout::Constraint::Length(
-                    u16::try_from(lockout.width())
-                        .unwrap_or(20)
-                        .min(area.width.saturating_sub(10)),
-                ),
+                Constraint::Min(MIN_UPDATES_LABEL_SLOT),
+                Constraint::Length(menu_cluster_w),
+                Constraint::Length(lockout_w),
             ])
-            .split(area);
+            .split(area)
+            .to_vec(),
+        (true, false) => Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Min(MIN_UPDATES_LABEL_SLOT),
+                Constraint::Length(lockout_w),
+            ])
+            .split(area)
+            .to_vec(),
+        (false, true) => Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Min(MIN_UPDATES_LABEL_SLOT),
+                Constraint::Length(menu_cluster_w),
+            ])
+            .split(area)
+            .to_vec(),
+        (false, false) => vec![area],
+    };
 
-        // Render button in left area (updates or news depending on mode)
-        if matches!(app.app_mode, AppMode::News) {
-            render_news_button_inner(f, app, chunks[0], &button_text, &th);
-        } else {
-            render_updates_button_inner(f, app, chunks[0], &button_text, &th);
-        }
-
-        // Render lockout status in right area
-        let lockout_style = Style::default()
-            .fg(th.red)
-            .bg(th.base)
-            .add_modifier(Modifier::BOLD);
-        let lockout_line = Line::from(Span::styled(lockout.clone(), lockout_style));
-        let lockout_paragraph = Paragraph::new(lockout_line)
-            .alignment(Alignment::Right)
-            .block(
-                Block::default()
-                    .borders(ratatui::widgets::Borders::NONE)
-                    .style(Style::default().bg(th.base)),
-            );
-        f.render_widget(lockout_paragraph, chunks[1]);
+    let updates_chunk = chunks[0];
+    if matches!(app.app_mode, AppMode::News) {
+        render_news_button_inner(f, app, updates_chunk, &button_text, &th);
     } else {
-        // Render button only (centered) - updates or news depending on mode
-        if matches!(app.app_mode, AppMode::News) {
-            render_news_button_inner(f, app, area, &button_text, &th);
+        render_updates_button_inner(f, app, updates_chunk, &button_text, &th);
+    }
+
+    if menu_cluster_w > 0 && chunks.len() >= 2 {
+        render_top_bar_menu_cluster(f, app, chunks[1]);
+    }
+
+    if lockout_w > 0 {
+        let lock_chunk = if menu_cluster_w > 0 {
+            chunks.get(2).copied()
         } else {
-            render_updates_button_inner(f, app, area, &button_text, &th);
+            chunks.get(1).copied()
+        };
+        if let (Some(lockout), Some(lock_chunk)) = (lockout_text, lock_chunk) {
+            let lockout_style = Style::default()
+                .fg(th.red)
+                .bg(th.base)
+                .add_modifier(Modifier::BOLD);
+            let lockout_line = Line::from(Span::styled(lockout, lockout_style));
+            let lockout_paragraph = Paragraph::new(lockout_line)
+                .alignment(Alignment::Right)
+                .block(
+                    Block::default()
+                        .borders(ratatui::widgets::Borders::NONE)
+                        .style(Style::default().bg(th.base)),
+                );
+            f.render_widget(lockout_paragraph, lock_chunk);
         }
     }
 }
@@ -139,6 +182,10 @@ pub fn render_updates_button(f: &mut Frame, app: &mut AppState, area: Rect) {
 ///
 /// Output:
 /// - Draws the updates button and records clickable rectangle
+///
+/// Details:
+/// - Center-aligns the label within `area` (matches the historical full-row center when no menus fit)
+///   and sizes the hit target to the displayed text width at the centered position.
 fn render_updates_button_inner(
     f: &mut Frame,
     app: &mut AppState,
@@ -175,9 +222,9 @@ fn render_updates_button_inner(
     // Render the button
     f.render_widget(paragraph, area);
 
-    // Calculate clickable rectangle: only the button text width, centered
-    // Use Unicode display width, not byte length, to handle wide characters
-    let button_width = u16::try_from(button_text.width()).unwrap_or(u16::MAX);
+    let button_width = u16::try_from(button_text.width())
+        .unwrap_or(u16::MAX)
+        .min(area.width);
     let button_x = area
         .x
         .saturating_add(area.width.saturating_sub(button_width) / 2);
@@ -195,6 +242,10 @@ fn render_updates_button_inner(
 ///
 /// Output:
 /// - Draws the news button and records clickable rectangle
+///
+/// Details:
+/// - Center-aligns the label within `area` and sizes the hit target to the displayed text width at the
+///   centered position.
 fn render_news_button_inner(
     f: &mut Frame,
     app: &mut AppState,
@@ -231,9 +282,9 @@ fn render_news_button_inner(
     // Render the button
     f.render_widget(paragraph, area);
 
-    // Calculate clickable rectangle: only the button text width, centered
-    // Use Unicode display width, not byte length, to handle wide characters
-    let button_width = u16::try_from(button_text.width()).unwrap_or(u16::MAX);
+    let button_width = u16::try_from(button_text.width())
+        .unwrap_or(u16::MAX)
+        .min(area.width);
     let button_x = area
         .x
         .saturating_add(area.width.saturating_sub(button_width) / 2);

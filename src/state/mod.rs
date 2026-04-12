@@ -4,11 +4,16 @@
 //! preserving the public API under `crate::state::*` via re-exports.
 
 pub mod app_state;
+pub mod main_vertical_pane;
 pub mod modal;
 pub mod types;
 
 // Public re-exports to keep existing paths working
 pub use app_state::AppState;
+pub use main_vertical_pane::{
+    DEFAULT_MAIN_PANE_ORDER, MainVerticalPane, VerticalLayoutLimits, format_main_pane_order,
+    parse_main_pane_order,
+};
 pub use modal::{Modal, PreflightAction, PreflightTab, SshSetupStep};
 pub use types::{
     ArchStatusColor, Focus, InstalledPackagesMode, NewsItem, PackageDetails, PackageItem,

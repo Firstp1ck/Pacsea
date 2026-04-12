@@ -114,28 +114,12 @@ pub(super) struct TitleLayoutInfo {
     pub(super) results_title_text: String,
     /// Sort button label.
     pub(super) sort_button_label: String,
-    /// Options button label.
-    pub(super) options_button_label: String,
-    /// Panels button label.
-    pub(super) panels_button_label: String,
-    /// Config/Lists button label.
-    pub(super) config_button_label: String,
-    /// Menu button label.
-    pub(super) menu_button_label: String,
     /// Core filter labels (AUR/core/extra/multilib).
     pub(super) core_labels: CoreFilterLabels,
     /// Optional repository filter labels.
     pub(super) optional_labels: OptionalReposLabels,
-    /// Available inner width for rendering.
-    pub(super) inner_width: u16,
     /// Whether to show Artix-specific repositories.
     pub(super) show_artix_specific_repos: bool,
-    /// Padding between elements.
-    pub(super) pad: u16,
-    /// Whether collapsed menu is used.
-    pub(super) use_collapsed_menu: bool,
-    /// Padding reserved for menu button area.
-    pub(super) menu_pad: u16,
     /// When set, title bar shows a `[Custom] v` chip for `repos.conf` filter ids.
     pub(super) custom_repos_chip_label: Option<String>,
 }

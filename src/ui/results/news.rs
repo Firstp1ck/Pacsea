@@ -174,12 +174,6 @@ struct NewsTitleContext {
     sort_label: String,
     /// Date filter button label text
     date_label: String,
-    /// Options menu button label text
-    options_label: String,
-    /// Panels menu button label text
-    panels_label: String,
-    /// Config menu button label text
-    config_label: String,
     /// Arch news filter label text
     arch_filter_label: String,
     /// Security advisories filter label text
@@ -194,12 +188,6 @@ struct NewsTitleContext {
     read_filter_label: String,
     /// Whether sort menu is currently open
     sort_menu_open: bool,
-    /// Whether options menu is currently open
-    options_menu_open: bool,
-    /// Whether panels menu is currently open
-    panels_menu_open: bool,
-    /// Whether config menu is currently open
-    config_menu_open: bool,
     /// Whether to show Arch news filter
     news_filter_show_arch_news: bool,
     /// Whether to show advisories filter
@@ -235,9 +223,6 @@ fn extract_news_title_context(app: &AppState) -> NewsTitleContext {
         .map_or_else(|| "All".to_string(), |d| format!("{d} Days"));
     let sort_label = format!("{} v", i18n::t(app, "app.results.buttons.sort"));
     let date_label = format!("Date: {age_label}");
-    let options_label = format!("{} v", i18n::t(app, "app.results.buttons.options"));
-    let panels_label = format!("{} v", i18n::t(app, "app.results.buttons.panels"));
-    let config_label = format!("{} v", i18n::t(app, "app.results.buttons.config_lists"));
     let arch_filter_label = format!("[{}]", i18n::t(app, "app.news.filters.arch"));
     let advisory_filter_label = if !app.news_filter_show_advisories {
         "[Advisories Off]".to_string()
@@ -259,9 +244,6 @@ fn extract_news_title_context(app: &AppState) -> NewsTitleContext {
         title_text,
         sort_label,
         date_label,
-        options_label,
-        panels_label,
-        config_label,
         arch_filter_label,
         advisory_filter_label,
         updates_filter_label,
@@ -269,9 +251,6 @@ fn extract_news_title_context(app: &AppState) -> NewsTitleContext {
         aur_comments_filter_label,
         read_filter_label,
         sort_menu_open: app.sort_menu_open,
-        options_menu_open: app.options_menu_open,
-        panels_menu_open: app.panels_menu_open,
-        config_menu_open: app.config_menu_open,
         news_filter_show_arch_news: app.news_filter_show_arch_news,
         news_filter_show_advisories: app.news_filter_show_advisories,
         news_filter_show_pkg_updates: app.news_filter_show_pkg_updates,
@@ -310,12 +289,6 @@ struct TitleWidths {
     date: u16,
     /// Width of the sort button span
     sort: u16,
-    /// Width of the options button span
-    options: u16,
-    /// Width of the panels button span
-    panels: u16,
-    /// Width of the config button span
-    config: u16,
 }
 
 /// Calculate display widths for all UI elements in the title bar.
@@ -342,9 +315,6 @@ fn calculate_title_widths(ctx: &NewsTitleContext) -> TitleWidths {
         read: u16::try_from(ctx.read_filter_label.width()).unwrap_or(u16::MAX),
         date: u16::try_from(ctx.date_label.width()).unwrap_or(u16::MAX),
         sort: u16::try_from(ctx.sort_label.width()).unwrap_or(u16::MAX),
-        options: u16::try_from(ctx.options_label.width()).unwrap_or(u16::MAX),
-        panels: u16::try_from(ctx.panels_label.width()).unwrap_or(u16::MAX),
-        config: u16::try_from(ctx.config_label.width()).unwrap_or(u16::MAX),
     }
 }
 
@@ -378,12 +348,6 @@ struct TitleSpans {
     read_filter: Span<'static>,
     /// Date button spans
     date_button: Vec<Span<'static>>,
-    /// Config button spans
-    config_button: Vec<Span<'static>>,
-    /// Panels button spans
-    panels_button: Vec<Span<'static>>,
-    /// Options button spans
-    options_button: Vec<Span<'static>>,
 }
 
 /// Build styled spans for all buttons and filters in the title bar.
@@ -464,9 +428,6 @@ fn build_title_spans(ctx: &NewsTitleContext) -> TitleSpans {
             !matches!(ctx.news_filter_read_status, NewsReadFilter::All),
         ),
         date_button: render_button(&ctx.date_label, false),
-        config_button: render_button(&ctx.config_label, ctx.config_menu_open),
-        panels_button: render_button(&ctx.panels_label, ctx.panels_menu_open),
-        options_button: render_button(&ctx.options_label, ctx.options_menu_open),
     }
 }
 
@@ -480,7 +441,8 @@ fn build_title_spans(ctx: &NewsTitleContext) -> TitleSpans {
 /// - Vector of `Span` widgets for the title bar
 ///
 /// Details:
-/// - Builds title with loading indicator, filters, buttons, and right-aligned controls
+/// - Builds title with loading indicator, filters, and the date control (Config/Panels/Options live on
+///   the updates top row).
 /// - Records hit-test rectangles for buttons and filters in `app`
 /// - Calculates layout positions for proper spacing
 pub fn build_news_title_spans_and_record_rects(
@@ -491,8 +453,6 @@ pub fn build_news_title_spans_and_record_rects(
     let ctx = extract_news_title_context(app);
     let widths = calculate_title_widths(&ctx);
     let spans = build_title_spans(&ctx);
-
-    let inner_width = area.width.saturating_sub(2);
 
     // Build the left side of the title bar
     let mut title_spans: Vec<Span<'static>> = Vec::new();
@@ -539,24 +499,8 @@ pub fn build_news_title_spans_and_record_rects(
     title_spans.push(Span::raw("  "));
     x_cursor = x_cursor.saturating_add(2);
 
-    // Calculate right-aligned button positions
-    let options_x = area
-        .x
-        .saturating_add(1)
-        .saturating_add(inner_width.saturating_sub(widths.options));
-    let panels_x = options_x.saturating_sub(1).saturating_sub(widths.panels);
-    let config_x = panels_x.saturating_sub(1).saturating_sub(widths.config);
     let date_x = x_cursor;
-    let gap_after_date = config_x.saturating_sub(date_x.saturating_add(widths.date));
-
-    // Add right-aligned buttons with gap
     title_spans.extend(spans.date_button);
-    title_spans.push(Span::raw(" ".repeat(gap_after_date as usize)));
-    title_spans.extend(spans.config_button);
-    title_spans.push(Span::raw(" "));
-    title_spans.extend(spans.panels_button);
-    title_spans.push(Span::raw(" "));
-    title_spans.extend(spans.options_button);
 
     // Record hit-test rectangles for buttons and filters
     let mut x_cursor_rect = area
@@ -594,9 +538,6 @@ pub fn build_news_title_spans_and_record_rects(
     let _ = x_cursor_rect.saturating_add(widths.read).saturating_add(2);
 
     app.news_age_button_rect = Some((date_x, area.y, widths.date, 1));
-    app.config_button_rect = Some((config_x, area.y, widths.config, 1));
-    app.panels_button_rect = Some((panels_x, area.y, widths.panels, 1));
-    app.options_button_rect = Some((options_x, area.y, widths.options, 1));
 
     title_spans
 }

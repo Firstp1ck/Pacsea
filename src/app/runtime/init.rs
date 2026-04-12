@@ -294,6 +294,14 @@ pub fn apply_settings_to_app_state(app: &mut AppState, prefs: &crate::theme::Set
     app.layout_left_pct = prefs.layout_left_pct;
     app.layout_center_pct = prefs.layout_center_pct;
     app.layout_right_pct = prefs.layout_right_pct;
+    app.main_pane_order = prefs.main_pane_order;
+    app.vertical_layout_limits = crate::state::VerticalLayoutLimits::from_u16s(
+        prefs.vertical_min_results,
+        prefs.vertical_max_results,
+        prefs.vertical_min_middle,
+        prefs.vertical_max_middle,
+        prefs.vertical_min_package_info,
+    );
     app.keymap = prefs.keymap.clone();
     app.sort_mode = prefs.sort_mode;
     app.package_marker = prefs.package_marker;
