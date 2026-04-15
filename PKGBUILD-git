@@ -1,6 +1,6 @@
 # Maintainer: Firstpick firstpick1992@proton.me
 pkgname=pacsea-git
-pkgver=6e1bc7a
+pkgver=0.8.2.r0.gefaacc7
 pkgrel=1
 pkgdesc="Fast TUI for searching, inspecting, and queueing pacman/AUR packages written in Rust (git version)"
 arch=('x86_64')
@@ -52,6 +52,7 @@ source() {
     git clone --filter=blob:none --sparse https://github.com/smrini/Pacsea.git Pacsea
   fi
   cd Pacsea || exit 1
+  git pull --tags origin main 2>/dev/null || true
   git sparse-checkout init --no-cone
   git sparse-checkout set '/*' '!/Images' '!/Release-docs' '/!.git' '/!.github'
   git checkout 2>/dev/null || true
@@ -80,7 +81,7 @@ build() {
 
   # Strip makepkg's cross-compiler flags so aws-lc-sys cmake build
   # uses plain system tools and not x86_64-pc-linux-gnu-* wrappers.
-  unset CC CXX AR LD CFLAGS CXXFLAGS LDFLAGS
+  unset CC CXX AR LD CFLAGS CXXFLAGS LDFLAGS CHOST
 
   export RUSTUP_TOOLCHAIN=stable
   export CARGO_TARGET_DIR=target
@@ -89,7 +90,7 @@ build() {
 
 check() {
   cd "$srcdir/Pacsea" || exit 1
-  unset CC CXX AR LD CFLAGS CXXFLAGS LDFLAGS
+  unset CC CXX AR LD CFLAGS CXXFLAGS LDFLAGS CHOST
   export RUSTUP_TOOLCHAIN=stable
   cargo test --frozen --release --all-features -- --test-threads=1
 }
