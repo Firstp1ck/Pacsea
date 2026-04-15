@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Pacsea
+Comment=TUI for browsing and installing Arch and AUR packages
+Exec=pacsea
+Icon=pacsea
+Terminal=true
+Categories=Utility;System;PackageManager;
+Keywords=package;manager;arch;aur;tui;
