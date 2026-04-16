@@ -2,7 +2,7 @@
 pkgname=pacsea-bin
 pkgver=0.8.2
 _tag="v$pkgver"
-pkgrel=5
+pkgrel=1
 pkgdesc="Fast TUI for searching, inspecting, and queueing pacman/AUR packages written in Rust (binary version)"
 arch=('x86_64' 'aarch64')
 url="https://github.com/Firstp1ck/Pacsea"
