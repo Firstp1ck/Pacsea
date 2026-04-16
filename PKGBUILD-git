@@ -1,6 +1,6 @@
 # Maintainer: Firstpick firstpick1992@proton.me
 pkgname=pacsea-git
-pkgver=0.8.2.r0.gefaacc7
+pkgver=0.8.2.r2.g11cf906
 pkgrel=1
 pkgdesc="Fast TUI for searching, inspecting, and queueing pacman/AUR packages written in Rust (git version)"
 arch=('x86_64')
@@ -46,7 +46,7 @@ source=()
 sha256sums=()
 
 # Custom source function to clone with sparse checkout, excluding Images/ and Release-docs/
-source() {
+fetch_source() {
   cd "$srcdir" || exit 1
   if [ ! -d Pacsea ]; then
     git clone --filter=blob:none --sparse https://github.com/smrini/Pacsea.git Pacsea
@@ -60,7 +60,7 @@ source() {
 
 pkgver() {
   if [ ! -d "$srcdir/Pacsea" ]; then
-    source >/dev/null 2>&1
+    fetch_source >/dev/null 2>&1
   fi
   cd "$srcdir/Pacsea" || exit 1
   git describe --tags --long --always \
@@ -69,7 +69,7 @@ pkgver() {
 
 prepare() {
   if [ ! -d "$srcdir/Pacsea" ]; then
-    source
+    fetch_source
   fi
   cd "$srcdir/Pacsea" || exit 1
   export RUSTUP_TOOLCHAIN=stable
@@ -110,19 +110,4 @@ package() {
 
   install -Dm644 data/pacsea.desktop "$pkgdir/usr/share/applications/pacsea.desktop"
   install -Dm644 data/assets/pacsea.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/pacsea.svg"
-}
-
-post_install() {
-  gtk-update-icon-cache -q /usr/share/icons/hicolor/ 2>/dev/null || true
-  update-desktop-database -q /usr/share/applications 2>/dev/null || true
-}
-
-post_upgrade() {
-  gtk-update-icon-cache -q /usr/share/icons/hicolor/ 2>/dev/null || true
-  update-desktop-database -q /usr/share/applications 2>/dev/null || true
-}
-
-post_remove() {
-  gtk-update-icon-cache -q /usr/share/icons/hicolor/ 2>/dev/null || true
-  update-desktop-database -q /usr/share/applications 2>/dev/null || true
 }
