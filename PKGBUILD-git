@@ -1,6 +1,6 @@
 # Maintainer: Firstpick firstpick1992@proton.me
 pkgname=pacsea-git
-pkgver=0.8.2.r3.g56484c6
+pkgver=0.8.2.r5.g0bde25b
 pkgrel=1
 pkgdesc="Fast TUI for searching, inspecting, and queueing pacman/AUR packages written in Rust (git version)"
 arch=('x86_64' 'aarch64')
@@ -49,7 +49,7 @@ sha256sums=()
 fetch_source() {
   cd "$srcdir" || exit 1
   if [ ! -d Pacsea ]; then
-    git clone --filter=blob:none --sparse https://github.com/Firstp1ck/Pacsea.git Pacsea
+    git clone --filter=blob:none --sparse https://github.com/smrini/Pacsea.git Pacsea
   fi
   cd Pacsea || exit 1
   git pull --tags origin main 2>/dev/null || true
@@ -79,7 +79,7 @@ prepare() {
 build() {
   cd "$srcdir/Pacsea" || exit 1
 
-  # Strip makepkg's cross-compiler flags so aws-lc-sys cmake build
+  # Strip makepkg's cross-compiler wrappers so aws-lc-sys cmake build
   # uses plain system tools and not x86_64-pc-linux-gnu-* wrappers.
   unset CC CXX AR LD CFLAGS CXXFLAGS LDFLAGS CHOST
 
