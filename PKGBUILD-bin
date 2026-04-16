@@ -44,11 +44,11 @@ provides=("pacsea=${pkgver}")
 conflicts=('pacsea' 'pacsea-git')
 
 # Tarball for config/locale/data files (architecture-independent)
-source=("Pacsea-${_tag}.tar.gz::https://github.com/smrini/Pacsea/archive/refs/tags/${_tag}.tar.gz")
+source=("Pacsea-${_tag}.tar.gz::https://github.com/Firstp1ck/Pacsea/archive/refs/tags/${_tag}.tar.gz")
 
 # Architecture-specific prebuilt binaries
-source_x86_64=("pacsea-x86_64::https://github.com/smrini/Pacsea/releases/download/${_tag}/pacsea")
-source_aarch64=("pacsea-aarch64::https://github.com/smrini/Pacsea/releases/download/${_tag}/pacsea-aarch64")
+source_x86_64=("pacsea-x86_64::https://github.com/Firstp1ck/Pacsea/releases/download/${_tag}/pacsea")
+source_aarch64=("pacsea-aarch64::https://github.com/Firstp1ck/Pacsea/releases/download/${_tag}/pacsea-aarch64")
 
 sha256sums=('SKIP')
 sha256sums_x86_64=('SKIP')
