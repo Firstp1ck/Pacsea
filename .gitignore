@@ -60,4 +60,4 @@ dev/SECURITY_AUDIT_REPORT.md
 *.pem
 *.key
 credentials.json
-service-account.json
+service-account.jsonsrc/Pacsea/
