@@ -132,18 +132,3 @@ package() {
   install -Dm644 "$srcroot/data/pacsea.desktop"         "$pkgdir/usr/share/applications/pacsea.desktop"
   install -Dm644 "$srcroot/data/assets/pacsea.svg"      "$pkgdir/usr/share/icons/hicolor/scalable/apps/pacsea.svg"
 }
-
-post_install() {
-  gtk-update-icon-cache -q /usr/share/icons/hicolor/ 2>/dev/null || true
-  update-desktop-database -q /usr/share/applications 2>/dev/null || true
-}
-
-post_upgrade() {
-  gtk-update-icon-cache -q /usr/share/icons/hicolor/ 2>/dev/null || true
-  update-desktop-database -q /usr/share/applications 2>/dev/null || true
-}
-
-post_remove() {
-  gtk-update-icon-cache -q /usr/share/icons/hicolor/ 2>/dev/null || true
-  update-desktop-database -q /usr/share/applications 2>/dev/null || true
-}

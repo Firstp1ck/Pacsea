@@ -1,9 +1,9 @@
 # Maintainer: Firstpick firstpick1992@proton.me
 pkgname=pacsea-git
-pkgver=0.8.2.r2.g11cf906
+pkgver=0.8.2.r3.g56484c6
 pkgrel=1
 pkgdesc="Fast TUI for searching, inspecting, and queueing pacman/AUR packages written in Rust (git version)"
-arch=('x86_64')
+arch=('x86_64' 'aarch64')
 url="https://github.com/Firstp1ck/Pacsea"
 license=('MIT')
 depends=('pacman' 'curl' 'bash' 'sudo' 'coreutils' 'grep' 'xdg-utils')
@@ -54,7 +54,7 @@ fetch_source() {
   cd Pacsea || exit 1
   git pull --tags origin main 2>/dev/null || true
   git sparse-checkout init --no-cone
-  git sparse-checkout set '/*' '!/Images' '!/Release-docs' '/!.git' '/!.github'
+  git sparse-checkout set '/*' '!/Images' '!/Release-docs' '!/dev' '/!.git' '/!.github'
   git checkout 2>/dev/null || true
 }
 
