@@ -2,7 +2,7 @@
 # release.sh - Automated version release script for Pacsea
 #
 # What: Bash equivalent of dev/scripts/release.fish.
-#       Automates version bumps, docs, building, release, and AUR publishing.
+#       Automates version bumps, docs, building, tag push (CI publishes GitHub Release), crates.io, and AUR.
 #
 # Usage:
 #   ./release.sh [--dry-run] [--pkgrel MODE] [version]
@@ -608,21 +608,19 @@ phase4_build_release() {
   dry_run_cmd git push origin "${tag}"
   log_success "Tag pushed to GitHub"
 
-  log_step "Creating GitHub Release"
+  log_step "GitHub Release (Actions workflow)"
   if [[ "${DRY_RUN}" == true ]]; then
-    log_info "[DRY-RUN] Would create GitHub release ${tag} with notes from ${release_file}"
-    log_info "[DRY-RUN] Binary will be uploaded by GitHub Action"
+    log_info "[DRY-RUN] Would push tag ${tag}; skip gh release create (workflow publishes release + assets)"
+    log_info "[DRY-RUN] Workflow: .github/workflows/release.yml"
   else
+    log_info "Skipping local gh release create to avoid racing .github/workflows/release.yml (softprops/action-gh-release)."
+    log_info "The Release workflow publishes notes from Release-docs/ when the file exists, uploads binaries, and marks prerelease when major < 1."
     if [[ -f "${release_file}" ]]; then
-      if is_prerelease_version "${new_ver}"; then
-        log_info "Version < 1.0.0: Creating as prerelease"
-        gh release create "${tag}" --title "v${new_ver}" --prerelease --notes-file "${release_file}"
-      else
-        log_info "Version >= 1.0.0: Creating as stable release"
-        gh release create "${tag}" --title "v${new_ver}" --notes-file "${release_file}"
-      fi
-      log_success "GitHub release created (binary will be uploaded by GitHub Action)"
+      log_success "Release notes file present for CI: ${release_file}"
+    else
+      log_warn "Release notes file missing: ${release_file} — workflow will fall back to the tag message or a default body."
     fi
+    log_info "Monitor: https://github.com/Firstp1ck/Pacsea/actions (workflow: Release)"
   fi
 
   log_step "Verifying crates.io publish (dry-run)"
@@ -894,7 +892,7 @@ check_prerequisites() {
   local missing=()
   local cmd
   local required_commands=(
-    cargo git gh python3
+    cargo git python3
     curl rg awk sed realpath mktemp xargs
     makepkg updpkgsums
     gitleaks

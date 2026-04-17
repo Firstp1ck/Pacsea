@@ -21,7 +21,7 @@
 #   1. Version update in Cargo.toml
 #   2. Documentation (release notes, announcements, README, wiki)
 #   3. PKGBUILD updates
-#   4. Build and GitHub release
+#   4. Build; tag push triggers the GitHub Release workflow (no local gh release create)
 #   5. AUR publishing
 
 # ============================================================================
@@ -638,47 +638,26 @@ function phase4_build_release
         return 1
     end
     
-    # Step 4.6: Create GitHub release (binary uploaded by GitHub Action)
-    log_step "Creating GitHub Release"
+    # Step 4.6: GitHub release via Actions only (no gh release create — avoids race with release.yml)
+    log_step "GitHub Release (Actions workflow)"
     
     set -l release_file "$PACSEA_DIR/Release-docs/RELEASE_v$new_ver.md"
     
-    # Determine if this is a prerelease (version < 1.0.0)
-    set -l prerelease_flag ""
-    if is_prerelease_version "$new_ver"
-        set prerelease_flag "--prerelease"
-        log_info "Version < 1.0.0: Creating as prerelease"
-    else
-        log_info "Version >= 1.0.0: Creating as stable release"
-    end
-    
     if test "$DRY_RUN" = true
-        log_info "[DRY-RUN] Would create GitHub release $tag with notes from $release_file"
-        log_info "[DRY-RUN] Binary will be uploaded by GitHub Action"
-        if test -n "$prerelease_flag"
-            log_info "[DRY-RUN] Release would be marked as prerelease"
+        log_info "[DRY-RUN] Would push tag $tag; skip gh release create (workflow publishes release + assets)"
+        log_info "[DRY-RUN] Workflow: .github/workflows/release.yml"
+        if is_prerelease_version "$new_ver"
+            log_info "[DRY-RUN] Workflow marks prerelease when major < 1"
         end
     else
+        log_info "Skipping local gh release create to avoid racing .github/workflows/release.yml (softprops/action-gh-release)."
+        log_info "The Release workflow publishes notes from Release-docs/ when the file exists, uploads binaries, and marks prerelease when major < 1."
         if test -f "$release_file"
-            # Create release with notes (binary uploaded by GitHub Action)
-            if test -n "$prerelease_flag"
-                gh release create "$tag" \
-                    --title "v$new_ver" \
-                    --prerelease \
-                    --notes-file "$release_file"
-            else
-                gh release create "$tag" \
-                    --title "v$new_ver" \
-                    --notes-file "$release_file"
-            end
-            
-            if test $status -eq 0
-                log_success "GitHub release created (binary will be uploaded by GitHub Action)"
-            else
-                log_error "Failed to create GitHub release"
-                return 1
-            end
+            log_success "Release notes file present for CI: $release_file"
+        else
+            log_warn "Release notes file missing: $release_file — workflow will fall back to tag message or default body."
         end
+        log_info "Monitor: https://github.com/Firstp1ck/Pacsea/actions (workflow: Release)"
     end
 
     # Step 4.7: Verify crates.io publish (dry-run)
@@ -931,10 +910,6 @@ function check_prerequisites
     # Check for required commands
     if not command -q cursor
         set missing $missing "cursor"
-    end
-    
-    if not command -q gh
-        set missing $missing "gh"
     end
     
     if not command -q cargo
