@@ -1,5 +1,9 @@
 # Pacsea
 
+<p align="center">
+  <img src="data/assets/pacsea.svg" alt="Pacsea logo" width="160" height="160" />
+</p>
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Made with Rust](https://img.shields.io/badge/Made%20with-Rust-orange.svg)](https://www.rust-lang.org/)
 [![Target: Arch Linux](https://img.shields.io/badge/Target-Arch%20Linux-1793D1?logo=arch-linux&logoColor=white)](https://archlinux.org/)
