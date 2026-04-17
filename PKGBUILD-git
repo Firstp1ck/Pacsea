@@ -49,12 +49,12 @@ sha256sums=()
 fetch_source() {
   cd "$srcdir" || exit 1
   if [ ! -d Pacsea ]; then
-    git clone --filter=blob:none --sparse https://github.com/smrini/Pacsea.git Pacsea
+    git clone --filter=blob:none --sparse https://github.com/Firstp1ck/Pacsea.git Pacsea
   fi
   cd Pacsea || exit 1
   git pull --tags origin main 2>/dev/null || true
   git sparse-checkout init --no-cone
-  git sparse-checkout set '/*' '!/Images' '!/Release-docs' '!/dev' '/!.git' '/!.github'
+  git sparse-checkout set '/*' '!/Images' '!/Release-docs' '!/dev' '!/.git' '!/.github'
   git checkout 2>/dev/null || true
 }
 
