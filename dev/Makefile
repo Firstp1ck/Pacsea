@@ -1,15 +1,16 @@
 # Makefile for Pacsea
 # Provides convenient shortcuts for common development tasks
 #
-# Note: This Makefile is located in dev/ directory.
-# Run from project root with: make -C dev/ <target>
-# Or use the wrapper Makefile in the project root.
+# Note: This Makefile is located in dev/ directory but is invoked via wrapper Makefile.
+# Usage: Run from project root with 'make <target>' (uses wrapper Makefile in root)
+#        Or run directly with 'make -C dev/ <target>' from project root
+
 
 .PHONY: help fmt clippy check test build release clean
 .PHONY: pre-commit all
 .PHONY: cognitive errors complexity
 .PHONY: docs module-structure controlflow
-.PHONY: install
+.PHONY: install install-desktop
 
 # Default target
 .DEFAULT_GOAL := help
@@ -61,9 +62,16 @@ release: ## Build release version
 	@printf "%bBuilding release version...%b\n" "$(COLOR_BLUE)" "$(COLOR_RESET)"
 	cargo build --release
 
-install: ## Install the binary (release mode)
+install-desktop: ## Install desktop entry and icon
+	@printf "%bInstalling desktop entry and icon...%b\n" "$(COLOR_BLUE)" "$(COLOR_RESET)"
+	@sudo install -Dm644 ../data/pacsea.desktop /usr/share/applications/pacsea.desktop
+	@sudo install -Dm644 ../data/assets/pacsea.svg /usr/share/icons/hicolor/scalable/apps/pacsea.svg
+	@printf "%b✓ Desktop entry installed%b\n" "$(COLOR_GREEN)" "$(COLOR_RESET)"
+	@printf "%b✓ Icon installed%b\n" "$(COLOR_GREEN)" "$(COLOR_RESET)"
+
+install: install-desktop ## Install the binary and desktop files
 	@printf "%bInstalling binary...%b\n" "$(COLOR_BLUE)" "$(COLOR_RESET)"
-	cargo install --path .
+	cargo install --path ..
 
 ##@ Quality Checks
 
