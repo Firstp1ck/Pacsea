@@ -1,22 +1,20 @@
 ## What's New
 
-Compared to **v0.8.0**, this release improves first-run setup, the updates experience, and the optional **AUR voting** SSH wizard. Everything below is new or different in **v0.8.1**; unchanged areas (custom repos, PKGBUILD checks, core voting behavior, etc.) are not repeated here.
+Compared to **v0.8.1**, this release focuses on layout customization, smoother PKGBUILD viewing, better modal scrolling, and desktop launcher files. Packaging for **pacsea-git** on the AUR was aligned with the current repo layout (including merged [PR #158](https://github.com/Firstp1ck/Pacsea/pull/158)).
 
 ### ✨ Features
 
-- **Startup setup**: A selector runs optional setup tasks in order (optional dependencies, AUR SSH, VirusTotal, news, and related steps). Optional dependencies includes a **[Wizard]** entry. New **sudo timestamp** and **doas persist** setup wizards; install/update/remove can warn when long sessions may hit auth limits.
-- **AUR SSH setup**: Guided flow through local key/config, pasting the key on AUR, then a live SSH check. Copy the public key with **C** or the copy row; open the AUR login with **O** when you need it. More reliable first connection to AUR (including host-key handling). Success feedback appears after the remote check succeeds.
-- **Updates**: Layout shows **repo/name** and **old → new** versions with clearer diff highlighting. Slash filter, multi-select, and navigation behave more predictably, including with wrapped lines and the mouse. The app can indicate when an update list may be incomplete and why.
+- **Configurable UI layout**: Set `main_pane_order` and per-role vertical min/max in `settings.conf` so search, results, and details appear in the order and proportions you prefer.
+- **Mouse wheel in modals**: Scroll the focused row in System Update, Repositories, and Optional Dependencies modals when the pointer is over the list.
+- **Desktop integration**: `.desktop` entry and SVG icon ship with the tree for menu launchers and file managers.
 
 ### 🛡 Security & reliability
 
-- Tighter handling around privileged commands, temporary scripts, and saved command logs.
+- **PKGBUILD fetching**: Each fetch runs in its own async task so one slow host does not block the queue; stale results are dropped when you change rows.
 
 ### 🐛 Fixes
 
-- Calmer first-run order between setup dialogs and version announcements.
-- Clearer labels when a setup task is unavailable (for example wrong privilege tool).
-- Setup dialogs no longer leave stray keypresses for the next screen.
-- Startup news no longer pops up on its own; leaving news setup does not resurrect an old Arch news window.
-- Optional dependency batch installs go through the same auth/preflight path as other installs; terminal integration fixes for multiline follow-up commands and fallback ordering.
+- Shorter connect timeouts on PKGBUILD `curl` calls so bad hosts fail faster.
+- **pacsea-git** / `makepkg`: clear toolchain env (including `CHOST`) before builds when `makepkg.conf` has cross-compile defaults that would break a normal package build.
+- **Packaging**: Correct source URLs and sparse-checkout paths in `PKGBUILD-git`; icon file permissions set for normal files (not executable).
 

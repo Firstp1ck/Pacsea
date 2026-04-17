@@ -2,27 +2,27 @@
 
 ## What's New
 
-This release introduces UI customization enhancements, better mouse interaction, and improved PKGBUILD fetching reliability.
+Compared to **v0.8.1**, this release focuses on layout customization, smoother PKGBUILD viewing, better modal scrolling, and desktop launcher files. Packaging for **pacsea-git** on the AUR was aligned with the current repo layout (including merged [PR #158](https://github.com/Firstp1ck/Pacsea/pull/158)).
 
 ### ✨ Features
 
-- **Configurable UI Layout**: Added the ability to configure the order of the main vertical panes (search, results, details). You can now set `main_pane_order` and per-role vertical size limits inside `settings.conf` and format the interface exactly how you want it.
-- **Mouse Wheel Navigation**: You can now use the mouse scroll wheel to move row focus inside system update menus, repositories, and optional dependency modals.
-- **Desktop Integration**: Added `.desktop` file and SVG application icon natively to the build files for better desktop environment integration.
+- **Configurable UI layout**: Set `main_pane_order` and per-role vertical min/max in `settings.conf` so search, results, and details appear in the order and proportions you prefer.
+- **Mouse wheel in modals**: Scroll the focused row in System Update, Repositories, and Optional Dependencies modals when the pointer is over the list.
+- **Desktop integration**: `.desktop` entry and SVG icon ship with the tree for menu launchers and file managers.
 
 ### 🛡 Security & reliability
 
-- **PKGBUILD fetching**: Moved PKGBUILD requests into their own separate asynchronous tasks so slow official fetches cannot stall the worker queue. Dropped stale fetch results from rendering on row transitions.
+- **PKGBUILD fetching**: Each fetch runs in its own async task so one slow host does not block the queue; stale results are dropped when you change rows.
 
 ### 🐛 Fixes
 
-- Added `--connect-timeout` constraints to PKGBUILD fetch curl calls so unreachable hosts fail faster.
-- Fixed `makepkg` environment issues (like `CHOST` overlap) when building from git PKGBUILD on systems with cross-compilation configurations present in `makepkg.conf`.
-- Restructured and improved the release workflow, including versions retrieval, artifact checklists, and proper sparse checkout configuration targets.
+- Shorter connect timeouts on PKGBUILD `curl` calls so bad hosts fail faster.
+- **pacsea-git** / `makepkg`: clear toolchain env (including `CHOST`) before builds when `makepkg.conf` has cross-compile defaults that would break a normal package build.
+- **Packaging**: Correct source URLs and sparse-checkout paths in `PKGBUILD-git`; icon file permissions set for normal files (not executable).
 
 ## Technical Details
 
-v0.8.2 improves the underlying UI rendering constraints and adds the parser hooks for customized window layouts while vastly improving the stability of asynchronous PKGBUILD downloads.
+Layout rendering follows pane roles (not fixed slots), modal bounds are recorded for wheel hit-testing, and PKGBUILD viewer state resets cleanly on row changes so the UI stays in sync with fetches.
 
 ## Full Changelog
 

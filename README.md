@@ -73,6 +73,8 @@ cargo install pacsea
 pacsea
 ```
 
+A `.desktop` launcher and SVG icon ship under `data/` for menus and packaging; the AUR packages install them for you.
+
 > Prefer a dry run first? Add `--dry-run`.
 
 ## Features
@@ -88,9 +90,10 @@ pacsea
 | **Custom sync repositories (optional)** | Add optional package sources to the same search as the defaults and the AUR, and show or hide each source in the UI.
 | **Package Update Availability** | Automatic background checks with detailed version comparison view |
 | **Keyboard‑first** | Minimal keystrokes, Vim‑friendly navigation; numpad Enter works for submit in prompts and modals |
+| **Layout & modals** | Reorder the main vertical stack (search, results, details) and set per-band height limits in `settings.conf`; mouse wheel moves the focused row in System Update, Repositories, and Optional Deps when the pointer is over the list |
 | **Queue & install** | Add packages to queue and confirm installs. Run security scans for AUR packages before installing |
 | **Always‑visible details** | Open package links with a click |
-| **PKGBUILD preview** | Toggle viewer; copy PKGBUILD with one click |
+| **PKGBUILD preview** | Toggle viewer; copy PKGBUILD with one click; each PKGBUILD fetch runs on its own so a slow host does not stall other rows |
 | **AUR Comments viewer** | View community comments for AUR packages with markdown support, clickable URLs, and automatic updates when navigating packages |
 | **AUR status markings** | Visual indicators for out-of-date [OOD] and orphaned [ORPHAN] packages |
 | **Persistent lists** | Recent searches and Install list are saved |
@@ -163,7 +166,7 @@ You can also run `pacsea --help` to see all available commands and options.
 ## Configuration
 
 Pacsea uses configuration files in `~/.config/pacsea/`:
-- `settings.conf` — app behavior (layout, defaults, visibility, scans, news, custom repo filter toggles, etc.)
+- `settings.conf` — app behavior (including `main_pane_order` and per-band vertical min/max for the main stack, layout percentages, defaults, visibility, scans, news, custom repo filter toggles, etc.)
 - `theme.conf` — colors and styling
 - `keybinds.conf` — keyboard shortcuts
 - `repos.conf` (optional) — third-party sync repo recipes for search, filters, and the Repositories modal; baseline template: [`config/repos.conf`](config/repos.conf)
@@ -222,10 +225,6 @@ For troubleshooting common issues, solutions, and diagnostic information, see th
 ### Potential future Features
 
 Longer specs for tracked items live in [`dev/ROADMAP/`](https://github.com/Firstp1ck/Pacsea/tree/main/dev/ROADMAP). Priority tiers and a **GitHub issue cross-reference** table are in [`dev/IMPROVEMENTS/FEATURE_PRIORITY.md`](https://github.com/Firstp1ck/Pacsea/blob/main/dev/IMPROVEMENTS/FEATURE_PRIORITY.md).
-
-### Community Suggestions: Priority Features
-- **Adjustable Height of the "Results", "Package Info" and "Search" panes** ([#135](https://github.com/Firstp1ck/Pacsea/issues/135))
-- **Add possibility to switch locations of Top/Center/Bottom panes** ([#136](https://github.com/Firstp1ck/Pacsea/issues/136))
 
 ### Other Potential Features
 - **Show with Hover over button, what the button does** ([#140](https://github.com/Firstp1ck/Pacsea/issues/140))
