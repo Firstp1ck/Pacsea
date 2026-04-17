@@ -5,10 +5,11 @@
 #       documentation, building, and AUR publishing.
 #
 # Usage:
-#   ./release.fish [--dry-run] [--pkgrel MODE] [version]
+#   ./release.fish [--dry-run] [--from-phase 5] [--pkgrel MODE] [version]
 #
 # Options:
 #   --dry-run    Preview all changes without executing them
+#   --from-phase N   Jump in at phase N (only 5 supported: AUR SHA, pushes, PKGBUILD sync, wiki)
 #   --pkgrel     How to adjust AUR PKGBUILD pkgrel after setting pkgver:
 #                reset — set pkgrel to 1 (use when pkgver bumps)
 #                keep  — leave pkgrel unchanged
@@ -31,10 +32,15 @@
 set -g PACSEA_DIR (realpath (dirname (status filename))/../..)
 set -g AUR_BIN_DIR "$HOME/aur-packages/pacsea-bin"
 set -g AUR_GIT_DIR "$HOME/aur-packages/pacsea-git"
+# Must match matrix `asset` names in .github/workflows/release.yml (uploaded release filenames).
+set -g RELEASE_ASSET_X86_64 pacsea-x86_64
+set -g RELEASE_ASSET_AARCH64 pacsea-aarch64
 set -g WIKI_DIR "$HOME/Dokumente/GitHub/Pacsea.wiki"
 set -g DRY_RUN false
 set -g PKGREL_MODE ''
 set -g PKGREL_FROM_CLI false
+# 0 = full release; 5 = phase 5 only (AUR/wiki after CI uploaded assets).
+set -g START_FROM_PHASE 0
 
 # Colors for output - use functions to avoid variable interpolation issues
 function _red; set_color red; end
@@ -123,7 +129,7 @@ end
 
 function validate_semver
     set -l ver_str $argv[1]
-    if string match -r -- '^[0-9]+\.[0-9]+\.[0-9]+$' $ver_str
+    if string match -rq -- '^[0-9]+\.[0-9]+\.[0-9]+$' $ver_str
         return 0
     else
         return 1
@@ -710,19 +716,18 @@ function phase5_aur_update
     
     # Verify the binary is actually downloadable before running update-sha.
     set -l tag "v$new_ver"
-    set -l asset_name "pacsea"
-    
+
     if test "$DRY_RUN" = true
-        log_info "[DRY-RUN] Would verify release asset availability: $tag/$asset_name"
-        log_info "[DRY-RUN] Would verify release asset availability: $tag/pacsea-aarch64"
+        log_info "[DRY-RUN] Would verify release asset availability: $tag/$RELEASE_ASSET_X86_64"
+        log_info "[DRY-RUN] Would verify release asset availability: $tag/$RELEASE_ASSET_AARCH64"
     else
-        wait_for_release_asset "$tag" "$asset_name"
+        wait_for_release_asset "$tag" "$RELEASE_ASSET_X86_64"
         if test $status -ne 0
             if not confirm_continue "Release asset is not ready yet. Continue anyway?"
                 return 1
             end
         end
-        wait_for_release_asset "$tag" "pacsea-aarch64"
+        wait_for_release_asset "$tag" "$RELEASE_ASSET_AARCH64"
         if test $status -ne 0
             if not confirm_continue "aarch64 release asset is not ready yet. Continue anyway?"
                 return 1
@@ -901,6 +906,49 @@ end
 # ============================================================================
 # Prerequisites Check
 # ============================================================================
+
+function check_prerequisites_phase5_only
+    log_info "Checking prerequisites (phase 5 only)..."
+
+    set -l missing
+
+    for cmd in git curl
+        if not command -q $cmd
+            set missing $missing $cmd
+        end
+    end
+
+    if test -n "$missing"
+        log_error "Missing required commands: $missing"
+        return 1
+    end
+
+    if not test -d "$PACSEA_DIR"
+        log_error "Pacsea directory not found: $PACSEA_DIR"
+        return 1
+    end
+
+    if not test -f "$AUR_BIN_DIR/PKGBUILD"
+        log_error "PKGBUILD not found at $AUR_BIN_DIR/PKGBUILD"
+        return 1
+    end
+
+    if not test -f "$AUR_GIT_DIR/PKGBUILD"
+        log_error "PKGBUILD not found at $AUR_GIT_DIR/PKGBUILD"
+        return 1
+    end
+
+    if not functions -q update-sha
+        log_warn "Fish function 'update-sha' not found (required for phase 5)"
+    end
+
+    if not functions -q aur-push
+        log_warn "Fish function 'aur-push' not found (required for phase 5)"
+    end
+
+    log_success "Phase 5 prerequisites met"
+    return 0
+end
 
 function check_prerequisites
     log_info "Checking prerequisites..."
@@ -1293,6 +1341,18 @@ function main
             case '--dry-run'
                 set DRY_RUN true
                 log_warn "DRY RUN MODE - No changes will be made"
+            case '--from-phase'
+                set i (math $i + 1)
+                if test $i -gt (count $argv)
+                    log_error "--from-phase requires a phase number (only 5 is supported)"
+                    return 1
+                end
+                set -l ph $argv[$i]
+                if test "$ph" != 5
+                    log_error "Unsupported --from-phase value: $ph (only 5 is supported)"
+                    return 1
+                end
+                set -g START_FROM_PHASE 5
             case '--pkgrel'
                 set i (math $i + 1)
                 if test $i -gt (count $argv)
@@ -1302,17 +1362,18 @@ function main
                 set -g PKGREL_MODE $argv[$i]
                 set -g PKGREL_FROM_CLI true
             case '-h' '--help'
-                echo "Usage: release.fish [--dry-run] [--pkgrel MODE] [version]"
+                echo "Usage: release.fish [--dry-run] [--from-phase 5] [--pkgrel MODE] [version]"
                 echo
                 echo "Options:"
-                echo "  --dry-run       Preview all changes without executing them"
-                echo "  --pkgrel MODE   AUR pkgrel after pkgver update: reset, keep, or bump (omit = prompt if TTY)"
-                echo "  -h, --help      Show this help message"
+                echo "  --dry-run        Preview all changes without executing them"
+                echo "  --from-phase 5   Run only phase 5 (AUR SHA sums, AUR pushes, PKGBUILD sync, wiki); skips phases 1–4"
+                echo "  --pkgrel MODE    AUR pkgrel after pkgver update: reset, keep, or bump (omit = prompt if TTY); ignored with --from-phase 5"
+                echo "  -h, --help       Show this help message"
                 echo
                 echo "If version is not provided, you will be prompted to enter it."
                 return 0
             case '*'
-                if string match -q '--*' -- $arg
+                if string match -q -- '--*' "$arg"
                     log_error "Unknown option: $arg"
                     return 1
                 end
@@ -1326,7 +1387,7 @@ function main
         set i (math $i + 1)
     end
     
-    if test "$PKGREL_FROM_CLI" = true
+    if test "$START_FROM_PHASE" != 5; and test "$PKGREL_FROM_CLI" = true
         switch $PKGREL_MODE
             case reset keep bump
                 true
@@ -1334,6 +1395,10 @@ function main
                 log_error "Invalid --pkgrel value: $PKGREL_MODE (use reset, keep, or bump)"
                 return 1
         end
+    end
+
+    if test "$START_FROM_PHASE" = 5; and test "$PKGREL_FROM_CLI" = true
+        log_warn "--pkgrel is ignored when using --from-phase 5"
     end
     
     # Print banner
@@ -1343,16 +1408,22 @@ function main
     _bold_cyan; echo "╚════════════════════════════════════════════════════════════════════════╝"; _reset
     echo
     
-    # Check prerequisites
-    check_prerequisites
-    if test $status -ne 0
-        return 1
-    end
-    
-    # Run pre-flight checks
-    check_preflight
-    if test $status -ne 0
-        return 1
+    if test "$START_FROM_PHASE" = 5
+        check_prerequisites_phase5_only
+        if test $status -ne 0
+            return 1
+        end
+        log_info "Skipping preflight (branch/clean tree); --from-phase 5 runs AUR/wiki steps only."
+    else
+        check_prerequisites
+        if test $status -ne 0
+            return 1
+        end
+
+        check_preflight
+        if test $status -ne 0
+            return 1
+        end
     end
     
     # Get version if not provided
@@ -1373,55 +1444,79 @@ function main
         return 1
     end
     
-    prompt_pkgrel_mode_interactive_if_needed
-    or return 1
-    
-    switch $PKGREL_MODE
-        case reset keep bump
-            true
-        case '*'
-            log_error "Invalid pkgrel mode: $PKGREL_MODE"
-            return 1
+    if test "$START_FROM_PHASE" != 5
+        prompt_pkgrel_mode_interactive_if_needed
+        or return 1
+
+        switch $PKGREL_MODE
+            case reset keep bump
+                true
+            case '*'
+                log_error "Invalid pkgrel mode: $PKGREL_MODE"
+                return 1
+        end
     end
-    
+
     # Confirm before starting
     echo
     _blue; echo -n "[INFO] "; _reset; echo -n "Release version: "; _bold; echo $new_version; _reset
     _blue; echo -n "[INFO] "; _reset; echo -n "Current version: "; _bold; echo (get_current_version); _reset
-    _blue; echo -n "[INFO] "; _reset; echo -n "AUR pkgrel mode: "; _bold; echo $PKGREL_MODE; _reset
-    echo
-    
-    if not confirm_continue "Start release process?"
-        log_info "Release cancelled"
-        return 0
+    if test "$START_FROM_PHASE" = 5
+        _blue; echo -n "[INFO] "; _reset; echo -n "Mode: "; _bold; echo "phase 5 only (AUR / wiki)"; _reset
+    else
+        _blue; echo -n "[INFO] "; _reset; echo -n "AUR pkgrel mode: "; _bold; echo $PKGREL_MODE; _reset
     end
-    
-    # Store old version before updating
-    set -l old_version (get_current_version)
-    
-    # Execute phases
-    phase1_version_update "$new_version"
-    or return 1
-    
-    phase2_documentation "$new_version" "$old_version"
-    or return 1
-    
-    phase3_pkgbuild_updates "$new_version"
-    or return 1
-    
-    phase4_build_release "$new_version"
-    or return 1
-    
-    phase5_aur_update "$new_version"
-    or return 1
-    
+    echo
+
+    if test "$START_FROM_PHASE" = 5
+        if not confirm_continue "Start phase 5 (AUR / wiki update) for version $new_version?"
+            log_info "Cancelled"
+            return 0
+        end
+    else
+        if not confirm_continue "Start release process?"
+            log_info "Release cancelled"
+            return 0
+        end
+    end
+
+    if test "$START_FROM_PHASE" = 5
+        phase5_aur_update "$new_version"
+        or return 1
+    else
+        set -l old_version (get_current_version)
+
+        phase1_version_update "$new_version"
+        or return 1
+
+        phase2_documentation "$new_version" "$old_version"
+        or return 1
+
+        phase3_pkgbuild_updates "$new_version"
+        or return 1
+
+        phase4_build_release "$new_version"
+        or return 1
+
+        phase5_aur_update "$new_version"
+        or return 1
+    end
+
     # Final summary
     echo
     _bold_green; echo "╔════════════════════════════════════════════════════════════════════════╗"; _reset
-    _bold_green; echo "║                    RELEASE COMPLETE! 🎉                               ║"; _reset
+    if test "$START_FROM_PHASE" = 5
+        _bold_green; echo "║              PHASE 5 (AUR / WIKI) COMPLETE                            ║"; _reset
+    else
+        _bold_green; echo "║                    RELEASE COMPLETE! 🎉                               ║"; _reset
+    end
     _bold_green; echo "╚════════════════════════════════════════════════════════════════════════╝"; _reset
     echo
-    log_success "Version $new_version has been released!"
+    if test "$START_FROM_PHASE" = 5
+        log_success "Phase 5 finished for version $new_version"
+    else
+        log_success "Version $new_version has been released!"
+    end
     echo
     log_info "Don't forget to verify:"
     echo "  • GitHub release: https://github.com/Firstp1ck/Pacsea/releases"

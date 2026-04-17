@@ -62,3 +62,4 @@ dev/SECURITY_AUDIT_REPORT.md
 credentials.json
 service-account.json
 src/Pacsea/
+*release-report*

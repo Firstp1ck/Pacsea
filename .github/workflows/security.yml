@@ -31,40 +31,6 @@ jobs:
       - name: Run cargo audit
         run: cargo audit
 
-  # ── Clippy with security-relevant lints ────────────────────────────────
-  # The main rust.yml only runs build + test. Clippy catches:
-  # - unwrap_used (deny) — panic vectors
-  # - pedantic / nursery (deny) — broad safety net
-  # - cognitive_complexity (warn → error via -D warnings)
-  # - missing_docs / missing_docs_in_private_items (warn → error)
-  clippy:
-    name: clippy
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-
-      - name: Run clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
-
-  # ── Format check ──────────────────────────────────────────────────────
-  # Ensures no unformatted code slips through.
-  fmt:
-    name: rustfmt
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt
-
-      - name: Check formatting
-        run: cargo fmt --all -- --check
-
   # ── Dependency diff review on PRs ──────────────────────────────────────
   # Flags new/changed dependencies with known vulnerabilities or
   # restrictive licenses before they land in main.

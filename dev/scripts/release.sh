@@ -5,10 +5,11 @@
 #       Automates version bumps, docs, building, tag push (CI publishes GitHub Release), crates.io, and AUR.
 #
 # Usage:
-#   ./release.sh [--dry-run] [--pkgrel MODE] [version]
+#   ./release.sh [--dry-run] [--from-phase 5] [--pkgrel MODE] [version]
 #
 # Options:
 #   --dry-run    Preview all changes without executing them
+#   --from-phase N   Jump in at phase N (only 5 supported: AUR SHA, pushes, PKGBUILD sync, wiki)
 #   --pkgrel     How to adjust AUR PKGBUILD pkgrel after setting pkgver:
 #                reset — set pkgrel to 1 (use when pkgver bumps)
 #                keep  — leave pkgrel unchanged
@@ -35,6 +36,9 @@ AUR_PUSH_SCRIPT="${DEV_SCRIPTS_DIR}/aur-push.sh"
 UPDATE_SHA_SCRIPT="${DEV_SCRIPTS_DIR}/update-sha256sums.sh"
 AUR_BIN_DIR="${PACSEA_AUR_BIN_DIR:-${HOME}/aur-packages/pacsea-bin}"
 AUR_GIT_DIR="${PACSEA_AUR_GIT_DIR:-${HOME}/aur-packages/pacsea-git}"
+# Must match matrix `asset` names in .github/workflows/release.yml (uploaded release filenames).
+RELEASE_ASSET_X86_64="pacsea-x86_64"
+RELEASE_ASSET_AARCH64="pacsea-aarch64"
 WIKI_DIR="${PACSEA_WIKI_DIR:-/mnt/SSD_NVME_4TB/GitHub/Pacsea.wiki}"
 DRY_RUN=false
 # AUR PKGBUILD pkgrel handling in phase 3: reset | keep | bump (set via --pkgrel or prompt)
@@ -43,6 +47,8 @@ PKGREL_CLI_SET=false
 SKIP_AUR_BIN_PROCESS=false
 SKIP_AUR_GIT_PROCESS=false
 SKIP_WIKI_PROCESS=false
+# 0 = full release; 5 = run phase 5 only (AUR/wiki after CI uploaded assets).
+START_FROM_PHASE=0
 RELEASE_REPORT_FILE=""
 RELEASE_REPORT_MIRRORING_ENABLED=false
 declare -a DONE_STEPS=()
@@ -646,7 +652,6 @@ phase4_build_release() {
 phase5_aur_update() {
   local new_ver="${1}"
   local tag="v${new_ver}"
-  local asset_name="pacsea"
   local pkgbuild_file sha_before sha_after wiki_status
 
   log_phase "5. AUR Update"
@@ -668,15 +673,15 @@ phase5_aur_update() {
     mark_skipped "Phase 5.1: AUR SHA update"
   else
     if [[ "${DRY_RUN}" == true ]]; then
-      log_info "[DRY-RUN] Would verify release asset availability: ${tag}/${asset_name}"
-      log_info "[DRY-RUN] Would verify release asset availability: ${tag}/pacsea-aarch64"
+      log_info "[DRY-RUN] Would verify release asset availability: ${tag}/${RELEASE_ASSET_X86_64}"
+      log_info "[DRY-RUN] Would verify release asset availability: ${tag}/${RELEASE_ASSET_AARCH64}"
       log_info "[DRY-RUN] Would change to ${AUR_BIN_DIR}"
       log_info "[DRY-RUN] Would run ${UPDATE_SHA_SCRIPT}"
     else
-      wait_for_release_asset "${tag}" "${asset_name}" || {
+      wait_for_release_asset "${tag}" "${RELEASE_ASSET_X86_64}" || {
         confirm_continue "Release asset is not ready yet. Continue anyway?" || return 1
       }
-      wait_for_release_asset "${tag}" "pacsea-aarch64" || {
+      wait_for_release_asset "${tag}" "${RELEASE_ASSET_AARCH64}" || {
         confirm_continue "aarch64 release asset is not ready yet. Continue anyway?" || return 1
       }
 
@@ -917,6 +922,33 @@ check_prerequisites() {
   log_success "All prerequisites met"
 }
 
+# What: Verifies commands and paths needed for phase 5 (AUR update) only.
+# Inputs: None (uses globals PACSEA_DIR, scripts, START_FROM_PHASE not read).
+# Output: Returns 0 when requirements are met; 1 otherwise.
+# Details: Skips cargo, gitleaks, and other full-release-only tools.
+check_prerequisites_phase5_only() {
+  local missing=()
+  local cmd
+  local required_commands=(git curl rg awk sed mktemp)
+
+  log_info "Checking prerequisites (phase 5 only)..."
+
+  for cmd in "${required_commands[@]}"; do
+    command -v "${cmd}" >/dev/null 2>&1 || missing+=("${cmd}")
+  done
+  [[ -x "${AUR_PUSH_SCRIPT}" ]] || missing+=("${AUR_PUSH_SCRIPT} (executable)")
+  [[ -x "${UPDATE_SHA_SCRIPT}" ]] || missing+=("${UPDATE_SHA_SCRIPT} (executable)")
+
+  if [[ "${#missing[@]}" -gt 0 ]]; then
+    log_error "Missing required commands: ${missing[*]}"
+    return 1
+  fi
+
+  [[ -d "${PACSEA_DIR}" ]] || { log_error "Pacsea directory not found: ${PACSEA_DIR}"; return 1; }
+
+  log_success "Phase 5 prerequisites met"
+}
+
 # ============================================================================
 # Pre-flight Checks
 # ============================================================================
@@ -1115,6 +1147,18 @@ main() {
         log_warn "DRY RUN MODE - No changes will be made"
         shift
         ;;
+      --from-phase)
+        if [[ $# -lt 2 ]]; then
+          log_error "--from-phase requires a phase number (only 5 is supported)"
+          return 1
+        fi
+        if [[ "${2}" != "5" ]]; then
+          log_error "Unsupported --from-phase value: ${2} (only 5 is supported)"
+          return 1
+        fi
+        START_FROM_PHASE=5
+        shift 2
+        ;;
       --pkgrel)
         if [[ $# -lt 2 ]]; then
           log_error "--pkgrel requires an argument: reset, keep, or bump"
@@ -1126,12 +1170,13 @@ main() {
         ;;
       -h|--help)
         cat <<'EOF'
-Usage: release.sh [--dry-run] [--pkgrel MODE] [version]
+Usage: release.sh [--dry-run] [--from-phase 5] [--pkgrel MODE] [version]
 
 Options:
-  --dry-run       Preview all changes without executing them
-  --pkgrel MODE   AUR pkgrel after pkgver update: reset, keep, or bump (omit = prompt if TTY)
-  -h, --help      Show this help message
+  --dry-run        Preview all changes without executing them
+  --from-phase 5   Run only phase 5 (AUR SHA sums, AUR pushes, PKGBUILD sync, wiki); skips phases 1–4
+  --pkgrel MODE    AUR pkgrel after pkgver update: reset, keep, or bump (omit = prompt if TTY); ignored with --from-phase 5
+  -h, --help       Show this help message
 
 If version is not provided, you will be prompted to enter it.
 EOF
@@ -1153,7 +1198,7 @@ EOF
     esac
   done
 
-  if [[ "${PKGREL_CLI_SET}" == true ]]; then
+  if [[ "${PKGREL_CLI_SET}" == true && "${START_FROM_PHASE}" != "5" ]]; then
     case "${PKGREL_MODE}" in
       reset|keep|bump) ;;
       *)
@@ -1161,6 +1206,10 @@ EOF
         return 1
         ;;
     esac
+  fi
+
+  if [[ "${START_FROM_PHASE}" == "5" && "${PKGREL_CLI_SET}" == true ]]; then
+    log_warn "--pkgrel is ignored when using --from-phase 5"
   fi
 
   initialize_release_report
@@ -1172,9 +1221,15 @@ EOF
   printf "%b║                    PACSEA RELEASE AUTOMATION                          ║%b\n" "${BOLD_CYAN}" "${RESET}"
   printf "%b╚════════════════════════════════════════════════════════════════════════╝%b\n\n" "${BOLD_CYAN}" "${RESET}"
 
-  check_prerequisites || { write_release_report "${final_status}"; return 1; }
-  ensure_release_layout_directories || { write_release_report "${final_status}"; return 1; }
-  check_preflight || { write_release_report "${final_status}"; return 1; }
+  if [[ "${START_FROM_PHASE}" == "5" ]]; then
+    check_prerequisites_phase5_only || { write_release_report "${final_status}"; return 1; }
+    ensure_release_layout_directories || { write_release_report "${final_status}"; return 1; }
+    log_info "Skipping preflight (branch/clean tree); --from-phase 5 runs AUR/wiki steps only."
+  else
+    check_prerequisites || { write_release_report "${final_status}"; return 1; }
+    ensure_release_layout_directories || { write_release_report "${final_status}"; return 1; }
+    check_preflight || { write_release_report "${final_status}"; return 1; }
+  fi
 
   if [[ -z "${new_version}" ]]; then
     current="$(get_current_version)"
@@ -1192,33 +1247,60 @@ EOF
     return 1
   fi
 
-  prompt_pkgrel_mode_interactive_if_needed || return 1
-  case "${PKGREL_MODE}" in
-    reset|keep|bump) ;;
-    *)
-      log_error "Invalid pkgrel mode: ${PKGREL_MODE}"
-      return 1
-      ;;
-  esac
+  if [[ "${START_FROM_PHASE}" != "5" ]]; then
+    prompt_pkgrel_mode_interactive_if_needed || return 1
+    case "${PKGREL_MODE}" in
+      reset|keep|bump) ;;
+      *)
+        log_error "Invalid pkgrel mode: ${PKGREL_MODE}"
+        return 1
+        ;;
+    esac
+  fi
 
   echo
   printf "%b[INFO] %bRelease version: %b%s%b\n" "${BLUE}" "${RESET}" "${BOLD}" "${new_version}" "${RESET}"
   printf "%b[INFO] %bCurrent version: %b%s%b\n" "${BLUE}" "${RESET}" "${BOLD}" "$(get_current_version)" "${RESET}"
-  printf "%b[INFO] %bAUR pkgrel mode: %b%s%b\n\n" "${BLUE}" "${RESET}" "${BOLD}" "${PKGREL_MODE}" "${RESET}"
-  confirm_continue "Start release process?" || { log_info "Release cancelled"; mark_skipped "Release cancelled by user"; write_release_report "cancelled"; return 0; }
+  if [[ "${START_FROM_PHASE}" == "5" ]]; then
+    printf "%b[INFO] %bMode: %bphase 5 only (AUR / wiki)%b\n\n" "${BLUE}" "${RESET}" "${BOLD}" "${RESET}"
+  else
+    printf "%b[INFO] %bAUR pkgrel mode: %b%s%b\n\n" "${BLUE}" "${RESET}" "${BOLD}" "${PKGREL_MODE}" "${RESET}"
+  fi
+  if [[ "${START_FROM_PHASE}" == "5" ]]; then
+    confirm_continue "Start phase 5 (AUR / wiki update) for version ${new_version}?" || {
+      log_info "Cancelled"
+      mark_skipped "Cancelled by user"
+      write_release_report "cancelled"
+      return 0
+    }
+  else
+    confirm_continue "Start release process?" || { log_info "Release cancelled"; mark_skipped "Release cancelled by user"; write_release_report "cancelled"; return 0; }
+  fi
 
-  old_version="$(get_current_version)"
-  phase1_version_update "${new_version}" || { write_release_report "${final_status}"; return 1; }
-  phase2_documentation "${new_version}" "${old_version}" || { write_release_report "${final_status}"; return 1; }
-  phase3_pkgbuild_updates "${new_version}" || { write_release_report "${final_status}"; return 1; }
-  phase4_build_release "${new_version}" || { write_release_report "${final_status}"; return 1; }
-  phase5_aur_update "${new_version}" || { write_release_report "${final_status}"; return 1; }
+  if [[ "${START_FROM_PHASE}" == "5" ]]; then
+    phase5_aur_update "${new_version}" || { write_release_report "${final_status}"; return 1; }
+  else
+    old_version="$(get_current_version)"
+    phase1_version_update "${new_version}" || { write_release_report "${final_status}"; return 1; }
+    phase2_documentation "${new_version}" "${old_version}" || { write_release_report "${final_status}"; return 1; }
+    phase3_pkgbuild_updates "${new_version}" || { write_release_report "${final_status}"; return 1; }
+    phase4_build_release "${new_version}" || { write_release_report "${final_status}"; return 1; }
+    phase5_aur_update "${new_version}" || { write_release_report "${final_status}"; return 1; }
+  fi
 
   echo
   printf "%b╔════════════════════════════════════════════════════════════════════════╗%b\n" "${BOLD_GREEN}" "${RESET}"
-  printf "%b║                    RELEASE COMPLETE! 🎉                               ║%b\n" "${BOLD_GREEN}" "${RESET}"
+  if [[ "${START_FROM_PHASE}" == "5" ]]; then
+    printf "%b║              PHASE 5 (AUR / WIKI) COMPLETE                            ║%b\n" "${BOLD_GREEN}" "${RESET}"
+  else
+    printf "%b║                    RELEASE COMPLETE! 🎉                               ║%b\n" "${BOLD_GREEN}" "${RESET}"
+  fi
   printf "%b╚════════════════════════════════════════════════════════════════════════╝%b\n\n" "${BOLD_GREEN}" "${RESET}"
-  log_success "Version ${new_version} has been released!"
+  if [[ "${START_FROM_PHASE}" == "5" ]]; then
+    log_success "Phase 5 finished for version ${new_version}"
+  else
+    log_success "Version ${new_version} has been released!"
+  fi
   echo
   log_info "Don't forget to verify:"
   echo "  • GitHub release: https://github.com/Firstp1ck/Pacsea/releases"

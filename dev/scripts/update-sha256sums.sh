@@ -67,6 +67,8 @@ STEP=0
 REPO_FROM_CLI=false
 ASSET_FROM_CLI=false
 BINARY_FROM_CLI=false
+# Set when PKGBUILD uses source_x86_64 + source_aarch64 (per-arch GitHub release assets).
+PKGBUILD_MULTI_ARCH_GH_BINARIES=false
 
 # Exit codes
 E_NO_PKG=10
@@ -193,6 +195,13 @@ die_code() {
   local code="$1"; shift
   echo "❌ Error: $*" >&2
   exit "$code"
+}
+
+# True when PKGBUILD lists split GitHub release binaries (x86_64 + aarch64 arrays).
+pkgfile_uses_split_gh_release_binaries() {
+  local f="${1:?}"
+  [[ -f "$f" ]] || return 1
+  grep -Eq '^[[:space:]]*source_x86_64=\(' "$f" && grep -Eq '^[[:space:]]*source_aarch64=\(' "$f"
 }
 
 curl_retry() {
@@ -443,11 +452,16 @@ if [[ "${REPO_FROM_CLI:-false}" != true ]]; then
   fi
 fi
 
-# Prompt for ASSET_NAME if not provided via CLI (interactive only)
+# Prompt for ASSET_NAME if not provided via CLI (interactive only).
+# Split-binary PKGBUILDs use fixed per-arch release filenames (see download block below), not one ASSET_NAME.
 if [[ "${ASSET_FROM_CLI:-false}" != true && "$INTERACTIVE" == true ]]; then
-  read -r -p "Enter release asset filename [${ASSET_NAME}]: " input_asset
-  if [[ -n "${input_asset:-}" ]]; then
-    ASSET_NAME="$input_asset"
+  if pkgfile_uses_split_gh_release_binaries "$PKGFILE"; then
+    echo "ℹ️ Split-binary PKGBUILD: using GitHub release assets pacsea-x86_64 and pacsea-aarch64 (skipping single-filename prompt)." >&2
+  else
+    read -r -p "Enter release asset filename [${ASSET_NAME}]: " input_asset
+    if [[ -n "${input_asset:-}" ]]; then
+      ASSET_NAME="$input_asset"
+    fi
   fi
 fi
 
@@ -595,15 +609,25 @@ if [[ -z "${SOURCE_URL:-}" ]]; then
   SOURCE_URL="https://github.com/${REPO}/archive/refs/tags/${TAG}.tar.gz"
 fi
 
+if pkgfile_uses_split_gh_release_binaries "$PKGFILE"; then
+  PKGBUILD_MULTI_ARCH_GH_BINARIES=true
+  ASSET_NAME="pacsea-x86_64, pacsea-aarch64"
+fi
+
 echo "ℹ️ Repo:       ${REPO:-"(n/a) (custom URLs)"}" >&2
 echo "ℹ️ Version:    ${VERSION}" >&2
 echo "ℹ️ Tag:        ${TAG}" >&2
-echo "ℹ️ Asset:      ${ASSET_NAME}" >&2
-echo "ℹ️ Binary URL: ${BINARY_URL}" >&2
+if [[ "${PKGBUILD_MULTI_ARCH_GH_BINARIES}" == true ]]; then
+  echo "ℹ️ Assets:     pacsea-x86_64 + pacsea-aarch64 (GitHub release)" >&2
+  echo "ℹ️ Binary URL: (per-arch; see download step)" >&2
+else
+  echo "ℹ️ Asset:      ${ASSET_NAME}" >&2
+  echo "ℹ️ Binary URL: ${BINARY_URL}" >&2
+fi
 echo "ℹ️ Source URL: ${SOURCE_URL}" >&2
 
 # pacsea-bin split: source=(tarball), per-arch binaries in source_x86_64 / source_aarch64.
-if grep -Eq '^[[:space:]]*source_x86_64=\(' "$PKGFILE" && grep -Eq '^[[:space:]]*source_aarch64=\(' "$PKGFILE"; then
+if pkgfile_uses_split_gh_release_binaries "$PKGFILE"; then
   if [[ "${BINARY_FROM_CLI}" == true ]]; then
     die "This PKGBUILD uses split x86_64/aarch64 binaries; omit --binary-url and use --repo/--tag or PKGBUILD inference."
   fi
@@ -611,14 +635,14 @@ if grep -Eq '^[[:space:]]*source_x86_64=\(' "$PKGFILE" && grep -Eq '^[[:space:]]
     die "Unable to infer full GitHub repo (OWNER/REPO) for multi-arch download. Provide --repo OWNER/REPO."
   fi
 
-  bin_url_x86="https://github.com/${REPO}/releases/download/${TAG}/pacsea"
+  bin_url_x86="https://github.com/${REPO}/releases/download/${TAG}/pacsea-x86_64"
   bin_url_arm="https://github.com/${REPO}/releases/download/${TAG}/pacsea-aarch64"
 
   log_step "Downloading artifacts for ${TAG} (x86_64 + aarch64 + source)"
   tmpdir=$(mktemp -d)
   trap 'rm -rf "$tmpdir"' EXIT
 
-  bin_x86_path="$tmpdir/pacsea"
+  bin_x86_path="$tmpdir/pacsea-x86_64"
   bin_arm_path="$tmpdir/pacsea-aarch64"
   src_path="$tmpdir/src-${TAG}.tar.gz"
 

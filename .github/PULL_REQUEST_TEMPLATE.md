@@ -35,7 +35,7 @@ cargo clippy --all-targets --all-features -- -D warnings
 cargo test -- --test-threads=1
 RUST_LOG=pacsea=debug cargo run -- --dry-run
 
-# Security (mirrors .github/workflows/security.yml where tools are installed)
+# Security + lint (mirrors `.github/workflows/security.yml` and `lint.yml` where tools are installed)
 ./dev/scripts/security-check.sh
 # Individual checks if needed:
 # cargo audit
@@ -77,7 +77,7 @@ Include before/after images or a short GIF. Update files in `Images/` if relevan
 - [ ] No breaking changes (or clearly documented if intentional)
 
 **Security (CI):**
-- [ ] Ran `./dev/scripts/security-check.sh` before opening the PR (local mirror of the Security workflow: rustfmt, clippy, `cargo audit`, `cargo deny check`, gitleaks — skipped steps print install hints)
+- [ ] Ran `./dev/scripts/security-check.sh` before opening the PR (local mirror of **Security** + **Lint** workflows: rustfmt, clippy, `cargo audit`, `cargo deny check`, gitleaks — skipped steps print install hints)
 - [ ] After adding or updating dependencies: `cargo audit` and `cargo deny check` pass (`deny.toml`); no new high-severity or license issues that would fail GitHub **dependency review** on this PR
 - [ ] No secrets or credential-like placeholders that would trip **gitleaks** (see `.gitleaks.toml` for allowlisted paths if you must add test fixtures)
 - [ ] Follows secure coding rules in `AGENTS.md` / `CLAUDE.md` (shell quoting, credentials, HTTP, paths) — see `dev/SECURITY_REMEDIATION_GUIDE.md` for remediation patterns

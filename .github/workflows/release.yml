@@ -113,7 +113,7 @@ jobs:
       matrix:
         include:
           - runner: ubuntu-latest
-            asset: pacsea
+            asset: pacsea-x86_64
           - runner: ubuntu-24.04-arm
             asset: pacsea-aarch64
     runs-on: ${{ matrix.runner }}
@@ -170,9 +170,9 @@ jobs:
         run: |
           set -euo pipefail
           cd release-files
-          test -f pacsea
+          test -f pacsea-x86_64
           test -f pacsea-aarch64
-          sha256sum pacsea pacsea-aarch64 > SHA256SUMS
+          sha256sum pacsea-x86_64 pacsea-aarch64 > SHA256SUMS
           echo "SHA256SUMS:"
           cat SHA256SUMS
 
@@ -198,7 +198,7 @@ jobs:
           name: Release ${{ needs.get-version.outputs.version }}
           body: ${{ steps.release-body.outputs.body }}
           files: |
-            release-files/pacsea
+            release-files/pacsea-x86_64
             release-files/pacsea-aarch64
             release-files/SHA256SUMS
           draft: false

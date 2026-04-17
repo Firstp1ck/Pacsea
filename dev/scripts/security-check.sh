@@ -1,9 +1,9 @@
 #!/bin/bash
 set -uo pipefail
 
-# Local mirror of .github/workflows/security.yml
-# Runs every security check that can run without GitHub APIs.
-# Skipped: dependency-review (requires PR context on GitHub)
+# Local mirror of `.github/workflows/security.yml` plus `.github/workflows/lint.yml`
+# (fmt, clippy, audit, deny, gitleaks). Runs everything that does not need GitHub APIs.
+# Skipped in CI only: dependency-review (requires PR context on GitHub)
 
 BOLD='\033[1m'
 RED='\033[0;31m'

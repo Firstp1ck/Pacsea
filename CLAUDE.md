@@ -24,7 +24,7 @@ Run from the repository root, in this order:
 3. `cargo check`
 4. `cargo test -- --test-threads=1`
 
-**CI note:** `.github/workflows/rust.yml` only runs `cargo build` and `cargo test` (with `--test-threads=1`). It does **not** run `fmt`, `clippy`, or `check`. Those are still required locally before considering work done.
+**CI note:** `.github/workflows/rust.yml` runs `cargo build` and `cargo test` (with `--test-threads=1`). `.github/workflows/lint.yml` runs `cargo fmt --check` and `cargo clippy ... -D warnings` on pushes/PRs to `main`. `.github/workflows/security.yml` runs supply-chain and secret scans (no clippy). `cargo check` is still required locally before considering work done.
 
 ## Lint configuration (source of truth)
 
