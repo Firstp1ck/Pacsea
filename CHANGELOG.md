@@ -33,6 +33,10 @@ Compared to **v0.8.1**, this release focuses on layout customization, smoother P
 
 Layout rendering follows pane roles (not fixed slots), modal bounds are recorded for wheel hit-testing, and PKGBUILD viewer state resets cleanly on row changes so the UI stays in sync with fetches.
 
+## Contributors
+
+- @smrini — thank you for [PR #158](https://github.com/Firstp1ck/Pacsea/pull/158) (**pacsea-git** packaging: sparse checkout, source URLs, desktop entry and icon, and related fixes).
+
 ## Full Changelog
 
 **Full Changelog**: https://github.com/Firstp1ck/Pacsea/compare/v0.8.1...v0.8.2
