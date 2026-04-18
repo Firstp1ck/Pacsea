@@ -32,15 +32,13 @@ pub(super) fn handle_sudo_timestamp_setup_key(
             KeyCode::Esc | KeyCode::Char('q') => {
                 return true;
             }
-            KeyCode::Up | KeyCode::Char('k') => {
-                if setup.select_cursor > 0 {
-                    setup.select_cursor -= 1;
-                }
+            KeyCode::Up | KeyCode::Char('k') if setup.select_cursor > 0 => {
+                setup.select_cursor -= 1;
             }
-            KeyCode::Down | KeyCode::Char('j') => {
-                if setup.select_cursor + 1 < SUDO_TIMESTAMP_SELECT_ROWS {
-                    setup.select_cursor += 1;
-                }
+            KeyCode::Down | KeyCode::Char('j')
+                if setup.select_cursor + 1 < SUDO_TIMESTAMP_SELECT_ROWS =>
+            {
+                setup.select_cursor += 1;
             }
             KeyCode::Enter | KeyCode::Char('\n' | '\r') => {
                 if setup.select_cursor == SUDO_TIMESTAMP_SELECT_ROWS - 1 {

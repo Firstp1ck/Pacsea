@@ -363,8 +363,7 @@ fn apply_eligible_rows(repos: &ReposConfFile) -> Vec<&RepoRow> {
                 && r.name
                     .as_deref()
                     .map(str::trim)
-                    .filter(|s| !s.is_empty())
-                    .is_some()
+                    .is_some_and(|s| !s.is_empty())
                 && row_has_apply_source(r)
         })
         .collect()

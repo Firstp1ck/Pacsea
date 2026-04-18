@@ -159,8 +159,7 @@ fn create_temp_script(cmd_str: &str) -> Result<std::path::PathBuf, std::io::Erro
         let mut p = std::env::temp_dir();
         let ts = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
+            .map_or(0, |d| d.as_nanos());
         p.push(format!(
             "pacsea_scan_{}_{}_{}.sh",
             std::process::id(),

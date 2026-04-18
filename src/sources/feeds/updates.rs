@@ -467,7 +467,7 @@ async fn fetch_official_json_for_cache(
         record_circuit_breaker_outcome, reset_archlinux_backoff,
     };
 
-    let url = format!("https://archlinux.org/packages/{repo_slug}/{arch_slug}/{pkg_name}/json/",);
+    let url = format!("https://archlinux.org/packages/{repo_slug}/{arch_slug}/{pkg_name}/json/");
     let endpoint_pattern = "/packages/*/json/";
     let cache_path = official_json_cache_path(repo_slug, arch_slug, pkg_name);
 
@@ -485,7 +485,7 @@ async fn fetch_official_json_for_cache(
 
     // Fetch with timeout (longer for background)
     let result = tokio::time::timeout(
-        tokio::time::Duration::from_millis(5000),
+        tokio::time::Duration::from_secs(5),
         tokio::task::spawn_blocking({
             let url = url.clone();
             move || crate::util::curl::curl_json(&url)

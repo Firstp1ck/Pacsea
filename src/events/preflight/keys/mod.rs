@@ -65,24 +65,14 @@ fn handle_keys_needing_app(ke: KeyEvent, app: &mut AppState) -> bool {
         }
         KeyCode::Left => handle_tab_switch(app, false),
         KeyCode::Right | KeyCode::Tab => handle_tab_switch(app, true),
-        KeyCode::Char('r' | 'R') => {
-            if ke.modifiers.contains(KeyModifiers::SHIFT) {
-                handle_shift_r_key(app)
-            } else {
-                false // Handled in first block
-            }
+        KeyCode::Char('r' | 'R') if ke.modifiers.contains(KeyModifiers::SHIFT) => {
+            handle_shift_r_key(app)
         }
         KeyCode::Char('f' | 'F') => handle_f_key(app),
         KeyCode::Char('s' | 'S') => handle_s_key(app),
         KeyCode::Char('d') => handle_dry_run_key(app),
-        KeyCode::Char('m') => {
-            // Only handle 'm' if no modifiers are present (to allow Ctrl+M for global keybinds)
-            if ke.modifiers.is_empty() {
-                handle_m_key(app)
-            } else {
-                false
-            }
-        }
+        // Only handle 'm' if no modifiers are present (to allow Ctrl+M for global keybinds)
+        KeyCode::Char('m') if ke.modifiers.is_empty() => handle_m_key(app),
         KeyCode::Char('p') => handle_p_key(app),
         KeyCode::Char('c') => handle_c_key(app),
         KeyCode::Char('q') => handle_q_key(app),
@@ -176,15 +166,12 @@ pub fn handle_preflight_key(ke: KeyEvent, app: &mut AppState) -> bool {
                     handle_a_key(&mut ctx);
                     return false;
                 }
-                KeyCode::Char('r' | 'R') => {
-                    if !ke.modifiers.contains(KeyModifiers::SHIFT) {
-                        handle_r_key(&mut ctx);
-                        return false;
-                    }
-                    // Shift+R needs app, fall through
+                KeyCode::Char('r' | 'R') if !ke.modifiers.contains(KeyModifiers::SHIFT) => {
+                    handle_r_key(&mut ctx);
+                    return false;
                 }
                 _ => {
-                    // Keys that need app access, fall through
+                    // Keys that need app access (including Shift+R), fall through
                 }
             }
         }

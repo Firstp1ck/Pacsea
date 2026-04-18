@@ -548,7 +548,7 @@ fn handle_installed_cache_polling(
         crate::index::refresh_explicit_cache(installed_mode).await;
     });
     // Schedule next poll ~1s later
-    app.next_installed_refresh_at = Some(now + Duration::from_millis(1000));
+    app.next_installed_refresh_at = Some(now + Duration::from_secs(1));
     // If installed-only mode, results depend on explicit set; re-run query soon
     send_query(app, query_tx);
 

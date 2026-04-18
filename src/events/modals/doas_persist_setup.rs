@@ -26,15 +26,13 @@ pub(super) fn handle_doas_persist_setup_key(
     match &mut setup.phase {
         DoasPersistSetupPhase::Select => match ke.code {
             KeyCode::Esc | KeyCode::Char('q') => return true,
-            KeyCode::Up | KeyCode::Char('k') => {
-                if setup.select_cursor > 0 {
-                    setup.select_cursor -= 1;
-                }
+            KeyCode::Up | KeyCode::Char('k') if setup.select_cursor > 0 => {
+                setup.select_cursor -= 1;
             }
-            KeyCode::Down | KeyCode::Char('j') => {
-                if setup.select_cursor + 1 < DOAS_PERSIST_SELECT_ROWS {
-                    setup.select_cursor += 1;
-                }
+            KeyCode::Down | KeyCode::Char('j')
+                if setup.select_cursor + 1 < DOAS_PERSIST_SELECT_ROWS =>
+            {
+                setup.select_cursor += 1;
             }
             KeyCode::Enter | KeyCode::Char('\n' | '\r') => {
                 let choice = match setup.select_cursor {

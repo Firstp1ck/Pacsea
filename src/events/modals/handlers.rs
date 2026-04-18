@@ -1113,28 +1113,19 @@ pub(super) fn handle_news_setup_modal(ke: KeyEvent, app: &mut AppState, mut moda
                 }
                 return true;
             }
-            KeyCode::Up => {
-                if *cursor > 0 {
-                    *cursor -= 1;
-                }
+            KeyCode::Up if *cursor > 0 => {
+                *cursor -= 1;
             }
-            KeyCode::Down => {
-                // Max cursor is 7 (0-4 for toggles, 5-7 for date buttons)
-                if *cursor < 7 {
-                    *cursor += 1;
-                }
+            // Max cursor is 7 (0-4 for toggles, 5-7 for date buttons)
+            KeyCode::Down if *cursor < 7 => {
+                *cursor += 1;
             }
-            KeyCode::Left => {
-                // Navigate between date buttons when on date row (cursor 5-7)
-                if *cursor >= 5 && *cursor <= 7 && *cursor > 5 {
-                    *cursor -= 1;
-                }
+            // Navigate between date buttons when on date row (cursor 5-7)
+            KeyCode::Left if *cursor >= 5 && *cursor <= 7 && *cursor > 5 => {
+                *cursor -= 1;
             }
-            KeyCode::Right => {
-                // Navigate between date buttons when on date row (cursor 5-7)
-                if *cursor >= 5 && *cursor <= 7 && *cursor < 7 {
-                    *cursor += 1;
-                }
+            KeyCode::Right if *cursor >= 5 && *cursor <= 7 && *cursor < 7 => {
+                *cursor += 1;
             }
             KeyCode::Char(' ') => match *cursor {
                 0 => *show_arch_news = !*show_arch_news,
@@ -1326,15 +1317,11 @@ pub(super) fn handle_startup_setup_selector_modal(
                 super::common::show_next_pending_announcement(app);
                 return true;
             }
-            KeyCode::Up | KeyCode::Char('k') => {
-                if *cursor > 0 {
-                    *cursor -= 1;
-                }
+            KeyCode::Up | KeyCode::Char('k') if *cursor > 0 => {
+                *cursor -= 1;
             }
-            KeyCode::Down | KeyCode::Char('j') => {
-                if *cursor + 1 < STARTUP_SETUP_SELECTOR_ITEMS {
-                    *cursor += 1;
-                }
+            KeyCode::Down | KeyCode::Char('j') if *cursor + 1 < STARTUP_SETUP_SELECTOR_ITEMS => {
+                *cursor += 1;
             }
             KeyCode::Char(' ') => {
                 let max_cursor = STARTUP_SETUP_SELECTOR_ITEMS.saturating_sub(1);

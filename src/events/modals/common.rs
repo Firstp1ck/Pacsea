@@ -899,24 +899,18 @@ pub(super) fn handle_news(
             app.modal = crate::state::Modal::None;
             return true; // Stop propagation to prevent global Esc handler from running
         }
-        KeyCode::Up | KeyCode::Char('k') => {
-            if *selected > 0 {
-                *selected -= 1;
-                // Update scroll to keep selection centered
-                if let Some((_, _, _, visible_h)) = app.news_list_rect {
-                    *scroll =
-                        calculate_news_scroll_for_selection(*selected, items.len(), visible_h);
-                }
+        KeyCode::Up | KeyCode::Char('k') if *selected > 0 => {
+            *selected -= 1;
+            // Update scroll to keep selection centered
+            if let Some((_, _, _, visible_h)) = app.news_list_rect {
+                *scroll = calculate_news_scroll_for_selection(*selected, items.len(), visible_h);
             }
         }
-        KeyCode::Down | KeyCode::Char('j') => {
-            if *selected + 1 < items.len() {
-                *selected += 1;
-                // Update scroll to keep selection centered
-                if let Some((_, _, _, visible_h)) = app.news_list_rect {
-                    *scroll =
-                        calculate_news_scroll_for_selection(*selected, items.len(), visible_h);
-                }
+        KeyCode::Down | KeyCode::Char('j') if *selected + 1 < items.len() => {
+            *selected += 1;
+            // Update scroll to keep selection centered
+            if let Some((_, _, _, visible_h)) = app.news_list_rect {
+                *scroll = calculate_news_scroll_for_selection(*selected, items.len(), visible_h);
             }
         }
         KeyCode::PageUp => {
@@ -1025,10 +1019,8 @@ pub(super) fn handle_announcement(
             show_next_pending_announcement(app);
             return true; // Stop propagation
         }
-        crossterm::event::KeyCode::Up | crossterm::event::KeyCode::Char('k') => {
-            if *scroll > 0 {
-                *scroll -= 1;
-            }
+        crossterm::event::KeyCode::Up | crossterm::event::KeyCode::Char('k') if *scroll > 0 => {
+            *scroll -= 1;
         }
         crossterm::event::KeyCode::Down | crossterm::event::KeyCode::Char('j') => {
             *scroll = scroll.saturating_add(1);

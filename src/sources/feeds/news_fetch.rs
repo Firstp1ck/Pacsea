@@ -339,7 +339,7 @@ where
             |result| {
                 info!(
                     "arch news fetch completed: items={}",
-                    result.as_ref().map(Vec::len).unwrap_or(0)
+                    result.as_ref().map_or(0, Vec::len)
                 );
                 result
             },
@@ -366,7 +366,7 @@ where
             |result| {
                 info!(
                     "advisories fetch completed: items={}",
-                    result.as_ref().map(Vec::len).unwrap_or(0)
+                    result.as_ref().map_or(0, Vec::len)
                 );
                 result
             },

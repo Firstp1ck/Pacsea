@@ -117,10 +117,10 @@ pub async fn fetch_official_pkg_names()
     let mut pkgs: Vec<OfficialPkg> = Vec::new();
     for (repo, text) in [("core", core), ("extra", extra), ("multilib", multilib)]
         .into_iter()
-        .chain(eos_pairs.into_iter())
-        .chain(cach_pairs.into_iter())
-        .chain(artix_pairs.into_iter())
-        .chain(blackarch_pairs.into_iter())
+        .chain(eos_pairs)
+        .chain(cach_pairs)
+        .chain(artix_pairs)
+        .chain(blackarch_pairs)
     {
         for line in text.lines() {
             // Format: "repo pkgname version [installed]"

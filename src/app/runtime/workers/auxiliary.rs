@@ -37,7 +37,7 @@ fn spawn_status_worker(status_tx: &mpsc::UnboundedSender<(String, ArchStatusColo
     let status_tx_periodic = status_tx.clone();
     tokio::spawn(async move {
         loop {
-            sleep(Duration::from_secs(120)).await;
+            sleep(Duration::from_mins(2)).await;
             if let Ok((txt, color)) = sources::fetch_arch_status_text().await {
                 let _ = status_tx_periodic.send((txt, color));
             }
@@ -208,7 +208,7 @@ fn spawn_tick_worker(tick_tx: &mpsc::UnboundedSender<()>) {
 fn spawn_faillock_worker(tick_tx: &mpsc::UnboundedSender<()>) {
     let faillock_tx = tick_tx.clone();
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(Duration::from_secs(60));
+        let mut interval = tokio::time::interval(Duration::from_mins(1));
         // Skip the first tick to avoid immediate check after startup
         interval.tick().await;
         loop {

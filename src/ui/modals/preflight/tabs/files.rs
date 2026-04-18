@@ -635,7 +635,7 @@ fn calculate_viewport(
         } else if file_selected_clamped >= end {
             // Selected is at or beyond end - position it at bottom
             let new_end = (file_selected_clamped + 1).min(total_items);
-            (new_end.saturating_sub(available_height).max(0), new_end)
+            (new_end.saturating_sub(available_height), new_end)
         } else {
             (start, end)
         }

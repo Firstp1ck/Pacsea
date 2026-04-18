@@ -478,7 +478,6 @@ fn calculate_viewport(
     let effective_height = available_height.saturating_sub(2); // Reserve space for section headers
     let mut start_idx = sandbox_selected_clamped
         .saturating_sub(effective_height / 2)
-        .max(0)
         .min(total_items.saturating_sub(effective_height));
     let mut end_idx = (start_idx + effective_height).min(total_items);
 
@@ -491,12 +490,12 @@ fn calculate_viewport(
         // Selected item is at or beyond end - position it at bottom of viewport
         // Make sure to include it even if section headers take up space
         end_idx = (sandbox_selected_clamped + 1).min(total_items);
-        start_idx = end_idx.saturating_sub(effective_height).max(0);
+        start_idx = end_idx.saturating_sub(effective_height);
         end_idx = (start_idx + effective_height).min(total_items);
         // Final check: ensure selected item is visible
         if sandbox_selected_clamped >= end_idx {
             end_idx = sandbox_selected_clamped + 1;
-            start_idx = end_idx.saturating_sub(effective_height).max(0);
+            start_idx = end_idx.saturating_sub(effective_height);
         }
     }
 

@@ -1,3 +1,4 @@
+#:schema https://json.schemastore.org/cargo.json
 [package]
 name = "pacsea"
 version = "0.8.2"
@@ -47,7 +48,7 @@ scraper = "0.26.0"
 chrono = "0.4.44"
 portable-pty = "0.9"
 strip-ansi-escapes = "0.2"
-lru = "0.16.3"
+lru = "0.17.0"
 ego-tree = "0.11.0"
 rand = "0.10.1"
 toml = "1.1.2"
@@ -63,6 +64,9 @@ windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Syste
 tempfile = "3.27.0"
 syn = { version = "2.0.117", features = ["full", "parsing", "extra-traits"] }
 
+[lints.rust]
+missing_docs = "warn"
+
 [lints.clippy]
 # Enable cognitive complexity lint to catch overly complex functions
 cognitive_complexity = "warn"
@@ -71,8 +75,5 @@ nursery = { level = "deny", priority = -1 }
 unwrap_used = "deny"
 # Keep docs linting consistent with clippy naming
 missing_docs_in_private_items = "warn"
-
-[lints.rust]
-missing_docs = "warn"
 # Ignored tests run with:
 # cargo test -- --ignored

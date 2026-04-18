@@ -50,20 +50,14 @@ pub(super) fn handle_preflight_modal(
 
         // Handle tab-specific clicks
         match current_tab {
-            crate::state::PreflightTab::Deps => {
-                if handle_deps_tab_click(mx, my, app) {
-                    return Some(false);
-                }
+            crate::state::PreflightTab::Deps if handle_deps_tab_click(mx, my, app) => {
+                return Some(false);
             }
-            crate::state::PreflightTab::Files => {
-                if handle_files_tab_click(mx, my, app) {
-                    return Some(false);
-                }
+            crate::state::PreflightTab::Files if handle_files_tab_click(mx, my, app) => {
+                return Some(false);
             }
-            crate::state::PreflightTab::Services => {
-                if handle_services_tab_click(mx, my, app) {
-                    return Some(false);
-                }
+            crate::state::PreflightTab::Services if handle_services_tab_click(mx, my, app) => {
+                return Some(false);
             }
             _ => {}
         }

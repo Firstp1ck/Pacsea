@@ -49,15 +49,11 @@ pub(super) fn handle_scan_config(
                 app.modal = crate::state::Modal::None;
             }
         }
-        KeyCode::Up => {
-            if *cursor > 0 {
-                *cursor -= 1;
-            }
+        KeyCode::Up if *cursor > 0 => {
+            *cursor -= 1;
         }
-        KeyCode::Down => {
-            if *cursor < 6 {
-                *cursor += 1;
-            }
+        KeyCode::Down if *cursor < 6 => {
+            *cursor += 1;
         }
         KeyCode::Char(' ') => match *cursor {
             0 => *do_clamav = !*do_clamav,
@@ -125,21 +121,15 @@ pub(super) fn handle_virustotal_setup(
                 app.modal = crate::state::Modal::None;
             }
         }
-        KeyCode::Backspace => {
-            if *cursor > 0 && *cursor <= input.len() {
-                input.remove(*cursor - 1);
-                *cursor -= 1;
-            }
+        KeyCode::Backspace if *cursor > 0 && *cursor <= input.len() => {
+            input.remove(*cursor - 1);
+            *cursor -= 1;
         }
-        KeyCode::Left => {
-            if *cursor > 0 {
-                *cursor -= 1;
-            }
+        KeyCode::Left if *cursor > 0 => {
+            *cursor -= 1;
         }
-        KeyCode::Right => {
-            if *cursor < input.len() {
-                *cursor += 1;
-            }
+        KeyCode::Right if *cursor < input.len() => {
+            *cursor += 1;
         }
         KeyCode::Home => {
             *cursor = 0;
@@ -147,15 +137,13 @@ pub(super) fn handle_virustotal_setup(
         KeyCode::End => {
             *cursor = input.len();
         }
-        KeyCode::Char(ch) => {
-            if !ch.is_control() {
-                if *cursor <= input.len() {
-                    input.insert(*cursor, ch);
-                    *cursor += 1;
-                } else {
-                    input.push(ch);
-                    *cursor = input.len();
-                }
+        KeyCode::Char(ch) if !ch.is_control() => {
+            if *cursor <= input.len() {
+                input.insert(*cursor, ch);
+                *cursor += 1;
+            } else {
+                input.push(ch);
+                *cursor = input.len();
             }
         }
         _ => {}

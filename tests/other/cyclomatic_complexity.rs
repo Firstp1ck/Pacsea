@@ -433,7 +433,7 @@ mod tests {
         }
 
         // Sort functions by complexity (highest first)
-        all_functions.sort_by(|a, b| b.complexity.cmp(&a.complexity));
+        all_functions.sort_by_key(|func| std::cmp::Reverse(func.complexity));
 
         // Print summary
         println!("\n=== Cyclomatic Complexity Report ===");
@@ -463,7 +463,7 @@ mod tests {
         // Report files with highest complexity
         println!("\n=== Files by Total Complexity ===");
         let mut file_complexities: Vec<_> = results.iter().collect();
-        file_complexities.sort_by(|a, b| b.1.total_complexity.cmp(&a.1.total_complexity));
+        file_complexities.sort_by_key(|entry| std::cmp::Reverse(entry.1.total_complexity));
 
         for (file, file_comp) in file_complexities.iter().take(10) {
             println!(

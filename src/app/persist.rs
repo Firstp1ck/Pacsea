@@ -633,7 +633,7 @@ pub fn maybe_flush_install(app: &mut AppState) {
         return;
     }
     if let Some(when) = app.last_install_change
-        && when.elapsed() < std::time::Duration::from_millis(1000)
+        && when.elapsed() < std::time::Duration::from_secs(1)
     {
         return;
     }

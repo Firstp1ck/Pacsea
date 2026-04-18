@@ -99,18 +99,17 @@ pub async fn fetch_arch_status_text() -> Result<(String, ArchStatusColor)> {
                             .unwrap_or_default()
                     };
                     match rect_color {
-                        ArchStatusColor::IncidentSevereToday => {
-                            if !text_lower.contains("outage") && !text_lower.contains("issues") {
-                                text = format!("AUR issues detected (see status){pct_suffix}");
-                            }
+                        ArchStatusColor::IncidentSevereToday
+                            if !text_lower.contains("outage") && !text_lower.contains("issues") =>
+                        {
+                            text = format!("AUR issues detected (see status){pct_suffix}");
                         }
-                        ArchStatusColor::IncidentToday => {
+                        ArchStatusColor::IncidentToday
                             if !text_lower.contains("degraded")
                                 && !text_lower.contains("outage")
-                                && !text_lower.contains("issues")
-                            {
-                                text = format!("AUR degraded (see status){pct_suffix}");
-                            }
+                                && !text_lower.contains("issues") =>
+                        {
+                            text = format!("AUR degraded (see status){pct_suffix}");
                         }
                         _ => {}
                     }

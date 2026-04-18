@@ -211,10 +211,10 @@ async fn try_fetch_package_json(
 
     for repo in repo_candidates {
         for arch in arch_candidates {
-            let url = format!("https://archlinux.org/packages/{repo}/{arch}/{name}/json/",);
+            let url = format!("https://archlinux.org/packages/{repo}/{arch}/{name}/json/");
 
             let fetch_result = tokio::time::timeout(
-                tokio::time::Duration::from_millis(2000),
+                tokio::time::Duration::from_secs(2),
                 tokio::task::spawn_blocking({
                     let url = url.clone();
                     move || crate::util::curl::curl_json(&url)
