@@ -32,13 +32,54 @@ jobs:
           GH_TOKEN: ${{ secrets.GIST_TOKEN }}
           GIST_ID: "d2e6016b8d7a90f813a582078208e9bd"
           GIST_FILENAME: "announcement.json"   # ← set this to the actual filename in your Gist
-          PACSEA_REPO: "Firstp1ck/Pacsea"
+          PACSEA_REPO: ${{ github.repository }}
         run: |
           pip install feedparser html2text -q
 
           python3 << 'EOF'
-          import feedparser, html2text, json, re, os, urllib.request
+          import feedparser, html2text, json, re, os, urllib.error, urllib.request
           from datetime import datetime
+
+          def github_request(url, token):
+              return urllib.request.Request(
+                  url,
+                  headers={
+                      "Authorization": f"Bearer {token}",
+                      "Accept": "application/vnd.github+json",
+                      "User-Agent": "pacsea-arch-news-watcher",
+                  },
+              )
+
+          def github_json(url, token):
+              with urllib.request.urlopen(github_request(url, token)) as resp:
+                  return json.loads(resp.read())
+
+          def resolve_version_tag(repo, token):
+              override = os.environ.get("PACSEA_VERSION", "").strip()
+              if override:
+                  return override.lstrip("v")
+
+              base = f"https://api.github.com/repos/{repo}"
+              try:
+                  rel = github_json(f"{base}/releases/latest", token)
+                  return rel["tag_name"].lstrip("v")
+              except urllib.error.HTTPError as e:
+                  if e.code != 404:
+                      raise
+
+              releases = github_json(f"{base}/releases?per_page=30", token)
+              for rel in releases:
+                  if rel.get("draft"):
+                      continue
+                  return rel["tag_name"].lstrip("v")
+
+              tags = github_json(f"{base}/tags?per_page=30", token)
+              if not tags:
+                  raise SystemExit(
+                      f"No releases or tags for {repo}; "
+                      "publish a release/tag or set PACSEA_VERSION."
+                  )
+              return tags[0]["name"].lstrip("v")
 
           # ── 1. Parse latest RSS entry ──────────────────────────────────────
           feed = feedparser.parse("current.xml")
@@ -59,23 +100,15 @@ jobs:
           title_slug  = re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')[:40]
           news_id     = f"{date_str}-{title_slug}"
 
-          # ── 4. Fetch latest Pacsea release from GitHub API ─────────────────
+          # ── 4. Resolve current version (release tag) from GitHub API ────────
           repo    = os.environ["PACSEA_REPO"]
           token   = os.environ["GH_TOKEN"]
-          api_url = f"https://api.github.com/repos/{repo}/releases/latest"
-          req     = urllib.request.Request(
-                        api_url,
-                        headers={"Authorization": f"Bearer {token}",
-                                 "Accept": "application/vnd.github+json"}
-                    )
-          with urllib.request.urlopen(req) as r:
-              release = json.loads(r.read())
-
-          version = release["tag_name"].lstrip("v")        # e.g. "0.8.5"
+          version = resolve_version_tag(repo, token)
           parts   = version.split(".")
 
           # ── 5. min_version = current major.minor-1.0 ──────────────────────
-          min_ver = f"{parts[0]}.{int(parts[1]) - 1}.0"   # 0.8.5 → 0.7.0
+          minor = max(0, int(parts[1]) - 1)
+          min_ver = f"{parts[0]}.{minor}.0"   # 0.8.5 → 0.7.0
 
           # ── 6. Assemble final JSON payload ────────────────────────────────
           payload = {
