@@ -131,3 +131,5 @@ jobs:
 
           # ── 7. Push to Gist ───────────────────────────────────────────────
           gh gist edit "$GIST_ID" "$GIST_FILENAME"
+          # `actions/cache` post-step only saves if this path exists; write after successful push.
+          echo "${{ steps.rss.outputs.hash }}" > rss.hash
