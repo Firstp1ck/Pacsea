@@ -1,4 +1,20 @@
-use super::{idx, save_to_disk};
+use super::{OfficialPkg, idx, save_to_disk};
+
+/// What: Decide whether an official index row may still gain metadata from `pacman -Si`.
+///
+/// Inputs:
+/// - `p`: Official package row (typically seeded from `pacman -Sl`, which omits description and
+///   architecture).
+///
+/// Output:
+/// - `true` when a `-Si` round-trip could still change persisted fields.
+///
+/// Details:
+/// - Used to skip redundant enrichment work and to avoid the index-notify → search → enrich loop
+///   that was re-saving the full index every second when visible rows were already filled.
+const fn official_entry_needs_si_fill(p: &OfficialPkg) -> bool {
+    p.description.is_empty() || p.arch.is_empty()
+}
 
 /// What: Request enrichment (`pacman -Si`) for a set of package `names` in the background,
 /// merge fields into the index, persist, and notify.
@@ -14,6 +30,9 @@ use super::{idx, save_to_disk};
 /// Details:
 /// - Only non-empty results are applied; fields prefer non-empty values from `-Si` output and leave
 ///   existing values untouched when omitted.
+/// - Skips `-Si` entirely when every requested package already has description and architecture, and
+///   skips disk writes / notifications when no row actually changes (prevents feedback loops with
+///   `handle_index_notification`).
 pub fn request_enrich_for(
     persist_path: std::path::PathBuf,
     notify_tx: tokio::sync::mpsc::UnboundedSender<()>,
@@ -27,11 +46,26 @@ pub fn request_enrich_for(
         if set.is_empty() {
             return;
         }
+        let names_to_fetch: Vec<String> = {
+            let Ok(guard) = idx().read() else {
+                return;
+            };
+            set.into_iter()
+                .filter(|n| {
+                    guard
+                        .name_to_idx
+                        .get(&n.to_lowercase())
+                        .is_some_and(|i| official_entry_needs_si_fill(&guard.pkgs[*i]))
+                })
+                .collect()
+        };
+        if names_to_fetch.is_empty() {
+            return;
+        }
         // Batch -Si queries
         let mut desc_map: std::collections::HashMap<String, (String, String, String, String)> =
             std::collections::HashMap::new(); // name -> (desc, arch, repo, version)
-        let all: Vec<String> = set.into_iter().collect();
-        for chunk in all.chunks(BATCH) {
+        for chunk in names_to_fetch.chunks(BATCH) {
             let args_owned: Vec<String> = std::iter::once("-Si".to_string())
                 .chain(chunk.iter().cloned())
                 .collect();
@@ -81,26 +115,33 @@ pub fn request_enrich_for(
             return;
         }
         // Update index entries
+        let mut index_dirty = false;
         if let Ok(mut g) = idx().write() {
             for p in &mut g.pkgs {
                 if let Some((d, a, r, v)) = desc_map.get(&p.name) {
-                    if p.description.is_empty() {
-                        p.description = d.clone();
+                    if p.description.is_empty() && !d.is_empty() {
+                        p.description.clone_from(d);
+                        index_dirty = true;
                     }
-                    if !a.is_empty() {
-                        p.arch = a.clone();
+                    if !a.is_empty() && p.arch != *a {
+                        p.arch.clone_from(a);
+                        index_dirty = true;
                     }
-                    if !r.is_empty() {
-                        p.repo = r.clone();
+                    if !r.is_empty() && p.repo != *r {
+                        p.repo.clone_from(r);
+                        index_dirty = true;
                     }
-                    if !v.is_empty() {
-                        p.version = v.clone();
+                    if !v.is_empty() && p.version != *v {
+                        p.version.clone_from(v);
+                        index_dirty = true;
                     }
                 }
             }
         }
-        save_to_disk(&persist_path);
-        let _ = notify_tx.send(());
+        if index_dirty {
+            save_to_disk(&persist_path);
+            let _ = notify_tx.send(());
+        }
     });
 }
 
@@ -146,6 +187,49 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
+    #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
+    /// What: Skip enrichment work when requested rows already carry `-Si`-backed fields.
+    ///
+    /// Inputs:
+    /// - Seed the global index with a package that already has non-empty description and arch.
+    ///
+    /// Output:
+    /// - No notification is sent within the wait window (no `pacman -Si`, no persist loop).
+    ///
+    /// Details:
+    /// - Regression guard for the index-notify → search → enrich feedback loop.
+    async fn enrich_skips_when_rows_already_filled() {
+        let _guard = crate::global_test_mutex_lock();
+        if let Ok(mut g) = crate::index::idx().write() {
+            g.pkgs = vec![crate::index::OfficialPkg {
+                name: "foo".to_string(),
+                repo: "core".to_string(),
+                arch: "x86_64".to_string(),
+                version: "1.0.0".to_string(),
+                description: "already filled".to_string(),
+            }];
+            g.rebuild_name_index();
+        }
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "pacsea_enrich_skip_{}_{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("System time is before UNIX epoch")
+                .as_nanos()
+        ));
+        let (notify_tx, mut notify_rx) = tokio::sync::mpsc::unbounded_channel::<()>();
+        super::request_enrich_for(path.clone(), notify_tx, vec!["foo".into()]);
+        let none = tokio::time::timeout(std::time::Duration::from_millis(400), notify_rx.recv())
+            .await
+            .ok()
+            .flatten();
+        assert!(none.is_none());
+        let _ = std::fs::remove_file(&path);
+    }
+
     #[cfg(not(target_os = "windows"))]
     #[tokio::test]
     #[allow(clippy::await_holding_lock)]
@@ -170,6 +254,7 @@ mod tests {
                 version: String::new(),
                 description: String::new(),
             }];
+            g.rebuild_name_index();
         }
         // Fake pacman -Si output via PATH shim
         let old_path = std::env::var("PATH").unwrap_or_default();
