@@ -1,0 +1,100 @@
+# .github/workflows/arch-news-watcher.yml
+name: Watch Arch Linux News → Update Pacsea Gist
+
+on:
+  schedule:
+    - cron: '0 * * * *'   # every hour
+  workflow_dispatch:        # manual trigger
+
+jobs:
+  check-and-update:
+    runs-on: ubuntu-latest
+    environment: Gist
+
+    steps:
+      - name: Fetch Arch Linux RSS
+        id: rss
+        run: |
+          curl -s https://archlinux.org/feeds/news/ > current.xml
+          HASH=$(sha256sum current.xml | cut -d' ' -f1)
+          echo "hash=$HASH" >> $GITHUB_OUTPUT
+
+      - name: Check cache (skip if feed unchanged)
+        uses: actions/cache@v4
+        id: cache
+        with:
+          path: rss.hash
+          key: arch-rss-${{ steps.rss.outputs.hash }}
+
+      - name: Parse RSS + build JSON + update Gist
+        if: steps.cache.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GIST_TOKEN }}
+          GIST_ID: "d2e6016b8d7a90f813a582078208e9bd"
+          GIST_FILENAME: "announcement.json"   # ← set this to the actual filename in your Gist
+          PACSEA_REPO: "Firstp1ck/Pacsea"
+        run: |
+          pip install feedparser html2text -q
+
+          python3 << 'EOF'
+          import feedparser, html2text, json, re, os, urllib.request
+          from datetime import datetime
+
+          # ── 1. Parse latest RSS entry ──────────────────────────────────────
+          feed = feedparser.parse("current.xml")
+          entry = feed.entries[0]
+
+          title     = entry.title.strip()
+          pub_date  = datetime(*entry.published_parsed[:6])
+          date_str  = pub_date.strftime("%d-%m-%Y")        # DD-MM-YYYY
+
+          # ── 2. Convert HTML content → clean Markdown ──────────────────────
+          h = html2text.HTML2Text()
+          h.ignore_links   = False
+          h.body_width     = 0
+          h.ignore_images  = True
+          content_md = h.handle(entry.summary).strip()
+
+          # ── 3. Build ID: "DD-MM-YYYY-news-title-abbrev" ───────────────────
+          title_slug  = re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')[:40]
+          news_id     = f"{date_str}-{title_slug}"
+
+          # ── 4. Fetch latest Pacsea release from GitHub API ─────────────────
+          repo    = os.environ["PACSEA_REPO"]
+          token   = os.environ["GH_TOKEN"]
+          api_url = f"https://api.github.com/repos/{repo}/releases/latest"
+          req     = urllib.request.Request(
+                        api_url,
+                        headers={"Authorization": f"Bearer {token}",
+                                 "Accept": "application/vnd.github+json"}
+                    )
+          with urllib.request.urlopen(req) as r:
+              release = json.loads(r.read())
+
+          version = release["tag_name"].lstrip("v")        # e.g. "0.8.5"
+          parts   = version.split(".")
+
+          # ── 5. min_version = current major.minor-1.0 ──────────────────────
+          min_ver = f"{parts[0]}.{int(parts[1]) - 1}.0"   # 0.8.5 → 0.7.0
+
+          # ── 6. Assemble final JSON payload ────────────────────────────────
+          payload = {
+              "id":          news_id,
+              "title":       title,
+              "content":     content_md,
+              "min_version": min_ver,
+              "max_version": None,
+              "expires":     None
+          }
+
+          filename = os.environ["GIST_FILENAME"]
+          with open(filename, "w", encoding="utf-8") as f:
+              json.dump(payload, f, indent=2, ensure_ascii=False)
+
+          print(f"✔ id:          {news_id}")
+          print(f"✔ title:       {title}")
+          print(f"✔ min_version: {min_ver}  (from release {version})")
+          EOF
+
+          # ── 7. Push to Gist ───────────────────────────────────────────────
+          gh gist edit "$GIST_ID" "$GIST_FILENAME"
