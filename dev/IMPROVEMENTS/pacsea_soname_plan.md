@@ -5,8 +5,7 @@
 Pacsea's soname engine has two distinct layers of ambition:
 
 **Layer 1 — End-user protection (near-term):** Before any install/upgrade is committed, detect
-`DT_NEEDED` vs on-disk SONAME mismatches and surface them in the Preflight TUI so the user can make
-an informed decision rather than encounter a silent broken state at runtime.
+`DT_NEEDED` vs on-disk SONAME mismatches and surface them in the Preflight TUI so the user can make an informed decision rather than encounter a silent broken state at runtime.
 
 **Layer 2 — Ecosystem tooling (longer-term):** Go beyond single-machine Preflight checks: a
 **materialized** repo-wide view (provided SONAMEs, reverse edges, cascade hints) suitable for a

@@ -1,6 +1,6 @@
 # Security Practices Guide
 
-General guidance for preventing and reducing security vulnerabilities in Pacsea. For the specific findings that motivated these practices, see `dev/SECURITY_AUDIT_REPORT.md`.
+General guidance for preventing and reducing security vulnerabilities in Pacsea. For the specific findings that motivated these practices.
 
 ---
 
