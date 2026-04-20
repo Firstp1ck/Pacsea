@@ -559,20 +559,23 @@ pub fn open_preflight_install_modal(app: &mut AppState) {
     app.remove_preflight_summary.clear();
 }
 
-/// What: Open Preflight modal for remove action.
+/// What: Open Preflight modal for remove action using an explicit package list.
 ///
 /// Inputs:
 /// - `app`: Mutable application state
+/// - `items`: Packages to remove (typically from `remove_list` or a single result row)
 ///
 /// Output:
-/// - No return value; sets app.modal to Preflight with Remove action
+/// - No return value; sets `app.modal` to Preflight with Remove action, or no-op if `items` is empty
 ///
 /// Details:
+/// - Does not read `remove_list`; callers pass the exact set to preflight.
 /// - Opens modal immediately without blocking. Reverse dependency resolution can be triggered
 ///   manually via the Dependencies tab or will be computed when user tries to proceed.
-///   This avoids blocking the UI when opening the modal.
-pub fn open_preflight_remove_modal(app: &mut AppState) {
-    let items = app.remove_list.clone();
+fn open_preflight_remove_items(app: &mut AppState, items: Vec<crate::state::PackageItem>) {
+    if items.is_empty() {
+        return;
+    }
     let item_count = items.len();
 
     // Reset cancellation flag when opening modal
@@ -627,6 +630,59 @@ pub fn open_preflight_remove_modal(app: &mut AppState) {
     };
     app.remove_preflight_summary = Vec::new(); // Will be populated when dependencies are resolved
     app.toast_message = Some(crate::i18n::t(app, "app.toasts.preflight_remove_list"));
+}
+
+/// What: Open Preflight modal for remove action from the current remove list.
+///
+/// Inputs:
+/// - `app`: Mutable application state
+///
+/// Output:
+/// - No return value; sets app.modal to Preflight with Remove action
+///
+/// Details:
+/// - Delegates to [`open_preflight_remove_items`] with `app.remove_list` cloned.
+pub fn open_preflight_remove_modal(app: &mut AppState) {
+    let items = app.remove_list.clone();
+    open_preflight_remove_items(app, items);
+}
+
+/// What: Start removal for one installed package selected from search results (installed-only mode).
+///
+/// Inputs:
+/// - `app`: Mutable application state
+/// - `item`: Installed package row the user confirmed with Enter / `search_install`
+///
+/// Output:
+/// - Opens remove preflight for that package, or starts integrated removal when preflight is skipped
+///
+/// Details:
+/// - Mirrors skip-preflight semantics used when removing from the Remove list pane.
+/// - Does not modify `remove_list` (batch queue stays intact).
+pub fn remove_installed_package_from_results(
+    app: &mut AppState,
+    item: crate::state::PackageItem,
+) {
+    let skip_preflight_for_modals = matches!(
+        app.modal,
+        crate::state::Modal::SystemUpdate { .. }
+            | crate::state::Modal::OptionalDeps { .. }
+            | crate::state::Modal::Repositories { .. }
+    );
+    let skip = crate::theme::settings().skip_preflight || skip_preflight_for_modals;
+    if skip {
+        crate::install::start_integrated_remove_all(
+            app,
+            std::slice::from_ref(&item.name),
+            app.dry_run,
+            app.remove_cascade_mode,
+        );
+        app.toast_message = Some(crate::i18n::t(app, "app.toasts.removing_preflight_skipped"));
+        app.toast_expires_at =
+            Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
+    } else {
+        open_preflight_remove_items(app, vec![item]);
+    }
 }
 
 /// What: Open Preflight modal for downgrade action.

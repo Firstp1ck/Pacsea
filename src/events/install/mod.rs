@@ -21,6 +21,7 @@ pub use aur_dup_warn::try_open_warn_aur_repo_duplicate_modal;
 
 pub use preflight::{
     open_preflight_downgrade_modal, open_preflight_install_modal, open_preflight_remove_modal,
+    remove_installed_package_from_results,
 };
 
 /// What: Handle `pane_next` navigation (cycles through panes).

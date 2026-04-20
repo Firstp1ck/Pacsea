@@ -230,7 +230,8 @@ fn handle_aur_vote_action(ke: &KeyEvent, app: &mut AppState) -> bool {
 /// - `true` to request application exit (e.g., Ctrl+C); `false` to continue processing
 ///
 /// Details:
-/// - Handles typing, backspace, navigation, space to add items, and Enter to open preflight.
+/// - Handles typing, backspace, navigation, space to add items, and Enter to open install preflight
+///   (or remove preflight in installed-only mode for the selected result).
 /// - Typing updates the input, caret position, and triggers debounced search queries.
 pub fn handle_insert_mode(
     ke: KeyEvent,
@@ -315,11 +316,19 @@ pub fn handle_insert_mode(
                 return false;
             }
             if let Some(item) = app.results.get(app.selected).cloned() {
-                tracing::debug!(
-                    "[InsertMode] Enter pressed, opening preflight for package: {}",
-                    item.name
-                );
-                open_preflight_modal(app, vec![item], false);
+                if app.installed_only_mode {
+                    tracing::debug!(
+                        "[InsertMode] Installed-only Enter: remove flow for {}",
+                        item.name
+                    );
+                    crate::events::install::remove_installed_package_from_results(app, item);
+                } else {
+                    tracing::debug!(
+                        "[InsertMode] Enter pressed, opening preflight for package: {}",
+                        item.name
+                    );
+                    open_preflight_modal(app, vec![item], false);
+                }
             }
         }
         // Only handle character input if no modifiers are present (to allow global keybinds with modifiers)

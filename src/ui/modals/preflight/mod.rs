@@ -20,6 +20,7 @@ use helpers::{extract, layout, scroll, sync, tabs as tab_helpers, widget};
 use ratatui::text::Line;
 
 use crate::theme::theme;
+use crate::ui::modals::preflight_accent::preflight_modal_border_color;
 
 /// What: Sync all preflight data from app cache to modal state.
 ///
@@ -190,7 +191,7 @@ pub fn render_preflight(
         PreflightAction::Remove => i18n::t(app, "app.modals.preflight.title_remove"),
         PreflightAction::Downgrade => i18n::t(app, "app.modals.preflight.title_downgrade"),
     };
-    let border_color = th.lavender;
+    let border_color = preflight_modal_border_color(*fields.action, &th);
     let bg_color = th.crust;
 
     let lines = build_preflight_content_lines(app, &mut fields, content_rect);

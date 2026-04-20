@@ -25,6 +25,8 @@ mod password;
 mod post_summary;
 /// Preflight modal rendering.
 mod preflight;
+/// Shared border/title accents for preflight UIs.
+mod preflight_accent;
 /// Preflight execution modal rendering.
 mod preflight_exec;
 /// Modal renderer utilities.

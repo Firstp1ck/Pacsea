@@ -464,7 +464,9 @@ fn handle_space_key(
 /// - `true` if preflight was opened, `false` otherwise
 ///
 /// Details:
-/// - Opens preflight modal for the selected package using configured key or Enter.
+/// - In installed-only mode, Enter / `search_install` starts removal for the selected row
+///   (preflight or direct remove when preflight is skipped) without using the Remove list queue.
+/// - Otherwise opens the install preflight modal for the selected package using Enter or `search_install`.
 fn handle_preflight_open(ke: &KeyEvent, app: &mut AppState) -> bool {
     // Don't open preflight if Ctrl is held (might be Ctrl+M interpreted as Enter)
     if ke.modifiers.contains(KeyModifiers::CONTROL) {
@@ -479,8 +481,16 @@ fn handle_preflight_open(ke: &KeyEvent, app: &mut AppState) -> bool {
         || matches!(ke.code, KeyCode::Char('\n' | '\r') | KeyCode::Enter);
 
     if should_open && let Some(item) = app.results.get(app.selected).cloned() {
-        tracing::debug!("[NormalMode] Opening preflight for package: {}", item.name);
-        open_preflight_modal(app, vec![item], true);
+        if app.installed_only_mode {
+            tracing::debug!(
+                "[NormalMode] Installed-only: opening remove flow for {}",
+                item.name
+            );
+            crate::events::install::remove_installed_package_from_results(app, item);
+        } else {
+            tracing::debug!("[NormalMode] Opening preflight for package: {}", item.name);
+            open_preflight_modal(app, vec![item], true);
+        }
         return true;
     }
     false

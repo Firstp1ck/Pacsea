@@ -881,3 +881,172 @@ fn search_selection_does_not_queue_vote_state_check_for_official_package() {
     assert_eq!(app.selected, 1);
     assert!(app.pending_aur_vote_state_request.is_none());
 }
+
+#[test]
+/// What: Enter on a result in installed-only mode opens remove preflight (normal mode).
+///
+/// Inputs:
+/// - Temporary `HOME` with `skip_preflight=false`, search normal mode, one selected result, Enter.
+///
+/// Output:
+/// - `Modal::Preflight` with `PreflightAction::Remove` and that single package.
+///
+/// Details:
+/// - Uses `theme::test_mutex` so settings reload does not race other tests.
+fn installed_only_enter_opens_remove_preflight_normal_mode() {
+    let _theme_guard = crate::theme::test_mutex()
+        .lock()
+        .expect("theme test mutex poisoned");
+    let orig_home = std::env::var_os("HOME");
+    let base = std::env::temp_dir().join(format!(
+        "pacsea_test_io_enter_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("System time is before UNIX epoch")
+            .as_nanos()
+    ));
+    let cfg = base.join(".config").join("pacsea");
+    std::fs::create_dir_all(&cfg).expect("create test config dir");
+    unsafe {
+        std::env::set_var("HOME", base.display().to_string());
+    }
+    std::fs::write(cfg.join("settings.conf"), "skip_preflight=false\n")
+        .expect("write settings");
+    std::fs::write(cfg.join("keybinds.conf"), "").expect("write keybinds");
+
+    let mut app = new_app();
+    app.search_normal_mode = true;
+    app.installed_only_mode = true;
+    app.focus = crate::state::Focus::Search;
+    app.results = vec![crate::state::PackageItem {
+        name: "rm-me".to_string(),
+        version: "1.0".to_string(),
+        description: String::new(),
+        source: crate::state::Source::Official {
+            repo: "extra".to_string(),
+            arch: "x86_64".to_string(),
+        },
+        popularity: None,
+        out_of_date: None,
+        orphaned: false,
+    }];
+    app.selected = 0;
+
+    let (qtx, _qrx) = mpsc::unbounded_channel::<QueryInput>();
+    let (dtx, _drx) = mpsc::unbounded_channel::<PackageItem>();
+    let (atx, _arx) = mpsc::unbounded_channel::<PackageItem>();
+    let (ptx, _prx) = mpsc::unbounded_channel::<PackageItem>();
+    let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
+
+    let _ = handle_search_key(
+        KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()),
+        &mut app,
+        &qtx,
+        &dtx,
+        &atx,
+        &ptx,
+        &comments_tx,
+    );
+
+    match &app.modal {
+        crate::state::Modal::Preflight {
+            action: crate::state::PreflightAction::Remove,
+            items,
+            ..
+        } => {
+            assert_eq!(items.len(), 1, "expected exactly one package in remove preflight");
+            assert_eq!(items[0].name, "rm-me");
+        }
+        other => panic!("expected remove preflight for rm-me, got {other:?}"),
+    }
+
+    unsafe {
+        if let Some(v) = orig_home {
+            std::env::set_var("HOME", v);
+        } else {
+            std::env::remove_var("HOME");
+        }
+    }
+    let _ = std::fs::remove_dir_all(&base);
+}
+
+#[test]
+/// What: Enter on a result in installed-only mode opens remove preflight (insert mode).
+fn installed_only_enter_opens_remove_preflight_insert_mode() {
+    let _theme_guard = crate::theme::test_mutex()
+        .lock()
+        .expect("theme test mutex poisoned");
+    let orig_home = std::env::var_os("HOME");
+    let base = std::env::temp_dir().join(format!(
+        "pacsea_test_io_enter_ins_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("System time is before UNIX epoch")
+            .as_nanos()
+    ));
+    let cfg = base.join(".config").join("pacsea");
+    std::fs::create_dir_all(&cfg).expect("create test config dir");
+    unsafe {
+        std::env::set_var("HOME", base.display().to_string());
+    }
+    std::fs::write(cfg.join("settings.conf"), "skip_preflight=false\n")
+        .expect("write settings");
+    std::fs::write(cfg.join("keybinds.conf"), "").expect("write keybinds");
+
+    let mut app = new_app();
+    app.search_normal_mode = false;
+    app.installed_only_mode = true;
+    app.focus = crate::state::Focus::Search;
+    app.results = vec![crate::state::PackageItem {
+        name: "rm-insert".to_string(),
+        version: "2.0".to_string(),
+        description: String::new(),
+        source: crate::state::Source::Official {
+            repo: "extra".to_string(),
+            arch: "x86_64".to_string(),
+        },
+        popularity: None,
+        out_of_date: None,
+        orphaned: false,
+    }];
+    app.selected = 0;
+
+    let (qtx, _qrx) = mpsc::unbounded_channel::<QueryInput>();
+    let (dtx, _drx) = mpsc::unbounded_channel::<PackageItem>();
+    let (atx, _arx) = mpsc::unbounded_channel::<PackageItem>();
+    let (ptx, _prx) = mpsc::unbounded_channel::<PackageItem>();
+    let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
+
+    let _ = handle_search_key(
+        KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()),
+        &mut app,
+        &qtx,
+        &dtx,
+        &atx,
+        &ptx,
+        &comments_tx,
+    );
+
+    match &app.modal {
+        crate::state::Modal::Preflight {
+            action: crate::state::PreflightAction::Remove,
+            items,
+            ..
+        } => {
+            assert_eq!(items.len(), 1);
+            assert_eq!(items[0].name, "rm-insert");
+        }
+        other => panic!("expected remove preflight for rm-insert, got {other:?}"),
+    }
+
+    unsafe {
+        if let Some(v) = orig_home {
+            std::env::set_var("HOME", v);
+        } else {
+            std::env::remove_var("HOME");
+        }
+    }
+    let _ = std::fs::remove_dir_all(&base);
+}

@@ -10,6 +10,7 @@ use crate::state::modal::PreflightHeaderChips;
 use crate::state::{PackageItem, PreflightAction, PreflightTab};
 use crate::theme::theme;
 use crate::ui::helpers::{format_bytes, format_signed_bytes};
+use crate::ui::modals::preflight_accent::preflight_modal_border_color;
 
 /// What: Calculate modal layout dimensions and split into sidebar and log columns.
 ///
@@ -374,7 +375,7 @@ pub fn render_preflight_exec(
     let th = theme();
     let (_rect, _inner, cols) = calculate_modal_layout(area, f);
 
-    let border_color = th.lavender;
+    let border_color = preflight_modal_border_color(action, &th);
     let bg_color = th.crust;
     let title = match action {
         PreflightAction::Install => crate::i18n::t(app, "app.modals.preflight_exec.title_install"),
