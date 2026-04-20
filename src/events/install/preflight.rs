@@ -659,10 +659,7 @@ pub fn open_preflight_remove_modal(app: &mut AppState) {
 /// Details:
 /// - Mirrors skip-preflight semantics used when removing from the Remove list pane.
 /// - Does not modify `remove_list` (batch queue stays intact).
-pub fn remove_installed_package_from_results(
-    app: &mut AppState,
-    item: crate::state::PackageItem,
-) {
+pub fn remove_installed_package_from_results(app: &mut AppState, item: crate::state::PackageItem) {
     let skip_preflight_for_modals = matches!(
         app.modal,
         crate::state::Modal::SystemUpdate { .. }
@@ -678,8 +675,7 @@ pub fn remove_installed_package_from_results(
             app.remove_cascade_mode,
         );
         app.toast_message = Some(crate::i18n::t(app, "app.toasts.removing_preflight_skipped"));
-        app.toast_expires_at =
-            Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
+        app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
     } else {
         open_preflight_remove_items(app, vec![item]);
     }

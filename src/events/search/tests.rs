@@ -911,8 +911,7 @@ fn installed_only_enter_opens_remove_preflight_normal_mode() {
     unsafe {
         std::env::set_var("HOME", base.display().to_string());
     }
-    std::fs::write(cfg.join("settings.conf"), "skip_preflight=false\n")
-        .expect("write settings");
+    std::fs::write(cfg.join("settings.conf"), "skip_preflight=false\n").expect("write settings");
     std::fs::write(cfg.join("keybinds.conf"), "").expect("write keybinds");
 
     let mut app = new_app();
@@ -955,7 +954,11 @@ fn installed_only_enter_opens_remove_preflight_normal_mode() {
             items,
             ..
         } => {
-            assert_eq!(items.len(), 1, "expected exactly one package in remove preflight");
+            assert_eq!(
+                items.len(),
+                1,
+                "expected exactly one package in remove preflight"
+            );
             assert_eq!(items[0].name, "rm-me");
         }
         other => panic!("expected remove preflight for rm-me, got {other:?}"),
@@ -991,8 +994,7 @@ fn installed_only_enter_opens_remove_preflight_insert_mode() {
     unsafe {
         std::env::set_var("HOME", base.display().to_string());
     }
-    std::fs::write(cfg.join("settings.conf"), "skip_preflight=false\n")
-        .expect("write settings");
+    std::fs::write(cfg.join("settings.conf"), "skip_preflight=false\n").expect("write settings");
     std::fs::write(cfg.join("keybinds.conf"), "").expect("write keybinds");
 
     let mut app = new_app();
