@@ -594,7 +594,7 @@ phase4_build_release() {
 
   log_step "Creating git tag"
   if [[ "${DRY_RUN}" == true ]]; then
-    log_info "[DRY-RUN] Would create tag: ${tag}"
+    log_info "[DRY-RUN] Would create annotated tag: ${tag} (message: Release ${tag}, no editor)"
   else
     if git tag -l | rg -q "^${tag}$"; then
       log_warn "Tag ${tag} already exists"
@@ -606,7 +606,10 @@ phase4_build_release() {
         return 0
       fi
     fi
-    git tag "${tag}"
+    # Always pass -m: with tag.gpgSign=true, plain `git tag NAME` opens $EDITOR for the
+    # annotation, but stdout is mirrored via `tee` (enable_report_mirroring) so the editor
+    # is not on a real TTY and the buffer gets corrupted by escape codes from this script.
+    git tag -m "Release ${tag}" "${tag}"
     log_success "Created tag: ${tag}"
   fi
 

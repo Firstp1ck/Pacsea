@@ -611,7 +611,7 @@ function phase4_build_release
     set -l tag "v$new_ver"
     
     if test "$DRY_RUN" = true
-        log_info "[DRY-RUN] Would create tag: $tag"
+        log_info "[DRY-RUN] Would create annotated tag: $tag (message: Release $tag, no editor)"
     else
         # Check if tag already exists
         if git tag -l | grep -q "^$tag\$"
@@ -623,8 +623,8 @@ function phase4_build_release
                 log_info "Skipping tag creation"
             end
         end
-        
-        git tag "$tag"
+        # -m avoids $EDITOR: release log uses tee on stdout; editors break without a real TTY.
+        git tag -m "Release $tag" "$tag"
         if test $status -eq 0
             log_success "Created tag: $tag"
         else
