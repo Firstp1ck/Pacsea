@@ -327,6 +327,7 @@ hu-HU:
           theme: "Téma → theme.conf"
           keybindings: "Billentyűparancsok → keybinds.conf"
           repos: "Tárolók → repos.conf"
+          config_editor: "Config editor (TUI)" # TODO: translate to hungarian
       panels_menu:
         show_recent: "Legutóbbi megjelenítése"
         hide_recent: "Legutóbbi elrejtése"
@@ -362,6 +363,44 @@ hu-HU:
     modals:
       common:
         close_hint: "Nyomja meg az Entert vagy az Esc gombot a bezáráshoz"
+      # TODO: translate to hungarian
+      config_editor:
+        title: "Config editor"
+        title_files: "Config editor — files"
+        files_pane_title: " Files "
+        files_heading: "Pick a config file:"
+        keys_pane_title: "Keys"
+        keys_heading: "Keys"
+        keys_heading_filtered: "Filtered"
+        no_matches: "No matches. Press Backspace to widen the search."
+        details_pane_title: " Details "
+        hint_pick_file: "Pick a file with Enter, then ↑/↓ and Enter on a key to edit."
+        hint_no_key: "No key selected."
+        search_pane_title: " Search " # TODO: translate to hungarian
+        search_recent_title: "Recent" # TODO: translate to hungarian
+        search_recent_empty: "No recent searches." # TODO: translate to hungarian
+        search_input_title: "Input" # TODO: translate to hungarian
+        search_input_placeholder: "/ to search keys" # TODO: translate to hungarian
+        search_hint: "Tab/←/→ switch panel · Enter apply" # TODO: translate to hungarian
+        search_bookmarks_title: "Bookmarks" # TODO: translate to hungarian
+        search_bookmarks_empty: "No bookmarked keys." # TODO: translate to hungarian
+        footer:
+          heading_menus: "Menus"
+          heading_editor: "Editor"
+          menu_config: "Config / lists"
+          menu_options: "Options"
+          menu_panels: "Panels"
+          move_file: "Move selection"
+          open_file: "Open file"
+          move_key: "Move selection"
+          edit_key: "Edit value"
+          bookmark: "Toggle bookmark"
+          switch_panel: "Switch pane (input / recent / bookmarks)"
+          esc_hint: "Back to files when filter is empty"
+          widen_search: "Shrink filter"
+          popup_cancel: "Cancel overlay"
+          popup_save: "Save"
+          popup_reveal: "Reveal secret"
       alert:
         header_configuration_error: "Konfigurációs hiba"
         header_clipboard_copy: "Másolás a vágólapra"

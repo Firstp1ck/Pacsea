@@ -1,6 +1,7 @@
 //! Modal dialog state for the UI.
 
 use crate::sources::VoteAction;
+use crate::state::config_editor::ConfigEditorState;
 use crate::state::types::{OptionalDepRow, PackageItem, RepositoryModalRow, Source};
 use std::collections::HashSet;
 
@@ -1028,6 +1029,12 @@ pub enum Modal {
         /// Avoids repeated PATH lookups during render passes.
         active_privilege_tool: Option<crate::logic::privilege::PrivilegeTool>,
     },
+    /// Integrated TUI config editor (Phase 1+ of the plan in
+    /// `dev/IMPROVEMENTS/IMPLEMENTATION_PLAN_tui_integrated_config_editing.md`).
+    ConfigEditor {
+        /// Boxed editor state to keep the [`Modal`] variant small.
+        state: Box<ConfigEditorState>,
+    },
     /// Password prompt for sudo authentication.
     PasswordPrompt {
         /// Purpose of the password prompt.
@@ -1164,6 +1171,9 @@ mod tests {
             input: crate::state::SecureString::default(),
             cursor: 0,
             error: None,
+        };
+        let _ = super::Modal::ConfigEditor {
+            state: Box::new(crate::state::config_editor::ConfigEditorState::default()),
         };
         let _ = super::Modal::StartupSetupSelector {
             cursor: 0,

@@ -92,11 +92,6 @@ pub struct EditableSetting {
     pub reload: ReloadBehavior,
     /// Whether the value should be redacted in display/logs by default.
     pub sensitivity: Sensitivity,
-    /// Short human-readable label shown in the editor list.
-    pub label: &'static str,
-    /// One-line summary shown next to the value (in addition to the
-    /// configuration-file comment).
-    pub summary: &'static str,
 }
 
 impl EditableSetting {
@@ -118,6 +113,28 @@ impl EditableSetting {
             return true;
         }
         self.aliases.iter().any(|a| normalize(a) == norm)
+    }
+
+    /// What: Build the i18n key for this setting's translated label.
+    ///
+    /// Inputs: None.
+    ///
+    /// Output:
+    /// - Dot-notation i18n key under `app.modals.config_editor.settings.*`.
+    #[must_use]
+    pub fn label_i18n_key(&self) -> String {
+        format!("app.modals.config_editor.settings.{}.label", self.key)
+    }
+
+    /// What: Build the i18n key for this setting's translated summary.
+    ///
+    /// Inputs: None.
+    ///
+    /// Output:
+    /// - Dot-notation i18n key under `app.modals.config_editor.settings.*`.
+    #[must_use]
+    pub fn summary_i18n_key(&self) -> String {
+        format!("app.modals.config_editor.settings.{}.summary", self.key)
     }
 }
 
@@ -160,8 +177,6 @@ pub const EDITABLE_SETTINGS: &[EditableSetting] = &[
         },
         reload: ReloadBehavior::AppliesOnSave,
         sensitivity: Sensitivity::Normal,
-        label: "Result sort mode",
-        summary: "Order applied to the search results pane.",
     },
     EditableSetting {
         key: "show_install_pane",
@@ -170,8 +185,6 @@ pub const EDITABLE_SETTINGS: &[EditableSetting] = &[
         kind: ValueKind::Bool,
         reload: ReloadBehavior::AutoReload,
         sensitivity: Sensitivity::Normal,
-        label: "Show install pane",
-        summary: "Toggle the install queue pane on the main view.",
     },
     EditableSetting {
         key: "show_search_history_pane",
@@ -180,8 +193,6 @@ pub const EDITABLE_SETTINGS: &[EditableSetting] = &[
         kind: ValueKind::Bool,
         reload: ReloadBehavior::AutoReload,
         sensitivity: Sensitivity::Normal,
-        label: "Show search history pane",
-        summary: "Toggle the recent searches pane on the main view.",
     },
     EditableSetting {
         key: "mirror_count",
@@ -190,8 +201,6 @@ pub const EDITABLE_SETTINGS: &[EditableSetting] = &[
         kind: ValueKind::IntRange { min: 1, max: 200 },
         reload: ReloadBehavior::AppliesOnSave,
         sensitivity: Sensitivity::Normal,
-        label: "Mirror count",
-        summary: "Number of mirrors fetched when refreshing the mirror list.",
     },
     EditableSetting {
         key: "news_max_age_days",
@@ -200,8 +209,6 @@ pub const EDITABLE_SETTINGS: &[EditableSetting] = &[
         kind: ValueKind::OptionalUnsignedOrAll,
         reload: ReloadBehavior::AppliesOnSave,
         sensitivity: Sensitivity::Normal,
-        label: "News max age (days)",
-        summary: "Hide news older than N days, or `all` to disable the filter.",
     },
     EditableSetting {
         key: "clipboard_suffix",
@@ -210,8 +217,6 @@ pub const EDITABLE_SETTINGS: &[EditableSetting] = &[
         kind: ValueKind::String,
         reload: ReloadBehavior::AutoReload,
         sensitivity: Sensitivity::Normal,
-        label: "Clipboard suffix",
-        summary: "Trailing text appended to copied package commands.",
     },
     EditableSetting {
         key: "preferred_terminal",
@@ -220,20 +225,16 @@ pub const EDITABLE_SETTINGS: &[EditableSetting] = &[
         kind: ValueKind::String,
         reload: ReloadBehavior::AppliesOnSave,
         sensitivity: Sensitivity::Normal,
-        label: "Preferred terminal",
-        summary: "Terminal binary used when launching external commands.",
     },
     EditableSetting {
-        key: "privilege_tool",
-        aliases: &[],
+        key: "privilege_mode",
+        aliases: &["privilege_tool", "priv_tool"],
         file: ConfigFile::Settings,
         kind: ValueKind::Enum {
-            choices: &["sudo", "doas", "run0", "pkexec"],
+            choices: &["auto", "sudo", "doas"],
         },
         reload: ReloadBehavior::AppliesOnSave,
         sensitivity: Sensitivity::Normal,
-        label: "Privilege escalation tool",
-        summary: "Helper used to obtain root for install/remove operations.",
     },
     EditableSetting {
         key: "main_pane_order",
@@ -242,8 +243,6 @@ pub const EDITABLE_SETTINGS: &[EditableSetting] = &[
         kind: ValueKind::MainPaneOrder,
         reload: ReloadBehavior::AppliesOnSave,
         sensitivity: Sensitivity::Normal,
-        label: "Main pane order",
-        summary: "Vertical ordering of the search/results/details panes.",
     },
     EditableSetting {
         key: "virustotal_api_key",
@@ -252,8 +251,410 @@ pub const EDITABLE_SETTINGS: &[EditableSetting] = &[
         kind: ValueKind::Secret,
         reload: ReloadBehavior::AppliesOnSave,
         sensitivity: Sensitivity::Sensitive,
-        label: "VirusTotal API key",
-        summary: "Personal API key used for the optional VirusTotal scan.",
+    },
+    // ── Layout ───────────────────────────────────────────────────────
+    EditableSetting {
+        key: "layout_left_pct",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::IntRange { min: 0, max: 100 },
+        reload: ReloadBehavior::AppliesOnSave,
+        sensitivity: Sensitivity::Normal,
+    },
+    EditableSetting {
+        key: "layout_center_pct",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::IntRange { min: 0, max: 100 },
+        reload: ReloadBehavior::AppliesOnSave,
+        sensitivity: Sensitivity::Normal,
+    },
+    EditableSetting {
+        key: "layout_right_pct",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::IntRange { min: 0, max: 100 },
+        reload: ReloadBehavior::AppliesOnSave,
+        sensitivity: Sensitivity::Normal,
+    },
+    // ── Vertical row limits ──────────────────────────────────────────
+    EditableSetting {
+        key: "vertical_min_results",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::IntRange { min: 1, max: 200 },
+        reload: ReloadBehavior::AppliesOnSave,
+        sensitivity: Sensitivity::Normal,
+    },
+    EditableSetting {
+        key: "vertical_max_results",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::IntRange { min: 1, max: 200 },
+        reload: ReloadBehavior::AppliesOnSave,
+        sensitivity: Sensitivity::Normal,
+    },
+    EditableSetting {
+        key: "vertical_min_middle",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::IntRange { min: 1, max: 200 },
+        reload: ReloadBehavior::AppliesOnSave,
+        sensitivity: Sensitivity::Normal,
+    },
+    EditableSetting {
+        key: "vertical_max_middle",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::IntRange { min: 1, max: 200 },
+        reload: ReloadBehavior::AppliesOnSave,
+        sensitivity: Sensitivity::Normal,
+    },
+    EditableSetting {
+        key: "vertical_min_package_info",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::IntRange { min: 1, max: 200 },
+        reload: ReloadBehavior::AppliesOnSave,
+        sensitivity: Sensitivity::Normal,
+    },
+    // ── Misc UI toggles ──────────────────────────────────────────────
+    EditableSetting {
+        key: "app_dry_run_default",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::Bool,
+        reload: ReloadBehavior::RequiresRestart,
+        sensitivity: Sensitivity::Normal,
+    },
+    EditableSetting {
+        key: "show_keybinds_footer",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::Bool,
+        reload: ReloadBehavior::AutoReload,
+        sensitivity: Sensitivity::Normal,
+    },
+    // ── Search behavior ──────────────────────────────────────────────
+    EditableSetting {
+        key: "search_startup_mode",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::Enum {
+            choices: &["insert_mode", "normal_mode"],
+        },
+        reload: ReloadBehavior::RequiresRestart,
+        sensitivity: Sensitivity::Normal,
+    },
+    EditableSetting {
+        key: "fuzzy_search",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::Bool,
+        reload: ReloadBehavior::AppliesOnSave,
+        sensitivity: Sensitivity::Normal,
+    },
+    EditableSetting {
+        key: "installed_packages_mode",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::Enum {
+            choices: &["leaf", "all"],
+        },
+        reload: ReloadBehavior::AppliesOnSave,
+        sensitivity: Sensitivity::Normal,
+    },
+    // ── Preflight / privilege ────────────────────────────────────────
+    EditableSetting {
+        key: "skip_preflight",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::Bool,
+        reload: ReloadBehavior::AppliesOnSave,
+        sensitivity: Sensitivity::Normal,
+    },
+    EditableSetting {
+        key: "use_passwordless_sudo",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::Bool,
+        reload: ReloadBehavior::AppliesOnSave,
+        sensitivity: Sensitivity::Normal,
+    },
+    EditableSetting {
+        key: "auth_mode",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::Enum {
+            choices: &["prompt", "passwordless_only", "interactive"],
+        },
+        reload: ReloadBehavior::AppliesOnSave,
+        sensitivity: Sensitivity::Normal,
+    },
+    // ── Mirrors ──────────────────────────────────────────────────────
+    EditableSetting {
+        key: "selected_countries",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::String,
+        reload: ReloadBehavior::AppliesOnSave,
+        sensitivity: Sensitivity::Normal,
+    },
+    // ── Scan defaults ────────────────────────────────────────────────
+    EditableSetting {
+        key: "scan_do_clamav",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::Bool,
+        reload: ReloadBehavior::AutoReload,
+        sensitivity: Sensitivity::Normal,
+    },
+    EditableSetting {
+        key: "scan_do_trivy",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::Bool,
+        reload: ReloadBehavior::AutoReload,
+        sensitivity: Sensitivity::Normal,
+    },
+    EditableSetting {
+        key: "scan_do_semgrep",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::Bool,
+        reload: ReloadBehavior::AutoReload,
+        sensitivity: Sensitivity::Normal,
+    },
+    EditableSetting {
+        key: "scan_do_shellcheck",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::Bool,
+        reload: ReloadBehavior::AutoReload,
+        sensitivity: Sensitivity::Normal,
+    },
+    EditableSetting {
+        key: "scan_do_virustotal",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::Bool,
+        reload: ReloadBehavior::AutoReload,
+        sensitivity: Sensitivity::Normal,
+    },
+    EditableSetting {
+        key: "scan_do_custom",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::Bool,
+        reload: ReloadBehavior::AutoReload,
+        sensitivity: Sensitivity::Normal,
+    },
+    EditableSetting {
+        key: "scan_do_sleuth",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::Bool,
+        reload: ReloadBehavior::AutoReload,
+        sensitivity: Sensitivity::Normal,
+    },
+    // ── PKGBUILD checks ──────────────────────────────────────────────
+    EditableSetting {
+        key: "pkgbuild_shellcheck_exclude",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::String,
+        reload: ReloadBehavior::AppliesOnSave,
+        sensitivity: Sensitivity::Normal,
+    },
+    EditableSetting {
+        key: "pkgbuild_checks_show_raw_output",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::Bool,
+        reload: ReloadBehavior::AutoReload,
+        sensitivity: Sensitivity::Normal,
+    },
+    // ── News symbols / filters ───────────────────────────────────────
+    EditableSetting {
+        key: "news_read_symbol",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::String,
+        reload: ReloadBehavior::AutoReload,
+        sensitivity: Sensitivity::Normal,
+    },
+    EditableSetting {
+        key: "news_unread_symbol",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::String,
+        reload: ReloadBehavior::AutoReload,
+        sensitivity: Sensitivity::Normal,
+    },
+    EditableSetting {
+        key: "news_filter_show_arch_news",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::Bool,
+        reload: ReloadBehavior::AppliesOnSave,
+        sensitivity: Sensitivity::Normal,
+    },
+    EditableSetting {
+        key: "news_filter_show_advisories",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::Bool,
+        reload: ReloadBehavior::AppliesOnSave,
+        sensitivity: Sensitivity::Normal,
+    },
+    EditableSetting {
+        key: "news_filter_show_pkg_updates",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::Bool,
+        reload: ReloadBehavior::AppliesOnSave,
+        sensitivity: Sensitivity::Normal,
+    },
+    EditableSetting {
+        key: "news_filter_show_aur_updates",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::Bool,
+        reload: ReloadBehavior::AppliesOnSave,
+        sensitivity: Sensitivity::Normal,
+    },
+    EditableSetting {
+        key: "news_filter_show_aur_comments",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::Bool,
+        reload: ReloadBehavior::AppliesOnSave,
+        sensitivity: Sensitivity::Normal,
+    },
+    EditableSetting {
+        key: "news_filter_installed_only",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::Bool,
+        reload: ReloadBehavior::AppliesOnSave,
+        sensitivity: Sensitivity::Normal,
+    },
+    // ── Startup news popup ───────────────────────────────────────────
+    EditableSetting {
+        key: "startup_news_configured",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::Bool,
+        reload: ReloadBehavior::AppliesOnSave,
+        sensitivity: Sensitivity::Normal,
+    },
+    EditableSetting {
+        key: "startup_news_show_arch_news",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::Bool,
+        reload: ReloadBehavior::AppliesOnSave,
+        sensitivity: Sensitivity::Normal,
+    },
+    EditableSetting {
+        key: "startup_news_show_advisories",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::Bool,
+        reload: ReloadBehavior::AppliesOnSave,
+        sensitivity: Sensitivity::Normal,
+    },
+    EditableSetting {
+        key: "startup_news_show_aur_updates",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::Bool,
+        reload: ReloadBehavior::AppliesOnSave,
+        sensitivity: Sensitivity::Normal,
+    },
+    EditableSetting {
+        key: "startup_news_show_aur_comments",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::Bool,
+        reload: ReloadBehavior::AppliesOnSave,
+        sensitivity: Sensitivity::Normal,
+    },
+    EditableSetting {
+        key: "startup_news_show_pkg_updates",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::Bool,
+        reload: ReloadBehavior::AppliesOnSave,
+        sensitivity: Sensitivity::Normal,
+    },
+    EditableSetting {
+        key: "startup_news_max_age_days",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::OptionalUnsignedOrAll,
+        reload: ReloadBehavior::AppliesOnSave,
+        sensitivity: Sensitivity::Normal,
+    },
+    // ── Misc ─────────────────────────────────────────────────────────
+    EditableSetting {
+        key: "package_marker",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::Enum {
+            choices: &["full_line", "front", "end"],
+        },
+        reload: ReloadBehavior::AutoReload,
+        sensitivity: Sensitivity::Normal,
+    },
+    EditableSetting {
+        key: "locale",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::String,
+        reload: ReloadBehavior::RequiresRestart,
+        sensitivity: Sensitivity::Normal,
+    },
+    EditableSetting {
+        key: "updates_refresh_interval",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::IntRange { min: 1, max: 86400 },
+        reload: ReloadBehavior::AppliesOnSave,
+        sensitivity: Sensitivity::Normal,
+    },
+    EditableSetting {
+        key: "use_terminal_theme",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::Bool,
+        reload: ReloadBehavior::RequiresRestart,
+        sensitivity: Sensitivity::Normal,
+    },
+    // ── AUR voting ───────────────────────────────────────────────────
+    EditableSetting {
+        key: "aur_vote_enabled",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::Bool,
+        reload: ReloadBehavior::AutoReload,
+        sensitivity: Sensitivity::Normal,
+    },
+    EditableSetting {
+        key: "aur_vote_ssh_timeout_seconds",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::IntRange { min: 1, max: 600 },
+        reload: ReloadBehavior::AutoReload,
+        sensitivity: Sensitivity::Normal,
+    },
+    EditableSetting {
+        key: "aur_vote_ssh_command",
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind: ValueKind::String,
+        reload: ReloadBehavior::AutoReload,
+        sensitivity: Sensitivity::Normal,
     },
 ];
 

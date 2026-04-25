@@ -73,6 +73,36 @@ pub fn maybe_save_news_recent(app: &mut AppState) {
     app.news_recent_dirty = true;
 }
 
+/// What: Debounced persistence of config-editor search input into config-editor recents.
+///
+/// Inputs:
+/// - `app`: Mutable application state containing `config_editor_state`.
+///
+/// Output:
+/// - Updates config-editor recents when query is non-empty, debounce elapsed, and value changed.
+///
+/// Details:
+/// - Uses the same debounce window as package mode (2 seconds).
+/// - Active only while `AppMode::ConfigEditor` is selected.
+pub fn maybe_save_config_editor_recent(app: &mut AppState) {
+    if !matches!(app.app_mode, crate::state::types::AppMode::ConfigEditor) {
+        return;
+    }
+    let now = Instant::now();
+    let query = app.config_editor_state.query.trim().to_string();
+    if query.is_empty() {
+        return;
+    }
+    if now.duration_since(app.config_editor_state.query_last_input_change) < Duration::from_secs(2)
+    {
+        return;
+    }
+    if app.config_editor_state.last_saved_query_value.as_deref() == Some(query.as_str()) {
+        return;
+    }
+    app.config_editor_state.push_recent_query(&query);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -207,5 +237,31 @@ mod tests {
         assert_eq!(recents.first().map(String::as_str), Some("arch"));
         assert_eq!(app.news_history_last_saved.as_deref(), Some("arch"));
         assert!(app.news_recent_dirty);
+    }
+
+    #[test]
+    /// What: Ensure config-editor recent save follows debounce and change checks.
+    fn config_editor_recent_respects_debounce_and_changes() {
+        let mut app = new_app();
+        app.app_mode = crate::state::types::AppMode::ConfigEditor;
+        app.config_editor_state.recent_queries.clear();
+
+        app.config_editor_state.query = "mirror".into();
+        app.config_editor_state.query_last_input_change = Instant::now();
+        maybe_save_config_editor_recent(&mut app);
+        assert!(app.config_editor_state.recent_queries.is_empty());
+
+        app.config_editor_state.query_last_input_change = Instant::now()
+            .checked_sub(Duration::from_secs(3))
+            .unwrap_or_else(Instant::now);
+        maybe_save_config_editor_recent(&mut app);
+        assert_eq!(
+            app.config_editor_state
+                .recent_queries
+                .first()
+                .map(String::as_str),
+            Some("mirror")
+        );
+        assert!(app.config_editor_state.recent_queries_dirty);
     }
 }

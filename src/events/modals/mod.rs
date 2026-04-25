@@ -1,6 +1,10 @@
 //! Modal event handling module (excluding Preflight which is in preflight.rs).
 
 mod common;
+/// Key handling for the integrated TUI config editor modal.
+mod config_editor;
+pub(super) use config_editor::build_initial_state as build_config_editor_state;
+pub(in crate::events) use config_editor::handle_config_editor_mode_key;
 /// Key handling for the optional doas persist setup wizard modal.
 mod doas_persist_setup;
 mod foreign_overlap;
@@ -89,6 +93,7 @@ pub(super) fn handle_modal_key(
         Modal::PasswordPrompt { .. } => handlers::handle_password_prompt_modal(ke, app, modal),
         Modal::GnomeTerminalPrompt => handlers::handle_gnome_terminal_prompt_modal(ke, app, modal),
         Modal::ImportHelp => handlers::handle_import_help_modal(ke, app, add_tx, modal),
+        Modal::ConfigEditor { .. } => config_editor::handle_config_editor_modal(ke, app, modal),
         Modal::None => false,
         Modal::Loading { .. } => {
             // Loading modal - ignore key input while waiting for background task

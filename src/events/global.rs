@@ -41,6 +41,56 @@ fn close_all_dropdowns(app: &mut AppState) -> bool {
     }
 }
 
+/// What: Handle menu-toggle shortcuts while config editor mode is active.
+///
+/// Inputs:
+/// - `ke`: Key event to evaluate against menu toggle keybinds.
+/// - `app`: Mutable application state.
+///
+/// Output:
+/// - `Some(false)` when a menu toggle was handled, `None` otherwise.
+///
+/// Details:
+/// - Keeps parity with package mode Shift+menu shortcuts (`Config/Lists`, `Options`, `Panels`)
+///   while `AppMode::ConfigEditor` is active.
+fn handle_config_editor_menu_toggle_shortcuts(ke: &KeyEvent, app: &mut AppState) -> Option<bool> {
+    if !matches!(app.app_mode, crate::state::types::AppMode::ConfigEditor) {
+        return None;
+    }
+    let km = &app.keymap;
+    if utils::matches_any(ke, &km.config_menu_toggle) {
+        app.config_menu_open = !app.config_menu_open;
+        if app.config_menu_open {
+            app.options_menu_open = false;
+            app.panels_menu_open = false;
+            app.sort_menu_open = false;
+            app.sort_menu_auto_close_at = None;
+        }
+        return Some(false);
+    }
+    if utils::matches_any(ke, &km.options_menu_toggle) {
+        app.options_menu_open = !app.options_menu_open;
+        if app.options_menu_open {
+            app.config_menu_open = false;
+            app.panels_menu_open = false;
+            app.sort_menu_open = false;
+            app.sort_menu_auto_close_at = None;
+        }
+        return Some(false);
+    }
+    if utils::matches_any(ke, &km.panels_menu_toggle) {
+        app.panels_menu_open = !app.panels_menu_open;
+        if app.panels_menu_open {
+            app.config_menu_open = false;
+            app.options_menu_open = false;
+            app.sort_menu_open = false;
+            app.sort_menu_auto_close_at = None;
+        }
+        return Some(false);
+    }
+    None
+}
+
 /// What: Handle installed-only mode toggle from options menu.
 ///
 /// Inputs:
@@ -655,6 +705,7 @@ fn handle_options_menu_numeric(
     details_tx: &mpsc::UnboundedSender<PackageItem>,
 ) -> Option<bool> {
     let news_mode = matches!(app.app_mode, crate::state::types::AppMode::News);
+    let config_editor_mode = matches!(app.app_mode, crate::state::types::AppMode::ConfigEditor);
     let handled = if news_mode {
         // News mode display order: Update system (1), TUI Optional Deps (2), Repositories (3), Package mode (4)
         match idx {
@@ -676,6 +727,39 @@ fn handle_options_menu_numeric(
             }
             4 => {
                 handle_news_age_toggle(app);
+                true
+            }
+            _ => false,
+        }
+    } else if config_editor_mode {
+        // Config editor mode display order: Update system (1), TUI Optional Deps (2),
+        // Repositories (3), Package mode (4), News management (5)
+        match idx {
+            0 => {
+                handle_options_system_update(app);
+                true
+            }
+            1 => {
+                handle_options_optional_deps(app);
+                true
+            }
+            2 => {
+                handle_options_repositories(app);
+                true
+            }
+            3 => {
+                app.app_mode = crate::state::types::AppMode::Package;
+                if app.results.is_empty() {
+                    app.list_state.select(None);
+                } else {
+                    app.selected = app.selected.min(app.results.len().saturating_sub(1));
+                    app.list_state.select(Some(app.selected));
+                    utils::refresh_selected_details(app, details_tx);
+                }
+                true
+            }
+            4 => {
+                handle_mode_toggle(app, details_tx);
                 true
             }
             _ => false,
@@ -743,8 +827,12 @@ fn handle_panels_menu_numeric(idx: usize, app: &mut AppState) -> bool {
 ///
 /// Details:
 /// - Routes numeric selection to config menu handler.
-fn handle_config_menu_numeric(idx: usize, app: &mut AppState) -> bool {
-    handle_config_menu_selection(idx, app);
+fn handle_config_menu_numeric(
+    idx: usize,
+    app: &mut AppState,
+    details_tx: &mpsc::UnboundedSender<PackageItem>,
+) -> bool {
+    handle_config_menu_selection(idx, app, details_tx);
     false
 }
 
@@ -771,7 +859,7 @@ fn handle_menu_numeric_selection(
     } else if app.panels_menu_open {
         Some(handle_panels_menu_numeric(idx, app))
     } else if app.config_menu_open {
-        Some(handle_config_menu_numeric(idx, app))
+        Some(handle_config_menu_numeric(idx, app, details_tx))
     } else {
         None
     }
@@ -831,7 +919,9 @@ fn handle_global_keybinds(
     }
 
     // Comments toggle - check FIRST before other keybinds to ensure it's not intercepted
-    if matches_keybind(ke, &km.comments_toggle) {
+    if !matches!(app.app_mode, crate::state::types::AppMode::ConfigEditor)
+        && matches_keybind(ke, &km.comments_toggle)
+    {
         tracing::debug!("[Keybind] Comments toggle matched, calling handle_toggle_comments");
         return Some(handle_toggle_comments(app, comments_tx));
     }
@@ -844,7 +934,10 @@ fn handle_global_keybinds(
     }
 
     // Configuration reload (only if no modal is active - modals should handle their own keys)
-    if matches!(app.modal, crate::state::Modal::None) && matches_keybind(ke, &km.reload_config) {
+    if matches!(app.modal, crate::state::Modal::None)
+        && !matches!(app.app_mode, crate::state::types::AppMode::ConfigEditor)
+        && matches_keybind(ke, &km.reload_config)
+    {
         return Some(handle_reload_config(app, query_tx));
     }
 
@@ -854,22 +947,30 @@ fn handle_global_keybinds(
     }
 
     // PKGBUILD toggle (only if no modal is active - modals should handle their own keys)
-    if matches!(app.modal, crate::state::Modal::None) && matches_keybind(ke, &km.show_pkgbuild) {
+    if matches!(app.modal, crate::state::Modal::None)
+        && !matches!(app.app_mode, crate::state::types::AppMode::ConfigEditor)
+        && matches_keybind(ke, &km.show_pkgbuild)
+    {
         return Some(handle_toggle_pkgbuild(app, pkgb_tx));
     }
     if matches!(app.modal, crate::state::Modal::None)
+        && !matches!(app.app_mode, crate::state::types::AppMode::ConfigEditor)
         && matches_keybind(ke, &km.run_pkgbuild_checks)
     {
         return Some(handle_run_pkgbuild_checks(app, pkgb_check_tx));
     }
     if matches!(app.modal, crate::state::Modal::None)
+        && !matches!(app.app_mode, crate::state::types::AppMode::ConfigEditor)
         && matches_keybind(ke, &km.cycle_pkgbuild_sections)
     {
         return Some(handle_cycle_pkgbuild_sections(app));
     }
 
     // Sort change (only if no modal is active - modals should handle their own keys)
-    if matches!(app.modal, crate::state::Modal::None) && matches_keybind(ke, &km.change_sort) {
+    if matches!(app.modal, crate::state::Modal::None)
+        && !matches!(app.app_mode, crate::state::types::AppMode::ConfigEditor)
+        && matches_keybind(ke, &km.change_sort)
+    {
         return Some(handle_change_sort(app, details_tx));
     }
 
@@ -879,16 +980,29 @@ fn handle_global_keybinds(
 /// What: Handle config menu numeric selection.
 ///
 /// Inputs:
-/// - `idx`: Selected menu index (0=settings, 1=theme, 2=keybinds, 3=repos.conf)
+/// - `idx`: Selected menu index (0=settings, 1=theme, 2=keybinds, 3=repos.conf, 4=integrated config editor)
 /// - `app`: Mutable application state
 ///
 /// Details:
-/// - Opens the selected config file in a terminal editor.
-fn handle_config_menu_selection(idx: usize, app: &mut AppState) {
+/// - Opens the selected config file in a terminal editor (idx 0..=3),
+///   or activates integrated config editor mode (idx 4).
+fn handle_config_menu_selection(
+    idx: usize,
+    app: &mut AppState,
+    _details_tx: &mpsc::UnboundedSender<PackageItem>,
+) {
     let settings_path = crate::theme::config_dir().join("settings.conf");
     let theme_path = crate::theme::config_dir().join("theme.conf");
     let keybinds_path = crate::theme::config_dir().join("keybinds.conf");
     let repos_path = crate::theme::config_dir().join("repos.conf");
+    if idx == 4 && !matches!(app.app_mode, crate::state::types::AppMode::ConfigEditor) {
+        app.app_mode = crate::state::types::AppMode::ConfigEditor;
+        app.config_editor_state = super::modals::build_config_editor_state();
+        app.config_menu_open = false;
+        app.artix_filter_menu_open = false;
+        app.custom_repos_filter_menu_open = false;
+        return;
+    }
     let target = match idx {
         0 => settings_path,
         1 => theme_path,
@@ -951,6 +1065,11 @@ pub(super) fn handle_global_key(
     if ke.code == KeyCode::Esc
         && let Some(result) = handle_escape(app)
     {
+        return Some(result);
+    }
+
+    // Keep config-editor mode aligned with package mode for Shift+menu shortcuts.
+    if let Some(result) = handle_config_editor_menu_toggle_shortcuts(&ke, app) {
         return Some(result);
     }
 
@@ -1147,5 +1266,128 @@ mod tests {
         );
 
         assert_eq!(exit, Some(true));
+    }
+
+    #[test]
+    fn config_editor_allows_config_menu_toggle_shortcut() {
+        let mut app = new_app();
+        app.app_mode = crate::state::types::AppMode::ConfigEditor;
+        let toggle = *app
+            .keymap
+            .config_menu_toggle
+            .first()
+            .expect("config_menu_toggle keybind");
+        let (details_tx, _details_rx) = mpsc::unbounded_channel::<PackageItem>();
+        let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
+        let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
+        let (query_tx, _query_rx) = mpsc::unbounded_channel::<crate::state::QueryInput>();
+        let (pkgb_check_tx, _pkgb_check_rx) =
+            mpsc::unbounded_channel::<crate::state::PkgbuildCheckRequest>();
+
+        let handled = handle_global_key(
+            KeyEvent::new(toggle.code, toggle.mods),
+            &mut app,
+            &details_tx,
+            &pkgb_tx,
+            &comments_tx,
+            &query_tx,
+            &pkgb_check_tx,
+        );
+        assert_eq!(handled, Some(false));
+        assert!(app.config_menu_open);
+    }
+
+    #[test]
+    fn config_editor_accepts_shift_uppercase_menu_toggle_variant() {
+        let mut app = new_app();
+        app.app_mode = crate::state::types::AppMode::ConfigEditor;
+        let toggle = *app
+            .keymap
+            .config_menu_toggle
+            .first()
+            .expect("config_menu_toggle keybind");
+        let KeyCode::Char(cfg_ch) = toggle.code else {
+            return;
+        };
+        if !toggle.mods.contains(KeyModifiers::SHIFT) {
+            return;
+        }
+        let (details_tx, _details_rx) = mpsc::unbounded_channel::<PackageItem>();
+        let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
+        let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
+        let (query_tx, _query_rx) = mpsc::unbounded_channel::<crate::state::QueryInput>();
+        let (pkgb_check_tx, _pkgb_check_rx) =
+            mpsc::unbounded_channel::<crate::state::PkgbuildCheckRequest>();
+
+        // Some terminals emit Shift+char as uppercase char without the Shift flag.
+        let handled = handle_global_key(
+            KeyEvent::new(
+                KeyCode::Char(cfg_ch.to_ascii_uppercase()),
+                KeyModifiers::NONE,
+            ),
+            &mut app,
+            &details_tx,
+            &pkgb_tx,
+            &comments_tx,
+            &query_tx,
+            &pkgb_check_tx,
+        );
+        assert_eq!(handled, Some(false));
+        assert!(app.config_menu_open);
+    }
+
+    #[test]
+    fn options_menu_numeric_in_config_editor_switches_to_package_mode() {
+        let mut app = new_app();
+        app.app_mode = crate::state::types::AppMode::ConfigEditor;
+        app.options_menu_open = true;
+        let (details_tx, _details_rx) = mpsc::unbounded_channel::<PackageItem>();
+        let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
+        let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
+        let (query_tx, _query_rx) = mpsc::unbounded_channel::<crate::state::QueryInput>();
+        let (pkgb_check_tx, _pkgb_check_rx) =
+            mpsc::unbounded_channel::<crate::state::PkgbuildCheckRequest>();
+
+        let handled = handle_global_key(
+            KeyEvent::new(KeyCode::Char('4'), KeyModifiers::NONE),
+            &mut app,
+            &details_tx,
+            &pkgb_tx,
+            &comments_tx,
+            &query_tx,
+            &pkgb_check_tx,
+        );
+
+        assert_eq!(handled, Some(false));
+        assert!(matches!(
+            app.app_mode,
+            crate::state::types::AppMode::Package
+        ));
+    }
+
+    #[test]
+    fn options_menu_numeric_in_config_editor_switches_to_news_mode() {
+        let mut app = new_app();
+        app.app_mode = crate::state::types::AppMode::ConfigEditor;
+        app.options_menu_open = true;
+        let (details_tx, _details_rx) = mpsc::unbounded_channel::<PackageItem>();
+        let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
+        let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
+        let (query_tx, _query_rx) = mpsc::unbounded_channel::<crate::state::QueryInput>();
+        let (pkgb_check_tx, _pkgb_check_rx) =
+            mpsc::unbounded_channel::<crate::state::PkgbuildCheckRequest>();
+
+        let handled = handle_global_key(
+            KeyEvent::new(KeyCode::Char('5'), KeyModifiers::NONE),
+            &mut app,
+            &details_tx,
+            &pkgb_tx,
+            &comments_tx,
+            &query_tx,
+            &pkgb_check_tx,
+        );
+
+        assert_eq!(handled, Some(false));
+        assert!(matches!(app.app_mode, crate::state::types::AppMode::News));
     }
 }

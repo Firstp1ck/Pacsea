@@ -432,6 +432,7 @@ impl Default for AppState {
 
         Self {
             app_mode,
+            config_editor_state: Box::new(crate::state::ConfigEditorState::default()),
             input,
             results,
             all_results,

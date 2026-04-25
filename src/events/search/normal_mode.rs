@@ -31,14 +31,22 @@ fn handle_config_menu_numeric_selection(idx: usize, app: &mut AppState) -> bool 
         return false;
     }
 
+    if idx == 4 && !matches!(app.app_mode, crate::state::types::AppMode::ConfigEditor) {
+        app.app_mode = crate::state::types::AppMode::ConfigEditor;
+        app.config_editor_state = super::super::modals::build_config_editor_state();
+        app.config_menu_open = false;
+        return true;
+    }
     let settings_path = crate::theme::config_dir().join("settings.conf");
     let theme_path = crate::theme::config_dir().join("theme.conf");
     let keybinds_path = crate::theme::config_dir().join("keybinds.conf");
+    let repos_path = crate::theme::config_dir().join("repos.conf");
 
     let target = match idx {
         0 => settings_path,
         1 => theme_path,
         2 => keybinds_path,
+        3 => repos_path,
         _ => {
             app.config_menu_open = false;
             return false;

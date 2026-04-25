@@ -6,7 +6,9 @@
 use crossterm::event::{Event as CEvent, KeyCode, KeyEventKind, KeyModifiers};
 use tokio::sync::mpsc;
 
-use crate::state::{AppState, Focus, PackageItem, PkgbuildCheckRequest, QueryInput};
+use crate::state::{
+    AppState, Focus, PackageItem, PkgbuildCheckRequest, QueryInput, types::AppMode,
+};
 
 mod distro;
 mod global;
@@ -229,6 +231,12 @@ pub fn handle_event_with_pkgbuild_checks(
 
         // If any modal remains open after handling above, consume the key to prevent main window interaction
         if !matches!(app.modal, crate::state::Modal::None) {
+            return false;
+        }
+
+        // Config editor is now a first-class app mode (not a modal wrapper).
+        if matches!(app.app_mode, AppMode::ConfigEditor) {
+            modals::handle_config_editor_mode_key(*ke, app);
             return false;
         }
 

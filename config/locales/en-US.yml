@@ -324,6 +324,7 @@ en-US:
           theme: "Theme -> theme.conf"
           keybindings: "Keybindings -> keybinds.conf"
           repos: "Repositories -> repos.conf"
+          config_editor: "Config editor (TUI)"
       panels_menu:
         show_recent: "Show Recent"
         hide_recent: "Hide Recent"
@@ -359,6 +360,218 @@ en-US:
     modals:
       common:
         close_hint: "Press Enter or Esc to close"
+      config_editor:
+        title: "Config editor"
+        title_files: "Config editor — files"
+        files_pane_title: " Files "
+        files_heading: "Pick a config file:"
+        keys_pane_title: "Keys"
+        keys_heading: "Keys"
+        keys_heading_filtered: "Filtered"
+        no_matches: "No matches. Press Backspace to widen the search."
+        details_pane_title: " Details "
+        hint_pick_file: "Pick a file with Enter, then ↑/↓ and Enter on a key to edit."
+        hint_no_key: "No key selected."
+        search_pane_title: " Search "
+        search_recent_title: "Recent"
+        search_recent_empty: "No recent searches."
+        search_input_title: "Input"
+        search_input_placeholder: "/ to search keys"
+        search_hint: "Tab/←/→ switch panel · Enter apply"
+        search_bookmarks_title: "Bookmarks"
+        search_bookmarks_empty: "No bookmarked keys."
+        footer:
+          heading_menus: "Menus"
+          heading_editor: "Editor"
+          menu_config: "Config / lists"
+          menu_options: "Options"
+          menu_panels: "Panels"
+          move_file: "Move selection"
+          open_file: "Open file"
+          move_key: "Move selection"
+          edit_key: "Edit value"
+          bookmark: "Toggle bookmark"
+          switch_panel: "Switch pane (input / recent / bookmarks)"
+          esc_hint: "Back to files when filter is empty"
+          widen_search: "Shrink filter"
+          popup_cancel: "Cancel overlay"
+          popup_save: "Save"
+          popup_reveal: "Reveal secret"
+        settings:
+          sort_mode:
+            label: "Result sort mode"
+            summary: "Order applied to the search results pane."
+          show_install_pane:
+            label: "Show install pane"
+            summary: "Toggle the install queue pane on the main view."
+          show_search_history_pane:
+            label: "Show search history pane"
+            summary: "Toggle the recent searches pane on the main view."
+          mirror_count:
+            label: "Mirror count"
+            summary: "Number of mirrors fetched when refreshing the mirror list."
+          news_max_age_days:
+            label: "News max age (days)"
+            summary: "Hide news older than N days, or `all` to disable the filter."
+          clipboard_suffix:
+            label: "Clipboard suffix"
+            summary: "Trailing text appended to copied package commands."
+          preferred_terminal:
+            label: "Preferred terminal"
+            summary: "Terminal binary used when launching external commands."
+          privilege_mode:
+            label: "Privilege escalation mode"
+            summary: "Helper used to obtain root for install/remove operations."
+          main_pane_order:
+            label: "Main pane order"
+            summary: "Vertical ordering of the search/results/details panes."
+          virustotal_api_key:
+            label: "VirusTotal API key"
+            summary: "Personal API key used for the optional VirusTotal scan."
+          layout_left_pct:
+            label: "Layout: left pane width (%)"
+            summary: "Middle row left column width (must sum to 100 with center/right)."
+          layout_center_pct:
+            label: "Layout: center pane width (%)"
+            summary: "Middle row center (search) column width."
+          layout_right_pct:
+            label: "Layout: right pane width (%)"
+            summary: "Middle row right (install) column width."
+          vertical_min_results:
+            label: "Vertical: min results rows"
+            summary: "Minimum rows reserved for the results pane."
+          vertical_max_results:
+            label: "Vertical: max results rows"
+            summary: "Maximum rows the results pane can grow to."
+          vertical_min_middle:
+            label: "Vertical: min middle rows"
+            summary: "Minimum rows reserved for the middle (search) pane."
+          vertical_max_middle:
+            label: "Vertical: max middle rows"
+            summary: "Maximum rows the middle (search) pane can grow to."
+          vertical_min_package_info:
+            label: "Vertical: min package info rows"
+            summary: "Minimum rows reserved for the package info / details pane."
+          app_dry_run_default:
+            label: "Dry-run by default"
+            summary: "Start with dry-run mode enabled (overridden by --dry-run)."
+          show_keybinds_footer:
+            label: "Show keybinds footer"
+            summary: "Display the contextual keybinds footer at the bottom of the UI."
+          search_startup_mode:
+            label: "Search startup mode"
+            summary: "Whether the search input starts in insert or normal mode."
+          fuzzy_search:
+            label: "Fuzzy search"
+            summary: "Use fzf-style fuzzy matching instead of plain substring search."
+          installed_packages_mode:
+            label: "Installed packages filter"
+            summary: "Show only leaf packages or all explicitly installed packages."
+          skip_preflight:
+            label: "Skip preflight modal"
+            summary: "Bypass the preflight confirmation modal before privileged actions."
+          use_passwordless_sudo:
+            label: "Use passwordless sudo"
+            summary: "Allow passwordless sudo when the system is configured for it."
+          auth_mode:
+            label: "Authentication mode"
+            summary: "How Pacsea handles privilege auth (prompt / passwordless / interactive)."
+          selected_countries:
+            label: "Mirror countries"
+            summary: "Comma-separated list of countries used for mirror selection."
+          scan_do_clamav:
+            label: "Scan: ClamAV"
+            summary: "Enable ClamAV by default in the Scan Configuration modal."
+          scan_do_trivy:
+            label: "Scan: Trivy"
+            summary: "Enable Trivy by default in the Scan Configuration modal."
+          scan_do_semgrep:
+            label: "Scan: Semgrep"
+            summary: "Enable Semgrep by default in the Scan Configuration modal."
+          scan_do_shellcheck:
+            label: "Scan: ShellCheck"
+            summary: "Enable ShellCheck by default in the Scan Configuration modal."
+          scan_do_virustotal:
+            label: "Scan: VirusTotal"
+            summary: "Enable VirusTotal by default in the Scan Configuration modal."
+          scan_do_custom:
+            label: "Scan: Custom"
+            summary: "Enable user-defined custom scan by default."
+          scan_do_sleuth:
+            label: "Scan: Sleuth"
+            summary: "Enable the Sleuth scan by default."
+          pkgbuild_shellcheck_exclude:
+            label: "PKGBUILD ShellCheck excludes"
+            summary: "Comma-separated ShellCheck rule IDs to exclude (e.g. SC2034,SC2148)."
+          pkgbuild_checks_show_raw_output:
+            label: "PKGBUILD: show raw checker output"
+            summary: "Display raw ShellCheck/Namcap output in the PKGBUILD viewer."
+          news_read_symbol:
+            label: "News: read symbol"
+            summary: "Glyph drawn next to news items that have been read."
+          news_unread_symbol:
+            label: "News: unread symbol"
+            summary: "Glyph drawn next to unread news items."
+          news_filter_show_arch_news:
+            label: "News filter: Arch news"
+            summary: "Include Arch Linux news posts in the news feed."
+          news_filter_show_advisories:
+            label: "News filter: security advisories"
+            summary: "Include Arch security advisories in the news feed."
+          news_filter_show_pkg_updates:
+            label: "News filter: package updates"
+            summary: "Include official-repository package update entries in the news feed."
+          news_filter_show_aur_updates:
+            label: "News filter: AUR updates"
+            summary: "Include AUR package update entries in the news feed."
+          news_filter_show_aur_comments:
+            label: "News filter: AUR comments"
+            summary: "Include AUR comment activity in the news feed."
+          news_filter_installed_only:
+            label: "News: installed-only advisories"
+            summary: "Restrict advisories to those affecting installed packages."
+          startup_news_configured:
+            label: "Startup news: configured"
+            summary: "Marks the startup news popup setup as completed."
+          startup_news_show_arch_news:
+            label: "Startup news: Arch news"
+            summary: "Show Arch news in the startup popup."
+          startup_news_show_advisories:
+            label: "Startup news: advisories"
+            summary: "Show security advisories in the startup popup."
+          startup_news_show_aur_updates:
+            label: "Startup news: AUR updates"
+            summary: "Show AUR updates in the startup popup."
+          startup_news_show_aur_comments:
+            label: "Startup news: AUR comments"
+            summary: "Show AUR comments in the startup popup."
+          startup_news_show_pkg_updates:
+            label: "Startup news: package updates"
+            summary: "Show official package updates in the startup popup."
+          startup_news_max_age_days:
+            label: "Startup news max age (days)"
+            summary: "Hide startup-popup news older than N days, or `all` to disable."
+          package_marker:
+            label: "Package selection marker"
+            summary: "Visual style for queued install/remove/downgrade rows."
+          locale:
+            label: "Locale"
+            summary: "Locale code for translations (en-US, de-DE, hu-HU; empty = auto)."
+          updates_refresh_interval:
+            label: "Updates refresh interval (s)"
+            summary: "Seconds between background pacman/AUR update checks."
+          use_terminal_theme:
+            label: "Use terminal theme"
+            summary: "Derive colors from the terminal via OSC 10/11 instead of theme.conf."
+          aur_vote_enabled:
+            label: "AUR voting enabled"
+            summary: "Enable in-app AUR vote / unvote actions over SSH."
+          aur_vote_ssh_timeout_seconds:
+            label: "AUR voting SSH timeout (s)"
+            summary: "Connect timeout for AUR voting SSH calls."
+          aur_vote_ssh_command:
+            label: "AUR voting SSH binary"
+            summary: "SSH binary used for AUR voting (default: ssh)."
       alert:
         header_configuration_error: "Configuration error"
         header_clipboard_copy: "Clipboard Copy"
