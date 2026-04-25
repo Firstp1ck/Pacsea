@@ -7,6 +7,10 @@
 //! - `settings_ensure`: Settings initialization and migration
 //! - `tests`: Test module
 
+/// Result-returning, dry-run-aware config patch foundation.
+pub mod patch;
+/// Static schema describing editable config keys.
+pub mod schema;
 /// Settings initialization and migration module.
 mod settings_ensure;
 /// Settings persistence module.
@@ -24,6 +28,15 @@ pub use skeletons::{REPOS_SKELETON_CONTENT, THEME_SKELETON_CONTENT};
 
 // Re-export theme loading functions
 pub use theme_loader::try_load_theme_with_diagnostics;
+
+// Re-export the patch foundation and editable schema (Phase 0).
+pub use patch::{
+    ConfigFile, ConfigWriteError, PatchOutcome, PatchRequest, patch_key, write_full_content,
+};
+pub use schema::{
+    EDITABLE_SETTINGS, EditableSetting, ReloadBehavior, Sensitivity, ValueKind, find_setting,
+    settings_for,
+};
 
 // Re-export settings save functions
 pub use settings_save::{
