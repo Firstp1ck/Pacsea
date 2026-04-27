@@ -1,4 +1,4 @@
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock, PoisonError};
 use tokio::sync::mpsc;
 
 #[cfg(target_os = "windows")]
@@ -177,6 +177,116 @@ fn process_qua_output(
 /// - Prevents overlapping file writes to `available_updates.txt`
 static UPDATE_CHECK_IN_PROGRESS: OnceLock<tokio::sync::Mutex<bool>> = OnceLock::new();
 
+/// What: Last update-check outcome used to suppress repetitive INFO logs.
+///
+/// Details:
+/// - Compared after each blocking worker run; INFO is emitted only when this snapshot changes
+///   or the first run carried non-empty `reason_codes` (degraded / diagnostic paths).
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct UpdateCheckLogState {
+    /// What: Deduplicated package count from the last completed check.
+    count: usize,
+    /// What: Whether the official-repo portion was authoritative last time.
+    authoritative: bool,
+    /// What: Which official-repo strategy label was used last time.
+    official_strategy: &'static str,
+    /// What: Comma-joined [`UpdateCheckPayload::reason_codes`] from the last check.
+    reason_digest: String,
+}
+
+/// What: Decide whether this update-check cycle should emit INFO summary lines.
+///
+/// Inputs:
+/// - `prev`: Previous snapshot, if any.
+/// - `count` / `authoritative` / `official_strategy` / `reason_codes`: Current check outcome.
+///
+/// Output:
+/// - `true` when the user-visible outcome changed or the first run had diagnostic reasons.
+///
+/// Details:
+/// - First successful baseline (empty reasons) does not emit; later emits occur on count/strategy/
+///   authority/digest changes (including recovery when reasons clear).
+fn update_check_cycle_emits_info(
+    prev: Option<&UpdateCheckLogState>,
+    count: usize,
+    authoritative: bool,
+    official_strategy: &'static str,
+    reason_codes: &[String],
+) -> bool {
+    let digest = reason_codes.join(",");
+    prev.map_or(!reason_codes.is_empty(), |p| {
+        p.count != count
+            || p.authoritative != authoritative
+            || p.official_strategy != official_strategy
+            || p.reason_digest != digest
+    })
+}
+
+/// What: Emit structured update-check INFO logs only when the outcome changed or reasons apply.
+///
+/// Inputs:
+/// - Same fields as the INFO logs plus `reason_codes` for digesting.
+///
+/// Output:
+/// - Updates the process-wide last snapshot; may write zero or two INFO lines.
+///
+/// Details:
+/// - Routine periodic checks with an unchanged result stay silent at INFO (use `RUST_LOG=debug`
+///   for per-run detail elsewhere).
+static LAST_UPDATE_CHECK_LOG_STATE: OnceLock<Mutex<Option<UpdateCheckLogState>>> = OnceLock::new();
+
+/// What: Compare against the last snapshot and maybe write INFO update-check summary lines.
+///
+/// Inputs:
+/// - `count`, `authoritative`, `official_strategy`, `reason_codes`: Current worker outcome.
+///
+/// Output:
+/// - Updates [`LAST_UPDATE_CHECK_LOG_STATE`]; emits INFO logs when [`update_check_cycle_emits_info`]
+///   returns true.
+///
+/// Details:
+/// - Unchanged successful periodic checks produce no new INFO lines.
+fn maybe_log_update_check_summary(
+    count: usize,
+    authoritative: bool,
+    official_strategy: &'static str,
+    reason_codes: &[String],
+) {
+    let mutex = LAST_UPDATE_CHECK_LOG_STATE.get_or_init(|| Mutex::new(None));
+    let mut guard = mutex.lock().unwrap_or_else(PoisonError::into_inner);
+    let digest = reason_codes.join(",");
+    let emit = update_check_cycle_emits_info(
+        guard.as_ref(),
+        count,
+        authoritative,
+        official_strategy,
+        reason_codes,
+    );
+    *guard = Some(UpdateCheckLogState {
+        count,
+        authoritative,
+        official_strategy,
+        reason_digest: digest,
+    });
+    drop(guard);
+
+    if emit {
+        tracing::info!(
+            target: "pacsea::update_check",
+            authoritative = authoritative,
+            official_strategy = official_strategy,
+            reasons = %reason_codes.join(","),
+            package_count = count,
+            "update_check_summary"
+        );
+
+        tracing::info!(
+            "Update check completed: found {} total available updates (after deduplication)",
+            count
+        );
+    }
+}
+
 /// What: Attempt authoritative official-repo listing via fakeroot temp-db sync + `pacman -Qu`.
 ///
 /// Inputs:
@@ -258,7 +368,7 @@ fn unix_try_authoritative_checkupdates(
     use std::process::{Command, Stdio};
 
     let db_for_check = temp_db_path.cloned().or_else(setup_temp_db)?;
-    tracing::info!(
+    tracing::debug!(
         "Executing: checkupdates with CHECKUPDATES_DB={:?} (isolated sync db)",
         db_for_check
     );
@@ -411,18 +521,11 @@ fn run_update_check_blocking_unix() -> UpdateCheckPayload {
 
     let count = packages.len();
 
-    tracing::info!(
-        target: "pacsea::update_check",
-        authoritative = authoritative_official,
-        official_strategy = official_strategy,
-        reasons = %reason_codes.join(","),
-        package_count = count,
-        "update_check_summary"
-    );
-
-    tracing::info!(
-        "Update check completed: found {} total available updates (after deduplication)",
-        count
+    maybe_log_update_check_summary(
+        count,
+        authoritative_official,
+        official_strategy,
+        &reason_codes,
     );
 
     let lists_dir = crate::theme::lists_dir();
@@ -494,14 +597,7 @@ fn run_update_check_blocking_windows() -> UpdateCheckPayload {
         .collect();
     let count = packages.len();
 
-    tracing::info!(
-        target: "pacsea::update_check",
-        authoritative = authoritative,
-        official_strategy = "windows_pacman_qu",
-        reasons = "",
-        package_count = count,
-        "update_check_summary"
-    );
+    maybe_log_update_check_summary(count, authoritative, "windows_pacman_qu", &[]);
 
     let lists_dir = crate::theme::lists_dir();
     let updates_file = lists_dir.join("available_updates.txt");
@@ -597,4 +693,81 @@ pub fn spawn_periodic_updates_worker(
             spawn_updates_worker(updates_tx_periodic.clone());
         }
     });
+}
+
+#[cfg(test)]
+mod update_check_log_tests {
+    use super::{UpdateCheckLogState, update_check_cycle_emits_info};
+
+    fn state(
+        count: usize,
+        authoritative: bool,
+        official_strategy: &'static str,
+        reason_digest: &str,
+    ) -> UpdateCheckLogState {
+        UpdateCheckLogState {
+            count,
+            authoritative,
+            official_strategy,
+            reason_digest: reason_digest.to_string(),
+        }
+    }
+
+    #[test]
+    fn emit_first_baseline_empty_reasons_is_false() {
+        assert!(!update_check_cycle_emits_info(
+            None,
+            104,
+            true,
+            "checkupdates_db",
+            &[],
+        ));
+    }
+
+    #[test]
+    fn emit_first_with_reasons_is_true() {
+        assert!(update_check_cycle_emits_info(
+            None,
+            0,
+            false,
+            "stale_pacman_qu",
+            &["stale_db_fallback".to_string()],
+        ));
+    }
+
+    #[test]
+    fn emit_when_count_changes() {
+        let prev = state(104, true, "checkupdates_db", "");
+        assert!(update_check_cycle_emits_info(
+            Some(&prev),
+            103,
+            true,
+            "checkupdates_db",
+            &[],
+        ));
+    }
+
+    #[test]
+    fn emit_when_reason_digest_clears() {
+        let prev = state(104, false, "stale_pacman_qu", "stale_db_fallback");
+        assert!(update_check_cycle_emits_info(
+            Some(&prev),
+            104,
+            true,
+            "checkupdates_db",
+            &[],
+        ));
+    }
+
+    #[test]
+    fn no_emit_when_unchanged() {
+        let prev = state(104, true, "checkupdates_db", "");
+        assert!(!update_check_cycle_emits_info(
+            Some(&prev),
+            104,
+            true,
+            "checkupdates_db",
+            &[],
+        ));
+    }
 }
