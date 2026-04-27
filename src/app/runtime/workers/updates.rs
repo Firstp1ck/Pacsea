@@ -188,7 +188,10 @@ static UPDATE_CHECK_IN_PROGRESS: OnceLock<tokio::sync::Mutex<bool>> = OnceLock::
 /// - `Some("temp_db_pacman_qu")` when the probe is authoritative; `None` otherwise.
 ///
 /// Details:
-/// - No-ops when `fakeroot` or temp DB path is unavailable without adding sync-failed reasons.
+/// - Fallback after `checkupdates` when that tool is missing **or** when it was run but did not
+///   yield an authoritative listing (mirrors, parse errors, non-zero exit, etc.).
+/// - No-ops when `fakeroot` or temp DB path is unavailable without adding sync-failed reasons beyond
+///   `REASON_FAKEROOT_UNAVAILABLE` when `fakeroot` is missing.
 #[cfg(not(target_os = "windows"))]
 fn unix_try_authoritative_fakeroot(
     temp_db_path: Option<&std::path::PathBuf>,
@@ -243,7 +246,8 @@ fn unix_try_authoritative_fakeroot(
 /// - `Some("checkupdates_db")` on success; `None` when skipped or command failed.
 ///
 /// Details:
-/// - Requires `pacman-contrib`; records unavailability when the binary is missing.
+/// - Preferred when `pacman-contrib` is installed; if absent, callers try [`unix_try_authoritative_fakeroot`].
+/// - Call only when [`has_checkupdates`] is true (caller probes once per update check).
 #[cfg(not(target_os = "windows"))]
 fn unix_try_authoritative_checkupdates(
     temp_db_path: Option<&std::path::PathBuf>,
@@ -253,11 +257,6 @@ fn unix_try_authoritative_checkupdates(
 ) -> Option<&'static str> {
     use std::process::{Command, Stdio};
 
-    if !has_checkupdates() {
-        reason_codes.push(REASON_CHECKUPDATES_UNAVAILABLE.to_string());
-        tracing::warn!("checkupdates not available; cannot refresh official db without root");
-        return None;
-    }
     let db_for_check = temp_db_path.cloned().or_else(setup_temp_db)?;
     tracing::info!(
         "Executing: checkupdates with CHECKUPDATES_DB={:?} (isolated sync db)",
@@ -269,11 +268,22 @@ fn unix_try_authoritative_checkupdates(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output();
-    if ingest_official_repo_output(output, true, packages_map, packages_set) {
-        Some("checkupdates_db")
-    } else {
-        reason_codes.push(REASON_CHECKUPDATES_FAILED.to_string());
-        None
+    match output {
+        Ok(o) => {
+            let stderr_text = String::from_utf8_lossy(&o.stderr).trim().to_string();
+            if ingest_official_repo_output(Ok(o), true, packages_map, packages_set) {
+                Some("checkupdates_db")
+            } else {
+                reason_codes.push(REASON_CHECKUPDATES_FAILED.to_string());
+                reason_codes.extend(classify_pacman_stderr_for_update_check(&stderr_text));
+                None
+            }
+        }
+        Err(e) => {
+            tracing::warn!("Failed to execute checkupdates: {}", e);
+            reason_codes.push(REASON_CHECKUPDATES_FAILED.to_string());
+            None
+        }
     }
 }
 
@@ -327,18 +337,9 @@ fn run_update_check_blocking_unix() -> UpdateCheckPayload {
     let mut packages_set: HashSet<String> = HashSet::new();
 
     let temp_db_path = setup_temp_db();
+    let have_checkupdates = has_checkupdates();
 
-    if let Some(s) = unix_try_authoritative_fakeroot(
-        temp_db_path.as_ref(),
-        &mut packages_map,
-        &mut packages_set,
-        &mut reason_codes,
-    ) {
-        authoritative_official = true;
-        official_strategy = s;
-    }
-
-    if !authoritative_official
+    if have_checkupdates
         && let Some(s) = unix_try_authoritative_checkupdates(
             temp_db_path.as_ref(),
             &mut packages_map,
@@ -350,7 +351,22 @@ fn run_update_check_blocking_unix() -> UpdateCheckPayload {
         official_strategy = s;
     }
 
+    if !authoritative_official
+        && let Some(s) = unix_try_authoritative_fakeroot(
+            temp_db_path.as_ref(),
+            &mut packages_map,
+            &mut packages_set,
+            &mut reason_codes,
+        )
+    {
+        authoritative_official = true;
+        official_strategy = s;
+    }
+
     if !authoritative_official {
+        if !have_checkupdates {
+            reason_codes.push(REASON_CHECKUPDATES_UNAVAILABLE.to_string());
+        }
         official_strategy = unix_apply_stale_official_pacman_qu(
             &mut packages_map,
             &mut packages_set,
