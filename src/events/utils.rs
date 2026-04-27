@@ -278,7 +278,7 @@ pub fn move_news_selection(app: &mut AppState, delta: isize) {
     update_news_url(app);
 }
 
-/// What: Compute updates-modal scroll offset that keeps the selected entry visible.
+/// What: Compute updates-modal scroll offset that vertically centers the selected entry.
 ///
 /// Inputs:
 /// - `entry_line_starts`: Mapping from entry index to first rendered line in wrapped output.
@@ -286,15 +286,16 @@ pub fn move_news_selection(app: &mut AppState, delta: isize) {
 /// - `content_rect`: Optional updates content rectangle tuple `(x, y, width, height)`.
 /// - `selected`: Selected entry index.
 /// - `total_items`: Number of entries in the updates list.
-/// - `current_scroll`: Existing scroll offset before adjustment.
+/// - `_current_scroll`: Reserved for callers; scroll is derived from selection and geometry only.
 ///
 /// Output:
-/// - Returns the next clamped scroll offset as `u16`.
+/// - Returns the clamped scroll offset as `u16`.
 ///
 /// Details:
 /// - Derives `visible_lines` from `content_rect` height and falls back to `1` when absent.
 /// - Uses rendered-line mapping to support wrapped rows consistently.
-/// - Clamps output to valid range to prevent underflow/overscroll.
+/// - Centers the first rendered line of the selected entry (`⌊visible_lines / 2⌋` rows above it)
+///   when possible; clamps to `[0, max_scroll]` near list ends so the list never overscrolls.
 #[must_use]
 pub fn compute_updates_modal_scroll_for_selection(
     entry_line_starts: &[u16],
@@ -302,26 +303,21 @@ pub fn compute_updates_modal_scroll_for_selection(
     content_rect: Option<(u16, u16, u16, u16)>,
     selected: usize,
     total_items: usize,
-    current_scroll: u16,
+    _current_scroll: u16,
 ) -> u16 {
     let selected_line = entry_line_starts
         .get(selected)
         .copied()
         .unwrap_or_else(|| u16::try_from(selected).unwrap_or(u16::MAX));
     let visible_lines = content_rect.map_or(1, |(_, _, _, h)| h.max(1));
-    let mut scroll = current_scroll;
-
-    if selected_line < scroll {
-        scroll = selected_line;
-    } else if selected_line >= scroll.saturating_add(visible_lines) {
-        scroll = selected_line.saturating_sub(visible_lines.saturating_sub(1));
-    }
+    let half = visible_lines / 2;
+    let ideal = selected_line.saturating_sub(half);
 
     let fallback_total = u16::try_from(total_items).unwrap_or(u16::MAX);
     let max_scroll = total_lines
         .max(fallback_total)
         .saturating_sub(visible_lines);
-    scroll.min(max_scroll)
+    ideal.min(max_scroll)
 }
 
 /// What: Compute visible updates indices for a slash-filter query.
@@ -893,6 +889,24 @@ mod tests {
         let scroll_two =
             compute_updates_modal_scroll_for_selection(&[0, 3, 5], 7, height_two, 2, 3, 0);
         assert_eq!(scroll_two, 4);
+    }
+
+    #[test]
+    /// What: Ensure updates modal scroll centers the selected rendered line when space allows.
+    ///
+    /// Inputs:
+    /// - Ten logical lines, viewport height five, selection on line four (entry index 2).
+    ///
+    /// Output:
+    /// - Scroll offset two so line four sits in the middle row of the viewport.
+    ///
+    /// Details:
+    /// - Complements edge-clamp tests by checking the common middle-of-list case.
+    fn updates_scroll_centers_selection_in_viewport() {
+        let starts: Vec<u16> = (0..10).collect();
+        let rect = Some((0, 0, 40, 5));
+        let scroll = compute_updates_modal_scroll_for_selection(&starts, 10, rect, 4, 10, 0);
+        assert_eq!(scroll, 2);
     }
 
     #[test]
