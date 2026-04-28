@@ -81,7 +81,7 @@ impl UpdateCheckPayload {
     }
 }
 
-/// Libalpm / pacman sandbox could not apply Landlock rules (non-root temp sync).
+/// Libalpm / pacman sandbox could not apply Landlock rules (typical pacman stderr).
 pub const REASON_LANDLOCK_SANDBOX_FAILURE: &str = "landlock_sandbox_failure";
 /// Switching to sandbox user `alpm` failed during pacman operations.
 pub const REASON_ALPM_SANDBOX_FAILURE: &str = "alpm_sandbox_failure";
@@ -93,15 +93,15 @@ pub const REASON_TEMP_DB_SYNC_FAILED: &str = "temp_db_sync_failed";
 pub const REASON_CHECKUPDATES_FAILED: &str = "checkupdates_failed";
 /// Fell back to system `pacman -Qu` without a fresh sync.
 pub const REASON_STALE_DB_FALLBACK: &str = "stale_db_fallback";
-/// `fakeroot` was missing so temp-db sync was skipped.
+/// `fakeroot` was missing when the temp-database sync path was needed.
 pub const REASON_FAKEROOT_UNAVAILABLE: &str = "fakeroot_unavailable";
-/// `checkupdates` was missing when needed as a non-root fresh sync path.
+/// `checkupdates` was missing when a non-root fresh sync was needed.
 pub const REASON_CHECKUPDATES_UNAVAILABLE: &str = "checkupdates_unavailable";
 
 /// What: Map pacman-related stderr to structured reason codes for logs and metrics.
 ///
 /// Inputs:
-/// - `stderr`: Raw stderr text from pacman or fakeroot-wrapped pacman.
+/// - `stderr`: Raw stderr text from pacman-related subprocesses (including `fakeroot pacman`).
 ///
 /// Output:
 /// - Possibly empty vector of reason code strings (no duplicates enforced here).
@@ -125,13 +125,13 @@ pub fn classify_pacman_stderr_for_update_check(stderr: &str) -> Vec<String> {
     out
 }
 
-/// What: Check if fakeroot is available on the system.
+/// What: Check if `fakeroot` is available on the system.
 ///
 /// Output:
-/// - `true` if fakeroot is available, `false` otherwise
+/// - `true` if `fakeroot` is available, `false` otherwise
 ///
 /// Details:
-/// - Fakeroot is required to sync a temporary pacman database without root
+/// - Used only when `checkupdates` is missing, to attempt a non-root temp-database `pacman -Sy`.
 #[cfg(not(target_os = "windows"))]
 pub fn has_fakeroot() -> bool {
     use std::process::{Command, Stdio};
@@ -151,8 +151,7 @@ pub fn has_fakeroot() -> bool {
 /// - `true` if checkupdates is available, `false` otherwise
 ///
 /// Details:
-/// - checkupdates (from pacman-contrib) can check for updates without root
-/// - It automatically syncs the database and doesn't require fakeroot
+/// - `checkupdates` (from pacman-contrib) refreshes a separate sync DB and lists upgrades without root.
 #[cfg(not(target_os = "windows"))]
 pub fn has_checkupdates() -> bool {
     use std::process::{Command, Stdio};
@@ -235,10 +234,10 @@ pub fn setup_temp_db() -> Option<std::path::PathBuf> {
 /// - `Err(message)` with trimmed stderr or IO message on failure
 ///
 /// Details:
-/// - Uses fakeroot to run `pacman -Sy` without root privileges
+/// - Uses `fakeroot` to run `pacman -Sy` without root privileges (fallback when `checkupdates` is absent or fails).
 /// - Syncs only the temporary database, not the system database
 /// - Uses `--logfile /dev/null` to prevent log file creation
-/// - Logs stderr on failure to help diagnose sync issues
+/// - May fail on pacman 7+ with Landlock / `alpm` sandbox under `fakeroot`; callers should fall back to stale `pacman -Qu`
 #[cfg(not(target_os = "windows"))]
 pub fn sync_temp_db(temp_db: &std::path::Path) -> Result<(), String> {
     use std::process::{Command, Stdio};
@@ -285,7 +284,7 @@ mod tests {
     /// - Classification includes `REASON_LANDLOCK_SANDBOX_FAILURE`.
     ///
     /// Details:
-    /// - Regression guard for fakeroot/temp-db sync failures on hardened kernels.
+    /// - Regression guard for Landlock/sandbox stderr classification.
     #[test]
     fn classify_stderr_detects_landlock() {
         let msg = "Fehler: restricting filesystem access failed because the Landlock ruleset could not be applied";

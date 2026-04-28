@@ -875,6 +875,13 @@ impl ModalRenderer for Modal {
                 };
                 render_password_prompt_modal(f, app, area, ctx)
             }
+            Self::ConfigEditor { state } => {
+                // The config editor is rendered as a full-window view by
+                // `ui::ui` (similar to news mode) and returns before the
+                // modal dispatch is reached. This branch is therefore a
+                // no-op kept only for exhaustive matching.
+                Self::ConfigEditor { state }
+            }
             Self::None => Self::None,
         }
     }

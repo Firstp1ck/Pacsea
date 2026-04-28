@@ -6,6 +6,8 @@ use crate::state::AppState;
 mod comments;
 /// Footer rendering for details pane.
 mod footer;
+
+pub use footer::{build_config_editor_footer_hint_lines, config_editor_footer_reserved_rows};
 /// Layout calculation for details pane.
 mod layout;
 /// Package information rendering.

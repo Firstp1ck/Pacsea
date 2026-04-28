@@ -388,8 +388,8 @@ fn render_toast(f: &mut Frame, app: &AppState, area: ratatui::prelude::Rect) {
 /// - Draws the entire interface and updates hit-test rectangles used by mouse handlers.
 ///
 /// Details:
-/// - Applies global theme/background; renders the three main vertical bands in `main_pane_order`,
-///   then modal overlays.
+/// - Applies global theme/background; renders the three main vertical bands in `main_pane_order`
+///   (or the config editor in `AppMode::ConfigEditor`), then modal overlays on the full frame.
 /// - Keeps results selection centered by adjusting list offset.
 /// - Computes and records clickable rects (URL, Sort/Filters, Options/Config/Panels, status label).
 pub fn ui(f: &mut Frame, app: &mut AppState) {
@@ -416,6 +416,24 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
 
     // Render updates button in the top row
     updates::render_updates_button(f, app, main_chunks[0]);
+
+    // Config editor is a dedicated app mode that occupies the same main
+    // content area as package/news views.
+    if matches!(app.app_mode, AppMode::ConfigEditor) {
+        let editor_state = std::mem::take(&mut app.config_editor_state);
+        modals::config_editor::render_config_editor_window(f, app, main_chunks[1], &editor_state);
+        app.config_editor_state = editor_state;
+
+        // Same stacking as package/news: modals (e.g. Updates after refresh) must paint here;
+        // otherwise `app.modal` is non-`None` and keys are consumed with no visible overlay.
+        modals::render_modals(f, app, area);
+
+        // Use the editor area as the anchor for dropdown overlays so
+        // top-row menus remain operable in this mode.
+        results::render_dropdowns(f, app, main_chunks[1]);
+        render_toast(f, app, area);
+        return;
+    }
 
     // Split main content into the three vertical bands (visual order from settings)
     let chunks = Layout::default()
@@ -617,6 +635,61 @@ mod tests {
         let buffer = term.backend().buffer();
         assert_eq!(buffer.area.width, 120);
         assert_eq!(buffer.area.height, 40);
+    }
+
+    /// What: Regression — `Modal::Updates` must paint while `AppMode::ConfigEditor` is active.
+    ///
+    /// Inputs:
+    /// - `AppState` in config editor mode with a minimal `Modal::Updates` and `init_test_translations`.
+    ///
+    /// Output:
+    /// - Frame buffer contains the visible package name from the updates list.
+    ///
+    /// Details:
+    /// - The config-editor branch of `ui` previously returned before `render_modals`, leaving a
+    ///   non-`None` modal invisible while input stayed modal-gated.
+    #[test]
+    fn config_editor_mode_renders_updates_modal_content() {
+        use ratatui::{Terminal, backend::TestBackend};
+
+        let backend = TestBackend::new(120, 40);
+        let mut term = Terminal::new(backend).expect("failed to create test terminal");
+        let mut app = crate::state::AppState::default();
+        init_test_translations(&mut app);
+        app.app_mode = crate::state::types::AppMode::ConfigEditor;
+        app.modal = crate::state::Modal::Updates {
+            entries: vec![("testpkg".into(), "1".into(), "2".into())],
+            scroll: 0,
+            selected: 0,
+            filter_active: false,
+            filter_query: String::new(),
+            filter_caret: 0,
+            last_selected_pkg_name: None,
+            filtered_indices: vec![0],
+            selected_pkg_names: std::collections::HashSet::new(),
+        };
+
+        term.draw(|f| {
+            super::ui(f, &mut app);
+        })
+        .expect("failed to draw config editor with updates modal");
+
+        let buffer = term.backend().buffer();
+        let mut saw_pkg = false;
+        for row in 0..buffer.area.height {
+            let mut line = String::new();
+            for col in 0..buffer.area.width {
+                line.push_str(buffer[(col, row)].symbol());
+            }
+            if line.contains("testpkg") {
+                saw_pkg = true;
+                break;
+            }
+        }
+        assert!(
+            saw_pkg,
+            "updates modal should render above config editor (expected testpkg in buffer)"
+        );
     }
 
     #[test]
