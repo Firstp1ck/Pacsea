@@ -223,6 +223,22 @@ fn resolve_path(file: ConfigFile) -> PathBuf {
     config_dir().join(file.default_filename())
 }
 
+/// What: Resolve the active path for a Pacsea config file.
+///
+/// Inputs:
+/// - `file`: Target config file kind.
+///
+/// Output:
+/// - Absolute path the patch layer will read/write for this file.
+///
+/// Details:
+/// - Uses the same resolution logic as [`patch_key`], including existing-file
+///   discovery (split files and legacy fallbacks) and default path fallback.
+#[must_use]
+pub fn resolved_config_path(file: ConfigFile) -> PathBuf {
+    resolve_path(file)
+}
+
 /// What: Read the existing file as a list of lines, seeding from the skeleton
 /// when the file is missing or empty.
 ///

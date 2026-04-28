@@ -1,7 +1,7 @@
 # Implementation Plan: Integrated Config Editing in the TUI
 
 **Created:** 2026-04-03  
-**Status:** Planning (potential design — not scheduled)  
+**Status:** In progress (Phase 0 complete; Phase 1 mostly complete; Phase 2 partially complete)  
 **Scope:** Let users view and change Pacsea configuration from inside the terminal UI without leaving the app.
 
 ## Goals
@@ -25,7 +25,7 @@
 | Settings path resolution | `src/theme/paths.rs` | `resolve_settings_config_path`, `resolve_keybinds_config_path`, `resolve_theme_config_path`; legacy `pacsea.conf` fallbacks. Settings/keybind resolvers are currently `pub(super)`, so editor-facing code needs a public wrapper or must live inside `theme`. |
 | Line-preserving updates | `src/theme/config/settings_save.rs` | `save_boolean_key*`, `save_string_key`, `save_sort_mode`, etc.; bootstraps from `SETTINGS_SKELETON_CONTENT` when missing. Current helpers are fire-and-forget: no `Result`, no dry-run gate, and no atomic write contract. |
 | Skeletons / defaults | `src/theme/config/skeletons.rs` | Shipped examples and seed content. |
-| Keybind parsing | `src/theme/settings/parse_keybinds.rs` | Populates `Settings.keymap`; supports dedicated `keybinds.conf` and legacy lines in `settings.conf`. There is no serializer or editable keybind schema yet, and some actions intentionally allow multiple chords. |
+| Keybind parsing/editing | `src/theme/settings/parse_keybinds.rs`, `src/theme/config/schema.rs`, `src/state/config_editor.rs` | `Settings.keymap` still parses from `keybinds.conf` + legacy lines; Phase 2 now has editable keybind schema rows, canonical chord serialization helpers, and scope-aware conflict checks. Dedicated live capture mode is still pending. |
 | Theme load / diagnostics | `src/theme/config/theme_loader.rs` | `try_load_theme_with_diagnostics`; required canonical keys in `THEME_REQUIRED_CANONICAL`. Validation currently reads from a path, so pre-commit validation needs a temp-file or in-memory equivalent. |
 | Runtime settings model | `src/theme/types.rs` | `Settings` and nested keymap types. |
 
@@ -172,10 +172,85 @@ Before adding the UI, extract a small config-editing foundation so every later t
 ## Progress checklist (for when work starts)
 
 - [x] Phase 0: Config patch foundation + schema + dry-run/write tests
-- [ ] Phase 1: Config editor window + settings file keys + popup save flow
-- [ ] Phase 2: Keybind capture + persistence + tests
+- [~] Phase 1: Config editor window + settings file keys + popup save flow (in progress)
+- [~] Phase 2: Keybind editing + persistence + conflict tests (capture mode pending)
 - [ ] Phase 3: Theme editor + validation + tests
 - [ ] Phase 4: Polish (undo row, mtime warning, help overlay updates)
+
+## Detailed implementation audit (codebase vs plan)
+
+### Completed now
+
+- [x] **Phase 0 patch foundation exists and is wired** (`src/theme/config/patch.rs`)
+  - [x] `Result`-returning patch API (`patch_key`, `write_full_content`) with explicit outcomes (`Written`, `NoChange`, `DryRun`) and typed errors.
+  - [x] Existing path resolution order (including legacy fallbacks via resolver functions) is reused.
+  - [x] Missing/empty files are bootstrapped from skeletons.
+  - [x] Dry-run is handled at patch layer (returns proposal and skips writes).
+  - [x] Atomic write path uses `create_new` temp + rename and restrictive Unix perms (`0o600`).
+  - [x] Alias migration, comment preservation, unknown-key preservation behavior is covered by unit tests.
+- [x] **Static editable schema is in place** (`src/theme/config/schema.rs`)
+  - [x] Typed value kinds, reload behavior, and sensitivity model are implemented.
+  - [x] Extensive `settings.conf` key coverage exists in schema entries.
+  - [x] Alias lookups and key normalization are tested.
+- [x] **Config editor mode/state/rendering shipped for settings flow**
+  - [x] Dedicated state + mode plumbing exists (`src/state/config_editor.rs`, `src/events/mod.rs`, `src/ui/modals/config_editor.rs`).
+  - [x] Three-pane model is implemented (file list / search / details) with query filtering.
+  - [x] Edit popup supports bool/enum/int/text/secret with `Ctrl+S` save and `Esc` cancel.
+  - [x] Saves route through the patch API; save status and dry-run outcomes are surfaced in UI status.
+  - [x] Footer/help hints include config-editor controls.
+
+### Partially completed (implemented foundation, but not full phase goal)
+
+- [~] **Phase 1 overall**
+  - [x] Settings editing flow works end-to-end through schema + popup + save.
+  - [x] Read-only surfacing of file choices exists in top pane (`settings/keybinds/theme/repos` listed).
+  - [x] Validation now covers additional typed settings beyond int ranges (`OptionalUnsignedOrAll`, `MainPaneOrder`, non-empty `Path`) before save.
+  - [x] Save validation now also enforces strict `Color` and `KeyChord` formats before write.
+  - [x] Active config path visibility is implemented in the details pane (file-list and selected-key contexts).
+  - [x] Dedicated integration test now drives the real key-event save path in `AppMode::ConfigEditor` (`tests/other/config_editor_phase1_integration.rs`).
+  - [~] String-domain semantic validation is now partially hardened (locale format/availability, preferred terminal token shape, selected-countries structure); full parity is still incomplete.
+- [~] **Cross-cutting testing**
+  - [x] Strong unit coverage exists for patching and editor key/popup behavior, including new typed popup validation cases.
+  - [x] Integration scenarios now cover bool save, enum save, and dry-run no-write behavior under temp HOME/XDG.
+  - [x] Integration scenarios now also cover keybind save, keybind dry-run no-write, and keybind conflict rejection under temp HOME/XDG.
+
+- [~] **Phase 2 keybinds editor**
+  - [x] `keybinds.conf` is now an interactive file in the editor (no longer file-list-only placeholder).
+  - [x] Static editable keybind schema entries are implemented (canonical keys + aliases + scope grouping).
+  - [x] Canonical key-chord parsing/validation and serialization helpers are in place for save flow.
+  - [x] Save flow persists keybind changes through patch API and surfaces success/dry-run statuses.
+  - [x] Scope-aware keybind conflict detection blocks ambiguous saves before write.
+  - [x] Integration tests cover keybind save path, dry-run no-write behavior, and conflict-blocking behavior.
+  - [ ] Dedicated “record next chord” capture mode is not implemented yet (current flow edits chord text in popup).
+  - [ ] Multi-chord append/replace UX policy is still not implemented (save path currently edits one canonical chord value).
+
+### Still pending
+
+- [~] **Phase 2 keybinds editor**
+  - [ ] No dedicated keybind capture mode yet; editing currently uses direct popup chord text input.
+  - [ ] No explicit append-vs-replace UX for actions that support multiple chords.
+  - [ ] Keybind-specific UX polish (capture prompts, advanced conflict resolution UI) remains.
+- [ ] **Phase 3 theme editor**
+  - [ ] No integrated theme editing UI for canonical color keys.
+  - [ ] No pre-commit validation workflow for proposed theme content in config-editor save path.
+  - [ ] No diagnostics-first reject flow in editor that keeps on-disk theme untouched after invalid edits.
+- [ ] **Phase 4 polish items**
+  - [ ] Undo/reset-row in-session workflow not implemented.
+  - [ ] mtime/concurrent-edit warning flow not implemented.
+  - [ ] Export/copy effective config snippet not implemented.
+- [ ] **Cross-cutting technical tasks still open**
+  - [ ] Unified bootstrap/read helper to deduplicate remaining legacy save helpers has not fully replaced older `settings_save` fire-and-forget paths.
+  - [ ] Comment-to-help extraction from nearby config comments is still mostly schema/i18n-driven rather than parsed from file comments.
+  - [ ] Explicit per-key reload contract enforcement is not yet uniformly hooked to tailored runtime apply logic beyond settings reload helper.
+
+### Recently completed Phase 1 slices
+
+- [x] Add strict value validators for `Color` (`#RRGGBB` / accepted RGB forms) and `KeyChord` syntax before save.
+- [x] Add a second integration test for a non-bool key (enum `sort_mode`) to broaden end-to-end coverage.
+- [x] Ensure integration tests assert dry-run save outcome path (`PatchOutcome::DryRun`) leaves disk unchanged.
+- [x] Make `keybinds.conf` interactive in the config editor and route keybind saves through schema + patch API.
+- [x] Add keybind scope-aware conflict detection with status feedback before write.
+- [x] Add dedicated Phase 2 integration coverage for keybind save, dry-run no-write, and conflict rejection.
 
 ---
 

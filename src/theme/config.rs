@@ -31,11 +31,12 @@ pub use theme_loader::try_load_theme_with_diagnostics;
 
 // Re-export the patch foundation and editable schema (Phase 0).
 pub use patch::{
-    ConfigFile, ConfigWriteError, PatchOutcome, PatchRequest, patch_key, write_full_content,
+    ConfigFile, ConfigWriteError, PatchOutcome, PatchRequest, patch_key, resolved_config_path,
+    write_full_content,
 };
 pub use schema::{
-    EDITABLE_SETTINGS, EditableSetting, ReloadBehavior, Sensitivity, ValueKind, find_setting,
-    settings_for,
+    EDITABLE_KEYBINDS, EDITABLE_SETTINGS, EditableSetting, ReloadBehavior, Sensitivity, ValueKind,
+    find_setting, keybind_scope, settings_for,
 };
 
 // Re-export settings save functions

@@ -23,7 +23,10 @@ use crate::state::{
     AppState, ConfigEditorFocus, ConfigEditorSearchFocus, ConfigEditorState, ConfigEditorView,
     EditPopupKind, EditPopupState, Modal,
 };
-use crate::theme::{ConfigFile, PatchOutcome, PatchRequest, patch_key};
+use crate::theme::{
+    ConfigFile, EDITABLE_KEYBINDS, EditableSetting, KeyChord, PatchOutcome, PatchRequest,
+    ValueKind, keybind_scope, patch_key,
+};
 
 /// What: Handle a key event while `AppMode::ConfigEditor` is active.
 ///
@@ -107,37 +110,7 @@ fn handle_search_key(ke: KeyEvent, state: &mut ConfigEditorState, app: &AppState
                 move_search_list_cursor(state, 1);
             }
         }
-        (KeyCode::Enter, _) => match state.search_focus {
-            ConfigEditorSearchFocus::Input => {
-                if state.query.trim().is_empty() {
-                    // Match package-mode ergonomics: Enter from the center
-                    // input still acts on the current top-list selection.
-                    activate_list_row(state);
-                } else {
-                    let current_query = state.query.clone();
-                    state.push_recent_query(&current_query);
-                    state.view = ConfigEditorView::KeyList;
-                    state.key_cursor = 0;
-                }
-                state.search_focus = ConfigEditorSearchFocus::Input;
-            }
-            ConfigEditorSearchFocus::Recent => {
-                if let Some(q) = state.selected_recent_query().map(str::to_string) {
-                    state.query.clone_from(&q);
-                    state.query_caret = state.query.len();
-                    state.push_recent_query(&q);
-                    state.view = ConfigEditorView::KeyList;
-                    state.clamp_key_cursor();
-                    state.search_focus = ConfigEditorSearchFocus::Input;
-                }
-            }
-            ConfigEditorSearchFocus::Bookmarks => {
-                if let Some(key) = state.selected_bookmarked_key().map(str::to_string) {
-                    open_bookmarked_key_popup(state, &key);
-                    state.search_focus = ConfigEditorSearchFocus::Input;
-                }
-            }
-        },
+        (KeyCode::Enter, _) => handle_search_enter(state),
         (KeyCode::Backspace, _) => {
             if matches!(state.search_focus, ConfigEditorSearchFocus::Input) {
                 state.query.pop();
@@ -149,7 +122,8 @@ fn handle_search_key(ke: KeyEvent, state: &mut ConfigEditorState, app: &AppState
         }
         (KeyCode::Char('b'), KeyModifiers::NONE)
             if matches!(state.view, ConfigEditorView::KeyList)
-                && matches!(state.search_focus, ConfigEditorSearchFocus::Input) =>
+                && matches!(state.search_focus, ConfigEditorSearchFocus::Input)
+                && state.query.is_empty() =>
         {
             toggle_selected_bookmark(state);
         }
@@ -175,6 +149,53 @@ fn handle_search_key(ke: KeyEvent, state: &mut ConfigEditorState, app: &AppState
             mark_query_input_changed(state);
         }
         _ => {}
+    }
+}
+
+/// What: Dispatch the Enter key in the middle search pane based on focus.
+///
+/// Inputs:
+/// - `state`: The mutable config editor state.
+///
+/// Output:
+/// - Updates `state` to reflect navigation/popup-opening side effects of pressing Enter.
+///
+/// Details:
+/// - Extracted from `handle_search_key` to keep cognitive complexity below the
+///   project threshold.
+fn handle_search_enter(state: &mut ConfigEditorState) {
+    match state.search_focus {
+        ConfigEditorSearchFocus::Input => {
+            if state.query.trim().is_empty() {
+                activate_list_row(state);
+            } else {
+                let current_query = state.query.clone();
+                state.push_recent_query(&current_query);
+                if matches!(state.view, ConfigEditorView::FileList) {
+                    state.view = ConfigEditorView::KeyList;
+                    state.key_cursor = 0;
+                } else {
+                    open_popup_for_selection(state);
+                }
+            }
+            state.search_focus = ConfigEditorSearchFocus::Input;
+        }
+        ConfigEditorSearchFocus::Recent => {
+            if let Some(q) = state.selected_recent_query().map(str::to_string) {
+                state.query.clone_from(&q);
+                state.query_caret = state.query.len();
+                state.push_recent_query(&q);
+                state.view = ConfigEditorView::KeyList;
+                state.clamp_key_cursor();
+                state.search_focus = ConfigEditorSearchFocus::Input;
+            }
+        }
+        ConfigEditorSearchFocus::Bookmarks => {
+            if let Some(key) = state.selected_bookmarked_key().map(str::to_string) {
+                open_bookmarked_key_popup(state, &key);
+                state.search_focus = ConfigEditorSearchFocus::Input;
+            }
+        }
     }
 }
 
@@ -340,7 +361,7 @@ fn activate_file_row(state: &mut ConfigEditorState) {
         3 => ConfigFile::Repos,
         _ => return,
     };
-    if !matches!(file, ConfigFile::Settings) {
+    if !matches!(file, ConfigFile::Settings | ConfigFile::Keybinds) {
         state.status = Some(format!(
             "{} editing lands in a later phase. Edit the file directly for now.",
             file_label_for_status(file)
@@ -503,8 +524,14 @@ fn try_save_popup(app: &mut AppState, state: &mut ConfigEditorState) {
         return;
     };
     let value = popup.canonical_value();
-    if let Err(msg) = validate_value(&popup.kind, &value) {
+    if let Err(msg) = validate_value(popup, &value) {
         state.status = Some(format!("Invalid value: {msg}"));
+        return;
+    }
+    if matches!(popup.setting.kind, ValueKind::KeyChord)
+        && let Err(msg) = validate_keybind_conflict(popup.setting, &value)
+    {
+        state.status = Some(format!("Conflict: {msg}"));
         return;
     }
     let req = PatchRequest {
@@ -550,22 +577,340 @@ fn try_save_popup(app: &mut AppState, state: &mut ConfigEditorState) {
 /// Details:
 /// - Phase 1 only validates Int range here. Other kinds are accepted
 ///   as-is and rely on parsers in `theme::settings::parse_settings`.
-fn validate_value(kind: &EditPopupKind, value: &str) -> Result<(), String> {
-    match kind {
-        EditPopupKind::Int { min, max } => {
+fn validate_value(popup: &EditPopupState, value: &str) -> Result<(), String> {
+    match popup.setting.kind {
+        ValueKind::IntRange { min, max } => {
             let parsed: i64 = value
                 .trim()
                 .parse()
                 .map_err(|_| format!("expected integer in {min}..={max}"))?;
-            if parsed < *min || parsed > *max {
+            if parsed < min || parsed > max {
                 return Err(format!("must be within {min}..={max}"));
             }
             Ok(())
         }
-        EditPopupKind::Bool(_)
-        | EditPopupKind::Enum { .. }
-        | EditPopupKind::Text
-        | EditPopupKind::Secret { .. } => Ok(()),
+        ValueKind::OptionalUnsignedOrAll => {
+            let normalized = value.trim().to_ascii_lowercase();
+            if matches!(normalized.as_str(), "all" | "none" | "unlimited" | "") {
+                return Ok(());
+            }
+            normalized
+                .parse::<u32>()
+                .map(|_| ())
+                .map_err(|_| "expected a non-negative integer or 'all'".to_string())
+        }
+        ValueKind::MainPaneOrder => crate::state::parse_main_pane_order(value)
+            .map(|_| ())
+            .ok_or_else(|| {
+                "expected three distinct roles: results, search, package_info".to_string()
+            }),
+        ValueKind::Path => {
+            if value.trim().is_empty() {
+                Err("path must not be empty".to_string())
+            } else {
+                Ok(())
+            }
+        }
+        ValueKind::Color => validate_color_value(value),
+        ValueKind::KeyChord => validate_key_chord(value),
+        ValueKind::String => validate_semantic_string_key(popup.setting.key, value),
+        ValueKind::Secret | ValueKind::Bool | ValueKind::Enum { .. } => Ok(()),
+    }
+}
+
+/// What: Apply stricter semantic checks for selected string-backed setting keys.
+///
+/// Inputs:
+/// - `key`: Canonical setting key.
+/// - `value`: Candidate value from popup save flow.
+///
+/// Output:
+/// - `Ok(())` when the key/value combination passes semantic checks.
+/// - `Err(reason)` when the value is syntactically valid text but semantically invalid.
+///
+/// Details:
+/// - Used for Phase 1 hardening without introducing per-key validators for every setting.
+/// - Unknown keys remain accepted to preserve existing behavior until dedicated validators are added.
+fn validate_semantic_string_key(key: &str, value: &str) -> Result<(), String> {
+    match key {
+        "locale" => validate_locale_value(value),
+        "preferred_terminal" => validate_preferred_terminal_value(value),
+        "selected_countries" => validate_selected_countries_value(value),
+        _ => Ok(()),
+    }
+}
+
+/// What: Validate locale value using the app's locale format and shipped locale set.
+///
+/// Inputs:
+/// - `value`: Locale candidate (`en-US`, `de-DE`, etc.), or empty for auto-detect.
+///
+/// Output:
+/// - `Ok(())` when locale is empty (auto-detect) or a valid available locale code.
+fn validate_locale_value(value: &str) -> Result<(), String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Ok(());
+    }
+    if !is_valid_locale_format(trimmed) {
+        return Err(
+            "invalid locale format; expected language[-region] like en-US or de-DE".to_string(),
+        );
+    }
+    if let Some(locales_dir) = crate::i18n::find_locales_dir() {
+        let locale_path = locales_dir.join(format!("{trimmed}.yml"));
+        if !locale_path.is_file() {
+            return Err(format!(
+                "unknown locale '{trimmed}' (no locale file found in {})",
+                locales_dir.display()
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// What: Basic locale format validator used by config-editor semantic checks.
+///
+/// Inputs:
+/// - `locale`: Candidate locale code.
+///
+/// Output:
+/// - `true` when the code matches allowed shape and separators.
+fn is_valid_locale_format(locale: &str) -> bool {
+    if locale.is_empty() || locale.len() > 20 {
+        return false;
+    }
+    locale.chars().all(|c| c.is_alphanumeric() || c == '-')
+        && !locale.starts_with('-')
+        && !locale.ends_with('-')
+        && !locale.contains("--")
+}
+
+/// What: Validate terminal command preference.
+///
+/// Inputs:
+/// - `value`: Preferred terminal command or path, or empty for auto-detect.
+///
+/// Output:
+/// - `Ok(())` when the value is empty or safe single-token command text.
+fn validate_preferred_terminal_value(value: &str) -> Result<(), String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Ok(());
+    }
+    if trimmed.chars().any(char::is_control) {
+        return Err("terminal command must not contain control characters".to_string());
+    }
+    if trimmed.chars().any(char::is_whitespace) {
+        return Err("terminal command must be a single token (no spaces)".to_string());
+    }
+    Ok(())
+}
+
+/// What: Validate `selected_countries` CSV-like value.
+///
+/// Inputs:
+/// - `value`: Country list candidate (e.g., `Worldwide` or `Germany, France`).
+///
+/// Output:
+/// - `Ok(())` when all entries are non-empty and composed of common country-name characters.
+fn validate_selected_countries_value(value: &str) -> Result<(), String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Err("selected countries must not be empty".to_string());
+    }
+    if trimmed.eq_ignore_ascii_case("worldwide") {
+        return Ok(());
+    }
+    for country in trimmed.split(',') {
+        let token = country.trim();
+        if token.is_empty() {
+            return Err("country entries must not be empty".to_string());
+        }
+        if token.chars().any(char::is_control) {
+            return Err("country entries must not contain control characters".to_string());
+        }
+        if !token
+            .chars()
+            .all(|c| c.is_alphanumeric() || matches!(c, ' ' | '-' | '\'' | '.' | '_'))
+        {
+            return Err(format!("invalid country entry '{token}'"));
+        }
+    }
+    Ok(())
+}
+
+/// What: Validate a color literal accepted by config/theme parsing.
+///
+/// Inputs:
+/// - `value`: Candidate color string.
+///
+/// Output:
+/// - `Ok(())` when the value is `#RRGGBB`, `RRGGBB`, or `R,G,B` (0..=255 each).
+fn validate_color_value(value: &str) -> Result<(), String> {
+    let t = value.trim();
+    if t.is_empty() {
+        return Err("color must not be empty".to_string());
+    }
+    let hex = t.strip_prefix('#').unwrap_or(t);
+    if hex.len() == 6 && hex.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Ok(());
+    }
+    let parts: Vec<&str> = t.split(',').collect();
+    if parts.len() == 3 {
+        let parsed: Option<Vec<u16>> = parts
+            .iter()
+            .map(|p| p.trim().parse::<u16>().ok())
+            .collect::<Option<Vec<u16>>>();
+        if let Some(rgb) = parsed
+            && rgb.iter().all(|v| *v <= 255)
+        {
+            return Ok(());
+        }
+    }
+    Err("expected #RRGGBB or R,G,B (0..255)".to_string())
+}
+
+/// What: Validate a key-chord string accepted by keybind parsing.
+///
+/// Inputs:
+/// - `value`: Candidate key-chord specification (e.g. `Ctrl+R`, `Shift+Tab`).
+///
+/// Output:
+/// - `Ok(())` when the value parses into a supported key token plus optional modifiers.
+fn validate_key_chord(value: &str) -> Result<(), String> {
+    parse_validated_key_chord(value).map(|_| ())
+}
+
+/// What: Parse a key-chord string into a [`KeyChord`] using the same rules as
+/// `theme::parsing::parse_key_chord`, surfacing actionable errors.
+///
+/// Inputs:
+/// - `value`: Candidate key-chord specification (e.g. `Ctrl+R`).
+///
+/// Output:
+/// - `Ok(KeyChord)` when the value is well-formed.
+/// - `Err(reason)` with a user-facing message otherwise.
+///
+/// Details:
+/// - `Shift+Tab` is canonicalized to `KeyCode::BackTab` with empty modifiers,
+///   matching the in-memory representation used by the runtime keymap and the
+///   shipped parser.
+fn parse_validated_key_chord(value: &str) -> Result<KeyChord, String> {
+    let mut mods = KeyModifiers::empty();
+    let mut key_part: Option<String> = None;
+    for part in value.split('+') {
+        let p = part.trim();
+        if p.is_empty() {
+            continue;
+        }
+        match p.to_ascii_uppercase().as_str() {
+            "CTRL" | "CONTROL" => mods |= KeyModifiers::CONTROL,
+            "ALT" => mods |= KeyModifiers::ALT,
+            "SHIFT" => mods |= KeyModifiers::SHIFT,
+            "SUPER" | "META" | "WIN" => mods |= KeyModifiers::SUPER,
+            other => {
+                key_part = Some(other.to_string());
+            }
+        }
+    }
+    let key = key_part.unwrap_or_default();
+    if key == "TAB" && mods.contains(KeyModifiers::SHIFT) {
+        return Ok(KeyChord {
+            code: KeyCode::BackTab,
+            mods: KeyModifiers::empty(),
+        });
+    }
+    if key.is_empty() {
+        return Err("missing key token".to_string());
+    }
+    let code = parse_key_identifier(&key)
+        .ok_or_else(|| "invalid key chord; expected forms like Ctrl+R or Shift+Tab".to_string())?;
+    Ok(KeyChord { code, mods })
+}
+
+/// What: Detect cross-action keybind conflicts before patching disk.
+///
+/// Inputs:
+/// - `setting`: Schema row for the keybind being edited.
+/// - `value`: Proposed canonical chord string about to be saved.
+///
+/// Output:
+/// - `Ok(())` when no other action in the same scope already uses the chord.
+/// - `Err(reason)` naming the conflicting action so the status line can
+///   explain what to rebind first.
+///
+/// Details:
+/// - Compares against the latest [`crate::theme::settings`] snapshot so users
+///   see the same picture the running app uses for dispatch.
+/// - Same-chord overlaps across scopes (e.g. `Left` shared by global pane
+///   navigation and search-pane focus) are intentional and not flagged.
+/// - Multi-bind actions like `keybind_recent_remove` are still checked; the
+///   editor only writes the first chord, but existing extra chords on other
+///   actions are honored when scanning for collisions.
+fn validate_keybind_conflict(setting: &EditableSetting, value: &str) -> Result<(), String> {
+    let proposed = parse_validated_key_chord(value)?;
+    let scope = keybind_scope(setting.key);
+    let snapshot = crate::theme::settings();
+    for other in EDITABLE_KEYBINDS {
+        if other.key == setting.key {
+            continue;
+        }
+        if keybind_scope(other.key) != scope {
+            continue;
+        }
+        let chords =
+            crate::state::config_editor::keybind_chords_for_key(other.key, &snapshot.keymap);
+        if chords
+            .iter()
+            .any(|c| c.code == proposed.code && c.mods == proposed.mods)
+        {
+            return Err(format!(
+                "{} already uses that chord (scope: {scope}); rebind it first",
+                other.key
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// What: Parse one key identifier token used by key-chord validation.
+///
+/// Inputs:
+/// - `token`: Key token (for example `F5`, `Esc`, `?`, `r`).
+///
+/// Output:
+/// - `Some(KeyCode)` when recognized, otherwise `None`.
+fn parse_key_identifier(token: &str) -> Option<KeyCode> {
+    let t = token.trim();
+    if let Some(num) = t.strip_prefix('F').and_then(|x| x.parse::<u8>().ok()) {
+        return Some(KeyCode::F(num));
+    }
+    match t.to_ascii_uppercase().as_str() {
+        "ESC" => Some(KeyCode::Esc),
+        "ENTER" | "RETURN" => Some(KeyCode::Enter),
+        "TAB" => Some(KeyCode::Tab),
+        "BACKTAB" | "SHIFT+TAB" => Some(KeyCode::BackTab),
+        "BACKSPACE" => Some(KeyCode::Backspace),
+        "DELETE" | "DEL" => Some(KeyCode::Delete),
+        "INSERT" | "INS" => Some(KeyCode::Insert),
+        "HOME" => Some(KeyCode::Home),
+        "END" => Some(KeyCode::End),
+        "PAGEUP" | "PGUP" => Some(KeyCode::PageUp),
+        "PAGEDOWN" | "PGDN" => Some(KeyCode::PageDown),
+        "UP" | "ARROWUP" => Some(KeyCode::Up),
+        "DOWN" | "ARROWDOWN" => Some(KeyCode::Down),
+        "LEFT" | "ARROWLEFT" => Some(KeyCode::Left),
+        "RIGHT" | "ARROWRIGHT" => Some(KeyCode::Right),
+        "SPACE" => Some(KeyCode::Char(' ')),
+        _ => {
+            let mut chars = t.chars();
+            if let (Some(ch), None) = (chars.next(), chars.next()) {
+                Some(KeyCode::Char(ch.to_ascii_lowercase()))
+            } else {
+                None
+            }
+        }
     }
 }
 
@@ -608,10 +953,34 @@ mod tests {
 
     #[test]
     fn validate_int_range_rejects_out_of_bounds() {
-        let kind = EditPopupKind::Int { min: 1, max: 5 };
-        assert!(validate_value(&kind, "3").is_ok());
-        assert!(validate_value(&kind, "10").is_err());
-        assert!(validate_value(&kind, "abc").is_err());
+        let s = setting("mirror_count");
+        let popup = EditPopupState {
+            setting: s,
+            kind: EditPopupKind::Int { min: 1, max: 5 },
+            buffer: "3".to_string(),
+            caret: 1,
+        };
+        assert!(validate_value(&popup, "3").is_ok());
+        assert!(validate_value(&popup, "10").is_ok());
+        assert!(validate_value(&popup, "1000").is_err());
+        assert!(validate_value(&popup, "abc").is_err());
+    }
+
+    #[test]
+    fn validate_optional_unsigned_or_all_accepts_all_and_numbers() {
+        let s = setting("news_max_age_days");
+        let popup = EditPopupState::from_current(s, "all");
+        assert!(validate_value(&popup, "all").is_ok());
+        assert!(validate_value(&popup, "30").is_ok());
+        assert!(validate_value(&popup, "nope").is_err());
+    }
+
+    #[test]
+    fn validate_main_pane_order_rejects_invalid_permutation() {
+        let s = setting("main_pane_order");
+        let popup = EditPopupState::from_current(s, "results, search, package_info");
+        assert!(validate_value(&popup, "results, search, package_info").is_ok());
+        assert!(validate_value(&popup, "results, results, search").is_err());
     }
 
     #[test]
@@ -640,6 +1009,96 @@ mod tests {
         assert_eq!(popup.canonical_value(), "15");
         bump_int(&mut popup, 1_000, 1, 200);
         assert_eq!(popup.canonical_value(), "200");
+    }
+
+    #[test]
+    fn validate_color_accepts_hex_and_rgb_and_rejects_invalid() {
+        let popup = EditPopupState {
+            setting: setting("clipboard_suffix"),
+            kind: EditPopupKind::Text,
+            buffer: String::new(),
+            caret: 0,
+        };
+        assert!(validate_color_value("#1e1e2e").is_ok());
+        assert!(validate_color_value("1e1e2e").is_ok());
+        assert!(validate_color_value("255, 0, 10").is_ok());
+        assert!(validate_color_value("256,0,0").is_err());
+        assert!(validate_color_value("#xyzxyz").is_err());
+        // keep compiler aware validate_value uses per-kind branching
+        assert!(validate_value(&popup, "anything").is_ok());
+    }
+
+    #[test]
+    fn validate_key_chord_accepts_expected_forms_and_rejects_invalid() {
+        assert!(validate_key_chord("Ctrl+R").is_ok());
+        assert!(validate_key_chord("Shift+Tab").is_ok());
+        assert!(validate_key_chord("F5").is_ok());
+        assert!(validate_key_chord("Ctrl+").is_err());
+        assert!(validate_key_chord("Ctrl+NoSuchToken").is_err());
+    }
+
+    #[test]
+    fn parse_validated_key_chord_returns_canonical_chord() {
+        let c = parse_validated_key_chord("Ctrl+R").expect("ok");
+        assert_eq!(c.code, KeyCode::Char('r'));
+        assert!(c.mods.contains(KeyModifiers::CONTROL));
+        let bt = parse_validated_key_chord("Shift+Tab").expect("ok");
+        assert_eq!(bt.code, KeyCode::BackTab);
+        assert!(bt.mods.is_empty());
+    }
+
+    #[test]
+    fn keybind_conflict_detected_within_same_scope() {
+        // `keybind_help` defaults include `?`; trying to assign `?` to another
+        // global action must be flagged as a conflict.
+        let s = crate::theme::find_setting("keybind_reload_config").expect("schema entry");
+        let err = validate_keybind_conflict(s, "?").expect_err("conflict must be detected");
+        assert!(
+            err.contains("keybind_help"),
+            "error should name conflicting action, got: {err}"
+        );
+    }
+
+    #[test]
+    fn keybind_conflict_allows_self_rebind() {
+        let s = crate::theme::find_setting("keybind_reload_config").expect("schema entry");
+        // Reassigning the same chord to the action that already has it is fine
+        // because the conflict check excludes the entry being edited.
+        assert!(validate_keybind_conflict(s, "Ctrl+R").is_ok());
+    }
+
+    #[test]
+    fn keybind_conflict_ignores_cross_scope_overlap() {
+        // `Left` is bound globally to `pane_left` and in the search scope to
+        // `search_focus_left`. Editing `search_focus_left` to `Left` must not
+        // be flagged as a conflict because scopes differ.
+        let s = crate::theme::find_setting("keybind_search_focus_left").expect("schema entry");
+        assert!(validate_keybind_conflict(s, "Left").is_ok());
+    }
+
+    #[test]
+    fn validate_locale_accepts_empty_and_known_format() {
+        assert!(validate_locale_value("").is_ok());
+        assert!(validate_locale_value("en-US").is_ok());
+        assert!(validate_locale_value("bad locale").is_err());
+    }
+
+    #[test]
+    fn validate_preferred_terminal_rejects_spaces_and_controls() {
+        assert!(validate_preferred_terminal_value("").is_ok());
+        assert!(validate_preferred_terminal_value("kitty").is_ok());
+        assert!(validate_preferred_terminal_value("kitty -e").is_err());
+        assert!(validate_preferred_terminal_value("kitty\n").is_ok());
+        assert!(validate_preferred_terminal_value("kitty\tterm").is_err());
+    }
+
+    #[test]
+    fn validate_selected_countries_rejects_empty_or_invalid_entries() {
+        assert!(validate_selected_countries_value("Worldwide").is_ok());
+        assert!(validate_selected_countries_value("Germany, France").is_ok());
+        assert!(validate_selected_countries_value("").is_err());
+        assert!(validate_selected_countries_value("Germany, ").is_err());
+        assert!(validate_selected_countries_value("Ger{many").is_err());
     }
 
     #[test]

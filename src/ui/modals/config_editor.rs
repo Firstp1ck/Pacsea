@@ -33,7 +33,7 @@ use crate::state::{
     AppState, ConfigEditorFocus, ConfigEditorSearchFocus, ConfigEditorState, ConfigEditorView,
     EditPopupKind, EditPopupState,
 };
-use crate::theme::{ConfigFile, ReloadBehavior, Theme, ValueKind, theme};
+use crate::theme::{ConfigFile, ReloadBehavior, Theme, ValueKind, resolved_config_path, theme};
 
 /// What: Render the integrated config editor as a full-window view.
 ///
@@ -276,16 +276,15 @@ const fn file_label(file: ConfigFile) -> &'static str {
 /// Phase availability hint for non-Settings files.
 const fn file_phase_hint(file: ConfigFile) -> &'static str {
     match file {
-        ConfigFile::Settings => "",
-        ConfigFile::Keybinds => " (Phase 2)",
+        ConfigFile::Settings | ConfigFile::Keybinds => "",
         ConfigFile::Theme => " (Phase 3)",
         ConfigFile::Repos => " (later phase)",
     }
 }
 
-/// Whether a file is interactive in Phase 1.
+/// Whether a file is interactive in the current phase.
 const fn is_file_enabled(file: ConfigFile) -> bool {
-    matches!(file, ConfigFile::Settings)
+    matches!(file, ConfigFile::Settings | ConfigFile::Keybinds)
 }
 
 /// Top-pane dispatcher: file list or key list.
@@ -663,10 +662,18 @@ fn build_details_lines(
     th: &Theme,
 ) -> Vec<Line<'static>> {
     if matches!(state.view, ConfigEditorView::FileList) {
-        return vec![Line::from(Span::styled(
-            crate::i18n::t(app, "app.modals.config_editor.hint_pick_file"),
-            Style::default().fg(th.overlay1),
-        ))];
+        let selected = selected_file_from_cursor(state.file_cursor);
+        let active_path = resolved_config_path(selected);
+        return vec![
+            Line::from(Span::styled(
+                crate::i18n::t(app, "app.modals.config_editor.hint_pick_file"),
+                Style::default().fg(th.overlay1),
+            )),
+            Line::from(Span::styled(
+                format!("  active file: {}", active_path.display()),
+                Style::default().fg(th.subtext0),
+            )),
+        ];
     }
     let Some(entry) = state.selected_key() else {
         return vec![Line::from(Span::styled(
@@ -700,7 +707,24 @@ fn build_details_lines(
             format!("  apply: {}", reload_label(entry.reload)),
             Style::default().fg(th.overlay1),
         )),
+        Line::from(Span::styled(
+            format!(
+                "  active file: {}",
+                resolved_config_path(entry.file).display()
+            ),
+            Style::default().fg(th.subtext0),
+        )),
     ]
+}
+
+/// Resolve the file represented by the current file-list cursor index.
+const fn selected_file_from_cursor(file_cursor: usize) -> ConfigFile {
+    match file_cursor {
+        1 => ConfigFile::Keybinds,
+        2 => ConfigFile::Theme,
+        3 => ConfigFile::Repos,
+        _ => ConfigFile::Settings,
+    }
 }
 
 /// What: Draw the integrated editor footer using the same key-cap styling as package mode.

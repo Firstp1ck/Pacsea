@@ -658,6 +658,135 @@ pub const EDITABLE_SETTINGS: &[EditableSetting] = &[
     },
 ];
 
+/// What: Phase-2 set of editable keybind rows backed by `keybinds.conf`.
+///
+/// Inputs:
+/// - None.
+///
+/// Output:
+/// - Static slice of [`EditableSetting`] entries with `file = ConfigFile::Keybinds`.
+///
+/// Details:
+/// - Canonical key names match the parser in `theme::settings::parse_keybinds`.
+/// - Aliases mirror the alias sets the parser already accepts so existing
+///   user-edited files migrate to canonical names on save.
+/// - All entries reload via `AppliesOnSave` because [`crate::theme::settings`]
+///   reparses `keybinds.conf` and `apply_settings_to_app_state` copies
+///   `prefs.keymap` into `app.keymap` after each save.
+pub const EDITABLE_KEYBINDS: &[EditableSetting] = &[
+    // ── Global ───────────────────────────────────────────────────────
+    keybind_entry("keybind_help", &["keybind_help_overlay"]),
+    keybind_entry(
+        "keybind_toggle_config",
+        &["keybind_config_menu", "keybind_config_lists"],
+    ),
+    keybind_entry("keybind_toggle_options", &["keybind_options_menu"]),
+    keybind_entry("keybind_toggle_panels", &["keybind_panels_menu"]),
+    keybind_entry(
+        "keybind_reload_config",
+        &["keybind_reload_theme", "keybind_reload"],
+    ),
+    keybind_entry("keybind_exit", &["keybind_quit"]),
+    keybind_entry(
+        "keybind_show_pkgbuild",
+        &["keybind_pkgbuild", "keybind_toggle_pkgbuild"],
+    ),
+    keybind_entry(
+        "keybind_comments_toggle",
+        &["keybind_show_comments", "keybind_toggle_comments"],
+    ),
+    keybind_entry(
+        "keybind_run_pkgbuild_checks",
+        &["keybind_pkgbuild_checks", "keybind_toggle_pkgbuild_checks"],
+    ),
+    keybind_entry(
+        "keybind_cycle_pkgbuild_sections",
+        &[
+            "keybind_pkgbuild_section_cycle",
+            "keybind_pkgbuild_next_section",
+        ],
+    ),
+    keybind_entry("keybind_change_sort", &["keybind_sort"]),
+    keybind_entry(
+        "keybind_pane_next",
+        &["keybind_next_pane", "keybind_switch_pane"],
+    ),
+    keybind_entry("keybind_pane_left", &[]),
+    keybind_entry("keybind_pane_right", &[]),
+    keybind_entry("keybind_toggle_fuzzy", &["keybind_fuzzy_toggle"]),
+    // ── Search pane ──────────────────────────────────────────────────
+    keybind_entry("keybind_search_move_up", &[]),
+    keybind_entry("keybind_search_move_down", &[]),
+    keybind_entry("keybind_search_page_up", &[]),
+    keybind_entry("keybind_search_page_down", &[]),
+    keybind_entry("keybind_search_add", &[]),
+    keybind_entry("keybind_search_install", &[]),
+    keybind_entry("keybind_search_focus_left", &[]),
+    keybind_entry("keybind_search_focus_right", &[]),
+    keybind_entry("keybind_search_backspace", &[]),
+    keybind_entry("keybind_search_insert_clear", &[]),
+    // ── Search normal mode ───────────────────────────────────────────
+    keybind_entry("keybind_search_normal_toggle", &[]),
+    keybind_entry("keybind_search_normal_insert", &[]),
+    keybind_entry("keybind_search_normal_select_left", &[]),
+    keybind_entry("keybind_search_normal_select_right", &[]),
+    keybind_entry("keybind_search_normal_delete", &[]),
+    keybind_entry("keybind_search_normal_clear", &[]),
+    keybind_entry(
+        "keybind_search_normal_open_status",
+        &["keybind_normal_open_status", "keybind_open_status"],
+    ),
+    keybind_entry("keybind_search_normal_import", &[]),
+    keybind_entry("keybind_search_normal_export", &[]),
+    keybind_entry("keybind_search_normal_updates", &[]),
+    // ── Recent pane ──────────────────────────────────────────────────
+    keybind_entry("keybind_recent_move_up", &[]),
+    keybind_entry("keybind_recent_move_down", &[]),
+    keybind_entry("keybind_recent_find", &[]),
+    keybind_entry("keybind_recent_use", &[]),
+    keybind_entry("keybind_recent_add", &[]),
+    keybind_entry("keybind_recent_to_search", &[]),
+    keybind_entry("keybind_recent_focus_right", &[]),
+    keybind_entry("keybind_recent_remove", &[]),
+    keybind_entry("keybind_recent_clear", &[]),
+    // ── Install pane ─────────────────────────────────────────────────
+    keybind_entry("keybind_install_move_up", &[]),
+    keybind_entry("keybind_install_move_down", &[]),
+    keybind_entry("keybind_install_confirm", &[]),
+    keybind_entry("keybind_install_remove", &[]),
+    keybind_entry("keybind_install_clear", &[]),
+    keybind_entry("keybind_install_find", &[]),
+    keybind_entry("keybind_install_to_search", &[]),
+    keybind_entry("keybind_install_focus_left", &[]),
+    // ── News modal ───────────────────────────────────────────────────
+    keybind_entry("keybind_news_mark_read", &[]),
+    keybind_entry("keybind_news_mark_all_read", &[]),
+    keybind_entry("keybind_news_feed_mark_read", &[]),
+    keybind_entry("keybind_news_feed_mark_unread", &[]),
+    keybind_entry("keybind_news_feed_toggle_read", &[]),
+];
+
+/// What: Construct an [`EditableSetting`] row for a keybind action.
+///
+/// Inputs:
+/// - `key`: Canonical action key matching the parser in
+///   `theme::settings::parse_keybinds`.
+/// - `aliases`: Alternate names recognized on disk and rewritten on save.
+///
+/// Output:
+/// - `EditableSetting` with `file = ConfigFile::Keybinds`,
+///   `kind = ValueKind::KeyChord`, and `reload = AppliesOnSave`.
+const fn keybind_entry(key: &'static str, aliases: &'static [&'static str]) -> EditableSetting {
+    EditableSetting {
+        key,
+        aliases,
+        file: ConfigFile::Keybinds,
+        kind: ValueKind::KeyChord,
+        reload: ReloadBehavior::AppliesOnSave,
+        sensitivity: Sensitivity::Normal,
+    }
+}
+
 /// What: Look up an editable setting by canonical key or alias.
 ///
 /// Inputs:
@@ -667,7 +796,10 @@ pub const EDITABLE_SETTINGS: &[EditableSetting] = &[
 /// - `Some(&EditableSetting)` on match, `None` otherwise.
 #[must_use]
 pub fn find_setting(name: &str) -> Option<&'static EditableSetting> {
-    EDITABLE_SETTINGS.iter().find(|s| s.matches(name))
+    EDITABLE_SETTINGS
+        .iter()
+        .chain(EDITABLE_KEYBINDS.iter())
+        .find(|s| s.matches(name))
 }
 
 /// What: Return all editable settings registered for `file`.
@@ -681,8 +813,39 @@ pub fn find_setting(name: &str) -> Option<&'static EditableSetting> {
 pub fn settings_for(file: ConfigFile) -> Vec<&'static EditableSetting> {
     EDITABLE_SETTINGS
         .iter()
+        .chain(EDITABLE_KEYBINDS.iter())
         .filter(|s| s.file == file)
         .collect()
+}
+
+/// What: Determine the conflict-detection scope for a keybind action.
+///
+/// Inputs:
+/// - `key`: Canonical keybind action key.
+///
+/// Output:
+/// - Static label identifying the scope (`global`, `search`, `search_normal`,
+///   `recent`, `install`, or `news`).
+///
+/// Details:
+/// - Two bindings collide only when they share both a chord and this scope.
+/// - Same-chord rebinds across scopes (e.g. `Left` for `pane_left` and
+///   `search_focus_left`) are considered intentional and do not conflict.
+#[must_use]
+pub fn keybind_scope(key: &str) -> &'static str {
+    if key.starts_with("keybind_search_normal_") {
+        "search_normal"
+    } else if key.starts_with("keybind_search_") {
+        "search"
+    } else if key.starts_with("keybind_recent_") {
+        "recent"
+    } else if key.starts_with("keybind_install_") {
+        "install"
+    } else if key.starts_with("keybind_news_") {
+        "news"
+    } else {
+        "global"
+    }
 }
 
 #[cfg(test)]
@@ -743,9 +906,48 @@ mod tests {
         for s in only_settings {
             assert_eq!(s.file, ConfigFile::Settings);
         }
-        // Phase 0 has no theme/keybinds/repos entries yet.
+        // Phase 2 ships keybind rows; theme/repos still empty.
+        let only_keybinds = settings_for(ConfigFile::Keybinds);
+        assert!(!only_keybinds.is_empty());
+        for s in only_keybinds {
+            assert_eq!(s.file, ConfigFile::Keybinds);
+            assert!(matches!(s.kind, ValueKind::KeyChord));
+        }
         assert!(settings_for(ConfigFile::Theme).is_empty());
-        assert!(settings_for(ConfigFile::Keybinds).is_empty());
         assert!(settings_for(ConfigFile::Repos).is_empty());
+    }
+
+    #[test]
+    fn keybind_keys_are_unique_after_normalization() {
+        let mut seen = std::collections::HashSet::new();
+        for entry in EDITABLE_KEYBINDS {
+            let norm = normalize(entry.key);
+            assert!(
+                seen.insert(norm.clone()),
+                "duplicate key in EDITABLE_KEYBINDS: {norm}"
+            );
+        }
+    }
+
+    #[test]
+    fn keybind_aliases_resolve_to_primary() {
+        let s = find_setting("keybind_help_overlay").expect("alias should resolve");
+        assert_eq!(s.key, "keybind_help");
+        let s = find_setting("keybind_open_status").expect("alias should resolve");
+        assert_eq!(s.key, "keybind_search_normal_open_status");
+    }
+
+    #[test]
+    fn keybind_scope_groups_by_prefix() {
+        assert_eq!(keybind_scope("keybind_help"), "global");
+        assert_eq!(keybind_scope("keybind_pane_next"), "global");
+        assert_eq!(keybind_scope("keybind_search_move_up"), "search");
+        assert_eq!(
+            keybind_scope("keybind_search_normal_toggle"),
+            "search_normal"
+        );
+        assert_eq!(keybind_scope("keybind_recent_remove"), "recent");
+        assert_eq!(keybind_scope("keybind_install_remove"), "install");
+        assert_eq!(keybind_scope("keybind_news_mark_read"), "news");
     }
 }

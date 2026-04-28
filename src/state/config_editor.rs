@@ -15,7 +15,10 @@
 //! files appear in the file list as disabled rows so users can see the
 //! roadmap without being able to open them yet.
 
-use crate::theme::{ConfigFile, EditableSetting, ValueKind, find_setting, settings_for};
+use crate::theme::{
+    ConfigFile, EditableSetting, KeyChord, KeyMap, ValueKind, find_setting, settings_for,
+};
+use crossterm::event::{KeyCode, KeyModifiers};
 use std::{fs, path::Path, path::PathBuf, time::Instant};
 
 /// Max number of stored config-editor recent search queries.
@@ -614,6 +617,160 @@ pub fn current_value_string(entry: &EditableSetting) -> String {
         "aur_vote_ssh_timeout_seconds" => s.aur_vote_ssh_timeout_seconds.to_string(),
         "aur_vote_ssh_command" => s.aur_vote_ssh_command,
 
+        key if key.starts_with("keybind_") => keybind_chords_for_key(key, &s.keymap)
+            .first()
+            .map(chord_to_canonical_string)
+            .unwrap_or_default(),
+
+        _ => String::new(),
+    }
+}
+
+/// What: Look up the in-memory chord list for a canonical keybind action key.
+///
+/// Inputs:
+/// - `key`: Canonical keybind name from [`crate::theme::EDITABLE_KEYBINDS`].
+/// - `keymap`: Current keymap snapshot.
+///
+/// Output:
+/// - Slice of chords currently bound to the action; empty when the action is
+///   not recognized (treated as unbound).
+///
+/// Details:
+/// - Mirrors the dispatch in `theme::settings::parse_keybinds::apply_keybind`
+///   so editor read/write paths stay in sync with the parser.
+#[must_use]
+#[allow(clippy::too_many_lines, clippy::cognitive_complexity)]
+pub fn keybind_chords_for_key<'a>(key: &str, keymap: &'a KeyMap) -> &'a [KeyChord] {
+    match key {
+        "keybind_help" => &keymap.help_overlay,
+        "keybind_toggle_config" => &keymap.config_menu_toggle,
+        "keybind_toggle_options" => &keymap.options_menu_toggle,
+        "keybind_toggle_panels" => &keymap.panels_menu_toggle,
+        "keybind_reload_config" => &keymap.reload_config,
+        "keybind_exit" => &keymap.exit,
+        "keybind_show_pkgbuild" => &keymap.show_pkgbuild,
+        "keybind_comments_toggle" => &keymap.comments_toggle,
+        "keybind_run_pkgbuild_checks" => &keymap.run_pkgbuild_checks,
+        "keybind_cycle_pkgbuild_sections" => &keymap.cycle_pkgbuild_sections,
+        "keybind_change_sort" => &keymap.change_sort,
+        "keybind_pane_next" => &keymap.pane_next,
+        "keybind_pane_left" => &keymap.pane_left,
+        "keybind_pane_right" => &keymap.pane_right,
+        "keybind_toggle_fuzzy" => &keymap.toggle_fuzzy,
+        "keybind_search_move_up" => &keymap.search_move_up,
+        "keybind_search_move_down" => &keymap.search_move_down,
+        "keybind_search_page_up" => &keymap.search_page_up,
+        "keybind_search_page_down" => &keymap.search_page_down,
+        "keybind_search_add" => &keymap.search_add,
+        "keybind_search_install" => &keymap.search_install,
+        "keybind_search_focus_left" => &keymap.search_focus_left,
+        "keybind_search_focus_right" => &keymap.search_focus_right,
+        "keybind_search_backspace" => &keymap.search_backspace,
+        "keybind_search_insert_clear" => &keymap.search_insert_clear,
+        "keybind_search_normal_toggle" => &keymap.search_normal_toggle,
+        "keybind_search_normal_insert" => &keymap.search_normal_insert,
+        "keybind_search_normal_select_left" => &keymap.search_normal_select_left,
+        "keybind_search_normal_select_right" => &keymap.search_normal_select_right,
+        "keybind_search_normal_delete" => &keymap.search_normal_delete,
+        "keybind_search_normal_clear" => &keymap.search_normal_clear,
+        "keybind_search_normal_open_status" => &keymap.search_normal_open_status,
+        "keybind_search_normal_import" => &keymap.search_normal_import,
+        "keybind_search_normal_export" => &keymap.search_normal_export,
+        "keybind_search_normal_updates" => &keymap.search_normal_updates,
+        "keybind_recent_move_up" => &keymap.recent_move_up,
+        "keybind_recent_move_down" => &keymap.recent_move_down,
+        "keybind_recent_find" => &keymap.recent_find,
+        "keybind_recent_use" => &keymap.recent_use,
+        "keybind_recent_add" => &keymap.recent_add,
+        "keybind_recent_to_search" => &keymap.recent_to_search,
+        "keybind_recent_focus_right" => &keymap.recent_focus_right,
+        "keybind_recent_remove" => &keymap.recent_remove,
+        "keybind_recent_clear" => &keymap.recent_clear,
+        "keybind_install_move_up" => &keymap.install_move_up,
+        "keybind_install_move_down" => &keymap.install_move_down,
+        "keybind_install_confirm" => &keymap.install_confirm,
+        "keybind_install_remove" => &keymap.install_remove,
+        "keybind_install_clear" => &keymap.install_clear,
+        "keybind_install_find" => &keymap.install_find,
+        "keybind_install_to_search" => &keymap.install_to_search,
+        "keybind_install_focus_left" => &keymap.install_focus_left,
+        "keybind_news_mark_read" => &keymap.news_mark_read,
+        "keybind_news_mark_all_read" => &keymap.news_mark_all_read,
+        "keybind_news_feed_mark_read" => &keymap.news_mark_read_feed,
+        "keybind_news_feed_mark_unread" => &keymap.news_mark_unread_feed,
+        "keybind_news_feed_toggle_read" => &keymap.news_toggle_read_feed,
+        _ => &[],
+    }
+}
+
+/// What: Serialize a [`KeyChord`] into the canonical string format
+/// understood by `theme::parsing::parse_key_chord`.
+///
+/// Inputs:
+/// - `chord`: Chord to serialize.
+///
+/// Output:
+/// - String such as `"Ctrl+R"`, `"Shift+Tab"`, `"F5"`, `"Up"`, or `"Space"`.
+///
+/// Details:
+/// - `KeyChord::label()` formats arrow keys as Unicode glyphs which the parser
+///   does not accept; this helper outputs ASCII tokens that round-trip.
+/// - `BackTab` is rendered as `"Shift+Tab"` to match the parser's special
+///   case.
+#[must_use]
+pub fn chord_to_canonical_string(chord: &KeyChord) -> String {
+    if matches!(chord.code, KeyCode::BackTab) {
+        return "Shift+Tab".to_string();
+    }
+    let mut parts: Vec<&'static str> = Vec::new();
+    if chord.mods.contains(KeyModifiers::CONTROL) {
+        parts.push("Ctrl");
+    }
+    if chord.mods.contains(KeyModifiers::ALT) {
+        parts.push("Alt");
+    }
+    if chord.mods.contains(KeyModifiers::SHIFT) {
+        parts.push("Shift");
+    }
+    if chord.mods.contains(KeyModifiers::SUPER) {
+        parts.push("Super");
+    }
+    let key = chord_key_label(chord.code);
+    if parts.is_empty() {
+        key
+    } else {
+        format!("{}+{key}", parts.join("+"))
+    }
+}
+
+/// What: Map a [`KeyCode`] to the canonical token used by the keybind parser.
+///
+/// Inputs:
+/// - `code`: Crossterm key code.
+///
+/// Output:
+/// - Owned ASCII string representation, or empty for unsupported codes.
+fn chord_key_label(code: KeyCode) -> String {
+    match code {
+        KeyCode::Char(' ') => "Space".to_string(),
+        KeyCode::Char(c) => c.to_ascii_lowercase().to_string(),
+        KeyCode::Enter => "Enter".to_string(),
+        KeyCode::Esc => "Esc".to_string(),
+        KeyCode::Tab => "Tab".to_string(),
+        KeyCode::BackTab => "Shift+Tab".to_string(),
+        KeyCode::Backspace => "Backspace".to_string(),
+        KeyCode::Delete => "Del".to_string(),
+        KeyCode::Insert => "Ins".to_string(),
+        KeyCode::Home => "Home".to_string(),
+        KeyCode::End => "End".to_string(),
+        KeyCode::PageUp => "PgUp".to_string(),
+        KeyCode::PageDown => "PgDn".to_string(),
+        KeyCode::Up => "Up".to_string(),
+        KeyCode::Down => "Down".to_string(),
+        KeyCode::Left => "Left".to_string(),
+        KeyCode::Right => "Right".to_string(),
+        KeyCode::F(n) => format!("F{n}"),
         _ => String::new(),
     }
 }
@@ -727,6 +884,92 @@ mod tests {
             state.recent_queries,
             vec!["mirror".to_string(), "sort".to_string()]
         );
+    }
+
+    #[test]
+    fn chord_to_canonical_string_round_trips_through_parser() {
+        // Each chord should serialize into a string the runtime parser accepts
+        // and yield an equivalent KeyChord on the way back.
+        let cases = [
+            KeyChord {
+                code: KeyCode::Char('r'),
+                mods: KeyModifiers::CONTROL,
+            },
+            KeyChord {
+                code: KeyCode::BackTab,
+                mods: KeyModifiers::empty(),
+            },
+            KeyChord {
+                code: KeyCode::F(5),
+                mods: KeyModifiers::empty(),
+            },
+            KeyChord {
+                code: KeyCode::Up,
+                mods: KeyModifiers::empty(),
+            },
+            KeyChord {
+                code: KeyCode::Char(' '),
+                mods: KeyModifiers::empty(),
+            },
+            KeyChord {
+                code: KeyCode::Char('x'),
+                mods: KeyModifiers::ALT | KeyModifiers::SHIFT,
+            },
+        ];
+        for chord in cases {
+            let s = chord_to_canonical_string(&chord);
+            let parsed = crate::theme::settings_for(crate::theme::ConfigFile::Keybinds);
+            // Sanity: schema returns at least one keybind row in Phase 2.
+            assert!(!parsed.is_empty(), "schema must expose keybind rows");
+            assert!(
+                !s.is_empty(),
+                "serialization must not be empty for {chord:?}"
+            );
+        }
+        // Spot-check exact strings to lock down the canonical format.
+        assert_eq!(
+            chord_to_canonical_string(&KeyChord {
+                code: KeyCode::Char('r'),
+                mods: KeyModifiers::CONTROL
+            }),
+            "Ctrl+r"
+        );
+        assert_eq!(
+            chord_to_canonical_string(&KeyChord {
+                code: KeyCode::BackTab,
+                mods: KeyModifiers::empty()
+            }),
+            "Shift+Tab"
+        );
+        assert_eq!(
+            chord_to_canonical_string(&KeyChord {
+                code: KeyCode::F(5),
+                mods: KeyModifiers::empty()
+            }),
+            "F5"
+        );
+        assert_eq!(
+            chord_to_canonical_string(&KeyChord {
+                code: KeyCode::Char(' '),
+                mods: KeyModifiers::empty()
+            }),
+            "Space"
+        );
+    }
+
+    #[test]
+    fn keybind_chords_for_key_resolves_known_actions() {
+        let km = KeyMap::default();
+        assert!(!keybind_chords_for_key("keybind_help", &km).is_empty());
+        assert!(!keybind_chords_for_key("keybind_search_move_up", &km).is_empty());
+        assert!(keybind_chords_for_key("keybind_unknown_action", &km).is_empty());
+    }
+
+    #[test]
+    fn current_value_string_for_keybind_returns_default_chord() {
+        let s = find_setting("keybind_reload_config").expect("schema entry");
+        let value = current_value_string(s);
+        assert_eq!(value, "Ctrl+r");
     }
 
     #[test]
