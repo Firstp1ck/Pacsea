@@ -85,13 +85,17 @@ pub fn settings() -> Settings {
 
     let mut out = Settings::default();
     // Load settings from settings.conf (or legacy pacsea.conf)
-    let settings_path = resolve_settings_config_path().or_else(|| {
-        env::var("XDG_CONFIG_HOME")
-            .ok()
-            .map(PathBuf::from)
-            .or_else(|| env::var("HOME").ok().map(|h| Path::new(&h).join(".config")))
-            .map(|base| base.join("pacsea").join("settings.conf"))
-    });
+    let settings_path = resolve_settings_config_path()
+        .or_else(|| {
+            crate::theme::paths::config_dir_override().map(|root| root.join("settings.conf"))
+        })
+        .or_else(|| {
+            env::var("XDG_CONFIG_HOME")
+                .ok()
+                .map(PathBuf::from)
+                .or_else(|| env::var("HOME").ok().map(|h| Path::new(&h).join(".config")))
+                .map(|base| base.join("pacsea").join("settings.conf"))
+        });
 
     let settings_metadata = settings_path.as_ref().and_then(|p| fs::metadata(p).ok());
     let settings_mtime = settings_metadata.as_ref().and_then(|m| m.modified().ok());

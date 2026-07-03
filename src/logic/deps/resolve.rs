@@ -90,15 +90,10 @@ pub(super) fn batch_fetch_official_deps(names: &[&str]) -> HashMap<String, Vec<S
 /// - Returns true if the command exists and can be executed.
 ///
 /// Details:
-/// - Uses a simple version check to verify command availability.
+/// - Delegates to [`crate::util::command::binary_available`], which runs a
+///   simple `--version` probe with all standard streams nulled.
 fn is_command_available(cmd: &str) -> bool {
-    Command::new(cmd)
-        .args(["--version"])
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .output()
-        .is_ok()
+    crate::util::command::binary_available(cmd)
 }
 
 /// What: Check if a package name should be filtered out (virtual package or self-reference).
@@ -634,21 +629,8 @@ pub(super) fn fetch_package_conflicts(name: &str, source: &Source) -> Vec<String
         }
         Source::Aur => {
             // Try paru/yay first
-            let has_paru = Command::new("paru")
-                .args(["--version"])
-                .stdin(Stdio::null())
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .output()
-                .is_ok();
-
-            let has_yay = Command::new("yay")
-                .args(["--version"])
-                .stdin(Stdio::null())
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .output()
-                .is_ok();
+            let has_paru = crate::util::command::binary_available("paru");
+            let has_yay = crate::util::command::binary_available("yay");
 
             if has_paru {
                 tracing::debug!("Trying paru -Si {} for conflicts", name);

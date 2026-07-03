@@ -3,26 +3,12 @@
 /// Output:
 /// - Tuple of (`has_paru`, `has_yay`, `helper_name`)
 pub fn check_aur_helper() -> (bool, bool, &'static str) {
-    use std::process::{Command, Stdio};
-
-    let has_paru = Command::new("paru")
-        .args(["--version"])
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .output()
-        .is_ok();
+    let has_paru = crate::util::command::binary_available("paru");
 
     let has_yay = if has_paru {
         false
     } else {
-        Command::new("yay")
-            .args(["--version"])
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .output()
-            .is_ok()
+        crate::util::command::binary_available("yay")
     };
 
     let helper = if has_paru { "paru" } else { "yay" };
@@ -143,15 +129,7 @@ pub fn classify_pacman_stderr_for_update_check(stderr: &str) -> Vec<String> {
 /// - Fakeroot is required to sync a temporary pacman database without root
 #[cfg(not(target_os = "windows"))]
 pub fn has_fakeroot() -> bool {
-    use std::process::{Command, Stdio};
-
-    Command::new("fakeroot")
-        .args(["--version"])
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .output()
-        .is_ok()
+    crate::util::command::binary_available("fakeroot")
 }
 
 /// What: Check if checkupdates is available on the system.
@@ -164,15 +142,7 @@ pub fn has_fakeroot() -> bool {
 /// - It automatically syncs the database and doesn't require fakeroot
 #[cfg(not(target_os = "windows"))]
 pub fn has_checkupdates() -> bool {
-    use std::process::{Command, Stdio};
-
-    Command::new("checkupdates")
-        .args(["--version"])
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .output()
-        .is_ok()
+    crate::util::command::binary_available("checkupdates")
 }
 
 /// What: Get the current user's UID by reading /proc/self/status.

@@ -95,6 +95,8 @@ pub struct Settings {
     pub selected_countries: String,
     /// Number of mirrors to fetch/rank when updating.
     pub mirror_count: u16,
+    /// Preferred AUR helper for CLI operations: "auto" (detect, paru preferred), "paru", or "yay".
+    pub aur_helper: String,
     /// `VirusTotal` API key for security scanning.
     pub virustotal_api_key: String,
     /// Whether to run `ClamAV` scan on AUR packages.
@@ -255,6 +257,7 @@ impl Default for Settings {
             show_keybinds_footer: true,
             selected_countries: "Worldwide".to_string(),
             mirror_count: 20,
+            aur_helper: "auto".to_string(),
             virustotal_api_key: String::new(),
             scan_do_clamav: true,
             scan_do_trivy: true,

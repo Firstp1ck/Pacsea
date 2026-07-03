@@ -1,6 +1,6 @@
 //! Command execution utilities for service resolution.
 
-use std::process::Command;
+use crate::util::command::{CommandError, run_capture};
 use tracing::{debug, warn};
 
 /// What: Execute a command and capture stdout as UTF-8.
@@ -14,7 +14,10 @@ use tracing::{debug, warn};
 /// - Stdout as a `String` on success; error description otherwise.
 ///
 /// Details:
-/// - Annotates errors with the supplied `display` string for easier debugging.
+/// - Delegates execution to [`crate::util::command::run_capture`], which emits
+///   the detailed spawn/exit tracing.
+/// - Annotates errors with the supplied `display_label` string for easier
+///   debugging, preserving the historical message formats.
 pub(super) fn run_command(
     program: &str,
     args: &[&str],
@@ -27,57 +30,23 @@ pub(super) fn run_command(
         "executing service command"
     );
 
-    let output = Command::new(program).args(args).output().map_err(|err| {
+    run_capture(program, args).map_err(|err| {
         warn!(
             command = program,
             args = ?args,
             display = display_label,
             error = %err,
-            "failed to spawn command"
+            "service command failed"
         );
-        format!("failed to spawn `{display_label}`: {err}")
-    })?;
-
-    let status_code = output.status.code();
-    let stdout_len = output.stdout.len();
-    let stderr_len = output.stderr.len();
-
-    if !output.status.success() {
-        warn!(
-            command = program,
-            args = ?args,
-            display = display_label,
-            status = ?output.status,
-            status_code,
-            stdout_len,
-            stderr_len,
-            "command exited with non-zero status"
-        );
-        return Err(format!(
-            "`{display_label}` exited with status {}",
-            output.status
-        ));
-    }
-
-    debug!(
-        command = program,
-        args = ?args,
-        display = display_label,
-        status = ?output.status,
-        status_code,
-        stdout_len,
-        stderr_len,
-        "command completed successfully"
-    );
-
-    String::from_utf8(output.stdout).map_err(|err| {
-        warn!(
-            command = program,
-            args = ?args,
-            display = display_label,
-            error = %err,
-            "command produced invalid UTF-8"
-        );
-        format!("`{display_label}` produced invalid UTF-8: {err}")
+        match err {
+            CommandError::Io(io_err) => format!("failed to spawn `{display_label}`: {io_err}"),
+            CommandError::Failed { status, .. } => {
+                format!("`{display_label}` exited with status {status}")
+            }
+            CommandError::Utf8(utf8_err) => {
+                format!("`{display_label}` produced invalid UTF-8: {utf8_err}")
+            }
+            CommandError::Parse { .. } => format!("`{display_label}` failed: {err}"),
+        }
     })
 }

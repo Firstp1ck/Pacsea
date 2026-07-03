@@ -3,6 +3,8 @@
 //! This module organizes the TUI runtime into smaller files to improve
 //! maintainability and keep individual files under 500 lines.
 
+/// Shared helpers for the signature-validated install-list caches.
+mod cache_common;
 /// Dependency cache for storing resolved dependency information.
 mod deps_cache;
 /// File cache for storing package file information.

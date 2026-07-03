@@ -7,6 +7,7 @@
 
 mod batch;
 mod command;
+pub mod guardrails;
 mod metadata;
 mod version;
 

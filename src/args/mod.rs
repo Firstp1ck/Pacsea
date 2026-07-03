@@ -2,8 +2,10 @@
 
 pub mod cache;
 pub mod definition;
+pub mod guardrails;
 pub mod i18n;
 pub mod install;
+pub mod json;
 pub mod list;
 pub mod news;
 pub mod package;

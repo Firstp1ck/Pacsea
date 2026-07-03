@@ -70,6 +70,11 @@ fn build_env_filter(log_level: &str) -> tracing_subscriber::EnvFilter {
 async fn main() {
     let args = args::Args::parse();
 
+    // Apply --config-dir before any path resolution (logging, settings, caches, lists)
+    if let Some(dir) = args.config_dir.as_deref() {
+        theme::set_config_dir_override(Some(std::path::PathBuf::from(dir)));
+    }
+
     // Determine log level (verbose flag overrides log_level)
     // PACSEA_PREFLIGHT_TRACE=1 enables TRACE level for detailed preflight timing
     let log_level = args::determine_log_level(&args);

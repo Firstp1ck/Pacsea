@@ -5,6 +5,7 @@
 //! indexing, and UI code.
 
 pub mod clipboard;
+pub mod command;
 pub mod config;
 pub mod curl;
 pub mod pacman;
