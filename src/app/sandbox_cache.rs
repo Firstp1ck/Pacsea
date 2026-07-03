@@ -1,9 +1,8 @@
 //! Sandbox cache persistence for install list sandbox analysis.
 
+use super::cache_common::{self, CacheMatchMode};
 use crate::logic::sandbox::SandboxInfo;
 use serde::{Deserialize, Serialize};
-use std::fs;
-use std::io::ErrorKind;
 use std::path::PathBuf;
 
 /// What: Cache blob combining install list signature with resolved sandbox metadata.
@@ -28,12 +27,11 @@ pub struct SandboxCache {
 /// - Sorted vector of package names that can be compared for cache validity checks.
 ///
 /// Details:
-/// - Clones each package name and sorts the collection alphabetically.
+/// - Delegates to [`cache_common::compute_signature`], which sorts the cloned
+///   package names alphabetically to create an order-agnostic key.
 #[must_use]
 pub fn compute_signature(packages: &[crate::state::PackageItem]) -> Vec<String> {
-    let mut names: Vec<String> = packages.iter().map(|p| p.name.clone()).collect();
-    names.sort();
-    names
+    cache_common::compute_signature(packages)
 }
 
 /// What: Load cached sandbox data when the stored signature matches the current list.
@@ -70,92 +68,33 @@ pub fn load_cache(path: &PathBuf, current_signature: &[String]) -> Option<Vec<Sa
 /// - If `exact_match_only` is false, loads entries for packages that exist in both
 ///   the cached signature and the current signature (intersection matching).
 /// - This allows preserving sandbox data when packages are added to the install list.
+// `&PathBuf` is kept (rather than `&Path`) to preserve the historical public
+// signature used by `load_cache`, which `runtime::init` consumes as a closure.
+#[allow(clippy::ptr_arg)]
+#[must_use]
 pub fn load_cache_partial(
     path: &PathBuf,
     current_signature: &[String],
     exact_match_only: bool,
 ) -> Option<Vec<SandboxInfo>> {
-    let raw = match fs::read_to_string(path) {
-        Ok(contents) => contents,
-        Err(e) if e.kind() == ErrorKind::NotFound => {
-            tracing::debug!(path = %path.display(), "[Cache] Sandbox cache not found");
-            return None;
-        }
-        Err(e) => {
-            tracing::warn!(
-                path = %path.display(),
-                error = %e,
-                "[Cache] Failed to read sandbox cache"
-            );
-            return None;
-        }
+    let SandboxCache {
+        install_list_signature,
+        sandbox_info,
+    } = cache_common::load_signed_cache(path, "Sandbox", "sandbox")?;
+    let mode = if exact_match_only {
+        CacheMatchMode::Exact
+    } else {
+        CacheMatchMode::Intersection
     };
-
-    let cache: SandboxCache = match serde_json::from_str(&raw) {
-        Ok(cache) => cache,
-        Err(e) => {
-            tracing::warn!(
-                path = %path.display(),
-                error = %e,
-                "[Cache] Failed to parse sandbox cache"
-            );
-            return None;
-        }
-    };
-
-    // Check if signature matches exactly
-    let mut cached_sig = cache.install_list_signature.clone();
-    cached_sig.sort();
-    let mut current_sig = current_signature.to_vec();
-    current_sig.sort();
-
-    if cached_sig == current_sig {
-        tracing::info!(
-            path = %path.display(),
-            count = cache.sandbox_info.len(),
-            "loaded sandbox cache (exact match)"
-        );
-        return Some(cache.sandbox_info);
-    } else if !exact_match_only {
-        // Partial matching: load entries for packages that exist in both signatures
-        let cached_set: std::collections::HashSet<&String> = cached_sig.iter().collect();
-        let current_set: std::collections::HashSet<&String> = current_sig.iter().collect();
-
-        // Find intersection: packages that exist in both cache and current list
-        let intersection: std::collections::HashSet<&String> =
-            cached_set.intersection(&current_set).copied().collect();
-
-        if !intersection.is_empty() {
-            // Filter cached results to match packages in intersection
-            let intersection_names: std::collections::HashSet<&str> =
-                intersection.iter().map(|s| s.as_str()).collect();
-            let filtered: Vec<SandboxInfo> = cache
-                .sandbox_info
-                .iter()
-                .filter(|sandbox_info| {
-                    intersection_names.contains(sandbox_info.package_name.as_str())
-                })
-                .cloned()
-                .collect();
-
-            if !filtered.is_empty() {
-                tracing::info!(
-                    path = %path.display(),
-                    cached_count = cache.sandbox_info.len(),
-                    filtered_count = filtered.len(),
-                    intersection_packages = ?intersection.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
-                    "loaded sandbox cache (partial match)"
-                );
-                return Some(filtered);
-            }
-        }
-    }
-
-    tracing::debug!(
-        path = %path.display(),
-        "sandbox cache signature mismatch, ignoring"
-    );
-    None
+    cache_common::take_signature_match(
+        mode,
+        path,
+        "sandbox",
+        current_signature,
+        &install_list_signature,
+        sandbox_info,
+        |info| info.package_name.as_str(),
+    )
 }
 
 /// What: Persist sandbox cache payload and signature to disk as JSON.
@@ -170,19 +109,15 @@ pub fn load_cache_partial(
 ///
 /// Details:
 /// - Serializes the data to JSON, writes it to `path`, and includes the record count in logs.
+// `&PathBuf` is kept (rather than `&Path`) to preserve the historical public
+// signature shared by all install-list cache modules and their callers.
+#[allow(clippy::ptr_arg)]
 pub fn save_cache(path: &PathBuf, signature: &[String], sandbox_info: &[SandboxInfo]) {
     let cache = SandboxCache {
         install_list_signature: signature.to_vec(),
         sandbox_info: sandbox_info.to_vec(),
     };
-    if let Ok(s) = serde_json::to_string(&cache) {
-        let _ = fs::write(path, s);
-        tracing::debug!(
-            path = %path.display(),
-            count = sandbox_info.len(),
-            "saved sandbox cache"
-        );
-    }
+    cache_common::save_signed_cache(path, &cache, sandbox_info.len(), "sandbox");
 }
 
 #[cfg(test)]

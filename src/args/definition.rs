@@ -25,7 +25,11 @@ pub struct Args {
     #[arg(long)]
     pub no_color: bool,
 
-    /// [Not yet implemented] Specify the configuration directory (default: ~/.config/pacsea)
+    /// Output machine-readable JSON (`schema_version` envelope) on stdout; supported with --search, --list, and --news
+    #[arg(long)]
+    pub json: bool,
+
+    /// Specify the configuration directory (default: `~/.config/pacsea`); also used for caches, lists, and logs
     #[arg(long)]
     pub config_dir: Option<String>,
 
@@ -45,13 +49,17 @@ pub struct Args {
     #[arg(short = 'r', long, num_args = 1..)]
     pub remove: Vec<String>,
 
-    /// [Not yet implemented] Remove packages from file (e.g., pacsea -R FILENAME.txt)
+    /// Remove packages from file (e.g., pacsea -R FILENAME.txt)
     #[arg(short = 'R')]
     pub remove_from_file: Option<String>,
 
     /// System update (sync + update, e.g., pacsea --update)
     #[arg(short = 'u', long)]
     pub update: bool,
+
+    /// Also refresh pacman mirrors before updating, using `selected_countries` and `mirror_count` from settings.conf (use with --update)
+    #[arg(long)]
+    pub mirrors: bool,
 
     /// Output news dialog to commandline with link to website at the end
     #[arg(short = 'n', long)]
@@ -108,7 +116,7 @@ pub fn process_args(args: &Args) -> Option<bool> {
 
     // Handle command-line search mode
     if let Some(search_query) = &args.search {
-        search::handle_search(search_query);
+        search::handle_search(search_query, args.json);
     }
 
     // Handle clear cache flag
@@ -118,7 +126,7 @@ pub fn process_args(args: &Args) -> Option<bool> {
 
     // Handle list installed packages flag
     if args.list {
-        list::handle_list(args.exp, args.imp, args.all);
+        list::handle_list(args.exp, args.imp, args.all, args.json);
     }
 
     // Handle command-line install mode
@@ -138,15 +146,13 @@ pub fn process_args(args: &Args) -> Option<bool> {
 
     // Handle remove packages from file (-R)
     if let Some(file_path) = &args.remove_from_file {
-        tracing::info!(file = %file_path, "Remove from file requested from CLI");
-        // TODO: Implement remove from file (mentioned in roadmap)
-        tracing::warn!("Remove from file not yet implemented, falling back to TUI");
+        remove::handle_remove_from_file(file_path);
     }
 
     // Handle system update (--update / -u)
     #[cfg(not(target_os = "windows"))]
     if args.update {
-        update::handle_update(args.no_color);
+        update::handle_update(args.no_color, args.mirrors);
     }
     #[cfg(target_os = "windows")]
     if args.update {
@@ -156,7 +162,7 @@ pub fn process_args(args: &Args) -> Option<bool> {
 
     // Handle news flag
     if args.news {
-        news::handle_news(args.unread, args.read, args.all_news);
+        news::handle_news(args.unread, args.read, args.all_news, args.json);
     }
 
     None

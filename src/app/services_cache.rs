@@ -1,9 +1,8 @@
 //! Service cache persistence for install list service impacts.
 
+use super::cache_common;
 use crate::state::modal::ServiceImpact;
 use serde::{Deserialize, Serialize};
-use std::fs;
-use std::io::ErrorKind;
 use std::path::PathBuf;
 
 /// What: Cache blob combining install list signature with resolved service impact metadata.
@@ -28,12 +27,11 @@ pub struct ServiceCache {
 /// - Sorted vector of package names that can be compared for cache validity checks.
 ///
 /// Details:
-/// - Clones each package name and sorts the collection alphabetically.
+/// - Delegates to [`cache_common::compute_signature`], which sorts the cloned
+///   package names alphabetically to create an order-agnostic key.
 #[must_use]
 pub fn compute_signature(packages: &[crate::state::PackageItem]) -> Vec<String> {
-    let mut names: Vec<String> = packages.iter().map(|p| p.name.clone()).collect();
-    names.sort();
-    names
+    cache_common::compute_signature(packages)
 }
 
 /// What: Load cached service impact data when the stored signature matches the current list.
@@ -49,47 +47,22 @@ pub fn compute_signature(packages: &[crate::state::PackageItem]) -> Vec<String> 
 /// Details:
 /// - Reads the JSON, deserializes it, sorts both signatures, and compares them before
 ///   returning the cached service impact data.
+// `&PathBuf` is kept (rather than `&Path`) so `runtime::init` can keep passing
+// this function as `impl Fn(&PathBuf, &[String]) -> Option<T>` unchanged.
+#[allow(clippy::ptr_arg)]
+#[must_use]
 pub fn load_cache(path: &PathBuf, current_signature: &[String]) -> Option<Vec<ServiceImpact>> {
-    let raw = match fs::read_to_string(path) {
-        Ok(contents) => contents,
-        Err(e) if e.kind() == ErrorKind::NotFound => {
-            tracing::debug!(path = %path.display(), "[Cache] Service cache not found");
-            return None;
-        }
-        Err(e) => {
-            tracing::warn!(
-                path = %path.display(),
-                error = %e,
-                "[Cache] Failed to read service cache"
-            );
-            return None;
-        }
-    };
-
-    let cache: ServiceCache = match serde_json::from_str(&raw) {
-        Ok(cache) => cache,
-        Err(e) => {
-            tracing::warn!(
-                path = %path.display(),
-                error = %e,
-                "[Cache] Failed to parse service cache"
-            );
-            return None;
-        }
-    };
-
-    // Check if signature matches
-    let mut cached_sig = cache.install_list_signature.clone();
-    cached_sig.sort();
-    let mut current_sig = current_signature.to_vec();
-    current_sig.sort();
-
-    if cached_sig == current_sig {
-        tracing::info!(path = %path.display(), count = cache.services.len(), "loaded service cache");
-        return Some(cache.services);
-    }
-    tracing::debug!(path = %path.display(), "service cache signature mismatch, ignoring");
-    None
+    let ServiceCache {
+        install_list_signature,
+        services,
+    } = cache_common::load_signed_cache(path, "Service", "service")?;
+    cache_common::take_exact_match(
+        path,
+        "service",
+        current_signature,
+        &install_list_signature,
+        services,
+    )
 }
 
 /// What: Persist service impact cache payload and signature to disk as JSON.
@@ -104,15 +77,15 @@ pub fn load_cache(path: &PathBuf, current_signature: &[String]) -> Option<Vec<Se
 ///
 /// Details:
 /// - Serializes the data to JSON, writes it to `path`, and includes the record count in logs.
+// `&PathBuf` is kept (rather than `&Path`) to preserve the historical public
+// signature shared by all install-list cache modules and their callers.
+#[allow(clippy::ptr_arg)]
 pub fn save_cache(path: &PathBuf, signature: &[String], services: &[ServiceImpact]) {
     let cache = ServiceCache {
         install_list_signature: signature.to_vec(),
         services: services.to_vec(),
     };
-    if let Ok(s) = serde_json::to_string(&cache) {
-        let _ = fs::write(path, s);
-        tracing::debug!(path = %path.display(), count = services.len(), "saved service cache");
-    }
+    cache_common::save_signed_cache(path, &cache, services.len(), "service");
 }
 
 #[cfg(test)]

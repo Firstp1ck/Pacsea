@@ -1117,8 +1117,20 @@ en-US:
         footer_hint: "r: rollback  •  s: restart services  •  Enter/Esc: close"
 
     cli:
+      guardrails:
+        db_locked: "Error: The pacman database is locked ({})."
+        db_locked_running: "Another package manager (pacman/paru/yay) appears to be running. Wait for it to finish, then try again."
+        db_locked_stale: "No package manager process appears to be running. If this persists, remove the stale lock with: sudo rm {}"
+        low_disk: "Warning: Low disk space: {} MiB free on the filesystem at {} (minimum recommended: {} MiB)."
+        low_disk_hint: "Free up space first, e.g. clean the package cache with 'sudo pacman -Sc'."
+        sync_stale: "Warning: Package databases were last refreshed {} days ago."
+        sync_stale_hint: "Refresh them with 'sudo pacman -Sy' or run a full system update to avoid partial-upgrade issues."
       update:
         starting: "Updating system packages (pacman -Syu)..."
+        mirrors_starting: "Updating pacman mirrors (countries: {}, count: {})..."
+        mirrors_success: "✓ Mirror update completed successfully"
+        mirrors_failed: "✗ Mirror update failed (continuing with system update)"
+        mirrors_exec_failed: "✗ Failed to execute mirror update"
         long_run_auth_warning: "Warning: Long-running operations may pause for re-authentication unless doas persist/PAM policy is configured."
         password_prompt: "[sudo] password for {}: "
         pacman_success: "✓ Pacman update completed successfully"
@@ -1155,6 +1167,7 @@ en-US:
           files: "files"
       remove:
         no_packages: "Error: No packages specified for removal."
+        no_packages_in_file: "Error: No packages found in file '{}'."
         warning: "Warning: Packages and dependencies (if not needed by other packages) will be removed and no system config backup is created."
         packages_to_remove: "Packages to remove:"
         prompt: "Do you want to proceed with removal?"
@@ -1207,6 +1220,7 @@ en-US:
         query_explicit_failed: "Error: Failed to query explicitly installed packages"
         error_prefix: "Error: {}"
       search:
+        exec_failed: "Failed to execute search: {}"
         paru_exec_failed: "Failed to execute paru: {}"
         yay_exec_failed: "Failed to execute yay: {}"
         neither_helper_available: "Error: Neither paru nor yay is available. Please install one of them to use the search feature."

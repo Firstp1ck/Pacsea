@@ -6,7 +6,9 @@
 
 use ratatui::style::Color;
 use std::io::{Read, Write};
-use std::time::{Duration, Instant};
+use std::time::Duration;
+#[cfg(unix)]
+use std::time::Instant;
 
 use super::types::Theme;
 
@@ -257,7 +259,7 @@ fn read_with_timeout_unix(timeout: Duration) -> Option<String> {
 }
 
 /// Interval (ms) at which the Windows reader thread waits on stdin handle before
-/// checking cancel; keeps join() bounded when main times out.
+/// checking cancel; keeps `join()` bounded when main times out.
 #[cfg(windows)]
 const READER_POLL_MS: u32 = 50;
 
@@ -271,9 +273,9 @@ const READER_POLL_MS: u32 = 50;
 /// - `Some(s)` if data was received before timeout (with both OSC 10 and 11), `None` otherwise.
 ///
 /// Details:
-/// - Reader uses WaitForSingleObject on stdin handle with short timeout so it
-///   wakes periodically; main sets a cancel flag on recv timeout then join() returns quickly.
-/// - Avoids join() hanging when OSC query never yields bytes (e.g. startup/theme reload).
+/// - Reader uses `WaitForSingleObject` on stdin handle with short timeout so it
+///   wakes periodically; main sets a cancel flag on recv timeout then `join()` returns quickly.
+/// - Avoids `join()` hanging when OSC query never yields bytes (e.g. startup/theme reload).
 fn read_with_timeout_thread_joined(timeout: Duration) -> Option<String> {
     use std::os::windows::io::AsRawHandle;
     use std::sync::Arc;
@@ -287,7 +289,7 @@ fn read_with_timeout_thread_joined(timeout: Duration) -> Option<String> {
     let handle = thread::spawn(move || {
         let mut result = Vec::new();
         let mut buffer = [0u8; 512];
-        let stdin = std::io::stdin();
+        let mut stdin = std::io::stdin();
         let raw_handle = stdin.as_raw_handle();
 
         loop {
@@ -297,14 +299,14 @@ fn read_with_timeout_thread_joined(timeout: Duration) -> Option<String> {
             let wait_ms = READER_POLL_MS;
             let ret = unsafe {
                 windows_sys::Win32::System::Threading::WaitForSingleObject(
-                    raw_handle as *mut _,
+                    raw_handle.cast(),
                     wait_ms,
                 )
             };
-            if ret == windows_sys::Win32::System::Threading::WAIT_TIMEOUT {
+            if ret == windows_sys::Win32::Foundation::WAIT_TIMEOUT {
                 continue;
             }
-            if ret != windows_sys::Win32::System::Threading::WAIT_OBJECT_0 {
+            if ret != windows_sys::Win32::Foundation::WAIT_OBJECT_0 {
                 break;
             }
             let n = match stdin.read(&mut buffer) {

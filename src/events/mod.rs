@@ -10,8 +10,9 @@ use crate::state::{
     AppState, Focus, PackageItem, PkgbuildCheckRequest, QueryInput, types::AppMode,
 };
 
-mod distro;
 mod global;
+/// TUI-side guardrail helpers (pacman db-lock alerts).
+mod guardrails;
 /// Install pane event handling.
 mod install;
 mod modals;

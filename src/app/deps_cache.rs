@@ -1,9 +1,8 @@
 //! Dependency cache persistence for install list dependencies.
 
+use super::cache_common;
 use crate::state::modal::DependencyInfo;
 use serde::{Deserialize, Serialize};
-use std::fs;
-use std::io::ErrorKind;
 use std::path::PathBuf;
 
 /// What: Cache blob combining install list signature with resolved dependency graph.
@@ -28,11 +27,10 @@ pub struct DependencyCache {
 /// - Sorted vector of package names that can be compared between cache reads and writes.
 ///
 /// Details:
-/// - Clones the package names and sorts them alphabetically to create an order-agnostic key.
+/// - Delegates to [`cache_common::compute_signature`], which sorts the cloned
+///   package names alphabetically to create an order-agnostic key.
 pub fn compute_signature(packages: &[crate::state::PackageItem]) -> Vec<String> {
-    let mut names: Vec<String> = packages.iter().map(|p| p.name.clone()).collect();
-    names.sort();
-    names
+    cache_common::compute_signature(packages)
 }
 
 /// What: Load dependency cache from disk when the stored signature matches the current list.
@@ -48,47 +46,21 @@ pub fn compute_signature(packages: &[crate::state::PackageItem]) -> Vec<String> 
 /// Details:
 /// - Reads the JSON, deserializes, sorts both signatures, and compares for equality before
 ///   returning the cached dependencies.
+// `&PathBuf` is kept (rather than `&Path`) so `runtime::init` can keep passing
+// this function as `impl Fn(&PathBuf, &[String]) -> Option<T>` unchanged.
+#[allow(clippy::ptr_arg)]
 pub fn load_cache(path: &PathBuf, current_signature: &[String]) -> Option<Vec<DependencyInfo>> {
-    let raw = match fs::read_to_string(path) {
-        Ok(contents) => contents,
-        Err(e) if e.kind() == ErrorKind::NotFound => {
-            tracing::debug!(path = %path.display(), "[Cache] Dependency cache not found");
-            return None;
-        }
-        Err(e) => {
-            tracing::warn!(
-                path = %path.display(),
-                error = %e,
-                "[Cache] Failed to read dependency cache"
-            );
-            return None;
-        }
-    };
-
-    let cache: DependencyCache = match serde_json::from_str(&raw) {
-        Ok(cache) => cache,
-        Err(e) => {
-            tracing::warn!(
-                path = %path.display(),
-                error = %e,
-                "[Cache] Failed to parse dependency cache"
-            );
-            return None;
-        }
-    };
-
-    // Check if signature matches
-    let mut cached_sig = cache.install_list_signature.clone();
-    cached_sig.sort();
-    let mut current_sig = current_signature.to_vec();
-    current_sig.sort();
-
-    if cached_sig == current_sig {
-        tracing::info!(path = %path.display(), count = cache.dependencies.len(), "loaded dependency cache");
-        return Some(cache.dependencies);
-    }
-    tracing::debug!(path = %path.display(), "dependency cache signature mismatch, ignoring");
-    None
+    let DependencyCache {
+        install_list_signature,
+        dependencies,
+    } = cache_common::load_signed_cache(path, "Dependency", "dependency")?;
+    cache_common::take_exact_match(
+        path,
+        "dependency",
+        current_signature,
+        &install_list_signature,
+        dependencies,
+    )
 }
 
 /// What: Persist dependency cache payload and signature to disk as JSON.
@@ -103,15 +75,15 @@ pub fn load_cache(path: &PathBuf, current_signature: &[String]) -> Option<Vec<De
 ///
 /// Details:
 /// - Serializes the data to JSON, writes it to `path`, and emits a debug log including count.
+// `&PathBuf` is kept (rather than `&Path`) to preserve the historical public
+// signature shared by all install-list cache modules and their callers.
+#[allow(clippy::ptr_arg)]
 pub fn save_cache(path: &PathBuf, signature: &[String], dependencies: &[DependencyInfo]) {
     let cache = DependencyCache {
         install_list_signature: signature.to_vec(),
         dependencies: dependencies.to_vec(),
     };
-    if let Ok(s) = serde_json::to_string(&cache) {
-        let _ = fs::write(path, s);
-        tracing::debug!(path = %path.display(), count = dependencies.len(), "saved dependency cache");
-    }
+    cache_common::save_signed_cache(path, &cache, dependencies.len(), "dependency");
 }
 
 #[cfg(test)]

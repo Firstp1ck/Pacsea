@@ -85,8 +85,8 @@ fn get_aur_file_list(name: &str) -> Vec<String> {
     }
 
     // Try to use paru/yay -Fl if available (works for cached AUR packages)
-    let has_paru = Command::new("paru").args(["--version"]).output().is_ok();
-    let has_yay = Command::new("yay").args(["--version"]).output().is_ok();
+    let has_paru = crate::util::command::binary_available("paru");
+    let has_yay = crate::util::command::binary_available("yay");
 
     if has_paru && let Some(files) = try_aur_helper_file_list("paru", name) {
         return files;

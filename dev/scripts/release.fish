@@ -275,7 +275,7 @@ function phase2_documentation
     log_step "Generate Release Notes"
     _blue; echo -n "[INFO] "; _reset; echo -n "Please run: "; _bold; echo "/release-new $new_ver"; _reset
     
-    set -l release_file "$PACSEA_DIR/Release-docs/RELEASE_v$new_ver.md"
+    set -l release_file "$PACSEA_DIR/dev/RELEASES/RELEASE_v$new_ver.md"
     
     if test "$DRY_RUN" = true
         log_info "[DRY-RUN] Would wait for release notes generation"
@@ -375,7 +375,7 @@ function generate_announcement
     set -l ver $argv[2]
     set -l output_file "$PACSEA_DIR/dev/ANNOUNCEMENTS/version_announcement_content.md"
     
-    # Extract the full "## What's New" body from Release-docs/RELEASE_v*.md: every line after
+    # Extract the full "## What's New" body from dev/RELEASES/RELEASE_v*.md: every line after
     # "## What's New" until the next level-2 heading (## Technical Details, ## Full Changelog, …).
     # Preserves ### headings, **bold** group titles, and all bullets — no length or count caps.
     # Note: awk variable must not be named `in` (reserved).
@@ -647,7 +647,7 @@ function phase4_build_release
     # Step 4.6: GitHub release via Actions only (no gh release create — avoids race with release.yml)
     log_step "GitHub Release (Actions workflow)"
     
-    set -l release_file "$PACSEA_DIR/Release-docs/RELEASE_v$new_ver.md"
+    set -l release_file "$PACSEA_DIR/dev/RELEASES/RELEASE_v$new_ver.md"
     
     if test "$DRY_RUN" = true
         log_info "[DRY-RUN] Would push tag $tag; skip gh release create (workflow publishes release + assets)"
@@ -657,7 +657,7 @@ function phase4_build_release
         end
     else
         log_info "Skipping local gh release create to avoid racing .github/workflows/release.yml (softprops/action-gh-release)."
-        log_info "The Release workflow publishes notes from Release-docs/ when the file exists, uploads binaries, and marks prerelease when major < 1."
+        log_info "The Release workflow publishes notes from dev/RELEASES/ when the file exists, uploads binaries, and marks prerelease when major < 1."
         if test -f "$release_file"
             log_success "Release notes file present for CI: $release_file"
         else
@@ -1157,7 +1157,7 @@ end
 function update_changelog
     set -l new_ver $argv[1]
     set -l changelog_file "$PACSEA_DIR/CHANGELOG.md"
-    set -l release_file "$PACSEA_DIR/Release-docs/RELEASE_v$new_ver.md"
+    set -l release_file "$PACSEA_DIR/dev/RELEASES/RELEASE_v$new_ver.md"
     
     log_step "Updating CHANGELOG.md"
     

@@ -942,8 +942,20 @@ de-DE:
         footer_hint: "r: zurücksetzen  •  s: Dienste neu starten  •  Enter/Esc: schließen"
 
     cli:
+      guardrails:
+        db_locked: "Fehler: Die Pacman-Datenbank ist gesperrt ({})."
+        db_locked_running: "Ein anderer Paketmanager (pacman/paru/yay) scheint zu laufen. Warten Sie, bis er fertig ist, und versuchen Sie es erneut."
+        db_locked_stale: "Es scheint kein Paketmanager-Prozess zu laufen. Falls das Problem bestehen bleibt, entfernen Sie die veraltete Sperre mit: sudo rm {}"
+        low_disk: "Warnung: Wenig Speicherplatz: {} MiB frei auf dem Dateisystem unter {} (empfohlenes Minimum: {} MiB)."
+        low_disk_hint: "Geben Sie zuerst Speicherplatz frei, z. B. mit 'sudo pacman -Sc' den Paket-Cache leeren."
+        sync_stale: "Warnung: Die Paketdatenbanken wurden zuletzt vor {} Tagen aktualisiert."
+        sync_stale_hint: "Aktualisieren Sie sie mit 'sudo pacman -Sy' oder führen Sie eine vollständige Systemaktualisierung durch, um Partial-Upgrade-Probleme zu vermeiden."
       update:
         starting: "Aktualisiere Systempakete (pacman -Syu)..."
+        mirrors_starting: "Aktualisiere Pacman-Spiegelserver (Länder: {}, Anzahl: {})..."
+        mirrors_success: "✓ Spiegelserver-Aktualisierung erfolgreich abgeschlossen"
+        mirrors_failed: "✗ Spiegelserver-Aktualisierung fehlgeschlagen (Systemaktualisierung wird fortgesetzt)"
+        mirrors_exec_failed: "✗ Spiegelserver-Aktualisierung konnte nicht ausgeführt werden"
         long_run_auth_warning: "Warnung: Lange Vorgänge können für erneute Authentifizierung pausieren, wenn doas persist/PAM nicht konfiguriert ist."
         password_prompt: "[sudo] Passwort für {}: "
         pacman_success: "✓ Pacman-Update erfolgreich abgeschlossen"
@@ -980,6 +992,7 @@ de-DE:
           files: "dateien"
       remove:
         no_packages: "Fehler: Keine Pakete zum Entfernen angegeben."
+        no_packages_in_file: "Fehler: Keine Pakete in der Datei '{}' gefunden."
         warning: "Warnung: Pakete und Abhängigkeiten (falls nicht von anderen Paketen benötigt) werden entfernt und es wird keine Systemkonfigurationssicherung erstellt."
         packages_to_remove: "Zu entfernende Pakete:"
         prompt: "Möchten Sie mit der Entfernung fortfahren?"
@@ -1032,6 +1045,7 @@ de-DE:
         query_explicit_failed: "Fehler: Fehler beim Abfragen der explizit installierten Pakete"
         error_prefix: "Fehler: {}"
       search:
+        exec_failed: "Fehler beim Ausführen der Suche: {}"
         paru_exec_failed: "Fehler beim Ausführen von paru: {}"
         yay_exec_failed: "Fehler beim Ausführen von yay: {}"
         neither_helper_available: "Fehler: Weder paru noch yay ist verfügbar. Bitte installieren Sie einen davon, um die Suchfunktion zu verwenden."

@@ -1,6 +1,6 @@
 //! Command-line list installed packages functionality.
 
-use crate::args::i18n;
+use crate::args::{i18n, json};
 
 /// What: Handle list installed packages flag by querying pacman and displaying results.
 ///
@@ -8,6 +8,7 @@ use crate::args::i18n;
 /// - `exp`: If true, list explicitly installed packages.
 /// - `imp`: If true, list implicitly installed packages.
 /// - `all`: If true, list all installed packages.
+/// - `json_output`: When true, print a JSON envelope on stdout instead of plain lines.
 ///
 /// Output:
 /// - Exits the process after displaying the package list.
@@ -17,9 +18,10 @@ use crate::args::i18n;
 /// - Uses `pacman -Qetq` to get explicitly installed packages.
 /// - Calculates implicitly installed as all minus explicit.
 /// - Defaults to `--exp` (explicitly installed) if no option is specified.
-/// - Prints packages one per line to stdout.
+/// - Prints packages one per line to stdout (or a JSON envelope with `--json`).
 /// - Exits immediately after listing (doesn't launch TUI).
-pub fn handle_list(exp: bool, imp: bool, all: bool) -> ! {
+#[allow(clippy::fn_params_excessive_bools)] // mirrors independent CLI flags
+pub fn handle_list(exp: bool, imp: bool, all: bool, json_output: bool) -> ! {
     use std::process::{Command, Stdio};
 
     // Default to --exp if no option is specified
@@ -118,9 +120,20 @@ pub fn handle_list(exp: bool, imp: bool, all: bool) -> ! {
 
     let count = sorted_packages.len();
 
-    // Print packages one per line
-    for pkg in sorted_packages {
-        println!("{pkg}");
+    if json_output {
+        json::print_envelope(
+            "list",
+            &serde_json::json!({
+                "filters": { "explicit": exp, "implicit": imp, "all": all },
+                "count": count,
+                "packages": sorted_packages,
+            }),
+        );
+    } else {
+        // Print packages one per line
+        for pkg in sorted_packages {
+            println!("{pkg}");
+        }
     }
 
     tracing::info!(count = count, "Listed installed packages");

@@ -1,105 +1,7 @@
 //! Command-line install functionality.
 
-use crate::args::{i18n, package, utils};
-
-/// What: Read and parse package names from a file.
-///
-/// Inputs:
-/// - `file_path`: Path to the file containing package names.
-///
-/// Output:
-/// - Vector of package names, or exits on error.
-///
-/// Details:
-/// - Reads file line by line.
-/// - Ignores empty lines.
-/// - Ignores lines starting with "#" and ignores text after "#" in any line.
-/// - Trims whitespace from package names.
-fn read_packages_from_file(file_path: &str) -> Vec<String> {
-    use std::fs::File;
-    use std::io::{BufRead, BufReader};
-
-    let file = match File::open(file_path) {
-        Ok(f) => f,
-        Err(e) => {
-            eprintln!(
-                "{}",
-                i18n::t_fmt(
-                    "app.cli.install.file_open_error",
-                    &[&file_path as &dyn std::fmt::Display, &e]
-                )
-            );
-            tracing::error!(file = %file_path, error = %e, "Failed to open file");
-            std::process::exit(1);
-        }
-    };
-
-    let reader = BufReader::new(file);
-    let mut packages = Vec::new();
-    let mut warnings = Vec::new();
-
-    for (line_num, line) in reader.lines().enumerate() {
-        let original_line = match line {
-            Ok(l) => l,
-            Err(e) => {
-                eprintln!(
-                    "{}",
-                    i18n::t_fmt(
-                        "app.cli.install.file_read_error",
-                        &[
-                            &(line_num + 1) as &dyn std::fmt::Display,
-                            &file_path as &dyn std::fmt::Display,
-                            &e,
-                        ]
-                    )
-                );
-                tracing::error!(
-                    file = %file_path,
-                    line = line_num + 1,
-                    error = %e,
-                    "Failed to read line from file"
-                );
-                continue;
-            }
-        };
-
-        // Remove comments (everything after "#")
-        let line = original_line.split('#').next().unwrap_or("").trim();
-
-        // Skip empty lines and lines starting with "#"
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
-
-        // Check if line contains spaces between words (package names should not have spaces)
-        if line.contains(' ') {
-            warnings.push((line_num + 1, original_line.trim().to_string()));
-            tracing::warn!(
-                file = %file_path,
-                line = line_num + 1,
-                content = %original_line.trim(),
-                "Line contains spaces between words"
-            );
-            continue;
-        }
-
-        packages.push(line.to_string());
-    }
-
-    // Display warnings if any
-    if !warnings.is_empty() {
-        eprintln!("\n{}", i18n::t("app.cli.install.lines_with_spaces"));
-        for (line_num, content) in &warnings {
-            eprintln!(
-                "{}",
-                i18n::t_fmt2("app.cli.install.line_item", line_num, content)
-            );
-        }
-        eprintln!();
-    }
-
-    packages
-}
+use crate::args::{guardrails, i18n, package, utils};
+use pacsea::logic::preflight::guardrails::GuardrailOperation;
 
 /// What: Install official packages via pacman.
 ///
@@ -220,7 +122,7 @@ pub fn handle_install_from_file(file_path: &str) -> ! {
     tracing::info!(file = %file_path, "Install from file requested from CLI");
 
     // Read packages from file
-    let package_names = read_packages_from_file(file_path);
+    let package_names = utils::read_packages_from_file(file_path);
     if package_names.is_empty() {
         eprintln!(
             "{}",
@@ -235,6 +137,9 @@ pub fn handle_install_from_file(file_path: &str) -> ! {
         package_count = package_names.len(),
         "Read packages from file"
     );
+
+    // Guardrails: db lock aborts, disk space / stale db warn
+    guardrails::enforce(GuardrailOperation::Install);
 
     // Get AUR helper early to check AUR packages
     let aur_helper = utils::get_aur_helper();
@@ -321,6 +226,9 @@ pub fn handle_install(packages: &[String]) -> ! {
         tracing::error!("No packages specified for installation");
         std::process::exit(1);
     }
+
+    // Guardrails: db lock aborts, disk space / stale db warn
+    guardrails::enforce(GuardrailOperation::Install);
 
     // Get AUR helper early to check AUR packages
     let aur_helper = utils::get_aur_helper();

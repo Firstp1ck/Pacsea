@@ -61,8 +61,8 @@ pub(super) fn collect_binaries_for_package(
             }
 
             // Try to use paru/yay -Fl if available (works for cached AUR packages)
-            let has_paru = Command::new("paru").args(["--version"]).output().is_ok();
-            let has_yay = Command::new("yay").args(["--version"]).output().is_ok();
+            let has_paru = crate::util::command::binary_available("paru");
+            let has_yay = crate::util::command::binary_available("yay");
 
             if has_paru {
                 tracing::debug!("Trying paru -Fl {} for AUR package binaries", package);

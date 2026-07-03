@@ -55,7 +55,7 @@ fetch_source() {
   git pull --tags origin main 2>/dev/null || true
   git sparse-checkout init --no-cone
   git sparse-checkout set '/*' \
-    '!/Images' '!/Release-docs' '!/dev' '!/.github' '!/.cursor' \
+    '!/Images' '!/dev' '!/.github' '!/.cursor' \
     '!/AGENTS.md' '!/CLAUDE.md' '!/CHANGELOG.md' '!/CODE_OF_CONDUCT.md' \
     '!/CONTRIBUTING.md' '!/SECURITY.md' \
     '!/deny.toml' '!/rustfmt.toml' '!/clippy.toml' '!/Makefile' '!/.gitleaks.toml' \

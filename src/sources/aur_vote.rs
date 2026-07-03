@@ -601,8 +601,23 @@ fn aur_vote_with_transport<T: SshVoteTransport>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
     use std::os::unix::process::ExitStatusExt;
+    #[cfg(windows)]
+    use std::os::windows::process::ExitStatusExt;
     use std::process::ExitStatus;
+
+    fn exit_status_from_code(exit_code: i32) -> ExitStatus {
+        #[cfg(unix)]
+        {
+            ExitStatus::from_raw(exit_code << 8)
+        }
+
+        #[cfg(windows)]
+        {
+            ExitStatus::from_raw(exit_code.cast_unsigned())
+        }
+    }
 
     /// Mock transport that returns a configurable exit code and stderr.
     struct MockSshTransport {
@@ -627,7 +642,7 @@ mod tests {
             _ctx: &AurVoteContext,
         ) -> std::io::Result<Output> {
             Ok(Output {
-                status: ExitStatus::from_raw(self.exit_code << 8),
+                status: exit_status_from_code(self.exit_code),
                 stdout: Vec::new(),
                 stderr: self.stderr.as_bytes().to_vec(),
             })
@@ -887,7 +902,7 @@ mod tests {
     #[test]
     fn test_parse_list_votes_result_voted() {
         let output = Output {
-            status: ExitStatus::from_raw(0),
+            status: exit_status_from_code(0),
             stdout: b"pacsea-bin\nyay-bin\n".to_vec(),
             stderr: Vec::new(),
         };
@@ -899,7 +914,7 @@ mod tests {
     #[test]
     fn test_parse_list_votes_result_not_voted() {
         let output = Output {
-            status: ExitStatus::from_raw(0),
+            status: exit_status_from_code(0),
             stdout: b"yay-bin\nparu-bin\n".to_vec(),
             stderr: Vec::new(),
         };
@@ -911,7 +926,7 @@ mod tests {
     #[test]
     fn test_parse_list_votes_result_auth_failed() {
         let output = Output {
-            status: ExitStatus::from_raw(255 << 8),
+            status: exit_status_from_code(255),
             stdout: Vec::new(),
             stderr: b"Permission denied (publickey).".to_vec(),
         };
@@ -927,7 +942,7 @@ mod tests {
     #[test]
     fn test_parse_list_votes_result_unsupported_command() {
         let output = Output {
-            status: ExitStatus::from_raw(1 << 8),
+            status: exit_status_from_code(1),
             stdout: Vec::new(),
             stderr: b"list-votes: invalid command: list-votes".to_vec(),
         };

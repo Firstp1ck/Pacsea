@@ -3,26 +3,12 @@
 /// Output:
 /// - Tuple of (`has_paru`, `has_yay`, `helper_name`)
 pub fn check_aur_helper() -> (bool, bool, &'static str) {
-    use std::process::{Command, Stdio};
-
-    let has_paru = Command::new("paru")
-        .args(["--version"])
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .output()
-        .is_ok();
+    let has_paru = crate::util::command::binary_available("paru");
 
     let has_yay = if has_paru {
         false
     } else {
-        Command::new("yay")
-            .args(["--version"])
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .output()
-            .is_ok()
+        crate::util::command::binary_available("yay")
     };
 
     let helper = if has_paru { "paru" } else { "yay" };
@@ -81,21 +67,29 @@ impl UpdateCheckPayload {
     }
 }
 
-/// Libalpm / pacman sandbox could not apply Landlock rules (typical pacman stderr).
+/// Libalpm / pacman sandbox could not apply Landlock rules (non-root temp sync).
+#[cfg(not(target_os = "windows"))]
 pub const REASON_LANDLOCK_SANDBOX_FAILURE: &str = "landlock_sandbox_failure";
 /// Switching to sandbox user `alpm` failed during pacman operations.
+#[cfg(not(target_os = "windows"))]
 pub const REASON_ALPM_SANDBOX_FAILURE: &str = "alpm_sandbox_failure";
 /// Generic permission / operation-not-permitted style failure text.
+#[cfg(not(target_os = "windows"))]
 pub const REASON_PERMISSION_DENIED: &str = "permission_denied";
 /// `fakeroot pacman -Sy --dbpath` failed for the temp database.
+#[cfg(not(target_os = "windows"))]
 pub const REASON_TEMP_DB_SYNC_FAILED: &str = "temp_db_sync_failed";
 /// `checkupdates` exited with an error (not 0 or 1).
+#[cfg(not(target_os = "windows"))]
 pub const REASON_CHECKUPDATES_FAILED: &str = "checkupdates_failed";
 /// Fell back to system `pacman -Qu` without a fresh sync.
+#[cfg(not(target_os = "windows"))]
 pub const REASON_STALE_DB_FALLBACK: &str = "stale_db_fallback";
-/// `fakeroot` was missing when the temp-database sync path was needed.
+/// `fakeroot` was missing so temp-db sync was skipped.
+#[cfg(not(target_os = "windows"))]
 pub const REASON_FAKEROOT_UNAVAILABLE: &str = "fakeroot_unavailable";
-/// `checkupdates` was missing when a non-root fresh sync was needed.
+/// `checkupdates` was missing when needed as a non-root fresh sync path.
+#[cfg(not(target_os = "windows"))]
 pub const REASON_CHECKUPDATES_UNAVAILABLE: &str = "checkupdates_unavailable";
 
 /// What: Map pacman-related stderr to structured reason codes for logs and metrics.
@@ -108,6 +102,7 @@ pub const REASON_CHECKUPDATES_UNAVAILABLE: &str = "checkupdates_unavailable";
 ///
 /// Details:
 /// - Matching is ASCII-lowercased substring search to tolerate localized prefix text.
+#[cfg(not(target_os = "windows"))]
 pub fn classify_pacman_stderr_for_update_check(stderr: &str) -> Vec<String> {
     let lower = stderr.to_lowercase();
     let mut out = Vec::new();
@@ -134,15 +129,7 @@ pub fn classify_pacman_stderr_for_update_check(stderr: &str) -> Vec<String> {
 /// - Used only when `checkupdates` is missing, to attempt a non-root temp-database `pacman -Sy`.
 #[cfg(not(target_os = "windows"))]
 pub fn has_fakeroot() -> bool {
-    use std::process::{Command, Stdio};
-
-    Command::new("fakeroot")
-        .args(["--version"])
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .output()
-        .is_ok()
+    crate::util::command::binary_available("fakeroot")
 }
 
 /// What: Check if checkupdates is available on the system.
@@ -154,15 +141,7 @@ pub fn has_fakeroot() -> bool {
 /// - `checkupdates` (from pacman-contrib) refreshes a separate sync DB and lists upgrades without root.
 #[cfg(not(target_os = "windows"))]
 pub fn has_checkupdates() -> bool {
-    use std::process::{Command, Stdio};
-
-    Command::new("checkupdates")
-        .args(["--version"])
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .output()
-        .is_ok()
+    crate::util::command::binary_available("checkupdates")
 }
 
 /// What: Get the current user's UID by reading /proc/self/status.
@@ -271,7 +250,7 @@ pub fn sync_temp_db(temp_db: &std::path::Path) -> Result<(), String> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(target_os = "windows")))]
 mod tests {
     use super::*;
 
