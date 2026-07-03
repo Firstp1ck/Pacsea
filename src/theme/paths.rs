@@ -1,5 +1,47 @@
 use std::env;
 use std::path::{Path, PathBuf};
+use std::sync::RwLock;
+
+/// Process-wide override for the Pacsea configuration root, set by the CLI `--config-dir` flag.
+///
+/// Details: When set, all config, cache (lists), and log paths resolve under this directory
+/// instead of `$HOME/.config/pacsea` / `$XDG_CONFIG_HOME/pacsea`.
+static CONFIG_DIR_OVERRIDE: RwLock<Option<PathBuf>> = RwLock::new(None);
+
+/// What: Set or clear the process-wide configuration directory override.
+///
+/// Inputs:
+/// - `path`: `Some(dir)` to use `dir` as the config root; `None` to restore default resolution.
+///
+/// Output:
+/// - None (side effect: subsequent path helpers resolve under the override).
+///
+/// Details:
+/// - Called once at startup when `--config-dir` is passed, before logging initializes.
+/// - Also used by tests to isolate path resolution; ignores a poisoned lock by recovering it.
+pub fn set_config_dir_override(path: Option<PathBuf>) {
+    let mut guard = CONFIG_DIR_OVERRIDE
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    *guard = path;
+}
+
+/// What: Read the current configuration directory override, if any.
+///
+/// Inputs:
+/// - None.
+///
+/// Output:
+/// - `Some(PathBuf)` when `--config-dir` is active; `None` otherwise.
+///
+/// Details:
+/// - Recovers from a poisoned lock instead of panicking.
+pub fn config_dir_override() -> Option<PathBuf> {
+    CONFIG_DIR_OVERRIDE
+        .read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone()
+}
 
 /// What: Locate the active theme configuration file, considering modern and legacy layouts.
 ///
@@ -11,7 +53,13 @@ use std::path::{Path, PathBuf};
 ///
 /// Details:
 /// - Prefers `$HOME/.config/pacsea/theme.conf`, then legacy `pacsea.conf`, and repeats for XDG paths.
+/// - When `--config-dir` is active, only the override directory is searched.
 pub fn resolve_theme_config_path() -> Option<PathBuf> {
+    if let Some(root) = config_dir_override() {
+        return [root.join("theme.conf"), root.join("pacsea.conf")]
+            .into_iter()
+            .find(|p| p.is_file());
+    }
     let home = env::var("HOME").ok();
     let xdg_config = env::var("XDG_CONFIG_HOME").ok();
     let mut candidates: Vec<PathBuf> = Vec::new();
@@ -38,7 +86,13 @@ pub fn resolve_theme_config_path() -> Option<PathBuf> {
 ///
 /// Details:
 /// - Searches `$HOME` and `XDG_CONFIG_HOME` for `settings.conf`, then falls back to `pacsea.conf`.
+/// - When `--config-dir` is active, only the override directory is searched.
 pub(super) fn resolve_settings_config_path() -> Option<PathBuf> {
+    if let Some(root) = config_dir_override() {
+        return [root.join("settings.conf"), root.join("pacsea.conf")]
+            .into_iter()
+            .find(|p| p.is_file());
+    }
     let home = env::var("HOME").ok();
     let xdg_config = env::var("XDG_CONFIG_HOME").ok();
     let mut candidates: Vec<PathBuf> = Vec::new();
@@ -65,7 +119,13 @@ pub(super) fn resolve_settings_config_path() -> Option<PathBuf> {
 ///
 /// Details:
 /// - Checks both `$HOME/.config/pacsea/keybinds.conf` and the legacy `pacsea.conf`, mirrored for XDG.
+/// - When `--config-dir` is active, only the override directory is searched.
 pub(super) fn resolve_keybinds_config_path() -> Option<PathBuf> {
+    if let Some(root) = config_dir_override() {
+        return [root.join("keybinds.conf"), root.join("pacsea.conf")]
+            .into_iter()
+            .find(|p| p.is_file());
+    }
     let home = env::var("HOME").ok();
     let xdg_config = env::var("XDG_CONFIG_HOME").ok();
     let mut candidates: Vec<PathBuf> = Vec::new();
@@ -93,8 +153,13 @@ pub(super) fn resolve_keybinds_config_path() -> Option<PathBuf> {
 /// Details:
 /// - Checks `$HOME/.config/pacsea/repos.conf` then `XDG_CONFIG_HOME/pacsea/repos.conf`.
 /// - Does not fall back to legacy `pacsea.conf` (repos live only in the split layout).
+/// - When `--config-dir` is active, only the override directory is searched.
 #[must_use]
 pub fn resolve_repos_config_path() -> Option<PathBuf> {
+    if let Some(root) = config_dir_override() {
+        let candidate = root.join("repos.conf");
+        return candidate.is_file().then_some(candidate);
+    }
     let home = env::var("HOME").ok();
     let xdg_config = env::var("XDG_CONFIG_HOME").ok();
     let mut candidates: Vec<PathBuf> = Vec::new();
@@ -182,8 +247,13 @@ fn home_config_dir() -> Option<PathBuf> {
 ///
 /// Details:
 /// - Prefers `$HOME/.config/pacsea`, falling back to `XDG_CONFIG_HOME/pacsea` when necessary.
+/// - When `--config-dir` is active, returns the override directory (created if missing).
 #[must_use]
 pub fn config_dir() -> PathBuf {
+    if let Some(dir) = config_dir_override() {
+        let _ = std::fs::create_dir_all(&dir);
+        return dir;
+    }
     // Prefer HOME ~/.config/pacsea first
     if let Some(dir) = home_config_dir() {
         return dir;
@@ -327,6 +397,71 @@ mod tests {
         assert!(cfg.ends_with("pacsea"));
         assert!(logs.ends_with("logs"));
         assert!(lists.ends_with("lists"));
+    }
+
+    /// What: Clear the config-dir override when a test finishes or panics.
+    ///
+    /// Inputs:
+    /// - None.
+    ///
+    /// Output:
+    /// - Restores default path resolution on drop.
+    ///
+    /// Details:
+    /// - Keeps the process-wide override from leaking into other tests.
+    struct OverrideGuard;
+
+    impl Drop for OverrideGuard {
+        fn drop(&mut self) {
+            super::set_config_dir_override(None);
+        }
+    }
+
+    #[test]
+    /// What: Verify all path helpers and resolvers honor the `--config-dir` override.
+    ///
+    /// Inputs:
+    /// - Temporary directory installed via `set_config_dir_override`.
+    ///
+    /// Output:
+    /// - `config_dir`/`logs_dir`/`lists_dir` resolve under the override; resolvers only find
+    ///   files placed inside it.
+    ///
+    /// Details:
+    /// - Clears the override afterwards via `OverrideGuard` so other tests see defaults.
+    fn paths_honor_config_dir_override() {
+        let _guard = crate::theme::test_mutex()
+            .lock()
+            .expect("Test mutex poisoned");
+        let base = std::env::temp_dir().join(format!(
+            "pacsea_test_paths_override_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("System time is before UNIX epoch")
+                .as_nanos()
+        ));
+        super::set_config_dir_override(Some(base.clone()));
+        let _override_guard = OverrideGuard;
+
+        assert_eq!(super::config_dir(), base);
+        assert!(super::logs_dir().starts_with(&base));
+        assert!(super::lists_dir().starts_with(&base));
+
+        // Resolvers search only the override directory.
+        assert!(super::resolve_theme_config_path().is_none());
+        std::fs::write(base.join("settings.conf"), "").expect("write settings.conf");
+        assert_eq!(
+            super::resolve_settings_config_path(),
+            Some(base.join("settings.conf"))
+        );
+        std::fs::write(base.join("repos.conf"), "").expect("write repos.conf");
+        assert_eq!(
+            super::resolve_repos_config_path(),
+            Some(base.join("repos.conf"))
+        );
+
+        let _ = std::fs::remove_dir_all(&base);
     }
 
     #[test]

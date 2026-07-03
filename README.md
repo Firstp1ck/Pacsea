@@ -228,7 +228,7 @@ For troubleshooting common issues, solutions, and diagnostic information, see th
 
 ### Potential future Features
 
-Longer specs for tracked items live in [`dev/ROADMAP/`](https://github.com/Firstp1ck/Pacsea/tree/main/dev/ROADMAP). Priority tiers and a **GitHub issue cross-reference** table are in [`dev/IMPROVEMENTS/FEATURE_PRIORITY.md`](https://github.com/Firstp1ck/Pacsea/blob/main/dev/IMPROVEMENTS/FEATURE_PRIORITY.md).
+All planned work, priority tiers, and a **GitHub issue cross-reference** table live in the consolidated roadmap: [`dev/IMPROVEMENTS/ROADMAP.md`](https://github.com/Firstp1ck/Pacsea/blob/main/dev/IMPROVEMENTS/ROADMAP.md).
 
 ### Other Potential Features
 - **Show with Hover over button, what the button does** ([#140](https://github.com/Firstp1ck/Pacsea/issues/140))

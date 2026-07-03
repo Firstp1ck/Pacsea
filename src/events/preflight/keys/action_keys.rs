@@ -185,6 +185,15 @@ pub fn start_execution(
     // Note: Reinstall check is now done in handle_proceed_install BEFORE password prompt
     // This function is called after reinstall confirmation (if needed) and password prompt (if needed)
 
+    // Guardrail: refuse to start while the pacman database is locked (dry-run executes nothing)
+    if !app.dry_run
+        && let Some(message) = crate::events::guardrails::db_lock_alert_message(app)
+    {
+        tracing::warn!("[Preflight] Blocking execution: pacman database is locked");
+        app.modal = crate::state::Modal::Alert { message };
+        return;
+    }
+
     tracing::debug!(
         action = ?action,
         item_count = items.len(),

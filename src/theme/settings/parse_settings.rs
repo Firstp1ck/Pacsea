@@ -228,6 +228,13 @@ fn parse_mirror_settings(key: &str, val: &str, settings: &mut Settings) -> bool 
             }
             true
         }
+        "aur_helper" => {
+            let v = val.trim().to_ascii_lowercase();
+            if matches!(v.as_str(), "auto" | "paru" | "yay") {
+                settings.aur_helper = v;
+            }
+            true
+        }
         _ => false,
     }
 }
@@ -524,5 +531,61 @@ pub fn parse_settings(content: &str, _settings_path: &Path, settings: &mut Setti
             || parse_aur_vote_settings(&key, val, settings)
             || parse_misc_settings(&key, val, settings)
             || parse_results_filter_dynamic(&key, val, settings);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    /// What: Verify the `aur_helper` key parses valid helpers and ignores invalid values.
+    ///
+    /// Inputs:
+    /// - Settings content with `aur_helper = yay`, then an invalid value.
+    ///
+    /// Output:
+    /// - Valid values (case-insensitive) are applied; invalid values keep the previous setting.
+    ///
+    /// Details:
+    /// - Guards the CLI helper-preference feature wired through `settings.conf`.
+    fn parse_settings_aur_helper_accepts_known_values_only() {
+        let path = Path::new("settings.conf");
+
+        let mut settings = Settings::default();
+        assert_eq!(settings.aur_helper, "auto");
+
+        parse_settings("aur_helper = yay\n", path, &mut settings);
+        assert_eq!(settings.aur_helper, "yay");
+
+        parse_settings("aur_helper = Paru\n", path, &mut settings);
+        assert_eq!(settings.aur_helper, "paru");
+
+        parse_settings("aur_helper = pikaur\n", path, &mut settings);
+        assert_eq!(settings.aur_helper, "paru");
+    }
+
+    #[test]
+    /// What: Verify mirror keys still parse alongside the new helper key.
+    ///
+    /// Inputs:
+    /// - Settings content with `selected_countries` and `mirror_count`.
+    ///
+    /// Output:
+    /// - Both values are applied to the settings struct.
+    ///
+    /// Details:
+    /// - Regression guard for the mirror settings consumed by CLI `--update --mirrors`.
+    fn parse_settings_mirror_keys_apply() {
+        let path = Path::new("settings.conf");
+        let mut settings = Settings::default();
+
+        parse_settings(
+            "selected_countries = Switzerland, Germany\nmirror_count = 7\n",
+            path,
+            &mut settings,
+        );
+        assert_eq!(settings.selected_countries, "Switzerland, Germany");
+        assert_eq!(settings.mirror_count, 7);
     }
 }

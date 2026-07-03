@@ -37,7 +37,9 @@ pub use config::{
     save_startup_news_show_aur_comments, save_startup_news_show_aur_updates,
     save_startup_news_show_pkg_updates, save_virustotal_api_key,
 };
-pub use paths::{config_dir, lists_dir, logs_dir, resolve_repos_config_path};
+pub use paths::{
+    config_dir, lists_dir, logs_dir, resolve_repos_config_path, set_config_dir_override,
+};
 pub use settings::settings;
 pub use store::{reload_theme, theme};
 pub use types::{KeyChord, KeyMap, PackageMarker, Settings, Theme};

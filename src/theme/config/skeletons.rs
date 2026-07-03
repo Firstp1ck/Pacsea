@@ -281,6 +281,8 @@ auth_mode = prompt\n\
 selected_countries = Worldwide\n\
 # Number of HTTPS mirrors to consider when updating\n\
 mirror_count = 20\n\
+# Preferred AUR helper for CLI operations: auto (detect, paru preferred), paru, or yay\n\
+aur_helper = auto\n\
 # Available countries (commented list; edit selected_countries above as needed):\n\
 # Worldwide\n\
 # Albania\n\

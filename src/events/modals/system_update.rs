@@ -2,7 +2,7 @@
 
 use crossterm::event::{KeyCode, KeyEvent};
 
-use crate::events::distro;
+use crate::logic::distro;
 use crate::state::AppState;
 
 /// What: Handle key events for `SystemUpdate` modal.
@@ -134,6 +134,41 @@ pub(super) fn handle_system_update(
 #[cfg(test)]
 mod tests;
 
+/// What: Resolve the mirror-refresh command from the modal's country selection and settings.
+///
+/// Inputs:
+/// - `country_idx`: Selected country index in the modal.
+/// - `countries`: Available countries list.
+/// - `mirror_count`: Number of mirrors to use.
+///
+/// Output:
+/// - `Ok(command)` with the distro-aware mirror refresh script, `Err(message)` when the
+///   privilege tool cannot be resolved.
+///
+/// Details:
+/// - "Worldwide" in the modal falls back to `selected_countries` from settings.
+/// - Persists the effective selection back to `settings.conf`.
+fn build_mirror_update_command(
+    country_idx: usize,
+    countries: &[String],
+    mirror_count: u16,
+) -> Result<String, String> {
+    let sel = if country_idx < countries.len() {
+        countries[country_idx].as_str()
+    } else {
+        "Worldwide"
+    };
+    let prefs = crate::theme::settings();
+    let countries_arg = if sel == "Worldwide" {
+        prefs.selected_countries.as_str()
+    } else {
+        sel
+    };
+    crate::theme::save_selected_countries(countries_arg);
+    crate::theme::save_mirror_count(mirror_count);
+    distro::mirror_update_command(countries_arg, mirror_count)
+}
+
 /// What: Build and execute system update commands using executor pattern.
 ///
 /// Inputs:
@@ -169,22 +204,18 @@ fn handle_system_update_enter(
 ) {
     maybe_show_long_run_auth_preflight_warning(app);
 
+    // Guardrail: refuse to start while the pacman database is locked (dry-run executes nothing)
+    if !app.dry_run
+        && let Some(message) = crate::events::guardrails::db_lock_alert_message(app)
+    {
+        tracing::warn!("[SystemUpdate] Blocking update: pacman database is locked");
+        app.modal = crate::state::Modal::Alert { message };
+        return;
+    }
+
     let mut cmds: Vec<String> = Vec::new();
     if do_mirrors {
-        let sel = if country_idx < countries.len() {
-            countries[country_idx].as_str()
-        } else {
-            "Worldwide"
-        };
-        let prefs = crate::theme::settings();
-        let countries_arg = if sel == "Worldwide" {
-            prefs.selected_countries.as_str()
-        } else {
-            sel
-        };
-        crate::theme::save_selected_countries(countries_arg);
-        crate::theme::save_mirror_count(mirror_count);
-        match distro::mirror_update_command(countries_arg, mirror_count) {
+        match build_mirror_update_command(country_idx, countries, mirror_count) {
             Ok(cmd) => cmds.push(cmd),
             Err(msg) => {
                 app.modal = crate::state::Modal::Alert { message: msg };

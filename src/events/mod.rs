@@ -8,8 +8,9 @@ use tokio::sync::mpsc;
 
 use crate::state::{AppState, Focus, PackageItem, PkgbuildCheckRequest, QueryInput};
 
-mod distro;
 mod global;
+/// TUI-side guardrail helpers (pacman db-lock alerts).
+mod guardrails;
 /// Install pane event handling.
 mod install;
 mod modals;

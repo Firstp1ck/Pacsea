@@ -1,6 +1,6 @@
 //! Command-line news functionality.
 
-use crate::args::i18n;
+use crate::args::{i18n, json};
 use pacsea::theme;
 
 /// What: Handle news flag by fetching Arch news and displaying to command line.
@@ -9,6 +9,7 @@ use pacsea::theme;
 /// - `unread`: If true, list only unread news.
 /// - `read`: If true, list only read news.
 /// - `all_news`: If true, list all news (read and unread).
+/// - `json_output`: When true, print a JSON envelope on stdout instead of human-readable text.
 ///
 /// Output:
 /// - Exits the process after displaying the news.
@@ -17,10 +18,11 @@ use pacsea::theme;
 /// - Fetches Arch Linux news from RSS feed.
 /// - Loads read news URLs from persisted file.
 /// - Filters news based on the specified option (defaults to all if none specified).
-/// - Prints news items with date, title, and URL.
-/// - Outputs link to website at the end.
+/// - Prints news items with date, title, and URL (or a JSON envelope with `--json`).
+/// - Outputs link to website at the end (omitted in JSON mode).
 /// - Exits immediately after displaying (doesn't launch TUI).
-pub fn handle_news(unread: bool, read: bool, all_news: bool) -> ! {
+#[allow(clippy::fn_params_excessive_bools)] // mirrors independent CLI flags
+pub fn handle_news(unread: bool, read: bool, all_news: bool, json_output: bool) -> ! {
     use std::collections::HashSet;
 
     tracing::info!(
@@ -91,6 +93,30 @@ pub fn handle_news(unread: bool, read: bool, all_news: bool) -> ! {
     } else {
         news_items.iter().collect()
     };
+
+    if json_output {
+        let items: Vec<serde_json::Value> = filtered_items
+            .iter()
+            .map(|item| {
+                serde_json::json!({
+                    "date": item.date,
+                    "title": item.title,
+                    "url": item.url,
+                    "read": read_urls.contains(&item.url),
+                })
+            })
+            .collect();
+        json::print_envelope(
+            "news",
+            &serde_json::json!({
+                "filter": if show_all { "all" } else if unread { "unread" } else { "read" },
+                "count": items.len(),
+                "items": items,
+            }),
+        );
+        tracing::info!(count = filtered_items.len(), "Displayed news items");
+        std::process::exit(0);
+    }
 
     // Print news items
     if filtered_items.is_empty() {

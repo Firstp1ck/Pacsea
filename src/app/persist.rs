@@ -430,6 +430,62 @@ pub fn maybe_flush_announcement_read(app: &mut AppState) {
     }
 }
 
+/// What: Persist a signed install-list cache to disk if marked dirty.
+///
+/// Inputs:
+/// - `install_list`: Current install list used for emptiness checks and signature derivation.
+/// - `path`: Destination cache file path.
+/// - `dirty`: Mutable dirty flag for this cache; cleared once handled.
+/// - `items`: Payload items to persist alongside the signature.
+/// - `lower_label`: Lowercase cache name used in log messages (e.g. `"dependency"`).
+/// - `save`: Module-specific save function writing the correctly named envelope.
+///
+/// Output:
+/// - Writes the cache JSON via `save` and clears the dirty flag.
+/// - If the install list is empty, ensures an empty cache file exists instead of deleting it.
+///
+/// Details:
+/// - Shared implementation behind the per-cache `maybe_flush_*_cache` wrappers;
+///   returns early without touching disk when the cache is clean.
+fn maybe_flush_signed_cache<T>(
+    install_list: &[crate::state::PackageItem],
+    path: &std::path::PathBuf,
+    dirty: &mut bool,
+    items: &[T],
+    lower_label: &str,
+    save: impl Fn(&std::path::PathBuf, &[String], &[T]),
+) {
+    if install_list.is_empty() {
+        // Write an empty cache file when nothing is queued to keep the path present.
+        if *dirty || !path.exists() {
+            tracing::debug!(
+                path = %path.display(),
+                "[Persist] Writing empty {lower_label} cache because install list is empty"
+            );
+            save(path, &[], &[]);
+        }
+        *dirty = false;
+        return;
+    }
+    if !*dirty {
+        return;
+    }
+    let signature = super::cache_common::compute_signature(install_list);
+    tracing::debug!(
+        path = %path.display(),
+        signature_len = signature.len(),
+        items_len = items.len(),
+        "[Persist] Saving {lower_label} cache"
+    );
+    save(path, &signature, items);
+    *dirty = false;
+    tracing::debug!(
+        path = %path.display(),
+        items_len = items.len(),
+        "[Persist] {lower_label} cache save attempted"
+    );
+}
+
 /// What: Persist the dependency cache to disk if marked dirty.
 ///
 /// Inputs:
@@ -438,36 +494,17 @@ pub fn maybe_flush_announcement_read(app: &mut AppState) {
 /// Output:
 /// - Writes dependency cache JSON to `deps_cache_path` and clears dirty flag on success.
 /// - If install list is empty, ensures an empty cache file exists instead of deleting it.
+///
+/// Details:
+/// - Delegates to [`maybe_flush_signed_cache`] with the dependency cache save function.
 pub fn maybe_flush_deps_cache(app: &mut AppState) {
-    if app.install_list.is_empty() {
-        // Write an empty cache file when nothing is queued to keep the path present.
-        if app.deps_cache_dirty || !app.deps_cache_path.exists() {
-            let empty_signature: Vec<String> = Vec::new();
-            tracing::debug!(
-                path = %app.deps_cache_path.display(),
-                "[Persist] Writing empty dependency cache because install list is empty"
-            );
-            deps_cache::save_cache(&app.deps_cache_path, &empty_signature, &[]);
-        }
-        app.deps_cache_dirty = false;
-        return;
-    }
-    if !app.deps_cache_dirty {
-        return;
-    }
-    let signature = deps_cache::compute_signature(&app.install_list);
-    tracing::debug!(
-        path = %app.deps_cache_path.display(),
-        signature_len = signature.len(),
-        deps_len = app.install_list_deps.len(),
-        "[Persist] Saving dependency cache"
-    );
-    deps_cache::save_cache(&app.deps_cache_path, &signature, &app.install_list_deps);
-    app.deps_cache_dirty = false;
-    tracing::debug!(
-        path = %app.deps_cache_path.display(),
-        deps_len = app.install_list_deps.len(),
-        "[Persist] Dependency cache save attempted"
+    maybe_flush_signed_cache(
+        &app.install_list,
+        &app.deps_cache_path,
+        &mut app.deps_cache_dirty,
+        &app.install_list_deps,
+        "dependency",
+        deps_cache::save_cache,
     );
 }
 
@@ -479,38 +516,17 @@ pub fn maybe_flush_deps_cache(app: &mut AppState) {
 /// Output:
 /// - Writes file cache JSON to `files_cache_path` and clears dirty flag on success.
 /// - If install list is empty, ensures an empty cache file exists instead of deleting it.
+///
+/// Details:
+/// - Delegates to [`maybe_flush_signed_cache`] with the file cache save function.
 pub fn maybe_flush_files_cache(app: &mut AppState) {
-    if app.install_list.is_empty() {
-        // Write an empty cache file when nothing is queued to keep the path present.
-        if app.files_cache_dirty || !app.files_cache_path.exists() {
-            let empty_signature: Vec<String> = Vec::new();
-            tracing::debug!(
-                path = %app.files_cache_path.display(),
-                "[Persist] Writing empty file cache because install list is empty"
-            );
-            files_cache::save_cache(&app.files_cache_path, &empty_signature, &[]);
-        }
-        app.files_cache_dirty = false;
-        return;
-    }
-    if !app.files_cache_dirty {
-        return;
-    }
-    let signature = files_cache::compute_signature(&app.install_list);
-    tracing::debug!(
-        "[Persist] Saving file cache: {} entries for packages: {:?}, signature: {:?}",
-        app.install_list_files.len(),
-        app.install_list_files
-            .iter()
-            .map(|f| &f.name)
-            .collect::<Vec<_>>(),
-        signature
-    );
-    files_cache::save_cache(&app.files_cache_path, &signature, &app.install_list_files);
-    app.files_cache_dirty = false;
-    tracing::debug!(
-        "[Persist] File cache saved successfully, install_list_files still has {} entries",
-        app.install_list_files.len()
+    maybe_flush_signed_cache(
+        &app.install_list,
+        &app.files_cache_path,
+        &mut app.files_cache_dirty,
+        &app.install_list_files,
+        "file",
+        files_cache::save_cache,
     );
 }
 
@@ -522,40 +538,17 @@ pub fn maybe_flush_files_cache(app: &mut AppState) {
 /// Output:
 /// - Writes service cache JSON to `services_cache_path` and clears dirty flag on success.
 /// - If install list is empty, ensures an empty cache file exists instead of deleting it.
+///
+/// Details:
+/// - Delegates to [`maybe_flush_signed_cache`] with the service cache save function.
 pub fn maybe_flush_services_cache(app: &mut AppState) {
-    if app.install_list.is_empty() {
-        // Write an empty cache file when nothing is queued to keep the path present.
-        if app.services_cache_dirty || !app.services_cache_path.exists() {
-            let empty_signature: Vec<String> = Vec::new();
-            tracing::debug!(
-                path = %app.services_cache_path.display(),
-                "[Persist] Writing empty service cache because install list is empty"
-            );
-            services_cache::save_cache(&app.services_cache_path, &empty_signature, &[]);
-        }
-        app.services_cache_dirty = false;
-        return;
-    }
-    if !app.services_cache_dirty {
-        return;
-    }
-    let signature = services_cache::compute_signature(&app.install_list);
-    tracing::debug!(
-        path = %app.services_cache_path.display(),
-        signature_len = signature.len(),
-        services_len = app.install_list_services.len(),
-        "[Persist] Saving service cache"
-    );
-    services_cache::save_cache(
+    maybe_flush_signed_cache(
+        &app.install_list,
         &app.services_cache_path,
-        &signature,
+        &mut app.services_cache_dirty,
         &app.install_list_services,
-    );
-    app.services_cache_dirty = false;
-    tracing::debug!(
-        path = %app.services_cache_path.display(),
-        services_len = app.install_list_services.len(),
-        "[Persist] Service cache save attempted"
+        "service",
+        services_cache::save_cache,
     );
 }
 
@@ -567,42 +560,17 @@ pub fn maybe_flush_services_cache(app: &mut AppState) {
 /// Output:
 /// - Writes sandbox cache JSON to `sandbox_cache_path` and clears dirty flag on success.
 /// - If install list is empty, ensures an empty cache file exists instead of deleting it.
+///
+/// Details:
+/// - Delegates to [`maybe_flush_signed_cache`] with the sandbox cache save function.
 pub fn maybe_flush_sandbox_cache(app: &mut AppState) {
-    if app.install_list.is_empty() {
-        // Write an empty cache file when nothing is queued to keep the path present.
-        if app.sandbox_cache_dirty || !app.sandbox_cache_path.exists() {
-            let empty_signature: Vec<String> = Vec::new();
-            tracing::debug!(
-                path = %app.sandbox_cache_path.display(),
-                "[Persist] Writing empty sandbox cache because install list is empty"
-            );
-            sandbox_cache::save_cache(&app.sandbox_cache_path, &empty_signature, &[]);
-        }
-        app.sandbox_cache_dirty = false;
-        return;
-    }
-    if !app.sandbox_cache_dirty {
-        return;
-    }
-    let signature = sandbox_cache::compute_signature(&app.install_list);
-    tracing::debug!(
-        "[Persist] Saving sandbox cache: {} entries for packages: {:?}, signature: {:?}",
-        app.install_list_sandbox.len(),
-        app.install_list_sandbox
-            .iter()
-            .map(|s| &s.package_name)
-            .collect::<Vec<_>>(),
-        signature
-    );
-    sandbox_cache::save_cache(
+    maybe_flush_signed_cache(
+        &app.install_list,
         &app.sandbox_cache_path,
-        &signature,
+        &mut app.sandbox_cache_dirty,
         &app.install_list_sandbox,
-    );
-    app.sandbox_cache_dirty = false;
-    tracing::debug!(
-        "[Persist] Sandbox cache saved successfully, install_list_sandbox still has {} entries",
-        app.install_list_sandbox.len()
+        "sandbox",
+        sandbox_cache::save_cache,
     );
 }
 

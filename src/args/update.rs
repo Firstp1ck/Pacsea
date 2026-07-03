@@ -862,7 +862,7 @@ fn refresh_sudo_timestamp(password: Option<&str>, write_log: &(dyn Fn(&str) + Se
 /// - None (modifies state in place).
 ///
 /// Details:
-/// - Detects available AUR helper (paru/yay, prefers paru).
+/// - Resolves the AUR helper via the `aur_helper` settings key (auto-detect prefers paru).
 /// - Runs `{helper} -Sua --noconfirm` to update only AUR packages (official packages already updated by pacman).
 /// - Updates state with success/failure status and failed packages.
 /// - If no AUR helper is available, logs a warning and skips the update.
@@ -1110,25 +1110,131 @@ fn display_update_summary(
     ));
 }
 
+/// What: Execute a distro-aware mirror refresh using countries and count from `settings.conf`.
+///
+/// Inputs:
+/// - `state`: Mutable reference to `UpdateState` to update on failure.
+/// - `log_file_path`: Path to the log file.
+/// - `settings`: Loaded settings providing `selected_countries` and `mirror_count`.
+/// - `no_color`: If true, disables colored output.
+/// - `interactive_auth`: Whether the privilege tool prompts interactively.
+/// - `write_log`: Function to write log messages.
+///
+/// Output:
+/// - None (modifies state in place).
+///
+/// Details:
+/// - Builds the command via [`pacsea::logic::distro::mirror_update_command`] and runs it
+///   through `bash -c` with output logged like the pacman/AUR steps.
+/// - A failed mirror refresh is recorded but does not abort the system update.
+#[cfg(not(target_os = "windows"))]
+fn run_mirror_update(
+    state: &mut UpdateState,
+    log_file_path: &Path,
+    settings: &pacsea::theme::Settings,
+    no_color: bool,
+    interactive_auth: bool,
+    write_log: &(dyn Fn(&str) + Send + Sync),
+) {
+    let countries = if settings.selected_countries.trim().is_empty() {
+        "Worldwide"
+    } else {
+        settings.selected_countries.as_str()
+    };
+    let mirror_count = settings.mirror_count;
+
+    println!(
+        "{}",
+        info_color(
+            &i18n::t_fmt2("app.cli.update.mirrors_starting", countries, mirror_count),
+            no_color
+        )
+    );
+    write_log(&format!(
+        "Starting mirror update (countries: {countries}, count: {mirror_count})"
+    ));
+
+    let cmd = match pacsea::logic::distro::mirror_update_command(countries, mirror_count) {
+        Ok(cmd) => cmd,
+        Err(err) => {
+            println!(
+                "{}",
+                error_color(&i18n::t("app.cli.update.mirrors_exec_failed"), no_color)
+            );
+            eprintln!("{}", error_color(&err, no_color));
+            write_log(&format!(
+                "FAILED: Could not build mirror update command: {err}"
+            ));
+            state.all_succeeded = false;
+            state.failed_commands.push("mirror update".to_string());
+            return;
+        }
+    };
+
+    match run_command_with_logging("bash", &["-c", &cmd], log_file_path, None, interactive_auth) {
+        Ok((status, _output)) if status.success() => {
+            println!(
+                "{}",
+                success_color(&i18n::t("app.cli.update.mirrors_success"), no_color)
+            );
+            write_log("SUCCESS: mirror update completed successfully");
+        }
+        Ok((status, _output)) => {
+            println!(
+                "{}",
+                warning_color(&i18n::t("app.cli.update.mirrors_failed"), no_color)
+            );
+            write_log(&format!(
+                "FAILED: mirror update failed with exit code {:?}",
+                status.code()
+            ));
+            state.all_succeeded = false;
+            state.failed_commands.push("mirror update".to_string());
+        }
+        Err(e) => {
+            println!(
+                "{}",
+                error_color(&i18n::t("app.cli.update.mirrors_exec_failed"), no_color)
+            );
+            eprintln!(
+                "{}",
+                error_color(&i18n::t_fmt1("app.cli.update.error_prefix", &e), no_color)
+            );
+            write_log(&format!("FAILED: Could not execute mirror update: {e}"));
+            state.all_succeeded = false;
+            state.failed_commands.push("mirror update".to_string());
+        }
+    }
+}
+
 /// What: Handle system update by running pacman and AUR helper updates, logging results.
 ///
 /// Inputs:
 /// - `no_color`: If true, disables colored output.
+/// - `update_mirrors`: If true, refreshes pacman mirrors first using `selected_countries`
+///   and `mirror_count` from `settings.conf`.
 ///
 /// Output:
 /// - Exits the process with appropriate exit code.
 ///
 /// Details:
+/// - Optionally refreshes mirrors first (`--mirrors`), honoring `settings.conf`.
 /// - Runs `sudo pacman -Syu --noconfirm` first to update official packages.
-/// - Then runs `yay -Sua --noconfirm` or `paru -Sua --noconfirm` (prefers paru) if available.
+/// - Then runs the AUR helper resolved from the `aur_helper` settings key (auto-detected
+///   when set to "auto"; paru preferred) with `-Sua --noconfirm`.
 /// - AUR update is skipped if pacman update failed.
 /// - Displays update progress output in real-time to the terminal.
 /// - Logs all command output and status messages to `update.log` in the config logs directory.
 /// - Informs user of final status and log file path.
 /// - Uses colored output for success (green), error (red), info (cyan), and warning (yellow) messages.
 #[cfg(not(target_os = "windows"))]
-pub fn handle_update(no_color: bool) -> ! {
+pub fn handle_update(no_color: bool, update_mirrors: bool) -> ! {
     tracing::info!("System update requested from CLI");
+
+    // Guardrails: db lock aborts, disk space / stale db warn
+    crate::args::guardrails::enforce(
+        pacsea::logic::preflight::guardrails::GuardrailOperation::Update,
+    );
 
     // Get logs directory and create update.log path
     let logs_dir = theme::logs_dir();
@@ -1155,6 +1261,23 @@ pub fn handle_update(no_color: bool) -> ! {
 
     // Initialize update state
     let mut state = UpdateState::new();
+
+    // Step 0 (optional): Refresh mirrors using countries/count from settings.conf
+    if update_mirrors {
+        // Warm the privilege tool's credential cache so the mirror script's internal
+        // sudo/doas invocations do not prompt again.
+        if !interactive_auth {
+            refresh_sudo_timestamp(password.as_deref(), &*write_log);
+        }
+        run_mirror_update(
+            &mut state,
+            &log_file_path,
+            &settings,
+            no_color,
+            interactive_auth,
+            &*write_log,
+        );
+    }
 
     // Step 1: Update pacman (sudo pacman -Syu --noconfirm)
     run_pacman_update(

@@ -130,6 +130,7 @@ fn get_mirror_value(key: &str, prefs: &Settings) -> Option<String> {
     match key {
         "selected_countries" => Some(prefs.selected_countries.clone()),
         "mirror_count" => Some(prefs.mirror_count.to_string()),
+        "aur_helper" => Some(prefs.aur_helper.clone()),
         "virustotal_api_key" => Some(prefs.virustotal_api_key.clone()),
         _ => None,
     }
