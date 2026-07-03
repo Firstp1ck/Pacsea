@@ -123,7 +123,7 @@ pub fn label_for_official(repo: &str, name: &str, owner: &str) -> String {
 /// Details:
 /// - On Manjaro (detected via /etc/os-release), ensures pacman-mirrors exists, then:
 ///   - Worldwide: `pacman-mirrors --fasttrack {count}`
-///   - Countries: `pacman-mirrors --method rank --country '{countries}'`
+///   - Countries: `pacman-mirrors --method rank --country {countries_q}`
 /// - On `Artix` (detected via /etc/os-release), checks for rate-mirrors and `AUR` helper (`yay`/`paru`), prompts for installation if needed, creates backup of mirrorlist, then runs rate-mirrors with country filtering using --entry-country option (only one country allowed, global option must come before the artix command).
 /// - On `EndeavourOS`, ensures `eos-rankmirrors` is installed, runs it, then runs `reflector`.
 /// - On `CachyOS`, ensures `cachyos-rate-mirrors` is installed, runs it, then runs `reflector`.
@@ -134,6 +134,9 @@ pub fn label_for_official(repo: &str, name: &str, owner: &str) -> String {
 /// Returns `Err` when the configured privilege tool cannot be resolved (see [`crate::logic::privilege::active_tool`]).
 pub fn mirror_update_command(countries: &str, count: u16) -> Result<String, String> {
     let bin = crate::logic::privilege::active_tool()?.binary_name();
+    // Settings/modal input: single-quote once and interpolate the quoted value only,
+    // so shell metacharacters (quotes, `$(`, backticks, newlines) cannot escape.
+    let countries_q = crate::install::shell_single_quote(countries);
     if countries.eq("Worldwide") {
         Ok(format!(
             "(if grep -q 'Manjaro' /etc/os-release 2>/dev/null; then \
@@ -165,16 +168,16 @@ pub fn mirror_update_command(countries: &str, count: u16) -> Result<String, Stri
       fi; \
     fi; \
     {bin} cp /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist.backup.$(date +%Y%m%d_%H%M%S) || exit 1; \
-    if [ \"{countries}\" = \"Worldwide\" ]; then \
+    if [ {countries_q} = \"Worldwide\" ]; then \
       rate-mirrors --protocol=https --allow-root --country-neighbors-per-country=3 --top-mirrors-number-to-retest={count} --max-jumps=10 artix | {bin} tee /etc/pacman.d/mirrorlist || exit 1; \
     else \
-      country_count=$(echo '{countries}' | tr ',' '\\n' | wc -l); \
+      country_count=$(echo {countries_q} | tr ',' '\\n' | wc -l); \
       if [ \"$country_count\" -ne 1 ]; then \
         echo 'Error: Only one country is allowed for Artix mirror update.'; \
         echo 'Please select a single country.'; \
         exit 1; \
       fi; \
-      rate-mirrors --protocol=https --allow-root --entry-country='{countries}' --country-neighbors-per-country=3 --top-mirrors-number-to-retest={count} --max-jumps=10 artix | {bin} tee /etc/pacman.d/mirrorlist || exit 1; \
+      rate-mirrors --protocol=https --allow-root --entry-country={countries_q} --country-neighbors-per-country=3 --top-mirrors-number-to-retest={count} --max-jumps=10 artix | {bin} tee /etc/pacman.d/mirrorlist || exit 1; \
     fi; \
   else \
     (command -v reflector >/dev/null 2>&1 && {bin} reflector --verbose --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist) || echo 'reflector not found; skipping mirror update'; \
@@ -184,15 +187,15 @@ pub fn mirror_update_command(countries: &str, count: u16) -> Result<String, Stri
         Ok(format!(
             "(if grep -q 'Manjaro' /etc/os-release 2>/dev/null; then \
     ((command -v pacman-mirrors >/dev/null 2>&1) || pacman -Qi pacman-mirrors >/dev/null 2>&1 || {bin} pacman -S --needed --noconfirm pacman-mirrors) && \
-    {bin} pacman-mirrors --method rank --country '{countries}'; \
+    {bin} pacman-mirrors --method rank --country {countries_q}; \
   elif grep -q 'EndeavourOS' /etc/os-release 2>/dev/null; then \
     ((command -v eos-rankmirrors >/dev/null 2>&1) || pacman -Qi eos-rankmirrors >/dev/null 2>&1 || {bin} pacman -S --needed --noconfirm eos-rankmirrors) && {bin} eos-rankmirrors || echo 'eos-rankmirrors failed'; \
-    (command -v reflector >/dev/null 2>&1 && {bin} reflector --verbose --country '{countries}' --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist) || echo 'reflector not found; skipping mirror update'; \
+    (command -v reflector >/dev/null 2>&1 && {bin} reflector --verbose --country {countries_q} --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist) || echo 'reflector not found; skipping mirror update'; \
   elif grep -q 'CachyOS' /etc/os-release 2>/dev/null; then \
     ((command -v cachyos-rate-mirrors >/dev/null 2>&1) || pacman -Qi cachyos-rate-mirrors >/dev/null 2>&1 || {bin} pacman -S --needed --noconfirm cachyos-rate-mirrors) && {bin} cachyos-rate-mirrors || echo 'cachyos-rate-mirrors failed'; \
-    (command -v reflector >/dev/null 2>&1 && {bin} reflector --verbose --country '{countries}' --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist) || echo 'reflector not found; skipping mirror update'; \
+    (command -v reflector >/dev/null 2>&1 && {bin} reflector --verbose --country {countries_q} --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist) || echo 'reflector not found; skipping mirror update'; \
   elif grep -q 'Artix' /etc/os-release 2>/dev/null; then \
-    country_count=$(echo '{countries}' | tr ',' '\\n' | wc -l); \
+    country_count=$(echo {countries_q} | tr ',' '\\n' | wc -l); \
     if [ \"$country_count\" -ne 1 ]; then \
       echo 'Error: Only one country is allowed for Artix mirror update.'; \
       echo 'Please select a single country.'; \
@@ -217,9 +220,9 @@ pub fn mirror_update_command(countries: &str, count: u16) -> Result<String, Stri
       fi; \
     fi; \
     {bin} cp /etc/pacman.d/mirrorlist /etc/pacman.d/mirrorlist.backup.$(date +%Y%m%d_%H%M%S) || exit 1; \
-    rate-mirrors --protocol=https --allow-root --entry-country='{countries}' --country-neighbors-per-country=3 --top-mirrors-number-to-retest={count} --max-jumps=10 artix | {bin} tee /etc/pacman.d/mirrorlist || exit 1; \
+    rate-mirrors --protocol=https --allow-root --entry-country={countries_q} --country-neighbors-per-country=3 --top-mirrors-number-to-retest={count} --max-jumps=10 artix | {bin} tee /etc/pacman.d/mirrorlist || exit 1; \
   else \
-    (command -v reflector >/dev/null 2>&1 && {bin} reflector --verbose --country '{countries}' --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist) || echo 'reflector not found; skipping mirror update'; \
+    (command -v reflector >/dev/null 2>&1 && {bin} reflector --verbose --country {countries_q} --protocol https --sort rate --latest 20 --download-timeout 6 --save /etc/pacman.d/mirrorlist) || echo 'reflector not found; skipping mirror update'; \
   fi)"
         ))
     }
@@ -538,6 +541,33 @@ mod tests {
         assert!(cmd.contains("command -v yay"));
         assert!(cmd.contains("Do you want to install rate-mirrors from AUR?"));
         assert!(cmd.contains("Mirror update cancelled"));
+    }
+
+    #[test]
+    /// What: Ensure shell metacharacters in the country selection cannot escape quoting.
+    ///
+    /// Inputs:
+    /// - `countries`: A malicious value embedding a single quote and a shell command.
+    /// - `count`: Arbitrary `5`, unused by the injected fragments.
+    ///
+    /// Output:
+    /// - Command string never contains the payload adjacent to a closing quote; the
+    ///   embedded quote is escaped via the POSIX `'"'"'` idiom.
+    ///
+    /// Details:
+    /// - Guards the mirror script against shell injection through the settings-provided
+    ///   country list (see security rules on `shell_single_quote`).
+    fn mirror_update_escapes_shell_metacharacters_in_countries() {
+        let countries = "Germany'; rm -rf /tmp/pwn; echo '";
+        let cmd = mirror_update_command(countries, 5).expect("mirror command");
+        assert!(
+            !cmd.contains("'Germany'; rm"),
+            "raw single quote must not close the shell quoting: {cmd}"
+        );
+        assert!(
+            cmd.contains("'Germany'\"'\"'; rm"),
+            "embedded quote should be escaped with the POSIX idiom: {cmd}"
+        );
     }
 
     #[test]
