@@ -54,7 +54,7 @@ jobs:
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
           fi
 
-          RELEASE_FILE="Release-docs/RELEASE_${VERSION}.md"
+          RELEASE_FILE="dev/RELEASES/RELEASE_${VERSION}.md"
 
           if [ -f "$RELEASE_FILE" ]; then
             echo "Found release notes file: $RELEASE_FILE"

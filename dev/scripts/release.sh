@@ -302,7 +302,7 @@ phase1_version_update() {
 phase2_documentation() {
   local new_ver="${1}"
   local old_ver="${2}"
-  local release_file="${PACSEA_DIR}/Release-docs/RELEASE_v${new_ver}.md"
+  local release_file="${PACSEA_DIR}/dev/RELEASES/RELEASE_v${new_ver}.md"
   local announcement_file="${PACSEA_DIR}/dev/ANNOUNCEMENTS/version_announcement_content.md"
 
   log_phase "2. Documentation"
@@ -541,7 +541,7 @@ phase3_pkgbuild_updates() {
 phase4_build_release() {
   local new_ver="${1}"
   local tag="v${new_ver}"
-  local release_file="${PACSEA_DIR}/Release-docs/RELEASE_v${new_ver}.md"
+  local release_file="${PACSEA_DIR}/dev/RELEASES/RELEASE_v${new_ver}.md"
 
   log_phase "4. Build and Release"
   cd "${PACSEA_DIR}"
@@ -623,7 +623,7 @@ phase4_build_release() {
     log_info "[DRY-RUN] Workflow: .github/workflows/release.yml"
   else
     log_info "Skipping local gh release create to avoid racing .github/workflows/release.yml (softprops/action-gh-release)."
-    log_info "The Release workflow publishes notes from Release-docs/ when the file exists, uploads binaries, and marks prerelease when major < 1."
+    log_info "The Release workflow publishes notes from dev/RELEASES/ when the file exists, uploads binaries, and marks prerelease when major < 1."
     if [[ -f "${release_file}" ]]; then
       log_success "Release notes file present for CI: ${release_file}"
     else
@@ -1054,7 +1054,7 @@ update_security_md() {
 update_changelog() {
   local new_ver="${1}"
   local changelog_file="${PACSEA_DIR}/CHANGELOG.md"
-  local release_file="${PACSEA_DIR}/Release-docs/RELEASE_v${new_ver}.md"
+  local release_file="${PACSEA_DIR}/dev/RELEASES/RELEASE_v${new_ver}.md"
   local release_date tmp_file existing_version_line version_start version_end first_version_line
 
   log_step "Updating CHANGELOG.md"
