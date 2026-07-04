@@ -118,8 +118,8 @@ fn integration_loading_modal_to_alert_on_error() {
 /// Details:
 /// - Simulates successful async preflight computation.
 fn integration_loading_modal_to_preflight_on_success() {
-    use pacsea::state::{PackageItem, PreflightAction, PreflightTab, Source};
     use pacsea::state::modal::{CascadeMode, PreflightHeaderChips};
+    use pacsea::state::{PackageItem, PreflightAction, PreflightTab, Source};
     use std::collections::HashSet;
 
     let mut app = AppState {
@@ -260,4 +260,3 @@ fn integration_loading_modal_long_message() {
         _ => panic!("Expected Loading modal"),
     }
 }
-

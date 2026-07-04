@@ -37,13 +37,13 @@ fn create_test_package(name: &str, source: Source) -> PackageItem {
 }
 
 #[test]
-/// What: Test `ExecutorRequest::Install` with dry_run=true.
+/// What: Test `ExecutorRequest::Install` with `dry_run=true`.
 ///
 /// Inputs:
-/// - Install request with dry_run enabled.
+/// - Install request with `dry_run` enabled.
 ///
 /// Output:
-/// - dry_run flag is true.
+/// - `dry_run` flag is true.
 ///
 /// Details:
 /// - Verifies install respects dry-run flag.
@@ -71,13 +71,13 @@ fn integration_dry_run_install() {
 }
 
 #[test]
-/// What: Test `ExecutorRequest::Remove` with dry_run=true.
+/// What: Test `ExecutorRequest::Remove` with `dry_run=true`.
 ///
 /// Inputs:
-/// - Remove request with dry_run enabled.
+/// - Remove request with `dry_run` enabled.
 ///
 /// Output:
-/// - dry_run flag is true.
+/// - `dry_run` flag is true.
 ///
 /// Details:
 /// - Verifies remove respects dry-run flag.
@@ -100,13 +100,13 @@ fn integration_dry_run_remove() {
 }
 
 #[test]
-/// What: Test `ExecutorRequest::Update` with dry_run=true.
+/// What: Test `ExecutorRequest::Update` with `dry_run=true`.
 ///
 /// Inputs:
-/// - Update request with dry_run enabled.
+/// - Update request with `dry_run` enabled.
 ///
 /// Output:
-/// - dry_run flag is true.
+/// - `dry_run` flag is true.
 ///
 /// Details:
 /// - Verifies update respects dry-run flag.
@@ -128,13 +128,13 @@ fn integration_dry_run_update() {
 }
 
 #[test]
-/// What: Test `ExecutorRequest::Scan` with dry_run=true.
+/// What: Test `ExecutorRequest::Scan` with `dry_run=true`.
 ///
 /// Inputs:
-/// - Scan request with dry_run enabled.
+/// - Scan request with `dry_run` enabled.
 ///
 /// Output:
-/// - dry_run flag is true.
+/// - `dry_run` flag is true.
 ///
 /// Details:
 /// - Verifies scan respects dry-run flag.
@@ -159,13 +159,13 @@ fn integration_dry_run_scan() {
 }
 
 #[test]
-/// What: Test `ExecutorRequest::CustomCommand` with dry_run=true.
+/// What: Test `ExecutorRequest::CustomCommand` with `dry_run=true`.
 ///
 /// Inputs:
-/// - Custom command request with dry_run enabled.
+/// - Custom command request with `dry_run` enabled.
 ///
 /// Output:
-/// - dry_run flag is true.
+/// - `dry_run` flag is true.
 ///
 /// Details:
 /// - Verifies custom command respects dry-run flag.
@@ -185,13 +185,13 @@ fn integration_dry_run_custom_command() {
 }
 
 #[test]
-/// What: Test `ExecutorRequest::Downgrade` with dry_run=true.
+/// What: Test `ExecutorRequest::Downgrade` with `dry_run=true`.
 ///
 /// Inputs:
-/// - Downgrade request with dry_run enabled.
+/// - Downgrade request with `dry_run` enabled.
 ///
 /// Output:
-/// - dry_run flag is true.
+/// - `dry_run` flag is true.
 ///
 /// Details:
 /// - Verifies downgrade respects dry-run flag.
@@ -213,16 +213,16 @@ fn integration_dry_run_downgrade() {
 }
 
 #[test]
-/// What: Test `AppState` dry_run flag.
+/// What: Test `AppState` `dry_run` flag.
 ///
 /// Inputs:
-/// - `AppState` with dry_run=true.
+/// - `AppState` with `dry_run=true`.
 ///
 /// Output:
-/// - dry_run flag is accessible.
+/// - `dry_run` flag is accessible.
 ///
 /// Details:
-/// - Verifies dry_run flag is stored in app state.
+/// - Verifies `dry_run` flag is stored in app state.
 fn integration_app_state_dry_run_flag() {
     let app = AppState {
         dry_run: true,
@@ -311,16 +311,16 @@ fn integration_dry_run_command_format_downgrade() {
 }
 
 #[test]
-/// What: Test all executor requests respect dry_run=false.
+/// What: Test all executor requests respect `dry_run=false`.
 ///
 /// Inputs:
-/// - All executor request types with dry_run=false.
+/// - All executor request types with `dry_run=false`.
 ///
 /// Output:
-/// - All dry_run flags are false.
+/// - All `dry_run` flags are false.
 ///
 /// Details:
-/// - Verifies dry_run=false is default/respected.
+/// - Verifies `dry_run=false` is default/respected.
 fn integration_dry_run_all_false() {
     let install_req = ExecutorRequest::Install {
         items: vec![],
@@ -416,13 +416,13 @@ fn integration_dry_run_multiple_packages() {
 /// What: Test dry-run flag inheritance from `AppState`.
 ///
 /// Inputs:
-/// - `AppState` with dry_run=true.
+/// - `AppState` with `dry_run=true`.
 ///
 /// Output:
-/// - `ExecutorRequest` uses app's dry_run value.
+/// - `ExecutorRequest` uses app's `dry_run` value.
 ///
 /// Details:
-/// - Verifies dry_run is correctly passed from state to request.
+/// - Verifies `dry_run` is correctly passed from state to request.
 fn integration_dry_run_state_to_request() {
     let app = AppState {
         dry_run: true,
@@ -442,4 +442,3 @@ fn integration_dry_run_state_to_request() {
         _ => panic!("Expected ExecutorRequest::Install"),
     }
 }
-

@@ -138,9 +138,8 @@ fn integration_network_error_preflight_exec_display() {
 /// Details:
 /// - Verifies error propagation mechanism works correctly.
 fn integration_network_error_propagation() {
-    let error_output = ExecutorOutput::Error(
-        "Failed to connect to host (network unreachable)".to_string(),
-    );
+    let error_output =
+        ExecutorOutput::Error("Failed to connect to host (network unreachable)".to_string());
 
     // Simulate error being received and added to PreflightExec modal
     let mut app = AppState {
@@ -166,8 +165,7 @@ fn integration_network_error_propagation() {
     // Simulate error being added to log_lines
     if let ExecutorOutput::Error(msg) = &error_output
         && let Modal::PreflightExec {
-            ref mut log_lines,
-            ..
+            ref mut log_lines, ..
         } = app.modal
     {
         log_lines.push(format!("ERROR: {msg}"));
@@ -187,7 +185,7 @@ fn integration_network_error_propagation() {
 /// What: Test UI recovery after network error.
 ///
 /// Inputs:
-/// - PreflightExec modal with network error.
+/// - `PreflightExec` modal with network error.
 ///
 /// Output:
 /// - UI can transition to error state and recover gracefully.
@@ -220,7 +218,9 @@ fn integration_network_error_recovery() {
 
     // Verify error state
     match app.modal {
-        Modal::PreflightExec { success, log_lines, .. } => {
+        Modal::PreflightExec {
+            success, log_lines, ..
+        } => {
             assert_eq!(success, Some(false));
             assert!(!log_lines.is_empty());
             assert!(log_lines[0].contains("ERROR:"));
@@ -316,4 +316,3 @@ fn integration_network_error_install_request() {
         _ => panic!("Expected ExecutorRequest::Install"),
     }
 }
-

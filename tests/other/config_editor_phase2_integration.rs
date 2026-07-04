@@ -6,71 +6,13 @@
 
 #![cfg(not(target_os = "windows"))]
 
+use crate::env_guard::EnvGuard;
 use crossterm::event::{Event as CEvent, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use pacsea::events::handle_event;
 use pacsea::state::{AppState, PkgbuildCheckRequest, QueryInput, types::AppMode};
 use std::fs;
 use std::path::PathBuf;
 use tokio::sync::mpsc;
-
-/// What: Guard process-wide HOME/XDG overrides for config-editor integration tests.
-///
-/// Inputs:
-/// - `home_root`: Temporary directory used as test HOME root.
-///
-/// Output:
-/// - Guard that restores original `HOME` and `XDG_CONFIG_HOME` on drop.
-struct EnvGuard {
-    /// Original `HOME` value, restored on drop.
-    original_home: Option<std::ffi::OsString>,
-    /// Original `XDG_CONFIG_HOME` value, restored on drop.
-    original_xdg: Option<std::ffi::OsString>,
-    /// Temp HOME root cleaned up on drop.
-    home_root: PathBuf,
-}
-
-impl EnvGuard {
-    /// What: Apply isolated HOME/XDG environment for a test run.
-    ///
-    /// Inputs:
-    /// - `home_root`: Temporary HOME path.
-    ///
-    /// Output:
-    /// - Initialized guard.
-    fn new(home_root: PathBuf) -> Self {
-        let original_home = std::env::var_os("HOME");
-        let original_xdg = std::env::var_os("XDG_CONFIG_HOME");
-        let config_root = home_root.join(".config").join("pacsea");
-        fs::create_dir_all(&config_root).expect("must create isolated config root");
-        unsafe {
-            std::env::set_var("HOME", &home_root);
-            std::env::remove_var("XDG_CONFIG_HOME");
-        }
-        Self {
-            original_home,
-            original_xdg,
-            home_root,
-        }
-    }
-}
-
-impl Drop for EnvGuard {
-    fn drop(&mut self) {
-        unsafe {
-            if let Some(home) = self.original_home.as_ref() {
-                std::env::set_var("HOME", home);
-            } else {
-                std::env::remove_var("HOME");
-            }
-            if let Some(xdg) = self.original_xdg.as_ref() {
-                std::env::set_var("XDG_CONFIG_HOME", xdg);
-            } else {
-                std::env::remove_var("XDG_CONFIG_HOME");
-            }
-        }
-        let _ = fs::remove_dir_all(&self.home_root);
-    }
-}
 
 /// What: Build a unique temporary HOME directory for an integration test.
 ///

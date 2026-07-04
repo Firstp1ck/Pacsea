@@ -270,7 +270,10 @@ fn integration_edge_case_concurrent_operation_check() {
 
     // Before starting a new operation, check if one is pending
     let can_start_new = app.pending_executor_request.is_none();
-    assert!(!can_start_new, "Should not start new operation when one is pending");
+    assert!(
+        !can_start_new,
+        "Should not start new operation when one is pending"
+    );
 }
 
 #[test]
@@ -323,10 +326,10 @@ fn integration_edge_case_alert_modal_error() {
 /// What: Test empty install list.
 ///
 /// Inputs:
-/// - `AppState` with empty install_list.
+/// - `AppState` with empty `install_list`.
 ///
 /// Output:
-/// - install_list is empty.
+/// - `install_list` is empty.
 ///
 /// Details:
 /// - Edge case for no packages selected.
@@ -340,10 +343,10 @@ fn integration_edge_case_empty_install_list() {
 /// What: Test empty downgrade list.
 ///
 /// Inputs:
-/// - `AppState` with empty downgrade_list.
+/// - `AppState` with empty `downgrade_list`.
 ///
 /// Output:
-/// - downgrade_list is empty.
+/// - `downgrade_list` is empty.
 ///
 /// Details:
 /// - Edge case for no packages to downgrade.
@@ -363,7 +366,7 @@ fn integration_edge_case_empty_downgrade_list() {
 /// - Correct flags for each mode.
 ///
 /// Details:
-/// - Verifies cascade mode flag() method.
+/// - Verifies cascade mode `flag()` method.
 fn integration_edge_case_cascade_mode_flags() {
     assert_eq!(CascadeMode::Basic.flag(), "-R");
     assert_eq!(CascadeMode::Cascade.flag(), "-Rs");
@@ -380,24 +383,28 @@ fn integration_edge_case_cascade_mode_flags() {
 /// - Correct description for each mode.
 ///
 /// Details:
-/// - Verifies cascade mode description() method.
+/// - Verifies cascade mode `description()` method.
 fn integration_edge_case_cascade_mode_descriptions() {
     assert!(CascadeMode::Basic.description().contains("targets"));
     assert!(CascadeMode::Cascade.description().contains("dependents"));
-    assert!(CascadeMode::CascadeWithConfigs.description().contains("configs"));
+    assert!(
+        CascadeMode::CascadeWithConfigs
+            .description()
+            .contains("configs")
+    );
 }
 
 #[test]
 /// What: Test cascade mode cycling.
 ///
 /// Inputs:
-/// - Cascade mode next() calls.
+/// - Cascade mode `next()` calls.
 ///
 /// Output:
 /// - Modes cycle correctly.
 ///
 /// Details:
-/// - Verifies cascade mode next() method.
+/// - Verifies cascade mode `next()` method.
 fn integration_edge_case_cascade_mode_cycling() {
     assert_eq!(CascadeMode::Basic.next(), CascadeMode::Cascade);
     assert_eq!(CascadeMode::Cascade.next(), CascadeMode::CascadeWithConfigs);
@@ -455,13 +462,13 @@ fn integration_edge_case_orphaned_package() {
 }
 
 #[test]
-/// What: Test package with out_of_date flag.
+/// What: Test package with `out_of_date` flag.
 ///
 /// Inputs:
 /// - Package marked as out of date.
 ///
 /// Output:
-/// - out_of_date is set.
+/// - `out_of_date` is set.
 ///
 /// Details:
 /// - Verifies out-of-date package handling.
@@ -527,4 +534,3 @@ fn integration_edge_case_single_char_package_name() {
     assert_eq!(pkg.name, "r");
     assert_eq!(pkg.name.len(), 1);
 }
-
