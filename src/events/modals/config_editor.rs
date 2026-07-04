@@ -21,7 +21,7 @@ use std::time::Instant;
 
 use crate::state::{
     AppState, ConfigEditorFocus, ConfigEditorSearchFocus, ConfigEditorState, ConfigEditorView,
-    EditPopupKind, EditPopupState, Modal,
+    EditPopupKind, EditPopupState,
 };
 use crate::theme::{
     ConfigFile, EDITABLE_KEYBINDS, EditableSetting, KeyChord, PatchOutcome, PatchRequest,
@@ -48,24 +48,6 @@ pub(in crate::events) fn handle_config_editor_mode_key(ke: KeyEvent, app: &mut A
         handle_editor_key(ke, &mut state, app);
     }
     app.config_editor_state = state;
-    true
-}
-
-/// What: Legacy modal-path handler retained for compatibility while the
-/// modal variant still exists.
-pub(super) fn handle_config_editor_modal(ke: KeyEvent, app: &mut AppState, modal: Modal) -> bool {
-    let Modal::ConfigEditor { mut state } = modal else {
-        app.modal = modal;
-        return false;
-    };
-    let close = if state.popup.is_some() {
-        handle_popup_key(ke, app, &mut state)
-    } else {
-        handle_editor_key(ke, &mut state, app)
-    };
-    if !close {
-        app.modal = Modal::ConfigEditor { state };
-    }
     true
 }
 
@@ -396,7 +378,12 @@ const fn file_label_for_status(file: ConfigFile) -> &'static str {
 /// Key handling while the edit popup is active. Returns `true` if the
 /// editor should close (currently always `false`).
 fn handle_popup_key(ke: KeyEvent, app: &mut AppState, state: &mut ConfigEditorState) -> bool {
-    if state.popup.is_none() {
+    // Capture mode swallows every key first, so chords like Ctrl+S or Esc can
+    // be recorded/cancelled without triggering save/close.
+    if let Some(popup) = state.popup.as_mut()
+        && matches!(popup.kind, EditPopupKind::KeyChord { capturing: true })
+    {
+        handle_keychord_capture(ke, popup);
         return false;
     }
     match (ke.code, ke.modifiers) {
@@ -413,6 +400,13 @@ fn handle_popup_key(ke: KeyEvent, app: &mut AppState, state: &mut ConfigEditorSt
                 *revealed = !*revealed;
             }
         }
+        (KeyCode::Char('k'), m) if m.contains(KeyModifiers::CONTROL) => {
+            if let Some(popup) = state.popup.as_mut()
+                && let EditPopupKind::KeyChord { capturing } = &mut popup.kind
+            {
+                *capturing = true;
+            }
+        }
         _ => {
             if let Some(popup) = state.popup.as_mut() {
                 handle_popup_value_key(ke, popup);
@@ -422,13 +416,47 @@ fn handle_popup_key(ke: KeyEvent, app: &mut AppState, state: &mut ConfigEditorSt
     false
 }
 
+/// What: Record the next pressed chord into a `KeyChord` popup buffer.
+///
+/// Inputs:
+/// - `ke`: Raw key event received while capture mode is active.
+/// - `popup`: Popup state whose kind is `KeyChord { capturing: true }`.
+///
+/// Output:
+/// - Mutates `popup`: `Esc` cancels capture keeping the buffer; a
+///   representable chord replaces the buffer and ends capture; unsupported
+///   keys are ignored and capture stays active.
+///
+/// Details:
+/// - Serialization goes through
+///   [`crate::state::config_editor::key_event_to_canonical_chord_string`] so
+///   recorded chords always round-trip through the keybind parser.
+fn handle_keychord_capture(ke: KeyEvent, popup: &mut EditPopupState) {
+    let EditPopupKind::KeyChord { ref mut capturing } = popup.kind else {
+        return;
+    };
+    if matches!(ke.code, KeyCode::Esc) {
+        *capturing = false;
+        return;
+    }
+    if let Some(chord) =
+        crate::state::config_editor::key_event_to_canonical_chord_string(ke.code, ke.modifiers)
+    {
+        popup.buffer = chord;
+        popup.caret = popup.buffer.len();
+        *capturing = false;
+    }
+}
+
 /// Type-specific popup key handling for value mutation.
 fn handle_popup_value_key(ke: KeyEvent, popup: &mut EditPopupState) {
     match popup.kind {
         EditPopupKind::Bool(_) => handle_popup_bool(ke, popup),
         EditPopupKind::Enum { .. } => handle_popup_enum(ke, popup),
         EditPopupKind::Int { min, max } => handle_popup_int(ke, popup, min, max),
-        EditPopupKind::Text | EditPopupKind::Secret { .. } => handle_popup_text(ke, popup),
+        EditPopupKind::Text | EditPopupKind::Secret { .. } | EditPopupKind::KeyChord { .. } => {
+            handle_popup_text(ke, popup);
+        }
     }
 }
 
@@ -1045,6 +1073,124 @@ mod tests {
         let bt = parse_validated_key_chord("Shift+Tab").expect("ok");
         assert_eq!(bt.code, KeyCode::BackTab);
         assert!(bt.mods.is_empty());
+    }
+
+    /// What: Build editor state with an open popup for a keybind schema row.
+    ///
+    /// Inputs:
+    /// - `key`: Canonical keybind schema key.
+    /// - `current`: Current chord string used to prefill the popup buffer.
+    ///
+    /// Output:
+    /// - `ConfigEditorState` whose popup is a non-capturing `KeyChord` editor.
+    fn keychord_popup_state(key: &str, current: &str) -> ConfigEditorState {
+        let s = find_setting(key).expect("keybind schema entry");
+        ConfigEditorState {
+            popup: Some(EditPopupState::from_current(s, current)),
+            ..ConfigEditorState::default()
+        }
+    }
+
+    #[test]
+    fn keychord_popup_ctrl_k_starts_capture_and_records_next_chord() {
+        let mut app = AppState {
+            dry_run: true,
+            ..AppState::default()
+        };
+        let mut state = keychord_popup_state("keybind_reload_config", "Ctrl+r");
+        handle_popup_key(
+            KeyEvent::new(KeyCode::Char('k'), KeyModifiers::CONTROL),
+            &mut app,
+            &mut state,
+        );
+        assert!(matches!(
+            state.popup.as_ref().map(|p| &p.kind),
+            Some(EditPopupKind::KeyChord { capturing: true })
+        ));
+
+        handle_popup_key(
+            KeyEvent::new(KeyCode::F(9), KeyModifiers::NONE),
+            &mut app,
+            &mut state,
+        );
+        let popup = state.popup.as_ref().expect("popup stays open");
+        assert_eq!(popup.buffer, "F9");
+        assert!(matches!(
+            popup.kind,
+            EditPopupKind::KeyChord { capturing: false }
+        ));
+    }
+
+    #[test]
+    fn keychord_capture_records_ctrl_s_instead_of_saving() {
+        let mut app = AppState {
+            dry_run: true,
+            ..AppState::default()
+        };
+        let mut state = keychord_popup_state("keybind_reload_config", "Ctrl+r");
+        handle_popup_key(
+            KeyEvent::new(KeyCode::Char('k'), KeyModifiers::CONTROL),
+            &mut app,
+            &mut state,
+        );
+        handle_popup_key(
+            KeyEvent::new(KeyCode::Char('s'), KeyModifiers::CONTROL),
+            &mut app,
+            &mut state,
+        );
+        let popup = state.popup.as_ref().expect("capture must not trigger save");
+        assert_eq!(popup.buffer, "Ctrl+s");
+        assert!(state.status.is_none(), "no save status while capturing");
+    }
+
+    #[test]
+    fn keychord_capture_esc_cancels_and_keeps_buffer() {
+        let mut app = AppState {
+            dry_run: true,
+            ..AppState::default()
+        };
+        let mut state = keychord_popup_state("keybind_reload_config", "Ctrl+r");
+        handle_popup_key(
+            KeyEvent::new(KeyCode::Char('k'), KeyModifiers::CONTROL),
+            &mut app,
+            &mut state,
+        );
+        handle_popup_key(
+            KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE),
+            &mut app,
+            &mut state,
+        );
+        let popup = state.popup.as_ref().expect("Esc only cancels capture");
+        assert_eq!(popup.buffer, "Ctrl+r");
+        assert!(matches!(
+            popup.kind,
+            EditPopupKind::KeyChord { capturing: false }
+        ));
+    }
+
+    #[test]
+    fn keychord_capture_ignores_unsupported_keys() {
+        let mut app = AppState {
+            dry_run: true,
+            ..AppState::default()
+        };
+        let mut state = keychord_popup_state("keybind_reload_config", "Ctrl+r");
+        handle_popup_key(
+            KeyEvent::new(KeyCode::Char('k'), KeyModifiers::CONTROL),
+            &mut app,
+            &mut state,
+        );
+        handle_popup_key(
+            KeyEvent::new(KeyCode::Null, KeyModifiers::NONE),
+            &mut app,
+            &mut state,
+        );
+        let popup = state.popup.as_ref().expect("popup stays open");
+        assert_eq!(popup.buffer, "Ctrl+r", "unsupported key must not record");
+        assert!(matches!(
+            popup.kind,
+            EditPopupKind::KeyChord { capturing: true }
+        ));
     }
 
     #[test]

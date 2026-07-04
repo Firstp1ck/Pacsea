@@ -870,6 +870,23 @@ fn build_popup_lines(popup: &EditPopupState, th: &Theme) -> Vec<Line<'static>> {
                 Style::default().fg(th.subtext0),
             )));
         }
+        EditPopupKind::KeyChord { capturing } => {
+            lines.push(Line::from(vec![
+                Span::styled("  value: ", Style::default().fg(th.subtext1)),
+                Span::styled(format!("{}▏", popup.buffer), Style::default().fg(th.text)),
+            ]));
+            if *capturing {
+                lines.push(Line::from(Span::styled(
+                    "Recording… press the new key chord  ·  Esc cancel recording",
+                    Style::default().fg(th.yellow).add_modifier(Modifier::BOLD),
+                )));
+            } else {
+                lines.push(Line::from(Span::styled(
+                    "Ctrl+K record chord  ·  Type to edit  ·  Ctrl+S save  ·  Esc cancel",
+                    Style::default().fg(th.subtext0),
+                )));
+            }
+        }
         EditPopupKind::Secret { revealed } => {
             let display = if *revealed {
                 popup.buffer.clone()

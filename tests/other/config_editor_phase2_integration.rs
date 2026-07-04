@@ -210,6 +210,70 @@ fn config_editor_phase2_saves_keybind_to_disk() {
 }
 
 #[test]
+/// What: Capture mode records the next pressed chord and saves it to `keybinds.conf`.
+///
+/// Details:
+/// - Uses `F1` as the recorded chord: it is bound to the global help overlay,
+///   so this also proves capture mode swallows keys before global handlers run
+///   (no help modal opens, the chord lands in the popup buffer instead).
+fn config_editor_phase2_capture_mode_records_chord_and_saves() {
+    let home = unique_test_home("capture");
+    let _guard = EnvGuard::new(home.clone());
+    let kb_path = home.join(".config").join("pacsea").join("keybinds.conf");
+    fs::write(&kb_path, "keybind_reload_config = CTRL+R\n").expect("must seed keybinds.conf");
+
+    let mut app = AppState {
+        app_mode: AppMode::ConfigEditor,
+        ..AppState::default()
+    };
+    let channels = build_event_channels();
+
+    enter_keybinds_file(&mut app, &channels);
+    type_query(&mut app, &channels, "keybind_reload_config");
+    send_key(&mut app, KeyCode::Enter, KeyModifiers::NONE, &channels);
+    // Start recording, then press F1 — normally the help-overlay shortcut.
+    send_key(
+        &mut app,
+        KeyCode::Char('k'),
+        KeyModifiers::CONTROL,
+        &channels,
+    );
+    send_key(&mut app, KeyCode::F(1), KeyModifiers::NONE, &channels);
+    assert!(
+        matches!(app.modal, pacsea::state::Modal::None),
+        "captured F1 must not open the help overlay"
+    );
+    let buffer = app
+        .config_editor_state
+        .popup
+        .as_ref()
+        .map(|p| p.buffer.clone())
+        .unwrap_or_default();
+    assert_eq!(buffer, "F1", "capture must record the pressed chord");
+    // F1 collides with keybind_help in the global scope, so record a free
+    // chord before saving.
+    send_key(
+        &mut app,
+        KeyCode::Char('k'),
+        KeyModifiers::CONTROL,
+        &channels,
+    );
+    send_key(&mut app, KeyCode::F(9), KeyModifiers::NONE, &channels);
+    send_key(
+        &mut app,
+        KeyCode::Char('s'),
+        KeyModifiers::CONTROL,
+        &channels,
+    );
+
+    let after = fs::read_to_string(&kb_path).expect("must read updated keybinds.conf");
+    assert!(
+        after.contains("keybind_reload_config = F9"),
+        "expected captured chord in keybinds.conf, got: {after}"
+    );
+}
+
+#[test]
 /// What: Dry-run keybind save reports action but leaves `keybinds.conf` untouched.
 fn config_editor_phase2_dry_run_save_does_not_write_disk() {
     let home = unique_test_home("dry_run");

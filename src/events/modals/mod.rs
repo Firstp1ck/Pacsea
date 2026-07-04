@@ -93,7 +93,6 @@ pub(super) fn handle_modal_key(
         Modal::PasswordPrompt { .. } => handlers::handle_password_prompt_modal(ke, app, modal),
         Modal::GnomeTerminalPrompt => handlers::handle_gnome_terminal_prompt_modal(ke, app, modal),
         Modal::ImportHelp => handlers::handle_import_help_modal(ke, app, add_tx, modal),
-        Modal::ConfigEditor { .. } => config_editor::handle_config_editor_modal(ke, app, modal),
         Modal::None => false,
         Modal::Loading { .. } => {
             // Loading modal - ignore key input while waiting for background task

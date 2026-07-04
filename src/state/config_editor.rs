@@ -57,10 +57,10 @@ pub enum ConfigEditorSearchFocus {
 
 /// Editable popup variant.
 ///
-/// Mirrors the schema's [`ValueKind`] but only for the kinds Phase 1
-/// supports interactively. Other kinds open as [`EditPopupKind::Text`]
-/// (free-form text) with a hint that richer editors land in later
-/// phases.
+/// Mirrors the schema's [`ValueKind`] but only for the kinds the editor
+/// supports interactively. Kinds without a dedicated control open as
+/// [`EditPopupKind::Text`] (free-form text); `keybinds.conf` rows open as
+/// [`EditPopupKind::KeyChord`] with optional chord capture.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EditPopupKind {
     /// `true` / `false` toggle.
@@ -80,12 +80,20 @@ pub enum EditPopupKind {
         max: i64,
     },
     /// Free-form text input (also covers `Path`, `MainPaneOrder`,
-    /// `KeyChord`, `Color`, and `OptionalUnsignedOrAll` in Phase 1).
+    /// `Color`, and `OptionalUnsignedOrAll` in Phase 1).
     Text,
     /// Sensitive text input; rendered masked unless `revealed` is true.
     Secret {
         /// Whether the user has toggled "reveal" for this edit session.
         revealed: bool,
+    },
+    /// Key-chord input for `keybinds.conf` rows. Supports free-form text
+    /// editing plus a dedicated capture mode (`Ctrl+K`) that records the
+    /// next pressed chord verbatim.
+    KeyChord {
+        /// When `true`, the next key event is swallowed and serialized into
+        /// the buffer instead of being interpreted as popup input.
+        capturing: bool,
     },
 }
 
@@ -175,12 +183,21 @@ impl EditPopupState {
                     caret,
                 }
             }
+            ValueKind::KeyChord => {
+                let buffer = trimmed.to_string();
+                let caret = buffer.len();
+                Self {
+                    setting,
+                    kind: EditPopupKind::KeyChord { capturing: false },
+                    buffer,
+                    caret,
+                }
+            }
             ValueKind::String
             | ValueKind::Path
             | ValueKind::OptionalUnsignedOrAll
             | ValueKind::Color
-            | ValueKind::MainPaneOrder
-            | ValueKind::KeyChord => {
+            | ValueKind::MainPaneOrder => {
                 let buffer = trimmed.to_string();
                 let caret = buffer.len();
                 Self {
@@ -212,9 +229,10 @@ impl EditPopupState {
             EditPopupKind::Enum { choices, index } => {
                 choices.get(*index).cloned().unwrap_or_default()
             }
-            EditPopupKind::Int { .. } | EditPopupKind::Text | EditPopupKind::Secret { .. } => {
-                self.buffer.trim().to_string()
-            }
+            EditPopupKind::Int { .. }
+            | EditPopupKind::Text
+            | EditPopupKind::Secret { .. }
+            | EditPopupKind::KeyChord { .. } => self.buffer.trim().to_string(),
         }
     }
 }
@@ -744,6 +762,26 @@ pub fn chord_to_canonical_string(chord: &KeyChord) -> String {
     }
 }
 
+/// What: Serialize a raw key event into the canonical chord string used by
+/// the keybind parser, for the popup's capture mode.
+///
+/// Inputs:
+/// - `code`: Crossterm key code from the captured event.
+/// - `mods`: Modifier flags from the captured event.
+///
+/// Output:
+/// - `Some(chord)` such as `"Ctrl+r"` or `"Shift+Tab"` when the key is
+///   representable in `keybinds.conf`; `None` for unsupported codes
+///   (media keys, bare modifier presses, etc.), which capture mode should
+///   ignore rather than record.
+#[must_use]
+pub fn key_event_to_canonical_chord_string(code: KeyCode, mods: KeyModifiers) -> Option<String> {
+    if !matches!(code, KeyCode::BackTab) && chord_key_label(code).is_empty() {
+        return None;
+    }
+    Some(chord_to_canonical_string(&KeyChord { code, mods }))
+}
+
 /// What: Map a [`KeyCode`] to the canonical token used by the keybind parser.
 ///
 /// Inputs:
@@ -963,6 +1001,52 @@ mod tests {
         assert!(!keybind_chords_for_key("keybind_help", &km).is_empty());
         assert!(!keybind_chords_for_key("keybind_search_move_up", &km).is_empty());
         assert!(keybind_chords_for_key("keybind_unknown_action", &km).is_empty());
+    }
+
+    /// What: Guard against schema/lookup drift for keybind rows.
+    ///
+    /// Inputs:
+    /// - Every entry in `EDITABLE_KEYBINDS` and the default keymap.
+    ///
+    /// Output:
+    /// - Fails when a schema keybind has no dispatch arm in
+    ///   `keybind_chords_for_key` (which would silently show an empty current
+    ///   value and exempt the action from conflict detection).
+    ///
+    /// Details:
+    /// - Relies on `KeyMap::default()` binding at least one chord per action.
+    #[test]
+    fn every_schema_keybind_resolves_through_chord_lookup() {
+        let km = KeyMap::default();
+        for entry in crate::theme::EDITABLE_KEYBINDS {
+            assert!(
+                !keybind_chords_for_key(entry.key, &km).is_empty(),
+                "{} is in EDITABLE_KEYBINDS but keybind_chords_for_key has no arm for it",
+                entry.key
+            );
+        }
+    }
+
+    #[test]
+    fn key_event_to_canonical_chord_string_covers_capture_cases() {
+        assert_eq!(
+            key_event_to_canonical_chord_string(KeyCode::F(9), KeyModifiers::empty()).as_deref(),
+            Some("F9")
+        );
+        assert_eq!(
+            key_event_to_canonical_chord_string(KeyCode::Char('s'), KeyModifiers::CONTROL)
+                .as_deref(),
+            Some("Ctrl+s")
+        );
+        assert_eq!(
+            key_event_to_canonical_chord_string(KeyCode::BackTab, KeyModifiers::empty()).as_deref(),
+            Some("Shift+Tab")
+        );
+        // Unsupported codes must be ignored by capture mode.
+        assert_eq!(
+            key_event_to_canonical_chord_string(KeyCode::Null, KeyModifiers::CONTROL),
+            None
+        );
     }
 
     #[test]

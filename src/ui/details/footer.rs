@@ -1124,7 +1124,19 @@ fn build_config_editor_editor_line_spans(
         th.overlay1,
     );
     if let Some(popup) = state.popup.as_ref() {
+        if matches!(popup.kind, EditPopupKind::KeyChord { capturing: true }) {
+            add_literal_key_entry(
+                &mut spans,
+                "Esc",
+                key_style,
+                &i18n::t(app, "app.modals.config_editor.footer.popup_capture_cancel"),
+                sep_style,
+                false,
+            );
+            return spans;
+        }
         let secret = matches!(popup.kind, EditPopupKind::Secret { .. });
+        let keychord = matches!(popup.kind, EditPopupKind::KeyChord { .. });
         add_literal_key_entry(
             &mut spans,
             "Esc",
@@ -1139,7 +1151,7 @@ fn build_config_editor_editor_line_spans(
             key_style,
             &i18n::t(app, "app.modals.config_editor.footer.popup_save"),
             sep_style,
-            secret,
+            secret || keychord,
         );
         if secret {
             add_literal_key_entry(
@@ -1147,6 +1159,16 @@ fn build_config_editor_editor_line_spans(
                 "Ctrl+R",
                 key_style,
                 &i18n::t(app, "app.modals.config_editor.footer.popup_reveal"),
+                sep_style,
+                false,
+            );
+        }
+        if keychord {
+            add_literal_key_entry(
+                &mut spans,
+                "Ctrl+K",
+                key_style,
+                &i18n::t(app, "app.modals.config_editor.footer.popup_record"),
                 sep_style,
                 false,
             );

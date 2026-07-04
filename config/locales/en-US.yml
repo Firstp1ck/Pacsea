@@ -397,6 +397,8 @@ en-US:
           popup_cancel: "Cancel overlay"
           popup_save: "Save"
           popup_reveal: "Reveal secret"
+          popup_record: "Record chord"
+          popup_capture_cancel: "Cancel recording"
         settings:
           sort_mode:
             label: "Result sort mode"

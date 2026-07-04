@@ -397,6 +397,8 @@ de-DE:
           popup_cancel: "Overlay schließen"
           popup_save: "Speichern"
           popup_reveal: "Geheimwert anzeigen"
+          popup_record: "Tastenkürzel aufnehmen"
+          popup_capture_cancel: "Aufnahme abbrechen"
       alert:
         header_configuration_error: "Konfigurationsfehler"
         header_clipboard_copy: "Zwischenablage kopieren"

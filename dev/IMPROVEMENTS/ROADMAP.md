@@ -52,7 +52,7 @@ Shipped items were dropped; see `CHANGELOG.md` for release history.
 - [ ] **arch-toolkit Phase A1–A2** — add dependency, wire shared client, cut AUR call sites (`search`, `comments`, `pkgbuild`) over to toolkit APIs → [arch-toolkit §T1](#t1-workstream-a-pacsea-consumes-arch-toolkit)
 - [ ] **Refactor: dedupe package validation** — six similar validators in `args/package.rs` → shared helpers → [Refactoring §R1](#r1-priority-refactors)
 - [ ] **Refactor: adopt or remove `util/config.rs`** — 13 files with inline string parsing vs unused utility → [Refactoring §R1](#r1-priority-refactors)
-- [ ] **Config editor Phase 1** — settings-center modal shell + General tab (boolean/string keys, dry-run gated) → [Config editing §E1](#e1-phased-rollout)
+- [x] **Config editor Phase 1** — settings-center modal shell + General tab (boolean/string keys, dry-run gated) — shipped in PR #161 as a dedicated `AppMode::ConfigEditor` → [Config editing §E1](#e1-phased-rollout)
 
 ### 🟡 P3 — Roadmap items
 
@@ -71,7 +71,7 @@ Shipped items were dropped; see `CHANGELOG.md` for release history.
 - [ ] **CLI extended queries** — `pkg files|owns|deps|provides|conflicts|orphans|foreign|native|group|required-by`, `news` subcommands, `files pacnew|pacsave`, `services affected`, `sandbox analyze`, `repo apply`, `aur scan` batch, transaction helpers (`sync`, `upgrade --aur-only`, `downgrade`, `reinstall`, `clean`) → [CLI §C3](#c3-roadmap-subcommands)
 - [ ] **arch-toolkit Phase A3–A5** — deps/index/install cutover, news baseline cutover, parity cleanup → [arch-toolkit §T1](#t1-workstream-a-pacsea-consumes-arch-toolkit)
 - [ ] **arch-toolkit Workstream B** — extract sandbox, preflight engine, status monitor, details helper, news content parity (B1 repos-apply planner already landed) → [arch-toolkit §T2](#t2-workstream-b-extraction-backlog)
-- [ ] **Config editor Phase 2–3** — keybind capture + persistence; theme tab with validation → [Config editing §E1](#e1-phased-rollout)
+- [ ] **Config editor Phase 3** — theme tab with validation (Phase 2 keybind capture + persistence + conflict detection shipped in PR #161) → [Config editing §E1](#e1-phased-rollout)
 - [ ] **Soname Layer 1** — `DT_NEEDED`/`DT_SONAME` readers, on-disk soname map, `.pkg.tar.zst` extraction, Preflight tab → [Soname §S1](#s1-layer-1--end-user-protection)
 - [ ] **Performance: open items** — map/B-tree package index (if profiling supports), streaming search results, stronger lazy loading, remaining `.iter().any()` tightening, criterion benches → [Performance §P1](#p1-open-optimizations)
 - [ ] **Architecture: incremental refactors** — split `AppState` into domain substates, group preflight channels, extract pure logic from fat handlers → [Refactoring §R2](#r2-architecture-backlog)
@@ -332,9 +332,9 @@ buffer editing is a later option. Key code: `src/theme/paths.rs` (resolution),
 `src/theme/types.rs`.
 
 ### E1. Phased rollout
-- [ ] **Phase 1** — editor shell (`ConfigEditor` state + keybind), General tab over existing
+- [x] **Phase 1** — editor shell (`ConfigEditor` state + keybind), General tab over existing
       `save_*` helpers, read-only display of active config paths, dry-run gating + error surfacing
-- [ ] **Phase 2** — keybinds tab: render from `Settings.keymap`, capture mode (swallow keys until
+- [x] **Phase 2** — keybinds tab: render from `Settings.keymap`, capture mode (swallow keys until
       chord/Esc; conflict validation), persist to `keybinds.conf` with round-trip tests
 - [ ] **Phase 3** — theme tab: edit canonical keys, validate via `try_load_theme_with_diagnostics`
       before save, keep last good theme in memory; optional revert-to-skeleton

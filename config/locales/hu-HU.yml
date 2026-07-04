@@ -401,6 +401,8 @@ hu-HU:
           popup_cancel: "Cancel overlay"
           popup_save: "Save"
           popup_reveal: "Reveal secret"
+          popup_record: "Record chord"
+          popup_capture_cancel: "Cancel recording"
       alert:
         header_configuration_error: "Konfigurációs hiba"
         header_clipboard_copy: "Másolás a vágólapra"
