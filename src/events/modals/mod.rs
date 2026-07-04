@@ -1,6 +1,10 @@
 //! Modal event handling module (excluding Preflight which is in preflight.rs).
 
 mod common;
+/// Key handling for the integrated TUI config editor modal.
+mod config_editor;
+pub(super) use config_editor::build_initial_state as build_config_editor_state;
+pub(in crate::events) use config_editor::handle_config_editor_mode_key;
 /// Key handling for the optional doas persist setup wizard modal.
 mod doas_persist_setup;
 mod foreign_overlap;

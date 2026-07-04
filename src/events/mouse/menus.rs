@@ -368,12 +368,31 @@ fn handle_options_menu_click(
     if let Some((_x, y, _w, _h)) = app.options_menu_rect {
         let row = my.saturating_sub(y) as usize;
         let news_mode = matches!(app.app_mode, crate::state::types::AppMode::News);
+        let config_editor_mode = matches!(app.app_mode, crate::state::types::AppMode::ConfigEditor);
         if news_mode {
             match row {
                 0 => handle_system_update_option(app),
                 1 => handle_optional_deps_option(app),
                 2 => handle_repositories_option(app),
                 3 => handle_mode_toggle(app, details_tx),
+                _ => return None,
+            }
+        } else if config_editor_mode {
+            match row {
+                0 => handle_system_update_option(app),
+                1 => handle_optional_deps_option(app),
+                2 => handle_repositories_option(app),
+                3 => {
+                    app.app_mode = crate::state::types::AppMode::Package;
+                    if app.results.is_empty() {
+                        app.list_state.select(None);
+                    } else {
+                        app.selected = app.selected.min(app.results.len().saturating_sub(1));
+                        app.list_state.select(Some(app.selected));
+                        refresh_selected_details(app, details_tx);
+                    }
+                }
+                4 => handle_mode_toggle(app, details_tx),
                 _ => return None,
             }
         } else {
@@ -632,7 +651,12 @@ fn handle_optional_deps_option(app: &mut AppState) {
 /// - `Some(false)` if handled, `None` otherwise
 ///
 /// Details:
-fn handle_config_menu_click(_mx: u16, my: u16, app: &mut AppState) -> Option<bool> {
+fn handle_config_menu_click(
+    _mx: u16,
+    my: u16,
+    app: &mut AppState,
+    _details_tx: &mpsc::UnboundedSender<PackageItem>,
+) -> Option<bool> {
     if let Some((_x, y, _w, _h)) = app.config_menu_rect {
         let row = my.saturating_sub(y) as usize;
         let settings_path = crate::theme::config_dir().join("settings.conf");
@@ -645,6 +669,15 @@ fn handle_config_menu_click(_mx: u16, my: u16, app: &mut AppState) -> Option<boo
             1 => theme_path,
             2 => keybinds_path,
             3 => repos_path,
+            4 if !matches!(app.app_mode, crate::state::types::AppMode::ConfigEditor) => {
+                // "Config editor (TUI)" — open integrated editor mode.
+                app.app_mode = crate::state::types::AppMode::ConfigEditor;
+                app.config_editor_state = crate::events::modals::build_config_editor_state();
+                app.config_menu_open = false;
+                app.artix_filter_menu_open = false;
+                app.custom_repos_filter_menu_open = false;
+                return Some(false);
+            }
             _ => {
                 app.config_menu_open = false;
                 app.artix_filter_menu_open = false;
@@ -873,8 +906,15 @@ pub(super) fn handle_menus_mouse(
     details_tx: &mpsc::UnboundedSender<PackageItem>,
 ) -> Option<bool> {
     // Check button clicks first
-    // In News mode, check news button first; otherwise check updates button
-    if matches!(app.app_mode, crate::state::types::AppMode::News) {
+    // Config editor shows both strips; News mode only the news strip; Package mode only updates.
+    if matches!(app.app_mode, crate::state::types::AppMode::ConfigEditor) {
+        if point_in_rect(mx, my, app.updates_button_rect) {
+            return Some(handle_updates_button(app));
+        }
+        if point_in_rect(mx, my, app.news_button_rect) {
+            return Some(handle_news_button(app));
+        }
+    } else if matches!(app.app_mode, crate::state::types::AppMode::News) {
         if point_in_rect(mx, my, app.news_button_rect) {
             return Some(handle_news_button(app));
         }
@@ -918,7 +958,7 @@ pub(super) fn handle_menus_mouse(
         return handle_options_menu_click(mx, my, app, details_tx);
     }
     if app.config_menu_open && point_in_rect(mx, my, app.config_menu_rect) {
-        return handle_config_menu_click(mx, my, app);
+        return handle_config_menu_click(mx, my, app, details_tx);
     }
     if app.panels_menu_open && point_in_rect(mx, my, app.panels_menu_rect) {
         return handle_panels_menu_click(mx, my, app);
@@ -1121,5 +1161,16 @@ mod tests {
         let r = super::handle_menus_mouse(mx, my, &mut app, &tx);
         assert!(r.is_none());
         assert!(app.custom_repos_filter_menu_open);
+    }
+
+    #[test]
+    fn handle_mode_toggle_switches_from_config_editor_to_news() {
+        let (details_tx, _details_rx) = mpsc::unbounded_channel();
+        let mut app = crate::state::AppState {
+            app_mode: AppMode::ConfigEditor,
+            ..crate::state::AppState::default()
+        };
+        handle_mode_toggle(&mut app, &details_tx);
+        assert!(matches!(app.app_mode, AppMode::News));
     }
 }

@@ -272,12 +272,19 @@ fn render_config_menu(
         return;
     }
 
-    let opts: Vec<String> = vec![
+    let in_config_editor = matches!(app.app_mode, crate::state::types::AppMode::ConfigEditor);
+    let mut opts: Vec<String> = vec![
         i18n::t(app, "app.results.config_menu.options.settings"),
         i18n::t(app, "app.results.config_menu.options.theme"),
         i18n::t(app, "app.results.config_menu.options.keybindings"),
         i18n::t(app, "app.results.config_menu.options.repos"),
     ];
+    if !in_config_editor {
+        opts.push(i18n::t(
+            app,
+            "app.results.config_menu.options.config_editor",
+        ));
+    }
 
     let widest = opts
         .iter()
@@ -403,13 +410,14 @@ fn render_options_menu(
     }
 
     let news_mode = matches!(app.app_mode, crate::state::types::AppMode::News);
+    let config_editor_mode = matches!(app.app_mode, crate::state::types::AppMode::ConfigEditor);
     let mode_toggle_label = if news_mode {
         i18n::t(app, "app.results.options_menu.package_mode")
     } else {
         i18n::t(app, "app.results.options_menu.news_management")
     };
     let mut opts: Vec<String> = Vec::new();
-    if !news_mode {
+    if !news_mode && !config_editor_mode {
         let label_toggle = if app.installed_only_mode {
             i18n::t(app, "app.results.options_menu.list_all_packages")
         } else {
@@ -420,7 +428,12 @@ fn render_options_menu(
     opts.push(i18n::t(app, "app.results.options_menu.update_system"));
     opts.push(i18n::t(app, "app.results.options_menu.tui_optional_deps"));
     opts.push(i18n::t(app, "app.results.options_menu.repositories"));
-    opts.push(mode_toggle_label);
+    if config_editor_mode {
+        opts.push(i18n::t(app, "app.results.options_menu.package_mode"));
+        opts.push(i18n::t(app, "app.results.options_menu.news_management"));
+    } else {
+        opts.push(mode_toggle_label);
+    }
     let widest = opts
         .iter()
         .map(|s| u16::try_from(s.width()).map_or(u16::MAX, |x| x))

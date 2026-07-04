@@ -410,7 +410,7 @@ pub(super) fn handle_updates_modal(
                 if let Some((name, _, _)) = entries.get(*selected) {
                     *last_selected_pkg_name = Some(name.clone());
                 }
-                // Auto-scroll to keep selected item visible
+                // Keep keyboard-style centering when wheel moves selection.
                 let visible_selected = filtered_indices
                     .iter()
                     .position(|&idx| idx == *selected)
@@ -434,7 +434,7 @@ pub(super) fn handle_updates_modal(
                 if let Some((name, _, _)) = entries.get(*selected) {
                     *last_selected_pkg_name = Some(name.clone());
                 }
-                // Auto-scroll to keep selected item visible
+                // Keep keyboard-style centering when wheel moves selection.
                 let visible_selected = filtered_indices
                     .iter()
                     .position(|&idx| idx == *selected)

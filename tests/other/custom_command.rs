@@ -9,8 +9,8 @@
 #![cfg(test)]
 
 use pacsea::install::ExecutorRequest;
-use pacsea::state::{AppState, Modal, PreflightAction, PreflightTab};
 use pacsea::state::modal::{PasswordPurpose, PreflightHeaderChips};
+use pacsea::state::{AppState, Modal, PreflightAction, PreflightTab};
 
 #[test]
 /// What: Test `ExecutorRequest::CustomCommand` creation.
@@ -67,7 +67,10 @@ fn integration_custom_command_with_password() {
             command, password, ..
         } => {
             assert!(command.contains("sudo"));
-            assert!(password.as_deref() == Some("testpassword"), "Password mismatch");
+            assert!(
+                password.as_deref() == Some("testpassword"),
+                "Password mismatch"
+            );
         }
         _ => panic!("Expected ExecutorRequest::CustomCommand"),
     }
@@ -103,10 +106,10 @@ fn integration_custom_command_no_password() {
 /// What: Test `ExecutorRequest::CustomCommand` dry-run mode.
 ///
 /// Inputs:
-/// - Custom command with dry_run=true.
+/// - Custom command with `dry_run=true`.
 ///
 /// Output:
-/// - dry_run flag is true.
+/// - `dry_run` flag is true.
 ///
 /// Details:
 /// - Verifies custom command respects dry-run flag.
@@ -140,7 +143,7 @@ fn integration_custom_command_paru_install() {
     let command = "cd /tmp/paru && makepkg -si --noconfirm".to_string();
 
     let request = ExecutorRequest::CustomCommand {
-        command: command.clone(),
+        command,
         password: Some("testpassword".to_string().into()),
         dry_run: false,
     };
@@ -170,7 +173,7 @@ fn integration_custom_command_yay_install() {
     let command = "cd /tmp/yay && makepkg -si --noconfirm".to_string();
 
     let request = ExecutorRequest::CustomCommand {
-        command: command.clone(),
+        command,
         password: Some("testpassword".to_string().into()),
         dry_run: false,
     };
@@ -315,7 +318,10 @@ fn integration_custom_command_to_preflight_exec() {
             command, password, ..
         }) => {
             assert_eq!(command, "sudo pacman -Fy");
-            assert!(password.as_deref() == Some("testpassword"), "Password mismatch");
+            assert!(
+                password.as_deref() == Some("testpassword"),
+                "Password mismatch"
+            );
         }
         _ => panic!("Expected ExecutorRequest::CustomCommand"),
     }
@@ -362,7 +368,7 @@ fn integration_custom_command_special_chars() {
     let command = "echo 'test with spaces' && ls -la | grep 'pattern'".to_string();
 
     let request = ExecutorRequest::CustomCommand {
-        command: command.clone(),
+        command,
         password: None,
         dry_run: false,
     };
@@ -370,7 +376,7 @@ fn integration_custom_command_special_chars() {
     match request {
         ExecutorRequest::CustomCommand { command: cmd, .. } => {
             assert!(cmd.contains("&&"));
-            assert!(cmd.contains("|"));
+            assert!(cmd.contains('|'));
             assert!(cmd.contains("grep"));
         }
         _ => panic!("Expected ExecutorRequest::CustomCommand"),
@@ -395,4 +401,3 @@ fn integration_custom_command_dry_run_format() {
     assert!(dry_run_cmd.contains("DRY RUN:"));
     assert!(dry_run_cmd.contains("pacman -Fy"));
 }
-

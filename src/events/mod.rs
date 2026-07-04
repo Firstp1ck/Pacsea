@@ -6,7 +6,9 @@
 use crossterm::event::{Event as CEvent, KeyCode, KeyEventKind, KeyModifiers};
 use tokio::sync::mpsc;
 
-use crate::state::{AppState, Focus, PackageItem, PkgbuildCheckRequest, QueryInput};
+use crate::state::{
+    AppState, Focus, PackageItem, PkgbuildCheckRequest, QueryInput, types::AppMode,
+};
 
 mod global;
 /// TUI-side guardrail helpers (pacman db-lock alerts).
@@ -187,6 +189,21 @@ pub fn handle_event_with_pkgbuild_checks(
             );
         }
 
+        // While the config editor's key-chord popup is recording, the next
+        // key event must reach the capture handler verbatim — including
+        // chords that normally match global shortcuts (help, exit, menus).
+        if matches!(app.app_mode, AppMode::ConfigEditor)
+            && app.config_editor_state.popup.as_ref().is_some_and(|p| {
+                matches!(
+                    p.kind,
+                    crate::state::EditPopupKind::KeyChord { capturing: true }
+                )
+            })
+        {
+            modals::handle_config_editor_mode_key(*ke, app);
+            return false;
+        }
+
         // Check for global keybinds first (even when preflight is open)
         // This allows global shortcuts like Ctrl+T to work regardless of modal state
         if let Some(should_exit) = global::handle_global_key(
@@ -230,6 +247,12 @@ pub fn handle_event_with_pkgbuild_checks(
 
         // If any modal remains open after handling above, consume the key to prevent main window interaction
         if !matches!(app.modal, crate::state::Modal::None) {
+            return false;
+        }
+
+        // Config editor is now a first-class app mode (not a modal wrapper).
+        if matches!(app.app_mode, AppMode::ConfigEditor) {
+            modals::handle_config_editor_mode_key(*ke, app);
             return false;
         }
 

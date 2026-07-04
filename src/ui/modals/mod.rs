@@ -9,6 +9,8 @@ mod alert;
 mod announcement;
 /// Common utilities for modal rendering.
 mod common;
+/// Integrated config editor modal rendering.
+pub(in crate::ui) mod config_editor;
 /// Confirmation modal rendering.
 mod confirm;
 /// Foreign overlap and AUR duplicate warning modals.

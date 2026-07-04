@@ -93,6 +93,26 @@ impl PacmanConfScan {
             .cloned()
             .unwrap_or(PacmanRepoPresence::Absent)
     }
+
+    /// What: Collect lowercase names of repositories that have an active `[name]` section.
+    ///
+    /// Inputs:
+    /// - `self`: Merged scan from [`scan_pacman_conf_path`].
+    ///
+    /// Output:
+    /// - A set of active repository section names (keys are already lowercased).
+    ///
+    /// Details:
+    /// - Skips commented-only headers and omits `[options]`. Callers use this to avoid
+    ///   `pacman -Sl` probes against databases the system does not have configured.
+    #[must_use]
+    pub fn active_repo_names_lower(&self) -> HashSet<String> {
+        self.repos
+            .iter()
+            .filter(|(_, presence)| matches!(presence, PacmanRepoPresence::Active { .. }))
+            .map(|(name, _)| name.clone())
+            .collect()
+    }
 }
 
 /// What: Scan the system pacman configuration for repository section headers.
@@ -413,5 +433,21 @@ mod tests {
             scan.presence_of("options"),
             PacmanRepoPresence::Absent
         ));
+    }
+
+    #[test]
+    fn active_repo_names_lower_includes_only_active_sections() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let main = dir.path().join("pacman.conf");
+        std::fs::write(
+            &main,
+            "[options]\n# [blackarch]\n[cachyos-core]\nServer = https://example.invalid\n",
+        )
+        .expect("write");
+        let scan = scan_pacman_conf_path(&main);
+        let active = scan.active_repo_names_lower();
+        assert!(active.contains("cachyos-core"));
+        assert!(!active.contains("blackarch"));
+        assert!(!active.contains("options"));
     }
 }

@@ -86,6 +86,21 @@ pub fn handle_mouse_event_with_pkgbuild_checks(
         return handled;
     }
 
+    // While the config editor window is active it behaves like a top
+    // level mode (similar to news mode), so the top-row menu buttons
+    // and any open dropdowns must still be operable. Route mouse events
+    // through the menu handler before the generic modal-blocking gate.
+    let in_config_editor = matches!(app.app_mode, crate::state::types::AppMode::ConfigEditor);
+    if in_config_editor
+        && is_left_down
+        && let Some(handled) = menus::handle_menus_mouse(mx, my, app, details_tx)
+    {
+        return handled;
+    }
+    if in_config_editor {
+        return false;
+    }
+
     // While any modal is open, prevent main window interaction by consuming mouse events
     if !matches!(app.modal, crate::state::Modal::None) {
         return false;

@@ -350,6 +350,55 @@ mod tests {
         assert!(app.results_rect.is_some());
     }
 
+    /// What: Ensure config editor mode records separate updates and news top-bar hit targets.
+    ///
+    /// Inputs:
+    /// - Wide terminal strip; `AppMode::ConfigEditor` with non-loading updates/news state.
+    ///
+    /// Output:
+    /// - Both `updates_button_rect` and `news_button_rect` are `Some`, with updates geometry left of news.
+    ///
+    /// Details:
+    /// - Mirrors the main UI split used by `crate::ui::ui` for the single-row top strip.
+    #[test]
+    fn config_editor_top_bar_sets_both_button_rects() {
+        use ratatui::{Terminal, backend::TestBackend};
+
+        let backend = TestBackend::new(120, 20);
+        let mut term = Terminal::new(backend).expect("failed to create test terminal");
+        let mut app = crate::state::AppState::default();
+        init_test_translations(&mut app);
+        app.app_mode = AppMode::ConfigEditor;
+        app.updates_count = Some(2);
+        app.updates_loading = false;
+        app.news_loading = false;
+        app.news_ready = true;
+
+        term.draw(|f| {
+            let area = f.area();
+            let chunks = ratatui::layout::Layout::default()
+                .direction(ratatui::layout::Direction::Vertical)
+                .constraints([
+                    ratatui::layout::Constraint::Length(1),
+                    ratatui::layout::Constraint::Min(0),
+                ])
+                .split(area);
+            crate::ui::updates::render_updates_button(f, &mut app, chunks[0]);
+        })
+        .expect("failed to draw test terminal");
+
+        let updates_r = app
+            .updates_button_rect
+            .expect("updates_button_rect should be set in config editor");
+        let news_r = app
+            .news_button_rect
+            .expect("news_button_rect should be set in config editor");
+        assert!(
+            updates_r.0 + updates_r.2 <= news_r.0.saturating_add(1),
+            "expected updates hit target left of news (updates={updates_r:?}, news={news_r:?})"
+        );
+    }
+
     /// What: Initialize minimal English translations for tests.
     ///
     /// Inputs:

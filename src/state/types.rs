@@ -182,17 +182,20 @@ pub struct NewsItem {
 ///
 /// Inputs: None (enum variants)
 ///
-/// Output: Represents whether the UI is in package management or news view.
+/// Output: Represents whether the UI is in package, news, or integrated config-editor view.
 ///
 /// Details:
 /// - `Package` preserves the existing package management experience.
 /// - `News` switches panes to the news feed experience.
+/// - `ConfigEditor` reuses the main window layout for integrated configuration editing.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AppMode {
     /// Package management/search mode (existing UI).
     Package,
     /// News feed mode (new UI).
     News,
+    /// Integrated configuration editor mode rendered as a top-level view.
+    ConfigEditor,
 }
 
 /// What: News/advisory source type.

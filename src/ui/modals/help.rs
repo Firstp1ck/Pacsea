@@ -701,6 +701,17 @@ pub fn render_help(f: &mut Frame, app: &mut AppState, area: Rect) {
         "app.modals.help.foreign_overlap_help_lines",
     )));
 
+    add_section_header(
+        &mut lines,
+        app,
+        &th,
+        "app.modals.help.sections.config_editor",
+    );
+    lines.extend(parse_yaml_lines(&i18n::t(
+        app,
+        "app.modals.help.config_editor_lines",
+    )));
+
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(
         i18n::t(app, "app.modals.help.close_hint"),

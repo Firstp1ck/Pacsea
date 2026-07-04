@@ -1051,7 +1051,7 @@ pub(super) fn handle_announcement(
 /// Details:
 /// - Handles Esc/q to close, Enter to install/update selected package
 /// - Handles j/k and arrow keys for selection navigation
-/// - Auto-scrolls to keep selected item visible
+/// - Adjusts scroll to keep the selected row near the vertical center of the list when possible
 #[allow(clippy::too_many_arguments)]
 // Updates modal needs coordinated mutable state (selection, scroll, and filter state) in one handler.
 #[allow(clippy::too_many_lines)] // Keeps full keymap behavior in a single readable dispatch for modal navigation and filter mode.
@@ -2059,8 +2059,8 @@ mod tests {
             0,
         );
         assert_eq!(
-            scroll, 1,
-            "entry 1 starts at rendered line 3 with height 3 viewport"
+            scroll, 2,
+            "entry 1 starts at rendered line 3; height-3 viewport centers with scroll 2"
         );
 
         scroll = crate::events::utils::compute_updates_modal_scroll_for_selection(
@@ -2072,8 +2072,8 @@ mod tests {
             scroll,
         );
         assert_eq!(
-            scroll, 3,
-            "entry 2 should move viewport to include rendered line 5"
+            scroll, 4,
+            "entry 2 at rendered line 5 stays centered (max_scroll clamps from ideal 4)"
         );
     }
 

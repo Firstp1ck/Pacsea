@@ -7,6 +7,7 @@ use std::{
 };
 
 use crate::sources::VoteAction;
+use crate::state::config_editor::ConfigEditorState;
 use crate::state::modal::{
     CascadeMode, Modal, PreflightAction, RepoOverlapApplyPending, RepositoriesModalResume,
     ServiceImpact,
@@ -121,8 +122,10 @@ pub struct PkgbuildToolRawResult {
 #[derive(Debug)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct AppState {
-    /// Current top-level mode (package management vs news feed).
+    /// Current top-level mode (package management, news feed, or config editor).
     pub app_mode: AppMode,
+    /// Persistent integrated config editor state used while in `AppMode::ConfigEditor`.
+    pub config_editor_state: Box<ConfigEditorState>,
     /// Current search input text.
     pub input: String,
     /// Current search results, most relevant first.

@@ -1,10 +1,11 @@
 use crate::state::AppState;
 
 use super::super::persist::{
-    maybe_flush_announcement_read, maybe_flush_cache, maybe_flush_deps_cache,
-    maybe_flush_files_cache, maybe_flush_install, maybe_flush_news_bookmarks,
-    maybe_flush_news_content_cache, maybe_flush_news_read, maybe_flush_news_read_ids,
-    maybe_flush_news_recent, maybe_flush_news_seen_aur_comments, maybe_flush_news_seen_versions,
+    maybe_flush_announcement_read, maybe_flush_cache, maybe_flush_config_editor_bookmarks,
+    maybe_flush_config_editor_recent, maybe_flush_deps_cache, maybe_flush_files_cache,
+    maybe_flush_install, maybe_flush_news_bookmarks, maybe_flush_news_content_cache,
+    maybe_flush_news_read, maybe_flush_news_read_ids, maybe_flush_news_recent,
+    maybe_flush_news_seen_aur_comments, maybe_flush_news_seen_versions,
     maybe_flush_pkgbuild_parse_cache, maybe_flush_recent, maybe_flush_sandbox_cache,
     maybe_flush_services_cache,
 };
@@ -60,6 +61,8 @@ pub fn cleanup_on_exit(app: &mut AppState, channels: &Channels) {
 
     maybe_flush_cache(app);
     maybe_flush_recent(app);
+    maybe_flush_config_editor_recent(app);
+    maybe_flush_config_editor_bookmarks(app);
     maybe_flush_news_recent(app);
     maybe_flush_news_bookmarks(app);
     maybe_flush_news_content_cache(app);

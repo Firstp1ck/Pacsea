@@ -4,12 +4,17 @@
 //! preserving the public API under `crate::state::*` via re-exports.
 
 pub mod app_state;
+pub mod config_editor;
 pub mod main_vertical_pane;
 pub mod modal;
 pub mod types;
 
 // Public re-exports to keep existing paths working
 pub use app_state::AppState;
+pub use config_editor::{
+    ConfigEditorFocus, ConfigEditorSearchFocus, ConfigEditorState, ConfigEditorView, EditPopupKind,
+    EditPopupState,
+};
 pub use main_vertical_pane::{
     DEFAULT_MAIN_PANE_ORDER, MainVerticalPane, VerticalLayoutLimits, format_main_pane_order,
     parse_main_pane_order,

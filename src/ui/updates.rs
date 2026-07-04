@@ -18,6 +18,137 @@ use crate::ui::results::{
 /// Minimum width reserved for the Updates/News label before the menu cluster.
 const MIN_UPDATES_LABEL_SLOT: u16 = 8;
 
+/// What: Column gap between the two config-editor top labels when both strings are non-empty.
+///
+/// Inputs: None.
+///
+/// Output: Gap width in terminal columns.
+///
+/// Details: Keeps the pair readable when centered as a group.
+const CONFIG_EDITOR_DUAL_LABEL_GAP: u16 = 2;
+
+/// What: Build the package-mode updates strip label for the top bar.
+///
+/// Inputs:
+/// - `app`: Application state (`updates_loading`, `updates_count`, `updates_last_check_authoritative`).
+///
+/// Output:
+/// - Localized string matching the Package-mode updates button.
+///
+/// Details:
+/// - Mirrors the non-News branch of `render_updates_button` so Config editor can show the same text
+///   alongside the news strip without duplicating conditionals.
+fn package_updates_top_bar_label(app: &AppState) -> String {
+    if app.updates_loading {
+        i18n::t(app, "app.updates_button.loading")
+    } else if let Some(count) = app.updates_count {
+        if count > 0 {
+            if app.updates_last_check_authoritative == Some(false) {
+                i18n::t_fmt1(app, "app.updates_button.available_degraded", count)
+            } else {
+                i18n::t_fmt1(app, "app.updates_button.available", count)
+            }
+        } else if app.updates_last_check_authoritative == Some(false) {
+            i18n::t(app, "app.updates_button.none_maybe_stale")
+        } else {
+            i18n::t(app, "app.updates_button.none")
+        }
+    } else {
+        i18n::t(app, "app.updates_button.none")
+    }
+}
+
+/// What: Build the news-mode top bar strip label.
+///
+/// Inputs:
+/// - `app`: Application state (`news_loading`, `news_ready`).
+///
+/// Output:
+/// - Localized string matching the News-mode news button.
+///
+/// Details:
+/// - Used by News mode and by Config editor when showing both top strips.
+fn news_top_bar_label(app: &AppState) -> String {
+    if app.news_loading {
+        i18n::t(app, "app.news_button.loading")
+    } else if app.news_ready {
+        i18n::t(app, "app.news_button.ready")
+    } else {
+        i18n::t(app, "app.news_button.none")
+    }
+}
+
+/// What: Draw updates and news top labels as one horizontally centered group (config editor).
+///
+/// Inputs:
+/// - `f`: Ratatui frame.
+/// - `app`: Application state (stores clickable rects).
+/// - `area`: Label-slot rectangle for the row.
+/// - `updates_label` / `news_label`: Localized strings for each strip.
+/// - `th`: Active theme.
+///
+/// Output:
+/// - Renders both labels and assigns `updates_button_rect` and `news_button_rect`.
+///
+/// Details:
+/// - When `updates_label` plus gap plus `news_label` fits in `area.width`, the combined block is
+///   centered in `area`. If not, falls back to a 50/50 horizontal split so both labels remain usable
+///   in narrow terminals.
+fn render_config_editor_dual_top_labels(
+    f: &mut Frame,
+    app: &mut AppState,
+    area: Rect,
+    updates_label: &str,
+    news_label: &str,
+    th: &crate::theme::Theme,
+) {
+    let w_u = updates_label.width();
+    let w_n = news_label.width();
+    let gap_u16 = if w_u > 0 && w_n > 0 {
+        CONFIG_EDITOR_DUAL_LABEL_GAP
+    } else {
+        0
+    };
+    let desired = w_u.saturating_add(usize::from(gap_u16)).saturating_add(w_n);
+    if desired == 0 {
+        app.updates_button_rect = None;
+        app.news_button_rect = None;
+        return;
+    }
+
+    let avail = usize::from(area.width);
+    if desired <= avail {
+        let left_pad = (avail - desired) / 2;
+        let start_x = area.x.saturating_add(u16::try_from(left_pad).unwrap_or(0));
+        let w_updates = u16::try_from(w_u).unwrap_or(area.width).min(area.width);
+        let updates_rect = Rect {
+            x: start_x,
+            y: area.y,
+            width: w_updates,
+            height: area.height,
+        };
+        let news_x = start_x.saturating_add(w_updates).saturating_add(gap_u16);
+        let max_news_w = area.x.saturating_add(area.width).saturating_sub(news_x);
+        let w_news = u16::try_from(w_n).unwrap_or(0).min(max_news_w);
+        let news_rect = Rect {
+            x: news_x,
+            y: area.y,
+            width: w_news,
+            height: area.height,
+        };
+        render_updates_button_inner(f, app, updates_rect, updates_label, th);
+        render_news_button_inner(f, app, news_rect, news_label, th);
+        return;
+    }
+
+    let halves = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .split(area);
+    render_updates_button_inner(f, app, halves[0], updates_label, th);
+    render_news_button_inner(f, app, halves[1], news_label, th);
+}
+
 /// What: Render the updates available button at the top of the window and lockout status on the right.
 ///
 /// Inputs:
@@ -33,6 +164,8 @@ const MIN_UPDATES_LABEL_SLOT: u16 = 8;
 ///   or "Checking updates..." if still loading
 /// - In News mode: Shows "News Ready" if news are available, "No News available" if no news,
 ///   or "Loading news..." if still loading
+/// - In Config editor mode: Shows both package updates and news labels as one centered group (with a
+///   narrow-terminal fallback split); two click targets.
 /// - Config/Lists, Panels, and Options (or collapsed Menu) render on this same row to the right of the
 ///   updates/news label (before lockout text when present).
 /// - Shows lockout status on the right if user is locked out
@@ -40,37 +173,6 @@ const MIN_UPDATES_LABEL_SLOT: u16 = 8;
 /// - Records clickable rectangle for mouse interaction
 pub fn render_updates_button(f: &mut Frame, app: &mut AppState, area: Rect) {
     let th = theme();
-
-    // Determine button text based on app mode
-    let button_text = if matches!(app.app_mode, AppMode::News) {
-        // News mode: show news button
-        if app.news_loading {
-            i18n::t(app, "app.news_button.loading")
-        } else if app.news_ready {
-            i18n::t(app, "app.news_button.ready")
-        } else {
-            i18n::t(app, "app.news_button.none")
-        }
-    } else {
-        // Package mode: show updates button
-        if app.updates_loading {
-            i18n::t(app, "app.updates_button.loading")
-        } else if let Some(count) = app.updates_count {
-            if count > 0 {
-                if app.updates_last_check_authoritative == Some(false) {
-                    i18n::t_fmt1(app, "app.updates_button.available_degraded", count)
-                } else {
-                    i18n::t_fmt1(app, "app.updates_button.available", count)
-                }
-            } else if app.updates_last_check_authoritative == Some(false) {
-                i18n::t(app, "app.updates_button.none_maybe_stale")
-            } else {
-                i18n::t(app, "app.updates_button.none")
-            }
-        } else {
-            i18n::t(app, "app.updates_button.none")
-        }
-    };
 
     // Check if lockout status should be displayed
     let lockout_text: Option<String> = if app.faillock_locked {
@@ -137,10 +239,27 @@ pub fn render_updates_button(f: &mut Frame, app: &mut AppState, area: Rect) {
     };
 
     let updates_chunk = chunks[0];
-    if matches!(app.app_mode, AppMode::News) {
-        render_news_button_inner(f, app, updates_chunk, &button_text, &th);
-    } else {
-        render_updates_button_inner(f, app, updates_chunk, &button_text, &th);
+    match app.app_mode {
+        AppMode::ConfigEditor => {
+            let updates_label = package_updates_top_bar_label(app);
+            let news_label = news_top_bar_label(app);
+            render_config_editor_dual_top_labels(
+                f,
+                app,
+                updates_chunk,
+                &updates_label,
+                &news_label,
+                &th,
+            );
+        }
+        AppMode::News => {
+            let label = news_top_bar_label(app);
+            render_news_button_inner(f, app, updates_chunk, &label, &th);
+        }
+        AppMode::Package => {
+            let label = package_updates_top_bar_label(app);
+            render_updates_button_inner(f, app, updates_chunk, &label, &th);
+        }
     }
 
     if menu_cluster_w > 0 && chunks.len() >= 2 {

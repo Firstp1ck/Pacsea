@@ -10,13 +10,16 @@ use crate::state::{AppState, ArchStatusColor, PackageItem, QueryInput};
 
 use super::super::persist::{
     maybe_flush_announcement_read, maybe_flush_aur_vote_state, maybe_flush_cache,
-    maybe_flush_deps_cache, maybe_flush_files_cache, maybe_flush_install,
-    maybe_flush_news_bookmarks, maybe_flush_news_content_cache, maybe_flush_news_read,
-    maybe_flush_news_read_ids, maybe_flush_news_recent, maybe_flush_news_seen_aur_comments,
-    maybe_flush_news_seen_versions, maybe_flush_pkgbuild_parse_cache, maybe_flush_recent,
-    maybe_flush_sandbox_cache, maybe_flush_services_cache,
+    maybe_flush_config_editor_bookmarks, maybe_flush_config_editor_recent, maybe_flush_deps_cache,
+    maybe_flush_files_cache, maybe_flush_install, maybe_flush_news_bookmarks,
+    maybe_flush_news_content_cache, maybe_flush_news_read, maybe_flush_news_read_ids,
+    maybe_flush_news_recent, maybe_flush_news_seen_aur_comments, maybe_flush_news_seen_versions,
+    maybe_flush_pkgbuild_parse_cache, maybe_flush_recent, maybe_flush_sandbox_cache,
+    maybe_flush_services_cache,
 };
-use super::super::recent::{maybe_save_news_recent, maybe_save_recent};
+use super::super::recent::{
+    maybe_save_config_editor_recent, maybe_save_news_recent, maybe_save_recent,
+};
 use super::workers::UpdateCheckPayload;
 use super::workers::aur_vote::{AurVoteRequest, AurVoteStateRequest};
 use crate::install::ExecutorRequest;
@@ -692,10 +695,13 @@ pub fn handle_tick(
     static LAST_FAILLOCK_CHECK: std::sync::OnceLock<std::sync::Mutex<Instant>> =
         std::sync::OnceLock::new();
     maybe_save_recent(app);
+    maybe_save_config_editor_recent(app);
     maybe_flush_aur_vote_state(app);
     maybe_save_news_recent(app);
     maybe_flush_cache(app);
     maybe_flush_recent(app);
+    maybe_flush_config_editor_recent(app);
+    maybe_flush_config_editor_bookmarks(app);
     maybe_flush_news_recent(app);
     maybe_flush_news_bookmarks(app);
     maybe_flush_news_content_cache(app);

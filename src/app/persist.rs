@@ -80,6 +80,78 @@ pub fn maybe_flush_recent(app: &mut AppState) {
     }
 }
 
+/// What: Persist config-editor recent searches to disk when marked dirty.
+///
+/// Inputs:
+/// - `app`: Application state containing `config_editor_state`.
+///
+/// Output:
+/// - Writes `config_editor_state.recent_queries` JSON to disk and clears dirty flag.
+pub fn maybe_flush_config_editor_recent(app: &mut AppState) {
+    if !app.config_editor_state.recent_queries_dirty {
+        return;
+    }
+    if let Ok(s) = serde_json::to_string(&app.config_editor_state.recent_queries) {
+        tracing::debug!(
+            path = %app.config_editor_state.recent_queries_path.display(),
+            bytes = s.len(),
+            "[Persist] Writing config editor recents to disk"
+        );
+        match fs::write(&app.config_editor_state.recent_queries_path, &s) {
+            Ok(()) => {
+                tracing::debug!(
+                    path = %app.config_editor_state.recent_queries_path.display(),
+                    "[Persist] Config editor recents persisted"
+                );
+            }
+            Err(e) => {
+                tracing::warn!(
+                    path = %app.config_editor_state.recent_queries_path.display(),
+                    error = %e,
+                    "[Persist] Failed to write config editor recents"
+                );
+            }
+        }
+        app.config_editor_state.recent_queries_dirty = false;
+    }
+}
+
+/// What: Persist config-editor bookmarks to disk when marked dirty.
+///
+/// Inputs:
+/// - `app`: Application state containing `config_editor_state`.
+///
+/// Output:
+/// - Writes `config_editor_state.bookmarked_keys` JSON to disk and clears dirty flag.
+pub fn maybe_flush_config_editor_bookmarks(app: &mut AppState) {
+    if !app.config_editor_state.bookmarked_keys_dirty {
+        return;
+    }
+    if let Ok(s) = serde_json::to_string(&app.config_editor_state.bookmarked_keys) {
+        tracing::debug!(
+            path = %app.config_editor_state.bookmarked_keys_path.display(),
+            bytes = s.len(),
+            "[Persist] Writing config editor bookmarks to disk"
+        );
+        match fs::write(&app.config_editor_state.bookmarked_keys_path, &s) {
+            Ok(()) => {
+                tracing::debug!(
+                    path = %app.config_editor_state.bookmarked_keys_path.display(),
+                    "[Persist] Config editor bookmarks persisted"
+                );
+            }
+            Err(e) => {
+                tracing::warn!(
+                    path = %app.config_editor_state.bookmarked_keys_path.display(),
+                    error = %e,
+                    "[Persist] Failed to write config editor bookmarks"
+                );
+            }
+        }
+        app.config_editor_state.bookmarked_keys_dirty = false;
+    }
+}
+
 /// What: Persist stable AUR vote-state cache to disk if marked dirty.
 ///
 /// Inputs:

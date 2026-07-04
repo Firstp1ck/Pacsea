@@ -538,8 +538,11 @@ fn verify_conflicts_after_tab_switches(
 /// - Verifies that conflicts take precedence over dependency statuses
 /// - Ensures timing of package addition doesn't affect conflict detection
 fn test_conflicts_not_overwritten_when_packages_added_sequentially() {
-    unsafe {
-        std::env::set_var("PACSEA_TEST_HEADLESS", "1");
+    {
+        let _env_lock = crate::env_guard::acquire();
+        unsafe {
+            std::env::set_var("PACSEA_TEST_HEADLESS", "1");
+        }
     }
 
     let mut app = crate_root::state::AppState::default();
@@ -640,8 +643,11 @@ fn test_conflicts_not_overwritten_when_packages_added_sequentially() {
 fn test_cached_conflicts_preserved_in_cache_merge() {
     use crate_root::state::modal::DependencyStatus;
 
-    unsafe {
-        std::env::set_var("PACSEA_TEST_HEADLESS", "1");
+    {
+        let _env_lock = crate::env_guard::acquire();
+        unsafe {
+            std::env::set_var("PACSEA_TEST_HEADLESS", "1");
+        }
     }
 
     // Simulate the scenario:

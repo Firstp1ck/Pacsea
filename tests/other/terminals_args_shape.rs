@@ -37,6 +37,7 @@ fn write_fake(term_name: &str, dir: &std::path::Path) -> (std::path::PathBuf, st
 /// - Tests terminal argument shape detection for system update operations.
 fn ui_options_update_system_enter_triggers_tilix_args_shape() {
     use std::path::PathBuf;
+    let _env_lock = crate::env_guard::acquire();
     let mut dir: PathBuf = std::env::temp_dir();
     dir.push(format!(
         "pacsea_test_term_tilix_{}_{}",
@@ -148,6 +149,7 @@ fn ui_options_update_system_enter_triggers_tilix_args_shape() {
 /// - Tests terminal argument shape detection for system update operations.
 fn ui_options_update_system_enter_triggers_mate_terminal_args_shape() {
     use std::path::PathBuf;
+    let _env_lock = crate::env_guard::acquire();
     let mut dir: PathBuf = std::env::temp_dir();
     dir.push(format!(
         "pacsea_test_term_mate_{}_{}",
@@ -259,6 +261,7 @@ fn ui_options_update_system_enter_triggers_mate_terminal_args_shape() {
 /// - Tests terminal argument shape detection for system update operations.
 fn ui_options_update_system_enter_triggers_gnome_terminal_args_shape() {
     use std::path::PathBuf;
+    let _env_lock = crate::env_guard::acquire();
     let mut dir: PathBuf = std::env::temp_dir();
     dir.push(format!(
         "pacsea_test_term_gnome_{}_{}",
@@ -366,6 +369,7 @@ fn ui_options_update_system_enter_triggers_gnome_terminal_args_shape() {
 /// - Tests terminal argument shape detection for system update operations.
 fn ui_options_update_system_enter_triggers_konsole_args_shape() {
     use std::path::PathBuf;
+    let _env_lock = crate::env_guard::acquire();
     let mut dir: PathBuf = std::env::temp_dir();
     dir.push(format!(
         "pacsea_test_term_konsole_{}_{}",
@@ -473,6 +477,7 @@ fn ui_options_update_system_enter_triggers_konsole_args_shape() {
 /// - Tests terminal argument shape detection for system update operations.
 fn ui_options_update_system_enter_triggers_alacritty_args_shape() {
     use std::path::PathBuf;
+    let _env_lock = crate::env_guard::acquire();
     let mut dir: PathBuf = std::env::temp_dir();
     dir.push(format!(
         "pacsea_test_term_alacritty_{}_{}",
@@ -580,6 +585,7 @@ fn ui_options_update_system_enter_triggers_alacritty_args_shape() {
 /// - Tests terminal argument shape detection for system update operations.
 fn ui_options_update_system_enter_triggers_kitty_args_shape() {
     use std::path::PathBuf;
+    let _env_lock = crate::env_guard::acquire();
     let mut dir: PathBuf = std::env::temp_dir();
     dir.push(format!(
         "pacsea_test_term_kitty_{}_{}",
@@ -686,6 +692,7 @@ fn ui_options_update_system_enter_triggers_kitty_args_shape() {
 /// - Tests terminal argument shape detection for system update operations.
 fn ui_options_update_system_enter_triggers_xterm_args_shape() {
     use std::path::PathBuf;
+    let _env_lock = crate::env_guard::acquire();
     let mut dir: PathBuf = std::env::temp_dir();
     dir.push(format!(
         "pacsea_test_term_xterm_{}_{}",

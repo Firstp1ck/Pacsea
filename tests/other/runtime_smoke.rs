@@ -28,9 +28,14 @@ use std::time::Duration;
 /// - Clears screen output for `--nocapture` runs.
 /// - In headless mode, slow operations (pacman calls, network) are skipped.
 async fn runtime_smoke_headless_initializes_and_runs_without_panic() {
-    // Ensure terminal raw mode/alternate screen are bypassed during this test
-    unsafe {
-        std::env::set_var("PACSEA_TEST_HEADLESS", "1");
+    // Ensure terminal raw mode/alternate screen are bypassed during this test.
+    // Scoped lock: env mutation must be serialized with other tests in this
+    // binary; the guard is not held across await points.
+    {
+        let _env_lock = crate::env_guard::acquire();
+        unsafe {
+            std::env::set_var("PACSEA_TEST_HEADLESS", "1");
+        }
     }
 
     // Note: Mouse position reports (^[[<35;...]) may appear in test output when moving

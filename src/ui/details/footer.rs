@@ -7,7 +7,9 @@ use ratatui::{
 };
 
 use crate::i18n;
-use crate::state::{AppState, Focus, RightPaneFocus};
+use crate::state::{
+    AppState, ConfigEditorState, ConfigEditorView, EditPopupKind, Focus, RightPaneFocus,
+};
 use crate::theme::{KeyChord, Theme, theme};
 
 /// What: Determine label color based on focus state.
@@ -991,4 +993,380 @@ pub fn news_footer_height(app: &AppState) -> u16 {
     let th = theme();
     let line_count = build_news_footer_lines(app, &th).len();
     u16::try_from(line_count.max(1)).unwrap_or(1)
+}
+
+/// What: Append a footer entry using a literal key label (not from `keybinds.conf`).
+///
+/// Inputs:
+/// - `spans`: Span buffer to extend
+/// - `label`: Text inside the `[` `]` brackets (e.g. `Ctrl+S`)
+/// - `key_style`: Style applied to the bracketed label
+/// - `text`: Description after the key
+/// - `sep_style`: Style for the trailing separator when `trailing_sep` is true
+/// - `trailing_sep`: When true, appends the same `  |  ` divider used elsewhere in the footer
+///
+/// Output:
+/// - Pushes styled spans into `spans`.
+///
+/// Details:
+/// - Mirrors `add_keybind_entry` for chords that are fixed in the config editor (e.g. save overlay).
+fn add_literal_key_entry(
+    spans: &mut Vec<Span<'static>>,
+    label: &str,
+    key_style: Style,
+    text: &str,
+    sep_style: Style,
+    trailing_sep: bool,
+) {
+    spans.extend([
+        Span::styled(format!("[{label}]"), key_style),
+        Span::raw(format!(" {text}")),
+    ]);
+    if trailing_sep {
+        spans.push(Span::styled("  |  ", sep_style));
+    }
+}
+
+/// What: Build the first footer line for config editor mode (global shortcuts + menu toggles).
+///
+/// Inputs:
+/// - `app`: Application state (keymap + i18n locale)
+/// - `th`: Theme palette for section headers
+/// - `key_style`: Style for bracketed keys
+/// - `sep_style`: Style for `|` separators
+///
+/// Output:
+/// - Span vector forming the GLOBALS + Menus strip.
+///
+/// Details:
+/// - Skips `reload_config` because that binding is intentionally disabled while the integrated editor is active.
+fn build_config_editor_globals_menus_line(
+    app: &AppState,
+    th: &Theme,
+    key_style: Style,
+    sep_style: Style,
+) -> Vec<Span<'static>> {
+    let mut spans = build_section_header(
+        format!("{}  ", i18n::t(app, "app.headings.globals")),
+        th.overlay1,
+    );
+    add_keybind_entry(
+        &mut spans,
+        app.keymap.exit.first(),
+        key_style,
+        &i18n::t(app, "app.actions.exit"),
+        sep_style,
+    );
+    add_keybind_entry(
+        &mut spans,
+        app.keymap.help_overlay.first(),
+        key_style,
+        &i18n::t(app, "app.actions.help"),
+        sep_style,
+    );
+    spans.extend(build_section_header(
+        format!(
+            "{}  ",
+            i18n::t(app, "app.modals.config_editor.footer.heading_menus")
+        ),
+        th.overlay1,
+    ));
+    add_keybind_entry(
+        &mut spans,
+        app.keymap.config_menu_toggle.first(),
+        key_style,
+        &i18n::t(app, "app.modals.config_editor.footer.menu_config"),
+        sep_style,
+    );
+    add_keybind_entry(
+        &mut spans,
+        app.keymap.options_menu_toggle.first(),
+        key_style,
+        &i18n::t(app, "app.modals.config_editor.footer.menu_options"),
+        sep_style,
+    );
+    add_keybind_entry(
+        &mut spans,
+        app.keymap.panels_menu_toggle.first(),
+        key_style,
+        &i18n::t(app, "app.modals.config_editor.footer.menu_panels"),
+        sep_style,
+    );
+    spans
+}
+
+/// What: Append popup-specific footer hints for the config editor.
+///
+/// Inputs:
+/// - `spans`: Span buffer to extend
+/// - `app`: Application state (i18n)
+/// - `popup`: Active edit popup (variant decides which hints appear)
+/// - `key_style`: Style for bracketed keys
+/// - `sep_style`: Style for separators
+///
+/// Output:
+/// - Pushes Esc/Ctrl+S/Ctrl+R/Ctrl+K/Ctrl+Z hints matching the popup kind.
+///
+/// Details:
+/// - While a key-chord popup is recording, only the cancel-recording hint is
+///   shown because every other key is captured verbatim.
+fn append_config_editor_popup_hints(
+    spans: &mut Vec<Span<'static>>,
+    app: &AppState,
+    popup: &crate::state::EditPopupState,
+    key_style: Style,
+    sep_style: Style,
+) {
+    if matches!(popup.kind, EditPopupKind::KeyChord { capturing: true }) {
+        add_literal_key_entry(
+            spans,
+            "Esc",
+            key_style,
+            &i18n::t(app, "app.modals.config_editor.footer.popup_capture_cancel"),
+            sep_style,
+            false,
+        );
+        return;
+    }
+    let secret = matches!(popup.kind, EditPopupKind::Secret { .. });
+    let keychord = matches!(popup.kind, EditPopupKind::KeyChord { .. });
+    add_literal_key_entry(
+        spans,
+        "Esc",
+        key_style,
+        &i18n::t(app, "app.modals.config_editor.footer.popup_cancel"),
+        sep_style,
+        true,
+    );
+    add_literal_key_entry(
+        spans,
+        "Ctrl+S",
+        key_style,
+        &i18n::t(app, "app.modals.config_editor.footer.popup_save"),
+        sep_style,
+        true,
+    );
+    if secret {
+        add_literal_key_entry(
+            spans,
+            "Ctrl+R",
+            key_style,
+            &i18n::t(app, "app.modals.config_editor.footer.popup_reveal"),
+            sep_style,
+            true,
+        );
+    }
+    if keychord {
+        add_literal_key_entry(
+            spans,
+            "Ctrl+K",
+            key_style,
+            &i18n::t(app, "app.modals.config_editor.footer.popup_record"),
+            sep_style,
+            true,
+        );
+    }
+    add_literal_key_entry(
+        spans,
+        "Ctrl+Z",
+        key_style,
+        &i18n::t(app, "app.modals.config_editor.footer.popup_reset"),
+        sep_style,
+        false,
+    );
+}
+
+/// What: Build the second footer line for config editor mode (editor list vs save overlay hints).
+///
+/// Inputs:
+/// - `app`: Application state (i18n)
+/// - `state`: Integrated editor state (view + optional popup)
+/// - `th`: Theme palette
+/// - `key_style`: Style for bracketed keys
+/// - `sep_style`: Style for separators
+///
+/// Output:
+/// - Span vector for the EDITOR section.
+///
+/// Details:
+/// - Uses literal chord labels for keys handled directly in `events::modals::config_editor` rather than `keybinds.conf`.
+fn build_config_editor_editor_line_spans(
+    app: &AppState,
+    state: &ConfigEditorState,
+    th: &Theme,
+    key_style: Style,
+    sep_style: Style,
+) -> Vec<Span<'static>> {
+    let mut spans = build_section_header(
+        format!(
+            "{}  ",
+            i18n::t(app, "app.modals.config_editor.footer.heading_editor")
+        ),
+        th.overlay1,
+    );
+    if let Some(popup) = state.popup.as_ref() {
+        append_config_editor_popup_hints(&mut spans, app, popup, key_style, sep_style);
+        return spans;
+    }
+    match state.view {
+        ConfigEditorView::FileList => {
+            add_literal_key_entry(
+                &mut spans,
+                "↑ / ↓",
+                key_style,
+                &i18n::t(app, "app.modals.config_editor.footer.move_file"),
+                sep_style,
+                true,
+            );
+            add_literal_key_entry(
+                &mut spans,
+                "Enter",
+                key_style,
+                &i18n::t(app, "app.modals.config_editor.footer.open_file"),
+                sep_style,
+                true,
+            );
+            add_literal_key_entry(
+                &mut spans,
+                "Tab / ← / →",
+                key_style,
+                &i18n::t(app, "app.modals.config_editor.footer.switch_panel"),
+                sep_style,
+                true,
+            );
+            add_literal_key_entry(
+                &mut spans,
+                "Ctrl+E",
+                key_style,
+                &i18n::t(app, "app.modals.config_editor.footer.export"),
+                sep_style,
+                false,
+            );
+        }
+        ConfigEditorView::KeyList => {
+            add_literal_key_entry(
+                &mut spans,
+                "↑ / ↓",
+                key_style,
+                &i18n::t(app, "app.modals.config_editor.footer.move_key"),
+                sep_style,
+                true,
+            );
+            add_literal_key_entry(
+                &mut spans,
+                "Enter",
+                key_style,
+                &i18n::t(app, "app.modals.config_editor.footer.edit_key"),
+                sep_style,
+                true,
+            );
+            add_literal_key_entry(
+                &mut spans,
+                "b",
+                key_style,
+                &i18n::t(app, "app.modals.config_editor.footer.bookmark"),
+                sep_style,
+                true,
+            );
+            add_literal_key_entry(
+                &mut spans,
+                "Tab / ← / →",
+                key_style,
+                &i18n::t(app, "app.modals.config_editor.footer.switch_panel"),
+                sep_style,
+                true,
+            );
+            add_literal_key_entry(
+                &mut spans,
+                "Esc",
+                key_style,
+                &i18n::t(app, "app.modals.config_editor.footer.esc_hint"),
+                sep_style,
+                true,
+            );
+            add_literal_key_entry(
+                &mut spans,
+                "Backspace",
+                key_style,
+                &i18n::t(app, "app.modals.config_editor.footer.widen_search"),
+                sep_style,
+                true,
+            );
+            add_literal_key_entry(
+                &mut spans,
+                "Ctrl+E",
+                key_style,
+                &i18n::t(app, "app.modals.config_editor.footer.export"),
+                sep_style,
+                false,
+            );
+        }
+    }
+    spans
+}
+
+/// What: Build integrated config editor footer hint lines using the same styling patterns as package mode.
+///
+/// Inputs:
+/// - `app`: Application state (keymap + locale)
+/// - `state`: Config editor state (which view and whether a popup is open)
+/// - `th`: Theme for colors
+///
+/// Output:
+/// - One or more wrapped footer lines (globals+menus, then editor/popup hints).
+///
+/// Details:
+/// - Intended for the bottom band of `ui::modals::config_editor`; keeps key cap styling aligned with
+///   `render_footer` in this module.
+pub fn build_config_editor_footer_hint_lines(
+    app: &AppState,
+    state: &ConfigEditorState,
+    th: &Theme,
+) -> Vec<Line<'static>> {
+    let key_style = Style::default()
+        .fg(th.text)
+        .bg(th.surface2)
+        .add_modifier(Modifier::BOLD);
+    let sep_style = Style::default().fg(th.overlay2);
+    vec![
+        Line::from(build_config_editor_globals_menus_line(
+            app, th, key_style, sep_style,
+        )),
+        Line::from(build_config_editor_editor_line_spans(
+            app, state, th, key_style, sep_style,
+        )),
+    ]
+}
+
+/// What: Compute how many rows the integrated config editor should reserve for its footer band.
+///
+/// Inputs:
+/// - `show_keybinds_footer`: Whether contextual hint lines are visible
+/// - `app`: Application state (for hint line assembly)
+/// - `state`: Editor state (status text + view)
+///
+/// Output:
+/// - Total footer height in rows (`0` when nothing to show).
+///
+/// Details:
+/// - Sums hint line count with an optional status row so transient save/bookmark messages stay visible.
+pub fn config_editor_footer_reserved_rows(
+    show_keybinds_footer: bool,
+    app: &AppState,
+    state: &ConfigEditorState,
+) -> u16 {
+    let mut rows: u16 = 0;
+    if show_keybinds_footer {
+        let th = theme();
+        let hint_lines = build_config_editor_footer_hint_lines(app, state, &th);
+        rows = rows.saturating_add(u16::try_from(hint_lines.len()).unwrap_or(u16::MAX));
+    }
+    if state
+        .status
+        .as_deref()
+        .is_some_and(|s| !s.trim().is_empty())
+    {
+        rows = rows.saturating_add(1);
+    }
+    rows
 }
