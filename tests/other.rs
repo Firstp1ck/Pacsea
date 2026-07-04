@@ -4,6 +4,8 @@
 mod config_editor_phase1_integration;
 #[path = "other/config_editor_phase2_integration.rs"]
 mod config_editor_phase2_integration;
+#[path = "other/config_editor_phase3_integration.rs"]
+mod config_editor_phase3_integration;
 #[path = "other/conflict_preservation.rs"]
 mod conflict_preservation;
 #[path = "other/cyclomatic_complexity.rs"]

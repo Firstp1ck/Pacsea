@@ -403,6 +403,8 @@ hu-HU:
           popup_reveal: "Reveal secret"
           popup_record: "Record chord"
           popup_capture_cancel: "Cancel recording"
+          popup_reset: "Reset value"
+          export: "Export effective values"
       alert:
         header_configuration_error: "Konfigurációs hiba"
         header_clipboard_copy: "Másolás a vágólapra"
@@ -516,6 +518,7 @@ hu-HU:
           news_dialog: "Hírek párbeszédablak:"
           repositories_modal: "Tárolók párbeszédablak:"
           foreign_overlap_dialog: "Tárolóátfedés / AUR vs. tároló / figyelmeztetés:"
+          config_editor: "Config editor:"
         mouse_lines:
           - "  • Listák (találatok/legutóbbi/telepítés) és PKGBUILD görgetése egérgörgővel"
           - "  • PKGBUILD be/ki: kattintson a „PKGBUILD megjelenítése” gombra a részleteknél"
@@ -541,6 +544,13 @@ hu-HU:
           - "  • Fel/Le: mozgás • Szóköz: be/ki • Balra/Jobbra: országváltás • Enter: futtatás • Esc: bezárás"
         news_lines:
           - "  • Megnyitás: Beállítások → Hírek • Fel/Le: hírek kiválasztása • Enter: megnyitás • Esc: bezárás"
+        config_editor_lines:
+          - "  • Open via Config/Lists → Config editor (TUI); Esc steps back from keys to files"
+          - "  • Type to search keys • Up/Down: move • Enter: edit • b: bookmark"
+          - "  • Popup: Ctrl+S save • Esc cancel • Ctrl+Z reset to opening value"
+          - "  • Keybind rows: Ctrl+K records the next pressed chord (Esc cancels recording)"
+          - "  • Theme colors validate the whole file before saving; invalid edits never touch disk"
+          - "  • Ctrl+E exports the selected file's effective values (secrets redacted)"
         close_hint: "Nyomja meg az Entert vagy az Esc gombot a bezáráshoz"
         key_labels:
           help_overlay: "Súgóréteg"

@@ -399,6 +399,8 @@ de-DE:
           popup_reveal: "Geheimwert anzeigen"
           popup_record: "Tastenkürzel aufnehmen"
           popup_capture_cancel: "Aufnahme abbrechen"
+          popup_reset: "Wert zurücksetzen"
+          export: "Effektive Werte exportieren"
       alert:
         header_configuration_error: "Konfigurationsfehler"
         header_clipboard_copy: "Zwischenablage kopieren"
@@ -512,6 +514,7 @@ de-DE:
           news_dialog: "Neuigkeiten-Dialog:"
           repositories_modal: "Paketquellen-Dialog:"
           foreign_overlap_dialog: "Repository-Überschneidung / AUR vs. Repo:"
+          config_editor: "Konfigurations-Editor:"
         mouse_lines:
           - "  • Listen (Ergebnisse/Kürzlich/Installieren) und PKGBUILD mit Mausrad scrollen"
           - "  • PKGBUILD umschalten: 'PKGBUILD anzeigen' in Details klicken"
@@ -537,6 +540,13 @@ de-DE:
           - "  • Hoch/Runter: bewegen • Leertaste: umschalten • Links/Rechts: Land ändern • Enter: ausführen • Esc: schließen"
         news_lines:
           - "  • Öffnen über Optionen → Neuigkeiten • Hoch/Runter: auswählen • Enter: öffnen • Esc: schließen"
+        config_editor_lines:
+          - "  • Öffnen über Config/Lists → Config editor (TUI); Esc wechselt von Schlüsseln zurück zur Dateiliste"
+          - "  • Tippen filtert Schlüssel • Hoch/Runter: bewegen • Enter: bearbeiten • b: Lesezeichen"
+          - "  • Popup: Strg+S speichern • Esc abbrechen • Strg+Z auf Ausgangswert zurücksetzen"
+          - "  • Tastenkürzel-Zeilen: Strg+K nimmt das nächste gedrückte Kürzel auf (Esc bricht ab)"
+          - "  • Themenfarben validieren die gesamte Datei vor dem Speichern; ungültige Änderungen erreichen die Festplatte nie"
+          - "  • Strg+E exportiert die effektiven Werte der gewählten Datei (Geheimnisse geschwärzt)"
         close_hint: "Enter oder Esc zum Schließen drücken"
         key_labels:
           help_overlay: "Hilfe-Overlay"

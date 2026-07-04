@@ -399,6 +399,8 @@ en-US:
           popup_reveal: "Reveal secret"
           popup_record: "Record chord"
           popup_capture_cancel: "Cancel recording"
+          popup_reset: "Reset value"
+          export: "Export effective values"
         settings:
           sort_mode:
             label: "Result sort mode"
@@ -687,6 +689,7 @@ en-US:
           news_dialog: "News dialog:"
           repositories_modal: "Repositories modal:"
           foreign_overlap_dialog: "Repository overlap / AUR vs repo warning:"
+          config_editor: "Config editor:"
         mouse_lines:
           - "  • Scroll lists (Results/Recent/Install) and PKGBUILD with mouse wheel"
           - "  • Toggle PKGBUILD: click 'Show PKGBUILD' in details"
@@ -712,6 +715,13 @@ en-US:
           - "  • Up/Down: move • Space: toggle • Left/Right: change country • Enter: run • Esc: close"
         news_lines:
           - "  • Open via Options → News • Up/Down: select • Enter: open • Esc: close"
+        config_editor_lines:
+          - "  • Open via Config/Lists → Config editor (TUI); Esc steps back from keys to files"
+          - "  • Type to search keys • Up/Down: move • Enter: edit • b: bookmark"
+          - "  • Popup: Ctrl+S save • Esc cancel • Ctrl+Z reset to opening value"
+          - "  • Keybind rows: Ctrl+K records the next pressed chord (Esc cancels recording)"
+          - "  • Theme colors validate the whole file before saving; invalid edits never touch disk"
+          - "  • Ctrl+E exports the selected file's effective values (secrets redacted)"
         close_hint: "Press Enter or Esc to close"
         key_labels:
           help_overlay: "Help overlay"

@@ -25,7 +25,8 @@ use crate::state::{
 };
 use crate::theme::{
     ConfigFile, EDITABLE_KEYBINDS, EditableSetting, KeyChord, PatchOutcome, PatchRequest,
-    ValueKind, keybind_scope, patch_key,
+    Sensitivity, ValueKind, keybind_scope, patch_key, reload_theme, try_load_theme_from_content,
+    write_full_content,
 };
 
 /// What: Handle a key event while `AppMode::ConfigEditor` is active.
@@ -119,6 +120,9 @@ fn handle_search_key(ke: KeyEvent, state: &mut ConfigEditorState, app: &AppState
                 }
             }
         }
+        (KeyCode::Char('e'), m) if m.contains(KeyModifiers::CONTROL) => {
+            export_effective_config(state, app.dry_run);
+        }
         (KeyCode::Char(c), m)
             if matches!(state.search_focus, ConfigEditorSearchFocus::Input)
                 && !m.contains(KeyModifiers::CONTROL)
@@ -131,6 +135,61 @@ fn handle_search_key(ke: KeyEvent, state: &mut ConfigEditorState, app: &AppState
             mark_query_input_changed(state);
         }
         _ => {}
+    }
+}
+
+/// What: Export the effective values of the selected file's editable keys.
+///
+/// Inputs:
+/// - `state`: Editor state (selected file + status line).
+/// - `dry_run`: When `true`, report the would-be export without writing.
+///
+/// Output:
+/// - Writes `effective_<file>` under the Pacsea lists directory and reports
+///   the destination in the status line; sensitive values are exported as
+///   `[REDACTED]`.
+///
+/// Details:
+/// - Values come from [`crate::state::config_editor::current_value_string`],
+///   i.e. the merged effective configuration the running app uses — not raw
+///   file content — which is the useful artifact for support requests.
+fn export_effective_config(state: &mut ConfigEditorState, dry_run: bool) {
+    use std::fmt::Write as _;
+    let entries = crate::theme::settings_for(state.selected_file);
+    if entries.is_empty() {
+        state.status = Some("No editable keys to export for this file.".to_string());
+        return;
+    }
+    let label = file_label_for_status(state.selected_file);
+    let mut out = format!("# Pacsea effective values for {label} (config editor export)\n");
+    for entry in &entries {
+        let value = if matches!(entry.sensitivity, Sensitivity::Sensitive) {
+            "[REDACTED]".to_string()
+        } else {
+            crate::state::config_editor::current_value_string(entry)
+        };
+        let _ = writeln!(out, "{} = {value}", entry.key);
+    }
+    let path = crate::theme::lists_dir().join(format!("effective_{label}"));
+    if dry_run {
+        state.status = Some(format!(
+            "Dry-run: would export {} keys → {}",
+            entries.len(),
+            path.display()
+        ));
+        return;
+    }
+    match std::fs::write(&path, out) {
+        Ok(()) => {
+            state.status = Some(format!(
+                "Exported {} keys → {}",
+                entries.len(),
+                path.display()
+            ));
+        }
+        Err(e) => {
+            state.status = Some(format!("Export failed: {e}"));
+        }
     }
 }
 
@@ -343,7 +402,7 @@ fn activate_file_row(state: &mut ConfigEditorState) {
         3 => ConfigFile::Repos,
         _ => return,
     };
-    if !matches!(file, ConfigFile::Settings | ConfigFile::Keybinds) {
+    if matches!(file, ConfigFile::Repos) {
         state.status = Some(format!(
             "{} editing lands in a later phase. Edit the file directly for now.",
             file_label_for_status(file)
@@ -360,9 +419,29 @@ fn activate_file_row(state: &mut ConfigEditorState) {
 fn open_popup_for_selection(state: &mut ConfigEditorState) {
     if let Some(entry) = state.selected_key() {
         let current = crate::state::config_editor::current_value_string(entry);
-        state.popup = Some(EditPopupState::from_current(entry, &current));
+        let mut popup = EditPopupState::from_current(entry, &current);
+        popup.opened_mtime = target_file_mtime(entry.file);
+        state.popup = Some(popup);
         state.status = None;
     }
+}
+
+/// What: Read the modification time of the resolved on-disk file for `file`.
+///
+/// Inputs:
+/// - `file`: Config file kind whose active path should be probed.
+///
+/// Output:
+/// - `Some(SystemTime)` when the file exists and exposes an mtime; `None`
+///   otherwise (missing file, unsupported filesystem).
+///
+/// Details:
+/// - Captured when a popup opens and compared on save so concurrent manual
+///   edits trigger a warning instead of being silently overwritten.
+fn target_file_mtime(file: ConfigFile) -> Option<std::time::SystemTime> {
+    std::fs::metadata(crate::theme::resolved_config_path(file))
+        .ok()
+        .and_then(|m| m.modified().ok())
 }
 
 /// Short human label used in status messages for non-Settings files.
@@ -407,6 +486,9 @@ fn handle_popup_key(ke: KeyEvent, app: &mut AppState, state: &mut ConfigEditorSt
                 *capturing = true;
             }
         }
+        (KeyCode::Char('z'), m) if m.contains(KeyModifiers::CONTROL) => {
+            reset_popup_to_original(state);
+        }
         _ => {
             if let Some(popup) = state.popup.as_mut() {
                 handle_popup_value_key(ke, popup);
@@ -414,6 +496,27 @@ fn handle_popup_key(ke: KeyEvent, app: &mut AppState, state: &mut ConfigEditorSt
         }
     }
     false
+}
+
+/// What: Reset the active popup back to the value it opened with (`Ctrl+Z`).
+///
+/// Inputs:
+/// - `state`: Editor state holding the popup.
+///
+/// Output:
+/// - Rebuilds the popup's control state and buffer from `popup.original`,
+///   preserving the recorded open-time mtime so the stale-file warning still
+///   reflects the original snapshot.
+fn reset_popup_to_original(state: &mut ConfigEditorState) {
+    let Some(popup) = state.popup.as_mut() else {
+        return;
+    };
+    let original = popup.original.clone();
+    let opened_mtime = popup.opened_mtime;
+    let mut fresh = EditPopupState::from_current(popup.setting, &original);
+    fresh.opened_mtime = opened_mtime;
+    *popup = fresh;
+    state.status = Some("Reset to the value the popup opened with.".to_string());
 }
 
 /// What: Record the next pressed chord into a `KeyChord` popup buffer.
@@ -546,30 +649,49 @@ fn handle_popup_text(ke: KeyEvent, popup: &mut EditPopupState) {
 
 /// Build a [`PatchRequest`], call [`patch_key`], and on success trigger
 /// settings reload. Updates `state.status` with the result and closes
-/// the popup on success.
+/// the popup on success. Theme keys route through a pre-commit validation
+/// path; a stale on-disk file (changed since the popup opened) warns once
+/// before allowing an explicit overwrite.
 fn try_save_popup(app: &mut AppState, state: &mut ConfigEditorState) {
     let Some(popup) = state.popup.as_ref() else {
         return;
     };
+    let setting = popup.setting;
     let value = popup.canonical_value();
+    let opened_mtime = popup.opened_mtime;
+    let stale_armed = popup.stale_overwrite_armed;
     if let Err(msg) = validate_value(popup, &value) {
         state.status = Some(format!("Invalid value: {msg}"));
         return;
     }
-    if matches!(popup.setting.kind, ValueKind::KeyChord)
-        && let Err(msg) = validate_keybind_conflict(popup.setting, &value)
+    if matches!(setting.kind, ValueKind::KeyChord)
+        && let Err(msg) = validate_keybind_conflict(setting, &value)
     {
         state.status = Some(format!("Conflict: {msg}"));
         return;
     }
+    if !stale_armed && target_file_mtime(setting.file) != opened_mtime {
+        state.status = Some(format!(
+            "{} changed on disk while editing; press Ctrl+S again to overwrite.",
+            file_label_for_status(setting.file)
+        ));
+        if let Some(p) = state.popup.as_mut() {
+            p.stale_overwrite_armed = true;
+        }
+        return;
+    }
+    if matches!(setting.file, ConfigFile::Theme) {
+        save_theme_popup(app, state, setting, &value);
+        return;
+    }
     let req = PatchRequest {
-        file: popup.setting.file,
-        key: popup.setting.key,
-        aliases: popup.setting.aliases,
+        file: setting.file,
+        key: setting.key,
+        aliases: setting.aliases,
         value: &value,
         dry_run: app.dry_run,
     };
-    let key_label = popup.setting.key;
+    let key_label = setting.key;
     match patch_key(&req) {
         Ok(PatchOutcome::Written { path }) => {
             state.status = Some(format!("Saved {key_label} → {}", path.display()));
@@ -583,6 +705,92 @@ fn try_save_popup(app: &mut AppState, state: &mut ConfigEditorState) {
         Ok(PatchOutcome::DryRun { path, .. }) => {
             state.status = Some(format!(
                 "Dry-run: would update {key_label} → {}",
+                path.display()
+            ));
+            state.popup = None;
+        }
+        Err(e) => {
+            state.status = Some(format!("Save failed: {e}"));
+        }
+    }
+}
+
+/// What: Save a theme color through whole-file pre-commit validation.
+///
+/// Inputs:
+/// - `app`: Application state (dry-run flag).
+/// - `state`: Editor state (status line + popup lifecycle).
+/// - `setting`: Theme schema row being edited.
+/// - `value`: Validated color literal about to be written.
+///
+/// Output:
+/// - On success writes `theme.conf` atomically, re-runs
+///   [`reload_theme`](crate::theme::reload_theme) so the palette applies
+///   live, and closes the popup; on validation failure leaves disk and the
+///   in-memory theme untouched and keeps the popup open.
+///
+/// Details:
+/// - Builds the proposed full file via a dry-run [`patch_key`] pass, then
+///   validates it with [`try_load_theme_from_content`] before committing via
+///   [`write_full_content`], per the Phase 3 plan (invalid edits must never
+///   reach `theme.conf`).
+fn save_theme_popup(
+    app: &AppState,
+    state: &mut ConfigEditorState,
+    setting: &'static EditableSetting,
+    value: &str,
+) {
+    let probe = PatchRequest {
+        file: setting.file,
+        key: setting.key,
+        aliases: setting.aliases,
+        value,
+        dry_run: true,
+    };
+    let proposed = match patch_key(&probe) {
+        Ok(PatchOutcome::NoChange { .. }) => {
+            state.status = Some(format!("{} is already set to that value.", setting.key));
+            state.popup = None;
+            return;
+        }
+        Ok(PatchOutcome::DryRun { proposed, .. }) => proposed,
+        Ok(PatchOutcome::Written { .. }) => {
+            state.status = Some("Save failed: unexpected write during validation.".to_string());
+            return;
+        }
+        Err(e) => {
+            state.status = Some(format!("Save failed: {e}"));
+            return;
+        }
+    };
+    if let Err(diagnostics) = try_load_theme_from_content(&proposed) {
+        state.status = Some(format!(
+            "Invalid theme rejected (file unchanged): {}",
+            diagnostics.replace('\n', " ")
+        ));
+        return;
+    }
+    match write_full_content(ConfigFile::Theme, &proposed, app.dry_run) {
+        Ok(PatchOutcome::Written { path }) => {
+            let applied = match reload_theme() {
+                Ok(()) => "theme applied",
+                Err(_) => "reload failed; takes effect on restart",
+            };
+            state.status = Some(format!(
+                "Saved {} → {} ({applied})",
+                setting.key,
+                path.display()
+            ));
+            state.popup = None;
+        }
+        Ok(PatchOutcome::NoChange { .. }) => {
+            state.status = Some(format!("{} is already set to that value.", setting.key));
+            state.popup = None;
+        }
+        Ok(PatchOutcome::DryRun { path, .. }) => {
+            state.status = Some(format!(
+                "Dry-run: would update {} → {}",
+                setting.key,
                 path.display()
             ));
             state.popup = None;
@@ -983,10 +1191,10 @@ mod tests {
     fn validate_int_range_rejects_out_of_bounds() {
         let s = setting("mirror_count");
         let popup = EditPopupState {
-            setting: s,
             kind: EditPopupKind::Int { min: 1, max: 5 },
             buffer: "3".to_string(),
             caret: 1,
+            ..EditPopupState::from_current(s, "3")
         };
         assert!(validate_value(&popup, "3").is_ok());
         assert!(validate_value(&popup, "10").is_ok());
@@ -1042,10 +1250,10 @@ mod tests {
     #[test]
     fn validate_color_accepts_hex_and_rgb_and_rejects_invalid() {
         let popup = EditPopupState {
-            setting: setting("clipboard_suffix"),
             kind: EditPopupKind::Text,
             buffer: String::new(),
             caret: 0,
+            ..EditPopupState::from_current(setting("clipboard_suffix"), "")
         };
         assert!(validate_color_value("#1e1e2e").is_ok());
         assert!(validate_color_value("1e1e2e").is_ok());
@@ -1191,6 +1399,32 @@ mod tests {
             popup.kind,
             EditPopupKind::KeyChord { capturing: true }
         ));
+    }
+
+    #[test]
+    fn popup_ctrl_z_resets_buffer_to_opening_value() {
+        let mut app = AppState {
+            dry_run: true,
+            ..AppState::default()
+        };
+        let mut state = keychord_popup_state("keybind_reload_config", "Ctrl+r");
+        handle_popup_key(
+            KeyEvent::new(KeyCode::Char('x'), KeyModifiers::NONE),
+            &mut app,
+            &mut state,
+        );
+        assert_eq!(
+            state.popup.as_ref().map(|p| p.buffer.as_str()),
+            Some("Ctrl+rx")
+        );
+        handle_popup_key(
+            KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL),
+            &mut app,
+            &mut state,
+        );
+        let popup = state.popup.as_ref().expect("popup stays open after reset");
+        assert_eq!(popup.buffer, "Ctrl+r");
+        assert_eq!(popup.original, "Ctrl+r");
     }
 
     #[test]

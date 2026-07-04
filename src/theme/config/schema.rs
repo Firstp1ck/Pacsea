@@ -766,6 +766,61 @@ pub const EDITABLE_KEYBINDS: &[EditableSetting] = &[
     keybind_entry("keybind_news_feed_toggle_read", &[]),
 ];
 
+/// What: Phase-3 set of editable theme color rows backed by `theme.conf`.
+///
+/// Inputs:
+/// - None.
+///
+/// Output:
+/// - Static slice of [`EditableSetting`] entries with `file = ConfigFile::Theme`.
+///
+/// Details:
+/// - Keys use the preferred user-facing names written by the shipped
+///   `config/theme.conf`; aliases mirror the canonical/legacy spellings
+///   accepted by `theme::parsing::canonical_for_key` so existing files
+///   migrate to preferred names on save.
+/// - Saves are validated as a whole file via
+///   [`crate::theme::config::theme_loader::try_load_theme_from_content`]
+///   before committing, then applied live through `theme::reload_theme`.
+pub const EDITABLE_THEME: &[EditableSetting] = &[
+    theme_entry("background_base", &["base", "background"]),
+    theme_entry("background_mantle", &["mantle"]),
+    theme_entry("background_crust", &["crust"]),
+    theme_entry("surface_level1", &["surface1", "surface_1"]),
+    theme_entry("surface_level2", &["surface2", "surface_2"]),
+    theme_entry("overlay_primary", &["overlay1", "border_primary"]),
+    theme_entry("overlay_secondary", &["overlay2", "border_secondary"]),
+    theme_entry("text_primary", &["text"]),
+    theme_entry("text_secondary", &["subtext0"]),
+    theme_entry("text_tertiary", &["subtext1"]),
+    theme_entry("accent_interactive", &["sapphire", "accent_info"]),
+    theme_entry("accent_heading", &["mauve", "accent_primary"]),
+    theme_entry("semantic_success", &["green"]),
+    theme_entry("semantic_warning", &["yellow"]),
+    theme_entry("semantic_error", &["red"]),
+    theme_entry("accent_emphasis", &["lavender", "accent_border"]),
+];
+
+/// What: Construct an [`EditableSetting`] row for a theme color key.
+///
+/// Inputs:
+/// - `key`: Preferred user-facing key written to `theme.conf`.
+/// - `aliases`: Canonical/legacy spellings recognized on disk and rewritten on save.
+///
+/// Output:
+/// - `EditableSetting` with `file = ConfigFile::Theme`, `kind = ValueKind::Color`,
+///   and `reload = AppliesOnSave` (the editor re-runs `reload_theme` after a write).
+const fn theme_entry(key: &'static str, aliases: &'static [&'static str]) -> EditableSetting {
+    EditableSetting {
+        key,
+        aliases,
+        file: ConfigFile::Theme,
+        kind: ValueKind::Color,
+        reload: ReloadBehavior::AppliesOnSave,
+        sensitivity: Sensitivity::Normal,
+    }
+}
+
 /// What: Construct an [`EditableSetting`] row for a keybind action.
 ///
 /// Inputs:
@@ -799,6 +854,7 @@ pub fn find_setting(name: &str) -> Option<&'static EditableSetting> {
     EDITABLE_SETTINGS
         .iter()
         .chain(EDITABLE_KEYBINDS.iter())
+        .chain(EDITABLE_THEME.iter())
         .find(|s| s.matches(name))
 }
 
@@ -814,6 +870,7 @@ pub fn settings_for(file: ConfigFile) -> Vec<&'static EditableSetting> {
     EDITABLE_SETTINGS
         .iter()
         .chain(EDITABLE_KEYBINDS.iter())
+        .chain(EDITABLE_THEME.iter())
         .filter(|s| s.file == file)
         .collect()
 }
@@ -906,15 +963,36 @@ mod tests {
         for s in only_settings {
             assert_eq!(s.file, ConfigFile::Settings);
         }
-        // Phase 2 ships keybind rows; theme/repos still empty.
+        // Phase 2 ships keybind rows; Phase 3 ships theme rows; repos stays empty.
         let only_keybinds = settings_for(ConfigFile::Keybinds);
         assert!(!only_keybinds.is_empty());
         for s in only_keybinds {
             assert_eq!(s.file, ConfigFile::Keybinds);
             assert!(matches!(s.kind, ValueKind::KeyChord));
         }
-        assert!(settings_for(ConfigFile::Theme).is_empty());
+        let only_theme = settings_for(ConfigFile::Theme);
+        assert_eq!(only_theme.len(), 16, "one row per required canonical color");
+        for s in only_theme {
+            assert_eq!(s.file, ConfigFile::Theme);
+            assert!(matches!(s.kind, ValueKind::Color));
+        }
         assert!(settings_for(ConfigFile::Repos).is_empty());
+    }
+
+    #[test]
+    fn theme_keys_are_unique_and_aliases_resolve() {
+        let mut seen = std::collections::HashSet::new();
+        for entry in EDITABLE_THEME {
+            let norm = normalize(entry.key);
+            assert!(
+                seen.insert(norm.clone()),
+                "duplicate key in EDITABLE_THEME: {norm}"
+            );
+        }
+        let s = find_setting("base").expect("canonical alias should resolve");
+        assert_eq!(s.key, "background_base");
+        let s = find_setting("mauve").expect("canonical alias should resolve");
+        assert_eq!(s.key, "accent_heading");
     }
 
     #[test]

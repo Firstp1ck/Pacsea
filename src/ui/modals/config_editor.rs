@@ -273,18 +273,20 @@ const fn file_label(file: ConfigFile) -> &'static str {
     }
 }
 
-/// Phase availability hint for non-Settings files.
+/// Phase availability hint for non-editable files.
 const fn file_phase_hint(file: ConfigFile) -> &'static str {
     match file {
-        ConfigFile::Settings | ConfigFile::Keybinds => "",
-        ConfigFile::Theme => " (Phase 3)",
+        ConfigFile::Settings | ConfigFile::Keybinds | ConfigFile::Theme => "",
         ConfigFile::Repos => " (later phase)",
     }
 }
 
 /// Whether a file is interactive in the current phase.
 const fn is_file_enabled(file: ConfigFile) -> bool {
-    matches!(file, ConfigFile::Settings | ConfigFile::Keybinds)
+    matches!(
+        file,
+        ConfigFile::Settings | ConfigFile::Keybinds | ConfigFile::Theme
+    )
 }
 
 /// Top-pane dispatcher: file list or key list.

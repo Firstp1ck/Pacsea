@@ -3,6 +3,7 @@
 mod conflict_preservation;
 mod config_editor_phase1_integration;
 mod config_editor_phase2_integration;
+mod config_editor_phase3_integration;
 mod custom_command;
 mod cyclomatic_complexity;
 mod data_flow_complexity;

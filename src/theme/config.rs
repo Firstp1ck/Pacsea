@@ -27,7 +27,7 @@ mod tests;
 pub use skeletons::{REPOS_SKELETON_CONTENT, THEME_SKELETON_CONTENT};
 
 // Re-export theme loading functions
-pub use theme_loader::try_load_theme_with_diagnostics;
+pub use theme_loader::{try_load_theme_from_content, try_load_theme_with_diagnostics};
 
 // Re-export the patch foundation and editable schema (Phase 0).
 pub use patch::{
@@ -35,8 +35,8 @@ pub use patch::{
     write_full_content,
 };
 pub use schema::{
-    EDITABLE_KEYBINDS, EDITABLE_SETTINGS, EditableSetting, ReloadBehavior, Sensitivity, ValueKind,
-    find_setting, keybind_scope, settings_for,
+    EDITABLE_KEYBINDS, EDITABLE_SETTINGS, EDITABLE_THEME, EditableSetting, ReloadBehavior,
+    Sensitivity, ValueKind, find_setting, keybind_scope, settings_for,
 };
 
 // Re-export settings save functions

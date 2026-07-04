@@ -23,11 +23,11 @@ mod terminal_query;
 mod types;
 
 pub use config::{
-    ConfigFile, ConfigWriteError, EDITABLE_KEYBINDS, EDITABLE_SETTINGS, EditableSetting,
-    PatchOutcome, PatchRequest, REPOS_SKELETON_CONTENT, ReloadBehavior, Sensitivity, ValueKind,
-    ensure_settings_keys_present, ensure_theme_keys_present, find_setting, keybind_scope,
-    maybe_migrate_legacy_confs, patch_key, resolved_config_path, save_app_start_mode,
-    save_fuzzy_search, save_mirror_count, save_news_filter_installed_only,
+    ConfigFile, ConfigWriteError, EDITABLE_KEYBINDS, EDITABLE_SETTINGS, EDITABLE_THEME,
+    EditableSetting, PatchOutcome, PatchRequest, REPOS_SKELETON_CONTENT, ReloadBehavior,
+    Sensitivity, ValueKind, ensure_settings_keys_present, ensure_theme_keys_present, find_setting,
+    keybind_scope, maybe_migrate_legacy_confs, patch_key, resolved_config_path,
+    save_app_start_mode, save_fuzzy_search, save_mirror_count, save_news_filter_installed_only,
     save_news_filter_show_advisories, save_news_filter_show_arch_news,
     save_news_filter_show_aur_comments, save_news_filter_show_aur_updates,
     save_news_filter_show_pkg_updates, save_news_filters_collapsed, save_news_max_age_days,
@@ -38,7 +38,7 @@ pub use config::{
     save_startup_news_max_age_days, save_startup_news_show_advisories,
     save_startup_news_show_arch_news, save_startup_news_show_aur_comments,
     save_startup_news_show_aur_updates, save_startup_news_show_pkg_updates,
-    save_virustotal_api_key, settings_for, write_full_content,
+    save_virustotal_api_key, settings_for, try_load_theme_from_content, write_full_content,
 };
 pub use paths::{
     config_dir, lists_dir, logs_dir, resolve_repos_config_path, set_config_dir_override,

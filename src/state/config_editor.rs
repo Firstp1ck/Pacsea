@@ -11,9 +11,9 @@
 //! - Bottom pane: details for the selected key (current value, summary,
 //!   reload behavior).
 //!
-//! Phase 1 only ships the `settings.conf` flow end-to-end; non-settings
-//! files appear in the file list as disabled rows so users can see the
-//! roadmap without being able to open them yet.
+//! `settings.conf`, `keybinds.conf`, and `theme.conf` are editable end-to-end;
+//! `repos.conf` appears in the file list as a disabled row so users can see
+//! the roadmap without being able to open it yet.
 
 use crate::theme::{
     ConfigFile, EditableSetting, KeyChord, KeyMap, ValueKind, find_setting, settings_for,
@@ -27,8 +27,8 @@ const MAX_CONFIG_EDITOR_RECENT: usize = 50;
 /// Which top-pane view is active in the config editor.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConfigEditorView {
-    /// List the four config files; only `settings.conf` is selectable in
-    /// Phase 1, the others are shown as "coming soon" rows.
+    /// List the four config files; `settings.conf`, `keybinds.conf`, and
+    /// `theme.conf` are selectable, `repos.conf` is a "coming soon" row.
     FileList,
     /// List editable keys for the currently selected file. When `query` is
     /// non-empty, the list is filtered (substring/fuzzy on label and key).
@@ -110,6 +110,14 @@ pub struct EditPopupState {
     pub buffer: String,
     /// Caret position (byte index) inside `buffer` for Int/Text/Secret.
     pub caret: usize,
+    /// Canonical value the popup opened with; `Ctrl+Z` resets back to it.
+    pub original: String,
+    /// Target file's modification time when the popup opened. Used to warn
+    /// when the file changed on disk while the popup was editing.
+    pub opened_mtime: Option<std::time::SystemTime>,
+    /// Set after the first save attempt hit an mtime mismatch; the next
+    /// save proceeds anyway (explicit user confirmation via repeat `Ctrl+S`).
+    pub stale_overwrite_armed: bool,
 }
 
 impl EditPopupState {
@@ -135,78 +143,57 @@ impl EditPopupState {
     #[must_use]
     pub fn from_current(setting: &'static EditableSetting, current: &str) -> Self {
         let trimmed = current.trim();
-        match setting.kind {
+        let (kind, buffer, caret) = match setting.kind {
             ValueKind::Bool => {
                 let b = matches!(
                     trimmed.to_ascii_lowercase().as_str(),
                     "true" | "yes" | "on" | "1"
                 );
-                Self {
-                    setting,
-                    kind: EditPopupKind::Bool(b),
-                    buffer: bool_to_canonical(b).to_string(),
-                    caret: 0,
-                }
+                (EditPopupKind::Bool(b), bool_to_canonical(b).to_string(), 0)
             }
             ValueKind::Enum { choices } => {
                 let owned: Vec<String> = choices.iter().map(|s| (*s).to_string()).collect();
                 let index = owned.iter().position(|c| c == trimmed).unwrap_or(0);
                 let buffer = owned.get(index).cloned().unwrap_or_default();
-                Self {
-                    setting,
-                    kind: EditPopupKind::Enum {
+                (
+                    EditPopupKind::Enum {
                         choices: owned,
                         index,
                     },
                     buffer,
-                    caret: 0,
-                }
+                    0,
+                )
             }
             ValueKind::IntRange { min, max } => {
                 let parsed = trimmed.parse::<i64>().unwrap_or(min).clamp(min, max);
                 let buffer = parsed.to_string();
                 let caret = buffer.len();
-                Self {
-                    setting,
-                    kind: EditPopupKind::Int { min, max },
-                    buffer,
-                    caret,
-                }
+                (EditPopupKind::Int { min, max }, buffer, caret)
             }
-            ValueKind::Secret => {
-                let buffer = trimmed.to_string();
-                let caret = buffer.len();
-                Self {
-                    setting,
-                    kind: EditPopupKind::Secret { revealed: false },
-                    buffer,
-                    caret,
-                }
-            }
-            ValueKind::KeyChord => {
-                let buffer = trimmed.to_string();
-                let caret = buffer.len();
-                Self {
-                    setting,
-                    kind: EditPopupKind::KeyChord { capturing: false },
-                    buffer,
-                    caret,
-                }
-            }
+            ValueKind::Secret => (
+                EditPopupKind::Secret { revealed: false },
+                trimmed.to_string(),
+                trimmed.len(),
+            ),
+            ValueKind::KeyChord => (
+                EditPopupKind::KeyChord { capturing: false },
+                trimmed.to_string(),
+                trimmed.len(),
+            ),
             ValueKind::String
             | ValueKind::Path
             | ValueKind::OptionalUnsignedOrAll
             | ValueKind::Color
-            | ValueKind::MainPaneOrder => {
-                let buffer = trimmed.to_string();
-                let caret = buffer.len();
-                Self {
-                    setting,
-                    kind: EditPopupKind::Text,
-                    buffer,
-                    caret,
-                }
-            }
+            | ValueKind::MainPaneOrder => (EditPopupKind::Text, trimmed.to_string(), trimmed.len()),
+        };
+        Self {
+            setting,
+            kind,
+            buffer,
+            caret,
+            original: trimmed.to_string(),
+            opened_mtime: None,
+            stale_overwrite_armed: false,
         }
     }
 
@@ -640,6 +627,62 @@ pub fn current_value_string(entry: &EditableSetting) -> String {
             .map(chord_to_canonical_string)
             .unwrap_or_default(),
 
+        key => theme_color_value_string(key),
+    }
+}
+
+/// What: Look up the effective in-memory color for a theme schema key.
+///
+/// Inputs:
+/// - `key`: Preferred theme key from [`crate::theme::EDITABLE_THEME`]
+///   (e.g. `background_base`).
+///
+/// Output:
+/// - Config-file color literal (`#rrggbb`), or an empty string when the key
+///   is not a theme color or the color has no RGB representation.
+///
+/// Details:
+/// - Reads the live [`crate::theme::theme`] snapshot, so values reflect the
+///   effective palette (including terminal-derived themes) rather than raw
+///   file content.
+#[must_use]
+pub fn theme_color_value_string(key: &str) -> String {
+    let th = crate::theme::theme();
+    let color = match key {
+        "background_base" => th.base,
+        "background_mantle" => th.mantle,
+        "background_crust" => th.crust,
+        "surface_level1" => th.surface1,
+        "surface_level2" => th.surface2,
+        "overlay_primary" => th.overlay1,
+        "overlay_secondary" => th.overlay2,
+        "text_primary" => th.text,
+        "text_secondary" => th.subtext0,
+        "text_tertiary" => th.subtext1,
+        "accent_interactive" => th.sapphire,
+        "accent_heading" => th.mauve,
+        "semantic_success" => th.green,
+        "semantic_warning" => th.yellow,
+        "semantic_error" => th.red,
+        "accent_emphasis" => th.lavender,
+        _ => return String::new(),
+    };
+    color_to_config_string(color)
+}
+
+/// What: Serialize a ratatui color into the `#rrggbb` form accepted by
+/// `theme.conf` parsing.
+///
+/// Inputs:
+/// - `color`: Color from the active [`crate::theme::Theme`].
+///
+/// Output:
+/// - Lowercase hex literal for RGB colors; empty string for palette/named
+///   variants that have no fixed RGB value.
+#[must_use]
+pub fn color_to_config_string(color: ratatui::style::Color) -> String {
+    match color {
+        ratatui::style::Color::Rgb(r, g, b) => format!("#{r:02x}{g:02x}{b:02x}"),
         _ => String::new(),
     }
 }
@@ -1025,6 +1068,37 @@ mod tests {
                 entry.key
             );
         }
+    }
+
+    #[test]
+    fn color_serialization_round_trips_theme_keys() {
+        assert_eq!(
+            color_to_config_string(ratatui::style::Color::Rgb(0x1e, 0x1e, 0x2e)),
+            "#1e1e2e"
+        );
+        assert_eq!(
+            color_to_config_string(ratatui::style::Color::Reset),
+            String::new()
+        );
+        // Every schema theme key must resolve to a themed color literal.
+        for entry in crate::theme::EDITABLE_THEME {
+            let v = theme_color_value_string(entry.key);
+            assert!(
+                v.starts_with('#') && v.len() == 7,
+                "{} produced invalid color literal: {v:?}",
+                entry.key
+            );
+        }
+        assert_eq!(theme_color_value_string("not_a_theme_key"), String::new());
+    }
+
+    #[test]
+    fn popup_from_current_records_original_value() {
+        let s = setting("sort_mode");
+        let p = EditPopupState::from_current(s, "alphabetical");
+        assert_eq!(p.original, "alphabetical");
+        assert!(p.opened_mtime.is_none());
+        assert!(!p.stale_overwrite_armed);
     }
 
     #[test]

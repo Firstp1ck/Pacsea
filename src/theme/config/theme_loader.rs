@@ -95,8 +95,33 @@ pub fn resolved_theme_canonical_keys(content: &str) -> HashSet<String> {
 /// - Detects duplicates, missing required keys, and invalid color formats with precise line info.
 pub fn try_load_theme_with_diagnostics(path: &Path) -> Result<Theme, String> {
     let content = fs::read_to_string(path).map_err(|e| format!("{e}"))?;
+    try_load_theme_from_content(&content)
+}
+
+/// What: Parse theme configuration text into a `Theme` without touching disk.
+///
+/// Inputs:
+/// - `content`: Full theme configuration text (`key = value` color pairs).
+///
+/// Output:
+/// - `Ok(Theme)` when all required colors are present and valid.
+/// - `Err(String)` containing newline-separated diagnostics when parsing fails.
+///
+/// Details:
+/// - In-memory twin of [`try_load_theme_with_diagnostics`]; used by the
+///   integrated config editor to validate proposed content before committing
+///   a theme write, so an invalid edit never reaches `theme.conf`.
+///
+/// # Errors
+/// - Returns newline-separated diagnostics when required keys are missing,
+///   duplicated, or colors fail to parse.
+///
+/// # Panics
+/// - Never in practice: the internal `expect` runs only after the
+///   missing-required-keys check guarantees every canonical key is present.
+pub fn try_load_theme_from_content(content: &str) -> Result<Theme, String> {
     let mut errors: Vec<String> = Vec::new();
-    let map = build_theme_color_map(&content, &mut errors);
+    let map = build_theme_color_map(content, &mut errors);
     // Check missing required keys
     let mut missing: Vec<&str> = Vec::new();
     for k in THEME_REQUIRED_CANONICAL {

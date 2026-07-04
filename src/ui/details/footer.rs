@@ -1095,6 +1095,87 @@ fn build_config_editor_globals_menus_line(
     spans
 }
 
+/// What: Append popup-specific footer hints for the config editor.
+///
+/// Inputs:
+/// - `spans`: Span buffer to extend
+/// - `app`: Application state (i18n)
+/// - `popup`: Active edit popup (variant decides which hints appear)
+/// - `key_style`: Style for bracketed keys
+/// - `sep_style`: Style for separators
+///
+/// Output:
+/// - Pushes Esc/Ctrl+S/Ctrl+R/Ctrl+K/Ctrl+Z hints matching the popup kind.
+///
+/// Details:
+/// - While a key-chord popup is recording, only the cancel-recording hint is
+///   shown because every other key is captured verbatim.
+fn append_config_editor_popup_hints(
+    spans: &mut Vec<Span<'static>>,
+    app: &AppState,
+    popup: &crate::state::EditPopupState,
+    key_style: Style,
+    sep_style: Style,
+) {
+    if matches!(popup.kind, EditPopupKind::KeyChord { capturing: true }) {
+        add_literal_key_entry(
+            spans,
+            "Esc",
+            key_style,
+            &i18n::t(app, "app.modals.config_editor.footer.popup_capture_cancel"),
+            sep_style,
+            false,
+        );
+        return;
+    }
+    let secret = matches!(popup.kind, EditPopupKind::Secret { .. });
+    let keychord = matches!(popup.kind, EditPopupKind::KeyChord { .. });
+    add_literal_key_entry(
+        spans,
+        "Esc",
+        key_style,
+        &i18n::t(app, "app.modals.config_editor.footer.popup_cancel"),
+        sep_style,
+        true,
+    );
+    add_literal_key_entry(
+        spans,
+        "Ctrl+S",
+        key_style,
+        &i18n::t(app, "app.modals.config_editor.footer.popup_save"),
+        sep_style,
+        true,
+    );
+    if secret {
+        add_literal_key_entry(
+            spans,
+            "Ctrl+R",
+            key_style,
+            &i18n::t(app, "app.modals.config_editor.footer.popup_reveal"),
+            sep_style,
+            true,
+        );
+    }
+    if keychord {
+        add_literal_key_entry(
+            spans,
+            "Ctrl+K",
+            key_style,
+            &i18n::t(app, "app.modals.config_editor.footer.popup_record"),
+            sep_style,
+            true,
+        );
+    }
+    add_literal_key_entry(
+        spans,
+        "Ctrl+Z",
+        key_style,
+        &i18n::t(app, "app.modals.config_editor.footer.popup_reset"),
+        sep_style,
+        false,
+    );
+}
+
 /// What: Build the second footer line for config editor mode (editor list vs save overlay hints).
 ///
 /// Inputs:
@@ -1124,55 +1205,7 @@ fn build_config_editor_editor_line_spans(
         th.overlay1,
     );
     if let Some(popup) = state.popup.as_ref() {
-        if matches!(popup.kind, EditPopupKind::KeyChord { capturing: true }) {
-            add_literal_key_entry(
-                &mut spans,
-                "Esc",
-                key_style,
-                &i18n::t(app, "app.modals.config_editor.footer.popup_capture_cancel"),
-                sep_style,
-                false,
-            );
-            return spans;
-        }
-        let secret = matches!(popup.kind, EditPopupKind::Secret { .. });
-        let keychord = matches!(popup.kind, EditPopupKind::KeyChord { .. });
-        add_literal_key_entry(
-            &mut spans,
-            "Esc",
-            key_style,
-            &i18n::t(app, "app.modals.config_editor.footer.popup_cancel"),
-            sep_style,
-            true,
-        );
-        add_literal_key_entry(
-            &mut spans,
-            "Ctrl+S",
-            key_style,
-            &i18n::t(app, "app.modals.config_editor.footer.popup_save"),
-            sep_style,
-            secret || keychord,
-        );
-        if secret {
-            add_literal_key_entry(
-                &mut spans,
-                "Ctrl+R",
-                key_style,
-                &i18n::t(app, "app.modals.config_editor.footer.popup_reveal"),
-                sep_style,
-                false,
-            );
-        }
-        if keychord {
-            add_literal_key_entry(
-                &mut spans,
-                "Ctrl+K",
-                key_style,
-                &i18n::t(app, "app.modals.config_editor.footer.popup_record"),
-                sep_style,
-                false,
-            );
-        }
+        append_config_editor_popup_hints(&mut spans, app, popup, key_style, sep_style);
         return spans;
     }
     match state.view {
@@ -1198,6 +1231,14 @@ fn build_config_editor_editor_line_spans(
                 "Tab / ← / →",
                 key_style,
                 &i18n::t(app, "app.modals.config_editor.footer.switch_panel"),
+                sep_style,
+                true,
+            );
+            add_literal_key_entry(
+                &mut spans,
+                "Ctrl+E",
+                key_style,
+                &i18n::t(app, "app.modals.config_editor.footer.export"),
                 sep_style,
                 false,
             );
@@ -1248,6 +1289,14 @@ fn build_config_editor_editor_line_spans(
                 "Backspace",
                 key_style,
                 &i18n::t(app, "app.modals.config_editor.footer.widen_search"),
+                sep_style,
+                true,
+            );
+            add_literal_key_entry(
+                &mut spans,
+                "Ctrl+E",
+                key_style,
+                &i18n::t(app, "app.modals.config_editor.footer.export"),
                 sep_style,
                 false,
             );
