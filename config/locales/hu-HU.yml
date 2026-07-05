@@ -371,7 +371,7 @@ hu-HU:
         keys_pane_title: "Kulcsok"
         keys_heading: "Kulcsok"
         keys_heading_filtered: "Szűrt"
-        no_matches: "Nincs találat. Nyomja meg a Backspace billentyűtt a keresés bővítéséhez."
+        no_matches: "Nincs találat. Nyomja meg a Backspace billentyűt a keresés bővítéséhez."
         details_pane_title: " Részletek "
         hint_pick_file: "Válasszon egy fájlt az Enterrel, majd a ↑/↓ és Enter gombokkal válasszon ki egy szerkesztendő kulcsot."
         hint_no_key: "Nincs kiválasztva kulcs."
@@ -1008,6 +1008,7 @@ hu-HU:
           files: "fájlok"
       remove:
         no_packages: "Hiba: Nincs megadva eltávolítandó csomag."
+        no_packages_in_file: "Hiba: Nem találhatók csomagok a(z) „{}” fájlban."
         warning: "Figyelem: A csomagok és a függőségek (ha más csomagok nem függenek tőlük) el lesznek távolítva, és a rendszer-konfiguráció biztonsági mentése nem lesz létrehozva."
         packages_to_remove: "Eltávolítandó csomagok:"
         prompt: "Továbbra is szeretné folytatni az eltávolítást?"
@@ -1060,6 +1061,7 @@ hu-HU:
         query_explicit_failed: "Hiba: Nem sikerült lekérdezni a kifejezetten telepített csomagokat"
         error_prefix: "Hiba: {}"
       search:
+        exec_failed: "Nem sikerült végrehajtani a keresést: {}"
         paru_exec_failed: "Nem sikerült végrehajtani a paru parancsot: {}"
         yay_exec_failed: "Nem sikerült végrehajtani a yay parancsot: {}"
         neither_helper_available: "Hiba: Sem a paru, sem a yay nem érhető el. Telepítse valamelyiket az AUR-csomagok telepítéséhez."
