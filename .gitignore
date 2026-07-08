@@ -63,3 +63,4 @@ credentials.json
 service-account.json
 src/Pacsea/
 *release-report*
+.DS_Store
