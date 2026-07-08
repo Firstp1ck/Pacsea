@@ -1,6 +1,6 @@
 # Pacsea Roadmap — Consolidated Planned Work
 
-**Last updated:** 2026-07-03 (baseline: `v0.8.2`, issues synced against GitHub the same day)
+**Last updated:** 2026-07-05 (baseline: current `main` after PR #164; `dev/RELEASES/RELEASE_v0.8.3.md` is present, while `Cargo.toml` still declares `0.8.2`; GitHub issues last synced 2026-07-03)
 
 This is the **single tracking document** for all planned implementations. It replaces and
 consolidates the former planning docs (`FEATURE_PRIORITY.md`, `CLI_POSSIBLE_COMMANDS.md`,
@@ -32,13 +32,13 @@ Shipped items were dropped; see `CHANGELOG.md` for release history.
 
 ### 🔴 P1 — Next 1–2 releases
 
-- [x] **CLI `--update` respects `settings.conf`** — `--mirrors` opt-in mirror refresh uses `selected_countries`/`mirror_count`; new `aur_helper` settings key honored by all CLI helper resolution (historic bug [#57](https://github.com/Firstp1ck/Pacsea/issues/57), closed; shipped in `dev/PR/PR_p1_roadmap_batch.md`) → [Features §F1](#f1-cli---update-respects-tui-settings)
-- [x] **CLI `-R` / remove-from-file** — implemented with `-I` parity ([#93](https://github.com/Firstp1ck/Pacsea/issues/93); shipped in `dev/PR/PR_p1_roadmap_batch.md`) → [CLI §C1](#c1-finish-existing-flags)
-- [x] **Honor `--config-dir`** — process-wide override in `theme::paths` covering config resolvers, caches (`lists`), and logs (shipped in `dev/PR/PR_p1_roadmap_batch.md`) → [CLI §C1](#c1-finish-existing-flags)
-- [x] **Global `--json` output** — `schema_version` envelope for `--search`, `--list`, `--news` (shipped in `dev/PR/PR_p1_roadmap_batch.md`; `updates check` still future) → [CLI §C5](#c5-integrator-contracts)
-- [x] **Preflight guardrails** — pacman db-lock (blocks, CLI + TUI), disk space and sync-db staleness warnings with actionable fixes (shipped in `dev/PR/PR_p1_roadmap_batch.md`; richer dry-run/confirm UX remains P2) → [UX §U1](#u1-cross-cutting-preflight)
-- [x] **Refactor: unify command execution** — shared `util::command` runner (`CommandRunner`/`SystemCommandRunner`/`CommandError` + `run_capture` + `binary_available`); `logic/preflight`, `logic/services`, and `util/pacman` delegate; duplicated paru/yay probes consolidated (shipped in `dev/PR/PR_p1_roadmap_batch.md`; interactive/PTY spawns intentionally stay separate) → [Refactoring §R1](#r1-priority-refactors)
-- [x] **Refactor: consolidate cache modules** — shared `app/cache_common.rs` (match modes, load/save, signatures); the four cache modules and `persist.rs` flush fns are thin wrappers, on-disk format unchanged (shipped in `dev/PR/PR_p1_roadmap_batch.md`) → [Refactoring §R1](#r1-priority-refactors)
+- [x] **CLI `--update` respects `settings.conf`** — `--mirrors` opt-in mirror refresh uses `selected_countries`/`mirror_count`; new `aur_helper` settings key honored by all CLI helper resolution (historic bug [#57](https://github.com/Firstp1ck/Pacsea/issues/57), closed; shipped for `v0.8.3` in PR #163 / `dev/RELEASES/RELEASE_v0.8.3.md`)
+- [x] **CLI `-R` / remove-from-file** — implemented with `-I` parity ([#93](https://github.com/Firstp1ck/Pacsea/issues/93), closed; shipped for `v0.8.3` in PR #163 / `dev/RELEASES/RELEASE_v0.8.3.md`)
+- [x] **Honor `--config-dir`** — process-wide override in `theme::paths` covering config resolvers, caches (`lists`), and logs (shipped for `v0.8.3` in PR #163 / `dev/RELEASES/RELEASE_v0.8.3.md`)
+- [x] **Global `--json` output** — `schema_version` envelope for `--search`, `--list`, `--news` (shipped for `v0.8.3` in PR #163 / `dev/RELEASES/RELEASE_v0.8.3.md`; `updates check` still future) → [CLI §C5](#c5-integrator-contracts)
+- [x] **Preflight guardrails** — pacman db-lock (blocks, CLI + TUI), disk space and sync-db staleness warnings with actionable fixes (shipped for `v0.8.3` in PR #163 / `dev/RELEASES/RELEASE_v0.8.3.md`; richer dry-run/confirm UX remains P2) → [UX §U1](#u1-cross-cutting-preflight)
+- [x] **Refactor: unify command execution** — shared `util::command` runner (`CommandRunner`/`SystemCommandRunner`/`CommandError` + `run_capture` + `binary_available`); `logic/preflight`, `logic/services`, and `util/pacman` delegate; duplicated paru/yay probes consolidated (shipped for `v0.8.3` in PR #163 / `dev/RELEASES/RELEASE_v0.8.3.md`; interactive/PTY spawns intentionally stay separate) → [Refactoring §R1](#r1-priority-refactors)
+- [x] **Refactor: consolidate cache modules** — shared `app/cache_common.rs` (match modes, load/save, signatures); the four cache modules and `persist.rs` flush fns are thin wrappers, on-disk format unchanged (shipped for `v0.8.3` in PR #163 / `dev/RELEASES/RELEASE_v0.8.3.md`) → [Refactoring §R1](#r1-priority-refactors)
 
 ### 🟠 P2 — Next 3–4 releases
 
@@ -72,6 +72,7 @@ Shipped items were dropped; see `CHANGELOG.md` for release history.
 - [ ] **arch-toolkit Phase A3–A5** — deps/index/install cutover, news baseline cutover, parity cleanup → [arch-toolkit §T1](#t1-workstream-a-pacsea-consumes-arch-toolkit)
 - [ ] **arch-toolkit Workstream B** — extract sandbox, preflight engine, status monitor, details helper, news content parity (B1 repos-apply planner already landed) → [arch-toolkit §T2](#t2-workstream-b-extraction-backlog)
 - [x] **Config editor Phase 2–3** — keybind capture + persistence; theme tab with whole-file pre-commit validation — shipped in PR #161 → [Config editing §E1](#e1-phased-rollout)
+- [ ] **Config editor follow-up** — `repos.conf`/Advanced editing, explicit live-apply/reload semantics, and privilege-sensitive setting gates → [Config editing §E2](#e2-follow-up-work)
 - [ ] **Soname Layer 1** — `DT_NEEDED`/`DT_SONAME` readers, on-disk soname map, `.pkg.tar.zst` extraction, Preflight tab → [Soname §S1](#s1-layer-1--end-user-protection)
 - [ ] **Performance: open items** — map/B-tree package index (if profiling supports), streaming search results, stronger lazy loading, remaining `.iter().any()` tightening, criterion benches → [Performance §P1](#p1-open-optimizations)
 - [ ] **Architecture: incremental refactors** — split `AppState` into domain substates, group preflight channels, extract pure logic from fat handlers → [Refactoring §R2](#r2-architecture-backlog)
@@ -99,7 +100,7 @@ Shipped items were dropped; see `CHANGELOG.md` for release history.
 
 ---
 
-## GitHub issue cross-reference (open, synced 2026-07-03)
+## GitHub issue cross-reference (open, last synced 2026-07-03; shipped issues removed 2026-07-05)
 
 | Issue | Topic | Tier |
 |-------|-------|------|
@@ -116,10 +117,12 @@ Shipped items were dropped; see `CHANGELOG.md` for release history.
 | [#97](https://github.com/Firstp1ck/Pacsea/issues/97) | Config value validation | 🟡 P3 |
 | [#95](https://github.com/Firstp1ck/Pacsea/issues/95) | Sequential multi-package scans | 🟡 P3 |
 | [#94](https://github.com/Firstp1ck/Pacsea/issues/94) | `parse_update_entry` tests | 🟡 P3 |
-| [#93](https://github.com/Firstp1ck/Pacsea/issues/93) | CLI remove-from-file | 🔴 P1 |
 | [#159](https://github.com/Firstp1ck/Pacsea/issues/159) | Executable bits on helper scripts | 🟡 P3 |
 
-Recently shipped (for context): custom repos + PKGBUILD checks + AUR voting (`v0.8.0`,
+Recently shipped (for context): `v0.8.3` release notes cover PR #163's CLI JSON / `-R`
+file / `--config-dir` / guardrail / command-cache refactor batch (`dev/RELEASES/RELEASE_v0.8.3.md`);
+PR #161 completed integrated config editing Phases 1–4; PR #164 refreshed Hungarian translations.
+Earlier: custom repos + PKGBUILD checks + AUR voting (`v0.8.0`,
 [#132](https://github.com/Firstp1ck/Pacsea/issues/132)/[#133](https://github.com/Firstp1ck/Pacsea/issues/133)/[#137](https://github.com/Firstp1ck/Pacsea/issues/137));
 adjustable pane heights and pane order via `main_pane_order` + per-role min/max (`v0.8.2`,
 [#135](https://github.com/Firstp1ck/Pacsea/issues/135)/[#136](https://github.com/Firstp1ck/Pacsea/issues/136)).
@@ -324,12 +327,14 @@ deferred; no frontend coupling introduced into `arch-toolkit`.
 
 ## Integrated config editing (TUI)
 
-Let users view/change configuration in-app. Preserve comments and unknown keys (line-oriented
-strategy of `src/theme/config/settings_save.rs`); respect **dry-run** (no writes, clear message).
-Primary UX: a structured "settings center" (tabs: General · Keybinds · Theme · Advanced); raw
-buffer editing is a later option. Key code: `src/theme/paths.rs` (resolution),
-`src/theme/config/{settings_save,skeletons,theme_loader}.rs`, `src/theme/settings/parse_keybinds.rs`,
-`src/theme/types.rs`.
+Let users view/change configuration in-app. Current state: dedicated `AppMode::ConfigEditor`
+with file list, searchable key list, details pane, and edit popups; `settings.conf`,
+`keybinds.conf`, and `theme.conf` are editable end-to-end, while `repos.conf` is visible but
+still disabled as follow-up work. Preserve comments and unknown keys (line-oriented patch
+strategy); respect **dry-run** (no writes, clear message). Raw buffer editing remains a later
+option. Key code: `src/state/config_editor.rs`, `src/events/modals/config_editor.rs`,
+`src/ui/modals/config_editor/`, `src/theme/config/{schema,patch,settings_save,skeletons,theme_loader}.rs`,
+`src/theme/settings/parse_keybinds.rs`, `src/theme/types.rs`.
 
 ### E1. Phased rollout
 - [x] **Phase 1** — editor shell (`ConfigEditor` state + keybind), General tab over existing
@@ -342,11 +347,20 @@ buffer editing is a later option. Key code: `src/theme/paths.rs` (resolution),
 - [x] **Phase 4** — polish: undo/reset row, mtime-changed warning, export effective config, help
       overlay entries for new keybinds
 
-**Cross-cutting tasks:** dedupe path bootstrap (resolve + mkdir + skeleton); schema source (static
-table or macro, kept in sync with parsers/tests); define which changes apply live vs on restart;
-unit tests for patch helpers + integration test via existing harness patterns.
-**Open questions:** instant apply for theme/keybinds? gate privilege-related settings
-(`auth_mode`)? export merged effective config?
+**Shipped support:** static editable-schema tables, line-oriented patch helpers, dry-run no-write
+behavior, key-capture validation, same-scope keybind conflict checks, theme pre-commit validation,
+mtime conflict warning/explicit overwrite, row reset, help-overlay entries, and effective-config
+export.
+
+### E2. Follow-up work
+- [ ] Enable `repos.conf`/Advanced editing only after apply safety, path validation, and dry-run
+      semantics are specified for repository mutations.
+- [ ] Make live-apply/reload behavior explicit per setting family (theme already validates before
+      commit and reloads the palette; remaining settings/keybind behavior should be documented in
+      schema/UI copy).
+- [ ] Gate or warn on privilege/security-sensitive settings such as `auth_mode` and privilege-tool
+      related keys.
+- [ ] Decide whether raw buffer editing is still worth adding after the structured editor shipped.
 
 ## Soname-aware dependency checking
 
