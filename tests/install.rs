@@ -10,6 +10,8 @@ mod editor_config_integration;
 mod install_integration;
 #[path = "install/install_ui.rs"]
 mod install_ui;
+#[path = "install/migration_regression.rs"]
+mod migration_regression;
 #[path = "install/optional_deps_integration.rs"]
 mod optional_deps_integration;
 #[path = "install/optional_deps_ui.rs"]

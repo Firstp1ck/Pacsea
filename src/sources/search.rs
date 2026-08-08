@@ -59,9 +59,12 @@ mod tests {
     async fn invalid_search_query_returns_nonfatal_error() {
         let context = crate::integrations::arch_toolkit::ToolkitContext::new()
             .expect("toolkit context should construct");
-        let (items, errors) = super::fetch_all_with_context(&context, String::new()).await;
+        let (items, errors) = super::fetch_all_with_context(&context, " \t\n ".to_string()).await;
         assert!(items.is_empty());
         assert_eq!(errors.len(), 1);
-        assert!(errors[0].contains("AUR search unavailable"));
+        assert_eq!(
+            errors[0],
+            "AUR search query is empty; enter a package name and retry"
+        );
     }
 }

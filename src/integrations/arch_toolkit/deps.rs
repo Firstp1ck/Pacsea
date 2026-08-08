@@ -331,4 +331,89 @@ mod tests {
     fn version_comparison_handles_epochs() {
         assert!(super::version_satisfies("2:1.0-1", ">=9.9"));
     }
+
+    /// What: Verify the public comparison adapter preserves relational requirement semantics.
+    ///
+    /// Inputs:
+    /// - Greater-than, less-than, equal, unconstrained, and unknown-operator requirements.
+    ///
+    /// Output:
+    /// - The same truth table exposed by arch-toolkit v0.3.0.
+    ///
+    /// Details:
+    /// - Restores broad coverage removed with Pacsea's local version parser.
+    #[test]
+    fn version_satisfies_relational_matrix() {
+        let cases = [
+            ("2.0", ">=1.5", true),
+            ("1.6", "<1.5", false),
+            ("1.5", "=1.5", true),
+            ("2.0", "", true),
+            ("2.0", "~1.5", true),
+        ];
+
+        for (version, requirement, expected) in cases {
+            assert_eq!(
+                super::version_satisfies(version, requirement),
+                expected,
+                "unexpected result for {version} against {requirement}"
+            );
+        }
+    }
+
+    /// What: Verify toolkit dependency statuses map one-to-one into Pacsea modal state.
+    ///
+    /// Inputs:
+    /// - Every toolkit status variant, including payload-bearing upgrade and conflict states.
+    ///
+    /// Output:
+    /// - Equivalent Pacsea status variants with unchanged payloads.
+    ///
+    /// Details:
+    /// - Protects the preflight UI contract at the migration conversion boundary.
+    #[test]
+    fn dependency_status_variants_map_one_to_one() {
+        use crate::state::modal::DependencyStatus;
+
+        let cases = [
+            (
+                arch_toolkit::DependencyStatus::Installed {
+                    version: "1.0-1".to_string(),
+                },
+                DependencyStatus::Installed {
+                    version: "1.0-1".to_string(),
+                },
+            ),
+            (
+                arch_toolkit::DependencyStatus::ToInstall,
+                DependencyStatus::ToInstall,
+            ),
+            (
+                arch_toolkit::DependencyStatus::ToUpgrade {
+                    current: "1.0-1".to_string(),
+                    required: "2.0-1".to_string(),
+                },
+                DependencyStatus::ToUpgrade {
+                    current: "1.0-1".to_string(),
+                    required: "2.0-1".to_string(),
+                },
+            ),
+            (
+                arch_toolkit::DependencyStatus::Conflict {
+                    reason: "declared conflict".to_string(),
+                },
+                DependencyStatus::Conflict {
+                    reason: "declared conflict".to_string(),
+                },
+            ),
+            (
+                arch_toolkit::DependencyStatus::Missing,
+                DependencyStatus::Missing,
+            ),
+        ];
+
+        for (toolkit, expected) in cases {
+            assert_eq!(super::dependency_status(toolkit), expected);
+        }
+    }
 }

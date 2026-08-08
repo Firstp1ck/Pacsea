@@ -60,10 +60,7 @@ fn build_batch_install_command(
                 && crate::index::is_installed(&item.name)
         });
         if has_versioned_reinstall && !dry_run {
-            let sync = format!(
-                "pacman -Sy --noconfirm && pacman -S --noconfirm -- {}",
-                official.join(" ")
-            );
+            let sync = force_sync_before_install(&plan);
             Some(format!(
                 "{} bash -c {}",
                 tool.binary_name(),
@@ -90,6 +87,21 @@ fn build_batch_install_command(
     } else {
         Ok(with_hold)
     }
+}
+
+#[cfg(not(target_os = "windows"))]
+/// What: Prepend a forced database refresh to a validated toolkit install plan.
+///
+/// Inputs:
+/// - `plan`: Shell-safe install plan produced by arch-toolkit.
+///
+/// Output:
+/// - Chained refresh and install command body.
+///
+/// Details:
+/// - Reuses the validated plan verbatim instead of reconstructing package operands.
+fn force_sync_before_install(plan: &str) -> String {
+    format!("pacman -Sy --noconfirm && {plan}")
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -269,6 +281,25 @@ pub fn spawn_install_all(items: &[PackageItem], dry_run: bool) {
 
 #[cfg(all(test, not(target_os = "windows")))]
 mod tests {
+    #[test]
+    /// What: Verify forced refresh composition preserves the validated toolkit plan verbatim.
+    ///
+    /// Inputs:
+    /// - A toolkit-style pacman install plan with an operand terminator.
+    ///
+    /// Output:
+    /// - Refresh command chained to the unchanged install plan.
+    ///
+    /// Details:
+    /// - Prevents regression to rebuilding shell operands from raw package names.
+    fn forced_sync_reuses_validated_install_plan() {
+        let plan = "pacman -S --noconfirm -- ripgrep fd";
+        assert_eq!(
+            super::force_sync_before_install(plan),
+            "pacman -Sy --noconfirm && pacman -S --noconfirm -- ripgrep fd"
+        );
+    }
+
     #[test]
     /// What: Confirm batch installs launch gnome-terminal with the expected separator arguments.
     ///

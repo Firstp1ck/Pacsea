@@ -15,12 +15,17 @@ use super::ToolkitContext;
 /// - Up to 200 Pacsea package rows or an actionable error message.
 ///
 /// Details:
-/// - Empty package names are filtered and toolkit models do not cross this boundary.
+/// - Empty queries are rejected before client access, empty package names are filtered, and
+///   toolkit models do not cross this boundary.
 pub async fn search(context: &ToolkitContext, query: &str) -> Result<Vec<PackageItem>, String> {
+    let query = query.trim();
+    if query.is_empty() {
+        return Err("AUR search query is empty; enter a package name and retry".to_string());
+    }
     context
         .aur_client()
         .aur()
-        .search(query.trim())
+        .search(query)
         .await
         .map(|packages| {
             packages

@@ -171,4 +171,136 @@ mod tests {
             "python"
         );
     }
+
+    /// What: Verify multiline and append dependency arrays retain legacy parser behavior.
+    ///
+    /// Inputs:
+    /// - A PKGBUILD containing a multiline `depends` array and appended build dependencies.
+    ///
+    /// Output:
+    /// - Complete dependency vectors in declaration order.
+    ///
+    /// Details:
+    /// - Restores representative coverage removed with the local parser migration.
+    #[test]
+    fn pkgbuild_parser_preserves_multiline_and_append_arrays() {
+        let pkgbuild = r"
+            depends=(
+                'foo'
+                'bar>=1.2'
+                'baz'
+            )
+            build() {
+                makedepends+=(cmake ninja)
+            }
+        ";
+
+        let (depends, make, check, optional) = super::parse_pkgbuild_deps(pkgbuild);
+
+        assert_eq!(depends, vec!["foo", "bar>=1.2", "baz"]);
+        assert_eq!(make, vec!["cmake", "ninja"]);
+        assert!(check.is_empty());
+        assert!(optional.is_empty());
+    }
+
+    /// What: Verify invalid package tokens and shared-library dependencies remain filtered.
+    ///
+    /// Inputs:
+    /// - Valid names mixed with malformed, too-short, and `.so` tokens.
+    ///
+    /// Output:
+    /// - Only valid package dependency specifications.
+    ///
+    /// Details:
+    /// - Encodes the pre-migration filtering contract from the deleted parser suite.
+    #[test]
+    fn pkgbuild_parser_filters_invalid_and_shared_library_tokens() {
+        let pkgbuild = r"
+            depends=('valid-package' 'invalid)' '=invalid' 'a' 'valid>=1.0' 'libc.so')
+        ";
+
+        let (depends, make, check, optional) = super::parse_pkgbuild_deps(pkgbuild);
+
+        assert_eq!(depends, vec!["valid-package", "valid>=1.0"]);
+        assert!(make.is_empty());
+        assert!(check.is_empty());
+        assert!(optional.is_empty());
+    }
+
+    /// What: Verify repeated dependency declarations use toolkit deduplication semantics.
+    ///
+    /// Inputs:
+    /// - The same package in an assignment and an appended dependency array.
+    ///
+    /// Output:
+    /// - One dependency entry rather than duplicate preflight rows.
+    ///
+    /// Details:
+    /// - Makes the v0.3.0 parser behavior explicit at Pacsea's public integration boundary.
+    #[test]
+    fn pkgbuild_parser_deduplicates_repeated_dependencies() {
+        let pkgbuild = "depends=('foo')\ndepends+=('foo' 'bar')";
+
+        let (depends, make, check, optional) = super::parse_pkgbuild_deps(pkgbuild);
+
+        assert_eq!(depends, vec!["foo", "bar"]);
+        assert!(make.is_empty());
+        assert!(check.is_empty());
+        assert!(optional.is_empty());
+    }
+
+    /// What: Verify conflict parsing strips versions and filters shared-library tokens.
+    ///
+    /// Inputs:
+    /// - Multiline conflicts containing version constraints and `.so` entries.
+    ///
+    /// Output:
+    /// - Bare package conflict names only.
+    ///
+    /// Details:
+    /// - Preserves the behavior covered by the deleted local sandbox tests.
+    #[test]
+    fn pkgbuild_conflicts_preserve_legacy_normalization() {
+        let pkgbuild = r"
+            conflicts=(
+                'old-pkg<2.0'
+                'new-pkg>=3.0'
+                'libcairo.so'
+                'libdbus-1.so=1-64'
+            )
+        ";
+
+        assert_eq!(
+            super::parse_pkgbuild_conflicts(pkgbuild),
+            vec!["old-pkg", "new-pkg"]
+        );
+    }
+
+    /// What: Verify dependency-name extraction handles every supported operator form.
+    ///
+    /// Inputs:
+    /// - Greater, less, single-equals, double-equals, annotation, and bare-name forms.
+    ///
+    /// Output:
+    /// - The same bare package name for every representation.
+    ///
+    /// Details:
+    /// - Locks the v0.3.0 normalization contract at the public integration boundary.
+    #[test]
+    fn extract_package_name_operator_matrix() {
+        for dependency in [
+            "foo>=1.0",
+            "foo<=1",
+            "foo==1",
+            "foo=1",
+            "foo: description",
+            "foo",
+        ] {
+            assert_eq!(
+                super::extract_package_name(dependency),
+                "foo",
+                "unexpected package name for {dependency}"
+            );
+        }
+    }
 }

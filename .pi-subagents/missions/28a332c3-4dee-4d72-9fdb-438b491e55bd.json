@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "id": "28a332c3-4dee-4d72-9fdb-438b491e55bd",
+  "title": "Review-only workstream: migration regression test correctness. Inspect only these changes and the...",
+  "goal": "Review-only workstream: migration regression test correctness. Inspect only these changes and their production seams: src/integrations/arch_toolkit/install.rs, src/integrations/arch_toolkit/deps.rs, src/logic/sandbox/mod.rs, tests/install.rs, tests/install/migration_regression.rs, tests/other.rs, tests/other/migration_dry_run_e2e.rs, and dev/PR/PR_feat-arch-toolkit-v0.3.0-migration.md. Compare assertions against main-branch behavior and arch-toolkit v0.3.0 APIs. Goal: find false assumptions, missing high-value cases, assertions that encode a regression instead of compatibility, or tests that do not actually exercise their claimed boundary. Do not modify project/source files and do not run subagents. For each finding report affected file/symbol, violated requirement or failure mode, evidence/reproduction, severity, and smallest remediation. Explicitly say when no blocker exists. Validation may run read-only focused tests or inspect git history. Output: /tmp/pacsea-migration-tests-correctness-review.md. Stop rather than deciding unapproved product or migration semantics.",
+  "status": "completed",
+  "createdAt": "2026-08-08T09:15:02.179Z",
+  "updatedAt": "2026-08-08T09:19:28.414Z",
+  "runs": [
+    {
+      "runId": "a275d803-c29f-4d3b-a76f-631f856dd3f8",
+      "mode": "single",
+      "asyncDir": "/tmp/pi-subagents-uid-1000/async-subagent-runs/a275d803-c29f-4d3b-a76f-631f856dd3f8",
+      "status": "complete",
+      "startedAt": "2026-08-08T09:15:02.185Z",
+      "completedAt": "2026-08-08T09:19:28.414Z"
+    }
+  ],
+  "decisions": [],
+  "artifacts": [
+    {
+      "kind": "status",
+      "path": "/tmp/pi-subagents-uid-1000/async-subagent-runs/a275d803-c29f-4d3b-a76f-631f856dd3f8/status.json"
+    },
+    {
+      "kind": "other",
+      "path": "/tmp/pi-subagents-uid-1000/async-subagent-runs/a275d803-c29f-4d3b-a76f-631f856dd3f8/events.jsonl",
+      "description": "Lifecycle events"
+    },
+    {
+      "kind": "output",
+      "path": "/mnt/SSD_NVME_4TB/GitHub/pacsea/.pi-subagents/artifacts/a275d803-c29f-4d3b-a76f-631f856dd3f8_reviewer_output.md"
+    }
+  ],
+  "receipts": [],
+  "cwd": "/mnt/SSD_NVME_4TB/GitHub/pacsea",
+  "ownerSessionId": "/home/firstpick/.pi/agent/sessions/--mnt-SSD_NVME_4TB-GitHub-pacsea--/2026-08-08T09-00-03-141Z_019fe099-cac5-7ec6-bbb4-fff2a9eddc5f.jsonl",
+  "summary": "reviewer:\nOutput saved to: /tmp/pacsea-migration-tests-correctness-review.md (10.2 KB, 60 lines). Read this file if needed."
+}

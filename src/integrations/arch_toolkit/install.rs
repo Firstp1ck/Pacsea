@@ -242,4 +242,129 @@ mod tests {
             "pacman -Rns --noconfirm -- ripgrep"
         );
     }
+
+    /// What: Verify grouped official installs preserve exact toolkit flag and operand ordering.
+    ///
+    /// Inputs:
+    /// - Two official package names and no reinstall request.
+    ///
+    /// Output:
+    /// - One official plan with `--needed`, `--noconfirm`, and an operand terminator.
+    ///
+    /// Details:
+    /// - Guards the migration boundary against flag loss or package reordering.
+    #[test]
+    fn official_batch_plan_is_exact_and_ordered() {
+        let packages = vec!["ripgrep".to_string(), "fd".to_string()];
+        let (official, aur) =
+            super::batch_install(&packages, &[], false, false).expect("plan should build");
+
+        assert_eq!(
+            official.as_deref(),
+            Some("pacman -S --needed --noconfirm -- ripgrep fd")
+        );
+        assert!(aur.is_none());
+    }
+
+    /// What: Verify AUR planning retains helper fallback and explicit failure semantics.
+    ///
+    /// Inputs:
+    /// - One AUR package and no official packages.
+    ///
+    /// Output:
+    /// - An unprivileged paru/yay fallback that exits 127 when neither helper exists.
+    ///
+    /// Details:
+    /// - Prevents the migration from silently treating a missing helper as success.
+    #[test]
+    fn aur_plan_uses_helper_fallback_and_exit_127() {
+        let packages = vec!["yay-bin".to_string()];
+        let (official, aur) =
+            super::batch_install(&[], &packages, false, false).expect("plan should build");
+        let aur = aur.expect("AUR plan should exist");
+
+        assert!(official.is_none());
+        assert!(aur.contains("command -v paru"));
+        assert!(aur.contains("command -v yay"));
+        assert!(aur.contains("--aur --needed --noconfirm -- yay-bin"));
+        assert!(aur.contains("exit 127"));
+        assert!(!aur.contains("sudo"));
+        assert!(!aur.contains("doas"));
+    }
+
+    /// What: Verify the complete leading-character validation boundary used by toolkit plans.
+    ///
+    /// Inputs:
+    /// - Invalid leading characters, uppercase and shell metacharacters, plus valid Arch names.
+    ///
+    /// Output:
+    /// - Invalid names fail while representative valid names remain accepted.
+    ///
+    /// Details:
+    /// - Extends option-injection coverage beyond the two original examples.
+    #[test]
+    fn validation_rejects_unsafe_boundaries_and_accepts_arch_names() {
+        for invalid in [".hidden", "-Syu", "+pkg", "_pkg", "Upper", "pkg;id"] {
+            assert!(
+                super::validate_names(&[invalid.to_string()], "migration regression").is_err(),
+                "{invalid} should be rejected"
+            );
+        }
+        for valid in ["0ad", "lib32-glibc", "libc++", "python-pip"] {
+            assert!(
+                super::validate_names(&[valid.to_string()], "migration regression").is_ok(),
+                "{valid} should be accepted"
+            );
+        }
+    }
+
+    /// What: Verify every Pacsea cascade mode maps to the intended pacman removal flag.
+    ///
+    /// Inputs:
+    /// - One package evaluated with all three cascade modes.
+    ///
+    /// Output:
+    /// - Exact `-R`, `-Rs`, and `-Rns` toolkit plans.
+    ///
+    /// Details:
+    /// - Covers the two variants omitted by the original migration smoke test.
+    #[test]
+    fn removal_plan_maps_all_cascade_modes() {
+        let names = ["ripgrep".to_string()];
+        let cases = [
+            (CascadeMode::Basic, "pacman -R --noconfirm -- ripgrep"),
+            (CascadeMode::Cascade, "pacman -Rs --noconfirm -- ripgrep"),
+            (
+                CascadeMode::CascadeWithConfigs,
+                "pacman -Rns --noconfirm -- ripgrep",
+            ),
+        ];
+
+        for (mode, expected) in cases {
+            assert_eq!(
+                super::remove(&names, mode).expect("plan should build"),
+                expected
+            );
+        }
+    }
+
+    /// What: Verify system update plans preserve normal and force-sync command selection.
+    ///
+    /// Inputs:
+    /// - Normal and force-sync official update modes plus the AUR update fallback.
+    ///
+    /// Output:
+    /// - Exact pacman flags and an AUR fallback with explicit missing-helper failure.
+    ///
+    /// Details:
+    /// - Protects the system-update event flow from toolkit command drift.
+    #[test]
+    fn update_plans_match_force_sync_selection() {
+        assert_eq!(super::official_update(false), "pacman -Syu --noconfirm");
+        assert_eq!(super::official_update(true), "pacman -Syyu --noconfirm");
+        let aur = super::aur_update();
+        assert!(aur.contains("paru -Sua --noconfirm"));
+        assert!(aur.contains("yay -Sua --noconfirm"));
+        assert!(aur.contains("exit 127"));
+    }
 }

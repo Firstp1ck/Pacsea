@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "id": "1c469b98-0218-473d-bfbc-d234d8a82443",
+  "title": "Workstream: regression test matrix for the arch-toolkit v0.3.0 migration. Prerequisite: current b...",
+  "goal": "Workstream: regression test matrix for the arch-toolkit v0.3.0 migration. Prerequisite: current branch is feat/arch-toolkit-v0.3.0-migration; inspect the repository, Cargo configuration, main...HEAD diff, test directories, and test helpers. Goal: produce an implementation-ready test matrix split into unit, integration, and end-to-end/CLI or runtime-flow layers, prioritizing failures that could be introduced by replacing local logic with arch-toolkit adapters. Non-goals: do not edit project/source files, do not propose broad refactors, do not run subagents. Deliverable: specific test names, target files, setup/fixtures, assertions, dry-run or environment isolation strategy, and why each catches a migration regression; distinguish tests feasible offline from environment-dependent checks and recommend the smallest high-value set. Validation: verify every proposal against existing public/internal APIs and helper capabilities; include file/line evidence and unresolved gaps. Output artifact: /tmp/pacsea-migration-test-matrix.md. Stop and escalate rather than inventing product, architecture, dependency, migration, security, or ownership decisions.",
+  "status": "completed",
+  "createdAt": "2026-08-08T09:01:45.268Z",
+  "updatedAt": "2026-08-08T09:08:24.312Z",
+  "runs": [
+    {
+      "runId": "f8028602-12c6-4581-8afc-8afd6ad7bacb",
+      "mode": "single",
+      "asyncDir": "/tmp/pi-subagents-uid-1000/async-subagent-runs/f8028602-12c6-4581-8afc-8afd6ad7bacb",
+      "status": "complete",
+      "startedAt": "2026-08-08T09:01:45.271Z",
+      "completedAt": "2026-08-08T09:08:24.312Z"
+    }
+  ],
+  "decisions": [],
+  "artifacts": [
+    {
+      "kind": "status",
+      "path": "/tmp/pi-subagents-uid-1000/async-subagent-runs/f8028602-12c6-4581-8afc-8afd6ad7bacb/status.json"
+    },
+    {
+      "kind": "other",
+      "path": "/tmp/pi-subagents-uid-1000/async-subagent-runs/f8028602-12c6-4581-8afc-8afd6ad7bacb/events.jsonl",
+      "description": "Lifecycle events"
+    },
+    {
+      "kind": "output",
+      "path": "/mnt/SSD_NVME_4TB/GitHub/pacsea/.pi-subagents/artifacts/f8028602-12c6-4581-8afc-8afd6ad7bacb_context-builder_output.md"
+    }
+  ],
+  "receipts": [],
+  "cwd": "/mnt/SSD_NVME_4TB/GitHub/pacsea",
+  "ownerSessionId": "/home/firstpick/.pi/agent/sessions/--mnt-SSD_NVME_4TB-GitHub-pacsea--/2026-08-08T09-00-03-141Z_019fe099-cac5-7ec6-bbb4-fff2a9eddc5f.jsonl",
+  "summary": "context-builder:\nOutput saved to: /tmp/pacsea-migration-test-matrix.md (27.9 KB, 246 lines). Read this file if needed."
+}
