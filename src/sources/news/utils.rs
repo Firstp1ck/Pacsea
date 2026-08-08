@@ -7,6 +7,7 @@
 ///
 /// Details: Searches for the first occurrence of `start`, then the next occurrence of `end`
 /// after it; returns the interior substring when both are found in order.
+#[cfg(test)]
 pub fn extract_between(s: &str, start: &str, end: &str) -> Option<String> {
     let i = s.find(start)? + start.len();
     let j = s[i..].find(end)? + i;
@@ -22,6 +23,7 @@ pub fn extract_between(s: &str, start: &str, end: &str) -> Option<String> {
 /// - First tries to parse as RFC 2822 (RSS date format like "Thu, 21 Aug 2025 12:34:56 +0000").
 /// - Falls back to RFC 3339 parsing.
 /// - If all parsing fails, returns the original stripped date (for backwards compatibility).
+#[cfg(test)]
 pub fn strip_time_and_tz(s: &str) -> String {
     let trimmed = s.trim();
 
@@ -80,6 +82,7 @@ pub fn strip_time_and_tz(s: &str) -> String {
 /// Details:
 /// - Handles both with and without leading day-of-week.
 /// - Parses common month abbreviations (Jan, Feb, etc.).
+#[cfg(test)]
 fn parse_partial_rfc2822(s: &str) -> Option<String> {
     // Try to find day, month, year pattern
     // Common formats: "Thu, 21 Aug 2025", "21 Aug 2025"

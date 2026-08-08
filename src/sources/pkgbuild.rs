@@ -1,5 +1,6 @@
 //! PKGBUILD fetching with rate limiting and caching.
 
+use crate::integrations::arch_toolkit::ToolkitContext;
 use crate::logic::files::get_pkgbuild_from_cache;
 use crate::state::{PackageItem, Source};
 use crate::util::percent_encode;
@@ -44,6 +45,25 @@ const PKGBUILD_CURL_EXTRA: &[&str] = &["--connect-timeout", "8", "--max-time", "
 /// - Passes a short `--connect-timeout` after the base `curl_args` flags so it overrides the
 ///   default 30s connect wait (important when official GitLab is unreachable).
 pub async fn fetch_pkgbuild_fast(item: &PackageItem) -> Result<String> {
+    let context = ToolkitContext::new()?;
+    fetch_pkgbuild_fast_with_context(&context, item).await
+}
+
+/// What: Fetch PKGBUILD content with a caller-owned shared toolkit context.
+///
+/// Inputs:
+/// - `context`: Runtime integration context.
+/// - `item`: Package whose PKGBUILD should be retrieved.
+///
+/// Output:
+/// - Cached or bounded network PKGBUILD text.
+///
+/// Details:
+/// - Pacsea keeps helper caches and official GitLab fallback; arch-toolkit owns the bounded AUR path.
+pub async fn fetch_pkgbuild_fast_with_context(
+    context: &ToolkitContext,
+    item: &PackageItem,
+) -> Result<String> {
     let name = item.name.clone();
 
     // 1. Try offline methods first (yay/paru cache) - this is fast!
@@ -91,19 +111,9 @@ pub async fn fetch_pkgbuild_fast(item: &PackageItem) -> Result<String> {
 
     // 3. Fetch from network with timeout
     match &item.source {
-        Source::Aur => {
-            let url = format!(
-                "https://aur.archlinux.org/cgit/aur.git/plain/PKGBUILD?h={}",
-                percent_encode(&name)
-            );
-            // Use curl with timeout to prevent hanging
-            let res = tokio::task::spawn_blocking({
-                let url = url.clone();
-                move || crate::util::curl::curl_text_with_args(&url, PKGBUILD_CURL_EXTRA)
-            })
-            .await??;
-            Ok(res)
-        }
+        Source::Aur => crate::integrations::arch_toolkit::aur::pkgbuild(context, &name)
+            .await
+            .map_err(Into::into),
         Source::Official { .. } => {
             let url_main = format!(
                 "https://gitlab.archlinux.org/archlinux/packaging/packages/{}/-/raw/main/PKGBUILD",

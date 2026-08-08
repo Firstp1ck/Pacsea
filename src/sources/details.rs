@@ -2,8 +2,9 @@
 
 use serde_json::Value;
 
+use crate::integrations::arch_toolkit::ToolkitContext;
 use crate::state::{PackageDetails, PackageItem, Source};
-use crate::util::{arrs, s, ss, u64_of};
+use crate::util::{arrs, ss, u64_of};
 
 /// Result type alias for package details fetching operations.
 type Result<T> = super::Result<T>;
@@ -362,78 +363,33 @@ mod size_tests {
 /// - Returns `Err` when response parsing fails (invalid JSON or missing fields)
 ///
 pub async fn fetch_details(item: PackageItem) -> Result<PackageDetails> {
-    match item.source.clone() {
-        Source::Official { repo, arch } => fetch_official_details(repo, arch, item).await,
-        Source::Aur => fetch_aur_details(item).await,
-    }
+    let context = ToolkitContext::new()?;
+    fetch_details_with_context(&context, item).await
 }
 
-/// Fetch AUR package details via the AUR RPC API.
+/// What: Fetch package details with a caller-owned shared toolkit context.
 ///
-/// Inputs: `item` with `Source::Aur`.
+/// Inputs:
+/// - `context`: Runtime integration context.
+/// - `item`: Package to fetch.
 ///
-/// Output: Parsed `PackageDetails` populated with AUR fields or an error.
-pub async fn fetch_aur_details(item: PackageItem) -> Result<PackageDetails> {
-    let url = format!(
-        "https://aur.archlinux.org/rpc/v5/info?arg={}",
-        crate::util::percent_encode(&item.name)
-    );
-    let v = tokio::task::spawn_blocking(move || crate::util::curl::curl_json(&url)).await??;
-    let arr = v
-        .get("results")
-        .and_then(|x| x.as_array())
-        .cloned()
-        .unwrap_or_default();
-    let obj = arr.first().cloned().unwrap_or(Value::Null);
-
-    let version0 = s(&obj, "Version");
-    let description0 = s(&obj, "Description");
-    let popularity0 = obj.get("Popularity").and_then(serde_json::Value::as_f64);
-    // Extract OutOfDate timestamp (i64 or null)
-    let out_of_date = obj
-        .get("OutOfDate")
-        .and_then(serde_json::Value::as_i64)
-        .and_then(|ts| u64::try_from(ts).ok())
-        .filter(|&ts| ts > 0);
-    // Extract Maintainer and determine if orphaned (empty or null means orphaned)
-    let maintainer = s(&obj, "Maintainer");
-    let orphaned = maintainer.is_empty();
-
-    let d = PackageDetails {
-        repository: "AUR".into(),
-        name: item.name.clone(),
-        version: if version0.is_empty() {
-            item.version.clone()
-        } else {
-            version0
-        },
-        description: if description0.is_empty() {
-            item.description.clone()
-        } else {
-            description0
-        },
-        architecture: "any".into(),
-        url: s(&obj, "URL"),
-        licenses: arrs(&obj, &["License", "Licenses"]),
-        groups: arrs(&obj, &["Groups"]),
-        provides: arrs(&obj, &["Provides"]),
-        depends: arrs(&obj, &["Depends"]),
-        opt_depends: arrs(&obj, &["OptDepends"]),
-        required_by: vec![],
-        optional_for: vec![],
-        conflicts: arrs(&obj, &["Conflicts"]),
-        replaces: arrs(&obj, &["Replaces"]),
-        download_size: None,
-        install_size: None,
-        owner: maintainer,
-        build_date: crate::util::ts_to_date(
-            obj.get("LastModified").and_then(serde_json::Value::as_i64),
-        ),
-        popularity: popularity0,
-        out_of_date,
-        orphaned,
-    };
-    Ok(d)
+/// Output:
+/// - Pacsea package details or an actionable error.
+///
+/// Details:
+/// - AUR details use arch-toolkit; the pacman-first official fallback remains Pacsea-owned.
+pub async fn fetch_details_with_context(
+    context: &ToolkitContext,
+    item: PackageItem,
+) -> Result<PackageDetails> {
+    match item.source.clone() {
+        Source::Official { repo, arch } => {
+            fetch_official_details_with_context(context, repo, arch, item).await
+        }
+        Source::Aur => crate::integrations::arch_toolkit::aur::details(context, item)
+            .await
+            .map_err(Into::into),
+    }
 }
 
 /// Fetch official repository package details via pacman JSON endpoints.
@@ -444,7 +400,22 @@ pub async fn fetch_aur_details(item: PackageItem) -> Result<PackageDetails> {
 /// - `item`: Package to fetch.
 ///
 /// Output: `Ok(PackageDetails)` with repository fields filled; `Err` on network/parse failure.
-pub async fn fetch_official_details(
+/// What: Fetch official details with a caller-owned shared toolkit context.
+///
+/// Inputs:
+/// - `context`: Runtime integration context.
+/// - `repo`: Preferred repository.
+/// - `arch`: Preferred architecture.
+/// - `item`: Existing Pacsea row used for fallback fields.
+///
+/// Output:
+/// - Pacsea package details or an actionable error.
+///
+/// Details:
+/// - Pacman remains first, Pacsea's richer JSON mapping remains second, and toolkit's bounded
+///   metadata primitive supplies the final exact-match fallback.
+pub async fn fetch_official_details_with_context(
+    context: &ToolkitContext,
     repo: String,
     arch: String,
     item: PackageItem,
@@ -529,7 +500,32 @@ pub async fn fetch_official_details(
         return Ok(d);
     }
 
-    Err("official details unavailable".into())
+    let selector = arch_toolkit::OfficialPackage {
+        name: item.name.clone(),
+        repo,
+        arch,
+        version: item.version.clone(),
+        description: item.description.clone(),
+    };
+    if let Some(package) = arch_toolkit::fetch_arch_package_detail(
+        context.http_client(),
+        &selector,
+        arch_toolkit::types::package::MetadataFetchLimits::default(),
+    )
+    .await
+    .map_err(|error| format!("official package metadata unavailable: {error}"))?
+    {
+        return Ok(PackageDetails {
+            repository: package.repo,
+            name: package.name,
+            version: package.version,
+            description: package.description,
+            architecture: package.arch,
+            ..PackageDetails::default()
+        });
+    }
+
+    Err("official details unavailable; verify pacman repositories and network access".into())
 }
 
 #[cfg(test)]

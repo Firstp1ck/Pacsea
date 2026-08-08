@@ -6,13 +6,9 @@ use std::process::Command;
 use crate::state::PackageItem;
 
 #[cfg(not(target_os = "windows"))]
-use super::command::{aur_install_body, aur_install_helper_flags};
-#[cfg(not(target_os = "windows"))]
 use super::logging::log_installed;
 #[cfg(not(target_os = "windows"))]
-use super::utils::{
-    choose_terminal_index_prefer_path, command_on_path, shell_single_quote, validate_package_names,
-};
+use super::utils::{choose_terminal_index_prefer_path, command_on_path, shell_single_quote};
 
 #[cfg(not(target_os = "windows"))]
 /// What: Build the shell command string for batch package installation.
@@ -40,144 +36,59 @@ fn build_batch_install_command(
     aur: &[String],
     dry_run: bool,
 ) -> Result<String, String> {
-    validate_package_names(official, "batch install command (official)")?;
-    validate_package_names(aur, "batch install command (AUR)")?;
-    let official_quoted: Vec<String> = official
-        .iter()
-        .map(|name| shell_single_quote(name))
-        .collect();
-    let aur_quoted: Vec<String> = aur.iter().map(|name| shell_single_quote(name)).collect();
     let hold_tail = "; echo; echo 'Finished.'; echo 'Press any key to close...'; read -rn1 -s _ || (echo; echo 'Press Ctrl+C to close'; sleep infinity)";
-
-    let installed_set = crate::logic::deps::get_installed_packages();
-    let provided_set = crate::logic::deps::get_provided_packages(&installed_set);
-
-    let official_has_reinstall = official.iter().any(|name| {
-        crate::logic::deps::is_package_installed_or_provided(name, &installed_set, &provided_set)
+    let installed = crate::logic::deps::get_installed_packages();
+    let provided = crate::logic::deps::get_provided_packages(&installed);
+    let official_reinstall = official.iter().any(|name| {
+        crate::logic::deps::is_package_installed_or_provided(name, &installed, &provided)
     });
-    let pacman_dry_flags = if official_has_reinstall {
-        "--noconfirm"
+    let aur_reinstall = aur.iter().any(|name| {
+        crate::logic::deps::is_package_installed_or_provided(name, &installed, &provided)
+    });
+    let (official_plan, aur_plan) = crate::integrations::arch_toolkit::install::batch_install(
+        official,
+        aur,
+        official_reinstall,
+        aur_reinstall,
+    )?;
+
+    let official_command = if let Some(plan) = official_plan {
+        let tool = crate::logic::privilege::active_tool()?;
+        let has_versioned_reinstall = items.iter().any(|item| {
+            matches!(item.source, Source::Official { .. })
+                && !item.version.is_empty()
+                && crate::index::is_installed(&item.name)
+        });
+        if has_versioned_reinstall && !dry_run {
+            let sync = format!(
+                "pacman -Sy --noconfirm && pacman -S --noconfirm -- {}",
+                official.join(" ")
+            );
+            Some(format!(
+                "{} bash -c {}",
+                tool.binary_name(),
+                shell_single_quote(&sync)
+            ))
+        } else {
+            Some(crate::logic::privilege::build_privilege_command(
+                tool, &plan,
+            ))
+        }
     } else {
-        "--needed --noconfirm"
+        None
     };
 
-    let aur_has_reinstall = aur.iter().any(|name| {
-        crate::logic::deps::is_package_installed_or_provided(name, &installed_set, &provided_set)
-    });
-    let aur_s_flags = aur_install_helper_flags(aur_has_reinstall);
-    let aur_cli_suffix = if aur_has_reinstall {
-        "--noconfirm"
-    } else {
-        "--needed --noconfirm"
+    let body = match (official_command, aur_plan) {
+        (Some(official), Some(aur)) => format!("{official} && {aur}"),
+        (Some(official), None) => official,
+        (None, Some(aur)) => aur,
+        (None, None) => "echo nothing to install".to_string(),
     };
-
+    let with_hold = format!("{body}{hold_tail}");
     if dry_run {
-        if !aur.is_empty() && !official.is_empty() {
-            let tool = crate::logic::privilege::active_tool()?;
-            let off_cmd = crate::logic::privilege::build_privilege_command(
-                tool,
-                &format!("pacman -S {pacman_dry_flags} {}", official_quoted.join(" ")),
-            );
-            let cmd = format!(
-                "{off_cmd} && (paru -S --aur {aur_cli_suffix} {n} || yay -S --aur {aur_cli_suffix} {n}){hold}",
-                n = aur_quoted.join(" "),
-                hold = hold_tail
-            );
-            let quoted = shell_single_quote(&cmd);
-            Ok(format!("echo DRY RUN: {quoted}"))
-        } else if !aur.is_empty() {
-            let cmd = format!(
-                "(paru -S --aur {aur_cli_suffix} {n} || yay -S --aur {aur_cli_suffix} {n}){hold}",
-                n = aur_quoted.join(" "),
-                hold = hold_tail
-            );
-            let quoted = shell_single_quote(&cmd);
-            Ok(format!("echo DRY RUN: {quoted}"))
-        } else if !official.is_empty() {
-            let tool = crate::logic::privilege::active_tool()?;
-            let cmd = format!(
-                "{}{hold}",
-                crate::logic::privilege::build_privilege_command(
-                    tool,
-                    &format!("pacman -S {pacman_dry_flags} {}", official_quoted.join(" "))
-                ),
-                hold = hold_tail
-            );
-            let quoted = shell_single_quote(&cmd);
-            Ok(format!("echo DRY RUN: {quoted}"))
-        } else {
-            Ok(format!("echo DRY RUN: nothing to install{hold_tail}"))
-        }
-    } else if !aur.is_empty() && !official.is_empty() {
-        let has_versions = items
-            .iter()
-            .any(|item| matches!(item.source, Source::Official { .. }) && !item.version.is_empty());
-        let reinstall_any = items.iter().any(|item| {
-            matches!(item.source, Source::Official { .. }) && crate::index::is_installed(&item.name)
-        });
-
-        let tool = crate::logic::privilege::active_tool()?;
-        let aur_body = aur_install_body(aur_s_flags, &aur_quoted.join(" "));
-        if has_versions && reinstall_any {
-            Ok(format!(
-                "{} bash -c 'pacman -Sy --noconfirm && pacman -S --noconfirm {n}' && {aur_body}{hold}",
-                tool.binary_name(),
-                n = official_quoted.join(" "),
-                aur_body = aur_body,
-                hold = hold_tail
-            ))
-        } else {
-            Ok(format!(
-                "{} && {aur_body}{hold}",
-                crate::logic::privilege::build_privilege_command(
-                    tool,
-                    &format!(
-                        "pacman -S --needed --noconfirm {}",
-                        official_quoted.join(" ")
-                    )
-                ),
-                aur_body = aur_body,
-                hold = hold_tail
-            ))
-        }
-    } else if !aur.is_empty() {
-        Ok(format!(
-            "{body}{hold}",
-            body = aur_install_body(aur_s_flags, &aur_quoted.join(" ")),
-            hold = hold_tail
-        ))
-    } else if !official.is_empty() {
-        // Check if any packages have version info (coming from updates window)
-        let has_versions = items
-            .iter()
-            .any(|item| matches!(item.source, Source::Official { .. }) && !item.version.is_empty());
-        let reinstall_any = items.iter().any(|item| {
-            matches!(item.source, Source::Official { .. }) && crate::index::is_installed(&item.name)
-        });
-
-        let tool = crate::logic::privilege::active_tool()?;
-        if has_versions && reinstall_any {
-            Ok(format!(
-                "{} bash -c 'pacman -Sy --noconfirm && pacman -S --noconfirm {n}'{hold}",
-                tool.binary_name(),
-                n = official_quoted.join(" "),
-                hold = hold_tail
-            ))
-        } else {
-            Ok(format!(
-                "{}{hold}",
-                crate::logic::privilege::build_privilege_command(
-                    tool,
-                    &format!(
-                        "pacman -S --needed --noconfirm {}",
-                        official_quoted.join(" ")
-                    )
-                ),
-                hold = hold_tail
-            ))
-        }
+        Ok(format!("echo DRY RUN: {}", shell_single_quote(&with_hold)))
     } else {
-        Ok(format!("echo nothing to install{hold_tail}"))
+        Ok(with_hold)
     }
 }
 

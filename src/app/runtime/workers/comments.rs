@@ -2,6 +2,7 @@
 
 use tokio::sync::mpsc;
 
+use crate::integrations::arch_toolkit::ToolkitContext;
 use crate::sources;
 use crate::state::types::AurComment;
 
@@ -10,6 +11,7 @@ use crate::state::types::AurComment;
 /// Inputs:
 /// - `comments_req_rx`: Channel receiver for comments requests (package name as String)
 /// - `comments_res_tx`: Channel sender for comments responses
+/// - `toolkit`: Shared configured arch-toolkit clients
 ///
 /// Output:
 /// - None (spawns async task)
@@ -22,11 +24,12 @@ use crate::state::types::AurComment;
 pub fn spawn_comments_worker(
     mut comments_req_rx: mpsc::UnboundedReceiver<String>,
     comments_res_tx: mpsc::UnboundedSender<(String, Result<Vec<AurComment>, String>)>,
+    toolkit: ToolkitContext,
 ) {
     tokio::spawn(async move {
         while let Some(pkgname) = comments_req_rx.recv().await {
             let name = pkgname.clone();
-            match sources::fetch_aur_comments(pkgname).await {
+            match sources::fetch_aur_comments_with_context(&toolkit, pkgname).await {
                 Ok(comments) => {
                     let _ = comments_res_tx.send((name, Ok(comments)));
                 }

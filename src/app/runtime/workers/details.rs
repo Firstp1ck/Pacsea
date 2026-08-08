@@ -2,8 +2,8 @@ use tokio::sync::mpsc;
 use tokio::time::{Duration, sleep, timeout};
 
 use crate::install::resolve_command_on_path;
+use crate::integrations::arch_toolkit::ToolkitContext;
 use crate::sources;
-use crate::sources::fetch_details;
 use crate::state::app_state::{
     PkgbuildCheckFinding, PkgbuildCheckSeverity, PkgbuildCheckTool, PkgbuildToolRawResult,
 };
@@ -17,6 +17,7 @@ use crate::state::{
 /// - `net_err_tx`: Channel sender for network errors
 /// - `details_req_rx`: Channel receiver for detail requests
 /// - `details_res_tx`: Channel sender for detail responses
+/// - `toolkit`: Shared configured arch-toolkit clients
 ///
 /// Details:
 /// - Batches requests within a 120ms window to reduce network calls
@@ -26,6 +27,7 @@ pub fn spawn_details_worker(
     net_err_tx: &mpsc::UnboundedSender<String>,
     mut details_req_rx: mpsc::UnboundedReceiver<PackageItem>,
     details_res_tx: mpsc::UnboundedSender<PackageDetails>,
+    toolkit: ToolkitContext,
 ) {
     use std::collections::HashSet;
     let net_err_tx_details = net_err_tx.clone();
@@ -53,7 +55,7 @@ pub fn spawn_details_worker(
                 if !crate::logic::is_allowed(&it.name) {
                     continue;
                 }
-                match fetch_details(it.clone()).await {
+                match sources::fetch_details_with_context(&toolkit, it.clone()).await {
                     Ok(details) => {
                         let _ = details_res_tx.send(details);
                     }
@@ -80,6 +82,7 @@ pub fn spawn_details_worker(
 /// Inputs:
 /// - `pkgb_req_rx`: Channel receiver for PKGBUILD requests
 /// - `pkgb_res_tx`: Channel sender for PKGBUILD responses
+/// - `toolkit`: Shared configured arch-toolkit clients
 ///
 /// Details:
 /// - Dispatches each request on its own async task so a slow or hung official (GitLab) fetch does
@@ -88,13 +91,16 @@ pub fn spawn_details_worker(
 pub fn spawn_pkgbuild_worker(
     mut pkgb_req_rx: mpsc::UnboundedReceiver<PackageItem>,
     pkgb_res_tx: mpsc::UnboundedSender<(String, String)>,
+    toolkit: ToolkitContext,
 ) {
     tokio::spawn(async move {
         while let Some(item) = pkgb_req_rx.recv().await {
             let res_tx = pkgb_res_tx.clone();
+            let toolkit = toolkit.clone();
             tokio::spawn(async move {
                 let name = item.name.clone();
-                let payload = match sources::fetch_pkgbuild_fast(&item).await {
+                let payload = match sources::fetch_pkgbuild_fast_with_context(&toolkit, &item).await
+                {
                     Ok(txt) => (name, txt),
                     Err(e) => (name, format!("Failed to fetch PKGBUILD: {e}")),
                 };

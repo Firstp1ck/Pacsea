@@ -9,6 +9,7 @@ use tokio::{
 };
 
 use crate::index as pkgindex;
+use crate::integrations::arch_toolkit::ToolkitContext;
 use crate::sources;
 use crate::state::{PackageItem, QueryInput, SearchResults, Source};
 use crate::util::{fuzzy_match_rank_with_matcher, match_rank, repo_order};
@@ -20,6 +21,7 @@ use crate::util::{fuzzy_match_rank_with_matcher, match_rank, repo_order};
 /// - `search_result_tx`: Channel sender for search results
 /// - `net_err_tx`: Channel sender for network errors
 /// - `index_path`: Path to official package index
+/// - `toolkit`: Shared configured arch-toolkit clients
 ///
 /// Details:
 /// - Debounces queries with 250ms window
@@ -31,6 +33,7 @@ pub fn spawn_search_worker(
     search_result_tx: mpsc::UnboundedSender<SearchResults>,
     net_err_tx: &mpsc::UnboundedSender<String>,
     index_path: std::path::PathBuf,
+    toolkit: ToolkitContext,
 ) {
     let net_err_tx_search = net_err_tx.clone();
     tokio::spawn(async move {
@@ -69,8 +72,10 @@ pub fn spawn_search_worker(
             let tx = search_result_tx.clone();
             let err_tx = net_err_tx_search.clone();
             let ipath = index_path.clone();
+            let toolkit = toolkit.clone();
             tokio::spawn(async move {
-                let (items, errors) = process_search_query(&query.text, query.fuzzy, &ipath).await;
+                let (items, errors) =
+                    process_search_query(&query.text, query.fuzzy, &ipath, &toolkit).await;
                 for e in errors {
                     let _ = err_tx.send(e);
                 }
@@ -108,6 +113,7 @@ fn handle_empty_query(index_path: &Path) -> Vec<PackageItem> {
 /// - `query_text`: Search query text
 /// - `fuzzy_mode`: Whether to use fuzzy matching
 /// - `index_path`: Path to official package index
+/// - `toolkit`: Shared configured arch-toolkit clients
 ///
 /// Output:
 /// - Tuple of (sorted and deduplicated list of matching packages, network errors)
@@ -123,12 +129,14 @@ async fn process_search_query(
     query_text: &str,
     fuzzy_mode: bool,
     index_path: &Path,
+    toolkit: &ToolkitContext,
 ) -> (Vec<PackageItem>, Vec<String>) {
     if crate::index::all_official().is_empty() {
         let _ = crate::index::all_official_or_fetch(index_path);
     }
     let official_results = pkgindex::search_official(query_text, fuzzy_mode);
-    let (aur_items, errors) = sources::fetch_all_with_errors(query_text.to_string()).await;
+    let (aur_items, errors) =
+        sources::fetch_all_with_context(toolkit, query_text.to_string()).await;
 
     let mut items_with_scores = official_results;
     score_aur_items(&mut items_with_scores, aur_items, query_text, fuzzy_mode);

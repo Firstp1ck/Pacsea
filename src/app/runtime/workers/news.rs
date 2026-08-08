@@ -131,6 +131,7 @@ pub fn filter_unread_news(
 /// - `news_seen_pkg_versions`: Map of seen package versions
 /// - `news_seen_aur_comments`: Map of seen AUR comments
 /// - `last_startup_timestamp`: Previous TUI startup time for incremental updates
+/// - `toolkit`: Shared configured arch-toolkit clients
 /// - `completion_tx`: Optional oneshot sender to signal completion
 ///
 /// Output:
@@ -140,6 +141,7 @@ pub fn filter_unread_news(
 /// - Fetches news items based on startup news preferences
 /// - Filters by source type, max age, and read status (by both ID and URL)
 /// - Sends filtered items to the news channel
+#[allow(clippy::too_many_arguments)] // Shared client policy adds one required runtime dependency.
 pub fn spawn_startup_news_worker(
     news_tx: &mpsc::UnboundedSender<Vec<crate::state::types::NewsFeedItem>>,
     news_read_ids: &HashSet<String>,
@@ -147,6 +149,7 @@ pub fn spawn_startup_news_worker(
     news_seen_pkg_versions: &std::collections::HashMap<String, String>,
     news_seen_aur_comments: &std::collections::HashMap<String, String>,
     last_startup_timestamp: Option<&str>,
+    toolkit: crate::integrations::arch_toolkit::ToolkitContext,
     completion_tx: Option<oneshot::Sender<()>>,
 ) {
     let prefs = crate::theme::settings();
@@ -221,7 +224,7 @@ pub fn spawn_startup_news_worker(
             installed_count = installed_set.len(),
             "starting startup news fetch"
         );
-        match sources::fetch_news_feed(ctx).await {
+        match sources::fetch_news_feed_with_context(ctx, &toolkit).await {
             Ok(feed) => {
                 tracing::info!(
                     total_items = feed.len(),
@@ -266,6 +269,7 @@ pub fn spawn_startup_news_worker(
 /// - `news_incremental_tx`: Channel sender for incremental background news items
 /// - `news_seen_pkg_versions`: Map of seen package versions
 /// - `news_seen_aur_comments`: Map of seen AUR comments
+/// - `toolkit`: Shared configured arch-toolkit clients
 /// - `completion_rx`: Optional oneshot receiver to wait for startup news fetch completion
 ///
 /// Output:
@@ -281,6 +285,7 @@ pub fn spawn_aggregated_news_feed_worker(
     news_incremental_tx: &mpsc::UnboundedSender<crate::state::types::NewsFeedItem>,
     news_seen_pkg_versions: &std::collections::HashMap<String, String>,
     news_seen_aur_comments: &std::collections::HashMap<String, String>,
+    toolkit: crate::integrations::arch_toolkit::ToolkitContext,
     completion_rx: Option<oneshot::Receiver<()>>,
 ) {
     let news_feed_tx_once = news_feed_tx.clone();
@@ -335,7 +340,7 @@ pub fn spawn_aggregated_news_feed_worker(
             seen_aur_comments: &mut seen_aur_comments,
             max_age_days: None, // Main feed doesn't use date filtering
         };
-        match sources::fetch_news_feed(ctx).await {
+        match sources::fetch_news_feed_with_context(ctx, &toolkit).await {
             Ok(feed) => {
                 let arch_ct = feed
                     .iter()
@@ -377,6 +382,7 @@ pub fn spawn_aggregated_news_feed_worker(
                         news_incremental_tx_clone.clone(),
                         installed_set.clone(),
                         initial_ids,
+                        toolkit.clone(),
                     );
                 }
             }
@@ -393,6 +399,7 @@ pub fn spawn_aggregated_news_feed_worker(
 /// - `news_incremental_tx`: Channel sender for incremental news items
 /// - `installed_set`: Set of installed package names
 /// - `initial_ids`: Set of item IDs already sent in initial batch
+/// - `toolkit`: Shared configured arch-toolkit clients
 ///
 /// Output:
 /// - None (spawns async task)
@@ -405,6 +412,7 @@ fn spawn_news_continuation_worker(
     news_incremental_tx: mpsc::UnboundedSender<crate::state::types::NewsFeedItem>,
     installed_set: HashSet<String>,
     initial_ids: HashSet<String>,
+    toolkit: crate::integrations::arch_toolkit::ToolkitContext,
 ) {
     tokio::spawn(async move {
         tracing::info!(
@@ -417,7 +425,8 @@ fn spawn_news_continuation_worker(
 
         // Fetch continuation items from sources (high limit to get everything)
         let continuation_items =
-            sources::fetch_continuation_items(&installed_set, &initial_ids).await;
+            sources::fetch_continuation_items_with_context(&installed_set, &initial_ids, &toolkit)
+                .await;
 
         match continuation_items {
             Ok(items) => {

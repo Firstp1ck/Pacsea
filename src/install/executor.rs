@@ -136,155 +136,76 @@ pub fn build_install_command_for_executor(
     password: Option<&str>,
     dry_run: bool,
 ) -> Result<String, String> {
-    use super::command::{aur_install_body, aur_install_helper_flags};
-    use super::utils::{shell_single_quote, validate_package_names};
     use crate::state::Source;
 
-    let mut official: Vec<String> = Vec::new();
-    let mut aur: Vec<String> = Vec::new();
-
+    let mut official = Vec::new();
+    let mut aur = Vec::new();
     for item in items {
         match item.source {
             Source::Official { .. } => official.push(item.name.clone()),
             Source::Aur => aur.push(item.name.clone()),
         }
     }
-    validate_package_names(&official, "executor install command (official)")?;
-    validate_package_names(&aur, "executor install command (AUR)")?;
-    let official_quoted: Vec<String> = official
-        .iter()
-        .map(|name| shell_single_quote(name))
-        .collect();
-    let aur_quoted: Vec<String> = aur.iter().map(|name| shell_single_quote(name)).collect();
-
-    let installed_set = crate::logic::deps::get_installed_packages();
-    let provided_set = crate::logic::deps::get_provided_packages(&installed_set);
-
-    let official_has_reinstall = official.iter().any(|name| {
-        crate::logic::deps::is_package_installed_or_provided(name, &installed_set, &provided_set)
+    let installed = crate::logic::deps::get_installed_packages();
+    let provided = crate::logic::deps::get_provided_packages(&installed);
+    let official_reinstall = official.iter().any(|name| {
+        crate::logic::deps::is_package_installed_or_provided(name, &installed, &provided)
     });
-    let pacman_flags = if official_has_reinstall {
-        "--noconfirm"
-    } else {
-        "--needed --noconfirm"
-    };
-
-    let aur_has_reinstall = aur.iter().any(|name| {
-        crate::logic::deps::is_package_installed_or_provided(name, &installed_set, &provided_set)
+    let aur_reinstall = aur.iter().any(|name| {
+        crate::logic::deps::is_package_installed_or_provided(name, &installed, &provided)
     });
-    let aur_s_flags = aur_install_helper_flags(aur_has_reinstall);
-    let aur_cli_suffix = if aur_has_reinstall {
-        "--noconfirm"
-    } else {
-        "--needed --noconfirm"
-    };
+    let (official_plan, aur_plan) = crate::integrations::arch_toolkit::install::batch_install(
+        &official,
+        &aur,
+        official_reinstall,
+        aur_reinstall,
+    )?;
 
-    let aur_names = aur_quoted.join(" ");
-
-    if dry_run {
-        if !aur.is_empty() && !official.is_empty() {
-            let tool = crate::logic::privilege::active_tool()?;
-            let off_cmd = crate::logic::privilege::build_privilege_command(
-                tool,
-                &format!("pacman -S {pacman_flags} {}", official_quoted.join(" ")),
-            );
-            let aur_cmd = format!(
-                "(paru -S --aur {aur_cli_suffix} {aur_names} || yay -S --aur {aur_cli_suffix} {aur_names})",
-            );
-            let combined = format!("{off_cmd} && {aur_cmd}");
-            let quoted = shell_single_quote(&combined);
-            Ok(format!("echo DRY RUN: {quoted}"))
-        } else if !aur.is_empty() {
-            let aur_cmd = format!(
-                "(paru -S --aur {aur_cli_suffix} {aur_names} || yay -S --aur {aur_cli_suffix} {aur_names})",
-            );
-            let quoted = shell_single_quote(&aur_cmd);
-            Ok(format!("echo DRY RUN: {quoted}"))
-        } else if !official.is_empty() {
-            let tool = crate::logic::privilege::active_tool()?;
-            let cmd = crate::logic::privilege::build_privilege_command(
-                tool,
-                &format!("pacman -S {pacman_flags} {}", official_quoted.join(" ")),
-            );
-            let quoted = shell_single_quote(&cmd);
-            Ok(format!("echo DRY RUN: {quoted}"))
-        } else {
-            Ok("echo DRY RUN: nothing to install".to_string())
+    let official_command = match official_plan {
+        Some(plan) if dry_run => Some(privilege_command(&plan, None)?),
+        Some(plan) => {
+            let sync = privilege_command("pacman -Sy", password)?;
+            let install = privilege_command(&plan, password)?;
+            Some(format!("{sync} && {install}"))
         }
-    } else if !aur.is_empty() && !official.is_empty() {
-        let tool = crate::logic::privilege::active_tool()?;
-        let install_cmd = format!("pacman -S {pacman_flags} {}", official_quoted.join(" "));
-        let official_chain = password.map_or_else(
-            || {
-                let sync = crate::logic::privilege::build_privilege_command(tool, "pacman -Sy");
-                let install = crate::logic::privilege::build_privilege_command(tool, &install_cmd);
-                format!("{sync} && {install}")
-            },
-            |pass| {
-                crate::logic::privilege::build_password_pipe(tool, pass, "pacman -Sy").map_or_else(
-                    || {
-                        let sync =
-                            crate::logic::privilege::build_privilege_command(tool, "pacman -Sy");
-                        let install =
-                            crate::logic::privilege::build_privilege_command(tool, &install_cmd);
-                        format!("{sync} && {install}")
-                    },
-                    |sync_pipe| {
-                        let install_pipe =
-                            crate::logic::privilege::build_password_pipe(tool, pass, &install_cmd)
-                                .unwrap_or_else(|| {
-                                    crate::logic::privilege::build_privilege_command(
-                                        tool,
-                                        &install_cmd,
-                                    )
-                                });
-                        format!("{sync_pipe} && {install_pipe}")
-                    },
-                )
-            },
-        );
+        None => None,
+    };
+    let body = match (official_command, aur_plan) {
+        (Some(official), Some(aur)) => format!("{official} && {aur}"),
+        (Some(official), None) => official,
+        (None, Some(aur)) => aur,
+        (None, None) => "echo nothing to install".to_string(),
+    };
+    if dry_run {
         Ok(format!(
-            "{} && {}",
-            official_chain,
-            aur_install_body(aur_s_flags, &aur_names)
-        ))
-    } else if !aur.is_empty() {
-        Ok(aur_install_body(aur_s_flags, &aur_names))
-    } else if !official.is_empty() {
-        let tool = crate::logic::privilege::active_tool()?;
-        let install_cmd = format!("pacman -S {pacman_flags} {}", official_quoted.join(" "));
-        Ok(password.map_or_else(
-            || {
-                let sync = crate::logic::privilege::build_privilege_command(tool, "pacman -Sy");
-                let install = crate::logic::privilege::build_privilege_command(tool, &install_cmd);
-                format!("{sync} && {install}")
-            },
-            |pass| {
-                crate::logic::privilege::build_password_pipe(tool, pass, "pacman -Sy").map_or_else(
-                    || {
-                        let sync =
-                            crate::logic::privilege::build_privilege_command(tool, "pacman -Sy");
-                        let install =
-                            crate::logic::privilege::build_privilege_command(tool, &install_cmd);
-                        format!("{sync} && {install}")
-                    },
-                    |sync_pipe| {
-                        let install_pipe =
-                            crate::logic::privilege::build_password_pipe(tool, pass, &install_cmd)
-                                .unwrap_or_else(|| {
-                                    crate::logic::privilege::build_privilege_command(
-                                        tool,
-                                        &install_cmd,
-                                    )
-                                });
-                        format!("{sync_pipe} && {install_pipe}")
-                    },
-                )
-            },
+            "echo DRY RUN: {}",
+            super::utils::shell_single_quote(&body)
         ))
     } else {
-        Ok("echo nothing to install".to_string())
+        Ok(body)
     }
+}
+
+/// What: Apply Pacsea privilege and optional password policy to a neutral toolkit command.
+///
+/// Inputs:
+/// - `command`: Neutral shell-safe command body.
+/// - `password`: Optional password used only when the active tool supports stdin authentication.
+///
+/// Output:
+/// - Privilege-wrapped command or an actionable tool-resolution error.
+///
+/// Details:
+/// - arch-toolkit never handles credentials; password ownership and redaction remain in Pacsea.
+fn privilege_command(command: &str, password: Option<&str>) -> Result<String, String> {
+    let tool = crate::logic::privilege::active_tool()?;
+    Ok(password.filter(|value| !value.is_empty()).map_or_else(
+        || crate::logic::privilege::build_privilege_command(tool, command),
+        |value| {
+            crate::logic::privilege::build_password_pipe(tool, value, command)
+                .unwrap_or_else(|| crate::logic::privilege::build_privilege_command(tool, command))
+        },
+    ))
 }
 
 /// What: Build remove command string without hold tail for `PTY` execution.
@@ -323,25 +244,12 @@ pub fn build_remove_command_for_executor(
         });
     }
 
-    let flag = cascade.flag();
-    let names_str = names.join(" ");
-
-    let tool = crate::logic::privilege::active_tool()?;
-    let base_cmd = format!("pacman {flag} --noconfirm {names_str}");
-
+    let base_cmd = crate::integrations::arch_toolkit::install::remove(names, cascade)?;
     if dry_run {
-        let cmd = crate::logic::privilege::build_privilege_command(tool, &base_cmd);
-        let quoted = shell_single_quote(&cmd);
-        Ok(format!("echo DRY RUN: {quoted}"))
+        let command = privilege_command(&base_cmd, None)?;
+        Ok(format!("echo DRY RUN: {}", shell_single_quote(&command)))
     } else {
-        Ok(password.map_or_else(
-            || crate::logic::privilege::build_privilege_command(tool, &base_cmd),
-            |pass| {
-                crate::logic::privilege::build_password_pipe(tool, pass, &base_cmd).unwrap_or_else(
-                    || crate::logic::privilege::build_privilege_command(tool, &base_cmd),
-                )
-            },
-        ))
+        privilege_command(&base_cmd, password)
     }
 }
 
@@ -636,19 +544,16 @@ mod tests {
         let cmd1 =
             build_install_command_for_executor(std::slice::from_ref(&official_pkg), None, false)
                 .expect("build install");
-        let quoted_name = crate::install::shell_single_quote("ripgrep");
         if is_installed {
             assert!(
-                cmd1.contains(&format!("{bin} pacman -S --noconfirm {quoted_name}")),
-                "expected quoted package name in: {cmd1}"
+                cmd1.contains("pacman -S --noconfirm -- ripgrep"),
+                "expected validated package operand in: {cmd1}"
             );
             assert!(!cmd1.contains("--needed"));
         } else {
             assert!(
-                cmd1.contains(&format!(
-                    "{bin} pacman -S --needed --noconfirm {quoted_name}"
-                )),
-                "expected quoted package name in: {cmd1}"
+                cmd1.contains("pacman -S --needed --noconfirm -- ripgrep"),
+                "expected validated package operand in: {cmd1}"
             );
         }
         assert!(!cmd1.contains("Press any key to close"));
@@ -664,15 +569,13 @@ mod tests {
             assert!(cmd2.contains("printf "), "expected printf in: {cmd2}");
             if is_installed {
                 assert!(
-                    cmd2.contains(&format!("{bin} -S pacman -S --noconfirm {quoted_name}")),
-                    "expected quoted package name in password command: {cmd2}"
+                    cmd2.contains("pacman -S --noconfirm -- ripgrep"),
+                    "expected validated package operand in password command: {cmd2}"
                 );
             } else {
                 assert!(
-                    cmd2.contains(&format!(
-                        "{bin} -S pacman -S --needed --noconfirm {quoted_name}"
-                    )),
-                    "expected quoted package name in password command: {cmd2}"
+                    cmd2.contains("pacman -S --needed --noconfirm -- ripgrep"),
+                    "expected validated package operand in password command: {cmd2}"
                 );
             }
         } else {

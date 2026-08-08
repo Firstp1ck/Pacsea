@@ -1,181 +1,100 @@
-use std::fs;
+//! Official package index persistence through arch-toolkit.
+
 use std::path::Path;
 
-use super::{OfficialIndex, idx};
+use super::idx;
 
-/// What: Load the official index from `path` if a valid JSON exists.
+/// What: Load the official index from disk through arch-toolkit.
 ///
 /// Inputs:
-/// - `path`: File path to read JSON from
+/// - `path`: Existing Pacsea index JSON path.
 ///
 /// Output:
-/// - Replaces the in-memory index on success; ignores errors and leaves it unchanged on failure.
+/// - Replaces the process-wide index when loading and conversion succeed.
 ///
 /// Details:
-/// - Silently ignores IO or deserialization failures to keep startup resilient.
-/// - Rebuilds the `name_to_idx` `HashMap` after deserialization for O(1) lookups.
+/// - Invalid or corrupt cache data is ignored so startup remains resilient; name lookup is rebuilt.
 pub fn load_from_disk(path: &Path) {
-    if let Ok(s) = fs::read_to_string(path)
-        && let Ok(mut new_idx) = serde_json::from_str::<OfficialIndex>(&s)
-        && let Ok(mut guard) = idx().write()
-    {
-        // Rebuild the name index HashMap after deserialization
-        new_idx.rebuild_name_index();
-        *guard = new_idx;
+    match crate::integrations::arch_toolkit::index::load(path) {
+        Ok(index) => {
+            if let Ok(mut guard) = idx().write() {
+                *guard = index;
+            }
+        }
+        Err(error) => {
+            tracing::debug!(path = %path.display(), error = %error, "official index cache unavailable");
+        }
     }
 }
 
-/// What: Persist the current official index to `path` as JSON.
+/// What: Persist the current official index through arch-toolkit.
 ///
 /// Inputs:
-/// - `path`: File path to write JSON to
+/// - `path`: Destination JSON path.
 ///
 /// Output:
-/// - Writes JSON to disk; errors are logged but not propagated to avoid interrupting the UI.
+/// - Writes a Pacsea-compatible index snapshot; failures are logged and remain nonfatal.
 ///
 /// Details:
-/// - Serializes under a read lock and ensures parent directory exists before writing.
-/// - Creates parent directory if it doesn't exist (Windows-compatible).
-/// - Logs write failures for debugging but doesn't crash background tasks.
-/// - Warns if the index is empty when saving.
+/// - arch-toolkit handles parent creation and serialization while Pacsea retains process-wide state.
 pub fn save_to_disk(path: &Path) {
-    if let Ok(guard) = idx().read()
-        && let Ok(s) = serde_json::to_string(&*guard)
-    {
-        // Warn if index is empty
-        if guard.pkgs.is_empty() {
-            tracing::warn!(
-                path = %path.display(),
-                "Attempting to save empty index to disk"
-            );
-        }
-        // Ensure parent directory exists before writing
-        if let Some(parent) = path.parent()
-            && let Err(e) = fs::create_dir_all(parent)
-        {
-            tracing::warn!(
-                path = %path.display(),
-                error = %e,
-                "Failed to create parent directory for index file"
-            );
-            return;
-        }
-        // Write the file and log errors
-        if let Err(e) = fs::write(path, s) {
-            tracing::warn!(
-                path = %path.display(),
-                error = %e,
-                "Failed to write index file to disk"
-            );
-        } else {
-            tracing::info!(
-                path = %path.display(),
-                package_count = guard.pkgs.len(),
-                "Successfully saved index to disk"
-            );
-        }
+    let Ok(guard) = idx().read() else {
+        tracing::warn!(path = %path.display(), "official index lock is poisoned; cache not saved");
+        return;
+    };
+    if guard.pkgs.is_empty() {
+        tracing::warn!(path = %path.display(), "attempting to save empty official index");
+    }
+    if let Err(error) = crate::integrations::arch_toolkit::index::save(&guard, path) {
+        tracing::warn!(path = %path.display(), error = %error, "failed to save official index");
+    } else {
+        tracing::info!(
+            path = %path.display(),
+            package_count = guard.pkgs.len(),
+            "saved official index"
+        );
     }
 }
 
 #[cfg(test)]
 mod tests {
-
-    #[tokio::test]
-    /// What: Load multiple index snapshots and ensure deduplication.
+    /// What: Verify Pacsea index snapshots persist through the toolkit boundary.
     ///
     /// Inputs:
-    /// - Two JSON snapshots with overlapping package names written sequentially.
+    /// - One in-memory package and a temporary destination.
     ///
     /// Output:
-    /// - `all_official()` yields the unique names `aa` and `zz`.
+    /// - Reloaded process state contains the package and rebuilt lookup.
     ///
     /// Details:
-    /// - Validates that reloading replaces the index without duplicating entries.
-    async fn index_loads_deduped_and_sorted_after_multiple_writes() {
-        use std::path::PathBuf;
-
-        let mut path: PathBuf = std::env::temp_dir();
-        path.push(format!(
-            "pacsea_idx_multi_{}_{}.json",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .expect("System time is before UNIX epoch")
-                .as_nanos()
-        ));
-
-        let idx_json1 = serde_json::json!({
-            "pkgs": [
-                {"name": "zz", "repo": "extra", "arch": "x86_64", "version": "1", "description": ""},
-                {"name": "aa", "repo": "core", "arch": "x86_64", "version": "1", "description": ""}
-            ]
-        });
-        std::fs::write(
-            &path,
-            serde_json::to_string(&idx_json1).expect("failed to serialize index JSON"),
-        )
-        .expect("failed to write index JSON file");
-        super::load_from_disk(&path);
-
-        let idx_json2 = serde_json::json!({
-            "pkgs": [
-                {"name": "aa", "repo": "core", "arch": "x86_64", "version": "2", "description": ""},
-                {"name": "zz", "repo": "extra", "arch": "x86_64", "version": "1", "description": ""}
-            ]
-        });
-        std::fs::write(
-            &path,
-            serde_json::to_string(&idx_json2).expect("failed to serialize index JSON"),
-        )
-        .expect("failed to write index JSON file");
-        super::load_from_disk(&path);
-
-        let all = crate::index::all_official();
-        let mut names: Vec<String> = all.into_iter().map(|p| p.name).collect();
-        names.sort();
-        names.dedup();
-        assert_eq!(names, vec!["aa", "zz"]);
-
-        let _ = std::fs::remove_file(&path);
-    }
-
-    #[tokio::test]
-    /// What: Persist the in-memory index and confirm the file reflects current data.
-    ///
-    /// Inputs:
-    /// - Seed `idx()` with a single package prior to saving.
-    ///
-    /// Output:
-    /// - JSON file containing the seeded package name.
-    ///
-    /// Details:
-    /// - Uses a temp file cleaned up at the end to avoid polluting the workspace.
-    async fn index_save_writes_current_state_to_disk() {
-        use std::path::PathBuf;
-        // Prepare in-memory index
-        if let Ok(mut g) = super::idx().write() {
-            g.pkgs = vec![crate::index::OfficialPkg {
-                name: "abc".to_string(),
-                repo: "core".to_string(),
+    /// - Uses a deterministic local file and removes it afterward.
+    #[test]
+    fn index_persistence_round_trip_uses_toolkit() {
+        let _guard = crate::global_test_mutex_lock();
+        if let Ok(mut index) = super::idx().write() {
+            index.pkgs = vec![crate::index::OfficialPkg {
+                name: "pacsea-fixture".to_string(),
+                repo: "extra".to_string(),
                 arch: "x86_64".to_string(),
-                version: "9".to_string(),
-                description: "desc".to_string(),
+                version: "1".to_string(),
+                description: "fixture".to_string(),
             }];
+            index.rebuild_name_index();
         }
-        // Temp path
-        let mut path: PathBuf = std::env::temp_dir();
-        path.push(format!(
-            "pacsea_idx_save_{}_{}.json",
+        let path = std::env::temp_dir().join(format!(
+            "pacsea-toolkit-index-{}-{}.json",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .expect("System time is before UNIX epoch")
+                .expect("system clock should follow epoch")
                 .as_nanos()
         ));
         super::save_to_disk(&path);
-        // Read back and assert content contains our package name
-        let body = std::fs::read_to_string(&path).expect("failed to read index JSON file");
-        assert!(body.contains("\"abc\""));
-        let _ = std::fs::remove_file(&path);
+        if let Ok(mut index) = super::idx().write() {
+            *index = crate::index::OfficialIndex::default();
+        }
+        super::load_from_disk(&path);
+        assert!(crate::index::find_package_by_name("pacsea-fixture").is_some());
+        let _ = std::fs::remove_file(path);
     }
 }
