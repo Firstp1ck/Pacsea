@@ -1,277 +1,306 @@
-//! AUR sandbox preflight checks for build dependencies.
+//! AUR sandbox preflight checks through the arch-toolkit integration boundary.
 
-mod analyze;
-mod fetch;
-mod parse;
-mod types;
+use crate::integrations::arch_toolkit::ToolkitContext;
+use crate::state::types::PackageItem;
+
+/// What: Information about one dependency relative to the host environment.
+///
+/// Inputs:
+/// - Produced by arch-toolkit sandbox analysis.
+///
+/// Output:
+/// - Persisted installation and version-satisfaction state.
+///
+/// Details:
+/// - The shape remains compatible with existing Pacsea cache files.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct DependencyDelta {
+    /// Dependency specification as declared.
+    pub name: String,
+    /// Whether the dependency is installed or provided.
+    pub is_installed: bool,
+    /// Installed version when available.
+    pub installed_version: Option<String>,
+    /// Whether the installed version satisfies the declared constraint.
+    pub version_satisfied: bool,
+}
+
+/// What: Sandbox dependency analysis for one AUR package.
+///
+/// Inputs:
+/// - Produced from bounded `.SRCINFO` or PKGBUILD text.
+///
+/// Output:
+/// - Persisted dependency deltas grouped by package metadata category.
+///
+/// Details:
+/// - Fetching, cache fallback, scanners, and UI remain Pacsea-owned.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SandboxInfo {
+    /// Package name.
+    pub package_name: String,
+    /// Runtime dependencies.
+    pub depends: Vec<DependencyDelta>,
+    /// Build-time dependencies.
+    pub makedepends: Vec<DependencyDelta>,
+    /// Test dependencies.
+    pub checkdepends: Vec<DependencyDelta>,
+    /// Optional dependencies.
+    pub optdepends: Vec<DependencyDelta>,
+}
+
+/// What: Resolve sandbox information with a standalone toolkit context.
+///
+/// Inputs:
+/// - `items`: Packages selected for preflight.
+///
+/// Output:
+/// - One sandbox record per AUR package.
+///
+/// Details:
+/// - Runtime workers use [`resolve_sandbox_info_with_context`] to share configured clients.
+pub async fn resolve_sandbox_info_async(items: &[PackageItem]) -> Vec<SandboxInfo> {
+    match ToolkitContext::new() {
+        Ok(context) => resolve_sandbox_info_with_context(&context, items).await,
+        Err(error) => {
+            tracing::warn!(error = %error, "sandbox client initialization failed");
+            Vec::new()
+        }
+    }
+}
+
+/// What: Resolve sandbox information with a caller-owned shared toolkit context.
+///
+/// Inputs:
+/// - `context`: Runtime integration context.
+/// - `items`: Packages selected for preflight.
+///
+/// Output:
+/// - One sandbox record per AUR package.
+///
+/// Details:
+/// - arch-toolkit owns parsing and host comparison; Pacsea owns fetch fallback and state.
+pub(crate) async fn resolve_sandbox_info_with_context(
+    context: &ToolkitContext,
+    items: &[PackageItem],
+) -> Vec<SandboxInfo> {
+    crate::integrations::arch_toolkit::sandbox::resolve(context, items).await
+}
+
+/// What: Parse PKGBUILD dependency categories through arch-toolkit.
+///
+/// Inputs:
+/// - `text`: PKGBUILD text that is never executed here.
+///
+/// Output:
+/// - Runtime, build, check, and optional dependency specs.
+///
+/// Details:
+/// - Pure parsing preserves the existing Pacsea helper surface.
+#[must_use]
+pub fn parse_pkgbuild_deps(text: &str) -> (Vec<String>, Vec<String>, Vec<String>, Vec<String>) {
+    arch_toolkit::deps::parse_pkgbuild_deps(text)
+}
+
+/// What: Parse PKGBUILD conflicts through arch-toolkit.
+///
+/// Inputs:
+/// - `text`: PKGBUILD text that is never executed here.
+///
+/// Output:
+/// - Conflicting package names.
+///
+/// Details:
+/// - Version constraints are normalized by the toolkit parser.
+#[must_use]
+pub fn parse_pkgbuild_conflicts(text: &str) -> Vec<String> {
+    arch_toolkit::deps::parse_pkgbuild_conflicts(text)
+}
+
+/// What: Extract a package name from a dependency specification through arch-toolkit.
+///
+/// Inputs:
+/// - `dependency`: Versioned or annotated dependency specification.
+///
+/// Output:
+/// - Bare package name.
+///
+/// Details:
+/// - Handles optional-dependency descriptions before comparison operators.
+#[must_use]
+pub fn extract_package_name(dependency: &str) -> String {
+    arch_toolkit::sandbox::extract_package_name(dependency)
+}
 
 #[cfg(test)]
-mod tests;
-
-pub use analyze::extract_package_name;
-pub use parse::{parse_pkgbuild_conflicts, parse_pkgbuild_deps};
-pub use types::{DependencyDelta, SandboxInfo};
-
-use crate::logic::sandbox::analyze::{
-    analyze_package_from_pkgbuild, analyze_package_from_srcinfo, get_installed_packages,
-};
-use crate::logic::sandbox::fetch::fetch_srcinfo_async;
-use crate::state::types::PackageItem;
-use futures::stream::{FuturesUnordered, StreamExt};
-
-/// What: Create an empty `SandboxInfo` for a package when analysis fails.
-///
-/// Inputs:
-/// - `name`: Package name.
-///
-/// Output:
-/// - Empty `SandboxInfo` with the package name.
-///
-/// Details:
-/// - Used as fallback when analysis fails to ensure package appears in results.
-const fn create_empty_sandbox_info(name: String) -> SandboxInfo {
-    SandboxInfo {
-        package_name: name,
-        depends: Vec::new(),
-        makedepends: Vec::new(),
-        checkdepends: Vec::new(),
-        optdepends: Vec::new(),
+mod tests {
+    /// What: Verify Pacsea's public parser wrapper delegates all dependency categories.
+    ///
+    /// Inputs:
+    /// - Deterministic PKGBUILD text.
+    ///
+    /// Output:
+    /// - Expected runtime and build dependency lists.
+    ///
+    /// Details:
+    /// - The PKGBUILD is parsed as text and never executed.
+    #[test]
+    fn pkgbuild_parser_delegates_to_toolkit() {
+        let (depends, make, check, optional) =
+            super::parse_pkgbuild_deps("depends=('glibc')\nmakedepends=('rust')");
+        assert_eq!(depends, vec!["glibc"]);
+        assert_eq!(make, vec!["rust"]);
+        assert!(check.is_empty());
+        assert!(optional.is_empty());
     }
-}
 
-/// What: Handle .SRCINFO analysis for a package.
-///
-/// Inputs:
-/// - `name`: Package name.
-/// - `srcinfo_text`: .SRCINFO file content.
-/// - `installed`: Installed packages set.
-/// - `provided`: Provided packages set.
-///
-/// Output:
-/// - `SandboxInfo` on success.
-///
-/// Details:
-/// - Analyzes dependencies from .SRCINFO and creates `SandboxInfo`.
-fn handle_srcinfo_analysis(
-    name: &str,
-    srcinfo_text: &str,
-    installed: &std::collections::HashSet<String>,
-    provided: &std::collections::HashSet<String>,
-) -> SandboxInfo {
-    analyze_package_from_srcinfo(name, srcinfo_text, installed, provided)
-}
+    /// What: Verify dependency-name extraction handles annotations and versions.
+    ///
+    /// Inputs:
+    /// - Optional dependency with a version and description.
+    ///
+    /// Output:
+    /// - Bare package name.
+    ///
+    /// Details:
+    /// - Protects UI optional-dependency matching.
+    #[test]
+    fn dependency_name_extraction_delegates_to_toolkit() {
+        assert_eq!(
+            super::extract_package_name("python>=3.12: scripting"),
+            "python"
+        );
+    }
 
-/// What: Handle PKGBUILD fallback analysis for a package.
-///
-/// Inputs:
-/// - `name`: Package name.
-/// - `pkgbuild_text`: PKGBUILD file content.
-/// - `installed`: Installed packages set.
-/// - `provided`: Provided packages set.
-///
-/// Output:
-/// - `SandboxInfo` on success.
-///
-/// Details:
-/// - Analyzes dependencies from PKGBUILD when .SRCINFO is unavailable.
-fn handle_pkgbuild_analysis(
-    name: &str,
-    pkgbuild_text: &str,
-    installed: &std::collections::HashSet<String>,
-    provided: &std::collections::HashSet<String>,
-) -> SandboxInfo {
-    let info = analyze_package_from_pkgbuild(name, pkgbuild_text, installed, provided);
-    let total_deps = info.depends.len()
-        + info.makedepends.len()
-        + info.checkdepends.len()
-        + info.optdepends.len();
-    tracing::info!(
-        "Parsed PKGBUILD for {}: {} total dependencies (depends={}, makedepends={}, checkdepends={}, optdepends={})",
-        name,
-        total_deps,
-        info.depends.len(),
-        info.makedepends.len(),
-        info.checkdepends.len(),
-        info.optdepends.len()
-    );
-    info
-}
-
-/// What: Process a single AUR package to resolve sandbox information.
-///
-/// Inputs:
-/// - `name`: Package name.
-/// - `client`: HTTP client for fetching.
-/// - `installed`: Installed packages set.
-/// - `provided`: Provided packages set.
-///
-/// Output:
-/// - `Some(SandboxInfo)` if resolved, `None` otherwise.
-///
-/// Details:
-/// - Tries .SRCINFO first, falls back to PKGBUILD if needed.
-async fn process_sandbox_package(
-    name: String,
-    client: reqwest::Client,
-    installed: std::collections::HashSet<String>,
-    provided: std::collections::HashSet<String>,
-) -> Option<SandboxInfo> {
-    match fetch_srcinfo_async(&client, &name).await {
-        Ok(srcinfo_text) => Some(handle_srcinfo_analysis(
-            &name,
-            &srcinfo_text,
-            &installed,
-            &provided,
-        )),
-        Err(e) => {
-            tracing::debug!(
-                "Failed to fetch .SRCINFO for {}: {}, trying PKGBUILD",
-                name,
-                e
-            );
-            let name_for_fallback = name.clone();
-            let installed_for_fallback = installed.clone();
-            let provided_for_fallback = provided.clone();
-            match tokio::task::spawn_blocking(move || {
-                crate::logic::files::fetch_pkgbuild_sync(&name_for_fallback)
-            })
-            .await
-            {
-                Ok(Ok(pkgbuild_text)) => {
-                    tracing::debug!(
-                        "Successfully fetched PKGBUILD for {}, parsing dependencies",
-                        name
-                    );
-                    Some(handle_pkgbuild_analysis(
-                        &name,
-                        &pkgbuild_text,
-                        &installed_for_fallback,
-                        &provided_for_fallback,
-                    ))
-                }
-                Ok(Err(e)) => {
-                    tracing::warn!("Failed to fetch PKGBUILD for {}: {}", name, e);
-                    tracing::info!(
-                        "Creating empty sandbox info for {} (both .SRCINFO and PKGBUILD fetch failed)",
-                        name
-                    );
-                    Some(create_empty_sandbox_info(name))
-                }
-                Err(e) => {
-                    tracing::warn!(
-                        "Failed to spawn blocking task for PKGBUILD fetch for {}: {}",
-                        name,
-                        e
-                    );
-                    tracing::info!(
-                        "Creating empty sandbox info for {} (spawn task failed)",
-                        name
-                    );
-                    Some(create_empty_sandbox_info(name))
-                }
+    /// What: Verify multiline and append dependency arrays retain legacy parser behavior.
+    ///
+    /// Inputs:
+    /// - A PKGBUILD containing a multiline `depends` array and appended build dependencies.
+    ///
+    /// Output:
+    /// - Complete dependency vectors in declaration order.
+    ///
+    /// Details:
+    /// - Restores representative coverage removed with the local parser migration.
+    #[test]
+    fn pkgbuild_parser_preserves_multiline_and_append_arrays() {
+        let pkgbuild = r"
+            depends=(
+                'foo'
+                'bar>=1.2'
+                'baz'
+            )
+            build() {
+                makedepends+=(cmake ninja)
             }
-        }
-    }
-}
+        ";
 
-/// What: Resolve sandbox information for AUR packages using async HTTP.
-///
-/// Inputs:
-/// - `items`: AUR packages to analyze.
-///
-/// Output:
-/// - Vector of `SandboxInfo` entries, one per AUR package.
-///
-/// Details:
-/// - Fetches `.SRCINFO` for each AUR package in parallel using async HTTP.
-/// - Parses dependencies and compares against host environment.
-/// - Returns empty vector if no AUR packages are present.
-pub async fn resolve_sandbox_info_async(items: &[PackageItem]) -> Vec<SandboxInfo> {
-    let aur_items: Vec<_> = items
-        .iter()
-        .filter(|i| matches!(i.source, crate::state::Source::Aur))
-        .collect();
-    let span = tracing::info_span!(
-        "resolve_sandbox_info",
-        stage = "sandbox",
-        item_count = aur_items.len()
-    );
-    let _guard = span.enter();
-    let start_time = std::time::Instant::now();
+        let (depends, make, check, optional) = super::parse_pkgbuild_deps(pkgbuild);
 
-    let installed = get_installed_packages();
-    let provided = crate::logic::deps::get_provided_packages(&installed);
-
-    // Fetch all .SRCINFO files in parallel
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(10))
-        .build()
-        .unwrap_or_else(|_| reqwest::Client::new());
-
-    let mut fetch_futures = FuturesUnordered::new();
-    for item in items {
-        if matches!(item.source, crate::state::Source::Aur) {
-            let name = item.name.clone();
-            let installed_clone = installed.clone();
-            let provided_clone = provided.clone();
-            let client_clone = client.clone();
-            fetch_futures.push(process_sandbox_package(
-                name,
-                client_clone,
-                installed_clone,
-                provided_clone,
-            ));
-        }
+        assert_eq!(depends, vec!["foo", "bar>=1.2", "baz"]);
+        assert_eq!(make, vec!["cmake", "ninja"]);
+        assert!(check.is_empty());
+        assert!(optional.is_empty());
     }
 
-    // Collect all results as they complete
-    let mut results = Vec::new();
-    while let Some(result) = fetch_futures.next().await {
-        if let Some(info) = result {
-            results.push(info);
-        }
+    /// What: Verify invalid package tokens and shared-library dependencies remain filtered.
+    ///
+    /// Inputs:
+    /// - Valid names mixed with malformed, too-short, and `.so` tokens.
+    ///
+    /// Output:
+    /// - Only valid package dependency specifications.
+    ///
+    /// Details:
+    /// - Encodes the pre-migration filtering contract from the deleted parser suite.
+    #[test]
+    fn pkgbuild_parser_filters_invalid_and_shared_library_tokens() {
+        let pkgbuild = r"
+            depends=('valid-package' 'invalid)' '=invalid' 'a' 'valid>=1.0' 'libc.so')
+        ";
+
+        let (depends, make, check, optional) = super::parse_pkgbuild_deps(pkgbuild);
+
+        assert_eq!(depends, vec!["valid-package", "valid>=1.0"]);
+        assert!(make.is_empty());
+        assert!(check.is_empty());
+        assert!(optional.is_empty());
     }
 
-    let elapsed = start_time.elapsed();
-    let duration_ms = u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX);
-    tracing::info!(
-        stage = "sandbox",
-        item_count = aur_items.len(),
-        result_count = results.len(),
-        duration_ms = duration_ms,
-        "Sandbox resolution complete"
-    );
-    results
-}
+    /// What: Verify repeated dependency declarations use toolkit deduplication semantics.
+    ///
+    /// Inputs:
+    /// - The same package in an assignment and an appended dependency array.
+    ///
+    /// Output:
+    /// - One dependency entry rather than duplicate preflight rows.
+    ///
+    /// Details:
+    /// - Makes the v0.3.0 parser behavior explicit at Pacsea's public integration boundary.
+    #[test]
+    fn pkgbuild_parser_deduplicates_repeated_dependencies() {
+        let pkgbuild = "depends=('foo')\ndepends+=('foo' 'bar')";
 
-/// What: Resolve sandbox information for AUR packages (synchronous wrapper for async version).
-///
-/// Inputs:
-/// - `items`: AUR packages to analyze.
-///
-/// Output:
-/// - Vector of `SandboxInfo` entries, one per AUR package.
-///
-/// # Panics
-/// - Panics if a tokio runtime cannot be created when no runtime handle is available
-///
-/// Details:
-/// - Wraps the async version for use in blocking contexts.
-#[must_use]
-pub fn resolve_sandbox_info(items: &[PackageItem]) -> Vec<SandboxInfo> {
-    // Use tokio runtime handle if available, otherwise create a new runtime
-    tokio::runtime::Handle::try_current().map_or_else(
-        |_| {
-            // No runtime available, create a new one
-            let rt = tokio::runtime::Runtime::new().unwrap_or_else(|e| {
-                tracing::error!(
-                    "Failed to create tokio runtime for sandbox resolution: {}",
-                    e
-                );
-                panic!("Cannot resolve sandbox info without tokio runtime");
-            });
-            rt.block_on(resolve_sandbox_info_async(items))
-        },
-        |handle| handle.block_on(resolve_sandbox_info_async(items)),
-    )
+        let (depends, make, check, optional) = super::parse_pkgbuild_deps(pkgbuild);
+
+        assert_eq!(depends, vec!["foo", "bar"]);
+        assert!(make.is_empty());
+        assert!(check.is_empty());
+        assert!(optional.is_empty());
+    }
+
+    /// What: Verify conflict parsing strips versions and filters shared-library tokens.
+    ///
+    /// Inputs:
+    /// - Multiline conflicts containing version constraints and `.so` entries.
+    ///
+    /// Output:
+    /// - Bare package conflict names only.
+    ///
+    /// Details:
+    /// - Preserves the behavior covered by the deleted local sandbox tests.
+    #[test]
+    fn pkgbuild_conflicts_preserve_legacy_normalization() {
+        let pkgbuild = r"
+            conflicts=(
+                'old-pkg<2.0'
+                'new-pkg>=3.0'
+                'libcairo.so'
+                'libdbus-1.so=1-64'
+            )
+        ";
+
+        assert_eq!(
+            super::parse_pkgbuild_conflicts(pkgbuild),
+            vec!["old-pkg", "new-pkg"]
+        );
+    }
+
+    /// What: Verify dependency-name extraction handles every supported operator form.
+    ///
+    /// Inputs:
+    /// - Greater, less, single-equals, double-equals, annotation, and bare-name forms.
+    ///
+    /// Output:
+    /// - The same bare package name for every representation.
+    ///
+    /// Details:
+    /// - Locks the v0.3.0 normalization contract at the public integration boundary.
+    #[test]
+    fn extract_package_name_operator_matrix() {
+        for dependency in [
+            "foo>=1.0",
+            "foo<=1",
+            "foo==1",
+            "foo=1",
+            "foo: description",
+            "foo",
+        ] {
+            assert_eq!(
+                super::extract_package_name(dependency),
+                "foo",
+                "unexpected package name for {dependency}"
+            );
+        }
+    }
 }

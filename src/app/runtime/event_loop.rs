@@ -1479,7 +1479,8 @@ mod tests {
             loading_index: true,
             ..AppState::default()
         };
-        let channels = Channels::new(std::path::PathBuf::from("/tmp"));
+        let channels =
+            Channels::new(std::path::PathBuf::from("/tmp")).expect("channels should construct");
         let latest_before = app.latest_query_id;
 
         let should_exit = handle_index_notification(&mut app, &channels);

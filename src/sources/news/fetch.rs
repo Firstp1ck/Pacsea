@@ -1,5 +1,6 @@
 //! News fetching functionality with HTTP client and error handling.
 
+use crate::integrations::arch_toolkit::ToolkitContext;
 use crate::sources::news::cache::{ARTICLE_CACHE, ARTICLE_CACHE_TTL_SECONDS, ArticleCacheEntry};
 use crate::sources::news::parse::parse_arch_news_html;
 use crate::sources::news::utils::is_archlinux_url;
@@ -130,53 +131,30 @@ static HTTP_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
 /// date-only form via `strip_time_and_tz`. If `cutoff_date` is provided, stops fetching when
 /// items exceed the date limit.
 pub async fn fetch_arch_news(limit: usize, cutoff_date: Option<&str>) -> Result<Vec<NewsItem>> {
-    use crate::sources::news::utils::{extract_between, strip_time_and_tz};
+    let context = ToolkitContext::new()?;
+    fetch_arch_news_with_context(&context, limit, cutoff_date).await
+}
 
-    let url = "https://archlinux.org/feeds/news/";
-    // Use shorter timeout (10s connect, 15s max) to avoid blocking on slow/unreachable servers
-    let body = tokio::task::spawn_blocking(move || {
-        crate::util::curl::curl_text_with_args(
-            url,
-            &["--connect-timeout", "10", "--max-time", "15"],
-        )
-    })
-    .await?
-    .map_err(|e| {
-        warn!(error = %e, "failed to fetch arch news feed");
-        e
-    })?;
-    info!(bytes = body.len(), "fetched arch news feed");
-    let mut items: Vec<NewsItem> = Vec::new();
-    let mut pos = 0;
-    while items.len() < limit {
-        if let Some(start) = body[pos..].find("<item>") {
-            let s = pos + start;
-            let end = body[s..].find("</item>").map_or(body.len(), |e| s + e + 7);
-            let chunk = &body[s..end];
-            let title = extract_between(chunk, "<title>", "</title>").unwrap_or_default();
-            let link = extract_between(chunk, "<link>", "</link>").unwrap_or_default();
-            let raw_date = extract_between(chunk, "<pubDate>", "</pubDate>")
-                .map(|d| d.trim().to_string())
-                .unwrap_or_default();
-            let date = strip_time_and_tz(&raw_date);
-            // Early date filtering: stop if item is older than cutoff_date
-            if let Some(cutoff) = cutoff_date
-                && date.as_str() < cutoff
-            {
-                break;
-            }
-            items.push(NewsItem {
-                date,
-                title,
-                url: link,
-            });
-            pos = end;
-        } else {
-            break;
-        }
-    }
-    info!(count = items.len(), "parsed arch news feed");
-    Ok(items)
+/// What: Fetch bounded Arch news with a caller-owned toolkit context.
+///
+/// Inputs:
+/// - `context`: Runtime integration context.
+/// - `limit`: Maximum returned rows.
+/// - `cutoff_date`: Optional oldest accepted date.
+///
+/// Output:
+/// - Pacsea news rows or an actionable error.
+///
+/// Details:
+/// - arch-toolkit owns bounded feed transport and parsing; Pacsea owns aggregation and caching.
+pub async fn fetch_arch_news_with_context(
+    context: &ToolkitContext,
+    limit: usize,
+    cutoff_date: Option<&str>,
+) -> Result<Vec<NewsItem>> {
+    crate::integrations::arch_toolkit::news::fetch_arch_news(context, limit, cutoff_date)
+        .await
+        .map_err(Into::into)
 }
 
 /// What: Fetch the full article content from an Arch news URL.
@@ -304,8 +282,14 @@ pub async fn fetch_news_content(url: &str) -> Result<String> {
             Err(e) => return Err(e),
         };
 
-    // Extract article content from HTML
-    let content = parse_arch_news_html(&body, Some(url));
+    // Use the toolkit's pure article parser for ordinary Arch news, while preserving Pacsea's
+    // richer official-package and advisory presentation paths.
+    let content = if !is_arch_package_url(url) && url.contains("archlinux.org/news/") {
+        crate::integrations::arch_toolkit::news::extract_article_text(&body, url)
+            .unwrap_or_else(|_| parse_arch_news_html(&body, Some(url)))
+    } else {
+        parse_arch_news_html(&body, Some(url))
+    };
 
     // Prepend official package JSON changes if available
     let content = if is_arch_package_url(url) {

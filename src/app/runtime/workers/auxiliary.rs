@@ -223,6 +223,7 @@ fn spawn_faillock_worker(tick_tx: &mpsc::UnboundedSender<()>) {
 ///
 /// Inputs:
 /// - `headless`: When `true`, skip terminal-dependent operations
+/// - `toolkit`: Shared configured arch-toolkit clients
 /// - `status_tx`: Channel sender for Arch status updates
 /// - `news_tx`: Channel sender for Arch news updates
 /// - `news_feed_tx`: Channel sender for aggregated news feed (Arch news + advisories)
@@ -251,6 +252,7 @@ fn spawn_faillock_worker(tick_tx: &mpsc::UnboundedSender<()>) {
 #[allow(clippy::too_many_arguments)]
 pub fn spawn_auxiliary_workers(
     headless: bool,
+    toolkit: crate::integrations::arch_toolkit::ToolkitContext,
     status_tx: &mpsc::UnboundedSender<(String, ArchStatusColor)>,
     news_tx: &mpsc::UnboundedSender<Vec<crate::state::types::NewsFeedItem>>,
     news_feed_tx: &mpsc::UnboundedSender<crate::state::types::NewsFeedPayload>,
@@ -302,6 +304,7 @@ pub fn spawn_auxiliary_workers(
             news_seen_pkg_versions,
             news_seen_aur_comments,
             last_startup_timestamp,
+            toolkit.clone(),
             Some(completion_tx),
         );
         news::spawn_aggregated_news_feed_worker(
@@ -309,6 +312,7 @@ pub fn spawn_auxiliary_workers(
             news_incremental_tx,
             news_seen_pkg_versions,
             news_seen_aur_comments,
+            toolkit,
             Some(completion_rx),
         );
     }

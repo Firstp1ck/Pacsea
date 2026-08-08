@@ -532,7 +532,7 @@ package() {
             PkgbuildSourceKind::Official,
             &modified,
         );
-        assert!(updated.pkgbuild_signature != compute_signature(&text));
+        assert_ne!(updated.pkgbuild_signature, compute_signature(&text));
     }
 
     #[test]

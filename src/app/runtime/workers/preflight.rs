@@ -200,12 +200,14 @@ pub fn spawn_service_worker(
 /// Inputs:
 /// - `sandbox_req_rx`: Channel receiver for sandbox resolution requests
 /// - `sandbox_res_tx`: Channel sender for sandbox resolution responses
+/// - `toolkit`: Shared configured arch-toolkit clients
 ///
 /// Details:
 /// - Uses async version for parallel HTTP fetches
 pub fn spawn_sandbox_worker(
     mut sandbox_req_rx: mpsc::UnboundedReceiver<Vec<PackageItem>>,
     sandbox_res_tx: mpsc::UnboundedSender<Vec<crate::logic::sandbox::SandboxInfo>>,
+    toolkit: crate::integrations::arch_toolkit::ToolkitContext,
 ) {
     let sandbox_res_tx_bg = sandbox_res_tx;
     tokio::spawn(async move {
@@ -213,9 +215,13 @@ pub fn spawn_sandbox_worker(
             // Use async version for parallel HTTP fetches
             let items_clone = items.clone();
             let res_tx = sandbox_res_tx_bg.clone();
+            let toolkit = toolkit.clone();
             tokio::spawn(async move {
-                let sandbox_info =
-                    crate::logic::sandbox::resolve_sandbox_info_async(&items_clone).await;
+                let sandbox_info = crate::logic::sandbox::resolve_sandbox_info_with_context(
+                    &toolkit,
+                    &items_clone,
+                )
+                .await;
                 tracing::debug!(
                     "[Background] Sending sandbox result: {} entries for packages: {:?}",
                     sandbox_info.len(),

@@ -1094,7 +1094,8 @@ mod tests {
         };
 
         // Create channels (we only need the senders)
-        let channels = Channels::new(std::path::PathBuf::from("/tmp"));
+        let channels =
+            Channels::new(std::path::PathBuf::from("/tmp")).expect("channels should construct");
 
         // Should not panic even with empty install list
         trigger_initial_resolutions(
@@ -1146,7 +1147,8 @@ mod tests {
             needs_sandbox_resolution: false,
         };
 
-        let channels = Channels::new(std::path::PathBuf::from("/tmp"));
+        let channels =
+            Channels::new(std::path::PathBuf::from("/tmp")).expect("channels should construct");
 
         trigger_initial_resolutions(
             &mut app,
