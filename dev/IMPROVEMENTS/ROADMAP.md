@@ -1,20 +1,20 @@
 # Pacsea Roadmap — Consolidated Planned Work
 
-**Last updated:** 2026-07-05 (baseline: current `main` after PR #164; `dev/RELEASES/RELEASE_v0.8.3.md` is present, while `Cargo.toml` still declares `0.8.2`; GitHub issues last synced 2026-07-03)
+**Last updated:** 2026-07-31 (arch-toolkit migration reconciled against local/remote 0.3.0 source; other roadmap baselines unchanged)
 
-This is the **single tracking document** for all planned implementations. It replaces and
-consolidates the former planning docs (`FEATURE_PRIORITY.md`, `CLI_POSSIBLE_COMMANDS.md`,
+This is the master tracking document for planned implementations. It replaces and consolidates
+former planning docs (`FEATURE_PRIORITY.md`, `CLI_POSSIBLE_COMMANDS.md`,
 `CLI_LIBRARY_INTEGRATORS.md`, `IMPLEMENTATION_PLAN_arch-toolkit.md`,
 `IMPLEMENTATION_PLAN_tui_integrated_config_editing.md`, `improvement_suggestions.md`,
 `pacsea_soname_plan.md`, `PERFORMANCE_IMPLEMENTATION_PRIORITY.md`,
-`REFACTORING_EVALUATION.md`, `ARCHITECTURE_OTHER.md`), keeping only **open** work.
-Shipped items were dropped; see `CHANGELOG.md` for release history.
+`REFACTORING_EVALUATION.md`, `ARCHITECTURE_OTHER.md`), keeping only open work. Shipped items were
+dropped; see `CHANGELOG.md` for release history. Large initiatives may have one canonical execution
+plan under `plans/planned/`; this roadmap links to that plan instead of duplicating its TODOs.
 
 **How to track:**
-- Every item is a checkbox. Check it off (and note the release/PR) when it ships.
+- Check off roadmap items (and note the release/PR) when they ship.
 - Items carry a priority tier and, where one exists, a GitHub issue link.
-- Detail sections below the master list hold implementation notes per initiative;
-  delete a detail section when its items are all done.
+- Detail sections hold concise context or a pointer to the initiative's sole canonical plan.
 
 ## Priority tiers
 
@@ -49,7 +49,6 @@ Shipped items were dropped; see `CHANGELOG.md` for release history.
 - [ ] **CLI scripting surface** — `doctor`, `which-helper`, `updates check`, `pkg show`/`pkg outdated`, `completions <shell>` → [CLI §C2](#c2-scripting--parity-subcommands)
 - [ ] **CLI TUI-parity** — `preflight install|remove|update`, `pkgbuild check`, `repo list|validate|diff`, `aur vote|unvote|ssh-setup` → [CLI §C2](#c2-scripting--parity-subcommands)
 - [ ] **CLI launch/install refinements** — `--mode package|news`, `--select <pkg>`, `--no-mouse`/`--mouse`, `-y`/`--refresh`, `--install` + `--as-deps`/`--needed`/`--aur-only`/`--repo-only`, granular `cache list`/`cache clear <kind>` → [CLI §C2](#c2-scripting--parity-subcommands)
-- [ ] **arch-toolkit Phase A1–A2** — add dependency, wire shared client, cut AUR call sites (`search`, `comments`, `pkgbuild`) over to toolkit APIs → [arch-toolkit §T1](#t1-workstream-a-pacsea-consumes-arch-toolkit)
 - [ ] **Refactor: dedupe package validation** — six similar validators in `args/package.rs` → shared helpers → [Refactoring §R1](#r1-priority-refactors)
 - [ ] **Refactor: adopt or remove `util/config.rs`** — 13 files with inline string parsing vs unused utility → [Refactoring §R1](#r1-priority-refactors)
 - [x] **Config editor Phase 1** — settings-center modal shell + General tab (boolean/string keys, dry-run gated) — shipped in PR #161 as a dedicated `AppMode::ConfigEditor` → [Config editing §E1](#e1-phased-rollout)
@@ -69,8 +68,6 @@ Shipped items were dropped; see `CHANGELOG.md` for release history.
 - [ ] **Normalize executable bits on Python helper scripts** ([#159](https://github.com/Firstp1ck/Pacsea/issues/159)) → [Features §F6](#f6-smaller-tracked-features)
 - [ ] **Batch-flow hardening** — removal guards (protected packages, orphan preview, blocked-item reasons), update retry/reboot scheduling, install continue-on-failure, downgrade provenance/pre-download, startup popup queue/offline notice → [UX §U2](#u2-per-flow-improvements)
 - [ ] **CLI extended queries** — `pkg files|owns|deps|provides|conflicts|orphans|foreign|native|group|required-by`, `news` subcommands, `files pacnew|pacsave`, `services affected`, `sandbox analyze`, `repo apply`, `aur scan` batch, transaction helpers (`sync`, `upgrade --aur-only`, `downgrade`, `reinstall`, `clean`) → [CLI §C3](#c3-roadmap-subcommands)
-- [ ] **arch-toolkit Phase A3–A5** — deps/index/install cutover, news baseline cutover, parity cleanup → [arch-toolkit §T1](#t1-workstream-a-pacsea-consumes-arch-toolkit)
-- [ ] **arch-toolkit Workstream B** — extract sandbox, preflight engine, status monitor, details helper, news content parity (B1 repos-apply planner already landed) → [arch-toolkit §T2](#t2-workstream-b-extraction-backlog)
 - [x] **Config editor Phase 2–3** — keybind capture + persistence; theme tab with whole-file pre-commit validation — shipped in PR #161 → [Config editing §E1](#e1-phased-rollout)
 - [ ] **Config editor follow-up** — `repos.conf`/Advanced editing, explicit live-apply/reload semantics, and privilege-sensitive setting gates → [Config editing §E2](#e2-follow-up-work)
 - [ ] **Soname Layer 1** — `DT_NEEDED`/`DT_SONAME` readers, on-disk soname map, `.pkg.tar.zst` extraction, Preflight tab → [Soname §S1](#s1-layer-1--end-user-protection)
@@ -294,36 +291,10 @@ Incremental, none mandated:
 
 ## arch-toolkit migration
 
-Goal: `pacsea` consumes the frontend-agnostic `arch-toolkit` crate (currently v0.2.x with
-`aur + deps + index + install + news + repos + system::privilege`) instead of duplicating logic.
-**Status:** not started in-tree — `arch-toolkit` is absent from `Cargo.toml`.
-
-**Extraction rule (authoritative):** extract pure domain logic/parsers/typed models/planners fully;
-extract only the domain core of mixed modules; never move UI state, event/modal flows,
-PTY/interactivity, password prompt/piping, or frontend runtime wiring into the toolkit.
-
-### T1. Workstream A: pacsea consumes arch-toolkit
-- [ ] **A1** — add dependency; initialize/thread shared client/context
-- [ ] **A2** — AUR cutover: `src/sources/{search,comments,pkgbuild}.rs` AUR paths → toolkit APIs
-- [ ] **A3** — deps/index/install cutover: `src/logic/deps/*`, `src/index/*`, install command
-      planning → `arch_toolkit::{deps,index,install}` where behavior matches (incl. consuming the
-      landed repos-apply planner: features `index`+`install`, meta-feature `repos-apply`,
-      `build_repo_apply_bundle` / `build_repo_key_refresh_bundle` with `PrivilegeMode`)
-- [ ] **A4** — news baseline: `arch_toolkit::news::{fetch_arch_news, fetch_security_advisories}`
-      for list-level feeds; keep article-detail behavior local
-- [ ] **A5** — parity cleanup: remove duplicates only after parity tests pass; run full quality gates
-
-### T2. Workstream B: extraction backlog (pacsea → arch-toolkit)
-- [x] **B1** — repos apply planner (landed in arch-toolkit 2026-04-18)
-- [ ] **B2** — sandbox module (core-only): `src/logic/sandbox/{parse,analyze,types}.rs` → `feature = "sandbox"`
-- [ ] **B3** — preflight compute engine (core-only): non-UI core of `src/logic/preflight/*`
-- [ ] **B4** — status monitor (full): `src/sources/status/*` → `arch_toolkit::status`
-- [ ] **B5** — package details helper (full): reusable parsing from `src/sources/details.rs`
-- [ ] **B6** — news article-content parity (core-only): portable parts of `src/sources/news/{fetch,parse}.rs`
-
-**Definition of done:** toolkit modules power AUR/deps/index/install/news baselines; `pacsea`
-retains only app-specific runtime/UI/executor layers; remaining B items implemented or explicitly
-deferred; no frontend coupling introduced into `arch-toolkit`.
+The sole active checklist is [`plans/planned/arch-toolkit-0.3.0-integration.md`](../../plans/planned/arch-toolkit-0.3.0-integration.md).
+It targets the newest 0.3.0 source line, reconciles the deleted historical plan and the archived
+toolkit Phase 6 handoff, and replaces the stale v0.2.x, `repos-apply`, and `system::privilege`
+assumptions previously recorded here. This section intentionally contains no duplicate TODOs.
 
 ## Integrated config editing (TUI)
 

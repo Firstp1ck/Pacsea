@@ -20,6 +20,9 @@ target/
 
 /target
 
+# Completed plan records are local-only; active plans under plans/planned remain tracked.
+/plans/archive/
+
 details_cache.json
 recent_searches.json
 official_index.json
@@ -64,3 +67,4 @@ service-account.json
 src/Pacsea/
 *release-report*
 .DS_Store
+.pi-subagents/artifacts/
