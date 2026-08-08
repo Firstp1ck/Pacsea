@@ -68,3 +68,4 @@ src/Pacsea/
 *release-report*
 .DS_Store
 .pi-subagents/artifacts/
+.pi-subagents/
