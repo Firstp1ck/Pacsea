@@ -8,6 +8,7 @@ use crate::app::runtime::workers::UpdateCheckPayload;
 use crate::app::runtime::workers::aur_vote::{
     AurVoteRequest, AurVoteResponse, AurVoteStateRequest, AurVoteStateResponse,
 };
+use crate::integrations::arch_toolkit::{ToolkitContext, ToolkitContextError};
 use crate::state::types::NewsFeedPayload;
 use crate::state::{
     ArchStatusColor, PackageDetails, PackageItem, PkgbuildCheckRequest, PkgbuildCheckResponse,
@@ -21,6 +22,8 @@ use crate::state::{
 ///   between the main event loop and background workers
 #[allow(dead_code)]
 pub struct Channels {
+    /// Shared arch-toolkit clients used by runtime workers.
+    pub(crate) toolkit: ToolkitContext,
     /// Sender for terminal events (keyboard/mouse) from the event reading thread.
     pub event_tx: mpsc::UnboundedSender<CEvent>,
     /// Receiver for terminal events in the main event loop.
@@ -546,8 +549,9 @@ impl Channels {
     /// - `index_path`: Path to official package index (for search worker)
     ///
     /// Output:
-    /// - Returns a `Channels` struct with all senders and receivers initialized
-    pub fn new(index_path: std::path::PathBuf) -> Self {
+    /// - Returns initialized channels or an actionable toolkit-client construction error.
+    pub fn new(index_path: std::path::PathBuf) -> Result<Self, ToolkitContextError> {
+        let toolkit = ToolkitContext::new()?;
         let event_channels = create_event_channels();
         let search_channels = create_search_channels();
         let details_channels = create_details_channels();
@@ -559,10 +563,12 @@ impl Channels {
             &utility_channels.net_err_tx,
             details_channels.req_rx,
             details_channels.res_tx.clone(),
+            toolkit.clone(),
         );
         crate::app::runtime::workers::details::spawn_pkgbuild_worker(
             utility_channels.pkgb_req_rx,
             utility_channels.pkgb_res_tx.clone(),
+            toolkit.clone(),
         );
         crate::app::runtime::workers::details::spawn_pkgbuild_checks_worker(
             utility_channels.pkgb_check_req_rx,
@@ -571,6 +577,7 @@ impl Channels {
         crate::app::runtime::workers::comments::spawn_comments_worker(
             utility_channels.comments_req_rx,
             utility_channels.comments_res_tx.clone(),
+            toolkit.clone(),
         );
         crate::app::runtime::workers::news_content::spawn_news_content_worker(
             utility_channels.news_content_req_rx,
@@ -591,6 +598,7 @@ impl Channels {
         crate::app::runtime::workers::preflight::spawn_sandbox_worker(
             preflight_channels.sandbox_req_rx,
             preflight_channels.sandbox_res_tx.clone(),
+            toolkit.clone(),
         );
         crate::app::runtime::workers::preflight::spawn_summary_worker(
             preflight_channels.summary_req_rx,
@@ -601,6 +609,7 @@ impl Channels {
             search_channels.result_tx.clone(),
             &utility_channels.net_err_tx,
             index_path,
+            toolkit.clone(),
         );
         crate::app::runtime::workers::executor::spawn_executor_worker(
             utility_channels.executor_req_rx,
@@ -619,7 +628,8 @@ impl Channels {
             utility_channels.post_summary_res_tx.clone(),
         );
 
-        Self {
+        Ok(Self {
+            toolkit,
             event_tx: event_channels.tx,
             event_rx: event_channels.rx,
             event_thread_cancelled: event_channels.cancelled,
@@ -684,7 +694,7 @@ impl Channels {
             post_summary_req_tx: utility_channels.post_summary_req_tx,
             post_summary_res_rx: utility_channels.post_summary_res_rx,
             query_tx: search_channels.query_tx,
-        }
+        })
     }
 }
 

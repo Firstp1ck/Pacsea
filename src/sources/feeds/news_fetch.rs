@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use std::hash::BuildHasher;
 use std::time::{Duration, Instant};
 
+use crate::integrations::arch_toolkit::ToolkitContext;
 use crate::state::types::{NewsFeedItem, NewsFeedSource};
 use tracing::{info, warn};
 
@@ -29,6 +30,7 @@ use super::rate_limit::{
 /// - Falls back to disk cache (configurable TTL, default 14 days) if in-memory cache misses.
 /// - Saves fetched data to both in-memory and disk caches.
 pub(super) async fn append_arch_news(
+    context: &ToolkitContext,
     limit: usize,
     cutoff_date: Option<&str>,
 ) -> Result<Vec<NewsFeedItem>> {
@@ -70,7 +72,8 @@ pub(super) async fn append_arch_news(
         // Acquire semaphore permit and hold it during the request
         // This ensures only one archlinux.org request is in flight at a time
         let _permit = rate_limit_archlinux().await;
-        let result = crate::sources::fetch_arch_news(limit, cutoff_date).await;
+        let result =
+            crate::sources::fetch_arch_news_with_context(context, limit, cutoff_date).await;
         // Check for HTTP 429/503 and update backoff for future requests
         if let Err(ref e) = result {
             let error_str = e.to_string();
@@ -186,6 +189,7 @@ pub(super) async fn append_arch_news(
 /// - Falls back to disk cache (configurable TTL, default 14 days) if in-memory cache misses.
 /// - Note: Cache key includes `installed_only` flag to handle different filtering needs.
 pub(super) async fn append_advisories<S>(
+    context: &ToolkitContext,
     limit: usize,
     installed_filter: Option<&HashSet<String, S>>,
     installed_only: bool,
@@ -230,7 +234,8 @@ where
     let fetch_result = retry_with_backoff(
         || async {
             rate_limit().await;
-            crate::sources::fetch_security_advisories(limit, cutoff_date).await
+            crate::sources::fetch_security_advisories_with_context(context, limit, cutoff_date)
+                .await
         },
         2, // Max 2 retries (3 total attempts)
     )
@@ -308,6 +313,7 @@ where
 /// - Applies 30-second timeout to match HTTP client timeout.
 /// - Returns empty vectors on timeout or errors (graceful degradation).
 pub(super) async fn fetch_slow_sources<HS>(
+    context: &ToolkitContext,
     include_arch_news: bool,
     include_advisories: bool,
     limit: usize,
@@ -328,7 +334,7 @@ where
         info!("fetching arch news...");
         tokio::time::timeout(
             Duration::from_secs(30),
-            append_arch_news(limit, cutoff_date),
+            append_arch_news(context, limit, cutoff_date),
         )
         .await
         .map_or_else(
@@ -355,7 +361,13 @@ where
         info!("fetching advisories...");
         tokio::time::timeout(
             Duration::from_secs(30),
-            append_advisories(limit, installed_filter, installed_only, cutoff_date),
+            append_advisories(
+                context,
+                limit,
+                installed_filter,
+                installed_only,
+                cutoff_date,
+            ),
         )
         .await
         .map_or_else(

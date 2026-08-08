@@ -100,7 +100,8 @@ mod tests {
     #[tokio::test]
     async fn cleanup_on_exit_cancels_preflight_operations() {
         let mut app = AppState::default();
-        let channels = Channels::new(std::path::PathBuf::from("/tmp/test"));
+        let channels = Channels::new(std::path::PathBuf::from("/tmp/test"))
+            .expect("channels should construct");
 
         // Set up install list with packages
         let test_package = PackageItem {

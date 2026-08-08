@@ -204,23 +204,7 @@ fn install_enter_bypasses_preflight_with_skip_flag() {
     );
     // Behavior remains preflight when flag false; placeholder ensures future refactor retains compatibility.
     match app.modal {
-        crate::state::Modal::Preflight {
-            summary: _,
-            summary_scroll: _,
-            header_chips: _,
-            dependency_info: _,
-            dep_selected: _,
-            dep_tree_expanded: _,
-            file_info: _,
-            file_selected: _,
-            file_tree_expanded: _,
-            files_error: _,
-            service_info: _,
-            service_selected: _,
-            services_loaded: _,
-            cascade_mode: _,
-            ..
-        } => {}
+        crate::state::Modal::Preflight { .. } => {}
         _ => panic!("Expected Preflight when skip_preflight=false"),
     }
 

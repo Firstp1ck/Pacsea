@@ -22,6 +22,8 @@ mod edge_cases;
 mod env_guard;
 #[path = "other/loading_modal.rs"]
 mod loading_modal;
+#[path = "other/migration_dry_run_e2e.rs"]
+mod migration_dry_run_e2e;
 #[path = "other/network_error.rs"]
 mod network_error;
 #[path = "other/runtime_smoke.rs"]

@@ -9,6 +9,7 @@ mod utils;
 /// Result type alias for Arch Linux news fetching operations.
 type Result<T> = super::Result<T>;
 
+pub(crate) use fetch::fetch_arch_news_with_context;
 pub use fetch::{fetch_arch_news, fetch_news_content};
 pub use parse::parse_arch_news_html;
 

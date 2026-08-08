@@ -3,6 +3,7 @@
 name = "pacsea"
 version = "0.8.2"
 edition = "2024"
+rust-version = "1.91"
 authors = ["Firstpick <firstpick@users.noreply.github.com>"]
 description = "A fast, friendly TUI for browsing and installing Arch and AUR packages with built-in news and security scanning"
 license = "MIT"
@@ -22,6 +23,14 @@ exclude = [
 ]
 
 [dependencies]
+arch-toolkit = { version = "=0.3.0", default-features = false, features = [
+  "aur",
+  "deps",
+  "index",
+  "install",
+  "news",
+  "sandbox"
+] }
 clap = { version = "4.6.0", features = ["derive"] }
 crossterm = "0.29.0"
 ratatui = "0.30.0"

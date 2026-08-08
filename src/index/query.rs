@@ -22,6 +22,12 @@ pub fn search_official(query: &str, fuzzy: bool) -> Vec<(PackageItem, Option<i64
     if ql.is_empty() {
         return Vec::new();
     }
+    if !fuzzy {
+        return idx().read().map_or_else(
+            |_| Vec::new(),
+            |index| crate::integrations::arch_toolkit::index::search(&index, ql),
+        );
+    }
     let mut items = Vec::new();
     if let Ok(g) = idx().read() {
         // Create matcher once per search query for better performance

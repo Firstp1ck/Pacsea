@@ -473,6 +473,31 @@ where
     HV: BuildHasher + Send + Sync + 'static,
     HC: BuildHasher + Send + Sync + 'static,
 {
+    let toolkit = crate::integrations::arch_toolkit::ToolkitContext::new()?;
+    fetch_news_feed_with_context(ctx, &toolkit).await
+}
+
+/// What: Fetch the combined feed with a caller-owned shared toolkit context.
+///
+/// Inputs:
+/// - `ctx`: Pacsea source, filter, sort, and seen-state policy.
+/// - `toolkit`: Runtime integration context.
+///
+/// Output:
+/// - Combined Pacsea feed items.
+///
+/// Details:
+/// - Only list-level Arch news and advisory transport/parsing use toolkit; caches, retries,
+///   aggregation, AUR comments, update detection, and read state remain Pacsea-owned.
+pub async fn fetch_news_feed_with_context<HS, HV, HC>(
+    ctx: NewsFeedContext<'_, HS, HV, HC>,
+    toolkit: &crate::integrations::arch_toolkit::ToolkitContext,
+) -> Result<Vec<NewsFeedItem>>
+where
+    HS: BuildHasher + Send + Sync + 'static,
+    HV: BuildHasher + Send + Sync + 'static,
+    HC: BuildHasher + Send + Sync + 'static,
+{
     let (
         cutoff_date,
         updates_versions,
@@ -510,6 +535,7 @@ where
             updates_versions: updates_versions.as_ref(),
         }),
         fetch_slow_sources(
+            toolkit,
             include_arch_news,
             include_advisories,
             limit,
@@ -587,6 +613,31 @@ where
     HS: std::hash::BuildHasher + Send + Sync + 'static,
     HI: std::hash::BuildHasher + Send + Sync,
 {
+    let toolkit = crate::integrations::arch_toolkit::ToolkitContext::new()?;
+    fetch_continuation_items_with_context(installed, initial_ids, &toolkit).await
+}
+
+/// What: Fetch continuation feed rows with a shared toolkit context.
+///
+/// Inputs:
+/// - `installed`: Installed package names.
+/// - `initial_ids`: IDs already emitted.
+/// - `toolkit`: Runtime integration context.
+///
+/// Output:
+/// - Additional feed rows not already emitted.
+///
+/// Details:
+/// - Preserves Pacsea continuation, update, comment, and deduplication policy.
+pub async fn fetch_continuation_items_with_context<HS, HI>(
+    installed: &HashSet<String, HS>,
+    initial_ids: &HashSet<String, HI>,
+    toolkit: &crate::integrations::arch_toolkit::ToolkitContext,
+) -> Result<Vec<NewsFeedItem>>
+where
+    HS: std::hash::BuildHasher + Send + Sync + 'static,
+    HI: std::hash::BuildHasher + Send + Sync,
+{
     use crate::state::types::NewsFeedSource;
 
     info!(
@@ -619,6 +670,7 @@ where
             (updates, comments)
         },
         fetch_slow_sources(
+            toolkit,
             true, // include_arch_news
             true, // include_advisories
             CONTINUATION_LIMIT,

@@ -119,59 +119,6 @@ pub const fn is_artix_system(repo: &str) -> bool {
     repo.eq_ignore_ascii_case("system")
 }
 
-#[cfg(not(target_os = "windows"))]
-/// What: Known `EndeavourOS` repo names usable with pacman -Sl
-///
-/// Output:
-/// - Static slice of repo names
-///
-/// Details:
-/// - Returns `["eos", "endeavouros"]`.
-pub const fn eos_repo_names() -> &'static [&'static str] {
-    &["endeavouros"]
-}
-
-#[cfg(not(target_os = "windows"))]
-/// What: Known `CachyOS` repo names usable with pacman -Sl
-///
-/// Output:
-/// - Static slice of repo names
-///
-/// Details:
-/// - Includes multiple generation-specific names (v3/v4) for compatibility.
-pub const fn cachyos_repo_names() -> &'static [&'static str] {
-    &[
-        "cachyos",
-        "cachyos-core",
-        "cachyos-extra",
-        "cachyos-v3",
-        "cachyos-core-v3",
-        "cachyos-extra-v3",
-        "cachyos-v4",
-        "cachyos-core-v4",
-        "cachyos-extra-v4",
-    ]
-}
-
-#[cfg(not(target_os = "windows"))]
-/// What: Known Artix Linux repo names usable with pacman -Sl
-///
-/// Output:
-/// - Static slice of repo names
-///
-/// Details:
-/// - Returns the standard Artix repositories: omniverse, universe, lib32, galaxy, world, system.
-pub const fn artix_repo_names() -> &'static [&'static str] {
-    &[
-        "omniverse",
-        "universe",
-        "lib32",
-        "galaxy",
-        "world",
-        "system",
-    ]
-}
-
 /// What: Check if a repo name belongs to `BlackArch`
 ///
 /// Input:
@@ -185,18 +132,6 @@ pub const fn artix_repo_names() -> &'static [&'static str] {
 #[must_use]
 pub const fn is_blackarch_repo(repo: &str) -> bool {
     repo.eq_ignore_ascii_case("blackarch")
-}
-
-#[cfg(not(target_os = "windows"))]
-/// What: Known `BlackArch` repo names usable with pacman -Sl
-///
-/// Output:
-/// - Static slice of repo names
-///
-/// Details:
-/// - Returns `["blackarch"]`.
-pub const fn blackarch_repo_names() -> &'static [&'static str] {
-    &["blackarch"]
 }
 
 /// What: Heuristic to treat a name as EndeavourOS-branded

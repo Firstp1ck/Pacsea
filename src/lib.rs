@@ -124,6 +124,7 @@ pub mod events;
 pub mod i18n;
 pub mod index;
 pub mod install;
+mod integrations;
 pub mod logic;
 pub mod sources;
 pub mod state;

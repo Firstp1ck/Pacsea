@@ -29,12 +29,15 @@ pub mod status;
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 pub use advisories::fetch_security_advisories;
+pub(crate) use advisories::fetch_security_advisories_with_context;
 pub use aur_vote::{
     AurPackageVoteState, AurVoteContext, AurVoteError, AurVoteOutcome, VoteAction, aur_vote,
     aur_vote_state, is_vote_state_unsupported_error,
 };
 pub use comments::fetch_aur_comments;
+pub(crate) use comments::fetch_aur_comments_with_context;
 pub use details::fetch_details;
+pub(crate) use details::fetch_details_with_context;
 pub use feeds::{
     NewsFeedContext, check_circuit_breaker, extract_endpoint_pattern,
     extract_retry_after_from_error, fetch_continuation_items, fetch_news_feed,
@@ -43,8 +46,12 @@ pub use feeds::{
     rate_limit_archlinux, record_circuit_breaker_outcome, reset_archlinux_backoff,
     take_network_error,
 };
+pub(crate) use feeds::{fetch_continuation_items_with_context, fetch_news_feed_with_context};
+pub(crate) use news::fetch_arch_news_with_context;
 pub use news::{fetch_arch_news, fetch_news_content, parse_news_html};
 pub use pkgbuild::fetch_pkgbuild_fast;
+pub(crate) use pkgbuild::fetch_pkgbuild_fast_with_context;
+pub(crate) use search::fetch_all_with_context;
 pub use search::fetch_all_with_errors;
 pub use status::fetch_arch_status_text;
 

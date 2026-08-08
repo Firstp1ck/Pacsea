@@ -224,8 +224,6 @@ fn handle_system_update_enter(
         }
     }
     if do_pacman {
-        // Use -Syyu (force sync) or -Syu (normal sync) based on user selection
-        let sync_flag = if force_sync { "-Syyu" } else { "-Syu" };
         let tool = match crate::logic::privilege::active_tool() {
             Ok(t) => t,
             Err(msg) => {
@@ -233,32 +231,14 @@ fn handle_system_update_enter(
                 return;
             }
         };
+        let plan = crate::integrations::arch_toolkit::install::official_update(force_sync);
         cmds.push(crate::logic::privilege::build_privilege_command(
-            tool,
-            &format!("pacman {sync_flag} --noconfirm"),
+            tool, &plan,
         ));
     }
 
-    // Build AUR command separately - will be executed conditionally if pacman fails
-    let aur_command = if do_aur {
-        // Always use -Sua (AUR only) to update only AUR packages
-        // AUR helpers (paru/yay) will automatically handle dependency resolution:
-        // - If AUR packages require newer official packages, the helper will report this
-        // - Users can then also select pacman update if dependency issues occur
-        // - This follows Arch Linux best practices: update official packages first, then AUR
-        let sync_flag = "-Sua";
-        Some(format!(
-            "if command -v paru >/dev/null 2>&1; then \
-                paru {sync_flag} --noconfirm; \
-            elif command -v yay >/dev/null 2>&1; then \
-                yay {sync_flag} --noconfirm; \
-            else \
-                echo 'No AUR helper (paru/yay) found.'; \
-            fi"
-        ))
-    } else {
-        None
-    };
+    // Build AUR command separately so Pacsea preserves conditional execution after pacman.
+    let aur_command = do_aur.then(crate::integrations::arch_toolkit::install::aur_update);
 
     // If both pacman and AUR are selected, store AUR command separately for conditional execution
     // If only AUR is selected, add it to the main command list

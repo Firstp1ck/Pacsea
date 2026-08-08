@@ -150,7 +150,7 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
     let init_flags = initialize_app_state(&mut app, dry_run_flag, headless, &prefs);
 
     // Create channels and spawn background workers
-    let mut channels = Channels::new(app.official_index_path.clone());
+    let mut channels = Channels::new(app.official_index_path.clone())?;
 
     // Get updates refresh interval from settings (minimum 60s per requirement)
     let updates_refresh_interval = crate::theme::settings().updates_refresh_interval.max(60);
@@ -158,6 +158,7 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
     // Spawn auxiliary workers (status, news, tick, index updates)
     spawn_auxiliary_workers(
         headless,
+        channels.toolkit.clone(),
         &channels.status_tx,
         &channels.news_tx,
         &channels.news_feed_tx,

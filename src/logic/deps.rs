@@ -1,517 +1,222 @@
-//! Dependency resolution and analysis for preflight checks.
+//! Dependency resolution and analysis through the arch-toolkit integration boundary.
 
-mod aur;
-mod parse;
-mod query;
-mod resolve;
-mod reverse;
-mod source;
-mod srcinfo;
-mod status;
-mod utils;
+use std::collections::HashSet;
+use std::hash::BuildHasher;
 
-use crate::state::modal::{DependencyInfo, DependencyStatus};
-use crate::state::types::{PackageItem, Source};
-use parse::parse_dep_spec;
-use resolve::{batch_fetch_official_deps, fetch_package_conflicts, resolve_package_deps};
-use source::{determine_dependency_source, is_system_package};
-use status::determine_status;
-use std::collections::{HashMap, HashSet};
-use utils::dependency_priority;
+use crate::state::modal::{DependencyInfo, ReverseRootSummary};
+use crate::state::types::PackageItem;
 
-pub use query::{
-    get_installed_packages, get_provided_packages, get_upgradable_packages,
-    is_package_installed_or_provided,
-};
-pub use reverse::{
-    ReverseDependencyReport, get_installed_required_by, has_installed_required_by,
-    resolve_reverse_dependencies,
-};
-pub use status::{get_installed_version, version_satisfies};
-
-/// What: Check and process conflicts for a package.
+/// What: Aggregate reverse-dependency data for Pacsea preflight views.
 ///
 /// Inputs:
-/// - `item`: Package item to check conflicts for.
-/// - `root_names`: Set of root package names in the install list.
-/// - `installed`: Set of installed package names.
-/// - `provided`: Map of provided packages.
-/// - `deps`: Mutable reference to the dependency map to update.
+/// - Produced by [`resolve_reverse_dependencies`].
 ///
 /// Output:
-/// - Updates the `deps` map with conflict entries.
+/// - Dependency rows and per-root summary counts.
 ///
 /// Details:
-/// - Checks conflicts against installed packages and packages in the install list.
-/// - Creates conflict entries for both the conflicting package and the current package if needed.
-fn process_conflicts(
-    item: &PackageItem,
-    root_names: &HashSet<String>,
-    installed: &HashSet<String>,
-    provided: &HashSet<String>,
-    deps: &mut HashMap<String, DependencyInfo>,
-) {
-    let conflicts = fetch_package_conflicts(&item.name, &item.source);
-    if conflicts.is_empty() {
-        return;
-    }
-
-    tracing::debug!("Package {} conflicts with: {:?}", item.name, conflicts);
-
-    for conflict_name in conflicts {
-        // Skip self-conflicts (package conflicting with itself)
-        if conflict_name.eq_ignore_ascii_case(&item.name) {
-            tracing::debug!(
-                "Skipping self-conflict: {} conflicts with itself",
-                item.name
-            );
-            continue;
-        }
-
-        // Check if conflict is installed or provided by any installed package
-        let is_installed = crate::logic::deps::query::is_package_installed_or_provided(
-            &conflict_name,
-            installed,
-            provided,
-        );
-
-        // Check if conflict is in the install list
-        let is_in_install_list = root_names.contains(&conflict_name);
-
-        if !is_installed && !is_in_install_list {
-            continue;
-        }
-
-        let reason = if is_installed && is_in_install_list {
-            format!("conflicts with {conflict_name} (installed and in install list)")
-        } else if is_installed {
-            format!("conflicts with installed package {conflict_name}")
-        } else {
-            format!("conflicts with package {conflict_name} in install list")
-        };
-
-        // Add or update conflict entry for the conflicting package
-        let entry = deps.entry(conflict_name.clone()).or_insert_with(|| {
-            // Determine source for conflicting package
-            let (source, is_core) =
-                crate::logic::deps::source::determine_dependency_source(&conflict_name, installed);
-            let is_system =
-                is_core || crate::logic::deps::source::is_system_package(&conflict_name);
-
-            DependencyInfo {
-                name: conflict_name.clone(),
-                version: String::new(),
-                status: DependencyStatus::Conflict {
-                    reason: reason.clone(),
-                },
-                source,
-                required_by: vec![item.name.clone()],
-                depends_on: Vec::new(),
-                is_core,
-                is_system,
-            }
-        });
-
-        // Update status to Conflict if not already
-        if !matches!(entry.status, DependencyStatus::Conflict { .. }) {
-            entry.status = DependencyStatus::Conflict { reason };
-        }
-
-        // Add to required_by if not present
-        if !entry.required_by.contains(&item.name) {
-            entry.required_by.push(item.name.clone());
-        }
-
-        // If the conflict is with another package in the install list, also create
-        // a conflict entry for the current package being checked, so it shows up
-        // in the UI as having a conflict
-        if is_in_install_list {
-            let reverse_reason = format!("conflicts with package {conflict_name} in install list");
-            let current_entry = deps.entry(item.name.clone()).or_insert_with(|| {
-                // Determine source for current package
-                let (dep_source, is_core) =
-                    crate::logic::deps::source::determine_dependency_source(&item.name, installed);
-                let is_system =
-                    is_core || crate::logic::deps::source::is_system_package(&item.name);
-
-                DependencyInfo {
-                    name: item.name.clone(),
-                    version: String::new(),
-                    status: DependencyStatus::Conflict {
-                        reason: reverse_reason.clone(),
-                    },
-                    source: dep_source,
-                    required_by: vec![conflict_name.clone()],
-                    depends_on: Vec::new(),
-                    is_core,
-                    is_system,
-                }
-            });
-
-            // Update status to Conflict if not already
-            if !matches!(current_entry.status, DependencyStatus::Conflict { .. }) {
-                current_entry.status = DependencyStatus::Conflict {
-                    reason: reverse_reason,
-                };
-            }
-
-            // Add to required_by if not present
-            if !current_entry.required_by.contains(&conflict_name) {
-                current_entry.required_by.push(conflict_name.clone());
-            }
-        }
-    }
+/// - Preserves Pacsea's public modal/cache contract while arch-toolkit owns traversal.
+#[derive(Clone, Debug, Default)]
+pub struct ReverseDependencyReport {
+    /// Flattened dependency rows reused by the preflight modal.
+    pub dependencies: Vec<DependencyInfo>,
+    /// Per-root direct and transitive dependency counts.
+    pub summaries: Vec<ReverseRootSummary>,
 }
 
-/// What: Process batched dependencies for an official package.
+/// What: Resolve direct dependencies for selected packages through arch-toolkit.
+///
+/// Inputs:
+/// - `items`: Packages selected for install or update preflight.
+///
+/// Output:
+/// - Pacsea dependency rows sorted by urgency.
+///
+/// Details:
+/// - Host-tool failures remain nonfatal and are logged with actionable guidance.
+#[must_use]
+pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
+    crate::integrations::arch_toolkit::deps::resolve_dependencies(items)
+}
+
+/// What: Resolve reverse dependencies for selected removal targets through arch-toolkit.
+///
+/// Inputs:
+/// - `items`: Packages selected for removal.
+///
+/// Output:
+/// - Pacsea-compatible reverse dependency report.
+///
+/// Details:
+/// - Toolkit traversal results are converted before reaching UI state.
+#[must_use]
+pub fn resolve_reverse_dependencies(items: &[PackageItem]) -> ReverseDependencyReport {
+    crate::integrations::arch_toolkit::deps::resolve_reverse_dependencies(items)
+}
+
+/// What: Query installed package names through arch-toolkit.
+///
+/// Inputs:
+/// - None.
+///
+/// Output:
+/// - Installed package names or an empty set when pacman is unavailable.
+///
+/// Details:
+/// - The query runs with a stable C locale.
+#[must_use]
+pub fn get_installed_packages() -> HashSet<String> {
+    crate::integrations::arch_toolkit::deps::installed_packages()
+}
+
+/// What: Query packages with available upgrades through arch-toolkit.
+///
+/// Inputs:
+/// - None.
+///
+/// Output:
+/// - Upgradable package names or an empty set when pacman is unavailable.
+///
+/// Details:
+/// - Nonzero pacman status remains a nonfatal empty result.
+#[must_use]
+pub fn get_upgradable_packages() -> HashSet<String> {
+    crate::integrations::arch_toolkit::deps::upgradable_packages()
+}
+
+/// What: Return caller-compatible virtual provider state through arch-toolkit.
+///
+/// Inputs:
+/// - `installed`: Installed package names.
+///
+/// Output:
+/// - Provided package names known by the toolkit query policy.
+///
+/// Details:
+/// - Lazy host lookup still occurs in [`is_package_installed_or_provided`].
+#[must_use]
+pub fn get_provided_packages<S: BuildHasher + Default>(
+    installed: &HashSet<String, S>,
+) -> HashSet<String> {
+    crate::integrations::arch_toolkit::deps::provided_packages(installed)
+}
+
+/// What: Check installed or virtual-provider membership through arch-toolkit.
+///
+/// Inputs:
+/// - `name`: Package or virtual dependency name.
+/// - `installed`: Caller-supplied installed package names.
+/// - `provided`: Caller-supplied virtual provider names.
+///
+/// Output:
+/// - `true` when the dependency is satisfied.
+///
+/// Details:
+/// - Supplied sets are honored before lazy host fallback.
+#[must_use]
+pub fn is_package_installed_or_provided<S: BuildHasher>(
+    name: &str,
+    installed: &HashSet<String, S>,
+    provided: &HashSet<String, S>,
+) -> bool {
+    crate::integrations::arch_toolkit::deps::is_installed_or_provided(name, installed, provided)
+}
+
+/// What: Query one installed package version through arch-toolkit.
 ///
 /// Inputs:
 /// - `name`: Package name.
-/// - `dep_names`: Vector of dependency specification strings.
-/// - `installed`: Set of installed package names.
-/// - `provided`: Map of provided packages.
-/// - `upgradable`: Set of upgradable package names.
 ///
 /// Output:
-/// - Returns a vector of `DependencyInfo` records.
+/// - Installed version or a user-facing string error.
+///
+/// # Errors
+///
+/// Returns an error when pacman is unavailable, the package is missing, or output cannot be parsed.
 ///
 /// Details:
-/// - Parses dependency specifications and filters out self-references and .so files.
-#[allow(clippy::case_sensitive_file_extension_comparisons)]
-fn process_batched_dependencies(
-    name: &str,
-    dep_names: Vec<String>,
-    installed: &HashSet<String>,
-    provided: &HashSet<String>,
-    upgradable: &HashSet<String>,
-) -> Vec<DependencyInfo> {
-    let mut deps = Vec::new();
-    for dep_spec in dep_names {
-        let (pkg_name, version_req) = parse_dep_spec(&dep_spec);
-        if pkg_name == name {
-            continue;
-        }
-        let pkg_lower = pkg_name.to_lowercase();
-        if pkg_lower.ends_with(".so") || pkg_lower.contains(".so.") || pkg_lower.contains(".so=") {
-            continue;
-        }
-        let status = determine_status(&pkg_name, &version_req, installed, provided, upgradable);
-        let (dep_source, is_core) = determine_dependency_source(&pkg_name, installed);
-        let is_system = is_core || is_system_package(&pkg_name);
-        deps.push(DependencyInfo {
-            name: pkg_name,
-            version: version_req,
-            status,
-            source: dep_source,
-            required_by: vec![name.to_string()],
-            depends_on: Vec::new(),
-            is_core,
-            is_system,
-        });
-    }
-    deps
+/// - Preserves the pre-migration result shape used by preflight call sites.
+pub fn get_installed_version(name: &str) -> Result<String, String> {
+    crate::integrations::arch_toolkit::deps::installed_version(name)
 }
 
-/// What: Merge a dependency into the dependency map.
+/// What: Evaluate a pacman-style version requirement through arch-toolkit.
 ///
 /// Inputs:
-/// - `dep`: Dependency to merge.
-/// - `parent_name`: Name of the package that requires this dependency.
-/// - `installed`: Set of installed package names.
-/// - `provided`: Map of provided packages.
-/// - `upgradable`: Set of upgradable package names.
-/// - `deps`: Mutable reference to the dependency map to update.
+/// - `version`: Installed version.
+/// - `requirement`: Comparison expression.
 ///
 /// Output:
-/// - Updates the `deps` map with the merged dependency.
+/// - Whether the requirement is satisfied.
 ///
 /// Details:
-/// - Merges status (keeps worst), version requirements (keeps more restrictive), and `required_by` lists.
-fn merge_dependency(
-    dep: &DependencyInfo,
-    parent_name: &str,
-    installed: &HashSet<String>,
-    provided: &HashSet<String>,
-    upgradable: &HashSet<String>,
-    deps: &mut HashMap<String, DependencyInfo>,
-) {
-    let dep_name = dep.name.clone();
-
-    // Check if dependency already exists and get its current state
-    let existing_dep = deps.get(&dep_name).cloned();
-    let needs_required_by_update = existing_dep
-        .as_ref()
-        .is_none_or(|e| !e.required_by.contains(&parent_name.to_string()));
-
-    // Update or create dependency entry
-    let entry = deps
-        .entry(dep_name.clone())
-        .or_insert_with(|| DependencyInfo {
-            name: dep_name.clone(),
-            version: dep.version.clone(),
-            status: dep.status.clone(),
-            source: dep.source.clone(),
-            required_by: vec![parent_name.to_string()],
-            depends_on: Vec::new(),
-            is_core: dep.is_core,
-            is_system: dep.is_system,
-        });
-
-    // Update required_by (add the parent if not already present)
-    if needs_required_by_update {
-        entry.required_by.push(parent_name.to_string());
-    }
-
-    // Merge status (keep worst)
-    // But never overwrite a Conflict status - conflicts take precedence
-    if !matches!(entry.status, DependencyStatus::Conflict { .. }) {
-        let existing_priority = dependency_priority(&entry.status);
-        let new_priority = dependency_priority(&dep.status);
-        if new_priority < existing_priority {
-            entry.status = dep.status.clone();
-        }
-    }
-
-    // Merge version requirements (keep more restrictive)
-    // But never overwrite a Conflict status - conflicts take precedence
-    if !dep.version.is_empty() && dep.version != entry.version {
-        // If entry is already a conflict, don't overwrite it with dependency status
-        if matches!(entry.status, DependencyStatus::Conflict { .. }) {
-            // Still update version if needed, but keep conflict status
-            if entry.version.is_empty() {
-                entry.version.clone_from(&dep.version);
-            }
-            return;
-        }
-
-        if entry.version.is_empty() {
-            entry.version.clone_from(&dep.version);
-        } else {
-            // Check which version requirement is more restrictive
-            let existing_status =
-                determine_status(&entry.name, &entry.version, installed, provided, upgradable);
-            let new_status =
-                determine_status(&entry.name, &dep.version, installed, provided, upgradable);
-            let existing_req_priority = dependency_priority(&existing_status);
-            let new_req_priority = dependency_priority(&new_status);
-
-            if new_req_priority < existing_req_priority {
-                entry.version.clone_from(&dep.version);
-                entry.status = new_status;
-            }
-        }
-    }
+/// - Uses epoch/pkgver/pkgrel-aware ordering.
+#[must_use]
+pub fn version_satisfies(version: &str, requirement: &str) -> bool {
+    crate::integrations::arch_toolkit::deps::version_satisfies(version, requirement)
 }
 
-/// What: Resolve dependencies for a single package.
+/// What: Check whether an installed package has installed reverse dependencies.
 ///
 /// Inputs:
-/// - `item`: Package item to resolve dependencies for.
-/// - `batched_deps_cache`: Optional cache of batched dependencies for official packages.
-/// - `installed`: Set of installed package names.
-/// - `provided`: Map of provided packages.
-/// - `upgradable`: Set of upgradable package names.
+/// - `name`: Package name.
 ///
 /// Output:
-/// - Returns a result containing a vector of `DependencyInfo` records or an error.
+/// - Whether at least one installed package requires it.
 ///
 /// Details:
-/// - Uses batched cache if available for official packages, otherwise calls `resolve_package_deps`.
-fn resolve_single_package_deps(
-    item: &PackageItem,
-    batched_deps_cache: &HashMap<String, Vec<String>>,
-    installed: &HashSet<String>,
-    provided: &HashSet<String>,
-    upgradable: &HashSet<String>,
-) -> Result<Vec<DependencyInfo>, String> {
-    let name = &item.name;
-    let source = &item.source;
-
-    tracing::debug!(
-        "Resolving direct dependencies for {} (source: {:?})",
-        name,
-        source
-    );
-
-    // Check if we have batched results for this official package
-    let use_batched = matches!(source, Source::Official { repo, .. } if repo != "local")
-        && batched_deps_cache.contains_key(name.as_str());
-
-    if use_batched {
-        // Use batched dependency list
-        let dep_names = batched_deps_cache
-            .get(name.as_str())
-            .cloned()
-            .unwrap_or_default();
-        let deps = process_batched_dependencies(name, dep_names, installed, provided, upgradable);
-        Ok(deps)
-    } else {
-        resolve_package_deps(name, source, installed, provided, upgradable)
-    }
+/// - Query failure degrades to `false`.
+#[must_use]
+pub fn has_installed_required_by(name: &str) -> bool {
+    crate::integrations::arch_toolkit::deps::has_installed_required_by(name)
 }
 
-/// What: Resolve dependencies for the requested install set while consolidating duplicates.
+/// What: List installed packages that require another package.
 ///
 /// Inputs:
-/// - `items`: Ordered slice of packages that should be analysed for dependency coverage.
+/// - `name`: Package name.
 ///
 /// Output:
-/// - Returns a vector of `DependencyInfo` records summarising dependency status and provenance.
+/// - Installed reverse dependency names.
 ///
 /// Details:
-/// - Resolves ONLY direct dependencies (non-recursive) for each package in the list.
-/// - Merges duplicates by name, retaining the most severe status across all requesters.
-/// - Populates `depends_on` and `required_by` relationships to reflect dependency relationships.
-pub fn resolve_dependencies(items: &[PackageItem]) -> Vec<DependencyInfo> {
-    let _span = tracing::info_span!(
-        "resolve_dependencies",
-        stage = "dependencies",
-        item_count = items.len()
-    )
-    .entered();
-    let start_time = std::time::Instant::now();
-    // Only warn if called from UI thread (not from background workers)
-    // Background workers use spawn_blocking which is fine and expected
-    let backtrace = std::backtrace::Backtrace::force_capture();
-    let backtrace_str = format!("{backtrace:?}");
-    // Only warn if NOT in a blocking task (i.e., called from UI thread/event handlers)
-    // Check for various indicators that we're in a blocking thread pool
-    let is_blocking_task = backtrace_str.contains("blocking::task")
-        || backtrace_str.contains("blocking::pool")
-        || backtrace_str.contains("spawn_blocking");
-    if !is_blocking_task {
-        tracing::warn!(
-            "[Deps] resolve_dependencies called synchronously from UI thread! This will block! Backtrace:\n{}",
-            backtrace_str
-        );
+/// - Query failure degrades to an empty vector.
+#[must_use]
+pub fn get_installed_required_by(name: &str) -> Vec<String> {
+    crate::integrations::arch_toolkit::deps::installed_required_by(name)
+}
+
+#[cfg(test)]
+mod tests {
+    /// What: Verify empty dependency input remains a deterministic no-op.
+    ///
+    /// Inputs:
+    /// - Empty package slice.
+    ///
+    /// Output:
+    /// - Empty dependency rows without host queries.
+    ///
+    /// Details:
+    /// - Protects preflight initialization and cache-reset paths.
+    #[test]
+    fn empty_dependency_resolution_is_noop() {
+        assert!(super::resolve_dependencies(&[]).is_empty());
     }
 
-    if items.is_empty() {
-        tracing::warn!("No packages provided for dependency resolution");
-        return Vec::new();
+    /// What: Verify empty reverse dependency input remains a deterministic no-op.
+    ///
+    /// Inputs:
+    /// - Empty package slice.
+    ///
+    /// Output:
+    /// - Empty dependency and summary collections.
+    ///
+    /// Details:
+    /// - Protects removal-preflight initialization.
+    #[test]
+    fn empty_reverse_resolution_is_noop() {
+        let report = super::resolve_reverse_dependencies(&[]);
+        assert!(report.dependencies.is_empty());
+        assert!(report.summaries.is_empty());
     }
-
-    let mut deps: HashMap<String, DependencyInfo> = HashMap::new();
-
-    // Get installed packages set
-    tracing::info!("Fetching list of installed packages...");
-    let installed = get_installed_packages();
-    tracing::info!("Found {} installed packages", installed.len());
-
-    // Get all provided packages (e.g., rustup provides rust)
-    // Note: Provides are checked lazily on-demand for performance, not built upfront
-    tracing::debug!(
-        "Provides will be checked lazily on-demand (not building full set for performance)"
-    );
-    let provided = get_provided_packages(&installed);
-
-    // Get list of upgradable packages to detect if dependencies need upgrades
-    let upgradable = get_upgradable_packages();
-    tracing::info!("Found {} upgradable packages", upgradable.len());
-
-    // Initialize set of root packages (for tracking)
-    let root_names: HashSet<String> = items.iter().map(|i| i.name.clone()).collect();
-
-    // Check conflicts for packages being installed
-    // 1. Check conflicts against installed packages
-    // 2. Check conflicts between packages in the install list
-    tracing::info!("Checking conflicts for {} package(s)", items.len());
-    for item in items {
-        process_conflicts(item, &root_names, &installed, &provided, &mut deps);
-    }
-
-    // Note: Reverse conflict checking (checking all installed packages for conflicts with install list)
-    // has been removed for performance reasons. Checking 2000+ installed packages would require
-    // 2000+ calls to pacman -Si / yay -Si, which is extremely slow.
-    //
-    // The forward check above is sufficient and fast:
-    // - For each package in install list, fetch its conflicts once (1-10 calls total)
-    // - Check if those conflict names are in the installed package set (O(1) HashSet lookup)
-    // - This catches all conflicts where install list packages conflict with installed packages
-    //
-    // Conflicts are typically symmetric (if A conflicts with B, then B conflicts with A),
-    // so the forward check should catch most cases. If an installed package declares a conflict
-    // with a package in the install list, it will be detected when we check the install list
-    // package's conflicts against the installed package set.
-
-    // Batch fetch official package dependencies to reduce pacman command overhead
-    let official_packages: Vec<&str> = items
-        .iter()
-        .filter_map(|item| {
-            if let Source::Official { repo, .. } = &item.source {
-                if *repo == "local" {
-                    None
-                } else {
-                    Some(item.name.as_str())
-                }
-            } else {
-                None
-            }
-        })
-        .collect();
-    let batched_deps_cache = if official_packages.is_empty() {
-        std::collections::HashMap::new()
-    } else {
-        batch_fetch_official_deps(&official_packages)
-    };
-
-    // Resolve ONLY direct dependencies (non-recursive)
-    // This is faster and avoids resolving transitive dependencies which can be slow and error-prone
-    for item in items {
-        match resolve_single_package_deps(
-            item,
-            &batched_deps_cache,
-            &installed,
-            &provided,
-            &upgradable,
-        ) {
-            Ok(resolved_deps) => {
-                tracing::debug!(
-                    "  Found {} dependencies for {}",
-                    resolved_deps.len(),
-                    item.name
-                );
-
-                for dep in resolved_deps {
-                    merge_dependency(
-                        &dep,
-                        &item.name,
-                        &installed,
-                        &provided,
-                        &upgradable,
-                        &mut deps,
-                    );
-
-                    // DON'T recursively resolve dependencies - only show direct dependencies
-                    // This prevents resolving transitive dependencies which can be slow and error-prone
-                }
-            }
-            Err(e) => {
-                tracing::warn!("  Failed to resolve dependencies for {}: {}", item.name, e);
-            }
-        }
-    }
-
-    let mut result: Vec<DependencyInfo> = deps.into_values().collect();
-    tracing::info!("Total unique dependencies found: {}", result.len());
-
-    // Sort dependencies: conflicts first, then missing, then to-install, then installed
-    result.sort_by(|a, b| {
-        let priority_a = dependency_priority(&a.status);
-        let priority_b = dependency_priority(&b.status);
-        priority_a
-            .cmp(&priority_b)
-            .then_with(|| a.name.cmp(&b.name))
-    });
-
-    let elapsed = start_time.elapsed();
-    let duration_ms = u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX);
-    tracing::info!(
-        stage = "dependencies",
-        item_count = items.len(),
-        result_count = result.len(),
-        duration_ms = duration_ms,
-        "Dependency resolution complete"
-    );
-    result
 }
