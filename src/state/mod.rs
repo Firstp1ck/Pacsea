@@ -7,6 +7,10 @@ pub mod app_state;
 pub mod config_editor;
 pub mod main_vertical_pane;
 pub mod modal;
+/// Cohesive persisted and in-memory state for optional Pi-backed AUR scanning.
+pub mod pi_scan;
+/// Native workspace projection for optional Pi scan state.
+pub mod pi_scan_ui;
 pub mod types;
 
 // Public re-exports to keep existing paths working
@@ -20,6 +24,10 @@ pub use main_vertical_pane::{
     parse_main_pane_order,
 };
 pub use modal::{Modal, PreflightAction, PreflightTab, SshSetupStep};
+pub use pi_scan_ui::{
+    PiScanAvailability, PiScanDisplayResult, PiScanDryRunPreview, PiScanReadiness, PiScanTarget,
+    PiScanTargetStatus, PiScanUiAction, PiScanView, PiScanWorkspaceState,
+};
 pub use types::{
     ArchStatusColor, Focus, InstalledPackagesMode, NewsItem, PackageDetails, PackageItem,
     PkgbuildCheckRequest, PkgbuildCheckResponse, QueryInput, RightPaneFocus, SearchResults,

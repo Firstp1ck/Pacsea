@@ -194,6 +194,32 @@ fn get_updates_value(key: &str, prefs: &Settings) -> Option<String> {
     }
 }
 
+/// Return the effective optional Pi scanner setting value.
+fn get_pi_scan_value(key: &str, prefs: &Settings) -> Option<String> {
+    let pi = &prefs.pi_scan;
+    Some(match key {
+        "pi_scan_enabled" => bool_to_string(pi.enabled),
+        "pi_scan_background_enabled" => bool_to_string(pi.background_enabled),
+        "pi_scan_binary" => pi.binary.clone(),
+        "pi_scan_provider" => pi.provider.clone(),
+        "pi_scan_model" => pi.model.clone(),
+        "pi_scan_fallback_models" => pi.fallback_models.clone(),
+        "pi_scan_thinking" => pi.thinking.clone(),
+        "pi_scan_observation_interval_seconds" => pi.observation_interval_seconds.to_string(),
+        "pi_scan_head_query_timeout_seconds" => pi.head_query_timeout_seconds.to_string(),
+        "pi_scan_observation_deadline_seconds" => pi.observation_deadline_seconds.to_string(),
+        "pi_scan_model_attempt_timeout_seconds" => pi.model_attempt_timeout_seconds.to_string(),
+        "pi_scan_logical_timeout_seconds" => pi.logical_timeout_seconds.to_string(),
+        "pi_scan_background_starts_per_hour" => pi.background_starts_per_hour.to_string(),
+        "pi_scan_background_token_cap_24h" => pi.background_token_cap_24h.to_string(),
+        "pi_scan_background_cost_cap_24h" => pi.background_cost_cap_24h.clone(),
+        "pi_scan_result_retention_days" => pi.result_retention_days.to_string(),
+        "pi_scan_show_raw_output" => bool_to_string(pi.show_raw_output),
+        "pi_scan_https_proxy" => pi.https_proxy.clone(),
+        _ => return None,
+    })
+}
+
 /// What: Get scan-related setting values.
 ///
 /// Inputs:
@@ -253,6 +279,7 @@ fn get_setting_value(key: &str, skeleton_value: String, prefs: &Settings) -> Str
         .or_else(|| get_mirror_value(key, prefs))
         .or_else(|| get_news_value(key, prefs))
         .or_else(|| get_updates_value(key, prefs))
+        .or_else(|| get_pi_scan_value(key, prefs))
         .or_else(|| get_scan_value(key, prefs))
         .or_else(|| get_pkgbuild_static_check_value(key, prefs))
         .unwrap_or(skeleton_value)

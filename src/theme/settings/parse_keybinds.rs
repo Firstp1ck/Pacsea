@@ -217,6 +217,10 @@ fn apply_search_keybind(key: &str, chord: Option<KeyChord>, settings: &mut Setti
             assign_keybind(chord, &mut settings.keymap.search_normal_updates);
             true
         }
+        "keybind_search_normal_pi_scan" | "keybind_pi_scan" => {
+            assign_keybind(chord, &mut settings.keymap.search_normal_pi_scan);
+            true
+        }
         "keybind_toggle_fuzzy" | "keybind_fuzzy_toggle" => {
             assign_keybind(chord, &mut settings.keymap.toggle_fuzzy);
             true

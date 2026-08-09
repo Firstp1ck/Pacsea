@@ -63,6 +63,102 @@ hu-HU:
     search_mode_fuzzy: "KÖZELÍTŐ"
     search_mode_normal: "NORMÁL"
 
+    pi_scan:
+      title: "Pi Scan" # TODO: translate to Hungarian
+      tabs:
+        setup: "Setup" # TODO: translate to Hungarian
+        overview: "Overview" # TODO: translate to Hungarian
+        targets: "Targets" # TODO: translate to Hungarian
+        progress: "Progress" # TODO: translate to Hungarian
+        results: "Results" # TODO: translate to Hungarian
+        details: "Details" # TODO: translate to Hungarian
+      status:
+        disabled: "disabled" # TODO: translate to Hungarian
+        unsupported: "unsupported platform" # TODO: translate to Hungarian
+        missing_pi: "Pi missing" # TODO: translate to Hungarian
+        disconnected: "runtime default-off" # TODO: translate to Hungarian
+        connected: "runtime connected" # TODO: translate to Hungarian
+      common:
+        confirmed: "confirmed" # TODO: translate to Hungarian
+        not_confirmed: "not confirmed" # TODO: translate to Hungarian
+      coverage:
+        complete: "complete" # TODO: translate to Hungarian
+        incomplete: "incomplete" # TODO: translate to Hungarian
+      priority:
+        foreground: "foreground" # TODO: translate to Hungarian
+        background: "background" # TODO: translate to Hungarian
+      target_status:
+        unbaselined: "unbaselined" # TODO: translate to Hungarian
+        queued: "queued" # TODO: translate to Hungarian
+        running: "running" # TODO: translate to Hungarian
+        paused: "paused" # TODO: translate to Hungarian
+        completed: "completed" # TODO: translate to Hungarian
+        failed: "failed" # TODO: translate to Hungarian
+        interrupted: "interrupted" # TODO: translate to Hungarian
+        cancelled: "cancelled" # TODO: translate to Hungarian
+      setup:
+        missing_pi: "Pi was not found. Install Pi, set pi_scan_binary, then restart Pacsea." # TODO: translate to Hungarian
+        integration_pending: "Pi exists, but scanner runtime channels remain default-off in this build." # TODO: translate to Hungarian
+        enable_hint: "Enable pi_scan_enabled in settings.conf after reviewing every disclosure." # TODO: translate to Hungarian
+        unsupported: "Native Pi scanning runs only on Arch/Linux." # TODO: translate to Hungarian
+        connected: "Runtime channel attached; setup confirmations still apply." # TODO: translate to Hungarian
+        readiness_unchecked: "not probed; no model call was made" # TODO: translate to Hungarian
+        readiness_warning: "warning" # TODO: translate to Hungarian
+        readiness_confirmed: "confirmed" # TODO: translate to Hungarian
+        config_within_bounds: "configured limits are within compiled bounds" # TODO: translate to Hungarian
+        feature_background: "Feature enabled / paid background enabled" # TODO: translate to Hungarian
+        provider_model: "Provider / model" # TODO: translate to Hungarian
+        fallback: "Ordered fallback" # TODO: translate to Hungarian
+        privacy_cost: "Privacy/cost: analyzed package data is sent to the selected provider; model and fallback calls may incur cost. Pacsea never stores provider secrets." # TODO: translate to Hungarian
+        coverage: "Coverage: results are advisory and can be incomplete; they do not prove installed bytes or package safety." # TODO: translate to Hungarian
+        readiness: "Readiness" # TODO: translate to Hungarian
+        config: "Configuration" # TODO: translate to Hungarian
+        effective_compiled: "Effective / compiled maxima" # TODO: translate to Hungarian
+        disclosure_consent: "Provider/privacy/cost/coverage disclosure" # TODO: translate to Hungarian
+        observation_consent: "Background observation consent (read-only network activity)" # TODO: translate to Hungarian
+        paid_consent: "Background paid execution consent" # TODO: translate to Hungarian
+        fallback_consent: "Ordered fallback confirmation" # TODO: translate to Hungarian
+        warning_consent: "Readiness-warning confirmation" # TODO: translate to Hungarian
+      overview:
+        active: "Active" # TODO: translate to Hungarian
+        queued: "Queued" # TODO: translate to Hungarian
+        pauses: "Pause reasons" # TODO: translate to Hungarian
+        budgets: "Unattended limits" # TODO: translate to Hungarian
+        consents: "Observation / paid consent" # TODO: translate to Hungarian
+        advisory: "Advisory only: no result authorizes installation and incomplete coverage remains visible." # TODO: translate to Hungarian
+      targets:
+        hint: "Space selects targets; Enter queues or creates a dry-run preview." # TODO: translate to Hungarian
+        empty: "No AUR target in context. Return to Search, select an AUR package, then press Shift+A." # TODO: translate to Hungarian
+        dry_run_preview: "Dry-run process preview" # TODO: translate to Hungarian
+        dry_run_disclosure: "Dry-run makes no Pi/model call and mutates no scanner queue, consent, budget, result, or durable state." # TODO: translate to Hungarian
+      progress:
+        keys: "d detach · o reopen · p pause · u resume · x cancel · r retry" # TODO: translate to Hungarian
+        active: "Active" # TODO: translate to Hungarian
+        detached: "detached" # TODO: translate to Hungarian
+        no_active: "No active scan." # TODO: translate to Hungarian
+      results:
+        advisory: "Validated advisory output only. Model text that failed schema/evidence validation is not rendered." # TODO: translate to Hungarian
+        empty: "No validated result is available." # TODO: translate to Hungarian
+        stale: "[STALE IDENTITY]" # TODO: translate to Hungarian
+      details:
+        coverage: "Coverage" # TODO: translate to Hungarian
+        stale: "Stale identity" # TODO: translate to Hungarian
+        acknowledged: "Continuation acknowledgement satisfied" # TODO: translate to Hungarian
+        ack_keys: "a acknowledges high/critical findings; s separately acknowledges stale identity; c continues the acknowledged result. All are bound to this exact result." # TODO: translate to Hungarian
+        disagreement: "  Model severity disagreement is retained; highest severity controls acknowledgement." # TODO: translate to Hungarian
+        raw: "Canonical validated-data view:" # TODO: translate to Hungarian
+      footer:
+        title: "Status / Help" # TODO: translate to Hungarian
+        notice: "No Pi model/network call or durable scanner write occurs in this workspace-only integration." # TODO: translate to Hungarian
+        keys: "1–6 pages · Tab cycle · j/k move · Enter action · Esc Package mode · F1 Help" # TODO: translate to Hungarian
+      notices:
+        session_only: "Consent preview changed only in UI; default-off runtime channels are not attached." # TODO: translate to Hungarian
+        select_target: "Select at least one target." # TODO: translate to Hungarian
+        preview_only: "Dry-run preview created; no Pi process, model call, or durable scanner mutation occurred." # TODO: translate to Hungarian
+        setup_required: "Confirm the disclosure and paid execution consent before requesting a manual scan." # TODO: translate to Hungarian
+        confirm_required: "Confirm the configured fallback and any readiness warning before queueing." # TODO: translate to Hungarian
+        runtime_disconnected: "Runtime remains default-off. Central integration must construct Channels with PiScanRuntimeOptions from validated settings." # TODO: translate to Hungarian
+
     titles:
       search: "Keresés"
       search_focused: "Keresés (fókuszált)"
@@ -580,6 +676,7 @@ hu-HU:
           select_left: "  Bal oldali kiválasztása"
           select_right: "  Jobb oldali kiválasztása"
           open_arch_status: "  Arch Linux állapotának megnyitása"
+          open_pi_scan: "  Open Pi Scan workspace" # TODO: translate to Hungarian
           config_lists_menu: "  Konfigurációk/Listák menü"
           options_menu: "  Beállítások menü"
           panels_menu: "  Panelek menü"

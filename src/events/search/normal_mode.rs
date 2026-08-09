@@ -733,6 +733,13 @@ fn handle_keymap_actions(
         return true;
     }
 
+    if matches_any(ke, &app.keymap.search_normal_pi_scan)
+        && matches!(app.app_mode, crate::state::types::AppMode::Package)
+    {
+        crate::events::pi_scan::open_from_search(app);
+        return true;
+    }
+
     if matches_any(ke, &app.keymap.search_normal_updates) {
         if matches!(app.app_mode, crate::state::types::AppMode::News) {
             crate::events::mouse::handle_news_button(app);

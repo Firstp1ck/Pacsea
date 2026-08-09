@@ -19,8 +19,8 @@ mod handlers;
 pub mod init;
 /// Tick handler for periodic UI updates.
 mod tick_handler;
-/// Background worker implementations.
-mod workers;
+/// Background worker implementations shared with the crate-level production Pi adapter.
+pub mod workers;
 
 use background::{Channels, spawn_auxiliary_workers, spawn_event_thread};
 use cleanup::cleanup_on_exit;
@@ -149,8 +149,22 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
     // Initialize application state (loads settings, caches, etc.)
     let init_flags = initialize_app_state(&mut app, dry_run_flag, headless, &prefs);
 
-    // Create channels and spawn background workers
-    let mut channels = Channels::new(app.official_index_path.clone())?;
+    // Create channels and spawn background workers. The optional scanner is enabled only
+    // after settings validation; failures degrade that path without taking down Pacsea.
+    let pi_scan_options = pi_scan_runtime_options(&prefs, app.dry_run);
+    let mut channels =
+        Channels::new_with_pi_scan(app.official_index_path.clone(), pi_scan_options)?;
+    if channels.pi_scan_runtime_enabled {
+        app.pi_scan.availability = crate::state::PiScanAvailability::RuntimeConnected;
+    } else if prefs.pi_scan.enabled
+        && !matches!(
+            app.pi_scan.availability,
+            crate::state::PiScanAvailability::MissingBinary
+                | crate::state::PiScanAvailability::Unsupported
+        )
+    {
+        app.pi_scan.availability = crate::state::PiScanAvailability::RuntimeDisconnected;
+    }
 
     // Get updates refresh interval from settings (minimum 60s per requirement)
     let updates_refresh_interval = crate::theme::settings().updates_refresh_interval.max(60);
@@ -218,4 +232,106 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
     // This is necessary because spawn_blocking tasks cannot be cancelled and would
     // otherwise keep the tokio runtime alive until they complete
     std::process::exit(0);
+}
+
+/// What: Build validated private runtime options for the optional Pi scanner.
+///
+/// Inputs:
+/// - `prefs`: Resolved settings snapshot.
+/// - `dry_run`: Effective session dry-run flag.
+///
+/// Output:
+/// - Default-off options when scanner settings are invalid; otherwise the explicit gate
+///   and private config-relative state/quarantine paths.
+///
+/// Details:
+/// - Validation never clamps raised security limits. The runtime worker separately applies
+///   the Linux platform gate and refuses corrupt/newer durable state.
+fn pi_scan_runtime_options(
+    prefs: &crate::theme::Settings,
+    dry_run: bool,
+) -> crate::app::runtime::workers::pi_scan::PiScanRuntimeOptions {
+    let root = crate::theme::config_dir().join("pi_scan");
+    let settings_valid = prefs.pi_scan.validation_issues().is_empty();
+    let enabled = prefs.pi_scan.enabled && settings_valid;
+    let production = settings_valid.then(|| {
+        let mut models = Vec::new();
+        if !prefs.pi_scan.provider.trim().is_empty() && !prefs.pi_scan.model.trim().is_empty() {
+            models.push(crate::pi_agent::session::ModelChoice {
+                provider: prefs.pi_scan.provider.trim().to_string(),
+                model: prefs.pi_scan.model.trim().to_string(),
+            });
+        }
+        for fallback in prefs
+            .pi_scan
+            .fallback_models
+            .split(',')
+            .map(str::trim)
+            .filter(|model| !model.is_empty())
+        {
+            let (provider, model) = fallback.split_once('/').map_or_else(
+                || (prefs.pi_scan.provider.trim(), fallback),
+                |(provider, model)| (provider, model),
+            );
+            models.push(crate::pi_agent::session::ModelChoice {
+                provider: provider.to_string(),
+                model: model.to_string(),
+            });
+        }
+        crate::pi_scan_production::ProductionRuntimeSettings {
+            binary: prefs.pi_scan.binary.clone(),
+            models,
+            background_execution: prefs.pi_scan.background_enabled,
+            thinking: prefs.pi_scan.thinking.clone(),
+            observation_interval_seconds: prefs.pi_scan.observation_interval_seconds,
+            model_attempt_timeout: std::time::Duration::from_secs(
+                prefs.pi_scan.model_attempt_timeout_seconds,
+            ),
+            logical_timeout: std::time::Duration::from_secs(prefs.pi_scan.logical_timeout_seconds),
+            head_query_timeout: std::time::Duration::from_secs(
+                prefs.pi_scan.head_query_timeout_seconds,
+            ),
+            observation_deadline: std::time::Duration::from_secs(
+                prefs.pi_scan.observation_deadline_seconds,
+            ),
+            result_retention_days: prefs.pi_scan.result_retention_days,
+            reservation: crate::state::pi_scan::PiScanReservation {
+                tokens: prefs.pi_scan.background_token_cap_24h,
+                cost_microusd: pi_scan_cost_cap_microusd(&prefs.pi_scan.background_cost_cap_24h)
+                    .unwrap_or(0),
+            },
+            budget_limits: crate::state::pi_scan::PiScanBudgetLimits {
+                starts_per_hour: prefs.pi_scan.background_starts_per_hour,
+                tokens_per_24h: prefs.pi_scan.background_token_cap_24h,
+                cost_microusd_per_24h: pi_scan_cost_cap_microusd(
+                    &prefs.pi_scan.background_cost_cap_24h,
+                )
+                .unwrap_or(0),
+            },
+            https_proxy: prefs.pi_scan.https_proxy.clone(),
+        }
+    });
+    crate::app::runtime::workers::pi_scan::PiScanRuntimeOptions {
+        enabled,
+        dry_run,
+        state_path: root.join("backlog-v1.json"),
+        quarantine_dir: root.join("quarantine"),
+        production,
+    }
+}
+
+/// Convert a validated decimal dollar cap to integer micro-USD without floating-point drift.
+fn pi_scan_cost_cap_microusd(value: &str) -> Option<u64> {
+    let trimmed = value.trim();
+    let (whole, fraction) = trimmed.split_once('.').map_or((trimmed, ""), |parts| parts);
+    if whole.is_empty()
+        || !whole.chars().all(|character| character.is_ascii_digit())
+        || fraction.len() > 6
+        || !fraction.chars().all(|character| character.is_ascii_digit())
+    {
+        return None;
+    }
+    let dollars = whole.parse::<u64>().ok()?;
+    let micros = format!("{fraction:0<6}").parse::<u64>().ok()?;
+    dollars.checked_mul(1_000_000)?.checked_add(micros)
 }

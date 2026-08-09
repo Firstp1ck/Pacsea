@@ -33,6 +33,8 @@ pub mod helpers;
 mod middle;
 /// Modal overlays rendering module.
 mod modals;
+/// Optional Pi Scan workspace rendering.
+pub mod pi_scan;
 /// Search results rendering module.
 mod results;
 /// Updates pane rendering module.
@@ -416,6 +418,14 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
 
     // Render updates button in the top row
     updates::render_updates_button(f, app, main_chunks[0]);
+
+    // Pi Scan is a dedicated workspace beneath the shared top status row.
+    if matches!(app.app_mode, AppMode::PiScan) {
+        pi_scan::render(f, app, main_chunks[1]);
+        modals::render_modals(f, app, area);
+        render_toast(f, app, area);
+        return;
+    }
 
     // Config editor is a dedicated app mode that occupies the same main
     // content area as package/news views.

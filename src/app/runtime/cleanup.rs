@@ -11,6 +11,43 @@ use super::super::persist::{
 };
 use super::background::Channels;
 
+/// What: Request and wait for the explicitly enabled Pi scan worker's bounded shutdown.
+///
+/// Inputs:
+/// - `channels`: Runtime channels and enablement marker.
+///
+/// Output:
+/// - Best-effort acknowledgement logging within the compiled ten-second bound.
+///
+/// Details:
+/// - The default-off worker is inert and needs no durability wait. An enabled worker aborts
+///   and reaps its correlated Pi group, recovers active work, then acknowledges persistence.
+fn shutdown_pi_scan_worker(channels: &Channels) {
+    if !channels.pi_scan_runtime_enabled {
+        return;
+    }
+    let (acknowledge, receiver) = std::sync::mpsc::sync_channel(1);
+    let message = crate::app::runtime::workers::pi_scan::PiScanShutdownMessage { acknowledge };
+    if let Err(error) = channels.pi_scan_shutdown_tx.send(message) {
+        tracing::warn!(%error, "could not request Pi scan worker shutdown; recovery marker may be stale");
+        return;
+    }
+    match receiver.recv_timeout(crate::pi_agent::process::default_shutdown_deadline()) {
+        Ok(ack) if ack.persisted => {
+            tracing::debug!(
+                active_interrupted = ack.active_interrupted,
+                "Pi scan worker shutdown acknowledged"
+            );
+        }
+        Ok(ack) => {
+            tracing::warn!(warning = ?ack.warning, "Pi scan worker shutdown durability was not confirmed");
+        }
+        Err(error) => {
+            tracing::warn!(%error, "Pi scan worker did not acknowledge shutdown within ten seconds; recovery is required");
+        }
+    }
+}
+
 /// What: Clean up application state and flush caches on exit.
 ///
 /// Inputs:
@@ -58,6 +95,8 @@ pub fn cleanup_on_exit(app: &mut AppState, channels: &Channels) {
     channels
         .event_thread_cancelled
         .store(true, std::sync::atomic::Ordering::Relaxed);
+
+    shutdown_pi_scan_worker(channels);
 
     maybe_flush_cache(app);
     maybe_flush_recent(app);

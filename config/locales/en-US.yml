@@ -60,6 +60,102 @@ en-US:
     search_mode_fuzzy: "FUZZY"
     search_mode_normal: "NORMAL"
 
+    pi_scan:
+      title: "Pi Scan"
+      tabs:
+        setup: "Setup"
+        overview: "Overview"
+        targets: "Targets"
+        progress: "Progress"
+        results: "Results"
+        details: "Details"
+      status:
+        disabled: "disabled"
+        unsupported: "unsupported platform"
+        missing_pi: "Pi missing"
+        disconnected: "runtime default-off"
+        connected: "runtime connected"
+      common:
+        confirmed: "confirmed"
+        not_confirmed: "not confirmed"
+      coverage:
+        complete: "complete"
+        incomplete: "incomplete"
+      priority:
+        foreground: "foreground"
+        background: "background"
+      target_status:
+        unbaselined: "unbaselined"
+        queued: "queued"
+        running: "running"
+        paused: "paused"
+        completed: "completed"
+        failed: "failed"
+        interrupted: "interrupted"
+        cancelled: "cancelled"
+      setup:
+        missing_pi: "Pi was not found. Install Pi, set pi_scan_binary, then restart Pacsea."
+        integration_pending: "Pi exists, but scanner runtime channels remain default-off in this build."
+        enable_hint: "Enable pi_scan_enabled in settings.conf after reviewing every disclosure."
+        unsupported: "Native Pi scanning runs only on Arch/Linux."
+        connected: "Runtime channel attached; setup confirmations still apply."
+        readiness_unchecked: "not probed; no model call was made"
+        readiness_warning: "warning"
+        readiness_confirmed: "confirmed"
+        config_within_bounds: "configured limits are within compiled bounds"
+        feature_background: "Feature enabled / paid background enabled"
+        provider_model: "Provider / model"
+        fallback: "Ordered fallback"
+        privacy_cost: "Privacy/cost: analyzed package data is sent to the selected provider; model and fallback calls may incur cost. Pacsea never stores provider secrets."
+        coverage: "Coverage: results are advisory and can be incomplete; they do not prove installed bytes or package safety."
+        readiness: "Readiness"
+        config: "Configuration"
+        effective_compiled: "Effective / compiled maxima"
+        disclosure_consent: "Provider/privacy/cost/coverage disclosure"
+        observation_consent: "Background observation consent (read-only network activity)"
+        paid_consent: "Background paid execution consent"
+        fallback_consent: "Ordered fallback confirmation"
+        warning_consent: "Readiness-warning confirmation"
+      overview:
+        active: "Active"
+        queued: "Queued"
+        pauses: "Pause reasons"
+        budgets: "Unattended limits"
+        consents: "Observation / paid consent"
+        advisory: "Advisory only: no result authorizes installation and incomplete coverage remains visible."
+      targets:
+        hint: "Space selects targets; Enter queues or creates a dry-run preview."
+        empty: "No AUR target in context. Return to Search, select an AUR package, then press Shift+A."
+        dry_run_preview: "Dry-run process preview"
+        dry_run_disclosure: "Dry-run makes no Pi/model call and mutates no scanner queue, consent, budget, result, or durable state."
+      progress:
+        keys: "d detach · o reopen · p pause · u resume · x cancel · r retry"
+        active: "Active"
+        detached: "detached"
+        no_active: "No active scan."
+      results:
+        advisory: "Validated advisory output only. Model text that failed schema/evidence validation is not rendered."
+        empty: "No validated result is available."
+        stale: "[STALE IDENTITY]"
+      details:
+        coverage: "Coverage"
+        stale: "Stale identity"
+        acknowledged: "Continuation acknowledgement satisfied"
+        ack_keys: "a acknowledges high/critical findings; s separately acknowledges stale identity; c continues the acknowledged result. All are bound to this exact result."
+        disagreement: "  Model severity disagreement is retained; highest severity controls acknowledgement."
+        raw: "Canonical validated-data view:"
+      footer:
+        title: "Status / Help"
+        notice: "No Pi model/network call or durable scanner write occurs in this workspace-only integration."
+        keys: "1–6 pages · Tab cycle · j/k move · Enter action · Esc Package mode · F1 Help"
+      notices:
+        session_only: "Consent preview changed only in UI; default-off runtime channels are not attached."
+        select_target: "Select at least one target."
+        preview_only: "Dry-run preview created; no Pi process, model call, or durable scanner mutation occurred."
+        setup_required: "Confirm the disclosure and paid execution consent before requesting a manual scan."
+        confirm_required: "Confirm the configured fallback and any readiness warning before queueing."
+        runtime_disconnected: "Runtime remains default-off. Central integration must construct Channels with PiScanRuntimeOptions from validated settings."
+
     titles:
       search: "Search"
       search_focused: "Search (focused)"
@@ -402,6 +498,60 @@ en-US:
           popup_reset: "Reset value"
           export: "Export effective values"
         settings:
+          pi_scan_enabled:
+            label: "Pi Scan: enabled"
+            summary: "Runtime feature gate; remains off until explicitly enabled and restarted."
+          pi_scan_background_enabled:
+            label: "Pi Scan: paid background execution"
+            summary: "Allows unattended paid execution only with separate runtime consent and budgets."
+          pi_scan_binary:
+            label: "Pi Scan: Pi binary"
+            summary: "Pi executable name or absolute path; Pacsea never accepts provider secrets."
+          pi_scan_provider:
+            label: "Pi Scan: provider"
+            summary: "Explicit provider route disclosed before model execution."
+          pi_scan_model:
+            label: "Pi Scan: primary model"
+            summary: "Exact primary model identifier; empty means no selection."
+          pi_scan_fallback_models:
+            label: "Pi Scan: fallback models"
+            summary: "Ordered comma-separated fallback list requiring explicit confirmation."
+          pi_scan_thinking:
+            label: "Pi Scan: thinking level"
+            summary: "Requested thinking level; default medium and only adjusted downward when unsupported."
+          pi_scan_observation_interval_seconds:
+            label: "Pi Scan: observation interval (s)"
+            summary: "Read-only AUR observation interval; minimum 900 seconds."
+          pi_scan_head_query_timeout_seconds:
+            label: "Pi Scan: head query timeout (s)"
+            summary: "Per-query timeout; compiled maximum 15 seconds."
+          pi_scan_observation_deadline_seconds:
+            label: "Pi Scan: observation deadline (s)"
+            summary: "Whole sequential observation deadline; compiled maximum 90 seconds."
+          pi_scan_model_attempt_timeout_seconds:
+            label: "Pi Scan: model attempt timeout (s)"
+            summary: "Per-attempt wall time; compiled maximum 300 seconds."
+          pi_scan_logical_timeout_seconds:
+            label: "Pi Scan: logical timeout (s)"
+            summary: "Whole logical-scan wall time; compiled maximum 720 seconds."
+          pi_scan_background_starts_per_hour:
+            label: "Pi Scan: background starts/hour"
+            summary: "Rolling unattended start cap; cannot exceed 5."
+          pi_scan_background_token_cap_24h:
+            label: "Pi Scan: background tokens/24h"
+            summary: "Rolling unattended token cap; cannot exceed 500000."
+          pi_scan_background_cost_cap_24h:
+            label: "Pi Scan: background cost/24h"
+            summary: "Non-negative decimal dollar cap; default 0.00."
+          pi_scan_result_retention_days:
+            label: "Pi Scan: result retention days"
+            summary: "Retention for superseded detailed validated results."
+          pi_scan_show_raw_output:
+            label: "Pi Scan: show canonical raw view"
+            summary: "Shows serialization of validated typed data, never original model output."
+          pi_scan_https_proxy:
+            label: "Pi Scan: HTTPS proxy"
+            summary: "Optional explicit credential-free HTTPS proxy; empty disables proxy use."
           sort_mode:
             label: "Result sort mode"
             summary: "Order applied to the search results pane."
@@ -752,6 +902,7 @@ en-US:
           select_left: "  Select left"
           select_right: "  Select right"
           open_arch_status: "  Open Arch status"
+          open_pi_scan: "  Open Pi Scan workspace"
           config_lists_menu: "  Config/Lists menu"
           options_menu: "  Options menu"
           panels_menu: "  Panels menu"

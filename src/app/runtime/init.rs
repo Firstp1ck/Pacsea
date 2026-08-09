@@ -311,6 +311,9 @@ pub fn apply_settings_to_app_state(app: &mut AppState, prefs: &crate::theme::Set
     app.search_normal_mode = prefs.search_startup_mode;
     app.fuzzy_search_enabled = prefs.fuzzy_search;
     app.installed_packages_mode = prefs.installed_packages_mode;
+    let pi_binary_found = configured_pi_binary_found(&prefs.pi_scan.binary);
+    app.pi_scan
+        .apply_settings(prefs.pi_scan.clone(), pi_binary_found);
     app.app_mode = if prefs.start_in_news {
         crate::state::types::AppMode::News
     } else {
@@ -326,6 +329,19 @@ pub fn apply_settings_to_app_state(app: &mut AppState, prefs: &crate::theme::Set
     // Recompute news results with loaded filters/age
     app.refresh_news_results();
     crate::logic::repos::refresh_dynamic_filters_in_app(app, prefs);
+}
+
+/// Return whether the configured Pi binary can be found without executing it.
+fn configured_pi_binary_found(binary: &str) -> bool {
+    let trimmed = binary.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+    let path = std::path::Path::new(trimmed);
+    if path.is_absolute() {
+        return path.is_file();
+    }
+    crate::install::command_on_path(trimmed)
 }
 
 /// What: Check if GNOME terminal is needed and set modal if required.

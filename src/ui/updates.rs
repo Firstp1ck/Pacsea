@@ -78,6 +78,27 @@ fn news_top_bar_label(app: &AppState) -> String {
     }
 }
 
+/// Build the Pi Scan top status label without claiming runtime readiness.
+fn pi_scan_top_bar_label(app: &AppState) -> String {
+    let queued = app.pi_scan.runtime.queue.len();
+    let state = match app.pi_scan.availability {
+        crate::state::PiScanAvailability::Disabled => i18n::t(app, "app.pi_scan.status.disabled"),
+        crate::state::PiScanAvailability::Unsupported => {
+            i18n::t(app, "app.pi_scan.status.unsupported")
+        }
+        crate::state::PiScanAvailability::MissingBinary => {
+            i18n::t(app, "app.pi_scan.status.missing_pi")
+        }
+        crate::state::PiScanAvailability::RuntimeDisconnected => {
+            i18n::t(app, "app.pi_scan.status.disconnected")
+        }
+        crate::state::PiScanAvailability::RuntimeConnected => {
+            i18n::t(app, "app.pi_scan.status.connected")
+        }
+    };
+    format!("Pi Scan: {state} · {queued} queued")
+}
+
 /// What: Draw updates and news top labels as one horizontally centered group (config editor).
 ///
 /// Inputs:
@@ -255,6 +276,10 @@ pub fn render_updates_button(f: &mut Frame, app: &mut AppState, area: Rect) {
         AppMode::News => {
             let label = news_top_bar_label(app);
             render_news_button_inner(f, app, updates_chunk, &label, &th);
+        }
+        AppMode::PiScan => {
+            let label = pi_scan_top_bar_label(app);
+            render_updates_button_inner(f, app, updates_chunk, &label, &th);
         }
         AppMode::Package => {
             let label = package_updates_top_bar_label(app);

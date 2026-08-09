@@ -503,6 +503,9 @@ pub fn lookup_setting(name: &str) -> Option<&'static EditableSetting> {
 #[allow(clippy::too_many_lines)]
 pub fn current_value_string(entry: &EditableSetting) -> String {
     let s = crate::theme::settings();
+    if let Some(value) = pi_scan_current_value(entry.key, &s.pi_scan) {
+        return value;
+    }
     match entry.key {
         // Phase 1 originals
         "sort_mode" => s.sort_mode.as_config_key().to_string(),
@@ -631,6 +634,34 @@ pub fn current_value_string(entry: &EditableSetting) -> String {
     }
 }
 
+/// Return the current canonical value for an optional Pi scanner key.
+fn pi_scan_current_value(key: &str, settings: &crate::theme::PiScanSettings) -> Option<String> {
+    let value = match key {
+        "pi_scan_enabled" => bool_to_canonical(settings.enabled).to_string(),
+        "pi_scan_background_enabled" => bool_to_canonical(settings.background_enabled).to_string(),
+        "pi_scan_binary" => settings.binary.clone(),
+        "pi_scan_provider" => settings.provider.clone(),
+        "pi_scan_model" => settings.model.clone(),
+        "pi_scan_fallback_models" => settings.fallback_models.clone(),
+        "pi_scan_thinking" => settings.thinking.clone(),
+        "pi_scan_observation_interval_seconds" => settings.observation_interval_seconds.to_string(),
+        "pi_scan_head_query_timeout_seconds" => settings.head_query_timeout_seconds.to_string(),
+        "pi_scan_observation_deadline_seconds" => settings.observation_deadline_seconds.to_string(),
+        "pi_scan_model_attempt_timeout_seconds" => {
+            settings.model_attempt_timeout_seconds.to_string()
+        }
+        "pi_scan_logical_timeout_seconds" => settings.logical_timeout_seconds.to_string(),
+        "pi_scan_background_starts_per_hour" => settings.background_starts_per_hour.to_string(),
+        "pi_scan_background_token_cap_24h" => settings.background_token_cap_24h.to_string(),
+        "pi_scan_background_cost_cap_24h" => settings.background_cost_cap_24h.clone(),
+        "pi_scan_result_retention_days" => settings.result_retention_days.to_string(),
+        "pi_scan_show_raw_output" => bool_to_canonical(settings.show_raw_output).to_string(),
+        "pi_scan_https_proxy" => settings.https_proxy.clone(),
+        _ => return None,
+    };
+    Some(value)
+}
+
 /// What: Look up the effective in-memory color for a theme schema key.
 ///
 /// Inputs:
@@ -739,6 +770,7 @@ pub fn keybind_chords_for_key<'a>(key: &str, keymap: &'a KeyMap) -> &'a [KeyChor
         "keybind_search_normal_import" => &keymap.search_normal_import,
         "keybind_search_normal_export" => &keymap.search_normal_export,
         "keybind_search_normal_updates" => &keymap.search_normal_updates,
+        "keybind_search_normal_pi_scan" => &keymap.search_normal_pi_scan,
         "keybind_recent_move_up" => &keymap.recent_move_up,
         "keybind_recent_move_down" => &keymap.recent_move_down,
         "keybind_recent_find" => &keymap.recent_find,

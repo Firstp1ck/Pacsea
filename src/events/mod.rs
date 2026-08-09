@@ -17,6 +17,8 @@ mod guardrails;
 mod install;
 mod modals;
 mod mouse;
+/// Optional Pi Scan workspace input handling.
+pub mod pi_scan;
 mod preflight;
 /// Recent packages event handling module.
 mod recent;
@@ -247,6 +249,12 @@ pub fn handle_event_with_pkgbuild_checks(
 
         // If any modal remains open after handling above, consume the key to prevent main window interaction
         if !matches!(app.modal, crate::state::Modal::None) {
+            return false;
+        }
+
+        // Pi Scan is a first-class keyboard workspace.
+        if matches!(app.app_mode, AppMode::PiScan) {
+            pi_scan::handle_key(*ke, app);
             return false;
         }
 

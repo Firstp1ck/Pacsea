@@ -373,6 +373,28 @@ pkgbuild_shellcheck_exclude = SC2034,SC2164,SC2148,SC2154\n\
 # Show Raw output block for PKGBUILD static checks (shellcheck/namcap)\n\
 pkgbuild_checks_show_raw_output = false\n\
 \n\
+# Optional Pi-backed AUR scanner (runtime default-off)\n\
+# Provider/model calls can incur cost and send analyzed package data to the selected provider.\n\
+pi_scan_enabled = false\n\
+pi_scan_background_enabled = false\n\
+pi_scan_binary = pi\n\
+pi_scan_provider =\n\
+pi_scan_model =\n\
+pi_scan_fallback_models =\n\
+pi_scan_thinking = medium\n\
+pi_scan_observation_interval_seconds = 900\n\
+pi_scan_head_query_timeout_seconds = 15\n\
+pi_scan_observation_deadline_seconds = 90\n\
+pi_scan_model_attempt_timeout_seconds = 300\n\
+pi_scan_logical_timeout_seconds = 720\n\
+pi_scan_background_starts_per_hour = 5\n\
+pi_scan_background_token_cap_24h = 500000\n\
+pi_scan_background_cost_cap_24h = 0.00\n\
+pi_scan_result_retention_days = 30\n\
+pi_scan_show_raw_output = false\n\
+# Explicit credential-free HTTPS proxy only; empty disables proxy use.\n\
+pi_scan_https_proxy =\n\
+\n\
 # News\n\
 # Symbols for read/unread indicators in the News popup\n\
 app_start_mode = package\n\
@@ -521,6 +543,8 @@ keybind_search_normal_import = Shift+I\n\
 keybind_search_normal_export = Shift+E\n\
 # Open Available Updates window\n\
 keybind_search_normal_updates = Shift+U\n\
+# Open optional Pi Scan workspace\n\
+keybind_search_normal_pi_scan = Shift+A\n\
 \n\
 # SEARCH — Fuzzy Search Toggle\n\
 # Toggle between normal substring search and fuzzy search (fzf-style)\n\

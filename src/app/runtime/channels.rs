@@ -8,6 +8,10 @@ use crate::app::runtime::workers::UpdateCheckPayload;
 use crate::app::runtime::workers::aur_vote::{
     AurVoteRequest, AurVoteResponse, AurVoteStateRequest, AurVoteStateResponse,
 };
+use crate::app::runtime::workers::pi_scan::{
+    PiScanCancelMessage, PiScanProgressMessage, PiScanRequestMessage, PiScanResultMessage,
+    PiScanSessionRegistration, PiScanShutdownMessage,
+};
 use crate::integrations::arch_toolkit::{ToolkitContext, ToolkitContextError};
 use crate::state::types::NewsFeedPayload;
 use crate::state::{
@@ -158,6 +162,20 @@ pub struct Channels {
     pub post_summary_res_rx: mpsc::UnboundedReceiver<crate::logic::summary::PostSummaryData>,
     /// Sender for search queries to the search worker.
     pub query_tx: mpsc::UnboundedSender<QueryInput>,
+    /// Sender for typed Pi scan queue and policy requests.
+    pub(crate) pi_scan_request_tx: mpsc::UnboundedSender<PiScanRequestMessage>,
+    /// Sender for exact correlated Pi scan cancellation.
+    pub(crate) pi_scan_cancel_tx: mpsc::UnboundedSender<PiScanCancelMessage>,
+    /// Sender used by deferred execution to register a correlated WS2 process target.
+    pub(crate) pi_scan_session_tx: mpsc::UnboundedSender<PiScanSessionRegistration>,
+    /// Sender for bounded Pi scan shutdown acknowledgement.
+    pub(crate) pi_scan_shutdown_tx: mpsc::UnboundedSender<PiScanShutdownMessage>,
+    /// Receiver for typed Pi scan progress updates.
+    pub(crate) pi_scan_progress_rx: mpsc::UnboundedReceiver<PiScanProgressMessage>,
+    /// Receiver for typed Pi scan terminal results and rejections.
+    pub(crate) pi_scan_result_rx: mpsc::UnboundedReceiver<PiScanResultMessage>,
+    /// Whether central integration explicitly enabled the runtime worker.
+    pub(crate) pi_scan_runtime_enabled: bool,
 }
 
 /// What: Event channel pair and cancellation flag.
@@ -550,13 +568,63 @@ impl Channels {
     ///
     /// Output:
     /// - Returns initialized channels or an actionable toolkit-client construction error.
+    #[allow(
+        dead_code,
+        reason = "retained for tests and default-off constructor compatibility"
+    )]
     pub fn new(index_path: std::path::PathBuf) -> Result<Self, ToolkitContextError> {
+        Self::new_with_pi_scan(
+            index_path,
+            crate::app::runtime::workers::pi_scan::PiScanRuntimeOptions::default(),
+        )
+    }
+
+    /// What: Create runtime channels with an explicitly validated Pi scanner configuration.
+    ///
+    /// Inputs:
+    /// - `index_path`: Path to the official package index.
+    /// - `pi_scan_options`: Default-off, dry-run, platform, and private persistence settings.
+    ///
+    /// Output:
+    /// - Initialized channels. A Pi-state load failure degrades only the optional scanner
+    ///   to its inert default-off worker and leaves Pacsea usable.
+    ///
+    /// Details:
+    /// - The scanner is marked enabled only when its worker loaded successfully and the
+    ///   compiled platform/setting gate is effective.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "legacy channel assembly remains centralized; Pi selection adds no branching to worker setup"
+    )]
+    pub fn new_with_pi_scan(
+        index_path: std::path::PathBuf,
+        pi_scan_options: crate::app::runtime::workers::pi_scan::PiScanRuntimeOptions,
+    ) -> Result<Self, ToolkitContextError> {
         let toolkit = ToolkitContext::new()?;
         let event_channels = create_event_channels();
         let search_channels = create_search_channels();
         let details_channels = create_details_channels();
         let preflight_channels = create_preflight_channels();
         let utility_channels = create_utility_channels();
+        let requested_pi_scan_enabled = pi_scan_options.effective_enabled();
+        let production_requested =
+            requested_pi_scan_enabled && pi_scan_options.production.is_some();
+        let pi_scan_spawn = if production_requested {
+            crate::pi_scan_production::spawn_production_pi_scan_worker(&pi_scan_options)
+        } else {
+            crate::app::runtime::workers::pi_scan::spawn_pi_scan_worker(pi_scan_options)
+                .map_err(|error| error.to_string())
+        };
+        let (pi_scan_channels, pi_scan_runtime_enabled) = match pi_scan_spawn {
+            Ok(channels) => (channels, requested_pi_scan_enabled),
+            Err(error) => {
+                tracing::warn!(%error, "Pi scanner state is unavailable; continuing with the optional scanner disabled");
+                (
+                    crate::app::runtime::workers::pi_scan::spawn_default_off_pi_scan_worker(),
+                    false,
+                )
+            }
+        };
 
         // Spawn background workers
         crate::app::runtime::workers::details::spawn_details_worker(
@@ -694,6 +762,13 @@ impl Channels {
             post_summary_req_tx: utility_channels.post_summary_req_tx,
             post_summary_res_rx: utility_channels.post_summary_res_rx,
             query_tx: search_channels.query_tx,
+            pi_scan_request_tx: pi_scan_channels.request_tx,
+            pi_scan_cancel_tx: pi_scan_channels.cancel_tx,
+            pi_scan_session_tx: pi_scan_channels.session_tx,
+            pi_scan_shutdown_tx: pi_scan_channels.shutdown_tx,
+            pi_scan_progress_rx: pi_scan_channels.progress_rx,
+            pi_scan_result_rx: pi_scan_channels.result_rx,
+            pi_scan_runtime_enabled,
         })
     }
 }

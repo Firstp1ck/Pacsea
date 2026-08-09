@@ -86,6 +86,10 @@ pub fn handle_mouse_event_with_pkgbuild_checks(
         return handled;
     }
 
+    if matches!(app.app_mode, crate::state::types::AppMode::PiScan) {
+        return crate::events::pi_scan::handle_mouse(m, app);
+    }
+
     // While the config editor window is active it behaves like a top
     // level mode (similar to news mode), so the top-row menu buttons
     // and any open dropdowns must still be operable. Route mouse events

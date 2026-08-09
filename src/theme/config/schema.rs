@@ -656,7 +656,71 @@ pub const EDITABLE_SETTINGS: &[EditableSetting] = &[
         reload: ReloadBehavior::AutoReload,
         sensitivity: Sensitivity::Normal,
     },
+    // ── Optional Pi scanner (runtime default-off) ─────────────────────
+    pi_setting("pi_scan_enabled", ValueKind::Bool),
+    pi_setting("pi_scan_background_enabled", ValueKind::Bool),
+    pi_setting("pi_scan_binary", ValueKind::Path),
+    pi_setting("pi_scan_provider", ValueKind::String),
+    pi_setting("pi_scan_model", ValueKind::String),
+    pi_setting("pi_scan_fallback_models", ValueKind::String),
+    pi_setting("pi_scan_thinking", ValueKind::String),
+    pi_setting(
+        "pi_scan_observation_interval_seconds",
+        ValueKind::IntRange {
+            min: 900,
+            max: 86_400,
+        },
+    ),
+    pi_setting(
+        "pi_scan_head_query_timeout_seconds",
+        ValueKind::IntRange { min: 1, max: 15 },
+    ),
+    pi_setting(
+        "pi_scan_observation_deadline_seconds",
+        ValueKind::IntRange { min: 1, max: 90 },
+    ),
+    pi_setting(
+        "pi_scan_model_attempt_timeout_seconds",
+        ValueKind::IntRange { min: 1, max: 300 },
+    ),
+    pi_setting(
+        "pi_scan_logical_timeout_seconds",
+        ValueKind::IntRange { min: 1, max: 720 },
+    ),
+    pi_setting(
+        "pi_scan_background_starts_per_hour",
+        ValueKind::IntRange { min: 0, max: 5 },
+    ),
+    pi_setting(
+        "pi_scan_background_token_cap_24h",
+        ValueKind::IntRange {
+            min: 0,
+            max: 500_000,
+        },
+    ),
+    pi_setting("pi_scan_background_cost_cap_24h", ValueKind::String),
+    pi_setting(
+        "pi_scan_result_retention_days",
+        ValueKind::IntRange {
+            min: 1,
+            max: 36_500,
+        },
+    ),
+    pi_setting("pi_scan_show_raw_output", ValueKind::Bool),
+    pi_setting("pi_scan_https_proxy", ValueKind::String),
 ];
+
+/// Construct a restart-bound optional Pi scanner setting row.
+const fn pi_setting(key: &'static str, kind: ValueKind) -> EditableSetting {
+    EditableSetting {
+        key,
+        aliases: &[],
+        file: ConfigFile::Settings,
+        kind,
+        reload: ReloadBehavior::RequiresRestart,
+        sensitivity: Sensitivity::Normal,
+    }
+}
 
 /// What: Phase-2 set of editable keybind rows backed by `keybinds.conf`.
 ///
@@ -739,6 +803,7 @@ pub const EDITABLE_KEYBINDS: &[EditableSetting] = &[
     keybind_entry("keybind_search_normal_import", &[]),
     keybind_entry("keybind_search_normal_export", &[]),
     keybind_entry("keybind_search_normal_updates", &[]),
+    keybind_entry("keybind_search_normal_pi_scan", &["keybind_pi_scan"]),
     // ── Recent pane ──────────────────────────────────────────────────
     keybind_entry("keybind_recent_move_up", &[]),
     keybind_entry("keybind_recent_move_down", &[]),

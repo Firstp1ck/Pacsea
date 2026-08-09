@@ -11,6 +11,7 @@ pub mod gating;
 pub mod lists;
 pub mod long_run_auth;
 pub mod password;
+pub mod pi_scan;
 pub mod pkgbuild_checks;
 pub mod prefetch;
 pub mod preflight;

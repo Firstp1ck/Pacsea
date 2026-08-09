@@ -330,6 +330,7 @@ fn build_search_normal_bindings(
         || !km.search_normal_delete.is_empty()
         || !km.search_normal_clear.is_empty()
         || !km.search_normal_open_status.is_empty()
+        || !km.search_normal_pi_scan.is_empty()
         || !km.config_menu_toggle.is_empty()
         || !km.options_menu_toggle.is_empty()
         || !km.panels_menu_toggle.is_empty();
@@ -388,6 +389,13 @@ fn build_search_normal_bindings(
         th,
         km.search_normal_open_status.first().copied(),
         "app.modals.help.key_labels.open_arch_status",
+    );
+    add_binding_if_some(
+        lines,
+        app,
+        th,
+        km.search_normal_pi_scan.first().copied(),
+        "app.modals.help.key_labels.open_pi_scan",
     );
     add_binding_if_some(
         lines,

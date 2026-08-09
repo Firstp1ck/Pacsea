@@ -12,6 +12,12 @@ pub mod executor;
 pub mod news;
 /// News article content fetching worker.
 pub mod news_content;
+/// Optional Pi scanner queue and lifecycle worker.
+#[allow(
+    dead_code,
+    reason = "typed request variants and the concrete Pi registration seam are consumed by deferred WS4 execution wiring"
+)]
+pub mod pi_scan;
 /// Preflight analysis workers (dependencies, files, services, sandbox, summary).
 pub mod preflight;
 /// Package search worker.

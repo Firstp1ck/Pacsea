@@ -146,6 +146,74 @@ fn parse_app_settings(key: &str, val: &str, settings: &mut Settings) -> bool {
     }
 }
 
+/// What: Parse optional Pi scanner settings.
+///
+/// Inputs:
+/// - `key`: Normalized config key.
+/// - `val`: Config value.
+/// - `settings`: Mutable settings target.
+///
+/// Output:
+/// - `true` when the key was handled.
+///
+/// Details:
+/// - Bounds remain visible to [`crate::theme::PiScanSettings::validation_issues`]; parsing never raises a limit.
+fn parse_pi_scan_settings(key: &str, val: &str, settings: &mut Settings) -> bool {
+    let pi = &mut settings.pi_scan;
+    match key {
+        "pi_scan_enabled" => pi.enabled = parse_bool(val),
+        "pi_scan_background_enabled" => pi.background_enabled = parse_bool(val),
+        "pi_scan_binary" => pi.binary = val.trim().to_string(),
+        "pi_scan_provider" => pi.provider = val.trim().to_string(),
+        "pi_scan_model" => pi.model = val.trim().to_string(),
+        "pi_scan_fallback_models" => pi.fallback_models = val.trim().to_string(),
+        "pi_scan_thinking" => pi.thinking = val.trim().to_string(),
+        "pi_scan_observation_interval_seconds" => {
+            return assign_u64(val, &mut pi.observation_interval_seconds);
+        }
+        "pi_scan_head_query_timeout_seconds" => {
+            return assign_u64(val, &mut pi.head_query_timeout_seconds);
+        }
+        "pi_scan_observation_deadline_seconds" => {
+            return assign_u64(val, &mut pi.observation_deadline_seconds);
+        }
+        "pi_scan_model_attempt_timeout_seconds" => {
+            return assign_u64(val, &mut pi.model_attempt_timeout_seconds);
+        }
+        "pi_scan_logical_timeout_seconds" => {
+            return assign_u64(val, &mut pi.logical_timeout_seconds);
+        }
+        "pi_scan_background_starts_per_hour" => {
+            return assign_u32(val, &mut pi.background_starts_per_hour);
+        }
+        "pi_scan_background_token_cap_24h" => {
+            return assign_u64(val, &mut pi.background_token_cap_24h);
+        }
+        "pi_scan_background_cost_cap_24h" => pi.background_cost_cap_24h = val.trim().to_string(),
+        "pi_scan_result_retention_days" => return assign_u32(val, &mut pi.result_retention_days),
+        "pi_scan_show_raw_output" => pi.show_raw_output = parse_bool(val),
+        "pi_scan_https_proxy" => pi.https_proxy = val.trim().to_string(),
+        _ => return false,
+    }
+    true
+}
+
+/// Parse and assign a `u64` setting while still consuming malformed known keys.
+fn assign_u64(value: &str, target: &mut u64) -> bool {
+    if let Ok(parsed) = value.parse() {
+        *target = parsed;
+    }
+    true
+}
+
+/// Parse and assign a `u32` setting while still consuming malformed known keys.
+fn assign_u32(value: &str, target: &mut u32) -> bool {
+    if let Ok(parsed) = value.parse() {
+        *target = parsed;
+    }
+    true
+}
+
 /// What: Parse scan-related settings.
 ///
 /// Inputs:
@@ -524,6 +592,7 @@ pub fn parse_settings(content: &str, _settings_path: &Path, settings: &mut Setti
         // Note: we intentionally ignore keybind_* in settings.conf now; keybinds load below
         let _ = parse_layout_settings(&key, val, settings)
             || parse_app_settings(&key, val, settings)
+            || parse_pi_scan_settings(&key, val, settings)
             || parse_scan_settings(&key, val, settings)
             || parse_mirror_settings(&key, val, settings)
             || parse_news_settings(&key, val, settings)
@@ -587,5 +656,35 @@ mod tests {
         );
         assert_eq!(settings.selected_countries, "Switzerland, Germany");
         assert_eq!(settings.mirror_count, 7);
+    }
+
+    #[test]
+    /// What: Parse every optional Pi scanner setting without enabling unspecified behavior.
+    fn parse_settings_pi_scan_keys_apply_exactly() {
+        let path = Path::new("settings.conf");
+        let mut settings = Settings::default();
+        parse_settings(
+            "pi_scan_enabled = true\npi_scan_background_enabled = true\npi_scan_binary = /usr/bin/pi\npi_scan_provider = provider\npi_scan_model = model\npi_scan_fallback_models = fallback-a,fallback-b\npi_scan_thinking = low\npi_scan_observation_interval_seconds = 1200\npi_scan_head_query_timeout_seconds = 10\npi_scan_observation_deadline_seconds = 80\npi_scan_model_attempt_timeout_seconds = 240\npi_scan_logical_timeout_seconds = 600\npi_scan_background_starts_per_hour = 4\npi_scan_background_token_cap_24h = 400000\npi_scan_background_cost_cap_24h = 1.25\npi_scan_result_retention_days = 14\npi_scan_show_raw_output = true\npi_scan_https_proxy = https://proxy.example\n",
+            path,
+            &mut settings,
+        );
+        let pi = settings.pi_scan;
+        assert!(pi.enabled && pi.background_enabled && pi.show_raw_output);
+        assert_eq!(pi.binary, "/usr/bin/pi");
+        assert_eq!(pi.provider, "provider");
+        assert_eq!(pi.model, "model");
+        assert_eq!(pi.fallback_models, "fallback-a,fallback-b");
+        assert_eq!(pi.thinking, "low");
+        assert_eq!(pi.observation_interval_seconds, 1200);
+        assert_eq!(pi.head_query_timeout_seconds, 10);
+        assert_eq!(pi.observation_deadline_seconds, 80);
+        assert_eq!(pi.model_attempt_timeout_seconds, 240);
+        assert_eq!(pi.logical_timeout_seconds, 600);
+        assert_eq!(pi.background_starts_per_hour, 4);
+        assert_eq!(pi.background_token_cap_24h, 400_000);
+        assert_eq!(pi.background_cost_cap_24h, "1.25");
+        assert_eq!(pi.result_retention_days, 14);
+        assert_eq!(pi.https_proxy, "https://proxy.example");
+        assert!(pi.validation_issues().is_empty());
     }
 }

@@ -54,6 +54,148 @@ pub enum PackageMarker {
     End,
 }
 
+/// Conservative settings for the optional Pi-backed AUR scanner.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PiScanSettings {
+    /// Runtime feature gate; default off.
+    pub enabled: bool,
+    /// Unattended paid model execution gate; default off.
+    pub background_enabled: bool,
+    /// Pi executable name or absolute path.
+    pub binary: String,
+    /// Explicit provider route, empty until selected.
+    pub provider: String,
+    /// Explicit primary model, empty until selected.
+    pub model: String,
+    /// Ordered comma-separated fallback models.
+    pub fallback_models: String,
+    /// Requested Pi thinking level.
+    pub thinking: String,
+    /// Native observation interval in seconds.
+    pub observation_interval_seconds: u64,
+    /// Per-head-query timeout in seconds.
+    pub head_query_timeout_seconds: u64,
+    /// Whole observation-cycle deadline in seconds.
+    pub observation_deadline_seconds: u64,
+    /// Per-model-attempt timeout in seconds.
+    pub model_attempt_timeout_seconds: u64,
+    /// Whole logical-scan timeout in seconds.
+    pub logical_timeout_seconds: u64,
+    /// Unattended starts allowed per rolling hour.
+    pub background_starts_per_hour: u32,
+    /// Unattended token cap per rolling 24 hours.
+    pub background_token_cap_24h: u64,
+    /// Decimal dollar cost cap per rolling 24 hours.
+    pub background_cost_cap_24h: String,
+    /// Detailed result retention in days.
+    pub result_retention_days: u32,
+    /// Whether the canonical validated-data raw view is visible.
+    pub show_raw_output: bool,
+    /// Explicit credential-free HTTPS proxy, empty for direct access.
+    pub https_proxy: String,
+}
+
+impl Default for PiScanSettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            background_enabled: false,
+            binary: "pi".to_string(),
+            provider: String::new(),
+            model: String::new(),
+            fallback_models: String::new(),
+            thinking: "medium".to_string(),
+            observation_interval_seconds: 900,
+            head_query_timeout_seconds: 15,
+            observation_deadline_seconds: 90,
+            model_attempt_timeout_seconds: 300,
+            logical_timeout_seconds: 720,
+            background_starts_per_hour: 5,
+            background_token_cap_24h: 500_000,
+            background_cost_cap_24h: "0.00".to_string(),
+            result_retention_days: 30,
+            show_raw_output: false,
+            https_proxy: String::new(),
+        }
+    }
+}
+
+impl PiScanSettings {
+    /// Return actionable configuration issues without silently raising or clamping limits.
+    #[must_use]
+    pub fn validation_issues(&self) -> Vec<String> {
+        let mut issues = Vec::new();
+        if self.binary.trim().is_empty() {
+            issues.push("pi_scan_binary must name the Pi executable".to_string());
+        }
+        if self.observation_interval_seconds < 900 {
+            issues.push("pi_scan_observation_interval_seconds must be at least 900".to_string());
+        }
+        check_pi_scan_upper(
+            &mut issues,
+            "pi_scan_head_query_timeout_seconds",
+            self.head_query_timeout_seconds,
+            15,
+        );
+        check_pi_scan_upper(
+            &mut issues,
+            "pi_scan_observation_deadline_seconds",
+            self.observation_deadline_seconds,
+            90,
+        );
+        check_pi_scan_upper(
+            &mut issues,
+            "pi_scan_model_attempt_timeout_seconds",
+            self.model_attempt_timeout_seconds,
+            300,
+        );
+        check_pi_scan_upper(
+            &mut issues,
+            "pi_scan_logical_timeout_seconds",
+            self.logical_timeout_seconds,
+            720,
+        );
+        if self.background_starts_per_hour > 5 {
+            issues.push("pi_scan_background_starts_per_hour cannot exceed 5".to_string());
+        }
+        if self.background_token_cap_24h > 500_000 {
+            issues.push("pi_scan_background_token_cap_24h cannot exceed 500000".to_string());
+        }
+        if self.result_retention_days == 0 {
+            issues.push("pi_scan_result_retention_days must be at least 1".to_string());
+        }
+        if parse_nonnegative_decimal(&self.background_cost_cap_24h).is_none() {
+            issues
+                .push("pi_scan_background_cost_cap_24h must be a non-negative decimal".to_string());
+        }
+        let proxy = self.https_proxy.trim();
+        if !proxy.is_empty() && (!proxy.starts_with("https://") || proxy.contains('@')) {
+            issues.push("pi_scan_https_proxy must be credential-free HTTPS or empty".to_string());
+        }
+        issues
+    }
+}
+
+/// Add a positive bounded setting violation.
+fn check_pi_scan_upper(issues: &mut Vec<String>, key: &str, value: u64, maximum: u64) {
+    if value == 0 || value > maximum {
+        issues.push(format!("{key} must be between 1 and {maximum}"));
+    }
+}
+
+/// Validate a non-negative decimal without floating-point ambiguity.
+fn parse_nonnegative_decimal(value: &str) -> Option<()> {
+    let trimmed = value.trim();
+    let (whole, fraction) = trimmed.split_once('.').map_or((trimmed, ""), |parts| parts);
+    if whole.is_empty() || !whole.chars().all(|ch| ch.is_ascii_digit()) {
+        return None;
+    }
+    if !fraction.chars().all(|ch| ch.is_ascii_digit()) || fraction.len() > 6 {
+        return None;
+    }
+    Some(())
+}
+
 /// User-configurable application settings parsed from `pacsea.conf`.
 #[derive(Clone, Debug)]
 #[allow(clippy::struct_excessive_bools)]
@@ -222,6 +364,8 @@ pub struct Settings {
     ///
     /// Keys match canonical `results_filter` tokens from repos.conf (e.g. `vendor_pkgs` for `results_filter_show_vendor_pkgs`).
     pub results_filter_toggles: HashMap<String, bool>,
+    /// Optional Pi scanner configuration, conservative and runtime default-off.
+    pub pi_scan: PiScanSettings,
 }
 
 impl Default for Settings {
@@ -303,6 +447,7 @@ impl Default for Settings {
             aur_vote_ssh_timeout_seconds: 10,
             aur_vote_ssh_command: "ssh".to_string(),
             results_filter_toggles: HashMap::new(),
+            pi_scan: PiScanSettings::default(),
         }
     }
 }
@@ -500,6 +645,8 @@ pub struct KeyMap {
     pub search_normal_export: Vec<KeyChord>,
     /// Normal mode: open Available Updates window
     pub search_normal_updates: Vec<KeyChord>,
+    /// Normal mode: open the Pi Scan workspace.
+    pub search_normal_pi_scan: Vec<KeyChord>,
     /// Toggle fuzzy search mode on/off
     pub toggle_fuzzy: Vec<KeyChord>,
 
@@ -1089,6 +1236,10 @@ fn build_default_keymap() -> KeyMap {
         search_normal_import: search_normal.7,
         search_normal_export: search_normal.8,
         search_normal_updates: search_normal.9,
+        search_normal_pi_scan: vec![KeyChord {
+            code: KeyCode::Char('a'),
+            mods: shift,
+        }],
         toggle_fuzzy: vec![KeyChord {
             code: KeyCode::Char('f'),
             mods: ctrl,

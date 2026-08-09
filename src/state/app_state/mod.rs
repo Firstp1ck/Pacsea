@@ -126,6 +126,8 @@ pub struct AppState {
     pub app_mode: AppMode,
     /// Persistent integrated config editor state used while in `AppMode::ConfigEditor`.
     pub config_editor_state: Box<ConfigEditorState>,
+    /// Cohesive optional Pi Scan workspace projection rooted in runtime state.
+    pub pi_scan: Box<crate::state::PiScanWorkspaceState>,
     /// Current search input text.
     pub input: String,
     /// Current search results, most relevant first.
