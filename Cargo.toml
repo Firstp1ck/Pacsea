@@ -38,7 +38,9 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 serde_norway = "0.9"  # Maintained fork of deprecated serde_yaml
 tokio = { version = "1.50.0", features = [
+  "io-util",
   "macros",
+  "process",
   "rt-multi-thread",
   "sync",
   "time"
@@ -48,8 +50,16 @@ tracing-appender = "0.2.4"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt", "time"] }
 unicode-width = "0.2.2"
 which = "8.0.2"
-reqwest = { version = "0.13.2", features = ["json"] }
+reqwest = { version = "0.13.2", features = ["json", "stream"] }
 futures = "0.3.32"
+tar = { version = "=0.4.46", default-features = false }
+flate2 = { version = "=1.1.9", default-features = false, features = ["rust_backend"] }
+bzip2 = { version = "=0.6.1" }
+lzma-rust2 = { version = "=0.18.1", default-features = false, features = ["std", "xz"] }
+zstd = { version = "=0.13.3", default-features = false }
+zip = { version = "=8.6.0", default-features = false, features = ["deflate-flate2"] }
+sha2 = { version = "=0.11.0", default-features = false }
+blake2 = { version = "=0.10.6", default-features = false }
 # Narrowed features: only the binary-dump syntax/theme loaders are used
 # (drops plist-load -> plist -> quick-xml [RUSTSEC-2026-0194/0195] and
 # yaml-load -> yaml-rust [RUSTSEC-2024-0320]).
@@ -71,13 +81,14 @@ toml = "1.1.2"
 zeroize = "1.8.2"
 
 [target.'cfg(unix)'.dependencies]
-nix = { version = "0.31.2", features = ["poll", "fs", "user"], default-features = false }
+nix = { version = "0.31.2", features = ["poll", "fs", "user", "process", "signal"], default-features = false }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_System_Threading"] }
 
 [dev-dependencies]
 tempfile = "3.27.0"
+lzma-rust2 = { version = "=0.18.1", default-features = false, features = ["std", "xz", "encoder"] }
 syn = { version = "2.0.117", features = ["full", "parsing", "extra-traits"] }
 
 [lints.rust]
