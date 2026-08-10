@@ -207,7 +207,7 @@ Wave 0: contract tests + runtime lifecycle spike
 
 - `src/app/runtime/channels.rs`
 - `src/app/runtime/event_loop.rs`
-- `src/app/runtime/init.rs`
+- `src/app/runtime/mod.rs` (runtime-options/channel-creation seam; verified during Wave 0)
 - shared exports and entry routing
 - canonical plan, PR record, and final report
 
@@ -321,7 +321,7 @@ Every finding receives an integration-owner disposition (`accepted`, `rejected`,
 
 - [x] Repository setup/config/runtime/footer architecture inspected.
 - [x] Complex classification confirmed and canonical plan created.
-- [ ] Wave 0 failing contracts and lifecycle spike complete.
+- [x] Wave 0 failing contracts and lifecycle spike complete — shared draft/protocol seams compile; seven missing-behavior contracts fail explicitly under `--ignored`, two inert/bypass contracts already pass, and bounded default-off worker replacement passes without restart.
 - [ ] WS1 wizard UI/state outcome integrated.
 - [ ] WS2 setup controller/transaction outcome integrated.
 - [ ] Central integration and cross-workstream validation complete.

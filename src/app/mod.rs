@@ -22,6 +22,15 @@ pub mod terminal;
 
 // Re-export the public entrypoint so callers keep using `app::run(...)`.
 pub use runtime::run;
+/// Public Pi Scan worker contracts used by deterministic integration tests.
+pub use runtime::workers::pi_scan::{
+    PiScanRequestMessage, PiScanShutdownMessage, spawn_default_off_pi_scan_worker,
+};
+/// Public setup-wizard controller contracts used by integration and acceptance tests.
+pub use runtime::workers::pi_scan_setup::{
+    PiScanSetupControllerOptions, PiScanSetupEvent, PiScanSetupRequest, PiScanSetupStage,
+    spawn_pi_scan_setup_controller,
+};
 
 // Re-export functions needed by event handlers
 pub use runtime::init::{apply_settings_to_app_state, initialize_locale_system};

@@ -4,6 +4,7 @@ mod capability_probe;
 mod dependency_benchmarks;
 mod fixtures;
 mod security_boundary;
+mod setup_wizard;
 mod ws1_domain;
 mod ws3_runtime;
 mod ws4_tui;

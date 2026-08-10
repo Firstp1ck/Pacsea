@@ -18,6 +18,12 @@ pub mod news_content;
     reason = "typed request variants and the concrete Pi registration seam are consumed by deferred WS4 execution wiring"
 )]
 pub mod pi_scan;
+/// Typed setup-only protocol and controller for the Pi Scan setup wizard.
+#[allow(
+    dead_code,
+    reason = "Wave 0 contract surface; consumed by WS1/WS2 wizard implementation and integration wiring"
+)]
+pub mod pi_scan_setup;
 /// Preflight analysis workers (dependencies, files, services, sandbox, summary).
 pub mod preflight;
 /// Package search worker.

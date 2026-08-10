@@ -291,6 +291,8 @@ pub struct PiScanWorkspaceState {
     pub notice: Option<String>,
     /// Workspace tab hit rectangles.
     pub tab_rects: [Option<(u16, u16, u16, u16)>; 6],
+    /// Active guided setup wizard session; `None` outside the wizard.
+    pub wizard: Option<crate::state::pi_scan_setup::PiScanSetupWizardState>,
 }
 
 impl Default for PiScanWorkspaceState {
@@ -326,6 +328,7 @@ impl Default for PiScanWorkspaceState {
             dry_run_preview: None,
             notice: None,
             tab_rects: [None; 6],
+            wizard: None,
         }
     }
 }

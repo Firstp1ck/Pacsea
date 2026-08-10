@@ -8,6 +8,8 @@ mod dependency_benchmarks;
 mod fixtures;
 #[path = "pi_scan/security_boundary.rs"]
 mod security_boundary;
+#[path = "pi_scan/setup_wizard.rs"]
+mod setup_wizard;
 #[path = "pi_scan/ws10_network_signature.rs"]
 mod ws10_network_signature;
 #[path = "pi_scan/ws1_acquisition.rs"]
