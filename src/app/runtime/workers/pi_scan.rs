@@ -91,8 +91,11 @@ pub const fn pi_scan_runtime_supported() -> bool {
 pub enum PiScanRequestMessage {
     /// Probe and publish exact setup facts without changing consent.
     ProbeSetup,
-    /// Observe installed AUR package bases on an explicit foreground request.
-    ManualObservation,
+    /// Observe only the explicitly selected unresolved package names in the foreground.
+    ManualObservation {
+        /// Exact installed package names selected in the Targets view.
+        package_names: Vec<String>,
+    },
     /// Append one frozen package-base and commit request.
     Enqueue(PiScanJobRequest),
     /// Replace independent observation and paid-execution consent.
@@ -105,6 +108,8 @@ pub enum PiScanRequestMessage {
         disclosure_confirmed: bool,
         /// Ordered fallback confirmation.
         fallback_confirmed: bool,
+        /// Independent paid background-execution confirmation.
+        background_paid_execution_confirmed: bool,
         /// Readiness-warning confirmation.
         readiness_warning_confirmed: bool,
     },
@@ -572,10 +577,12 @@ impl PiScanWorker {
         }
         let now = request_timestamp(&request).unwrap_or_else(unix_now);
         let mutation = match request {
-            PiScanRequestMessage::ProbeSetup | PiScanRequestMessage::ManualObservation => Err(
-                "setup probing and manual observation require the production Pi orchestrator"
-                    .to_string(),
-            ),
+            PiScanRequestMessage::ProbeSetup | PiScanRequestMessage::ManualObservation { .. } => {
+                Err(
+                    "setup probing and manual observation require the production Pi orchestrator"
+                        .to_string(),
+                )
+            }
             PiScanRequestMessage::Enqueue(job) => self.enqueue(job),
             PiScanRequestMessage::SetConsent(consent)
             | PiScanRequestMessage::SetConsentDetails { consent, .. } => {
@@ -841,7 +848,7 @@ const fn request_timestamp(request: &PiScanRequestMessage) -> Option<u64> {
         } => Some(*finished_at_unix),
         PiScanRequestMessage::RevalidateBudgets { now_unix } => Some(*now_unix),
         PiScanRequestMessage::ProbeSetup
-        | PiScanRequestMessage::ManualObservation
+        | PiScanRequestMessage::ManualObservation { .. }
         | PiScanRequestMessage::Enqueue(_)
         | PiScanRequestMessage::SetConsent(_)
         | PiScanRequestMessage::SetConsentDetails { .. }

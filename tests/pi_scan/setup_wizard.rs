@@ -6,8 +6,8 @@
 //! spike is not ignored and proves bounded restart-free worker replacement.
 
 use pacsea::app::{
-    PiScanRequestMessage, PiScanSetupControllerOptions, PiScanSetupEvent, PiScanSetupRequest,
-    PiScanSetupStage, PiScanShutdownMessage, spawn_default_off_pi_scan_worker,
+    PiScanProgressMessage, PiScanRequestMessage, PiScanSetupControllerOptions, PiScanSetupEvent,
+    PiScanSetupRequest, PiScanSetupStage, PiScanShutdownMessage, spawn_default_off_pi_scan_worker,
     spawn_pi_scan_setup_controller,
 };
 use pacsea::state::pi_scan::PiScanConsentState;
@@ -53,7 +53,6 @@ fn temp_root(tag: &str) -> std::path::PathBuf {
 /// Contract: pressing the Pi Scan shortcut with `pi_scan_enabled = false` must
 /// open the guided wizard instead of the raw Setup information dump.
 #[test]
-#[ignore = "Wave 0 contract: wizard entry while disabled is integration-owner work"]
 fn wizard_opens_while_scanning_is_disabled() {
     let mut app = AppState::default();
     assert!(!app.pi_scan.settings.enabled);
@@ -83,7 +82,6 @@ fn wizard_opens_while_scanning_is_disabled() {
 /// Contract: a verified existing setup bypasses the wizard and opens the
 /// normal workspace path unchanged.
 #[test]
-#[ignore = "Wave 0 contract: verified-setup bypass is integration-owner work"]
 fn verified_setup_bypasses_wizard() {
     let mut app = AppState::default();
     app.pi_scan.settings.enabled = true;
@@ -91,6 +89,7 @@ fn verified_setup_bypasses_wizard() {
     app.pi_scan.settings.model = "model".to_string();
     app.pi_scan.disclosure_confirmed = true;
     app.pi_scan.runtime.consent.paid_execution = true;
+    app.pi_scan.setup_facts_verified = true;
     pacsea::events::pi_scan::open_from_search(&mut app);
     assert!(
         app.pi_scan.wizard.is_none(),
@@ -100,7 +99,6 @@ fn verified_setup_bypasses_wizard() {
 
 /// Contract: Cancel restores the original projection and performs no writes.
 #[test]
-#[ignore = "Wave 0 contract: WS1 wizard cancel handling"]
 fn wizard_cancel_restores_original_state_without_writes() {
     let mut app = AppState::default();
     let original = app.pi_scan.settings.clone();
@@ -162,10 +160,101 @@ async fn setup_probe_verifies_capabilities_without_model_call() {
     }
 }
 
-/// Contract: a candidate route outside the advertised snapshot fails closed.
+/// Live acceptance: Apply must activate production and preserve newly reviewed consent in-process.
 #[tokio::test]
-#[ignore = "Wave 0 contract: WS2 advertised-route candidate validation"]
-async fn candidate_validation_rejects_unadvertised_route() {
+#[ignore = "requires installed Pi >=0.84.0 with configured priced routes; metadata only"]
+async fn live_setup_apply_activates_and_restores_consent_without_restart() {
+    let root = temp_root("live-activation");
+    let mut channels = spawn_pi_scan_setup_controller(controller_options(&root, false));
+    channels
+        .request_tx
+        .send(PiScanSetupRequest::BeginSetupProbe {
+            correlation_id: 1,
+            binary: "pi".to_string(),
+        })
+        .expect("probe send");
+    let snapshot = match recv_event(&mut channels.event_rx).await {
+        PiScanSetupEvent::CapabilitiesVerified { snapshot, .. } => snapshot,
+        event => panic!("expected live capabilities, got {event:?}"),
+    };
+    let candidate = PiScanSettings {
+        enabled: true,
+        binary: "pi".to_string(),
+        provider: snapshot.selected_provider.clone(),
+        model: snapshot.selected_model.clone(),
+        ..PiScanSettings::default()
+    };
+    let confirmations = PiScanSetupConfirmations {
+        disclosure_confirmed: true,
+        foreground_paid_confirmed: true,
+        fallback_confirmed: false,
+        readiness_warning_confirmed: true,
+    };
+    channels
+        .request_tx
+        .send(PiScanSetupRequest::ValidateSetupCandidate {
+            correlation_id: 2,
+            candidate: candidate.clone(),
+            consent: PiScanConsentState::default(),
+            confirmations,
+        })
+        .expect("validation send");
+    let validation_binding = match recv_event(&mut channels.event_rx).await {
+        PiScanSetupEvent::CandidateValidated {
+            validation_binding, ..
+        } => validation_binding,
+        event => panic!("expected live validation, got {event:?}"),
+    };
+    channels
+        .request_tx
+        .send(PiScanSetupRequest::ApplySetupCandidate {
+            correlation_id: 3,
+            candidate,
+            consent: PiScanConsentState::default(),
+            confirmations,
+            validation_binding,
+        })
+        .expect("apply send");
+    assert!(matches!(
+        recv_event(&mut channels.event_rx).await,
+        PiScanSetupEvent::Applied { .. }
+    ));
+    let transfer = tokio::time::timeout(Duration::from_secs(30), channels.transfer_rx.recv())
+        .await
+        .expect("bounded transfer")
+        .expect("runtime transfer");
+    let activated = transfer.activate().expect("live candidate activation");
+    let expected_pricing = activated.snapshot().pricing_binding.clone();
+    let mut runtime = activated.commit().expect("accept live runtime");
+    let restored = loop {
+        let progress = tokio::time::timeout(Duration::from_secs(30), runtime.progress_rx.recv())
+            .await
+            .expect("bounded production startup")
+            .expect("production progress");
+        if let PiScanProgressMessage::RestoredConsent { consent, setup } = progress {
+            break (consent, setup);
+        }
+    };
+    assert!(restored.0.paid_execution);
+    assert!(restored.1.disclosure_confirmed);
+    assert_eq!(restored.1.confirmed_pricing_binding, expected_pricing);
+
+    let (acknowledge, receiver) = std::sync::mpsc::sync_channel(1);
+    runtime
+        .shutdown_tx
+        .send(PiScanShutdownMessage { acknowledge })
+        .expect("shutdown send");
+    let acknowledgement =
+        tokio::task::spawn_blocking(move || receiver.recv_timeout(Duration::from_secs(10)))
+            .await
+            .expect("shutdown wait task")
+            .expect("shutdown acknowledgement");
+    assert!(acknowledgement.persisted);
+}
+
+/// Contract: candidate validation before a verified advertised-route snapshot fails closed.
+#[tokio::test]
+async fn candidate_validation_rejects_unverified_route() {
     let root = temp_root("route");
     let mut channels = spawn_pi_scan_setup_controller(controller_options(&root, false));
     let candidate = PiScanSettings {
@@ -180,7 +269,12 @@ async fn candidate_validation_rejects_unadvertised_route() {
             correlation_id: 7,
             candidate,
             consent: PiScanConsentState::default(),
-            confirmations: PiScanSetupConfirmations::default(),
+            confirmations: PiScanSetupConfirmations {
+                disclosure_confirmed: true,
+                foreground_paid_confirmed: true,
+                fallback_confirmed: false,
+                readiness_warning_confirmed: true,
+            },
         })
         .expect("controller must accept validation requests");
     match recv_event(&mut channels.event_rx).await {
@@ -193,7 +287,8 @@ async fn candidate_validation_rejects_unadvertised_route() {
             assert_eq!(stage, PiScanSetupStage::CandidateValidation);
             assert!(
                 reason.to_lowercase().contains("advertis")
-                    || reason.to_lowercase().contains("route"),
+                    || reason.to_lowercase().contains("route")
+                    || reason.to_lowercase().contains("probe"),
                 "rejection must explain the unadvertised route: {reason}"
             );
         }
@@ -203,7 +298,6 @@ async fn candidate_validation_rejects_unadvertised_route() {
 
 /// Contract: candidate validation makes no durable change.
 #[tokio::test]
-#[ignore = "Wave 0 contract: WS2 validation must be write-free"]
 async fn candidate_validation_writes_nothing() {
     let root = temp_root("validate_inert");
     let options = controller_options(&root, false);
@@ -233,7 +327,6 @@ async fn candidate_validation_writes_nothing() {
 /// Contract: apply without a fresh validation binding fails closed before
 /// activation or persistence.
 #[tokio::test]
-#[ignore = "Wave 0 contract: WS2 reviewed-binding recheck before apply"]
 async fn apply_requires_fresh_validation_binding() {
     let root = temp_root("binding");
     let options = controller_options(&root, false);
@@ -269,7 +362,6 @@ async fn apply_requires_fresh_validation_binding() {
 /// Contract: dry-run setup answers with typed dry-run failures and never
 /// probes Pi or touches durable paths.
 #[tokio::test]
-#[ignore = "Wave 0 contract: WS2 dry-run inertness"]
 async fn dry_run_setup_is_inert() {
     let root = temp_root("dry_run");
     let options = controller_options(&root, true);
@@ -299,7 +391,6 @@ async fn dry_run_setup_is_inert() {
 
 /// Contract: wizard locale keys exist in every shipped locale.
 #[test]
-#[ignore = "Wave 0 contract: WS1 locale completeness for wizard keys"]
 fn wizard_locale_keys_exist_in_all_locales() {
     let required_marker = "wizard:";
     for locale in ["en-US", "de-DE", "hu-HU"] {
@@ -312,6 +403,25 @@ fn wizard_locale_keys_exist_in_all_locales() {
         assert!(
             body.contains(required_marker),
             "{locale} must define the pi_scan wizard key namespace"
+        );
+        let wizard = body
+            .split_once("      wizard:")
+            .map(|(_, rest)| rest)
+            .and_then(|rest| rest.split_once("      overview:").map(|(wizard, _)| wizard))
+            .expect("wizard locale section");
+        for key in [
+            "dry_run_probe:",
+            "binary_required:",
+            "failure_stage:",
+            "validation_write_free:",
+            "pi_version:",
+            "compiled:",
+        ] {
+            assert!(wizard.contains(key), "{locale} must define {key}");
+        }
+        assert!(
+            !wizard.contains("TODO: translate"),
+            "{locale} wizard messages must be genuinely localized"
         );
     }
 }

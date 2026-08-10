@@ -1301,6 +1301,19 @@ fn build_config_editor_editor_line_spans(
                 sep_style,
                 true,
             );
+            if state
+                .selected_key()
+                .is_some_and(|setting| setting.key.starts_with("pi_scan_"))
+            {
+                add_literal_key_entry(
+                    &mut spans,
+                    "Ctrl+G",
+                    key_style,
+                    &i18n::t(app, "app.modals.config_editor.footer.pi_scan_setup"),
+                    sep_style,
+                    true,
+                );
+            }
             add_literal_key_entry(
                 &mut spans,
                 "Ctrl+E",

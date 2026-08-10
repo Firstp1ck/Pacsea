@@ -13,3 +13,4 @@ mod ws7_observer_store;
 mod ws8_acquisition_adapter;
 mod ws9_orchestration;
 mod ws10_network_signature;
+mod ws_setup_ui;

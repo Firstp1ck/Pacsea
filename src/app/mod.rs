@@ -24,7 +24,8 @@ pub mod terminal;
 pub use runtime::run;
 /// Public Pi Scan worker contracts used by deterministic integration tests.
 pub use runtime::workers::pi_scan::{
-    PiScanRequestMessage, PiScanShutdownMessage, spawn_default_off_pi_scan_worker,
+    PiScanProgressMessage, PiScanRequestMessage, PiScanShutdownMessage,
+    spawn_default_off_pi_scan_worker,
 };
 /// Public setup-wizard controller contracts used by integration and acceptance tests.
 pub use runtime::workers::pi_scan_setup::{

@@ -271,6 +271,8 @@ pub struct PiScanWorkspaceState {
     pub disclosure_confirmed: bool,
     /// Explicit ordered fallback confirmation.
     pub fallback_confirmed: bool,
+    /// Independent paid background-execution confirmation.
+    pub background_paid_execution_confirmed: bool,
     /// Explicit warning confirmation for a readiness warning.
     pub readiness_warning_confirmed: bool,
     /// Whether active progress is detached from the visible page.
@@ -291,6 +293,8 @@ pub struct PiScanWorkspaceState {
     pub notice: Option<String>,
     /// Workspace tab hit rectangles.
     pub tab_rects: [Option<(u16, u16, u16, u16)>; 6],
+    /// Last setup-controller correlation retained across wizard sessions.
+    pub last_setup_correlation: u64,
     /// Active guided setup wizard session; `None` outside the wizard.
     pub wizard: Option<crate::state::pi_scan_setup::PiScanSetupWizardState>,
 }
@@ -318,6 +322,7 @@ impl Default for PiScanWorkspaceState {
             setup_facts_verified: false,
             disclosure_confirmed: false,
             fallback_confirmed: false,
+            background_paid_execution_confirmed: false,
             readiness_warning_confirmed: false,
             detached: false,
             targets: Vec::new(),
@@ -328,15 +333,67 @@ impl Default for PiScanWorkspaceState {
             dry_run_preview: None,
             notice: None,
             tab_rects: [None; 6],
+            last_setup_correlation: 0,
             wizard: None,
         }
     }
 }
 
 impl PiScanWorkspaceState {
+    /// What: Start an isolated guided setup session from the effective projection.
+    ///
+    /// Inputs:
+    /// - `first_run`: Whether setup is incomplete rather than an explicit rerun.
+    ///
+    /// Output:
+    /// - A Welcome-step draft attached to the existing Setup page.
+    ///
+    /// Details:
+    /// - Effective settings, runtime, and consent remain untouched until central
+    ///   integration dispatches a successful final Apply transaction.
+    pub fn begin_setup_wizard(&mut self, first_run: bool) {
+        let mut wizard = crate::state::pi_scan_setup::PiScanSetupWizardState::open(
+            self.settings.clone(),
+            PiScanConsentState {
+                background_observation: self.runtime.consent.background_observation,
+                paid_execution: self.background_paid_execution_confirmed,
+            },
+            first_run,
+        );
+        wizard.last_correlation = self.last_setup_correlation;
+        self.wizard = Some(wizard);
+        self.view = PiScanView::Setup;
+        self.pending_action = None;
+    }
+
+    /// Drop the isolated wizard draft without any runtime or durable action.
+    pub fn cancel_setup_wizard(&mut self) {
+        self.wizard = None;
+        self.pending_action = None;
+    }
+
+    /// Return whether material setup facts and foreground consent are currently verified.
+    #[must_use]
+    pub const fn setup_complete(&self) -> bool {
+        self.settings.enabled
+            && self.setup_facts_verified
+            && self.disclosure_confirmed
+            && self.runtime.consent.paid_execution
+    }
+
     /// Apply settings and derive truthful default-off availability without probing Pi.
     pub fn apply_settings(&mut self, settings: PiScanSettings, pi_binary_found: bool) {
+        let material_changed = self.setup_facts_verified && self.settings != settings;
         self.settings = settings;
+        if material_changed {
+            self.setup_facts_verified = false;
+            self.disclosure_confirmed = false;
+            self.fallback_confirmed = false;
+            self.background_paid_execution_confirmed = false;
+            self.readiness_warning_confirmed = false;
+            self.runtime.consent = PiScanConsentState::default();
+            self.readiness = PiScanReadiness::Unchecked;
+        }
         self.availability = if !cfg!(target_os = "linux") {
             PiScanAvailability::Unsupported
         } else if !self.settings.enabled {

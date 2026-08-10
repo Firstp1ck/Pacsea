@@ -42,6 +42,20 @@ use crate::theme::{
 /// - Moves editor state out of `app` temporarily to avoid mutable borrow
 ///   conflicts when save handlers mutate global app fields.
 pub(in crate::events) fn handle_config_editor_mode_key(ke: KeyEvent, app: &mut AppState) -> bool {
+    let opens_pi_scan_setup = matches!(
+        (ke.code, ke.modifiers),
+        (KeyCode::Char('g'), modifiers) if modifiers.contains(KeyModifiers::CONTROL)
+    ) && app.config_editor_state.popup.is_none()
+        && app
+            .config_editor_state
+            .selected_key()
+            .is_some_and(|setting| setting.key.starts_with("pi_scan_"));
+    if opens_pi_scan_setup {
+        let first_run = !app.pi_scan.setup_complete();
+        app.pi_scan.begin_setup_wizard(first_run);
+        app.app_mode = crate::state::types::AppMode::PiScan;
+        return true;
+    }
     let mut state = std::mem::take(&mut app.config_editor_state);
     if state.popup.is_some() {
         handle_popup_key(ke, app, &mut state);
@@ -1185,6 +1199,27 @@ mod tests {
 
     fn setting(key: &str) -> &'static crate::theme::EditableSetting {
         find_setting(key).expect("schema entry")
+    }
+
+    #[test]
+    fn pi_scan_setting_shortcut_opens_guided_setup() {
+        let mut app = AppState {
+            app_mode: crate::state::types::AppMode::ConfigEditor,
+            config_editor_state: Box::new(ConfigEditorState {
+                view: ConfigEditorView::KeyList,
+                query: "pi_scan_enabled".to_string(),
+                key_cursor: 0,
+                ..ConfigEditorState::default()
+            }),
+            ..AppState::default()
+        };
+
+        assert!(handle_config_editor_mode_key(
+            KeyEvent::new(KeyCode::Char('g'), KeyModifiers::CONTROL),
+            &mut app,
+        ));
+        assert_eq!(app.app_mode, crate::state::types::AppMode::PiScan);
+        assert!(app.pi_scan.wizard.is_some());
     }
 
     #[test]

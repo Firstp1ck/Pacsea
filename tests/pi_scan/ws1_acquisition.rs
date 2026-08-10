@@ -168,6 +168,24 @@ fn srcinfo_strictly_binds_build_relevant_arrays() {
     );
 }
 
+/// What: Verify standard tab-indented `.SRCINFO` metadata is accepted.
+///
+/// Inputs:
+/// - A valid `.SRCINFO` document using makepkg's tab indentation.
+///
+/// Output:
+/// - The document parses into the expected package identity.
+///
+/// Details:
+/// - AUR-generated `.SRCINFO` files conventionally indent fields with tabs.
+#[test]
+fn srcinfo_accepts_standard_tab_indentation() {
+    let document = "pkgbase = demo\n\tpkgdesc = Demo package\n\tpkgname = demo\n";
+    let parsed = parse_srcinfo(document).expect("tab-indented .SRCINFO should parse");
+    assert_eq!(parsed.package_base.as_str(), "demo");
+    assert_eq!(parsed.package_names[0].as_str(), "demo");
+}
+
 /// What: Verify immutable transport, redirect, userinfo, and explicit public-IP policy.
 ///
 /// Inputs:

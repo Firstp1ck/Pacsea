@@ -1,6 +1,6 @@
 //! Deterministic WS9 end-to-end orchestration tests using only injected fakes.
 
-use std::collections::VecDeque;
+use std::collections::{BTreeSet, VecDeque};
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -174,7 +174,17 @@ fn setup() -> SetupSnapshot {
             tokens: 10_000,
             cost_microusd: 50,
         },
+        route_reservations: vec![(
+            "provider".to_string(),
+            "model".to_string(),
+            PiScanReservation {
+                tokens: 10_000,
+                cost_microusd: 50,
+            },
+        )],
         pricing_binding: "test-pricing-v1".to_string(),
+        pricing_observed_at_unix_seconds: 1_000,
+        maximum_pricing_age_seconds: 900,
         pricing_summary: vec!["provider/model · Pi native metadata · cost=0.05".to_string()],
     }
 }
@@ -253,6 +263,42 @@ fn config(root: &Path, dry_run: bool) -> OrchestrationConfig {
             cost_microusd_per_24h: 1_000,
         },
     }
+}
+
+/// A selected unresolved target must not observe or fail on unrelated foreign packages.
+#[test]
+fn manual_observation_is_limited_to_selected_package_names() {
+    let temp = tempfile::tempdir().expect("temp");
+    let pacsea_head = oid(42);
+    let adapter = FakeAdapter {
+        setup: Some(setup()),
+        packages: vec![
+            package("qml-vulkan", "qml-vulkan"),
+            package("pacsea-bin", "pacsea-bin"),
+        ],
+        observations: VecDeque::from(vec![ObservationPackage {
+            package_base: PackageBase::new("pacsea-bin").expect("base"),
+            head_oid: pacsea_head.clone(),
+            commits: vec![ObservationCommit {
+                oid: pacsea_head,
+                relevance: CommitBuildRelevance::BuildRelevant,
+            }],
+            truncated: false,
+            paused_for_rebaseline: false,
+        }]),
+        ..FakeAdapter::default()
+    };
+    let mut orchestrator =
+        PiScanOrchestrator::new(config(temp.path(), false), adapter).expect("construct");
+    let selected = BTreeSet::from(["pacsea-bin".to_string()]);
+
+    let targets = orchestrator
+        .manual_observation_selected(1, &selected)
+        .expect("selected observation");
+
+    assert_eq!(targets.len(), 1);
+    assert_eq!(targets[0].package_name, "pacsea-bin");
+    assert_eq!(targets[0].package_base.as_str(), "pacsea-bin");
 }
 
 #[test]
@@ -812,13 +858,15 @@ fn material_configuration_change_invalidates_all_persisted_consent() {
         )
         .expect("runtime consent");
     first
-        .update_setup_consent(
-            true,
-            true,
-            true,
-            "0.84.0".to_string(),
-            "test-pricing-v1".to_string(),
-        )
+        .update_setup_consent(pacsea::pi_scan_orchestrator::PiScanSetupConsentState {
+            configuration_binding: String::new(),
+            disclosure_confirmed: true,
+            fallback_confirmed: true,
+            background_paid_execution: false,
+            readiness_warning_confirmed: true,
+            confirmed_pi_version: "0.84.0".to_string(),
+            confirmed_pricing_binding: "test-pricing-v1".to_string(),
+        })
         .expect("setup consent");
     assert!(temp.path().join("consent-v1.json").is_file());
     drop(first);

@@ -727,6 +727,14 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
             handle_post_summary_result(app, post_summary_data);
             false
         }
+        Some(event) = channels.pi_scan_setup_event_rx.recv() => {
+            apply_pi_scan_setup_event(app, event);
+            false
+        }
+        Some(transfer) = channels.pi_scan_setup_transfer_rx.recv() => {
+            apply_pi_scan_runtime_transfer(app, channels, transfer).await;
+            false
+        }
         Some(progress) = channels.pi_scan_progress_rx.recv() => {
             apply_pi_scan_progress(app, progress);
             false
@@ -736,6 +744,388 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
             false
         }
         else => false
+    }
+}
+
+/// Dispatch one isolated wizard action through the always-available setup controller.
+fn dispatch_pi_scan_setup_action(app: &mut AppState, channels: &Channels) {
+    use crate::state::pi_scan_setup::PiScanSetupDraftAction;
+
+    let (action, candidate, consent, confirmations) = {
+        let Some(wizard) = app.pi_scan.wizard.as_mut() else {
+            return;
+        };
+        let Some(action) = wizard.pending_action.take() else {
+            return;
+        };
+        (
+            action,
+            wizard.candidate.clone(),
+            wizard.candidate_consent,
+            wizard.confirmations,
+        )
+    };
+    let (correlation_id, apply_action, request) = match action {
+        PiScanSetupDraftAction::Probe {
+            correlation_id,
+            binary,
+        } => (
+            correlation_id,
+            false,
+            crate::app::runtime::workers::pi_scan_setup::PiScanSetupRequest::BeginSetupProbe {
+                correlation_id,
+                binary,
+            },
+        ),
+        PiScanSetupDraftAction::Validate { correlation_id } => (
+            correlation_id,
+            false,
+            crate::app::runtime::workers::pi_scan_setup::PiScanSetupRequest::ValidateSetupCandidate {
+                correlation_id,
+                candidate,
+                consent,
+                confirmations,
+            },
+        ),
+        PiScanSetupDraftAction::Apply {
+            correlation_id,
+            validation_binding,
+        } => (
+            correlation_id,
+            true,
+            crate::app::runtime::workers::pi_scan_setup::PiScanSetupRequest::ApplySetupCandidate {
+                correlation_id,
+                candidate,
+                consent,
+                confirmations,
+                validation_binding,
+            },
+        ),
+    };
+    app.pi_scan.last_setup_correlation = correlation_id;
+    if let Err(error) = channels.pi_scan_setup_request_tx.send(request)
+        && let Some(wizard) = app.pi_scan.wizard.as_mut()
+    {
+        let _ = wizard.accept_failure(
+            correlation_id,
+            apply_action,
+            format!("Pi Scan setup controller is unavailable; retry setup: {error}"),
+        );
+    }
+}
+
+/// Project one correlated setup-controller event into the isolated wizard draft.
+fn apply_pi_scan_setup_event(
+    app: &mut AppState,
+    event: crate::app::runtime::workers::pi_scan_setup::PiScanSetupEvent,
+) {
+    use crate::app::runtime::workers::pi_scan_setup::{PiScanSetupEvent, PiScanSetupStage};
+    let failure_stage_label = if let PiScanSetupEvent::Failed { stage, .. } = &event {
+        let stage_key = match stage {
+            PiScanSetupStage::Probe => "probe",
+            PiScanSetupStage::CandidateValidation => "validation",
+            PiScanSetupStage::Activation => "activation",
+            PiScanSetupStage::Persistence => "persistence",
+        };
+        Some(crate::i18n::t(
+            app,
+            &format!("app.pi_scan.wizard.failure_stage.{stage_key}"),
+        ))
+    } else {
+        None
+    };
+    let Some(wizard) = app.pi_scan.wizard.as_mut() else {
+        return;
+    };
+    match event {
+        PiScanSetupEvent::CapabilitiesVerified {
+            correlation_id,
+            snapshot,
+        } => {
+            let _ = wizard.accept_verified_facts(correlation_id, wizard_facts(*snapshot));
+        }
+        PiScanSetupEvent::CandidateValidated {
+            correlation_id,
+            validation_binding,
+        } => {
+            let _ = wizard.accept_validation(correlation_id, validation_binding);
+        }
+        PiScanSetupEvent::Applied { correlation_id, .. } => {
+            let _ = wizard.accept_apply_status(
+                correlation_id,
+                crate::state::PiScanSetupApplyStatus::Activating,
+            );
+        }
+        PiScanSetupEvent::Failed {
+            correlation_id,
+            stage,
+            reason,
+        } => {
+            let apply_failure = matches!(
+                stage,
+                PiScanSetupStage::Activation | PiScanSetupStage::Persistence
+            ) || wizard.step == crate::state::PiScanSetupStep::Activate;
+            let _ = wizard.accept_failure(
+                correlation_id,
+                apply_failure,
+                format!(
+                    "{}: {reason}",
+                    failure_stage_label.unwrap_or_else(|| "Pi Scan setup failed".to_string())
+                ),
+            );
+        }
+    }
+}
+
+/// Convert the runtime setup projection into credential-free wizard display facts.
+fn wizard_facts(
+    snapshot: crate::pi_scan_orchestrator::SetupSnapshot,
+) -> crate::state::PiScanSetupVerifiedFacts {
+    crate::state::PiScanSetupVerifiedFacts {
+        pi_version: snapshot.pi_version,
+        routes: snapshot.available_models,
+        route_reservations: snapshot.route_reservations,
+        reservation: snapshot.reservation,
+        pricing_binding: snapshot.pricing_binding,
+        pricing_observed_at_unix_seconds: snapshot.pricing_observed_at_unix_seconds,
+        maximum_pricing_age_seconds: snapshot.maximum_pricing_age_seconds,
+        pricing_summary: snapshot.pricing_summary,
+    }
+}
+
+/// What: Accept one committed candidate transfer and replace the runtime without restart.
+///
+/// Inputs:
+/// - `app`: Current UI/effective settings projection.
+/// - `channels`: Current runtime owner and setup channels.
+/// - `transfer`: Correlated rollback-capable candidate transfer.
+///
+/// Output:
+/// - Installs one production owner or restores the previous owner and reports failure.
+///
+/// Details:
+/// - The old owner reaches its bounded durability boundary before candidate activation.
+async fn apply_pi_scan_runtime_transfer(
+    app: &mut AppState,
+    channels: &mut Channels,
+    transfer: crate::app::runtime::workers::pi_scan_setup::PiScanRuntimeTransfer,
+) {
+    let correlation_id = transfer.correlation_id();
+    let accepted = app
+        .pi_scan
+        .wizard
+        .as_ref()
+        .is_some_and(|wizard| wizard.accepts_correlation(correlation_id));
+    if !accepted {
+        drop(transfer);
+        return;
+    }
+    if let Some(wizard) = app.pi_scan.wizard.as_mut() {
+        let _ = wizard.accept_apply_status(
+            correlation_id,
+            crate::state::PiScanSetupApplyStatus::Activating,
+        );
+    }
+    let previous_options = channels.pi_scan_runtime_options.clone();
+    let shutdown = shutdown_pi_scan_owner(channels).await;
+    if let Err(failure) = shutdown {
+        let restore = failure
+            .owner_stopped
+            .then(|| restore_pi_scan_owner(channels, &previous_options).err())
+            .flatten();
+        let runtime_connected = failure.owner_stopped && restore.is_none();
+        let rollback = transfer.rollback().err();
+        let reason =
+            combine_setup_failures(combine_setup_failures(failure.reason, restore), rollback);
+        fail_pi_scan_transfer(app, correlation_id, reason, runtime_connected);
+        return;
+    }
+    let activated = match transfer.activate() {
+        Ok(activated) => activated,
+        Err(error) => {
+            let restore = restore_pi_scan_owner(channels, &previous_options).err();
+            let runtime_connected = restore.is_none();
+            fail_pi_scan_transfer(
+                app,
+                correlation_id,
+                combine_setup_failures(error.to_string(), restore),
+                runtime_connected,
+            );
+            return;
+        }
+    };
+    let effective = activated.effective().clone();
+    let snapshot = activated.snapshot().clone();
+    let new_options = super::pi_scan_runtime_options_for_settings(&effective, app.dry_run);
+    let runtime = match activated.commit() {
+        Ok(runtime) => runtime,
+        Err(reason) => {
+            let restore = restore_pi_scan_owner(channels, &previous_options).err();
+            let runtime_connected = restore.is_none();
+            fail_pi_scan_transfer(
+                app,
+                correlation_id,
+                combine_setup_failures(reason, restore),
+                runtime_connected,
+            );
+            return;
+        }
+    };
+    install_pi_scan_owner(channels, runtime, new_options);
+    complete_pi_scan_transfer(app, correlation_id, effective, snapshot);
+}
+
+/// Bounded shutdown failure with whether the previous owner is known to have stopped.
+struct PiScanOwnerShutdownFailure {
+    /// Actionable durability or liveness failure.
+    reason: String,
+    /// Whether restoring a replacement cannot duplicate a live owner.
+    owner_stopped: bool,
+}
+
+/// Request bounded durability from the current runtime owner.
+async fn shutdown_pi_scan_owner(channels: &Channels) -> Result<(), PiScanOwnerShutdownFailure> {
+    let (acknowledge, receiver) = std::sync::mpsc::sync_channel(1);
+    channels
+        .pi_scan_shutdown_tx
+        .send(crate::app::runtime::workers::pi_scan::PiScanShutdownMessage { acknowledge })
+        .map_err(|error| PiScanOwnerShutdownFailure {
+            reason: format!("could not stop the previous Pi Scan runtime: {error}"),
+            owner_stopped: true,
+        })?;
+    let acknowledgement = tokio::task::spawn_blocking(move || {
+        receiver.recv_timeout(std::time::Duration::from_secs(10))
+    })
+    .await
+    .map_err(|error| PiScanOwnerShutdownFailure {
+        reason: format!("Pi Scan shutdown wait failed: {error}"),
+        owner_stopped: false,
+    })?
+    .map_err(|error| PiScanOwnerShutdownFailure {
+        reason: format!("Pi Scan shutdown exceeded its bounded deadline: {error}"),
+        owner_stopped: false,
+    })?;
+    if acknowledgement.persisted {
+        Ok(())
+    } else {
+        Err(PiScanOwnerShutdownFailure {
+            reason: acknowledgement.warning.unwrap_or_else(|| {
+                "previous Pi Scan runtime did not reach its durability boundary".to_string()
+            }),
+            owner_stopped: true,
+        })
+    }
+}
+
+/// Restore the exact previous runtime options after a failed candidate activation.
+fn restore_pi_scan_owner(
+    channels: &mut Channels,
+    options: &crate::app::runtime::workers::pi_scan::PiScanRuntimeOptions,
+) -> Result<(), String> {
+    let runtime = spawn_pi_scan_owner(options)?;
+    install_pi_scan_owner(channels, runtime, options.clone());
+    Ok(())
+}
+
+/// Spawn one worker owner from already validated current or rollback options.
+fn spawn_pi_scan_owner(
+    options: &crate::app::runtime::workers::pi_scan::PiScanRuntimeOptions,
+) -> Result<crate::app::runtime::workers::pi_scan::PiScanRuntimeChannels, String> {
+    if options.effective_enabled() && options.production.is_some() {
+        crate::pi_scan_production::spawn_production_pi_scan_worker(options)
+    } else {
+        crate::app::runtime::workers::pi_scan::spawn_pi_scan_worker(options.clone())
+            .map_err(|error| error.to_string())
+    }
+}
+
+/// Replace every runtime endpoint together so exactly one owner is addressable.
+fn install_pi_scan_owner(
+    channels: &mut Channels,
+    runtime: crate::app::runtime::workers::pi_scan::PiScanRuntimeChannels,
+    options: crate::app::runtime::workers::pi_scan::PiScanRuntimeOptions,
+) {
+    channels.pi_scan_request_tx = runtime.request_tx;
+    channels.pi_scan_cancel_tx = runtime.cancel_tx;
+    channels.pi_scan_session_tx = runtime.session_tx;
+    channels.pi_scan_shutdown_tx = runtime.shutdown_tx;
+    channels.pi_scan_progress_rx = runtime.progress_rx;
+    channels.pi_scan_result_rx = runtime.result_rx;
+    channels.pi_scan_runtime_enabled = options.effective_enabled();
+    channels.pi_scan_runtime_options = options;
+}
+
+/// Project successful runtime ownership only after the non-fallible channel swap.
+fn complete_pi_scan_transfer(
+    app: &mut AppState,
+    correlation_id: u64,
+    effective: crate::theme::PiScanSettings,
+    snapshot: crate::pi_scan_orchestrator::SetupSnapshot,
+) {
+    let (draft_consent, confirmations) = app.pi_scan.wizard.as_ref().map_or_else(
+        || {
+            (
+                crate::state::pi_scan::PiScanConsentState::default(),
+                crate::state::PiScanSetupConfirmations::default(),
+            )
+        },
+        |wizard| (wizard.candidate_consent, wizard.confirmations),
+    );
+    app.pi_scan.settings = effective;
+    app.pi_scan.runtime.consent = crate::state::pi_scan::PiScanConsentState {
+        background_observation: draft_consent.background_observation,
+        paid_execution: confirmations.foreground_paid_confirmed,
+    };
+    app.pi_scan.disclosure_confirmed = confirmations.disclosure_confirmed;
+    app.pi_scan.fallback_confirmed = confirmations.fallback_confirmed;
+    app.pi_scan.background_paid_execution_confirmed = draft_consent.paid_execution;
+    app.pi_scan.readiness_warning_confirmed = confirmations.readiness_warning_confirmed;
+    app.pi_scan.verified_pi_version = snapshot.pi_version;
+    app.pi_scan.verified_provider = snapshot.selected_provider;
+    app.pi_scan.verified_model = snapshot.selected_model;
+    app.pi_scan.verified_available_models = snapshot
+        .available_models
+        .iter()
+        .map(|(provider, model)| format!("{provider}/{model}"))
+        .collect();
+    app.pi_scan.verified_reservation = snapshot.reservation;
+    app.pi_scan.verified_pricing_binding = snapshot.pricing_binding;
+    app.pi_scan.verified_pricing_summary = snapshot.pricing_summary;
+    app.pi_scan.setup_facts_verified = true;
+    app.pi_scan.availability = crate::state::PiScanAvailability::RuntimeConnected;
+    app.pi_scan.readiness = crate::state::PiScanReadiness::Confirmed;
+    if let Some(wizard) = app.pi_scan.wizard.as_mut() {
+        let _ = wizard.accept_apply_status(
+            correlation_id,
+            crate::state::PiScanSetupApplyStatus::Complete,
+        );
+    }
+}
+
+/// Keep the previous projection authoritative and expose actionable retry guidance.
+fn fail_pi_scan_transfer(
+    app: &mut AppState,
+    correlation_id: u64,
+    reason: String,
+    runtime_connected: bool,
+) {
+    app.pi_scan.availability = if runtime_connected {
+        crate::state::PiScanAvailability::RuntimeConnected
+    } else {
+        crate::state::PiScanAvailability::RuntimeDisconnected
+    };
+    if let Some(wizard) = app.pi_scan.wizard.as_mut() {
+        let _ = wizard.accept_failure(correlation_id, true, reason);
+    }
+}
+
+/// Append an independent rollback/restart failure without hiding the primary error.
+fn combine_setup_failures(primary: String, secondary: Option<String>) -> String {
+    match secondary {
+        Some(secondary) => {
+            format!("{primary}; restoring the previous runtime also failed: {secondary}")
+        }
+        None => primary,
     }
 }
 
@@ -757,6 +1147,7 @@ fn dispatch_pi_scan_ui_action(app: &mut AppState, channels: &Channels) {
     if app.app_mode != crate::state::types::AppMode::PiScan {
         return;
     }
+    dispatch_pi_scan_setup_action(app, channels);
     let Some(action) = app.pi_scan.pending_action.take() else {
         return;
     };
@@ -772,6 +1163,9 @@ fn dispatch_pi_scan_ui_action(app: &mut AppState, channels: &Channels) {
                     consent: app.pi_scan.runtime.consent,
                     disclosure_confirmed: app.pi_scan.disclosure_confirmed,
                     fallback_confirmed: app.pi_scan.fallback_confirmed,
+                    background_paid_execution_confirmed: app
+                        .pi_scan
+                        .background_paid_execution_confirmed,
                     readiness_warning_confirmed: app.pi_scan.readiness_warning_confirmed,
                 },
             )
@@ -827,15 +1221,27 @@ fn send_selected_pi_scan_targets(app: &AppState, channels: &Channels) -> Result<
                 .map(|oid| (target.package_base.clone(), oid.clone()))
         })
         .collect();
+    let mut unresolved_package_names: Vec<String> = app
+        .pi_scan
+        .targets
+        .iter()
+        .filter(|target| target.selected && target.commit_oid.is_none())
+        .map(|target| target.package_name.clone())
+        .collect();
+    unresolved_package_names.sort();
+    unresolved_package_names.dedup();
+    if !unresolved_package_names.is_empty() {
+        channels
+            .pi_scan_request_tx
+            .send(
+                crate::app::runtime::workers::pi_scan::PiScanRequestMessage::ManualObservation {
+                    package_names: unresolved_package_names,
+                },
+            )
+            .map_err(|error| error.to_string())?;
+    }
     if selected.is_empty() {
-        let has_selected = app.pi_scan.targets.iter().any(|target| target.selected);
-        if has_selected {
-            channels
-                .pi_scan_request_tx
-                .send(
-                    crate::app::runtime::workers::pi_scan::PiScanRequestMessage::ManualObservation,
-                )
-                .map_err(|error| error.to_string())?;
+        if app.pi_scan.targets.iter().any(|target| target.selected) {
             return Ok(());
         }
         return Err("select at least one target before queueing".to_string());
@@ -984,6 +1390,7 @@ fn apply_pi_scan_progress(
             app.pi_scan.runtime.consent = consent;
             app.pi_scan.disclosure_confirmed = setup.disclosure_confirmed;
             app.pi_scan.fallback_confirmed = setup.fallback_confirmed;
+            app.pi_scan.background_paid_execution_confirmed = setup.background_paid_execution;
             app.pi_scan.readiness_warning_confirmed = setup.readiness_warning_confirmed;
             app.pi_scan.verified_pi_version = setup.confirmed_pi_version;
             app.pi_scan.verified_pricing_binding = setup.confirmed_pricing_binding;
@@ -2113,6 +2520,7 @@ mod tests {
                     configuration_binding: "binding".to_string(),
                     disclosure_confirmed: true,
                     fallback_confirmed: true,
+                    background_paid_execution: true,
                     readiness_warning_confirmed: true,
                     confirmed_pi_version: "0.84.0".to_string(),
                     confirmed_pricing_binding: "pricing".to_string(),
@@ -2124,6 +2532,7 @@ mod tests {
         assert!(app.pi_scan.runtime.consent.paid_execution);
         assert!(app.pi_scan.disclosure_confirmed);
         assert!(app.pi_scan.fallback_confirmed);
+        assert!(app.pi_scan.background_paid_execution_confirmed);
         assert!(app.pi_scan.readiness_warning_confirmed);
         assert_eq!(app.pi_scan.verified_pi_version, "0.84.0");
         assert_eq!(app.pi_scan.verified_pricing_binding, "pricing");
@@ -2146,7 +2555,17 @@ mod tests {
                         tokens: 10_000,
                         cost_microusd: 50,
                     },
+                    route_reservations: vec![(
+                        "provider".to_string(),
+                        "model".to_string(),
+                        crate::state::pi_scan::PiScanReservation {
+                            tokens: 10_000,
+                            cost_microusd: 50,
+                        },
+                    )],
                     pricing_binding: "pricing-binding".to_string(),
+                    pricing_observed_at_unix_seconds: 1_000,
+                    maximum_pricing_age_seconds: 900,
                     pricing_summary: vec![
                         "provider/model · Pi native model metadata · cost={input:1,output:2}"
                             .to_string(),

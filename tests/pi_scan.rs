@@ -24,3 +24,5 @@ mod ws7_observer_store;
 mod ws8_acquisition_adapter;
 #[path = "pi_scan/ws9_orchestration.rs"]
 mod ws9_orchestration;
+#[path = "pi_scan/ws_setup_ui.rs"]
+mod ws_setup_ui;

@@ -177,7 +177,10 @@ fn parse_line(state: &mut ParserState, raw_line: &str, line: usize) -> Result<()
     if trimmed.is_empty() || trimmed.starts_with('#') {
         return Ok(());
     }
-    if raw_line.contains('\0') || raw_line.chars().any(char::is_control) {
+    if raw_line
+        .chars()
+        .any(|character| character.is_control() && character != '\t')
+    {
         return Err(line_error(line, "control character is forbidden"));
     }
     let (raw_key, raw_value) = trimmed

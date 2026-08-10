@@ -3,14 +3,14 @@
 //! Construction is inert. Network, Git, `GnuPG`, and Pi are reached only after the explicit
 //! scanner/setup gates permit an observation or execution operation.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
-use serde_json::{Map, Value};
+#[cfg(test)]
+use serde_json::Value;
 use sha2::{Digest as _, Sha256};
 
 use crate::app::runtime::workers::pi_scan::{
@@ -32,32 +32,30 @@ use crate::logic::pi_scan::observer::{
     ExplicitHttpsProxyGitRunner, GitCommandRunner, GitInvocation, ObservationCycle,
     SystemGitRunner, head_query_invocation, observe_package_base, parse_head_oid,
 };
+#[cfg(test)]
 use crate::logic::pi_scan::pricing::{pricing_from_pi_model_cost, reserve_worst_case_microusd};
-use crate::logic::pi_scan::result::{Coverage, UsageAccounting};
+use crate::logic::pi_scan::result::Coverage;
+#[cfg(test)]
+use crate::logic::pi_scan::result::UsageAccounting;
 use crate::logic::pi_scan::result_store::{
     StoredResultBatch, StoredResultSummary, cleanup_expired_results, load_all_results, load_result,
     plan_retention,
 };
 use crate::logic::pi_scan::signature::IsolatedSignatureVerifier;
 use crate::logic::pi_scan::source::AcquisitionStatus;
-use crate::pi_agent::capabilities::{
-    CommandDescriptor, PiAvailability, ProbeObservation, evaluate_capabilities,
-};
-use crate::pi_agent::client::{PiRpcClient, RpcTransport};
-use crate::pi_agent::process::PACSEA_EXTENSION_COMMAND;
-use crate::pi_agent::protocol::{
-    CommandCorrelator, REQUIRED_RPC_COMMANDS, decode_record, encode_command,
-};
-use crate::pi_agent::restricted_tools::SnapshotRegistry;
 use crate::pi_agent::scan_engine::{
     ExecutionError, ProductionScanRequest, ScanExecutionInput, execute_scan,
 };
 use crate::pi_agent::session::ModelChoice;
+use crate::pi_agent::setup_probe::{
+    PiSetupProbeRequest, SETUP_PROBE_MAXIMUM_PRICING_AGE, SETUP_PROBE_RESERVATION_TOKENS,
+    probe_pi_setup,
+};
 use crate::pi_scan_orchestrator::{
     DiscoveredPackage, DryRunAcquisitionReceipt, ExecutionFailure, ExecutionReceipt,
     FrozenScanIdentity, ObservationCommit, ObservationPackage, OrchestrationAdapter,
     OrchestrationConfig, OrchestrationError, PiScanOrchestrator, PiScanSequentialRunner,
-    SetupSnapshot, UpdateCandidate,
+    PiScanSetupConsentState, SetupSnapshot, UpdateCandidate,
 };
 use crate::state::pi_scan::{
     PiScanActualUsage, PiScanBudgetLimits, PiScanReservation, PiScanTerminalRecord,
@@ -311,6 +309,7 @@ impl ProductionOrchestrationAdapter {
 }
 
 /// Exact no-model record retained from Pi's available-model response.
+#[cfg(test)]
 #[derive(Debug, Clone)]
 struct ProbedModel {
     /// Exact provider identifier.
@@ -321,157 +320,8 @@ struct ProbedModel {
     cost: Option<Value>,
 }
 
-/// Typed records returned by the isolated no-model RPC capability probe.
-struct RpcCapabilityProbe {
-    /// Exact configured models and pricing objects.
-    models: Vec<ProbedModel>,
-    /// Temporary command inventory with source provenance.
-    commands: Vec<CommandDescriptor>,
-    /// Exact active model-visible tool names.
-    active_tools: Vec<String>,
-}
-
-/// Run the complete bounded no-model Pi capability and model probe.
-fn probe_available_models(
-    config: &ProductionAdapterConfig,
-) -> Result<(String, Vec<ProbedModel>), String> {
-    let version_output = run_pi_cli(&config.pi_executable, "--version")?;
-    let help_output = run_pi_cli(&config.pi_executable, "--help")?;
-    fs::create_dir_all(&config.workspace_parent)
-        .map_err(|error| format!("could not create the private Pi scanner workspace: {error}"))?;
-    let mut client = PiRpcClient::launch(
-        &config.workspace_parent,
-        &config.pi_executable,
-        &SnapshotRegistry::new(),
-    )
-    .map_err(|error| error.to_string())?;
-    let mut correlator = CommandCorrelator::new();
-    let probe = run_rpc_capability_probe(&mut client, &mut correlator, config);
-    let teardown = client.reap().map_err(|error| error.to_string());
-    let probe = probe?;
-    teardown?;
-    let availability = evaluate_capabilities(&ProbeObservation {
-        version_output,
-        help_output,
-        active_tools: probe.active_tools,
-        commands: probe.commands,
-        advertised_rpc_commands: REQUIRED_RPC_COMMANDS
-            .iter()
-            .map(|command| (*command).to_string())
-            .collect(),
-        pacsea_command_name: PACSEA_EXTENSION_COMMAND.to_string(),
-    });
-    let report = match availability {
-        PiAvailability::Available(report) => report,
-        PiAvailability::Unavailable(error) => return Err(error.to_string()),
-    };
-    Ok((report.version.to_string(), probe.models))
-}
-
-/// Exercise every no-model RPC command needed by setup, execution, accounting, and abort.
-fn run_rpc_capability_probe(
-    client: &mut PiRpcClient,
-    correlator: &mut CommandCorrelator,
-    config: &ProductionAdapterConfig,
-) -> Result<RpcCapabilityProbe, String> {
-    let models_response = rpc_probe_call(
-        client,
-        correlator,
-        "get_available_models",
-        Duration::from_secs(15),
-    )?;
-    let models = parse_probed_models(&models_response)?;
-    let commands_response =
-        rpc_probe_call(client, correlator, "get_commands", Duration::from_secs(15))?;
-    let commands = parse_probe_commands(&commands_response)?;
-    for command in ["get_state", "get_last_assistant_text", "get_session_stats"] {
-        drop(rpc_probe_call(
-            client,
-            correlator,
-            command,
-            Duration::from_secs(15),
-        )?);
-    }
-    let mut retry_fields = Map::new();
-    retry_fields.insert("enabled".to_string(), Value::Bool(false));
-    drop(
-        rpc_probe_call_fields(
-            client,
-            correlator,
-            "set_auto_retry",
-            &retry_fields,
-            Duration::from_secs(15),
-        )?
-        .0,
-    );
-    let primary = config
-        .models
-        .first()
-        .ok_or_else(|| "no primary Pi model was configured".to_string())?;
-    let mut model_fields = Map::new();
-    model_fields.insert(
-        "provider".to_string(),
-        Value::String(primary.provider.clone()),
-    );
-    model_fields.insert("modelId".to_string(), Value::String(primary.model.clone()));
-    drop(
-        rpc_probe_call_fields(
-            client,
-            correlator,
-            "set_model",
-            &model_fields,
-            Duration::from_secs(15),
-        )?
-        .0,
-    );
-    let active_tools = probe_active_tools(client, correlator)?;
-    for command in ["abort_retry", "abort"] {
-        drop(rpc_probe_call(
-            client,
-            correlator,
-            command,
-            Duration::from_secs(15),
-        )?);
-    }
-    Ok(RpcCapabilityProbe {
-        models,
-        commands,
-        active_tools,
-    })
-}
-
-/// Parse exact model identities and cost objects from one strict Pi response.
-fn parse_probed_models(response: &Value) -> Result<Vec<ProbedModel>, String> {
-    let values = response
-        .pointer("/data/models")
-        .and_then(Value::as_array)
-        .ok_or_else(|| "Pi get_available_models returned no model array".to_string())?;
-    let mut models = Vec::new();
-    for value in values {
-        let provider = value
-            .get("provider")
-            .and_then(Value::as_str)
-            .ok_or_else(|| "Pi model record omitted provider".to_string())?;
-        let model = value
-            .get("id")
-            .and_then(Value::as_str)
-            .ok_or_else(|| "Pi model record omitted id".to_string())?;
-        models.push(ProbedModel {
-            provider: provider.to_string(),
-            model: model.to_string(),
-            cost: value.get("cost").cloned(),
-        });
-    }
-    if models.is_empty() {
-        return Err(
-            "Pi reported no configured models; configure a provider/model and re-run setup"
-                .to_string(),
-        );
-    }
-    Ok(models)
-}
-
 /// Derive an exact worst-case reservation from Pi-reported route prices and user caps.
+#[cfg(test)]
 fn reservation_from_probed_models(
     available: &[ProbedModel],
     choices: &[ModelChoice],
@@ -520,174 +370,6 @@ fn reservation_from_probed_models(
     })
 }
 
-/// Bind exact Pi-reported pricing objects and provenance for configured routes.
-fn pricing_binding_from_probed_models(
-    available: &[ProbedModel],
-    choices: &[ModelChoice],
-) -> Result<String, String> {
-    let mut routes = Vec::new();
-    for choice in choices {
-        let model = available
-            .iter()
-            .find(|model| model.provider == choice.provider && model.model == choice.model)
-            .ok_or_else(|| {
-                format!(
-                    "configured Pi route {}/{} is not advertised",
-                    choice.provider, choice.model
-                )
-            })?;
-        routes.push(serde_json::json!({
-            "provider": model.provider,
-            "model": model.model,
-            "cost": model.cost,
-            "provenance": "pi:get_available_models",
-        }));
-    }
-    let bytes = serde_json::to_vec(&routes).map_err(|error| error.to_string())?;
-    Ok(sha256_hex(&bytes))
-}
-
-/// Parse the exact temporary command provenance returned by Pi.
-fn parse_probe_commands(response: &Value) -> Result<Vec<CommandDescriptor>, String> {
-    response
-        .pointer("/data/commands")
-        .and_then(Value::as_array)
-        .ok_or_else(|| "Pi get_commands returned no command array".to_string())?
-        .iter()
-        .map(|command| {
-            Ok(CommandDescriptor {
-                name: command
-                    .get("name")
-                    .and_then(Value::as_str)
-                    .ok_or_else(|| "Pi command record omitted name".to_string())?
-                    .to_string(),
-                scope: command
-                    .pointer("/sourceInfo/scope")
-                    .and_then(Value::as_str)
-                    .ok_or_else(|| "Pi command record omitted source scope".to_string())?
-                    .to_string(),
-                source: command
-                    .pointer("/sourceInfo/source")
-                    .and_then(Value::as_str)
-                    .ok_or_else(|| "Pi command record omitted source provenance".to_string())?
-                    .to_string(),
-            })
-        })
-        .collect()
-}
-
-/// Invoke the embedded extension command and parse its exact active-tool marker.
-fn probe_active_tools(
-    client: &mut PiRpcClient,
-    correlator: &mut CommandCorrelator,
-) -> Result<Vec<String>, String> {
-    let mut fields = Map::new();
-    fields.insert(
-        "message".to_string(),
-        Value::String(format!("/{PACSEA_EXTENSION_COMMAND}")),
-    );
-    let (_, events) = rpc_probe_call_fields(
-        client,
-        correlator,
-        "prompt",
-        &fields,
-        Duration::from_secs(15),
-    )?;
-    let marker = "PACSEA_ACTIVE_TOOLS:";
-    let active = events.iter().find_map(|event| {
-        event
-            .get("message")
-            .and_then(Value::as_str)
-            .and_then(|message| message.strip_prefix(marker))
-    });
-    let active = active.ok_or_else(|| {
-        "the Pacsea Pi extension did not report its active tool allowlist".to_string()
-    })?;
-    serde_json::from_str::<Vec<String>>(active)
-        .map_err(|_| "the Pacsea Pi active-tool marker was malformed".to_string())
-}
-
-/// Run one inert Pi CLI information command with a bounded captured response.
-fn run_pi_cli(executable: &Path, flag: &str) -> Result<String, String> {
-    let mut command = Command::new(executable);
-    command
-        .arg(flag)
-        .stdin(Stdio::null())
-        .stderr(Stdio::piped())
-        .stdout(Stdio::piped());
-    crate::pi_agent::process::configure_environment(&mut command);
-    let output = command
-        .output()
-        .map_err(|error| format!("could not run Pi {flag}: {error}"))?;
-    if !output.status.success() {
-        return Err(format!(
-            "Pi {flag} exited unsuccessfully; update Pi or disable the scanner"
-        ));
-    }
-    let bytes = if output.stdout.is_empty() {
-        output.stderr
-    } else {
-        output.stdout
-    };
-    if bytes.len() > 1024 * 1024 {
-        return Err(format!("Pi {flag} output exceeded the 1 MiB setup bound"));
-    }
-    String::from_utf8(bytes).map_err(|_| format!("Pi {flag} output was not UTF-8"))
-}
-
-/// Send and settle one strict correlated probe command while discarding inert events.
-fn rpc_probe_call(
-    transport: &mut dyn RpcTransport,
-    correlator: &mut CommandCorrelator,
-    command: &str,
-    timeout: Duration,
-) -> Result<Value, String> {
-    rpc_probe_call_fields(transport, correlator, command, &Map::new(), timeout)
-        .map(|(response, _)| response)
-}
-
-/// Send and settle one strict probe command while retaining bounded unsolicited events.
-fn rpc_probe_call_fields(
-    transport: &mut dyn RpcTransport,
-    correlator: &mut CommandCorrelator,
-    command: &str,
-    fields: &Map<String, Value>,
-    timeout: Duration,
-) -> Result<(Value, Vec<Value>), String> {
-    let id = correlator
-        .issue(command)
-        .map_err(|error| error.to_string())?;
-    let encoded = encode_command(&id, command, fields).map_err(|error| error.to_string())?;
-    transport
-        .write_record(&encoded)
-        .map_err(|error| error.to_string())?;
-    let deadline = Instant::now() + timeout;
-    let cancelled = AtomicBool::new(false);
-    let mut events = Vec::new();
-    loop {
-        let bytes = transport
-            .read_record(deadline, &cancelled)
-            .map_err(|error| error.to_string())?;
-        let record = decode_record(&bytes).map_err(|error| error.to_string())?;
-        if record.get("type").and_then(Value::as_str) != Some("response") {
-            events.push(Value::Object(record));
-            continue;
-        }
-        let settled = correlator
-            .settle(&record)
-            .map_err(|error| error.to_string())?;
-        if settled != command {
-            return Err(format!(
-                "Pi setup response settled unexpected command {settled:?}"
-            ));
-        }
-        if record.get("success").and_then(Value::as_bool) != Some(true) {
-            return Err(format!("Pi setup command {command} failed"));
-        }
-        return Ok((Value::Object(record), events));
-    }
-}
-
 /// Create one private observation root and bare repository path.
 fn create_observation_workspace(parent: &Path) -> Result<(PathBuf, PathBuf), String> {
     fs::create_dir_all(parent)
@@ -727,60 +409,205 @@ fn run_git_success(
     }
 }
 
+/// What: Classify one foreign-package AUR lookup for discovery.
+///
+/// Inputs:
+/// - `result`: Typed exact-name AUR RPC outcome.
+///
+/// Output:
+/// - `Some` mapping for AUR packages, `None` for non-AUR foreign packages, or a fatal error.
+///
+/// Details:
+/// - Only an explicit unresolved-package classification is skippable; transport, schema, and
+///   identity failures remain fail-closed for the complete observation cycle.
+fn classify_foreign_rpc_result(
+    result: Result<AurRpcData, AcquisitionError>,
+) -> Result<Option<AurRpcData>, String> {
+    match result {
+        Ok(rpc) => Ok(Some(rpc)),
+        Err(AcquisitionError::PackageBaseUnresolved { .. }) => Ok(None),
+        Err(error) => Err(error.to_string()),
+    }
+}
+
+/// What: Find selected package names absent from the installed foreign-package inventory.
+///
+/// Inputs:
+/// - `selected`: Exact package names selected in the Targets view.
+/// - `foreign`: Read-only `pacman -Qm` rows.
+///
+/// Output:
+/// - Sorted selected names that are outside the scanner's installed-package scope.
+///
+/// Details:
+/// - This prevents an uninstalled search result from silently becoming a broad system scan.
+fn missing_selected_foreign_packages(
+    selected: &BTreeSet<String>,
+    foreign: &[(String, String)],
+) -> Vec<String> {
+    selected
+        .iter()
+        .filter(|name| {
+            !foreign
+                .iter()
+                .any(|(foreign_name, _)| foreign_name == *name)
+        })
+        .cloned()
+        .collect()
+}
+
+/// What: Resolve all or selected foreign packages into exact official AUR package bases.
+///
+/// Inputs:
+/// - `adapter`: Production adapter owning bounded network/cache state.
+/// - `selected`: Optional exact installed package-name filter.
+///
+/// Output:
+/// - Deduplication-ready AUR package records; non-AUR foreign packages are omitted.
+///
+/// Details:
+/// - Filtering happens before network access so a selected foreground scan cannot be blocked by
+///   an unrelated foreign package. Actual transport/schema failures remain fatal.
+fn enumerate_foreign_filtered(
+    adapter: &mut ProductionOrchestrationAdapter,
+    selected: Option<&BTreeSet<String>>,
+) -> Result<Vec<DiscoveredPackage>, String> {
+    adapter.observation_cycle = ObservationCycle::with_deadline(
+        adapter.config.head_query_timeout,
+        adapter.config.observation_deadline,
+    );
+    adapter.rpc_by_base.clear();
+    let foreign = crate::logic::repos::list_foreign_packages()?;
+    if let Some(package_names) = selected {
+        let missing = missing_selected_foreign_packages(package_names, &foreign);
+        if !missing.is_empty() {
+            return Err(format!(
+                "selected Pi Scan target(s) are not installed foreign packages: {}. Pi Scan currently supports installed AUR packages and update candidates; install the package or choose an installed AUR target",
+                missing.join(", ")
+            ));
+        }
+    }
+    let mut grouped: BTreeMap<String, DiscoveredPackage> = BTreeMap::new();
+    for (name, version) in foreign {
+        if selected.is_some_and(|package_names| !package_names.contains(&name)) {
+            continue;
+        }
+        let package_name = PackageName::new(name.clone()).map_err(|error| error.to_string())?;
+        let mut network = adapter.network()?;
+        let timeout = adapter
+            .observation_cycle
+            .remaining_deadline()
+            .map_err(|error| error.to_string())?;
+        let rpc_result =
+            fetch_aur_rpc_package_base_with_timeout(&mut network, package_name.as_str(), timeout);
+        let Some(rpc) = classify_foreign_rpc_result(rpc_result)? else {
+            continue;
+        };
+        let package_base =
+            resolve_package_base(&package_name, &rpc).map_err(|error| error.to_string())?;
+        adapter
+            .rpc_by_base
+            .entry(package_base.as_str().to_string())
+            .or_insert_with(|| rpc.clone());
+        let entry = grouped
+            .entry(package_base.as_str().to_string())
+            .or_insert_with(|| {
+                let candidate = adapter.update_candidates.get(&name);
+                DiscoveredPackage {
+                    package_base: package_base.clone(),
+                    installed_names: Vec::new(),
+                    installed_version: candidate
+                        .map_or_else(|| version.clone(), |item| item.current_version.clone()),
+                    candidate_version: candidate.map(|item| item.candidate_version.clone()),
+                }
+            });
+        if !entry.installed_names.contains(&name) {
+            if entry.candidate_version.is_none() {
+                entry.candidate_version = adapter
+                    .update_candidates
+                    .get(&name)
+                    .map(|candidate| candidate.candidate_version.clone());
+            }
+            entry.installed_names.push(name);
+            entry.installed_names.sort();
+        }
+    }
+    Ok(grouped.into_values().collect())
+}
+
 impl OrchestrationAdapter for ProductionOrchestrationAdapter {
     fn probe_setup(&mut self) -> Result<SetupSnapshot, String> {
-        let (version, available_models) = probe_available_models(&self.config)?;
+        let probe = probe_pi_setup(&PiSetupProbeRequest {
+            binary: self.config.pi_executable.to_string_lossy().into_owned(),
+            workspace_parent: self.config.workspace_parent.join("setup-probe"),
+            reservation_tokens: SETUP_PROBE_RESERVATION_TOKENS,
+            now_unix_seconds: unix_now(),
+            maximum_pricing_age: SETUP_PROBE_MAXIMUM_PRICING_AGE,
+        })
+        .map_err(|error| error.to_string())?;
         for choice in &self.config.models {
-            if !available_models
-                .iter()
-                .any(|model| model.provider == choice.provider && model.model == choice.model)
-            {
-                return Err(format!(
-                    "configured Pi route {}/{} is not advertised; re-run scanner setup",
-                    choice.provider, choice.model
-                ));
-            }
+            probe
+                .exact_route(&choice.provider, &choice.model)
+                .map_err(|error| error.to_string())?;
         }
         let primary = self
             .config
             .models
             .first()
+            .cloned()
             .ok_or_else(|| "no primary Pi model was configured".to_string())?;
-        let reservation = reservation_from_probed_models(
-            &available_models,
-            &self.config.models,
-            self.config.reservation,
-        )?;
-        let pricing_binding =
-            pricing_binding_from_probed_models(&available_models, &self.config.models)?;
-        let pricing_summary = self
-            .config
-            .models
-            .iter()
-            .map(|choice| {
-                let cost = available_models
-                    .iter()
-                    .find(|model| model.provider == choice.provider && model.model == choice.model)
-                    .and_then(|model| model.cost.as_ref())
-                    .map_or_else(|| "unpriced".to_string(), Value::to_string);
-                format!(
-                    "{}/{} · Pi native model metadata · cost={cost}",
-                    choice.provider, choice.model
-                )
-            })
-            .collect();
-        self.pi_version = Some(version.clone());
+        let mut reservation = PiScanReservation {
+            tokens: SETUP_PROBE_RESERVATION_TOKENS,
+            cost_microusd: 0,
+        };
+        for choice in &self.config.models {
+            let route = probe
+                .exact_route(&choice.provider, &choice.model)
+                .map_err(|error| error.to_string())?;
+            reservation.cost_microusd = reservation
+                .cost_microusd
+                .max(route.reservation.cost_microusd);
+        }
+        self.config.reservation = reservation;
+        self.pi_version = Some(probe.pi_version.to_string());
         Ok(SetupSnapshot {
-            pi_version: version,
-            available_models: available_models
-                .into_iter()
-                .map(|model| (model.provider, model.model))
+            pi_version: probe.pi_version.to_string(),
+            available_models: probe
+                .routes
+                .iter()
+                .map(|route| (route.provider.clone(), route.model.clone()))
                 .collect(),
-            selected_provider: primary.provider.clone(),
-            selected_model: primary.model.clone(),
+            selected_provider: primary.provider,
+            selected_model: primary.model,
             reservation,
-            pricing_binding,
-            pricing_summary,
+            route_reservations: probe
+                .routes
+                .iter()
+                .map(|route| {
+                    (
+                        route.provider.clone(),
+                        route.model.clone(),
+                        route.reservation,
+                    )
+                })
+                .collect(),
+            pricing_binding: probe.pricing_binding,
+            pricing_observed_at_unix_seconds: probe.pricing_observed_at_unix_seconds,
+            maximum_pricing_age_seconds: probe.maximum_pricing_age.as_secs(),
+            pricing_summary: probe
+                .routes
+                .iter()
+                .map(|route| {
+                    format!(
+                        "{}/{} · input={} output={} micro-USD/million · {}",
+                        route.provider,
+                        route.model,
+                        route.pricing.rates.input_microusd_per_million,
+                        route.pricing.rates.output_microusd_per_million,
+                        route.pricing_provenance
+                    )
+                })
+                .collect(),
         })
     }
 
@@ -799,7 +626,21 @@ impl OrchestrationAdapter for ProductionOrchestrationAdapter {
             selected_provider: primary.provider.clone(),
             selected_model: primary.model.clone(),
             reservation: self.config.reservation,
+            route_reservations: self
+                .config
+                .models
+                .iter()
+                .map(|model| {
+                    (
+                        model.provider.clone(),
+                        model.model.clone(),
+                        self.config.reservation,
+                    )
+                })
+                .collect(),
             pricing_binding: "dry-run-no-pricing".to_string(),
+            pricing_observed_at_unix_seconds: 0,
+            maximum_pricing_age_seconds: 0,
             pricing_summary: vec!["dry-run: pricing was not probed".to_string()],
         })
     }
@@ -812,54 +653,14 @@ impl OrchestrationAdapter for ProductionOrchestrationAdapter {
     }
 
     fn enumerate_foreign(&mut self) -> Result<Vec<DiscoveredPackage>, String> {
-        self.observation_cycle = ObservationCycle::with_deadline(
-            self.config.head_query_timeout,
-            self.config.observation_deadline,
-        );
-        self.rpc_by_base.clear();
-        let mut grouped: BTreeMap<String, DiscoveredPackage> = BTreeMap::new();
-        for (name, version) in crate::logic::repos::list_foreign_packages()? {
-            let package_name = PackageName::new(name.clone()).map_err(|error| error.to_string())?;
-            let mut network = self.network()?;
-            let timeout = self
-                .observation_cycle
-                .remaining_deadline()
-                .map_err(|error| error.to_string())?;
-            let rpc = fetch_aur_rpc_package_base_with_timeout(
-                &mut network,
-                package_name.as_str(),
-                timeout,
-            )
-            .map_err(|error| error.to_string())?;
-            let package_base =
-                resolve_package_base(&package_name, &rpc).map_err(|error| error.to_string())?;
-            self.rpc_by_base
-                .entry(package_base.as_str().to_string())
-                .or_insert_with(|| rpc.clone());
-            let entry = grouped
-                .entry(package_base.as_str().to_string())
-                .or_insert_with(|| {
-                    let candidate = self.update_candidates.get(&name);
-                    DiscoveredPackage {
-                        package_base: package_base.clone(),
-                        installed_names: Vec::new(),
-                        installed_version: candidate
-                            .map_or_else(|| version.clone(), |item| item.current_version.clone()),
-                        candidate_version: candidate.map(|item| item.candidate_version.clone()),
-                    }
-                });
-            if !entry.installed_names.contains(&name) {
-                if entry.candidate_version.is_none() {
-                    entry.candidate_version = self
-                        .update_candidates
-                        .get(&name)
-                        .map(|candidate| candidate.candidate_version.clone());
-                }
-                entry.installed_names.push(name);
-                entry.installed_names.sort();
-            }
-        }
-        Ok(grouped.into_values().collect())
+        enumerate_foreign_filtered(self, None)
+    }
+
+    fn enumerate_selected(
+        &mut self,
+        package_names: &BTreeSet<String>,
+    ) -> Result<Vec<DiscoveredPackage>, String> {
+        enumerate_foreign_filtered(self, Some(package_names))
     }
 
     fn observe_package(
@@ -1462,7 +1263,7 @@ fn apply_result_retention(
 }
 
 /// Hash material provider/model/privacy/pricing configuration for consent invalidation.
-fn production_consent_binding(settings: &ProductionRuntimeSettings) -> String {
+pub(crate) fn production_consent_binding(settings: &ProductionRuntimeSettings) -> String {
     let material = serde_json::json!({
         "binary": settings.binary,
         "models": settings.models.iter().map(|model| {
@@ -1471,8 +1272,6 @@ fn production_consent_binding(settings: &ProductionRuntimeSettings) -> String {
         "background_execution": settings.background_execution,
         "thinking": settings.thinking,
         "https_proxy": settings.https_proxy,
-        "reservation_tokens": settings.reservation.tokens,
-        "reservation_cost_microusd": settings.reservation.cost_microusd,
         "budget_starts_per_hour": settings.budget_limits.starts_per_hour,
         "budget_tokens_per_24h": settings.budget_limits.tokens_per_24h,
         "budget_cost_microusd_per_24h": settings.budget_limits.cost_microusd_per_24h,
@@ -1549,13 +1348,25 @@ fn spawn_production_channels(
 
 /// Session-owned consent projection controlling when external work may start.
 #[derive(Default)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "observation lifecycle, foreground payment, and background payment are independent runtime gates"
+)]
 struct RuntimeConsentProjection {
     /// Read-only background observation is currently consented.
     observation_enabled: bool,
-    /// The first consented startup observation completed successfully.
+    /// At least one consented observation completed successfully this runtime.
     observation_started: bool,
-    /// Paid execution is currently consented.
+    /// Foreground paid execution is currently consented.
     paid_execution: bool,
+    /// Paid background execution is independently consented.
+    background_paid_execution: bool,
+}
+
+/// Return whether the periodic timer may attempt consented background observation.
+#[must_use]
+const fn background_observation_due(consent: &RuntimeConsentProjection) -> bool {
+    consent.observation_enabled
 }
 
 /// Own sequential observation, queue promotion, runtime policy, and execution requests.
@@ -1615,13 +1426,15 @@ async fn run_production_requests(
                 .await
                 .and(
                     runner
-                        .update_setup_consent(
-                            false,
-                            false,
-                            false,
-                            current_setup.pi_version,
-                            current_setup.pricing_binding,
-                        )
+                        .update_setup_consent(PiScanSetupConsentState {
+                            configuration_binding: String::new(),
+                            disclosure_confirmed: false,
+                            fallback_confirmed: false,
+                            background_paid_execution: false,
+                            readiness_warning_confirmed: false,
+                            confirmed_pi_version: current_setup.pi_version,
+                            confirmed_pricing_binding: current_setup.pricing_binding,
+                        })
                         .await,
                 );
             if let Err(error) = reset {
@@ -1635,6 +1448,7 @@ async fn run_production_requests(
             );
         }
     }
+    let background_paid_execution = setup_consent.background_paid_execution;
     drop(progress_tx.send(PiScanProgressMessage::RestoredConsent {
         consent: runtime_consent,
         setup: setup_consent,
@@ -1643,14 +1457,21 @@ async fn run_production_requests(
         observation_enabled: runtime_consent.background_observation,
         observation_started: false,
         paid_execution: runtime_consent.paid_execution,
+        background_paid_execution,
     };
     if consent.observation_enabled {
         let observed = runner.startup_observation(unix_now()).await;
         consent.observation_started = observed.is_ok();
-        publish_observation(observed, &progress_tx, &result_tx);
+        publish_observation(
+            observed,
+            "background startup observation",
+            &progress_tx,
+            &result_tx,
+        );
         if consent.observation_started
             && settings.background_execution
             && consent.paid_execution
+            && consent.background_paid_execution
             && !dry_run
         {
             drain_eligible_queue(&runner, &progress_tx, &result_tx, &settings).await;
@@ -1673,13 +1494,22 @@ async fn run_production_requests(
                     dry_run,
                 ).await;
             }
-            _ = interval.tick(), if consent.observation_enabled && consent.observation_started => {
+            _ = interval.tick(), if background_observation_due(&consent) => {
+                let observed = runner.periodic_observation(unix_now()).await;
+                let observation_succeeded = observed.is_ok();
+                consent.observation_started |= observation_succeeded;
                 publish_observation(
-                    runner.periodic_observation(unix_now()).await,
+                    observed,
+                    "background periodic observation",
                     &progress_tx,
                     &result_tx,
                 );
-                if settings.background_execution && consent.paid_execution && !dry_run {
+                if observation_succeeded
+                    && settings.background_execution
+                    && consent.paid_execution
+                    && consent.background_paid_execution
+                    && !dry_run
+                {
                     drain_eligible_queue(&runner, &progress_tx, &result_tx, &settings).await;
                 }
             }
@@ -1689,11 +1519,17 @@ async fn run_production_requests(
 
 /// Optional setup confirmations accompanying one explicit consent update.
 #[derive(Clone, Copy)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "disclosure, fallback, background payment, and readiness are independent consent decisions"
+)]
 struct ProductionSetupConsentUpdate {
     /// Disclosure confirmation.
     disclosure_confirmed: bool,
     /// Ordered fallback confirmation.
     fallback_confirmed: bool,
+    /// Independent paid background-execution confirmation.
+    background_paid_execution_confirmed: bool,
     /// Readiness-warning confirmation.
     readiness_warning_confirmed: bool,
 }
@@ -1733,9 +1569,12 @@ async fn handle_production_request(
             }
             Err(error) => reject(result_tx, error.to_string()),
         },
-        PiScanRequestMessage::ManualObservation => {
+        PiScanRequestMessage::ManualObservation { package_names } => {
             publish_observation(
-                runner.manual_observation(unix_now()).await,
+                runner
+                    .manual_observation_selected(unix_now(), package_names)
+                    .await,
+                "selected-target observation",
                 progress_tx,
                 result_tx,
             );
@@ -1748,6 +1587,7 @@ async fn handle_production_request(
             consent,
             disclosure_confirmed,
             fallback_confirmed,
+            background_paid_execution_confirmed,
             readiness_warning_confirmed,
         } => {
             apply_production_consent(
@@ -1757,6 +1597,7 @@ async fn handle_production_request(
                     setup: Some(ProductionSetupConsentUpdate {
                         disclosure_confirmed,
                         fallback_confirmed,
+                        background_paid_execution_confirmed,
                         readiness_warning_confirmed,
                     }),
                 },
@@ -1809,6 +1650,7 @@ async fn handle_production_request(
                 {
                     publish_observation(
                         runner.update_candidate_observation(unix_now()).await,
+                        "background update-candidate observation",
                         progress_tx,
                         result_tx,
                     );
@@ -1947,13 +1789,15 @@ async fn apply_production_consent(
             |snapshot| (snapshot.pi_version, snapshot.pricing_binding),
         );
         runner
-            .update_setup_consent(
-                setup.disclosure_confirmed,
-                setup.fallback_confirmed,
-                setup.readiness_warning_confirmed,
-                pi_version,
-                pricing_binding,
-            )
+            .update_setup_consent(PiScanSetupConsentState {
+                configuration_binding: String::new(),
+                disclosure_confirmed: setup.disclosure_confirmed,
+                fallback_confirmed: setup.fallback_confirmed,
+                background_paid_execution: setup.background_paid_execution_confirmed,
+                readiness_warning_confirmed: setup.readiness_warning_confirmed,
+                confirmed_pi_version: pi_version,
+                confirmed_pricing_binding: pricing_binding,
+            })
             .await
     } else {
         Ok(())
@@ -1964,6 +1808,9 @@ async fn apply_production_consent(
     }
     consent_state.observation_enabled = update.consent.background_observation;
     consent_state.paid_execution = update.consent.paid_execution;
+    if let Some(setup) = update.setup {
+        consent_state.background_paid_execution = setup.background_paid_execution_confirmed;
+    }
     let disclosure_allows_observation = update.setup.is_none_or(|setup| setup.disclosure_confirmed);
     if !disclosure_allows_observation
         || !update.consent.background_observation
@@ -1973,10 +1820,16 @@ async fn apply_production_consent(
     }
     let observed = runner.startup_observation(unix_now()).await;
     consent_state.observation_started = observed.is_ok();
-    publish_observation(observed, progress_tx, result_tx);
+    publish_observation(
+        observed,
+        "background startup observation",
+        progress_tx,
+        result_tx,
+    );
     if consent_state.observation_started
         && settings.background_execution
         && update.consent.paid_execution
+        && consent_state.background_paid_execution
         && !dry_run
     {
         drain_eligible_queue(runner, progress_tx, result_tx, settings).await;
@@ -1986,6 +1839,7 @@ async fn apply_production_consent(
 /// Publish a completed observation or reduce its failure to an optional-feature rejection.
 fn publish_observation(
     observed: Result<Vec<FrozenScanIdentity>, OrchestrationError>,
+    context: &str,
     progress_tx: &tokio::sync::mpsc::UnboundedSender<PiScanProgressMessage>,
     result_tx: &tokio::sync::mpsc::UnboundedSender<PiScanResultMessage>,
 ) {
@@ -1993,7 +1847,7 @@ fn publish_observation(
         Ok(targets) => {
             drop(progress_tx.send(PiScanProgressMessage::Observed { targets }));
         }
-        Err(error) => reject(result_tx, error.to_string()),
+        Err(error) => reject(result_tx, format!("{context} failed: {error}")),
     }
 }
 
@@ -2180,13 +2034,77 @@ fn unix_now() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::{
-        ProbedModel, ProductionOrchestrationAdapter, reservation_from_probed_models,
-        resolve_production_adapter_config,
+        ProbedModel, ProductionOrchestrationAdapter, RuntimeConsentProjection,
+        background_observation_due, classify_foreign_rpc_result, missing_selected_foreign_packages,
+        publish_observation, reservation_from_probed_models, resolve_production_adapter_config,
     };
+    use crate::app::runtime::workers::pi_scan::PiScanResultMessage;
+    use crate::logic::pi_scan::acquisition::AcquisitionError;
     use crate::pi_agent::session::ModelChoice;
-    use crate::pi_scan_orchestrator::OrchestrationAdapter;
+    use crate::pi_scan_orchestrator::{OrchestrationAdapter, OrchestrationError};
     use crate::state::pi_scan::PiScanReservation;
+    use std::collections::BTreeSet;
     use std::time::Duration;
+
+    /// A transient startup failure must not permanently disable consented periodic observation.
+    #[test]
+    fn background_observation_remains_due_after_startup_failure() {
+        let consent = RuntimeConsentProjection {
+            observation_enabled: true,
+            observation_started: false,
+            paid_execution: true,
+            background_paid_execution: true,
+        };
+
+        assert!(background_observation_due(&consent));
+    }
+
+    /// Background observation failures must identify their trigger in the status notice.
+    #[test]
+    fn background_observation_failure_names_its_trigger() {
+        let (progress_tx, _progress_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (result_tx, mut result_rx) = tokio::sync::mpsc::unbounded_channel();
+
+        publish_observation(
+            Err(OrchestrationError::Observation(
+                "network unavailable".to_string(),
+            )),
+            "background startup observation",
+            &progress_tx,
+            &result_tx,
+        );
+
+        assert!(matches!(
+            result_rx.try_recv(),
+            Ok(PiScanResultMessage::Rejected { reason })
+                if reason == "background startup observation failed: network unavailable"
+        ));
+    }
+
+    /// An uninstalled search result must produce scoped guidance instead of scanning everything.
+    #[test]
+    fn selected_target_must_be_an_installed_foreign_package() {
+        let selected = BTreeSet::from(["pacsea-bin".to_string()]);
+        let foreign = vec![("qml-vulkan".to_string(), "1.0-1".to_string())];
+
+        assert_eq!(
+            missing_selected_foreign_packages(&selected, &foreign),
+            ["pacsea-bin"]
+        );
+    }
+
+    /// Non-AUR foreign packages must not block discovery of later exact AUR packages.
+    #[test]
+    fn unresolved_foreign_package_is_skipped_during_discovery() {
+        let classified =
+            classify_foreign_rpc_result(Err(AcquisitionError::PackageBaseUnresolved {
+                package_name: "qml-vulkan".to_string(),
+                reason: "AUR returned no exact result".to_string(),
+            }))
+            .expect("non-AUR foreign package is skippable during discovery");
+
+        assert!(classified.is_none());
+    }
 
     /// Verify Pi native per-million prices produce an exact conservative reservation.
     #[test]

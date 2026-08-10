@@ -251,26 +251,44 @@ fn pi_scan_runtime_options(
     prefs: &crate::theme::Settings,
     dry_run: bool,
 ) -> crate::app::runtime::workers::pi_scan::PiScanRuntimeOptions {
+    pi_scan_runtime_options_for_settings(&prefs.pi_scan, dry_run)
+}
+
+/// What: Build runtime options from one effective Pi Scan settings snapshot.
+///
+/// Inputs:
+/// - `settings`: Effective scanner settings.
+/// - `dry_run`: Effective session dry-run flag.
+///
+/// Output:
+/// - Validated runtime options suitable for initial spawn or rollback restoration.
+///
+/// Details:
+/// - Central setup integration uses this after an in-process Apply and when restoring
+///   the previous owner after activation failure.
+fn pi_scan_runtime_options_for_settings(
+    settings: &crate::theme::PiScanSettings,
+    dry_run: bool,
+) -> crate::app::runtime::workers::pi_scan::PiScanRuntimeOptions {
     let root = crate::theme::config_dir().join("pi_scan");
-    let settings_valid = prefs.pi_scan.validation_issues().is_empty();
-    let enabled = prefs.pi_scan.enabled && settings_valid;
+    let settings_valid = settings.validation_issues().is_empty();
+    let enabled = settings.enabled && settings_valid;
     let production = settings_valid.then(|| {
         let mut models = Vec::new();
-        if !prefs.pi_scan.provider.trim().is_empty() && !prefs.pi_scan.model.trim().is_empty() {
+        if !settings.provider.trim().is_empty() && !settings.model.trim().is_empty() {
             models.push(crate::pi_agent::session::ModelChoice {
-                provider: prefs.pi_scan.provider.trim().to_string(),
-                model: prefs.pi_scan.model.trim().to_string(),
+                provider: settings.provider.trim().to_string(),
+                model: settings.model.trim().to_string(),
             });
         }
-        for fallback in prefs
-            .pi_scan
+        for fallback in settings
             .fallback_models
             .split(',')
             .map(str::trim)
             .filter(|model| !model.is_empty())
         {
             let (provider, model) = fallback.split_once('/').map_or_else(
-                || (prefs.pi_scan.provider.trim(), fallback),
+                || (settings.provider.trim(), fallback),
                 |(provider, model)| (provider, model),
             );
             models.push(crate::pi_agent::session::ModelChoice {
@@ -279,36 +297,31 @@ fn pi_scan_runtime_options(
             });
         }
         crate::pi_scan_production::ProductionRuntimeSettings {
-            binary: prefs.pi_scan.binary.clone(),
+            binary: settings.binary.clone(),
             models,
-            background_execution: prefs.pi_scan.background_enabled,
-            thinking: prefs.pi_scan.thinking.clone(),
-            observation_interval_seconds: prefs.pi_scan.observation_interval_seconds,
+            background_execution: settings.background_enabled,
+            thinking: settings.thinking.clone(),
+            observation_interval_seconds: settings.observation_interval_seconds,
             model_attempt_timeout: std::time::Duration::from_secs(
-                prefs.pi_scan.model_attempt_timeout_seconds,
+                settings.model_attempt_timeout_seconds,
             ),
-            logical_timeout: std::time::Duration::from_secs(prefs.pi_scan.logical_timeout_seconds),
-            head_query_timeout: std::time::Duration::from_secs(
-                prefs.pi_scan.head_query_timeout_seconds,
-            ),
+            logical_timeout: std::time::Duration::from_secs(settings.logical_timeout_seconds),
+            head_query_timeout: std::time::Duration::from_secs(settings.head_query_timeout_seconds),
             observation_deadline: std::time::Duration::from_secs(
-                prefs.pi_scan.observation_deadline_seconds,
+                settings.observation_deadline_seconds,
             ),
-            result_retention_days: prefs.pi_scan.result_retention_days,
+            result_retention_days: settings.result_retention_days,
             reservation: crate::state::pi_scan::PiScanReservation {
-                tokens: prefs.pi_scan.background_token_cap_24h,
-                cost_microusd: pi_scan_cost_cap_microusd(&prefs.pi_scan.background_cost_cap_24h)
-                    .unwrap_or(0),
+                tokens: crate::pi_agent::setup_probe::SETUP_PROBE_RESERVATION_TOKENS,
+                cost_microusd: u64::MAX,
             },
             budget_limits: crate::state::pi_scan::PiScanBudgetLimits {
-                starts_per_hour: prefs.pi_scan.background_starts_per_hour,
-                tokens_per_24h: prefs.pi_scan.background_token_cap_24h,
-                cost_microusd_per_24h: pi_scan_cost_cap_microusd(
-                    &prefs.pi_scan.background_cost_cap_24h,
-                )
-                .unwrap_or(0),
+                starts_per_hour: settings.background_starts_per_hour,
+                tokens_per_24h: settings.background_token_cap_24h,
+                cost_microusd_per_24h: pi_scan_cost_cap_microusd(&settings.background_cost_cap_24h)
+                    .unwrap_or(0),
             },
-            https_proxy: prefs.pi_scan.https_proxy.clone(),
+            https_proxy: settings.https_proxy.clone(),
         }
     });
     crate::app::runtime::workers::pi_scan::PiScanRuntimeOptions {

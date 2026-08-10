@@ -1,5 +1,6 @@
 //! Keyboard state transitions for the Pi Scan workspace.
 
+use crate::state::pi_scan_setup::{PiScanSetupApplyStatus, PiScanSetupHitTarget, PiScanSetupStep};
 use crate::state::types::AppMode;
 use crate::state::{
     AppState, PiScanAvailability, PiScanDryRunPreview, PiScanReadiness, PiScanUiAction, PiScanView,
@@ -17,11 +18,17 @@ pub fn open_from_search(app: &mut AppState) {
         (Some(name.as_str()), *is_aur)
     });
     app.pi_scan.open_context(name, is_aur);
+    if !app.pi_scan.setup_complete() {
+        app.pi_scan.begin_setup_wizard(true);
+    }
     app.app_mode = AppMode::PiScan;
 }
 
 /// Handle one pressed key while the Pi Scan workspace is active.
 pub fn handle_key(key: KeyEvent, app: &mut AppState) -> bool {
+    if app.pi_scan.wizard.is_some() {
+        return handle_wizard(key, app);
+    }
     if key.code == KeyCode::Esc {
         app.app_mode = AppMode::Package;
         return true;
@@ -36,6 +43,108 @@ pub fn handle_key(key: KeyEvent, app: &mut AppState) -> bool {
         PiScanView::Results => handle_results(key, app),
         PiScanView::Details => handle_details(key, app),
         PiScanView::Overview => false,
+    }
+}
+
+/// Handle one key inside the isolated keyboard-first setup wizard.
+fn handle_wizard(key: KeyEvent, app: &mut AppState) -> bool {
+    if key.code == KeyCode::Esc {
+        app.pi_scan.cancel_setup_wizard();
+        return true;
+    }
+    let dry_run = app.dry_run;
+    let Some(wizard) = app.pi_scan.wizard.as_mut() else {
+        return false;
+    };
+    match key.code {
+        KeyCode::Tab => wizard.move_focus(true),
+        KeyCode::BackTab => wizard.move_focus(false),
+        KeyCode::PageUp => wizard.scroll_body(false),
+        KeyCode::PageDown => wizard.scroll_body(true),
+        KeyCode::Backspace if wizard.edit_text(None, true) => {}
+        KeyCode::Char(character)
+            if key.modifiers.is_empty() && wizard.edit_text(Some(character), false) => {}
+        KeyCode::Left | KeyCode::Char('h') => wizard.adjust_focused(false),
+        KeyCode::Right | KeyCode::Char('l') => wizard.adjust_focused(true),
+        KeyCode::Char(' ') => wizard.toggle_focused(),
+        KeyCode::Enter => activate_focused(app, dry_run),
+        KeyCode::Char('b') => wizard.back(),
+        KeyCode::Char('n') => wizard.next(dry_run),
+        KeyCode::Char('a') if wizard.step == PiScanSetupStep::Review => {
+            wizard.request_apply(dry_run);
+        }
+        KeyCode::Char('r') => wizard.retry(dry_run),
+        KeyCode::Char('q') => app.pi_scan.cancel_setup_wizard(),
+        _ => return false,
+    }
+    true
+}
+
+/// Activate the focused body control or the page's primary Enter action.
+fn activate_focused(app: &mut AppState, dry_run: bool) {
+    let Some(wizard) = app.pi_scan.wizard.as_mut() else {
+        return;
+    };
+    match (wizard.step, wizard.focus) {
+        (PiScanSetupStep::PiReadiness, 1) => wizard.request_probe(dry_run),
+        (PiScanSetupStep::Route, _) | (PiScanSetupStep::OptionalBehavior, 3..=6) => {
+            wizard.adjust_focused(true);
+        }
+        (PiScanSetupStep::PricingPrivacy, _) | (PiScanSetupStep::OptionalBehavior, 0..=2) => {
+            wizard.toggle_focused();
+        }
+        (PiScanSetupStep::Review, _) => wizard.request_apply(dry_run),
+        (PiScanSetupStep::Activate, _)
+            if matches!(wizard.apply_status, PiScanSetupApplyStatus::Failed(_)) =>
+        {
+            wizard.retry(dry_run);
+        }
+        (PiScanSetupStep::Activate, _)
+            if matches!(wizard.apply_status, PiScanSetupApplyStatus::Complete) =>
+        {
+            app.pi_scan.cancel_setup_wizard();
+        }
+        (PiScanSetupStep::PiReadiness, 0) if wizard.verified.is_none() => {
+            wizard.request_probe(dry_run);
+        }
+        (PiScanSetupStep::PiReadiness, 0) | (PiScanSetupStep::OptionalBehavior, 7) => {
+            wizard.next(dry_run);
+        }
+        _ => wizard.next(dry_run),
+    }
+}
+
+/// Activate one semantic mouse target through the same state transitions as keys.
+pub(super) fn activate_wizard_target(target: PiScanSetupHitTarget, app: &mut AppState) {
+    let dry_run = app.dry_run;
+    match target {
+        PiScanSetupHitTarget::Cancel => app.pi_scan.cancel_setup_wizard(),
+        PiScanSetupHitTarget::Back => {
+            if let Some(wizard) = app.pi_scan.wizard.as_mut() {
+                wizard.back();
+            }
+        }
+        PiScanSetupHitTarget::Next => {
+            if let Some(wizard) = app.pi_scan.wizard.as_mut() {
+                wizard.next(dry_run);
+            }
+        }
+        PiScanSetupHitTarget::Retry => {
+            if let Some(wizard) = app.pi_scan.wizard.as_mut() {
+                wizard.retry(dry_run);
+            }
+        }
+        PiScanSetupHitTarget::Apply => {
+            if let Some(wizard) = app.pi_scan.wizard.as_mut() {
+                wizard.request_apply(dry_run);
+            }
+        }
+        PiScanSetupHitTarget::Control(index) => {
+            if let Some(wizard) = app.pi_scan.wizard.as_mut() {
+                wizard.focus = index.min(wizard.focus_count().saturating_sub(1));
+            }
+            activate_focused(app, dry_run);
+        }
     }
 }
 
@@ -82,6 +191,13 @@ fn handle_navigation(key: KeyEvent, app: &mut AppState) -> bool {
 fn handle_setup(key: KeyEvent, app: &mut AppState) -> bool {
     if matches!(
         (key.code, key.modifiers),
+        (KeyCode::Char('r'), KeyModifiers::NONE)
+    ) {
+        app.pi_scan.begin_setup_wizard(false);
+        return true;
+    }
+    if matches!(
+        (key.code, key.modifiers),
         (KeyCode::Char('v'), KeyModifiers::NONE)
     ) {
         app.pi_scan.pending_action = Some(PiScanUiAction::ProbeSetup);
@@ -93,7 +209,7 @@ fn handle_setup(key: KeyEvent, app: &mut AppState) -> bool {
     let is_consent_key = matches!(
         (key.code, key.modifiers),
         (
-            KeyCode::Char('c' | 'o' | 'p' | 'f' | 'w'),
+            KeyCode::Char('c' | 'o' | 'p' | 'b' | 'f' | 'w'),
             KeyModifiers::NONE
         )
     );
@@ -116,6 +232,10 @@ fn handle_setup(key: KeyEvent, app: &mut AppState) -> bool {
         (KeyCode::Char('p'), KeyModifiers::NONE) => {
             app.pi_scan.runtime.consent.paid_execution =
                 !app.pi_scan.runtime.consent.paid_execution;
+        }
+        (KeyCode::Char('b'), KeyModifiers::NONE) => {
+            app.pi_scan.background_paid_execution_confirmed =
+                !app.pi_scan.background_paid_execution_confirmed;
         }
         (KeyCode::Char('f'), KeyModifiers::NONE) => {
             app.pi_scan.fallback_confirmed = !app.pi_scan.fallback_confirmed;
@@ -257,4 +377,77 @@ fn handle_details(key: KeyEvent, app: &mut AppState) -> bool {
         _ => return false,
     }
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::pi_scan_setup::{PiScanSetupDraftAction, PiScanSetupStep};
+
+    /// Escape must cancel only the isolated draft and preserve Pi Scan mode.
+    #[test]
+    fn wizard_escape_drops_draft_without_runtime_action() {
+        let mut app = AppState {
+            app_mode: AppMode::PiScan,
+            ..AppState::default()
+        };
+        let original = app.pi_scan.settings.clone();
+        app.pi_scan.begin_setup_wizard(true);
+        app.pi_scan
+            .wizard
+            .as_mut()
+            .expect("wizard")
+            .candidate
+            .provider = "draft".to_string();
+        assert!(handle_key(
+            KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE),
+            &mut app,
+        ));
+        assert!(app.pi_scan.wizard.is_none());
+        assert_eq!(app.pi_scan.settings, original);
+        assert!(app.pi_scan.pending_action.is_none());
+        assert_eq!(app.app_mode, AppMode::PiScan);
+    }
+
+    /// Dry-run Enter on Verify must show guidance without queuing a probe.
+    #[test]
+    fn wizard_dry_run_verify_queues_no_probe() {
+        let mut app = AppState {
+            dry_run: true,
+            ..AppState::default()
+        };
+        app.pi_scan.begin_setup_wizard(true);
+        let wizard = app.pi_scan.wizard.as_mut().expect("wizard");
+        wizard.step = PiScanSetupStep::PiReadiness;
+        wizard.focus = 1;
+        assert!(handle_key(
+            KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE),
+            &mut app,
+        ));
+        let wizard = app.pi_scan.wizard.as_ref().expect("wizard");
+        assert!(wizard.pending_action.is_none());
+        assert!(!wizard.validation_issues.is_empty());
+    }
+
+    /// Readiness Enter must queue only the correlated inert probe action.
+    #[test]
+    fn wizard_verify_key_queues_correlated_probe() {
+        let mut app = AppState::default();
+        app.pi_scan.begin_setup_wizard(true);
+        let wizard = app.pi_scan.wizard.as_mut().expect("wizard");
+        wizard.step = PiScanSetupStep::PiReadiness;
+        wizard.focus = 1;
+        assert!(handle_key(
+            KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE),
+            &mut app,
+        ));
+        assert!(matches!(
+            app.pi_scan.wizard.as_ref().expect("wizard").pending_action,
+            Some(PiScanSetupDraftAction::Probe {
+                correlation_id: 1,
+                ..
+            })
+        ));
+        assert!(app.pi_scan.pending_action.is_none());
+    }
 }

@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
@@ -10,7 +11,10 @@ use crate::app::runtime::workers::aur_vote::{
 };
 use crate::app::runtime::workers::pi_scan::{
     PiScanCancelMessage, PiScanProgressMessage, PiScanRequestMessage, PiScanResultMessage,
-    PiScanSessionRegistration, PiScanShutdownMessage,
+    PiScanRuntimeOptions, PiScanSessionRegistration, PiScanShutdownMessage,
+};
+use crate::app::runtime::workers::pi_scan_setup::{
+    PiScanRuntimeTransfer, PiScanSetupEvent, PiScanSetupRequest,
 };
 use crate::integrations::arch_toolkit::{ToolkitContext, ToolkitContextError};
 use crate::state::types::NewsFeedPayload;
@@ -176,6 +180,14 @@ pub struct Channels {
     pub(crate) pi_scan_result_rx: mpsc::UnboundedReceiver<PiScanResultMessage>,
     /// Whether central integration explicitly enabled the runtime worker.
     pub(crate) pi_scan_runtime_enabled: bool,
+    /// Runtime options currently authoritative for rollback/restart.
+    pub(crate) pi_scan_runtime_options: PiScanRuntimeOptions,
+    /// Sender for guided setup probe/validate/apply requests.
+    pub(crate) pi_scan_setup_request_tx: mpsc::UnboundedSender<PiScanSetupRequest>,
+    /// Receiver for correlated guided setup events.
+    pub(crate) pi_scan_setup_event_rx: mpsc::UnboundedReceiver<PiScanSetupEvent>,
+    /// Receiver for post-persistence candidate runtime transfers.
+    pub(crate) pi_scan_setup_transfer_rx: mpsc::UnboundedReceiver<PiScanRuntimeTransfer>,
 }
 
 /// What: Event channel pair and cancellation flag.
@@ -606,6 +618,23 @@ impl Channels {
         let details_channels = create_details_channels();
         let preflight_channels = create_preflight_channels();
         let utility_channels = create_utility_channels();
+        let setup_root = pi_scan_options.state_path.parent().map_or_else(
+            || crate::theme::config_dir().join("pi_scan"),
+            Path::to_path_buf,
+        );
+        let setup_channels =
+            crate::app::runtime::workers::pi_scan_setup::spawn_pi_scan_setup_controller(
+                crate::app::runtime::workers::pi_scan_setup::PiScanSetupControllerOptions {
+                    dry_run: pi_scan_options.dry_run,
+                    settings_path: crate::theme::resolved_config_path(
+                        crate::theme::ConfigFile::Settings,
+                    ),
+                    consent_path: setup_root.join("consent-v1.json"),
+                    state_path: pi_scan_options.state_path.clone(),
+                    quarantine_dir: pi_scan_options.quarantine_dir.clone(),
+                },
+            );
+        let current_pi_scan_options = pi_scan_options.clone();
         let requested_pi_scan_enabled = pi_scan_options.effective_enabled();
         let production_requested =
             requested_pi_scan_enabled && pi_scan_options.production.is_some();
@@ -769,6 +798,10 @@ impl Channels {
             pi_scan_progress_rx: pi_scan_channels.progress_rx,
             pi_scan_result_rx: pi_scan_channels.result_rx,
             pi_scan_runtime_enabled,
+            pi_scan_runtime_options: current_pi_scan_options,
+            pi_scan_setup_request_tx: setup_channels.request_tx,
+            pi_scan_setup_event_rx: setup_channels.event_rx,
+            pi_scan_setup_transfer_rx: setup_channels.transfer_rx,
         })
     }
 }

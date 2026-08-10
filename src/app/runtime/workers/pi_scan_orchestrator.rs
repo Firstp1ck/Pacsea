@@ -128,10 +128,16 @@ pub struct SetupSnapshot {
     pub selected_provider: String,
     /// Explicit selected model.
     pub selected_model: String,
-    /// Exact worst-case token and cost reservation.
+    /// Exact worst-case token and cost reservation for the selected route set.
     pub reservation: PiScanReservation,
+    /// Exact reservation for every advertised provider/model route.
+    pub route_reservations: Vec<(String, String, PiScanReservation)>,
     /// SHA-256 binding over exact Pi-reported pricing/provenance for configured routes.
     pub pricing_binding: String,
+    /// Unix timestamp of the exact pricing observation.
+    pub pricing_observed_at_unix_seconds: u64,
+    /// Maximum accepted age of that pricing observation.
+    pub maximum_pricing_age_seconds: u64,
     /// Human-readable exact configured route pricing/provenance disclosed before consent.
     pub pricing_summary: Vec<String>,
 }
@@ -381,6 +387,24 @@ pub trait OrchestrationAdapter {
     /// - Returns actionable package-manager or official-AUR resolution guidance.
     fn enumerate_foreign(&mut self) -> Result<Vec<DiscoveredPackage>, String>;
 
+    /// Enumerate only explicitly selected installed package names for a foreground request.
+    ///
+    /// # Errors
+    /// - Returns actionable package-manager or official-AUR resolution guidance.
+    fn enumerate_selected(
+        &mut self,
+        package_names: &BTreeSet<String>,
+    ) -> Result<Vec<DiscoveredPackage>, String> {
+        let mut packages = self.enumerate_foreign()?;
+        packages.retain(|package| {
+            package
+                .installed_names
+                .iter()
+                .any(|name| package_names.contains(name))
+        });
+        Ok(packages)
+    }
+
     /// Replace typed update candidates for the next observation cycle.
     fn set_update_candidates(&mut self, _candidates: Vec<UpdateCandidate>) {}
 
@@ -470,6 +494,10 @@ pub struct OrchestrationLedgerEntry {
 
 /// Material-configuration-bound setup confirmations persisted with runtime consent.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "disclosure, fallback, background payment, and readiness are independent durable decisions"
+)]
 pub struct PiScanSetupConsentState {
     /// SHA-256 binding over provider/model/privacy/pricing-relevant configuration.
     pub configuration_binding: String,
@@ -477,6 +505,9 @@ pub struct PiScanSetupConsentState {
     pub disclosure_confirmed: bool,
     /// Explicit ordered-fallback confirmation.
     pub fallback_confirmed: bool,
+    /// Independent paid background-execution confirmation.
+    #[serde(default)]
+    pub background_paid_execution: bool,
     /// Explicit readiness-warning confirmation.
     pub readiness_warning_confirmed: bool,
     /// Exact Pi version confirmed when consent was granted.
@@ -496,6 +527,41 @@ struct PersistedConsentDocument {
     runtime: PiScanConsentState,
     /// Setup confirmations under the same binding.
     setup: PiScanSetupConsentState,
+}
+
+/// What: Serialize one setup transaction's consent in the production-compatible schema.
+///
+/// Inputs:
+/// - `configuration_binding`: Exact material runtime binding.
+/// - `runtime`: Independent observation and foreground-paid consent.
+/// - `setup`: Disclosure, fallback, readiness, Pi, and pricing confirmations.
+///
+/// Output:
+/// - Private consent JSON accepted by [`PiScanOrchestrator::new`].
+///
+/// Details:
+/// - Only typed consent and cryptographic bindings are represented; credentials, prompts,
+///   source content, Pi output, and provider responses cannot enter this document.
+///
+/// # Errors
+/// - Rejects an empty or internally inconsistent material binding.
+pub(crate) fn serialize_setup_consent_document(
+    configuration_binding: &str,
+    runtime: PiScanConsentState,
+    setup: PiScanSetupConsentState,
+) -> Result<String, String> {
+    if configuration_binding.is_empty() || setup.configuration_binding != configuration_binding {
+        return Err(
+            "Pi setup consent binding is empty or inconsistent; validate setup again".to_string(),
+        );
+    }
+    serde_json::to_string_pretty(&PersistedConsentDocument {
+        schema_version: CONSENT_SCHEMA_VERSION,
+        configuration_binding: configuration_binding.to_string(),
+        runtime,
+        setup,
+    })
+    .map_err(|error| format!("could not serialize Pi setup consent: {error}"))
 }
 
 /// What: Single-writer durable state across observation and execution.
@@ -683,6 +749,7 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
                     configuration_binding: config.consent_binding.clone(),
                     disclosure_confirmed: config.setup_confirmed,
                     fallback_confirmed: false,
+                    background_paid_execution: false,
                     readiness_warning_confirmed: false,
                     confirmed_pi_version: String::new(),
                     confirmed_pricing_binding: String::new(),
@@ -747,20 +814,12 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
     /// - Returns persistence failures.
     pub fn update_setup_consent(
         &mut self,
-        disclosure_confirmed: bool,
-        fallback_confirmed: bool,
-        readiness_warning_confirmed: bool,
-        confirmed_pi_version: String,
-        confirmed_pricing_binding: String,
+        mut setup: PiScanSetupConsentState,
     ) -> Result<(), OrchestrationError> {
-        self.state.setup_consent = PiScanSetupConsentState {
-            configuration_binding: self.config.consent_binding.clone(),
-            disclosure_confirmed,
-            fallback_confirmed,
-            readiness_warning_confirmed,
-            confirmed_pi_version,
-            confirmed_pricing_binding,
-        };
+        setup
+            .configuration_binding
+            .clone_from(&self.config.consent_binding);
+        self.state.setup_consent = setup;
         self.persist()?;
         self.persist_consent()
     }
@@ -773,10 +832,10 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
         &mut self,
         now_unix: u64,
     ) -> Result<Vec<FrozenScanIdentity>, OrchestrationError> {
-        self.observe(now_unix, false)
+        self.observe(now_unix, false, None)
     }
 
-    /// Run an explicitly requested manual observation cycle.
+    /// Run an explicitly requested broad manual observation cycle.
     ///
     /// # Errors
     /// - Returns disabled, readiness, observation, target, or persistence failures.
@@ -784,7 +843,24 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
         &mut self,
         now_unix: u64,
     ) -> Result<Vec<FrozenScanIdentity>, OrchestrationError> {
-        self.observe(now_unix, true)
+        self.observe(now_unix, true, None)
+    }
+
+    /// Observe only the installed package names explicitly selected in the Targets view.
+    ///
+    /// # Errors
+    /// - Returns when the selection is empty or discovery, observation, target, or persistence fails.
+    pub fn manual_observation_selected(
+        &mut self,
+        now_unix: u64,
+        package_names: &BTreeSet<String>,
+    ) -> Result<Vec<FrozenScanIdentity>, OrchestrationError> {
+        if package_names.is_empty() {
+            return Err(OrchestrationError::InvalidTarget(
+                "select at least one unresolved target before observation".to_string(),
+            ));
+        }
+        self.observe(now_unix, true, Some(package_names))
     }
 
     /// Perform bounded acquisition-only dry-run for one previously observed exact target.
@@ -896,7 +972,7 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
         if !due {
             return Ok(Vec::new());
         }
-        self.observe(now_unix, false)
+        self.observe(now_unix, false, None)
     }
 
     /// What: Queue one manually selected full frozen identity.
@@ -1289,6 +1365,7 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
         &mut self,
         now_unix: u64,
         manual: bool,
+        selected_package_names: Option<&BTreeSet<String>>,
     ) -> Result<Vec<FrozenScanIdentity>, OrchestrationError> {
         self.ensure_enabled()?;
         let setup = if self.config.dry_run {
@@ -1301,11 +1378,13 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
         } else {
             self.ensure_setup()?.clone()
         };
-        let packages = deduplicate_packages(
-            self.adapter
-                .enumerate_foreign()
-                .map_err(OrchestrationError::Observation)?,
-        );
+        let enumerated = if let Some(package_names) = selected_package_names {
+            self.adapter.enumerate_selected(package_names)
+        } else {
+            self.adapter.enumerate_foreign()
+        }
+        .map_err(OrchestrationError::Observation)?;
+        let packages = deduplicate_packages(enumerated);
         let mut discovered = Vec::new();
         for package in packages {
             let cursor = self.state.cursors.get(package.package_base.as_str());
@@ -1740,6 +1819,36 @@ impl<A: OrchestrationAdapter + Send + 'static> PiScanSequentialRunner<A> {
             .await
     }
 
+    /// Observe only explicitly selected unresolved package names away from the async UI thread.
+    ///
+    /// # Errors
+    /// - Returns selection, orchestration, or blocking-task failures.
+    pub async fn manual_observation_selected(
+        &self,
+        now_unix: u64,
+        package_names: Vec<String>,
+    ) -> Result<Vec<FrozenScanIdentity>, OrchestrationError> {
+        let package_names: BTreeSet<String> = package_names.into_iter().collect();
+        let owner = Arc::clone(&self.orchestrator);
+        tokio::task::spawn_blocking(move || {
+            owner
+                .lock()
+                .map_err(|_| {
+                    OrchestrationError::Observation(
+                        "Pi orchestration owner lock is poisoned; restart Pacsea to recover"
+                            .to_string(),
+                    )
+                })?
+                .manual_observation_selected(now_unix, &package_names)
+        })
+        .await
+        .map_err(|error| {
+            OrchestrationError::Observation(format!(
+                "Pi selected-target observation task failed: {error}; retry observation"
+            ))
+        })?
+    }
+
     /// Perform acquisition-only dry-run away from the async UI thread.
     ///
     /// # Errors
@@ -1988,11 +2097,7 @@ impl<A: OrchestrationAdapter + Send + 'static> PiScanSequentialRunner<A> {
     /// - Returns persistence, lock, or blocking-task failures.
     pub async fn update_setup_consent(
         &self,
-        disclosure_confirmed: bool,
-        fallback_confirmed: bool,
-        readiness_warning_confirmed: bool,
-        confirmed_pi_version: String,
-        confirmed_pricing_binding: String,
+        setup: PiScanSetupConsentState,
     ) -> Result<(), OrchestrationError> {
         let owner = Arc::clone(&self.orchestrator);
         tokio::task::spawn_blocking(move || {
@@ -2004,13 +2109,7 @@ impl<A: OrchestrationAdapter + Send + 'static> PiScanSequentialRunner<A> {
                             .to_string(),
                     )
                 })?
-                .update_setup_consent(
-                    disclosure_confirmed,
-                    fallback_confirmed,
-                    readiness_warning_confirmed,
-                    confirmed_pi_version,
-                    confirmed_pricing_binding,
-                )
+                .update_setup_consent(setup)
         })
         .await
         .map_err(|error| {

@@ -97,6 +97,7 @@ hu-HU:
         interrupted: "interrupted" # TODO: translate to Hungarian
         cancelled: "cancelled" # TODO: translate to Hungarian
       setup:
+        rerun_wizard: "Az irányított beállítás újbóli futtatása"
         missing_pi: "Pi was not found. Install Pi, set pi_scan_binary, then restart Pacsea." # TODO: translate to Hungarian
         integration_pending: "Pi exists, but scanner runtime channels remain default-off in this build." # TODO: translate to Hungarian
         enable_hint: "Enable pi_scan_enabled in settings.conf after reviewing every disclosure." # TODO: translate to Hungarian
@@ -116,9 +117,127 @@ hu-HU:
         effective_compiled: "Effective / compiled maxima" # TODO: translate to Hungarian
         disclosure_consent: "Provider/privacy/cost/coverage disclosure" # TODO: translate to Hungarian
         observation_consent: "Background observation consent (read-only network activity)" # TODO: translate to Hungarian
-        paid_consent: "Background paid execution consent" # TODO: translate to Hungarian
+        paid_consent: "Hozzájárulás a fizetős előtérbeli futtatáshoz"
+        background_paid_consent: "Hozzájárulás a fizetős háttérbeli futtatáshoz"
         fallback_consent: "Ordered fallback confirmation" # TODO: translate to Hungarian
         warning_consent: "Readiness-warning confirmation" # TODO: translate to Hungarian
+      wizard:
+        progress: "Beállítás"
+        steps:
+          welcome: "Üdvözöljük"
+          readiness: "A Pi készenléte"
+          route: "Útvonal"
+          pricing: "Árazás és adatvédelem"
+          optional: "Választható működés"
+          review: "Áttekintés"
+          activate: "Aktiválás"
+        common:
+          on: "be"
+          off: "ki"
+        controls:
+          back: "Vissza"
+          next: "Tovább"
+          cancel: "Mégse"
+          close: "Bezárás"
+          retry: "Újra"
+          apply: "Alkalmazás"
+          select: "Kiválasztás"
+        validation:
+          ready: "Csak piszkozat — a beállítások, a futtatókörnyezet és a hozzájárulás nem változott."
+          dry_run_probe: "A próbaüzem nem indítja el a Pi-t és nem ütemez beállítási vizsgálatot."
+          binary_required: "Adja meg a Pi programnevét vagy abszolút elérési útját."
+          no_routes: "A Pi nem jelzett használható útvonalat; állítsa be a hitelesítést a Pacsea-n kívül, majd próbálja újra."
+          dry_run_apply: "A próbaüzem nem alkalmaz, nem ír beállítást vagy hozzájárulást, és nem aktiválja a Pi Scan-t."
+          validate_before_apply: "Alkalmazás előtt ellenőrizze a teljes jelöltet."
+          dry_run_validation: "A próbaüzem nem ütemez jelöltellenőrzést és nem indítja el a Pi-t."
+          verify_first: "Folytatás előtt ellenőrizze a Pi képességeit."
+          route_required: "Válasszon egy, a Pi által pontosan jelzett szolgáltató-/modellútvonalat."
+          thinking_required: "Válasszon támogatott gondolkodási szintet."
+          disclosure_required: "Erősítse meg a szolgáltatói, adatvédelmi, költség- és lefedettségi tájékoztatót."
+          foreground_required: "Külön erősítse meg a fizetős előtérbeli modellfuttatást."
+          fallback_required: "Külön erősítse meg a rendezett tartalék útvonalat, vagy kapcsolja ki."
+          background_paid_required: "A fizetős háttérbeli futtatás független hozzájárulást igényel."
+        failure_stage:
+          probe: "A Pi képességvizsgálata sikertelen"
+          validation: "A jelölt ellenőrzése sikertelen"
+          activation: "A futtatókörnyezet aktiválása sikertelen"
+          persistence: "A beállítás mentése sikertelen"
+        notices:
+          dry_run_review: "Csak a tervezett értékeket tekintse át; a Pi ellenőrzéséhez lépjen ki a próbaüzemből."
+          verifying: "A Pi ellenőrzése modellhívás nélkül…"
+          readiness_verified: "A Pi készenléte ellenőrizve; válasszon pontosan jelzett útvonalat."
+          validation_write_free: "A jelöltellenőrzés nem okozott tartós változást."
+          validating: "Az izolált jelölt ellenőrzése írás nélkül…"
+        welcome:
+          summary: "Ez a hétlépéses varázsló a settings.conf szerkesztése és a Pacsea újraindítása nélkül állítja be a Pi Scant."
+          advisory: "A Pi Scan csak tanácsadó jellegű: kockázatokat hagyhat ki, és nem bizonyítja egy csomag biztonságát."
+          data_flow: "A kiválasztott csomag recept- és forrásadatai az áttekintett, pontos szolgáltatói útvonalhoz kerülnek."
+          no_execution: "A beállítás nem futtat csomagot, a felderítés pedig nem indít fizetős modellhívást."
+          credentials: "A szolgáltatói hitelesítő adatokat a Pi kezeli; a Pacsea nem kéri, jeleníti meg, naplózza vagy tárolja őket."
+          first_run: "A konzervatív alapértékek a végső Alkalmazásig maradnak kijelölve."
+          reconfigure: "Az ellenőrzött futtatókörnyezet marad érvényben, ha a végső Alkalmazás nem sikerül."
+        readiness:
+          explanation: "Válassza ki a Pi programot, majd ellenőrizze a pontos verziót, izolációs szerződést, útvonalakat és áradatokat."
+          binary: "Pi program"
+          verify: "Ellenőrzés modellhívás nélkül"
+          version: "Ellenőrzött Pi-verzió"
+          no_model: "A vizsgálat csak verzió-, súgó- és képességmetaadatokat használ; nem küld promptot."
+          credentials: "Ha nincs útvonal, állítsa be a szolgáltatói hozzáférést a Pi-ben, a Pacsea alkalmazáson kívül, majd próbálja újra."
+        route:
+          explanation: "Csak az ellenőrzött Pi-vizsgálat által közzétett pontos szolgáltató-/modellazonosítók választhatók."
+          primary: "Elsődleges útvonal"
+          thinking: "Gondolkodási szint"
+          advertised: "Közzétett pontos útvonalak"
+          exact_only: "Tetszőleges útvonalszöveg nem adható meg; a Pi módosítása után végezzen új vizsgálatot."
+        pricing:
+          selected_route: "Kiválasztott útvonal"
+          worst_case: "Vizsgálatonkénti maximális foglalás"
+          tokens: "token"
+          provenance: "Árforrás"
+          provenance_value: "A Pi ellenőrzött élő modellkatalógusa (használatalapú díjszabás)"
+          disclosure: "Szolgáltatói tájékoztatás: az elemzett csomagadatok elhagyják a gépet, a modellhívások költséggel járhatnak."
+          coverage: "A lefedettség hiányos lehet; az eredmény nem engedélyez telepítést."
+          confirm_disclosure: "Áttekintettem az adatvédelmi, költség- és lefedettségi tájékoztatást"
+          confirm_foreground: "Külön engedélyezem a fizetős előtérbeli futtatást"
+          confirm_readiness: "Külön elfogadom a megjelenített készenléti figyelmeztetéseket"
+        optional:
+          observation: "Csak olvasható háttérmegfigyelés"
+          background_paid: "Fizetős háttérbeli futtatás"
+          fallback: "Rendezett pontos tartalék útvonal"
+          starts: "Háttérindítás/óra (legfeljebb 5)"
+          tokens: "Háttértoken/24 óra (legfeljebb 500000)"
+          cost: "Háttérköltség USD/24 óra"
+          retention: "Eredménymegőrzés napokban"
+          proxy: "Hitelesítő adatok nélküli HTTPS-proxy"
+          defaults: "Alapértékek: megfigyelés ki · fizetős háttér ki · tartalék útvonal ki · költség 0.00."
+        review:
+          explanation: "Tekintsen át minden érvényes értéket. Az izolált ellenőrzés nem okozott tartós változást."
+          route: "Program · pontos útvonal · gondolkodási szint"
+          pi_version: "Ellenőrzött Pi-verzió"
+          pricing: "Legrosszabb token / mikro-USD / Unix-ellenőrzési idő / frissesség másodpercben"
+          fallback: "Rendezett tartalék útvonal"
+          confirmations: "Tájékoztató / fizetős előtér / megfigyelés / fizetős háttér / tartalék / készenlét"
+          background: "Háttér engedélyezve / indítás óránként / költség USD"
+          timeouts: "Head / megfigyelés / modell / teljes időkorlát másodpercben"
+          limits: "Token / megőrzés / nyers kimenet / HTTPS-proxy"
+          compiled: "Beépített maximumok"
+          binding: "Pontos árkötés"
+          transaction: "Az Alkalmazás újra ellenőriz, teszteli a jelöltet, atomikusan ment, majd lecseréli a futtatókörnyezetet."
+          advisory: "A Mégse továbbra is csak a piszkozatot veti el; a meglévő speciális Beállítás oldal elérhető marad."
+        activate:
+          idle: "Aktiválásra kész."
+          validating: "A pontos útvonal, árak, korlátok és hozzájárulási kötés újbóli ellenőrzése…"
+          activating: "A jelölt futtatókörnyezet létrehozása és állapotellenőrzése…"
+          persisting: "A beállítások és a kötött hozzájárulás atomikus mentése…"
+          complete: "A Pi Scan ellenőrzött és kész; a Pacsea újraindítása nem szükséges."
+          failed: "Az aktiválás sikertelen; a korábbi konfiguráció, futtatókörnyezet és hozzájárulás marad érvényben."
+          retry_guidance: "Javítsa a jelzett hibát, értékváltozás esetén lépjen Vissza, vagy próbálja újra a tranzakciót."
+          previous_authoritative: "A jelölt tranzakció befejezése előtt nem kerül sor várólistás munkára."
+          no_restart: "A sikeres aktiválás ebben a folyamatban vált át az üzemi futtatókörnyezetre."
+          advisory: "A kész állapot beállított és csatlakoztatott rendszert jelent, nem biztonságos csomagot."
+        footer:
+          notice: "A varázsló módosításai az Alkalmazásig izoláltak; a Mégse nem érinti a lemezt, futtatókörnyezetet, várólistát vagy hozzájárulást."
+          keys: "Tab fókusz · Enter/Szóköz módosítás · ←/→ beállítás · PgUp/PgDn görgetés · n Tovább · b Vissza · Esc Mégse · ? Súgó"
       overview:
         active: "Active" # TODO: translate to Hungarian
         queued: "Queued" # TODO: translate to Hungarian
@@ -500,6 +619,7 @@ hu-HU:
           popup_capture_cancel: "Rögzítés megszakítása"
           popup_reset: "Érték visszaállítása"
           export: "Érvényes értékek exportálása"
+          pi_scan_setup: "Az irányított Pi Scan-beállítás megnyitása"
       alert:
         header_configuration_error: "Konfigurációs hiba"
         header_clipboard_copy: "Másolás a vágólapra"

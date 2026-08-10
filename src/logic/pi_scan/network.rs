@@ -252,7 +252,8 @@ impl HttpFetcher for SystemNetworkAdapter {
 ///   interpolation. The response is bounded to 10 MiB before JSON parsing.
 ///
 /// # Errors
-/// - Returns a network error for transport, status, schema, or missing exact-name results.
+/// - Returns a network error for transport, status, or schema failures and an unresolved-package
+///   error when the official AUR has no exact package-name result.
 pub fn fetch_aur_rpc_package_base(
     network: &mut SystemNetworkAdapter,
     package_name: &str,
@@ -263,7 +264,8 @@ pub fn fetch_aur_rpc_package_base(
 /// Resolve one package name with a caller-bounded whole-cycle timeout.
 ///
 /// # Errors
-/// - Returns a network error for transport, status, schema, or missing exact-name results.
+/// - Returns a network error for transport, status, or schema failures and an unresolved-package
+///   error when the official AUR has no exact package-name result.
 pub fn fetch_aur_rpc_package_base_with_timeout(
     network: &mut SystemNetworkAdapter,
     package_name: &str,
@@ -280,8 +282,28 @@ pub fn fetch_aur_rpc_package_base_with_timeout(
         MAX_AUR_RPC_BYTES,
         timeout.min(Duration::from_secs(30)),
     )?;
-    let response: AurRpcResponse = serde_json::from_slice(&downloaded.bytes)
-        .map_err(|error| network_error(url.as_str(), format!("invalid AUR RPC JSON: {error}")))?;
+    parse_aur_rpc_package_base(&downloaded.bytes, package_name, url.as_str())
+}
+
+/// What: Parse one bounded AUR RPC info response into exact package/base mapping data.
+///
+/// Inputs:
+/// - `bytes`: Already bounded response body.
+/// - `package_name`: Exact requested package name.
+/// - `context`: Sanitized request URL used only in typed diagnostics.
+///
+/// Output:
+/// - Exact matching package/base pair, or a typed acquisition failure.
+///
+/// Details:
+/// - Non-matching results never establish identity and are discarded.
+fn parse_aur_rpc_package_base(
+    bytes: &[u8],
+    package_name: &str,
+    context: &str,
+) -> Result<AurRpcData, AcquisitionError> {
+    let response: AurRpcResponse = serde_json::from_slice(bytes)
+        .map_err(|error| network_error(context, format!("invalid AUR RPC JSON: {error}")))?;
     let pairs: Vec<(&str, &str)> = response
         .results
         .iter()
@@ -289,10 +311,10 @@ pub fn fetch_aur_rpc_package_base_with_timeout(
         .map(|result| (result.name.as_str(), result.package_base.as_str()))
         .collect();
     if pairs.is_empty() {
-        return Err(network_error(
-            url.as_str(),
-            "AUR RPC returned no exact package-name result",
-        ));
+        return Err(AcquisitionError::PackageBaseUnresolved {
+            package_name: package_name.to_string(),
+            reason: "official AUR RPC returned no exact package-name result".to_string(),
+        });
     }
     Ok(AurRpcData::from_pairs(&pairs))
 }
@@ -345,5 +367,27 @@ fn network_error(context: &str, reason: impl Into<String>) -> AcquisitionError {
     AcquisitionError::Network {
         url: context.to_string(),
         reason: reason.into(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_aur_rpc_package_base;
+    use crate::logic::pi_scan::acquisition::AcquisitionError;
+
+    /// An empty successful info response identifies a non-AUR package, not a network outage.
+    #[test]
+    fn empty_info_response_is_typed_as_unresolved_package() {
+        let result = parse_aur_rpc_package_base(
+            br#"{"resultcount":0,"results":[],"type":"multiinfo","version":5}"#,
+            "qml-vulkan",
+            "https://aur.archlinux.org/rpc/v5/info",
+        );
+
+        assert!(matches!(
+            result,
+            Err(AcquisitionError::PackageBaseUnresolved { package_name, .. })
+                if package_name == "qml-vulkan"
+        ));
     }
 }

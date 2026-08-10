@@ -23,6 +23,7 @@ pub mod protocol;
 pub mod restricted_tools;
 pub mod scan_engine;
 pub mod session;
+pub mod setup_probe;
 pub mod snapshot;
 
 use std::fmt;

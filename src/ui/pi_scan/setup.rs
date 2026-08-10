@@ -4,7 +4,16 @@ use crate::state::{AppState, PiScanAvailability, PiScanReadiness};
 use ratatui::{Frame, layout::Rect, text::Line};
 
 /// Render provider/privacy/cost/coverage disclosure and independent consents.
-pub(super) fn render(f: &mut Frame, app: &AppState, area: Rect) {
+pub(super) fn render(f: &mut Frame, app: &mut AppState, area: Rect) {
+    if app.pi_scan.wizard.is_some() {
+        super::wizard::render(f, app, area);
+        return;
+    }
+    render_advanced(f, app, area);
+}
+
+/// Preserve the existing advanced setup/details page outside the guided wizard.
+fn render_advanced(f: &mut Frame, app: &AppState, area: Rect) {
     let pi = &app.pi_scan;
     let setting = &pi.settings;
     let availability = match pi.availability {
@@ -31,6 +40,10 @@ pub(super) fn render(f: &mut Frame, app: &AppState, area: Rect) {
         issues.join("; ")
     };
     let lines = vec![
+        Line::from(format!(
+            "[r] {}",
+            crate::i18n::t(app, "app.pi_scan.setup.rerun_wizard")
+        )),
         Line::from(availability),
         Line::from(format!(
             "{}: {} / {}",
@@ -65,23 +78,24 @@ pub(super) fn render(f: &mut Frame, app: &AppState, area: Rect) {
             display_or_unset(&pi.verified_model)
         )),
         Line::from(format!(
-            "Pi-advertised models: {}",
-            if pi.verified_available_models.is_empty() {
-                "—".to_string()
-            } else {
-                pi.verified_available_models.join(", ")
-            }
+            "{}: {}",
+            crate::i18n::t(app, "app.pi_scan.wizard.route.advertised"),
+            pi.verified_available_models.len()
         )),
         Line::from(format!(
-            "Verified worst case: {} tokens · {} micro-USD",
-            pi.verified_reservation.tokens, pi.verified_reservation.cost_microusd
+            "{}: {} {} · {}",
+            crate::i18n::t(app, "app.pi_scan.wizard.pricing.worst_case"),
+            super::format_token_count(pi.verified_reservation.tokens),
+            crate::i18n::t(app, "app.pi_scan.wizard.pricing.tokens"),
+            super::format_microusd(pi.verified_reservation.cost_microusd)
         )),
         Line::from(format!(
-            "Exact route pricing/provenance: {}",
+            "{}: {}",
+            crate::i18n::t(app, "app.pi_scan.wizard.pricing.provenance"),
             if pi.verified_pricing_summary.is_empty() {
                 "—".to_string()
             } else {
-                pi.verified_pricing_summary.join(" | ")
+                crate::i18n::t(app, "app.pi_scan.wizard.pricing.provenance_value")
             }
         )),
         Line::from(format!(
@@ -123,6 +137,11 @@ pub(super) fn render(f: &mut Frame, app: &AppState, area: Rect) {
             "[p] {}: {}",
             crate::i18n::t(app, "app.pi_scan.setup.paid_consent"),
             yes_no(app, pi.runtime.consent.paid_execution)
+        )),
+        Line::from(format!(
+            "[b] {}: {}",
+            crate::i18n::t(app, "app.pi_scan.setup.background_paid_consent"),
+            yes_no(app, pi.background_paid_execution_confirmed)
         )),
         Line::from(format!(
             "[f] {}: {}",
