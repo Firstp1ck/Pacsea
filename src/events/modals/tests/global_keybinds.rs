@@ -112,20 +112,20 @@ fn global_keybind_ctrl_s_blocked_in_all_modals() {
 }
 
 #[test]
-/// What: Verify F1 (help overlay) is blocked when modals are open.
+/// What: Verify `?` (help overlay) is blocked when modals are open.
 ///
 /// Inputs:
 /// - Each modal type (except None, Preflight, and Help itself)
-/// - F1 key event
+/// - `?` key event
 ///
 /// Output:
 /// - Help modal does NOT open (no nested Help modal)
 ///
 /// Details:
-/// - Tests that global keybind is blocked for all modals
-fn global_keybind_f1_blocked_in_all_modals() {
+/// - Tests that the global help keybind is blocked for all modals
+fn global_keybind_help_blocked_in_all_modals() {
     for (modal, name) in create_test_modals() {
-        // Skip Help modal itself - F1 doesn't make sense there
+        // Skip Help modal itself because nesting Help does not make sense there.
         if matches!(modal, crate::state::Modal::Help) {
             continue;
         }
@@ -134,7 +134,7 @@ fn global_keybind_f1_blocked_in_all_modals() {
         app.modal = modal.clone();
 
         let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
-        let ke = key_event(KeyCode::F(1), KeyModifiers::empty());
+        let ke = key_event(KeyCode::Char('?'), KeyModifiers::empty());
 
         handle_modal_key(ke, &mut app, &add_tx);
 
@@ -144,7 +144,7 @@ fn global_keybind_f1_blocked_in_all_modals() {
         assert!(
             !matches!(app.modal, crate::state::Modal::Help)
                 || matches!(modal, crate::state::Modal::Help),
-            "{name}: F1 should be blocked, Help modal should not open"
+            "{name}: ? should be blocked, Help modal should not open"
         );
     }
 }

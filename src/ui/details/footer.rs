@@ -643,6 +643,15 @@ fn build_normal_mode_section(app: &AppState, th: &Theme, key_style: Style) -> Ve
         }
     }
 
+    if let Some(key) = km.search_normal_pi_scan.first() {
+        second_line_spans.push(Span::raw("  •  "));
+        second_line_spans.push(Span::styled(format!("[{}]", key.label()), key_style));
+        second_line_spans.push(Span::raw(i18n::t(
+            app,
+            "app.modals.help.key_labels.open_pi_scan",
+        )));
+    }
+
     if !app.installed_only_mode
         && (!km.search_normal_import.is_empty()
             || !km.search_normal_export.is_empty()
@@ -1369,4 +1378,32 @@ pub fn config_editor_footer_reserved_rows(
         rows = rows.saturating_add(1);
     }
     rows
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// What: Verify the Search Normal-mode footer advertises the configured Pi Scan shortcut.
+    ///
+    /// Inputs:
+    /// - Default application state and theme
+    ///
+    /// Output:
+    /// - The rendered footer contains the configured `Shift+A` chord
+    ///
+    /// Details:
+    /// - Guards discoverability of the shortcut used to enter the Pi Scan workspace.
+    #[test]
+    fn normal_mode_footer_advertises_pi_scan_shortcut() {
+        let app = AppState::default();
+        let lines = build_normal_mode_section(&app, &theme(), Style::default());
+        let text = lines
+            .iter()
+            .flat_map(|line| line.spans.iter())
+            .map(|span| span.content.as_ref())
+            .collect::<String>();
+
+        assert!(text.contains("[Shift+A]"));
+    }
 }

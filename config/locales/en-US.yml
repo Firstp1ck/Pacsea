@@ -147,7 +147,7 @@ en-US:
       footer:
         title: "Status / Help"
         notice: "No Pi model/network call or durable scanner write occurs in this workspace-only integration."
-        keys: "1–6 pages · Tab cycle · j/k move · Enter action · Esc Package mode · F1 Help"
+        keys: "1–6 pages · Tab cycle · j/k move · Enter action · Esc Package mode · ? Help"
       notices:
         session_only: "Consent preview changed only in UI; default-off runtime channels are not attached."
         select_target: "Select at least one target."

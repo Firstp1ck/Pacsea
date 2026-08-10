@@ -150,7 +150,7 @@ hu-HU:
       footer:
         title: "Status / Help" # TODO: translate to Hungarian
         notice: "No Pi model/network call or durable scanner write occurs in this workspace-only integration." # TODO: translate to Hungarian
-        keys: "1–6 pages · Tab cycle · j/k move · Enter action · Esc Package mode · F1 Help" # TODO: translate to Hungarian
+        keys: "1–6 pages · Tab cycle · j/k move · Enter action · Esc Package mode · ? Help" # TODO: translate to Hungarian
       notices:
         session_only: "Consent preview changed only in UI; default-off runtime channels are not attached." # TODO: translate to Hungarian
         select_target: "Select at least one target." # TODO: translate to Hungarian

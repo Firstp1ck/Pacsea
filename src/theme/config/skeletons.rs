@@ -486,8 +486,6 @@ pub const KEYBINDS_SKELETON_CONTENT: &str = "# Pacsea keybindings configuration\
 # Modifiers can be one of: SUPER, CTRL, SHIFT, ALT.\n\
 \n\
 # GLOBAL — App\n\
-keybind_help = F1\n\
-# Alternative help shortcut\n\
 keybind_help = ?\n\
 keybind_reload_config = CTRL+R\n\
 keybind_exit = CTRL+Q\n\

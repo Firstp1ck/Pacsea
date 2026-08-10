@@ -792,16 +792,10 @@ type InstallKeys = (
 fn default_global_keys(none: KeyModifiers, ctrl: KeyModifiers) -> GlobalKeys {
     use KeyCode::{BackTab, Char, Left, Right, Tab};
     (
-        vec![
-            KeyChord {
-                code: KeyCode::F(1),
-                mods: none,
-            },
-            KeyChord {
-                code: Char('?'),
-                mods: none,
-            },
-        ],
+        vec![KeyChord {
+            code: Char('?'),
+            mods: none,
+        }],
         vec![KeyChord {
             code: Char('r'),
             mods: ctrl,
@@ -1279,8 +1273,8 @@ impl Default for KeyMap {
     /// - Returns a `KeyMap` prefilling chord vectors for global, search, recent, install, and news actions.
     ///
     /// Details:
-    /// - Encodes human-friendly defaults such as `F1` for help and `Ctrl+R` to reload the configuration.
-    /// - Provides multiple bindings for certain actions (e.g., `F1` and `?` for help).
+    /// - Encodes human-friendly defaults such as `?` for help and `Ctrl+R` to reload the configuration.
+    /// - Keeps one unambiguous default binding per global action.
     /// - Delegates to `build_default_keymap()` to reduce data flow complexity.
     fn default() -> Self {
         build_default_keymap()

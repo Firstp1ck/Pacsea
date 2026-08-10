@@ -147,7 +147,7 @@ de-DE:
       footer:
         title: "Status / Hilfe"
         notice: "In dieser reinen Workspace-Integration erfolgt kein Pi-Modell-/Netzwerkaufruf und kein dauerhafter Scanner-Schreibzugriff."
-        keys: "1–6 Seiten · Tab wechseln · j/k bewegen · Enter Aktion · Esc Paketmodus · F1 Hilfe"
+        keys: "1–6 Seiten · Tab wechseln · j/k bewegen · Enter Aktion · Esc Paketmodus · ? Hilfe"
       notices:
         session_only: "Zustimmung nur in der UI geändert; Laufzeitkanäle sind nicht verbunden."
         select_target: "Mindestens ein Ziel auswählen."

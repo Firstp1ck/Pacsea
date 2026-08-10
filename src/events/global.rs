@@ -1155,14 +1155,14 @@ mod tests {
     /// What: Verify the help overlay shortcut activates the Help modal.
     ///
     /// Inputs:
-    /// - Default keymap (F1 assigned to help overlay).
-    /// - `F1` key event with no modifiers.
+    /// - Default keymap with `?` as the sole help-overlay shortcut.
+    /// - `?` key event with no modifiers.
     ///
     /// Output:
     /// - Handler returns `false` and sets `app.modal` to `Modal::Help`.
     ///
     /// Details:
-    /// - Confirms `BackTab` normalization does not interfere with regular function keys.
+    /// - Guards the discoverable printable shortcut and prevents stale `F1` defaults.
     fn global_help_overlay_opens_modal() {
         let mut app = new_app();
         let (details_tx, _details_rx) = mpsc::unbounded_channel::<PackageItem>();
@@ -1172,8 +1172,11 @@ mod tests {
         let (pkgb_check_tx, _pkgb_check_rx) =
             mpsc::unbounded_channel::<crate::state::PkgbuildCheckRequest>();
 
+        assert_eq!(app.keymap.help_overlay.len(), 1);
+        assert_eq!(app.keymap.help_overlay[0].code, KeyCode::Char('?'));
+
         let exit = handle_global_key(
-            KeyEvent::new(KeyCode::F(1), KeyModifiers::empty()),
+            KeyEvent::new(KeyCode::Char('?'), KeyModifiers::empty()),
             &mut app,
             &details_tx,
             &pkgb_tx,
