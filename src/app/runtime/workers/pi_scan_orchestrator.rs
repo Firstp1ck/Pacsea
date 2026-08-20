@@ -29,6 +29,7 @@ use crate::state::pi_scan::{
     PiScanActualUsage, PiScanBudgetLimits, PiScanConsentState, PiScanJobRequest, PiScanPriority,
     PiScanQueueKey, PiScanReservation, PiScanRuntimeState, PiScanStartBlock, PiScanTerminalStatus,
 };
+use crate::state::{PiScanExecutionPhase, PiScanExecutionProgress};
 
 /// Durable orchestration schema understood by this build.
 pub const ORCHESTRATION_SCHEMA_VERSION: u32 = 1;
@@ -355,6 +356,61 @@ pub enum ExecutionFailure {
     Service(String),
 }
 
+/// What: Correlation-aware transient phase publisher for one active execution.
+///
+/// Inputs:
+/// - Exact active correlation ID and an in-process non-blocking publication callback.
+///
+/// Output:
+/// - Typed [`PiScanExecutionProgress`] values bound to the active correlation.
+///
+/// Details:
+/// - The reporter owns no durable state. It cannot report a phase for another correlation.
+pub struct PiScanExecutionPhaseReporter<'a> {
+    /// Exact active runtime correlation owning every report.
+    correlation_id: u64,
+    /// In-process callback supplied by the sequential runtime owner.
+    publish: &'a dyn Fn(PiScanExecutionProgress),
+}
+
+impl<'a> PiScanExecutionPhaseReporter<'a> {
+    /// What: Bind a phase callback to one exact active correlation.
+    ///
+    /// Inputs:
+    /// - `correlation_id`: Exact active runtime correlation.
+    /// - `publish`: In-process callback for typed progress values.
+    ///
+    /// Output:
+    /// - Reporter that cannot emit an update for another correlation.
+    ///
+    /// Details:
+    /// - Construction and reporting are synchronous and perform no durable mutation.
+    #[must_use]
+    pub fn new(correlation_id: u64, publish: &'a dyn Fn(PiScanExecutionProgress)) -> Self {
+        Self {
+            correlation_id,
+            publish,
+        }
+    }
+
+    /// What: Publish one observable execution phase for the bound correlation.
+    ///
+    /// Inputs:
+    /// - `phase`: Current truthful phase at the caller's lifecycle boundary.
+    ///
+    /// Output:
+    /// - Invokes the configured callback with a typed correlation-owned update.
+    ///
+    /// Details:
+    /// - Ordering is the caller's synchronous invocation order; no persistence is performed.
+    pub fn report(&self, phase: PiScanExecutionPhase) {
+        (self.publish)(PiScanExecutionProgress {
+            correlation_id: self.correlation_id,
+            phase,
+        });
+    }
+}
+
 /// What: Injectable end-to-end platform adapter for deterministic orchestration.
 ///
 /// Inputs:
@@ -427,6 +483,22 @@ pub trait OrchestrationAdapter {
         target: &FrozenScanIdentity,
         cancelled: &AtomicBool,
     ) -> Result<ExecutionReceipt, ExecutionFailure>;
+
+    /// Execute with an optional correlation-aware phase reporter.
+    ///
+    /// The default preserves existing adapter semantics and emits no detailed phases. Production
+    /// adapters may override this seam when they can identify truthful internal boundaries.
+    ///
+    /// # Errors
+    /// - Returns the same cancellation or fail-closed service failure as [`Self::execute`].
+    fn execute_with_progress(
+        &mut self,
+        target: &FrozenScanIdentity,
+        cancelled: &AtomicBool,
+        _progress: &PiScanExecutionPhaseReporter<'_>,
+    ) -> Result<ExecutionReceipt, ExecutionFailure> {
+        self.execute(target, cancelled)
+    }
 
     /// Re-run the service-specific setup and acquisition checks before clearing a sticky pause.
     ///
@@ -1274,19 +1346,21 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
             return Ok(None);
         }
         let shutdown_requested = AtomicBool::new(false);
-        self.run_next_registered(now_unix, cancelled, &shutdown_requested, |_| {})
+        self.run_next_registered(now_unix, cancelled, &shutdown_requested, |_| {}, |_| {})
     }
 
-    /// Execute one item while publishing its exact active correlation before acquisition starts.
-    fn run_next_registered<F>(
+    /// Execute one item while publishing its active correlation and transient phases.
+    fn run_next_registered<F, P>(
         &mut self,
         now_unix: u64,
         cancelled: &AtomicBool,
         shutdown_requested: &AtomicBool,
         register: F,
+        publish_phase: P,
     ) -> Result<Option<ExecutionReceipt>, OrchestrationError>
     where
         F: FnOnce(&crate::state::pi_scan::PiScanActiveItem),
+        P: Fn(PiScanExecutionProgress),
     {
         if self.config.dry_run {
             return Ok(None);
@@ -1315,6 +1389,8 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
         };
         self.persist()?;
         register(&active);
+        let progress = PiScanExecutionPhaseReporter::new(active.correlation_id, &publish_phase);
+        progress.report(PiScanExecutionPhase::Preparing);
         let Some(target) = self.state.targets.get(&active.request.request_id).cloned() else {
             self.fail_active(active.correlation_id, now_unix, true)?;
             return Err(OrchestrationError::InvalidTarget(
@@ -1322,8 +1398,14 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
                     .to_string(),
             ));
         };
-        match self.adapter.execute(&target, cancelled) {
-            Ok(receipt) => self.accept_execution(active.correlation_id, &target, receipt, now_unix),
+        match self
+            .adapter
+            .execute_with_progress(&target, cancelled, &progress)
+        {
+            Ok(receipt) => {
+                progress.report(PiScanExecutionPhase::ValidatingResult);
+                self.accept_execution(active.correlation_id, &target, receipt, now_unix, &progress)
+            }
             Err(ExecutionFailure::Cancelled) => {
                 self.state
                     .runtime
@@ -1569,6 +1651,7 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
         target: &FrozenScanIdentity,
         receipt: ExecutionReceipt,
         now_unix: u64,
+        progress: &PiScanExecutionPhaseReporter<'_>,
     ) -> Result<Option<ExecutionReceipt>, OrchestrationError> {
         let exact = receipt.result.identity.package_base == target.package_base.as_str()
             && receipt.result.identity.commit_oid == target.commit_oid.as_str()
@@ -1580,6 +1663,7 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
                     .to_string(),
             ));
         }
+        progress.report(PiScanExecutionPhase::Finalizing);
         let mut document = StoredScanResult::from_validated_with_staleness(
             &target.scan_id,
             &receipt.result,
@@ -2253,7 +2337,8 @@ impl<A: OrchestrationAdapter + Send + 'static> PiScanSequentialRunner<A> {
         &self,
         now_unix: u64,
     ) -> Result<Option<ExecutionReceipt>, OrchestrationError> {
-        self.run_next_with_optional_started(now_unix, None).await
+        self.run_next_with_optional_progress(now_unix, None, None)
+            .await
     }
 
     /// What: Execute one item and publish Started from the exact active-registration seam.
@@ -2276,17 +2361,44 @@ impl<A: OrchestrationAdapter + Send + 'static> PiScanSequentialRunner<A> {
         now_unix: u64,
         started_tx: tokio::sync::mpsc::UnboundedSender<crate::state::pi_scan::PiScanActiveItem>,
     ) -> Result<Option<ExecutionReceipt>, OrchestrationError> {
-        self.run_next_with_optional_started(now_unix, Some(started_tx))
+        self.run_next_with_optional_progress(now_unix, Some(started_tx), None)
             .await
     }
 
-    /// Execute one registered item with an optional deterministic Started publisher.
-    async fn run_next_with_optional_started(
+    /// What: Execute one item with deterministic Started and correlation-owned phase publishers.
+    ///
+    /// Inputs:
+    /// - `now_unix`: Start and accounting timestamp.
+    /// - `started_tx`: Typed channel receiving the registered active item.
+    /// - `phase_tx`: Typed channel receiving correlation-owned transient execution phases.
+    ///
+    /// Output:
+    /// - Canonical receipt, idle `None`, or a fail-closed error.
+    ///
+    /// Details:
+    /// - Started registration occurs before any phase is reported. Both channels are in-process and
+    ///   phase receiver closure never affects scan execution or durable state.
+    ///
+    /// # Errors
+    /// - Returns queue, acquisition, execution, cancellation, persistence, or join failures.
+    pub async fn run_next_with_progress(
+        &self,
+        now_unix: u64,
+        started_tx: tokio::sync::mpsc::UnboundedSender<crate::state::pi_scan::PiScanActiveItem>,
+        phase_tx: tokio::sync::mpsc::UnboundedSender<PiScanExecutionProgress>,
+    ) -> Result<Option<ExecutionReceipt>, OrchestrationError> {
+        self.run_next_with_optional_progress(now_unix, Some(started_tx), Some(phase_tx))
+            .await
+    }
+
+    /// Execute one registered item with optional deterministic progress publishers.
+    async fn run_next_with_optional_progress(
         &self,
         now_unix: u64,
         started_tx: Option<
             tokio::sync::mpsc::UnboundedSender<crate::state::pi_scan::PiScanActiveItem>,
         >,
+        phase_tx: Option<tokio::sync::mpsc::UnboundedSender<PiScanExecutionProgress>>,
     ) -> Result<Option<ExecutionReceipt>, OrchestrationError> {
         let owner = Arc::clone(&self.orchestrator);
         let active = Arc::clone(&self.active);
@@ -2316,6 +2428,11 @@ impl<A: OrchestrationAdapter + Send + 'static> PiScanSequentialRunner<A> {
                         if let Some(sender) = started_tx {
                             drop(sender.send(item.clone()));
                         }
+                    }
+                },
+                |progress| {
+                    if let Some(sender) = phase_tx.as_ref() {
+                        let _ = sender.send(progress);
                     }
                 },
             );
@@ -2649,4 +2766,42 @@ fn write_private(path: &Path, bytes: &[u8]) -> Result<(), OrchestrationError> {
             path.display()
         ))
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::PiScanExecutionPhaseReporter;
+    use crate::state::{PiScanExecutionPhase, PiScanExecutionProgress};
+    use std::cell::RefCell;
+
+    /// The reporter preserves exact correlation and synchronous phase order.
+    #[test]
+    fn execution_phase_reporter_binds_correlation_and_order() {
+        let updates = RefCell::new(Vec::new());
+        let publish = |progress| updates.borrow_mut().push(progress);
+        let reporter = PiScanExecutionPhaseReporter::new(73, &publish);
+        let phases = [
+            PiScanExecutionPhase::Preparing,
+            PiScanExecutionPhase::ResolvingMetadata,
+            PiScanExecutionPhase::WaitingToRetry,
+            PiScanExecutionPhase::AcquiringSources,
+            PiScanExecutionPhase::RunningModel,
+            PiScanExecutionPhase::RecheckingIdentity,
+            PiScanExecutionPhase::ValidatingResult,
+            PiScanExecutionPhase::Finalizing,
+        ];
+
+        for phase in phases {
+            reporter.report(phase);
+        }
+
+        let expected = phases
+            .into_iter()
+            .map(|phase| PiScanExecutionProgress {
+                correlation_id: 73,
+                phase,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(*updates.borrow(), expected);
+    }
 }

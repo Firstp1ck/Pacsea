@@ -191,6 +191,18 @@ fn handle_navigation(key: KeyEvent, app: &mut AppState) -> bool {
             );
             true
         }
+        PiScanView::Details if app.pi_scan.results.len() > 1 => {
+            let next = app
+                .pi_scan
+                .selected_result
+                .saturating_add_signed(delta)
+                .min(app.pi_scan.results.len() - 1);
+            app.pi_scan.selected_result = next;
+            app.pi_scan.selected = next;
+            app.pi_scan.view_scroll.details = 0;
+            app.pi_scan.detail_scroll = 0;
+            true
+        }
         PiScanView::Details => {
             app.pi_scan.view_scroll.details = app
                 .pi_scan
@@ -499,7 +511,9 @@ fn handle_progress(key: KeyEvent, app: &mut AppState) -> bool {
 /// Open the selected validated result.
 fn handle_results(key: KeyEvent, app: &mut AppState) -> bool {
     if key.code == KeyCode::Enter && app.pi_scan.selected_result().is_some() {
+        let selected = app.pi_scan.selected_result;
         app.pi_scan.set_view(PiScanView::Details);
+        app.pi_scan.toggle_result_expansion(selected);
         return true;
     }
     false
@@ -508,6 +522,10 @@ fn handle_results(key: KeyEvent, app: &mut AppState) -> bool {
 /// Apply separate result-bound finding and stale acknowledgements.
 fn handle_details(key: KeyEvent, app: &mut AppState) -> bool {
     match key.code {
+        KeyCode::Enter | KeyCode::Char(' ') => {
+            let selected = app.pi_scan.selected_result;
+            app.pi_scan.toggle_result_expansion(selected);
+        }
         KeyCode::Char('a') => app.pi_scan.acknowledge_selected_findings(),
         KeyCode::Char('s') => app.pi_scan.acknowledge_selected_stale(),
         KeyCode::Char('c') if app.pi_scan.selected_result_acknowledged() => {
@@ -530,7 +548,28 @@ fn handle_details(key: KeyEvent, app: &mut AppState) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::logic::pi_scan::result::{Coverage, ExpectedIdentity, MergedScanResult};
+    use crate::state::PiScanDisplayResult;
     use crate::state::pi_scan_setup::{PiScanSetupDraftAction, PiScanSetupStep};
+
+    /// Build a minimal validated result for keyboard interaction tests.
+    fn display_result(package: &str) -> PiScanDisplayResult {
+        PiScanDisplayResult {
+            validated: MergedScanResult {
+                identity: ExpectedIdentity {
+                    scan_id: format!("scan-{package}"),
+                    package_base: package.to_string(),
+                    commit_oid: "commit".to_string(),
+                },
+                coverage: Coverage::Complete,
+                limitations: Vec::new(),
+                findings: Vec::new(),
+            },
+            observed_head_oid: "head".to_string(),
+            stale: false,
+            mutable_sources: Vec::new(),
+        }
+    }
 
     /// Escape must cancel only the isolated draft and preserve Pi Scan mode.
     #[test]
@@ -597,5 +636,85 @@ mod tests {
             })
         ));
         assert!(app.pi_scan.pending_action.is_none());
+    }
+
+    /// Enter on a result opens Details with that selected package expanded.
+    #[test]
+    fn results_enter_expands_selected_package_in_details() {
+        let mut app = AppState {
+            app_mode: AppMode::PiScan,
+            ..AppState::default()
+        };
+        app.pi_scan.results = vec![display_result("alpha"), display_result("beta")];
+        app.pi_scan.set_view(PiScanView::Results);
+        app.pi_scan.selected_result = 1;
+        app.pi_scan.selected = 1;
+
+        assert!(handle_key(
+            KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE),
+            &mut app,
+        ));
+        assert_eq!(app.pi_scan.view, PiScanView::Details);
+        assert_eq!(app.pi_scan.selected_result, 1);
+        assert!(app.pi_scan.is_result_expanded(1));
+        assert!(!app.pi_scan.is_result_expanded(0));
+    }
+
+    /// Details navigation selects package headers while page keys retain line scrolling.
+    #[test]
+    fn details_navigation_selects_packages_without_losing_scroll() {
+        let mut app = AppState {
+            app_mode: AppMode::PiScan,
+            ..AppState::default()
+        };
+        app.pi_scan.results = vec![display_result("alpha"), display_result("beta")];
+        app.pi_scan.set_view(PiScanView::Details);
+        app.pi_scan.view_scroll.details = 4;
+        app.pi_scan.detail_scroll = 4;
+
+        assert!(handle_key(
+            KeyEvent::new(KeyCode::Down, KeyModifiers::NONE),
+            &mut app,
+        ));
+        assert_eq!(app.pi_scan.selected_result, 1);
+        assert_eq!(app.pi_scan.view_scroll.details, 0);
+        assert!(handle_key(
+            KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE),
+            &mut app,
+        ));
+        assert_eq!(app.pi_scan.selected_result, 1);
+        assert_eq!(app.pi_scan.view_scroll.details, 6);
+    }
+
+    /// Enter and Space toggle only the selected package's expanded content.
+    #[test]
+    fn details_keys_toggle_selected_package_expansion() {
+        let mut app = AppState {
+            app_mode: AppMode::PiScan,
+            ..AppState::default()
+        };
+        app.pi_scan.results = vec![display_result("alpha"), display_result("beta")];
+        app.pi_scan.set_view(PiScanView::Details);
+
+        assert!(handle_key(
+            KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE),
+            &mut app,
+        ));
+        assert!(app.pi_scan.is_result_expanded(0));
+        assert!(handle_key(
+            KeyEvent::new(KeyCode::Down, KeyModifiers::NONE),
+            &mut app,
+        ));
+        assert!(handle_key(
+            KeyEvent::new(KeyCode::Char(' '), KeyModifiers::NONE),
+            &mut app,
+        ));
+        assert!(app.pi_scan.is_result_expanded(0));
+        assert!(app.pi_scan.is_result_expanded(1));
+        assert!(handle_key(
+            KeyEvent::new(KeyCode::Char(' '), KeyModifiers::NONE),
+            &mut app,
+        ));
+        assert!(!app.pi_scan.is_result_expanded(1));
     }
 }

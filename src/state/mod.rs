@@ -31,8 +31,9 @@ pub use pi_scan_setup::{
     PiScanSetupWizardState,
 };
 pub use pi_scan_ui::{
-    PiScanAvailability, PiScanDisplayResult, PiScanDryRunPreview, PiScanReadiness, PiScanTarget,
-    PiScanTargetStatus, PiScanUiAction, PiScanView, PiScanWorkspaceState,
+    PiScanAvailability, PiScanDisplayResult, PiScanDryRunPreview, PiScanExecutionPhase,
+    PiScanExecutionProgress, PiScanReadiness, PiScanTarget, PiScanTargetStatus, PiScanUiAction,
+    PiScanView, PiScanWorkspaceState,
 };
 pub use types::{
     ArchStatusColor, Focus, InstalledPackagesMode, NewsItem, PackageDetails, PackageItem,

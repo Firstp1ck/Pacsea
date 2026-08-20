@@ -639,15 +639,15 @@ pub struct KeyMap {
     pub search_normal_delete: Vec<KeyChord>,
     /// Normal mode: clear entire search input (default: Shift+Del)
     pub search_normal_clear: Vec<KeyChord>,
-    /// Normal mode: open Arch status page in browser (default: Shift+S)
+    /// Global package workspace: open Arch status page in browser (default: Shift+S).
     pub search_normal_open_status: Vec<KeyChord>,
-    /// Normal mode: trigger Import packages dialog
+    /// Global package workspace: trigger Import packages dialog.
     pub search_normal_import: Vec<KeyChord>,
-    /// Normal mode: trigger Export Install list
+    /// Global package workspace: trigger Export Install list.
     pub search_normal_export: Vec<KeyChord>,
-    /// Normal mode: open Available Updates window
+    /// Global package workspace: open Available Updates window.
     pub search_normal_updates: Vec<KeyChord>,
-    /// Normal mode: open the Pi Scan workspace.
+    /// Global package workspace: open the Pi Scan workspace.
     pub search_normal_pi_scan: Vec<KeyChord>,
     /// Toggle fuzzy search mode on/off
     pub toggle_fuzzy: Vec<KeyChord>,

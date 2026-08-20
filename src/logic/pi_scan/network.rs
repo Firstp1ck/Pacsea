@@ -144,7 +144,10 @@ impl SystemNetworkAdapter {
             .await
             .map_err(|_| network_error(&request.url, "HTTPS request timed out"))?
             .map_err(|error| {
-                network_error(&request.url, format!("HTTPS request failed: {error}"))
+                network_error(
+                    &request.url,
+                    format!("HTTPS request failed: {}", reqwest_error_chain(&error)),
+                )
             })?;
         let status = response.status().as_u16();
         let location = response
@@ -335,6 +338,34 @@ struct AurRpcResult {
     /// Declared package base.
     #[serde(rename = "PackageBase")]
     package_base: String,
+}
+
+/// What: Render a bounded Reqwest source chain for actionable transport diagnostics.
+///
+/// Inputs:
+/// - `error`: Top-level Reqwest request failure.
+///
+/// Output:
+/// - Colon-separated error and source details, capped at four nested causes.
+///
+/// Details:
+/// - Reqwest's display text often stops at `error sending request for url`; nested causes expose
+///   whether DNS, TCP, TLS, routing, or timeout handling actually failed.
+fn reqwest_error_chain(error: &reqwest::Error) -> String {
+    let mut message = error.to_string();
+    let mut source = std::error::Error::source(error);
+    for _ in 0..4 {
+        let Some(cause) = source else {
+            break;
+        };
+        let detail = cause.to_string();
+        if !message.ends_with(&detail) {
+            message.push_str(": ");
+            message.push_str(&detail);
+        }
+        source = cause.source();
+    }
+    message
 }
 
 /// Run one owned async operation on an isolated helper runtime.

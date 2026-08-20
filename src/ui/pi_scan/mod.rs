@@ -21,6 +21,24 @@ use crate::state::{AppState, PiScanAvailability, PiScanView};
 use crate::theme::theme;
 use unicode_width::UnicodeWidthChar;
 
+/// Height of the always-visible Pi Scan notice and keybind footer.
+const FOOTER_HEIGHT: u16 = 3;
+
+/// What: Locate the top edge of the Pi Scan keybind footer.
+///
+/// Inputs:
+/// - `area`: Rectangle assigned to the Pi Scan workspace
+///
+/// Output:
+/// - First row reserved for the footer.
+///
+/// Details:
+/// - Mirrors the fixed footer constraint used by [`render`].
+pub(super) const fn keybind_footer_top(area: Rect) -> u16 {
+    area.y
+        .saturating_add(area.height.saturating_sub(FOOTER_HEIGHT))
+}
+
 /// Render the complete Pi Scan workspace at any terminal size.
 pub fn render(f: &mut Frame, app: &mut AppState, area: Rect) {
     let chunks = Layout::default()
@@ -28,7 +46,7 @@ pub fn render(f: &mut Frame, app: &mut AppState, area: Rect) {
         .constraints([
             Constraint::Length(2),
             Constraint::Min(1),
-            Constraint::Length(3),
+            Constraint::Length(FOOTER_HEIGHT),
         ])
         .split(area);
     render_tabs(f, app, chunks[0]);

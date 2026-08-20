@@ -279,16 +279,77 @@ hu-HU:
         no_active: "No active scan." # TODO: translate to Hungarian
         running_for: "Running for" # TODO: translate to Hungarian
         reservation: "reservation ceiling" # TODO: translate to Hungarian
+        waiting: "Waiting for the next scan to start…" # TODO: translate to Hungarian
+        paused: "Paused" # TODO: translate to Hungarian
+        current_step: "Current step" # TODO: translate to Hungarian
+        working: "Scan in progress" # TODO: translate to Hungarian
+        phase:
+          preparing: "Preparing the frozen scan target" # TODO: translate to Hungarian
+          resolving_metadata: "Resolving current AUR metadata" # TODO: translate to Hungarian
+          waiting_to_retry: "Waiting before the one allowed retry" # TODO: translate to Hungarian
+          acquiring_sources: "Acquiring and integrity-checking package sources" # TODO: translate to Hungarian
+          running_model: "Pi is analyzing the package and validating its response" # TODO: translate to Hungarian
+          rechecking_identity: "Rechecking AUR identity and mutable sources" # TODO: translate to Hungarian
+          validating_result: "Validating the result against the frozen target" # TODO: translate to Hungarian
+          finalizing: "Persisting the validated result and accounting" # TODO: translate to Hungarian
+        pause:
+          user: "user pause" # TODO: translate to Hungarian
+          service: "service pause" # TODO: translate to Hungarian
+          budget: "budget pause" # TODO: translate to Hungarian
+        budget_limits: "Limit(s) currently exceeded" # TODO: translate to Hungarian
+        budget_solution: "Wait for the rolling window to expire, or open Setup (1) and press r to increase the affected limit. Would you like to increase it?" # TODO: translate to Hungarian
+        budget_unknown: "the next reservation could not be classified" # TODO: translate to Hungarian
+        limit_starts: "background starts/hour" # TODO: translate to Hungarian
+        limit_tokens: "background tokens/24h" # TODO: translate to Hungarian
+        limit_cost: "background cost/24h" # TODO: translate to Hungarian
       results:
         advisory: "Validated advisory output only. Model text that failed schema/evidence validation is not rendered." # TODO: translate to Hungarian
         empty: "No validated result is available." # TODO: translate to Hungarian
         stale: "[STALE IDENTITY]" # TODO: translate to Hungarian
       details:
+        package_list_hint: "Select a package with j/k. Press Enter or Space to open or close its report." # TODO: translate to Hungarian
+        selected: "selected" # TODO: translate to Hungarian
+        expanded: "expanded" # TODO: translate to Hungarian
+        collapsed: "collapsed" # TODO: translate to Hungarian
+        completion: "Completion" # TODO: translate to Hungarian
+        summary: "Review summary" # TODO: translate to Hungarian
+        result: "Result" # TODO: translate to Hungarian
         coverage: "Coverage" # TODO: translate to Hungarian
+        identity: "Package version" # TODO: translate to Hungarian
+        next_step: "Next step" # TODO: translate to Hungarian
+        no_findings_complete: "No findings in the files Pi analyzed" # TODO: translate to Hungarian
+        no_findings_incomplete: "No findings, but part of the package could not be checked" # TODO: translate to Hungarian
+        one_finding: "finding needs review" # TODO: translate to Hungarian
+        many_findings: "findings need review" # TODO: translate to Hungarian
+        coverage_complete: "All available files were checked" # TODO: translate to Hungarian
+        coverage_incomplete: "Some files could not be checked" # TODO: translate to Hungarian
+        identity_current: "Matches the version that was scanned" # TODO: translate to Hungarian
+        identity_changed: "Package changed after this scan" # TODO: translate to Hungarian
+        ready_to_continue: "Ready to continue" # TODO: translate to Hungarian
+        ack_required: "Acknowledgement required before continuing" # TODO: translate to Hungarian
+        limitations: "What could not be checked" # TODO: translate to Hungarian
+        findings: "Findings" # TODO: translate to Hungarian
+        untitled_finding: "Review this finding" # TODO: translate to Hungarian
+        location: "Location" # TODO: translate to Hungarian
+        evidence: "Evidence" # TODO: translate to Hungarian
+        note: "Note" # TODO: translate to Hungarian
+        disagreement: "Models rated this finding differently; the highest rating is shown." # TODO: translate to Hungarian
+        technical: "Technical details" # TODO: translate to Hungarian
+        technical_hidden: "hidden · t to show" # TODO: translate to Hungarian
+        technical_visible: "visible · t to hide" # TODO: translate to Hungarian
+        technical_hint: "Exact scan metadata and original validation messages are hidden." # TODO: translate to Hungarian
+        limit_tools_unavailable: "Some package files could not be inspected because the required archive tools were unavailable." # TODO: translate to Hungarian
+        limit_no_sources: "No source files were available to inspect." # TODO: translate to Hungarian
+        limit_incomplete_address: "A source file could not be inspected because its download address is incomplete." # TODO: translate to Hungarian
+        limit_incomplete_address_subject: "could not be inspected because its download address is incomplete." # TODO: translate to Hungarian
+        limit_archive_too_large: "A source archive was only partially checked because it contains too many files." # TODO: translate to Hungarian
+        limit_archive_too_large_subject: "was only partially checked because the archive contains too many files." # TODO: translate to Hungarian
+        limit_unsupported_entry: "The package archive contains an unsupported entry." # TODO: translate to Hungarian
+        limit_unsupported_entry_named: "The package archive contains an unsupported entry:" # TODO: translate to Hungarian
         stale: "Stale identity" # TODO: translate to Hungarian
         acknowledged: "Continuation acknowledgement satisfied" # TODO: translate to Hungarian
+        selected_guidance: "Acknowledgement and continuation actions apply to this selected package." # TODO: translate to Hungarian
         ack_keys: "a acknowledges high/critical findings · s acknowledges stale identity · c continues · b accepts baseline · t toggles canonical raw data. All are bound to this exact result." # TODO: translate to Hungarian
-        disagreement: "  Model severity disagreement is retained; highest severity controls acknowledgement." # TODO: translate to Hungarian
         raw: "Canonical validated-data view:" # TODO: translate to Hungarian
       footer:
         title: "Status / Help" # TODO: translate to Hungarian
@@ -300,7 +361,7 @@ hu-HU:
           targets: "j/k move · PgUp/PgDn · g/G · Space select · Enter queue · Esc Package · ? Help" # TODO: translate to Hungarian
           progress: "p Pause · u Resume · x Cancel · r Retry · PgUp/PgDn · g/G · Esc Package · ? Help" # TODO: translate to Hungarian
           results: "j/k move · PgUp/PgDn · g/G · Enter Details · Esc Package · ? Help" # TODO: translate to Hungarian
-          details: "j/k scroll · PgUp/PgDn · g/G · a/s acknowledge · c continue · b baseline · t raw · Esc Package · ? Help" # TODO: translate to Hungarian
+          details: "j/k csomagválasztás · PgUp/PgDn görgetés · Enter/szóköz kibontás · g/G eleje/vége · a/s jóváhagyás · c folytatás · b alapérték · t nyers adat · Esc csomag · ? súgó" # TODO: translate to Hungarian
       notices:
         session_only: "Consent preference updated; the runtime applies persisted consent before eligible work starts." # TODO: translate to Hungarian
         non_aur_entry: "Pi Scan analyzes AUR packages; select an AUR result in Search and press Shift+A to add a target." # TODO: translate to Hungarian

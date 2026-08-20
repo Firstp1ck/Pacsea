@@ -1383,15 +1383,16 @@ pub fn download_static_source(
     let started_at = Instant::now();
     for _ in 0..=MAX_SOURCE_REDIRECTS {
         let dns_timeout = remaining_download_time(timeout, started_at, &current)?;
-        let address = verify_public_destination(resolver, &current, dns_timeout)?;
-        let request_timeout = remaining_download_time(timeout, started_at, &current)?;
+        let mut address = verify_public_destination(resolver, &current, dns_timeout)?;
         chain.push(current.clone());
-        let response = http.fetch(&HttpRequest {
-            url: current.clone(),
-            pinned_address: address.pinned_address,
+        let response = fetch_from_validated_addresses(
+            http,
+            &current,
             max_bytes,
-            timeout: request_timeout,
-        })?;
+            timeout,
+            started_at,
+            &mut address,
+        )?;
         provenance.push(address);
         match response.status {
             200 => {
@@ -1421,6 +1422,67 @@ pub fn download_static_source(
     Err(AcquisitionError::Network {
         url: current,
         reason: format!("more than {MAX_SOURCE_REDIRECTS} redirects were requested"),
+    })
+}
+
+/// What: Try each fully validated DNS address within one shared download deadline.
+///
+/// Inputs:
+/// - `http`: Bounded HTTPS transport.
+/// - `url`: Canonical HTTPS URL for the current hop.
+/// - `max_bytes`: Hard response-body cap.
+/// - `timeout`: Whole-download timeout shared by redirects and address attempts.
+/// - `started_at`: Start of the complete download operation.
+/// - `provenance`: Validated answer set whose successful pin is updated in place.
+///
+/// Output:
+/// - The first successful HTTP response and its exact contacted address in `provenance`.
+///
+/// Details:
+/// - Every candidate passed public-address validation before this function runs. Transport errors
+///   advance to the next answer, while the remaining deadline prevents unbounded fallback delay.
+fn fetch_from_validated_addresses(
+    http: &mut dyn HttpFetcher,
+    url: &str,
+    max_bytes: u64,
+    timeout: Duration,
+    started_at: Instant,
+    provenance: &mut AddressProvenance,
+) -> Result<HttpResponse, AcquisitionError> {
+    let candidates = provenance.resolved_addresses.clone();
+    let mut last_failure = None;
+    for pinned_address in &candidates {
+        let request_timeout = remaining_download_time(timeout, started_at, url)?;
+        let request = HttpRequest {
+            url: url.to_string(),
+            pinned_address: *pinned_address,
+            max_bytes,
+            timeout: request_timeout,
+        };
+        match http.fetch(&request) {
+            Ok(response) => {
+                provenance.pinned_address = *pinned_address;
+                return Ok(response);
+            }
+            Err(error) => last_failure = Some((*pinned_address, error)),
+        }
+    }
+    let Some((last_address, last_error)) = last_failure else {
+        return Err(AcquisitionError::Network {
+            url: url.to_string(),
+            reason: "DNS resolution returned no validated address candidates".to_string(),
+        });
+    };
+    let reason = match last_error {
+        AcquisitionError::Network { reason, .. } => reason,
+        error => error.to_string(),
+    };
+    Err(AcquisitionError::Network {
+        url: url.to_string(),
+        reason: format!(
+            "HTTPS fetch failed for all {} validated DNS address(es); last address {last_address}: {reason}",
+            candidates.len()
+        ),
     })
 }
 
@@ -2745,6 +2807,38 @@ mod tests {
         }
     }
 
+    /// Resolver returning two validated public addresses in unstable resolver order.
+    struct MultiAddressResolver;
+
+    impl AddressResolver for MultiAddressResolver {
+        fn resolve(&mut self, _host: &str, _port: u16) -> Result<Vec<IpAddr>, AcquisitionError> {
+            Ok(vec![
+                IpAddr::V4(Ipv4Addr::new(93, 184, 216, 34)),
+                IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)),
+            ])
+        }
+    }
+
+    /// Fetcher that simulates one unreachable DNS answer followed by a working address.
+    #[derive(Default)]
+    struct FailFirstAddressHttp {
+        /// Pinned addresses attempted in order.
+        seen: Vec<IpAddr>,
+    }
+
+    impl HttpFetcher for FailFirstAddressHttp {
+        fn fetch(&mut self, request: &HttpRequest) -> Result<HttpResponse, AcquisitionError> {
+            self.seen.push(request.pinned_address);
+            if request.pinned_address == IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)) {
+                return Err(AcquisitionError::Network {
+                    url: request.url.clone(),
+                    reason: "simulated connect failure".to_string(),
+                });
+            }
+            Ok(ok_body(b"payload"))
+        }
+    }
+
     /// Build a terminal 200 response.
     fn ok_body(body: &[u8]) -> HttpResponse {
         HttpResponse {
@@ -2761,6 +2855,32 @@ mod tests {
         let base = resolve_package_base(&name, &rpc).expect("declared base");
         assert_eq!(base.as_str(), "yay");
         assert!(resolve_package_base(&name, &AurRpcData::default()).is_err());
+    }
+
+    #[test]
+    fn download_retries_the_next_validated_address_after_connect_failure() {
+        let mut http = FailFirstAddressHttp::default();
+        let downloaded = download_static_source(
+            &mut http,
+            &mut MultiAddressResolver,
+            "https://example.com/file.tar.gz",
+            MAX_SOURCE_BYTES,
+            Duration::from_secs(5),
+        )
+        .expect("second validated address should succeed");
+
+        assert_eq!(downloaded.bytes, b"payload");
+        assert_eq!(
+            http.seen,
+            [
+                IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)),
+                IpAddr::V4(Ipv4Addr::new(93, 184, 216, 34)),
+            ]
+        );
+        assert_eq!(
+            downloaded.address_provenance[0].pinned_address,
+            IpAddr::V4(Ipv4Addr::new(93, 184, 216, 34))
+        );
     }
 
     #[test]

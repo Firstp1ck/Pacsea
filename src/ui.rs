@@ -299,21 +299,22 @@ fn vertical_band_lengths_for_order(
     out
 }
 
-/// What: Render toast message overlay in bottom-right corner.
+/// What: Render a toast overlay at the right edge above the active keybind section.
 ///
 /// Inputs:
 /// - `f`: `ratatui` frame to render into
 /// - `app`: Application state containing toast message
-/// - `area`: Full terminal area for positioning
+/// - `area`: Full terminal area for horizontal sizing and safe vertical bounds
+/// - `bottom_boundary`: First row reserved for the active keybind section, or the area bottom
 ///
 /// Output:
 /// - Renders toast widget if message is present
 ///
 /// Details:
-/// - Positions toast in bottom-right corner with appropriate sizing.
+/// - Leaves one row between the toast and `bottom_boundary` so footer shortcuts stay visible.
 /// - Uses match expression to determine toast title based on message content.
 #[allow(clippy::many_single_char_names)]
-fn render_toast(f: &mut Frame, app: &AppState, area: ratatui::prelude::Rect) {
+fn render_toast(f: &mut Frame, app: &AppState, area: ratatui::prelude::Rect, bottom_boundary: u16) {
     let Some(msg) = &app.toast_message else {
         return;
     };
@@ -325,7 +326,9 @@ fn render_toast(f: &mut Frame, app: &AppState, area: ratatui::prelude::Rect) {
     let w = inner_w.saturating_add(2 + 2);
     let h: u16 = 3;
     let x = area.x + area.width.saturating_sub(w).saturating_sub(1);
-    let y = area.y + area.height.saturating_sub(h).saturating_sub(1);
+    let area_bottom = area.y.saturating_add(area.height);
+    let toast_bottom = bottom_boundary.clamp(area.y, area_bottom);
+    let y = toast_bottom.saturating_sub(h).saturating_sub(1).max(area.y);
 
     let rect = ratatui::prelude::Rect {
         x,
@@ -423,7 +426,7 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
     if matches!(app.app_mode, AppMode::PiScan) {
         pi_scan::render(f, app, main_chunks[1]);
         modals::render_modals(f, app, area);
-        render_toast(f, app, area);
+        render_toast(f, app, area, pi_scan::keybind_footer_top(main_chunks[1]));
         return;
     }
 
@@ -431,6 +434,9 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
     // content area as package/news views.
     if matches!(app.app_mode, AppMode::ConfigEditor) {
         let editor_state = std::mem::take(&mut app.config_editor_state);
+        let toast_bottom =
+            modals::config_editor::keybind_footer_top(app, main_chunks[1], &editor_state)
+                .unwrap_or_else(|| area.y.saturating_add(area.height));
         modals::config_editor::render_config_editor_window(f, app, main_chunks[1], &editor_state);
         app.config_editor_state = editor_state;
 
@@ -441,7 +447,7 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
         // Use the editor area as the anchor for dropdown overlays so
         // top-row menus remain operable in this mode.
         results::render_dropdowns(f, app, main_chunks[1]);
-        render_toast(f, app, area);
+        render_toast(f, app, area, toast_bottom);
         return;
     }
 
@@ -457,6 +463,7 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
 
     let order = app.main_pane_order;
     let mut results_band: Option<ratatui::prelude::Rect> = None;
+    let mut toast_bottom = area.y.saturating_add(area.height);
     for (slot, role) in order.iter().enumerate() {
         let chunk = chunks[slot];
         match role {
@@ -466,6 +473,9 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
             }
             MainVerticalPane::Middle => middle::render_middle(f, app, chunk),
             MainVerticalPane::PackageInfo => {
+                if let Some(footer_top) = details::keybind_footer_top(app, chunk) {
+                    toast_bottom = footer_top;
+                }
                 if matches!(app.app_mode, AppMode::News) {
                     details::render_news_details(f, app, chunk);
                 } else {
@@ -481,8 +491,8 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
         results::render_dropdowns(f, app, r);
     }
 
-    // Render transient toast (bottom-right) if present
-    render_toast(f, app, area);
+    // Render transient toast above the active keybind footer if present.
+    render_toast(f, app, area, toast_bottom);
 }
 
 #[cfg(test)]
@@ -586,6 +596,7 @@ mod tests {
             "app.toasts.title_clipboard".to_string(),
             "Clipboard".to_string(),
         );
+        translations.insert("app.headings.globals".to_string(), "Globals".to_string());
         app.translations = translations.clone();
         app.translations_fallback = translations;
     }
@@ -645,6 +656,54 @@ mod tests {
         let buffer = term.backend().buffer();
         assert_eq!(buffer.area.width, 120);
         assert_eq!(buffer.area.height, 40);
+    }
+
+    /// What: Verify toast overlays render above the keybind footer.
+    ///
+    /// Inputs:
+    /// - A 120×40 package-mode frame with the keybind footer and a clipboard toast visible.
+    ///
+    /// Output:
+    /// - The toast title row is above the first keybind-footer row.
+    ///
+    /// Details:
+    /// - Guards against bottom-right toast placement covering footer shortcuts.
+    #[test]
+    fn toast_renders_above_keybind_footer() {
+        use ratatui::{Terminal, backend::TestBackend};
+
+        let backend = TestBackend::new(120, 40);
+        let mut term = Terminal::new(backend).expect("failed to create test terminal");
+        let mut app = crate::state::AppState::default();
+        init_test_translations(&mut app);
+        app.toast_message = Some(crate::i18n::t(&app, "app.toasts.copied_to_clipboard"));
+
+        term.draw(|f| super::ui(f, &mut app))
+            .expect("failed to draw toast and keybind footer");
+
+        let buffer = term.backend().buffer();
+        let mut toast_row = None;
+        let mut footer_row = None;
+        for row in 0..buffer.area.height {
+            let mut line = String::new();
+            for col in 0..buffer.area.width {
+                line.push_str(buffer[(col, row)].symbol());
+            }
+            if line.contains("Clipboard") {
+                toast_row = Some(row);
+            }
+            if line.contains("Globals") && footer_row.is_none() {
+                footer_row = Some(row);
+            }
+        }
+
+        assert!(
+            toast_row
+                .expect("clipboard toast title should render")
+                .saturating_add(3)
+                <= footer_row.expect("keybind footer should render"),
+            "the complete toast must render above the keybind footer"
+        );
     }
 
     /// What: Regression — `Modal::Updates` must paint while `AppMode::ConfigEditor` is active.

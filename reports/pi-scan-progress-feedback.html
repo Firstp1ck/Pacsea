@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>Pi Scan progress feedback implementation report</title>
+  <style>
+    :root{color-scheme:dark;--bg:#0b1220;--panel:#121c2d;--panel2:#18253a;--text:#e8eef8;--muted:#a9b7cb;--line:#2b3b55;--green:#50d890;--yellow:#f7c65c;--red:#ff7373;--blue:#65b5ff;--code:#07101c;--shadow:0 14px 36px rgb(0 0 0/22%)}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(circle at 15% 0%,#142848 0,transparent 35rem),var(--bg);color:var(--text);font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}a{color:var(--blue)}a:focus-visible,button:focus-visible,summary:focus-visible{outline:3px solid var(--blue);outline-offset:3px}.skip{position:fixed;top:8px;left:8px;transform:translateY(-160%);background:var(--blue);color:#06111f;padding:8px 12px;border-radius:8px;font-weight:800}.skip:focus{transform:none}main{width:min(1120px,calc(100% - 32px));margin:36px auto 64px}header,section{background:color-mix(in srgb,var(--panel) 94%,transparent);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}header{padding:30px;margin-bottom:20px}section{padding:24px;margin:18px 0}h1,h2,h3{line-height:1.25;margin-top:0}h1{font-size:clamp(1.9rem,5vw,3rem);letter-spacing:-.025em;margin-bottom:8px}h2{font-size:1.45rem;border-bottom:1px solid var(--line);padding-bottom:10px}h3{font-size:1.08rem;margin-bottom:6px}p{margin:8px 0 14px}.lead{font-size:1.1rem;max-width:82ch}.muted{color:var(--muted)}.badge{display:inline-block;padding:3px 9px;border-radius:999px;font-size:.78rem;font-weight:750;letter-spacing:.035em;text-transform:uppercase;margin-bottom:8px}.good{color:var(--green)}.warn{color:var(--yellow)}.info{color:var(--blue)}.badge.good{background:rgb(80 216 144/14%);border:1px solid rgb(80 216 144/38%)}.badge.warn{background:rgb(247 198 92/14%);border:1px solid rgb(247 198 92/38%)}.badge.info{background:rgb(101 181 255/14%);border:1px solid rgb(101 181 255/38%)}.callout{border-left:5px solid var(--green);background:rgb(80 216 144/8%);border-radius:8px;padding:14px 16px;margin:14px 0}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}.card,.metric{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:16px}.metric strong{display:block;font-size:1.35rem}.table-wrap{overflow-x:auto;border-radius:10px}table{width:100%;border-collapse:collapse;min-width:680px}th,td{text-align:left;vertical-align:top;padding:11px 9px;border-bottom:1px solid var(--line)}th{color:var(--muted);font-size:.86rem;text-transform:uppercase;letter-spacing:.04em}code,pre{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}code{background:var(--code);padding:.12em .38em;border-radius:5px}pre{background:var(--code);border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto;color:#d9e6f7;white-space:pre-wrap}figure{margin:18px 0}figure svg{display:block;width:100%;height:auto;background:var(--code);border:1px solid var(--line);border-radius:12px}figcaption{color:var(--muted);margin-top:8px;font-size:.92rem}.node{fill:#182b43;stroke:var(--blue);stroke-width:2}.node.phase{stroke:var(--green)}.node-text{fill:var(--text);font:650 13px system-ui,sans-serif;text-anchor:middle}.edge{fill:none;stroke:var(--muted);stroke-width:2.5;marker-end:url(#arrow)}.steps{counter-reset:step;list-style:none;padding:0}.steps li{counter-increment:step;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:16px;margin:12px 0}.steps li::before{content:counter(step);float:left;display:grid;place-items:center;width:30px;height:30px;margin:1px 12px 0 0;border-radius:50%;background:var(--blue);color:#06111f;font-weight:800}details{border-top:1px solid var(--line);padding-top:10px;margin-top:10px}summary{cursor:pointer;color:var(--blue);font-weight:700}footer{color:var(--muted);margin-top:24px;font-size:.9rem}.nav{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 0}.nav a{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:7px 11px;text-decoration:none;font-weight:700}
+    @media(max-width:620px){main{width:min(100% - 18px,1120px);margin-top:10px}header,section{padding:18px}.node-text{font-size:11px}}
+    @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important}}
+    @media print{:root{color-scheme:light}body{background:#fff;color:#111}main{width:100%;margin:0}header,section,.card,.metric,.steps li{box-shadow:none;background:#fff;color:#111;border-color:#bbb;break-inside:avoid}.skip,.nav{display:none}pre,code,figure svg{color:#111;background:#f1f3f5;border-color:#bbb}.muted,figcaption,footer{color:#444}a{color:#111;text-decoration:underline}}
+  </style>
+</head>
+<body>
+<a class="skip" href="#content">Skip to report content</a>
+<main id="content">
+  <header>
+    <span class="badge good">Implemented and verified</span>
+    <h1>Pi Scan now explains what it is doing</h1>
+    <p class="lead">This report covers the runtime phase protocol and the Progress-tab changes added to Pacsea's Pi-backed AUR scanner. The starting point was a queue of 67 packages paired with the unhelpful message "No active scan."</p>
+    <div class="callout"><strong>Conclusion.</strong> The scanner now shows a smooth activity marker, exact package identity, current phase, elapsed time, known-work progress, queue order, and pause reasons. It does not invent a percentage for model execution.</div>
+    <p class="muted"><strong>Confidence:</strong> 96/100. Formatting, strict Clippy, compilation, the full serial test suite, focused runtime tests, and TUI rendering tests pass. A live paid-provider scan and recorded terminal animation were not run.</p>
+    <nav class="nav" aria-label="Report sections"><a href="#overview">Overview</a><a href="#design">Design</a><a href="#ux">User experience</a><a href="#evidence">Evidence</a><a href="#risks">Limits</a></nav>
+  </header>
+
+  <section id="overview">
+    <h2>Overview</h2>
+    <div class="grid" aria-label="Headline metrics">
+      <div class="metric"><span class="badge info">Runtime</span><strong>8 phases</strong><span class="muted">Preparation through final persistence</span></div>
+      <div class="metric"><span class="badge good">Tests</span><strong>1,281 library</strong><span class="muted">Passed, with 7 intentional ignores</span></div>
+      <div class="metric"><span class="badge good">Pi Scan</span><strong>154 passed</strong><span class="muted">4 live or benchmark checks ignored</span></div>
+      <div class="metric"><span class="badge warn">Honest limit</span><strong>No fake %</strong><span class="muted">The bar counts known items, not model-call internals</span></div>
+    </div>
+    <h3 style="margin-top:22px">Implementation map</h3>
+    <div class="table-wrap">
+      <table data-overview>
+        <thead><tr><th>Area</th><th>What changed</th><th>User-visible result</th><th>Verification</th></tr></thead>
+        <tbody>
+          <tr><td>Runtime protocol</td><td>Transient, correlation-owned phase updates</td><td>The current step stays attached to the correct package</td><td>Reporter ordering and stale-correlation tests</td></tr>
+          <tr><td>Production scanner</td><td>Phase emission around metadata, acquisition, retry, Pi execution, recheck, validation, and persistence</td><td>The UI states what the scanner is doing now</td><td>Pi Scan integration suite and strict compilation</td></tr>
+          <tr><td>Progress tab</td><td>Sub-second spinner, package identity, phase, elapsed time, bar, counts, and numbered queue</td><td>A running scan no longer looks frozen</td><td>Helper and TestBackend rendering tests</td></tr>
+          <tr><td>Waiting and pause</td><td>Queued work explains user, service, or budget pauses</td><td>Idle queues no longer say "No active scan"</td><td>Paused-queue rendering regression</td></tr>
+          <tr><td>Terminal outcomes</td><td>Failed and interrupted records project live with exact status</td><td>Counts do not shrink or mislabel shutdown interruption</td><td>Publisher and event-loop projection tests</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="design">
+    <h2>How progress reaches the screen</h2>
+    <p>The durable queue remains the source of truth for queued, active, and terminal work. The new phase state is process-local. This matters because a recovered scan can prove that work was interrupted, but it cannot honestly recover the last transient step shown before shutdown.</p>
+    <figure data-visual-kind="diagram" data-purpose="Show how a correlated scanner phase reaches the Progress tab">
+      <svg role="img" aria-labelledby="flow-title flow-desc" viewBox="0 0 960 300">
+        <title id="flow-title">Correlated Pi Scan progress flow</title>
+        <desc id="flow-desc">The orchestrator starts an exact queue item, binds a phase reporter to its correlation ID, production code emits phases, the event loop rejects stale IDs, and the Progress tab renders the matching phase.</desc>
+        <defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#a9b7cb"/></marker></defs>
+        <path class="edge" d="M190 100 H260"/><path class="edge" d="M430 100 H500"/><path class="edge" d="M670 100 H740"/>
+        <rect class="node" x="20" y="62" width="170" height="76" rx="12"/><text class="node-text" x="105" y="94">Durable queue</text><text class="node-text" x="105" y="116">active correlation</text>
+        <rect class="node phase" x="260" y="62" width="170" height="76" rx="12"/><text class="node-text" x="345" y="94">Phase reporter</text><text class="node-text" x="345" y="116">exact correlation</text>
+        <rect class="node phase" x="500" y="62" width="170" height="76" rx="12"/><text class="node-text" x="585" y="94">Event loop</text><text class="node-text" x="585" y="116">stale IDs ignored</text>
+        <rect class="node" x="740" y="62" width="195" height="76" rx="12"/><text class="node-text" x="837" y="94">Progress tab</text><text class="node-text" x="837" y="116">phase + elapsed time</text>
+        <path class="edge" d="M345 138 V215 H585 V138"/><text class="node-text" x="465" y="202">typed, transient updates</text>
+      </svg>
+      <figcaption>The phase update never enters the serialized runtime schema. Both the event loop and the UI check the active correlation before showing it.</figcaption>
+    </figure>
+    <div class="grid">
+      <article class="card"><span class="badge info">Preparation</span><h3>Preparing and resolving metadata</h3><p>The scanner registers the exact item and retrieves the AUR metadata needed for immutable acquisition.</p></article>
+      <article class="card"><span class="badge warn">Network recovery</span><h3>Waiting for the bounded retry</h3><p>A transient pre-model failure shows a retry wait instead of appearing frozen. The existing one-minute, cancellation-aware retry policy is unchanged.</p></article>
+      <article class="card"><span class="badge info">Evidence</span><h3>Acquiring recipe and source snapshots</h3><p>The phase starts before bounded acquisition and integrity checks. It does not claim completeness before those checks finish.</p></article>
+      <article class="card"><span class="badge info">Model</span><h3>Running Pi and validating its response</h3><p>The selected model call and typed response validation are one observable blocking operation, so the UI labels them together.</p></article>
+      <article class="card"><span class="badge info">Identity</span><h3>Rechecking mutable inputs and AUR HEAD</h3><p>The scanner reports the post-analysis identity check before accepting a result.</p></article>
+      <article class="card"><span class="badge good">Completion</span><h3>Validating and finalizing</h3><p>The last phases cover frozen-target validation, result storage, accounting, and durable completion.</p></article>
+    </div>
+  </section>
+
+  <section id="ux">
+    <h2>What the user sees</h2>
+    <ol class="steps">
+      <li><h3>At a glance</h3><p>A fixed-width bar shows completed terminal items over all known terminal, running, and queued items. Labels break out running, queued, completed, failed, cancelled, and interrupted counts.</p></li>
+      <li><h3>During a scan</h3><p>The active block shows the package base, immutable commit, correlation ID, animated current step, elapsed time, and reservation ceiling. A missing or stale phase falls back to "Scan in progress" rather than guessing.</p></li>
+      <li><h3>While queued</h3><p>An eligible queue uses the animated waiting marker. A paused queue uses a static pause marker and names every active pause reason. Queue entries are numbered so sequential order is visible.</p></li>
+      <li><h3>After a terminal outcome</h3><p>Completion, failure, cancellation, and interruption update the summary with the exact projected status. A failure still keeps its actionable reason.</p></li>
+    </ol>
+    <pre><code>⠹ [██████░░░░░░░░░░░░░░░░] 18/70 · 1 running · 51 queued · 17 completed · 1 failed
+Active: package-base @ immutable-commit (#42)
+⠹ Current step: Pi is analyzing the package and validating its response
+   Running for 03:14 · reservation ceiling 500,000 tokens / $0.60 USD</code></pre>
+    <p class="muted">The example illustrates the rendered structure. It is not a captured provider run and does not represent measured scan duration.</p>
+  </section>
+
+  <section id="evidence">
+    <h2>Validation and review evidence</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Check</th><th>Result</th><th>What it establishes</th></tr></thead>
+        <tbody>
+          <tr><td><code>cargo fmt --all</code></td><td class="good">Passed</td><td>Rust formatting is current</td></tr>
+          <tr><td><code>cargo clippy --all-targets --all-features -- -D warnings</code></td><td class="good">Passed</td><td>Lint, documentation, complexity, and function-length rules pass</td></tr>
+          <tr><td><code>cargo check</code></td><td class="good">Passed</td><td>All targets type-check</td></tr>
+          <tr><td><code>cargo test -- --test-threads=1</code></td><td class="good">Passed</td><td>Full serial unit, integration, and doctest suite passes</td></tr>
+          <tr><td>Pi Scan target</td><td class="good">154 passed, 4 ignored</td><td>Scanner protocol, acquisition, execution, persistence, and TUI contracts pass</td></tr>
+          <tr><td>Independent review quorum</td><td class="good">Anthropic + DeepSeek</td><td>Fresh, read-only reviews covered runtime correctness and TUI behavior</td></tr>
+          <tr><td>Accepted review fixes</td><td class="good">4 fixed</td><td>Live failure/interruption counts, static pause marker, and narrow summary coverage were revalidated</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <details><summary>Review disposition summary</summary><p>The Anthropic UI review found four concrete gaps. The integration owner accepted all four. The fix pass added exact live Failed and Interrupted projection, stopped animation for idle paused work, and added mixed-count plus 20-column Progress-tab tests. The DeepSeek review found no additional blocker.</p></details>
+    <details><summary>Artifacts</summary><ul><li><a href="../plans/archive/pi-scan-progress-feedback.md">Archived implementation plan and finding dispositions</a></li><li><code>/tmp/pi-scan-progress-runtime-phase-handoff.md</code></li><li><code>/tmp/pi-scan-progress-ui-handoff.md</code></li><li><code>/tmp/pi-scan-progress-review-fixes-handoff.md</code></li></ul></details>
+  </section>
+
+  <section id="risks">
+    <h2>Limits and rollout guidance</h2>
+    <div class="grid">
+      <article class="card"><span class="badge warn">Not live-tested</span><h3>Provider timing</h3><p>Deterministic tests cover phase ordering and rendering, but no paid provider call was made. Very short validation and finalization phases may pass between redraws. The scanner never delays work to keep a label visible.</p></article>
+      <article class="card"><span class="badge warn">Terminal font</span><h3>Glyph support</h3><p>Braille and pause glyph appearance depends on the terminal font. Explicit text carries the same state if a glyph renders poorly.</p></article>
+      <article class="card"><span class="badge info">Failure fallback</span><h3>No invented terminal count</h3><p>If the production owner cannot retrieve an exact durable terminal record after an error, Pacsea shows the error reason but does not fabricate a failed count.</p></article>
+      <article class="card"><span class="badge info">Rollback</span><h3>No migration needed</h3><p>The phase state is transient. Reverting the protocol and Progress-tab changes requires no persistent state migration or cleanup.</p></article>
+    </div>
+    <div class="callout"><strong>Recommended manual check.</strong> Rebuild Pacsea, start a small foreground Pi Scan, and watch the Progress tab move through metadata, acquisition, model execution, identity recheck, and finalization. Also pause a queued scan and confirm that the marker becomes static.</div>
+  </section>
+
+  <footer><p><strong>Scope:</strong> Pi Scan progress feedback on branch <code>feat/aur-scan-integrated</code>. Generated from repository diff, tests, worker handoffs, and independent reviews on 2026-08-20.</p></footer>
+</main>
+</body>
+</html>

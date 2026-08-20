@@ -4,7 +4,7 @@ use super::super::utils::matches_any;
 use super::normal_mode::{handle_export, handle_menu_toggles};
 use crate::state::AppState;
 
-/// What: Handle Shift+char keybinds (menus, import, export, updates, status) that work across all panes and modes.
+/// What: Handle package-workspace Shift keybinds across all panes and search modes.
 ///
 /// Inputs:
 /// - `ke`: Key event from terminal
@@ -14,9 +14,8 @@ use crate::state::AppState;
 /// - `true` if a Shift+char keybind was handled, `false` otherwise
 ///
 /// Details:
-/// - Handles menu toggles (Shift+C, Shift+O, Shift+P), import (Shift+I), export (Shift+E),
-///   updates (Shift+U), and status (Shift+S).
-/// - Works in insert mode, normal mode, and all panes (Search, Recent, Install).
+/// - Handles menu toggles, import, export, updates, status, and Pi Scan entry.
+/// - Works in Search insert/normal modes and from the Search, Recent, and Install panes.
 pub fn handle_shift_keybinds(ke: &KeyEvent, app: &mut AppState) -> bool {
     // Handle menu toggles
     if handle_menu_toggles(ke, app) {
@@ -51,6 +50,14 @@ pub fn handle_shift_keybinds(ke: &KeyEvent, app: &mut AppState) -> bool {
     // Handle status (Shift+S)
     if matches_any(ke, &app.keymap.search_normal_open_status) {
         crate::util::open_url("https://status.archlinux.org");
+        return true;
+    }
+
+    // Open Pi Scan (Shift+A)
+    if matches_any(ke, &app.keymap.search_normal_pi_scan)
+        && matches!(app.app_mode, crate::state::types::AppMode::Package)
+    {
+        crate::events::pi_scan::open_from_search(app);
         return true;
     }
 

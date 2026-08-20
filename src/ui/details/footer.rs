@@ -146,30 +146,33 @@ fn build_section_header(label: String, label_color: ratatui::style::Color) -> Ve
     ]
 }
 
-/// What: Build GLOBALS section spans.
+/// What: Build the GLOBALS footer lines.
 ///
 /// Inputs:
-/// - `app`: Application state
-/// - `th`: Theme
-/// - `key_style`: Style for keys
-/// - `sep_style`: Style for separator
+/// - `app`: Application state.
+/// - `th`: Theme.
+/// - `key_style`: Style for keys.
+/// - `sep_style`: Style for separators.
 ///
 /// Output:
-/// - Returns vector of spans for GLOBALS section.
+/// - Returns the general and Shift-shortcut lines for the GLOBALS section.
 ///
 /// Details:
-/// - Includes exit, help, reload theme, show pkgbuild, show comments, change sort, and normal mode toggle.
+/// - Keeps application-wide Shift actions out of the Search Normal Mode section.
 fn build_globals_section(
     app: &AppState,
     th: &Theme,
     key_style: Style,
     sep_style: Style,
-) -> Vec<Span<'static>> {
+) -> Vec<Line<'static>> {
     let km = &app.keymap;
-    let mut spans = build_section_header(
-        format!("{}  ", i18n::t(app, "app.headings.globals")),
-        th.overlay1,
-    );
+    let heading = || {
+        build_section_header(
+            format!("{}  ", i18n::t(app, "app.headings.globals")),
+            th.overlay1,
+        )
+    };
+    let mut spans = heading();
 
     add_keybind_entry(
         &mut spans,
@@ -235,7 +238,51 @@ fn build_globals_section(
         sep_style,
     );
 
-    spans
+    let mut shift_spans = heading();
+    for (key, label_key) in [
+        (
+            km.config_menu_toggle.first(),
+            "app.modals.help.key_labels.config_lists_menu",
+        ),
+        (
+            km.options_menu_toggle.first(),
+            "app.modals.help.key_labels.options_menu",
+        ),
+        (
+            km.panels_menu_toggle.first(),
+            "app.modals.help.key_labels.panels_menu",
+        ),
+        (
+            km.search_normal_open_status.first(),
+            "app.modals.help.key_labels.open_arch_status",
+        ),
+        (
+            km.search_normal_import.first(),
+            "app.modals.help.normal_mode.import",
+        ),
+        (
+            km.search_normal_export.first(),
+            "app.modals.help.normal_mode.export",
+        ),
+        (
+            km.search_normal_updates.first(),
+            "app.modals.help.normal_mode.updates",
+        ),
+        (
+            km.search_normal_pi_scan.first(),
+            "app.modals.help.key_labels.open_pi_scan",
+        ),
+    ] {
+        add_keybind_entry(
+            &mut shift_spans,
+            key,
+            key_style,
+            i18n::t(app, label_key).trim(),
+            sep_style,
+        );
+    }
+
+    vec![Line::from(spans), Line::from(shift_spans)]
 }
 
 /// What: Build SEARCH section spans.
@@ -581,120 +628,32 @@ fn build_recent_section(
 /// - Returns vector of lines for Normal Mode section (may be empty).
 ///
 /// Details:
-/// - Returns two lines: base normal mode help and optional menus/import-export line.
+/// - Returns one line containing only actions that depend on Search Normal Mode.
 fn build_normal_mode_section(app: &AppState, th: &Theme, key_style: Style) -> Vec<Line<'static>> {
     let km = &app.keymap;
-    let mut lines = Vec::new();
-
     let label =
         |v: &Vec<KeyChord>, def: &str| v.first().map_or_else(|| def.to_string(), KeyChord::label);
     let toggle_label = label(&km.search_normal_toggle, "Esc");
     let insert_label = label(&km.search_normal_insert, "i");
     let clear_label = label(&km.search_normal_clear, "Shift+Del");
 
-    let normal_mode_label = i18n::t(app, "app.modals.help.normal_mode.label");
-    let insert_mode_text = i18n::t(app, "app.modals.help.normal_mode.insert_mode");
-    let move_text = i18n::t(app, "app.modals.help.normal_mode.move");
-    let page_text = i18n::t(app, "app.modals.help.normal_mode.page");
-    let clear_input_text = i18n::t(app, "app.modals.help.normal_mode.clear_input");
-
     let n_spans: Vec<Span> = vec![
         Span::styled(
-            normal_mode_label,
+            i18n::t(app, "app.modals.help.normal_mode.label"),
             Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
         ),
         Span::raw("  "),
         Span::styled(format!("[{toggle_label} / {insert_label}]"), key_style),
-        Span::raw(insert_mode_text),
+        Span::raw(i18n::t(app, "app.modals.help.normal_mode.insert_mode")),
         Span::styled("[j / k]", key_style),
-        Span::raw(move_text),
+        Span::raw(i18n::t(app, "app.modals.help.normal_mode.move")),
         Span::styled("[Ctrl+d / Ctrl+u]", key_style),
-        Span::raw(page_text),
+        Span::raw(i18n::t(app, "app.modals.help.normal_mode.page")),
         Span::styled(format!("[{clear_label}]"), key_style),
-        Span::raw(clear_input_text),
+        Span::raw(i18n::t(app, "app.modals.help.normal_mode.clear_input")),
     ];
-    lines.push(Line::from(n_spans));
 
-    // Second line: menus and import/export (if any)
-    let mut second_line_spans: Vec<Span> = Vec::new();
-
-    if !km.config_menu_toggle.is_empty()
-        || !km.options_menu_toggle.is_empty()
-        || !km.panels_menu_toggle.is_empty()
-    {
-        let open_config_list_text = i18n::t(app, "app.modals.help.normal_mode.open_config_list");
-        let open_options_text = i18n::t(app, "app.modals.help.normal_mode.open_options");
-        let open_panels_text = i18n::t(app, "app.modals.help.normal_mode.open_panels");
-
-        if let Some(k) = km.config_menu_toggle.first() {
-            second_line_spans.push(Span::raw("  •  "));
-            second_line_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-            second_line_spans.push(Span::raw(open_config_list_text));
-        }
-        if let Some(k) = km.options_menu_toggle.first() {
-            second_line_spans.push(Span::raw("  •  "));
-            second_line_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-            second_line_spans.push(Span::raw(open_options_text));
-        }
-        if let Some(k) = km.panels_menu_toggle.first() {
-            second_line_spans.push(Span::raw("  •  "));
-            second_line_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-            second_line_spans.push(Span::raw(open_panels_text));
-        }
-    }
-
-    if let Some(key) = km.search_normal_pi_scan.first() {
-        second_line_spans.push(Span::raw("  •  "));
-        second_line_spans.push(Span::styled(format!("[{}]", key.label()), key_style));
-        second_line_spans.push(Span::raw(i18n::t(
-            app,
-            "app.modals.help.key_labels.open_pi_scan",
-        )));
-    }
-
-    if !app.installed_only_mode
-        && (!km.search_normal_import.is_empty()
-            || !km.search_normal_export.is_empty()
-            || !km.search_normal_updates.is_empty())
-    {
-        let install_list_text = i18n::t(app, "app.modals.help.normal_mode.install_list");
-        let import_text = i18n::t(app, "app.modals.help.normal_mode.import");
-        let export_text = i18n::t(app, "app.modals.help.normal_mode.export");
-        let updates_text = i18n::t(app, "app.modals.help.normal_mode.updates");
-
-        second_line_spans.push(Span::raw(install_list_text));
-        if let Some(k) = km.search_normal_import.first() {
-            second_line_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-            second_line_spans.push(Span::raw(import_text));
-            if let Some(k2) = km.search_normal_export.first() {
-                second_line_spans.push(Span::raw(", "));
-                second_line_spans.push(Span::styled(format!("[{}]", k2.label()), key_style));
-                second_line_spans.push(Span::raw(export_text));
-            }
-            if let Some(k3) = km.search_normal_updates.first() {
-                second_line_spans.push(Span::raw(", "));
-                second_line_spans.push(Span::styled(format!("[{}]", k3.label()), key_style));
-                second_line_spans.push(Span::raw(updates_text));
-            }
-        } else if let Some(k) = km.search_normal_export.first() {
-            second_line_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-            second_line_spans.push(Span::raw(export_text));
-            if let Some(k2) = km.search_normal_updates.first() {
-                second_line_spans.push(Span::raw(", "));
-                second_line_spans.push(Span::styled(format!("[{}]", k2.label()), key_style));
-                second_line_spans.push(Span::raw(updates_text));
-            }
-        } else if let Some(k) = km.search_normal_updates.first() {
-            second_line_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-            second_line_spans.push(Span::raw(updates_text));
-        }
-    }
-
-    if !second_line_spans.is_empty() {
-        lines.push(Line::from(second_line_spans));
-    }
-
-    lines
+    vec![Line::from(n_spans)]
 }
 
 /// What: Render the keybind help footer inside the Package Info pane.
@@ -735,14 +694,14 @@ pub fn render_footer(f: &mut Frame, app: &AppState, bottom_container: Rect, help
         let sep_style = Style::default().fg(th.overlay2);
 
         // Build all sections
-        let g_spans = build_globals_section(app, &th, key_style, sep_style);
+        let global_lines = build_globals_section(app, &th, key_style, sep_style);
         let s_spans = build_search_section(app, &th, key_style, sep_style);
         let (right_lines_install, right_lines_split) =
             build_install_section(app, &th, key_style, sep_style);
         let r_spans = build_recent_section(app, &th, key_style, sep_style);
 
         // Assemble lines based on focus
-        let mut lines: Vec<Line<'static>> = vec![Line::from(g_spans)];
+        let mut lines: Vec<Line<'static>> = global_lines;
         if matches!(app.focus, Focus::Search) {
             lines.push(Line::from(s_spans));
         }
@@ -1396,27 +1355,39 @@ pub fn config_editor_footer_reserved_rows(
 mod tests {
     use super::*;
 
-    /// What: Verify the Search Normal-mode footer advertises the configured Pi Scan shortcut.
+    /// What: Verify global Shift shortcuts appear only in the Globals footer section.
     ///
     /// Inputs:
-    /// - Default application state and theme
+    /// - Default application state and theme.
     ///
     /// Output:
-    /// - The rendered footer contains the configured `Shift+A` chord
+    /// - Globals contains the Pi Scan and menu chords while Normal Mode does not.
     ///
     /// Details:
-    /// - Guards discoverability of the shortcut used to enter the Pi Scan workspace.
+    /// - Keeps the footer categories aligned with the shortcuts' application-wide routing.
     #[test]
-    fn normal_mode_footer_advertises_pi_scan_shortcut() {
+    fn global_shift_shortcuts_appear_in_globals_footer() {
         let app = AppState::default();
-        let lines = build_normal_mode_section(&app, &theme(), Style::default());
-        let text = lines
+        let globals = build_globals_section(&app, &theme(), Style::default(), Style::default())
+            .iter()
+            .flat_map(|line| line.spans.iter())
+            .map(|span| span.content.as_ref())
+            .collect::<String>();
+        let normal = build_normal_mode_section(&app, &theme(), Style::default())
             .iter()
             .flat_map(|line| line.spans.iter())
             .map(|span| span.content.as_ref())
             .collect::<String>();
 
-        assert!(text.contains("[Shift+A]"));
+        for chord in [
+            "Shift+A", "Shift+C", "Shift+E", "Shift+I", "Shift+O", "Shift+P", "Shift+S", "Shift+U",
+        ] {
+            assert!(globals.contains(chord), "Globals omitted {chord}");
+            assert!(
+                !normal.contains(chord),
+                "Normal Mode still contains {chord}"
+            );
+        }
     }
 
     /// Config-editor Pi Scan setup footer must display the configured chord label.

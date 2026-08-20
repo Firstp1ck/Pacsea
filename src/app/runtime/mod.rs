@@ -217,7 +217,7 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
     run_event_loop(&mut terminal, &mut app, &mut channels).await;
 
     // Cleanup on exit - this resets flags and flushes caches
-    cleanup_on_exit(&mut app, &channels);
+    cleanup_on_exit(&mut app, &channels).await;
 
     // Drop channels to close request channels and stop workers from accepting new work
     drop(channels);

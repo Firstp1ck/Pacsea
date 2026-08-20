@@ -87,7 +87,10 @@ pub fn handle_mouse_event_with_pkgbuild_checks(
     }
 
     if matches!(app.app_mode, crate::state::types::AppMode::PiScan) {
-        return crate::events::pi_scan::handle_mouse(m, app);
+        // `pi_scan::handle_mouse` returns "event handled", while this function's return
+        // value means "request application exit"; never forward it directly.
+        let _handled = crate::events::pi_scan::handle_mouse(m, app);
+        return false;
     }
 
     // While the config editor window is active it behaves like a top

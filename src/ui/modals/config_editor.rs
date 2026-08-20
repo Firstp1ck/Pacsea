@@ -129,6 +129,35 @@ fn render_editor_into(
 }
 
 /// Pane rectangles for the editor body layout.
+/// What: Locate the top edge of the visible config-editor keybind footer.
+///
+/// Inputs:
+/// - `app`: Application state controlling keybind-footer visibility
+/// - `area`: Full config-editor rectangle, including its border
+/// - `state`: Config-editor state supplying an optional status row
+///
+/// Output:
+/// - The footer's first row when keybind hints are visible, otherwise `None`.
+///
+/// Details:
+/// - Uses the same inner rectangle and reserved-row calculation as [`split_body`].
+pub(in crate::ui) fn keybind_footer_top(
+    app: &AppState,
+    area: Rect,
+    state: &ConfigEditorState,
+) -> Option<u16> {
+    if !app.show_keybinds_footer {
+        return None;
+    }
+    let body = Block::default().borders(Borders::ALL).inner(area);
+    let footer_height = super::super::details::config_editor_footer_reserved_rows(true, app, state);
+    Some(
+        body.y
+            .saturating_add(body.height.saturating_sub(footer_height)),
+    )
+}
+
+/// Pane rectangles for the editor body layout.
 struct EditorPanes {
     /// Top: file list or key list.
     top: Rect,

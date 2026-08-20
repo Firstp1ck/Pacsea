@@ -55,9 +55,10 @@ use crate::pi_agent::setup_probe::{
 use crate::pi_scan_orchestrator::{
     DiscoveredPackage, DryRunAcquisitionReceipt, ExecutionFailure, ExecutionReceipt,
     FrozenScanIdentity, ObservationCommit, ObservationPackage, OrchestrationAdapter,
-    OrchestrationConfig, OrchestrationError, PiScanOrchestrator, PiScanSequentialRunner,
-    PiScanSetupConsentState, SetupSnapshot, UpdateCandidate,
+    OrchestrationConfig, OrchestrationError, PiScanExecutionPhaseReporter, PiScanOrchestrator,
+    PiScanSequentialRunner, PiScanSetupConsentState, SetupSnapshot, UpdateCandidate,
 };
+use crate::state::PiScanExecutionPhase;
 use crate::state::pi_scan::{
     PiScanActualUsage, PiScanBudgetLimits, PiScanReservation, PiScanTerminalRecord,
     PiScanTerminalStatus,
@@ -686,10 +687,21 @@ impl OrchestrationAdapter for ProductionOrchestrationAdapter {
         target: &FrozenScanIdentity,
         cancelled: &AtomicBool,
     ) -> Result<ExecutionReceipt, ExecutionFailure> {
+        let discard = |_: crate::state::PiScanExecutionProgress| {};
+        let progress = PiScanExecutionPhaseReporter::new(0, &discard);
+        self.execute_with_progress(target, cancelled, &progress)
+    }
+
+    fn execute_with_progress(
+        &mut self,
+        target: &FrozenScanIdentity,
+        cancelled: &AtomicBool,
+        progress: &PiScanExecutionPhaseReporter<'_>,
+    ) -> Result<ExecutionReceipt, ExecutionFailure> {
         if cancelled.load(Ordering::SeqCst) {
             return Err(ExecutionFailure::Cancelled);
         }
-        self.execute_frozen(target, cancelled)
+        self.execute_frozen(target, cancelled, progress)
     }
 
     fn revalidate_service(&mut self, target: &FrozenScanIdentity) -> Result<(), String> {
@@ -976,10 +988,12 @@ impl ProductionOrchestrationAdapter {
         &mut self,
         target: &FrozenScanIdentity,
         cancelled: &AtomicBool,
+        progress: &PiScanExecutionPhaseReporter<'_>,
     ) -> Result<ExecutionReceipt, ExecutionFailure> {
         let package_name =
             PackageName::new(target.package_name.clone()).map_err(service_failure)?;
         let mut pre_model_retry_used = false;
+        progress.report(PiScanExecutionPhase::ResolvingMetadata);
         let rpc = if let Some(rpc) = self.rpc_by_base.get(target.package_base.as_str()) {
             rpc.clone()
         } else {
@@ -987,8 +1001,10 @@ impl ProductionOrchestrationAdapter {
             match fetch_aur_rpc_package_base(&mut network, package_name.as_str()) {
                 Ok(rpc) => rpc,
                 Err(first_error) if Self::is_transient_pre_model(&first_error) => {
+                    progress.report(PiScanExecutionPhase::WaitingToRetry);
                     Self::wait_for_pre_model_retry(cancelled)?;
                     pre_model_retry_used = true;
+                    progress.report(PiScanExecutionPhase::ResolvingMetadata);
                     let mut retry_network = self.network().map_err(service_failure)?;
                     fetch_aur_rpc_package_base(&mut retry_network, package_name.as_str()).map_err(
                         |second_error| {
@@ -1009,12 +1025,15 @@ impl ProductionOrchestrationAdapter {
             limits: AcquisitionLimits::default(),
             dry_run: false,
         };
+        progress.report(PiScanExecutionPhase::AcquiringSources);
         let acquisition = match self.acquire_once(&request) {
             Ok(acquisition) => acquisition,
             Err(first_error)
                 if !pre_model_retry_used && Self::is_transient_pre_model(&first_error) =>
             {
+                progress.report(PiScanExecutionPhase::WaitingToRetry);
                 Self::wait_for_pre_model_retry(cancelled)?;
+                progress.report(PiScanExecutionPhase::AcquiringSources);
                 self.acquire_once(&request).map_err(|second_error| {
                     ExecutionFailure::Service(format!(
                         "pre-model acquisition failed twice after the one-minute retry: {first_error}; {second_error}"
@@ -1037,6 +1056,7 @@ impl ProductionOrchestrationAdapter {
                 "Pi setup was not verified before execution; re-run scanner setup".to_string(),
             )
         })?;
+        progress.report(PiScanExecutionPhase::RunningModel);
         let output = execute_scan(ProductionScanRequest {
             workspace_parent: &self.config.workspace_parent,
             executable: &self.config.pi_executable,
@@ -1063,6 +1083,7 @@ impl ProductionOrchestrationAdapter {
             result.limitations.sort();
             result.limitations.dedup();
         }
+        progress.report(PiScanExecutionPhase::RecheckingIdentity);
         let mutable_changed = self
             .recheck_mutable_sources(&acquisition.mutable_sources)
             .map_err(ExecutionFailure::Service)?;
@@ -2031,27 +2052,43 @@ async fn execute_one(
 ) -> bool {
     let started_at = unix_now();
     let (started_tx, mut started_rx) = tokio::sync::mpsc::unbounded_channel();
+    let (phase_tx, mut phase_rx) = tokio::sync::mpsc::unbounded_channel();
     let run = {
         let runner = runner.clone();
-        tokio::spawn(async move { runner.run_next_with_started(started_at, started_tx).await })
+        tokio::spawn(async move {
+            runner
+                .run_next_with_progress(started_at, started_tx, phase_tx)
+                .await
+        })
     };
     let active = started_rx.recv().await;
     if let Some(item) = active.as_ref() {
         drop(progress_tx.send(PiScanProgressMessage::Started(item.clone())));
     }
+    let phase_progress_tx = progress_tx.clone();
+    let phase_forwarder = tokio::spawn(async move {
+        while let Some(update) = phase_rx.recv().await {
+            drop(phase_progress_tx.send(PiScanProgressMessage::PhaseChanged(update)));
+        }
+    });
     let had_active = active.is_some();
-    match run.await {
+    let outcome = run.await;
+    let _ = phase_forwarder.await;
+    match outcome {
         Ok(Ok(Some(receipt))) => {
             drop(result_tx.send(PiScanResultMessage::Validated(Box::new(receipt))));
             true
         }
         Ok(Ok(None)) => false,
         Ok(Err(OrchestrationError::Cancelled)) => {
-            publish_cancelled(active, result_tx);
+            let record = terminal_record_for_active(runner, active.as_ref()).await;
+            publish_cancelled(record, result_tx);
             had_active
         }
         Ok(Err(error)) => {
-            reject(result_tx, error.to_string());
+            let reason = error.to_string();
+            let record = terminal_record_for_active(runner, active.as_ref()).await;
+            publish_failed(record, result_tx, reason);
             false
         }
         Err(error) => {
@@ -2064,27 +2101,93 @@ async fn execute_one(
     }
 }
 
-/// Publish a terminal cancellation from the exact active item when it was registered.
+/// What: Resolve the exact persisted terminal record for one projected active item.
+///
+/// Inputs:
+/// - `runner`: Single-owner orchestrator whose execution just settled.
+/// - `active`: Exact active item previously projected to the UI.
+///
+/// Output:
+/// - Matching terminal record, or `None` when no exact durable transition can be proven.
+///
+/// Details:
+/// - Correlation, request ID, and immutable queue key must all match. Missing or unavailable
+///   state is never replaced with a guessed terminal disposition.
+async fn terminal_record_for_active(
+    runner: &PiScanSequentialRunner<ProductionOrchestrationAdapter>,
+    active: Option<&crate::state::pi_scan::PiScanActiveItem>,
+) -> Option<PiScanTerminalRecord> {
+    let active = active?;
+    let state = runner.state_snapshot().await.ok()?;
+    state.runtime.terminal.into_iter().rev().find(|record| {
+        record.correlation_id == active.correlation_id
+            && record.request.request_id == active.request.request_id
+            && record.request.key == active.request.key
+    })
+}
+
+/// What: Publish an exact persisted cancellation or interruption.
+///
+/// Inputs:
+/// - `record`: Exact terminal record resolved from the orchestrator.
+/// - `result_tx`: UI result projection channel.
+///
+/// Output:
+/// - Sends one cancellation/interruption result, or an actionable rejection if unavailable.
+///
+/// Details:
+/// - The record status is preserved so shutdown interruption is never guessed as cancellation.
 fn publish_cancelled(
-    active: Option<crate::state::pi_scan::PiScanActiveItem>,
+    record: Option<PiScanTerminalRecord>,
     result_tx: &tokio::sync::mpsc::UnboundedSender<PiScanResultMessage>,
 ) {
-    let Some(active) = active else {
+    let Some(record) = record else {
         reject(
             result_tx,
-            "Pi scan was cancelled before an active identity could be projected".to_string(),
+            "Pi scan ended without an exact persisted cancellation or interruption record"
+                .to_string(),
         );
         return;
     };
+    if !matches!(
+        record.status,
+        PiScanTerminalStatus::Cancelled | PiScanTerminalStatus::Interrupted
+    ) {
+        reject(
+            result_tx,
+            "Pi scan cancellation resolved to an unexpected terminal status".to_string(),
+        );
+        return;
+    }
     drop(result_tx.send(PiScanResultMessage::Cancelled {
-        record: PiScanTerminalRecord {
-            request: active.request,
-            correlation_id: active.correlation_id,
-            status: PiScanTerminalStatus::Cancelled,
-            finished_at_unix: unix_now(),
-        },
+        record,
         warning: None,
     }));
+}
+
+/// What: Publish an exact persisted active-execution failure with actionable context.
+///
+/// Inputs:
+/// - `record`: Exact terminal record resolved from the orchestrator.
+/// - `result_tx`: UI result projection channel.
+/// - `reason`: Bounded execution failure reason.
+///
+/// Output:
+/// - Sends one failed terminal result, otherwise preserves legacy rejection feedback.
+///
+/// Details:
+/// - Only a durable `Failed` record is projected into live counts; pre-start and persistence
+///   errors without a proven terminal transition remain ordinary rejections.
+fn publish_failed(
+    record: Option<PiScanTerminalRecord>,
+    result_tx: &tokio::sync::mpsc::UnboundedSender<PiScanResultMessage>,
+    reason: String,
+) {
+    let Some(record) = record.filter(|record| record.status == PiScanTerminalStatus::Failed) else {
+        reject(result_tx, reason);
+        return;
+    };
+    drop(result_tx.send(PiScanResultMessage::Failed { record, reason }));
 }
 
 /// Apply exact correlated cancellation while execution continues on the blocking pool.
@@ -2177,18 +2280,71 @@ mod tests {
     use super::{
         ProbedModel, ProductionOrchestrationAdapter, RuntimeConsentProjection,
         background_observation_due, classify_foreign_rpc_result, missing_selected_foreign_packages,
-        publish_observation, publish_policy_notice, reservation_from_probed_models,
-        resolve_production_adapter_config,
+        publish_cancelled, publish_failed, publish_observation, publish_policy_notice,
+        reservation_from_probed_models, resolve_production_adapter_config,
     };
     use crate::app::runtime::workers::pi_scan::{
         PiScanNoticeSource, PiScanPolicyAcknowledgement, PiScanResultMessage, PiScanRuntimeAction,
     };
     use crate::logic::pi_scan::acquisition::AcquisitionError;
+    use crate::logic::pi_scan::identity::{CommitOid, PackageBase};
     use crate::pi_agent::session::ModelChoice;
     use crate::pi_scan_orchestrator::{OrchestrationAdapter, OrchestrationError};
-    use crate::state::pi_scan::PiScanReservation;
+    use crate::state::pi_scan::{
+        PiScanJobRequest, PiScanPriority, PiScanQueueKey, PiScanReservation, PiScanTerminalRecord,
+        PiScanTerminalStatus,
+    };
     use std::collections::BTreeSet;
     use std::time::Duration;
+
+    /// Build one exact terminal record for result-publication tests.
+    fn terminal_record(status: PiScanTerminalStatus) -> PiScanTerminalRecord {
+        PiScanTerminalRecord {
+            request: PiScanJobRequest {
+                request_id: 7,
+                key: PiScanQueueKey {
+                    package_base: PackageBase::new("progress-demo").expect("package base"),
+                    commit_oid: CommitOid::new("a".repeat(40)).expect("commit OID"),
+                },
+                priority: PiScanPriority::Foreground,
+                reservation: PiScanReservation {
+                    tokens: 1_000,
+                    cost_microusd: 10,
+                },
+                manual_budget_override_confirmed: false,
+            },
+            correlation_id: 19,
+            status,
+            finished_at_unix: 20,
+        }
+    }
+
+    /// Failed and interrupted publishers must preserve their exact terminal dispositions.
+    #[test]
+    fn terminal_publishers_preserve_failed_and_interrupted_statuses() {
+        let (result_tx, mut result_rx) = tokio::sync::mpsc::unbounded_channel();
+
+        publish_cancelled(
+            Some(terminal_record(PiScanTerminalStatus::Interrupted)),
+            &result_tx,
+        );
+        assert!(matches!(
+            result_rx.try_recv(),
+            Ok(PiScanResultMessage::Cancelled { record, warning: None })
+                if record.status == PiScanTerminalStatus::Interrupted
+        ));
+
+        publish_failed(
+            Some(terminal_record(PiScanTerminalStatus::Failed)),
+            &result_tx,
+            "typed failure".to_string(),
+        );
+        assert!(matches!(
+            result_rx.try_recv(),
+            Ok(PiScanResultMessage::Failed { record, reason })
+                if record.status == PiScanTerminalStatus::Failed && reason == "typed failure"
+        ));
+    }
 
     /// A transient startup failure must not permanently disable consented periodic observation.
     #[test]

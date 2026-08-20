@@ -78,6 +78,39 @@ pub enum PiScanReadiness {
     Confirmed,
 }
 
+/// Transient phase of one active Pi Scan execution.
+///
+/// This type is intentionally not serializable: durable runtime recovery owns queue and terminal
+/// state, while an in-flight phase can only be reported truthfully by the current process.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PiScanExecutionPhase {
+    /// The orchestrator registered the exact active item and is preparing its frozen target.
+    Preparing,
+    /// The adapter is resolving current AUR metadata needed for immutable acquisition.
+    ResolvingMetadata,
+    /// A bounded transient pre-model failure is waiting before its one allowed retry.
+    WaitingToRetry,
+    /// Immutable recipe and source snapshots are being acquired and integrity-checked.
+    AcquiringSources,
+    /// Pi is executing the selected model route and validating its typed response.
+    RunningModel,
+    /// Mutable source references and official AUR HEAD are being rechecked after analysis.
+    RecheckingIdentity,
+    /// The orchestrator is validating the returned receipt against the frozen target.
+    ValidatingResult,
+    /// The validated result and exact accounting transition are being persisted.
+    Finalizing,
+}
+
+/// Correlation-owned transient progress update for one active execution.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PiScanExecutionProgress {
+    /// Exact active runtime correlation owning this update.
+    pub correlation_id: u64,
+    /// Current observable execution phase.
+    pub phase: PiScanExecutionPhase,
+}
+
 /// Selectable package-base target shown in the workspace.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PiScanTarget {
@@ -433,6 +466,8 @@ pub struct PiScanDryRunPreview {
 pub struct PiScanWorkspaceState {
     /// Cohesive queue/consent/budget projection owned by the runtime contract.
     pub runtime: PiScanRuntimeState,
+    /// Correlation-owned in-process phase for the current active execution.
+    pub active_progress: Option<PiScanExecutionProgress>,
     /// Effective conservative settings snapshot.
     pub settings: PiScanSettings,
     /// Current page.
@@ -443,6 +478,8 @@ pub struct PiScanWorkspaceState {
     pub selected_target: usize,
     /// Independently selected result row, preserved when Details opens.
     pub selected_result: usize,
+    /// Session-only result indices whose package details are expanded.
+    pub expanded_results: BTreeSet<usize>,
     /// Legacy detail-scroll projection synchronized with `view_scroll.details`.
     pub detail_scroll: u16,
     /// Independent per-view line and item scroll offsets.
@@ -513,11 +550,13 @@ impl Default for PiScanWorkspaceState {
     fn default() -> Self {
         Self {
             runtime: PiScanRuntimeState::default(),
+            active_progress: None,
             settings: PiScanSettings::default(),
             view: PiScanView::Setup,
             selected: 0,
             selected_target: 0,
             selected_result: 0,
+            expanded_results: BTreeSet::new(),
             detail_scroll: 0,
             view_scroll: PiScanViewScrollState::default(),
             availability: PiScanAvailability::Disabled,
@@ -771,7 +810,8 @@ impl PiScanWorkspaceState {
     ///
     /// Details:
     /// - Entering Results clears the unseen count; entering Details resets only details line scroll.
-    pub const fn set_view(&mut self, view: PiScanView) {
+    pub fn set_view(&mut self, view: PiScanView) {
+        let entering_details = self.view != PiScanView::Details && view == PiScanView::Details;
         self.view = view;
         match view {
             PiScanView::Targets => self.selected = self.selected_target,
@@ -783,6 +823,9 @@ impl PiScanWorkspaceState {
                 self.selected = self.selected_result;
                 self.view_scroll.details = 0;
                 self.detail_scroll = 0;
+                if entering_details {
+                    self.reset_result_expansion();
+                }
             }
             PiScanView::Setup | PiScanView::Overview | PiScanView::Progress => self.selected = 0,
         }
@@ -792,6 +835,8 @@ impl PiScanWorkspaceState {
     pub fn clamp_selection(&mut self) {
         self.selected_target = clamp_index(self.selected_target, self.targets.len());
         self.selected_result = clamp_index(self.selected_result, self.results.len());
+        self.expanded_results
+            .retain(|index| *index < self.results.len());
         self.view_scroll.targets = clamp_index(self.view_scroll.targets, self.targets.len());
         self.view_scroll.results = clamp_index(self.view_scroll.results, self.results.len());
         self.selected = match self.view {
@@ -830,6 +875,28 @@ impl PiScanWorkspaceState {
     /// Toggle session-only raw output visibility without rewriting settings.
     pub const fn toggle_raw_output(&mut self) {
         self.show_raw_output = !self.show_raw_output;
+    }
+
+    /// Return whether one valid result package is expanded in Details.
+    #[must_use]
+    pub fn is_result_expanded(&self, index: usize) -> bool {
+        index < self.results.len() && self.expanded_results.contains(&index)
+    }
+
+    /// Toggle one valid result package and return its resulting expansion state.
+    pub fn toggle_result_expansion(&mut self, index: usize) -> bool {
+        if index >= self.results.len() {
+            return false;
+        }
+        if !self.expanded_results.insert(index) {
+            self.expanded_results.remove(&index);
+        }
+        self.is_result_expanded(index)
+    }
+
+    /// Clear all session-only package expansion state.
+    pub fn reset_result_expansion(&mut self) {
+        self.expanded_results.clear();
     }
 
     /// Replace target-row hit rectangles after one render.
@@ -929,4 +996,71 @@ fn hit_test_rows(rects: &[PiScanListHitRect], column: u16, row: u16) -> Option<u
         .iter()
         .find(|rect| rect.contains(column, row))
         .map(|rect| rect.index)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::logic::pi_scan::result::{ExpectedIdentity, MergedScanResult};
+
+    /// Build a minimal validated result for expansion-state tests.
+    fn display_result(package: &str) -> PiScanDisplayResult {
+        PiScanDisplayResult {
+            validated: MergedScanResult {
+                identity: ExpectedIdentity {
+                    scan_id: format!("scan-{package}"),
+                    package_base: package.to_string(),
+                    commit_oid: "commit".to_string(),
+                },
+                coverage: Coverage::Complete,
+                limitations: Vec::new(),
+                findings: Vec::new(),
+            },
+            observed_head_oid: "head".to_string(),
+            stale: false,
+            mutable_sources: Vec::new(),
+        }
+    }
+
+    /// Expansion toggles only valid result indices and reports the resulting state.
+    #[test]
+    fn expansion_toggle_is_safe_and_deterministic() {
+        let mut state = PiScanWorkspaceState::default();
+        state.results.push(display_result("alpha"));
+
+        assert!(!state.is_result_expanded(1));
+        assert!(!state.toggle_result_expansion(1));
+        assert!(state.toggle_result_expansion(0));
+        assert!(state.is_result_expanded(0));
+        assert!(!state.toggle_result_expansion(0));
+        assert!(!state.is_result_expanded(0));
+    }
+
+    /// Clamping drops expansion entries that no longer identify a result.
+    #[test]
+    fn clamp_selection_removes_stale_expansion_indices() {
+        let mut state = PiScanWorkspaceState::default();
+        state.results.push(display_result("alpha"));
+        state.results.push(display_result("beta"));
+        state.expanded_results.extend([0, 1, 7]);
+
+        state.results.truncate(1);
+        state.clamp_selection();
+
+        assert_eq!(state.expanded_results, BTreeSet::from([0]));
+    }
+
+    /// Entering Details starts a fresh session-only expansion projection.
+    #[test]
+    fn entering_details_resets_expansion_state() {
+        let mut state = PiScanWorkspaceState::default();
+        state.results.push(display_result("alpha"));
+        state.expanded_results.insert(0);
+
+        state.set_view(PiScanView::Details);
+
+        assert!(state.expanded_results.is_empty());
+        assert_eq!(state.view_scroll.details, 0);
+        assert_eq!(state.detail_scroll, 0);
+    }
 }

@@ -496,6 +496,19 @@ keybind_comments_toggle = CTRL+T\n\
 keybind_run_pkgbuild_checks = CTRL+K\n\
 keybind_cycle_pkgbuild_sections = CTRL+D\n\
 \n\
+# GLOBAL — Menus\n\
+keybind_toggle_config = Shift+C\n\
+keybind_toggle_options = Shift+O\n\
+keybind_toggle_panels = Shift+P\n\
+\n\
+# GLOBAL — Package actions\n\
+# These legacy key names remain valid across Search, Recent, and Install panes.\n\
+keybind_search_normal_open_status = Shift+S\n\
+keybind_search_normal_import = Shift+I\n\
+keybind_search_normal_export = Shift+E\n\
+keybind_search_normal_updates = Shift+U\n\
+keybind_search_normal_pi_scan = Shift+A\n\
+\n\
 # GLOBAL — Pane switching\n\
 keybind_pane_left = Left\n\
 keybind_pane_right = Right\n\
@@ -526,24 +539,6 @@ keybind_search_normal_select_left = h\n\
 keybind_search_normal_select_right = l\n\
 keybind_search_normal_delete = d\n\
 keybind_search_normal_clear = Shift+Del\n\
-\n\
-# SEARCH — Normal Mode (Menus)\n\
-# Toggle dropdown menus while in Normal Mode\n\
-keybind_toggle_config = Shift+C\n\
-keybind_toggle_options = Shift+O\n\
-keybind_toggle_panels = Shift+P\n\
-\n\
-# SEARCH — Normal Mode (Other)\n\
-# Open Arch status page in default browser\n\
-keybind_search_normal_open_status = Shift+S\n\
-# Import packages list into Install list\n\
-keybind_search_normal_import = Shift+I\n\
-# Export current Install list to a file\n\
-keybind_search_normal_export = Shift+E\n\
-# Open Available Updates window\n\
-keybind_search_normal_updates = Shift+U\n\
-# Open optional Pi Scan workspace\n\
-keybind_search_normal_pi_scan = Shift+A\n\
 \n\
 # SEARCH — Fuzzy Search Toggle\n\
 # Toggle between normal substring search and fuzzy search (fzf-style)\n\

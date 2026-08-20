@@ -9,8 +9,8 @@ use pacsea::logic::pi_scan::result::{
 };
 use pacsea::state::types::AppMode;
 use pacsea::state::{
-    AppState, PackageItem, PiScanAvailability, PiScanDisplayResult, PiScanUiAction, PiScanView,
-    PkgbuildCheckRequest, Source,
+    AppState, Focus, PackageItem, PiScanAvailability, PiScanDisplayResult, PiScanExecutionPhase,
+    PiScanExecutionProgress, PiScanUiAction, PiScanView, PkgbuildCheckRequest, Source,
 };
 use ratatui::{Terminal, backend::TestBackend};
 use tokio::sync::mpsc;
@@ -48,7 +48,7 @@ fn display_result(name: &str, finding_count: usize) -> PiScanDisplayResult {
             severity: Severity::Medium,
             snapshot: "recipe".to_string(),
             path: format!("path/{index}"),
-            evidence: format!("evidence line {index}"),
+            evidence: format!("evidence {name} line {index}"),
             assessments: Vec::new(),
             disagreement: false,
         })
@@ -128,11 +128,12 @@ fn pi_scan_settings_are_conservative_and_report_raised_limits() {
     assert_eq!(settings.validation_issues().len(), 2);
 }
 
-/// Verify Shift+A opens Pi Scan only from Search normal mode with AUR context.
+/// Verify Shift+A opens Pi Scan globally with the selected AUR context.
 #[test]
-fn shift_a_from_search_normal_mode_opens_contextual_pi_scan() {
+fn shift_a_from_install_insert_mode_opens_contextual_pi_scan() {
     let mut app = AppState {
-        search_normal_mode: true,
+        focus: Focus::Install,
+        search_normal_mode: false,
         ..AppState::default()
     };
     app.results.push(PackageItem {
@@ -475,19 +476,28 @@ fn cancel_without_active_scan_sets_notice() {
     );
 }
 
-/// Session raw-output toggling changes workspace state without rewriting settings.
+/// Raw details start collapsed and `t` changes only session state, not persisted settings.
 #[test]
-fn details_raw_output_toggle_is_session_only() {
+fn details_raw_output_starts_collapsed_and_toggle_is_session_only() {
     let mut app = AppState {
         app_mode: AppMode::PiScan,
         ..AppState::default()
     };
     load_english(&mut app);
+    app.pi_scan.settings.show_raw_output = true;
     app.pi_scan.results.push(display_result("raw-demo", 1));
     app.pi_scan.set_view(PiScanView::Details);
-    assert!(!app.pi_scan.settings.show_raw_output);
-    let hidden = render_text(&mut app, 100, 24);
-    assert!(!hidden.contains("Canonical validated-data view"));
+    assert!(app.pi_scan.settings.show_raw_output);
+
+    assert!(pacsea::events::pi_scan::handle_key(
+        KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE),
+        &mut app,
+    ));
+    assert!(app.pi_scan.is_result_expanded(0));
+    let hidden = render_text(&mut app, 120, 30);
+    assert!(hidden.contains("Technical details"), "{hidden:?}");
+    assert!(hidden.contains("hidden · t to show"), "{hidden:?}");
+    assert!(!hidden.contains("\"scan_id\""), "{hidden:?}");
 
     assert!(pacsea::events::pi_scan::handle_key(
         KeyEvent::new(KeyCode::Char('t'), KeyModifiers::NONE),
@@ -495,9 +505,104 @@ fn details_raw_output_toggle_is_session_only() {
     ));
 
     assert!(app.pi_scan.show_raw_output);
-    assert!(!app.pi_scan.settings.show_raw_output);
-    let shown = render_text(&mut app, 100, 30);
-    assert!(shown.contains("Canonical validated-data view"), "{shown:?}");
+    assert!(app.pi_scan.settings.show_raw_output);
+    let shown = render_text(&mut app, 120, 40);
+    assert!(shown.contains("visible · t to hide"), "{shown:?}");
+    assert!(shown.contains("\"scan_id\""), "{shown:?}");
+}
+
+/// Details keep every package header visible while hiding collapsed package content.
+#[test]
+fn details_render_package_headers_and_collapsed_content() {
+    let mut app = AppState {
+        app_mode: AppMode::PiScan,
+        ..AppState::default()
+    };
+    load_english(&mut app);
+    app.pi_scan.results.push(display_result("first", 1));
+    app.pi_scan.results.push(display_result("second", 1));
+    app.pi_scan.set_view(PiScanView::Details);
+
+    let collapsed = render_text(&mut app, 120, 24);
+    assert!(collapsed.contains("▸ first  [selected]"), "{collapsed:?}");
+    assert!(collapsed.contains("▸ second"), "{collapsed:?}");
+    assert!(
+        !collapsed.contains("evidence first line 0"),
+        "{collapsed:?}"
+    );
+    assert!(
+        !collapsed.contains("evidence second line 0"),
+        "{collapsed:?}"
+    );
+
+    assert!(app.pi_scan.toggle_result_expansion(1));
+    let second_expanded = render_text(&mut app, 120, 24);
+    assert!(second_expanded.contains("▸ first  [selected]"));
+    assert!(second_expanded.contains("▾ second"));
+    assert!(!second_expanded.contains("evidence first line 0"));
+    assert!(second_expanded.contains("evidence second line 0"));
+}
+
+/// Expanded Details use readable sections and keep exact scanner messages hidden by default.
+#[test]
+fn single_details_section_is_package_labeled_and_readable() {
+    let mut app = AppState {
+        app_mode: AppMode::PiScan,
+        ..AppState::default()
+    };
+    load_english(&mut app);
+    let mut result = display_result("single", 1);
+    result.validated.coverage = Coverage::Incomplete;
+    result.validated.limitations = vec![
+        "Recipe and source snapshot tools were unavailable, so recipe files could not be inspected."
+            .to_string(),
+        "The recipe tree contains an incomplete archive entry: pax_global_header.".to_string(),
+        "The source snapshot is empty and has documented incomplete archive coverage."
+            .to_string(),
+        "recipe tree is incomplete: archive special or unknown entry `pax_global_header`"
+            .to_string(),
+        "source `package.xml` is incomplete: package.xml is unsupported: malformed URL: relative URL without a base"
+            .to_string(),
+        "source `platform-37.0_r02.zip` is incomplete: at least one strong checksum matched; archive entry-count limit exceeded"
+            .to_string(),
+        "source package.xml is malformed due to a relative URL without a base.".to_string(),
+        "source platform-37.0_r02.zip exceeded the archive entry-count limit.".to_string(),
+    ];
+    app.pi_scan.results.push(result);
+    app.pi_scan.set_view(PiScanView::Details);
+    assert!(app.pi_scan.toggle_result_expansion(0));
+
+    let rendered = render_text(&mut app, 160, 45);
+    for expected in [
+        "▾ single  [selected]",
+        "Review summary",
+        "1 finding needs review",
+        "Some files could not be checked",
+        "What could not be checked (5)",
+        "Some package files could not be inspected",
+        "The package archive contains an unsupported entry: `pax_global_header`.",
+        "No source files were available to inspect.",
+        "`package.xml` could not be inspected because its download address is incomplete.",
+        "`platform-37.0_r02.zip` was only partially checked",
+        "Findings (1)",
+        "Location: recipe / path/0",
+        "Evidence: evidence single line 0",
+        "Technical details",
+        "hidden · t to show",
+    ] {
+        assert!(
+            rendered.contains(expected),
+            "missing {expected:?}: {rendered:?}"
+        );
+    }
+    assert!(
+        !rendered.contains("relative URL without a base"),
+        "{rendered:?}"
+    );
+    assert!(
+        !rendered.contains("archive entry-count limit exceeded"),
+        "{rendered:?}"
+    );
 }
 
 /// Verify dry-run queue action requests bounded acquisition without local queue mutation.
@@ -667,6 +772,16 @@ fn all_locales_include_pi_scan_workspace_translations() {
             "app.pi_scan.targets.dry_run_disclosure",
             "app.pi_scan.progress.running_for",
             "app.pi_scan.progress.reservation",
+            "app.pi_scan.progress.current_step",
+            "app.pi_scan.progress.working",
+            "app.pi_scan.progress.phase.preparing",
+            "app.pi_scan.progress.phase.resolving_metadata",
+            "app.pi_scan.progress.phase.waiting_to_retry",
+            "app.pi_scan.progress.phase.acquiring_sources",
+            "app.pi_scan.progress.phase.running_model",
+            "app.pi_scan.progress.phase.rechecking_identity",
+            "app.pi_scan.progress.phase.validating_result",
+            "app.pi_scan.progress.phase.finalizing",
             "app.pi_scan.details.ack_keys",
             "app.pi_scan.footer.keys.targets",
             "app.pi_scan.footer.keys.progress",
@@ -820,6 +935,8 @@ fn long_details_scrolls_by_keys_and_wheel_while_preserving_selection() {
     app.pi_scan.results.push(display_result("second", 100));
     app.pi_scan.selected_result = 1;
     app.pi_scan.set_view(PiScanView::Details);
+    assert!(app.pi_scan.toggle_result_expansion(0));
+    assert!(app.pi_scan.toggle_result_expansion(1));
 
     assert!(pacsea::events::pi_scan::handle_key(
         KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE),
@@ -941,6 +1058,10 @@ fn active_progress_and_overview_render_elapsed_reservation_and_consumed_usage() 
             .saturating_sub(65),
         cancellation_suppressed: false,
     });
+    app.pi_scan.active_progress = Some(PiScanExecutionProgress {
+        correlation_id: 7,
+        phase: PiScanExecutionPhase::RunningModel,
+    });
     app.pi_scan
         .runtime
         .budget
@@ -956,6 +1077,11 @@ fn active_progress_and_overview_render_elapsed_reservation_and_consumed_usage() 
     app.pi_scan.set_view(PiScanView::Progress);
     let progress = render_text(&mut app, 120, 24);
     assert!(progress.contains("01:05"), "{progress:?}");
+    assert!(progress.contains("Current step"), "{progress:?}");
+    assert!(
+        progress.contains("Pi is analyzing the package and validating its response"),
+        "{progress:?}"
+    );
     assert!(progress.contains("12,345 tokens"));
     assert!(progress.contains("$0.125 USD"));
 
@@ -963,6 +1089,89 @@ fn active_progress_and_overview_render_elapsed_reservation_and_consumed_usage() 
     let overview = render_text(&mut app, 120, 24);
     assert!(overview.contains("tokens 1,234"), "{overview:?}");
     assert!(overview.contains("$0.05 USD"));
+}
+
+/// Queued paused work must use a static marker and explain every sticky pause reason.
+#[test]
+fn queued_progress_renders_static_pause_reasons_and_position() {
+    let mut app = AppState {
+        app_mode: AppMode::PiScan,
+        ..AppState::default()
+    };
+    load_english(&mut app);
+    app.pi_scan.runtime.queue.push_back(scan_request());
+    app.pi_scan
+        .runtime
+        .pause_reasons
+        .insert(pacsea::state::pi_scan::PiScanPauseReason::User);
+    app.pi_scan
+        .runtime
+        .pause_reasons
+        .insert(pacsea::state::pi_scan::PiScanPauseReason::Budget);
+    app.pi_scan.set_view(PiScanView::Progress);
+
+    let progress = render_text(&mut app, 120, 24);
+
+    assert!(
+        progress.contains("Waiting for the next scan to start"),
+        "{progress:?}"
+    );
+    assert!(progress.contains("Paused: user pause, budget pause"));
+    assert!(progress.contains("1 queued"));
+    assert!(progress.contains("1. demo @"));
+    assert!(progress.contains('⏸'), "{progress:?}");
+    for frame in ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] {
+        assert!(
+            !progress.contains(frame),
+            "paused UI contained {frame}: {progress:?}"
+        );
+    }
+}
+
+/// Mixed terminal outcomes must render summary counts and remain safe at narrow widths.
+#[test]
+fn progress_summary_renders_mixed_counts_and_narrow_active_layout() {
+    let mut app = AppState {
+        app_mode: AppMode::PiScan,
+        ..AppState::default()
+    };
+    load_english(&mut app);
+    let request = scan_request();
+    app.pi_scan.runtime.active = Some(pacsea::state::pi_scan::PiScanActiveItem {
+        correlation_id: 9,
+        request: request.clone(),
+        started_at_unix: 1,
+        cancellation_suppressed: false,
+    });
+    app.pi_scan.runtime.queue.push_back(request.clone());
+    for (correlation_id, status) in [
+        (7, pacsea::state::pi_scan::PiScanTerminalStatus::Completed),
+        (8, pacsea::state::pi_scan::PiScanTerminalStatus::Failed),
+    ] {
+        app.pi_scan
+            .runtime
+            .terminal
+            .push(pacsea::state::pi_scan::PiScanTerminalRecord {
+                request: request.clone(),
+                correlation_id,
+                status,
+                finished_at_unix: 2,
+            });
+    }
+    app.pi_scan.set_view(PiScanView::Progress);
+
+    let progress = render_text(&mut app, 120, 24);
+    for expected in ["2/4", "1 running", "1 queued", "1 completed", "1 failed"] {
+        assert!(
+            progress.contains(expected),
+            "missing {expected}: {progress:?}"
+        );
+    }
+
+    app.pi_scan.view_scroll.progress = u16::MAX;
+    let narrow = render_text(&mut app, 20, 10);
+    assert!(!narrow.trim().is_empty());
+    assert!(app.pi_scan.view_scroll.progress < u16::MAX);
 }
 
 /// Verify approved no-findings wording and narrow terminal rendering remain deterministic.

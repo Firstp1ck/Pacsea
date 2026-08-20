@@ -315,6 +315,8 @@ pub enum PiScanProgressMessage {
     },
     /// One request became active and is ready for deferred acquisition/execution.
     Started(PiScanActiveItem),
+    /// Correlation-owned transient execution phase from the production adapter.
+    PhaseChanged(crate::state::PiScanExecutionProgress),
     /// Work remains queued behind a policy gate.
     Paused(PiScanStartBlock),
     /// Dry-run preview; no queue, budget, consent, pause, or durable state changed.
@@ -365,12 +367,19 @@ pub enum PiScanResultMessage {
     },
     /// Strictly correlated completion accepted.
     Completed(PiScanTerminalRecord),
-    /// Cancellation completed; optional warning reports missing/failed process teardown.
+    /// Cancellation or shutdown interruption completed; the record retains its exact status.
     Cancelled {
-        /// Terminal cancellation record.
+        /// Terminal cancellation or interruption record.
         record: PiScanTerminalRecord,
         /// Actionable abort/reap warning.
         warning: Option<String>,
+    },
+    /// Active execution failed and its exact terminal transition was persisted.
+    Failed {
+        /// Correlated failed terminal record.
+        record: PiScanTerminalRecord,
+        /// Actionable execution failure reason.
+        reason: String,
     },
     /// Request was rejected without accepting a stale result or mutating durable state.
     Rejected {

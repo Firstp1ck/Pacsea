@@ -354,3 +354,54 @@ fn click_artix_filter_toggles_dropdown() {
     );
     assert!(app.artix_filter_menu_open);
 }
+
+#[test]
+/// What: Wheel scrolling inside the Pi Scan workspace must never request application exit.
+///
+/// Inputs:
+/// - `app`: State with `app_mode` set to [`crate::state::types::AppMode::PiScan`].
+/// - `ev`: Scroll-down and scroll-up mouse events anywhere in the workspace.
+///
+/// Output:
+/// - `handle_mouse_event_with_pkgbuild_checks` returns `false` (no exit request) for both events.
+///
+/// Details:
+/// - Regression test: the Pi Scan mouse handler returns `true` for "event handled", but the
+///   top-level dispatcher interprets `true` as "exit the app", which made wheel scrolling in
+///   the Pi Scan workspace quit Pacsea.
+fn pi_scan_scroll_does_not_exit_app() {
+    let mut app = new_app();
+    app.app_mode = crate::state::types::AppMode::PiScan;
+
+    let (dtx, _drx) = mpsc::unbounded_channel::<PackageItem>();
+    let (ptx, _prx) = mpsc::unbounded_channel::<PackageItem>();
+    let (atx, _arx) = mpsc::unbounded_channel::<PackageItem>();
+    let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
+    let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
+    let (qtx, _qrx) = mpsc::unbounded_channel::<QueryInput>();
+    let (pkgb_check_tx, _pkgb_check_rx) = mpsc::unbounded_channel::<PkgbuildCheckRequest>();
+
+    for kind in [MouseEventKind::ScrollDown, MouseEventKind::ScrollUp] {
+        let ev = MouseEvent {
+            kind,
+            column: 20,
+            row: 10,
+            modifiers: KeyModifiers::empty(),
+        };
+        let should_exit = handle_mouse_event_with_pkgbuild_checks(
+            ev,
+            &mut app,
+            &dtx,
+            &ptx,
+            &atx,
+            &pkgb_tx,
+            &comments_tx,
+            &qtx,
+            &pkgb_check_tx,
+        );
+        assert!(
+            !should_exit,
+            "Pi Scan wheel scroll must not request application exit"
+        );
+    }
+}
