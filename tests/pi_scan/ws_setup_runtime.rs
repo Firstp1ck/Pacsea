@@ -23,8 +23,12 @@ use super::*;
 enum DriverFailure {
     /// No injected failure.
     None,
+    /// Initial probe exceeds the controller deadline.
+    ProbeTimeout,
     /// Runtime preparation fails before persistence.
     Prepare,
+    /// Runtime preparation exceeds the controller deadline.
+    PrepareTimeout,
     /// Settings-save stage fails before persistence begins.
     Save,
     /// Consent stage fails before either durable replacement.
@@ -61,12 +65,42 @@ struct FakeDriver {
 }
 
 impl SetupDriver for FakeDriver {
+    fn fork(&self) -> Box<dyn SetupDriver> {
+        Box::new(Self {
+            now: self.now,
+            snapshot: self.snapshot.clone(),
+            failure: self.failure,
+            evidence: Arc::clone(&self.evidence),
+        })
+    }
+
+    fn operation_timeout(&self, stage: PiScanSetupStage) -> Duration {
+        if matches!(
+            self.failure,
+            DriverFailure::ProbeTimeout | DriverFailure::PrepareTimeout
+        ) {
+            Duration::from_millis(20)
+        } else {
+            match stage {
+                PiScanSetupStage::Probe => SETUP_PROBE_TIMEOUT,
+                PiScanSetupStage::CandidateValidation => SETUP_VALIDATION_TIMEOUT,
+                PiScanSetupStage::Activation | PiScanSetupStage::Persistence => SETUP_APPLY_TIMEOUT,
+            }
+        }
+    }
+
     fn now_unix_seconds(&self) -> u64 {
         self.now
     }
 
-    fn probe(&mut self, _request: &PiSetupProbeRequest) -> Result<PiSetupProbeSnapshot, String> {
-        self.evidence.probes.fetch_add(1, Ordering::SeqCst);
+    fn probe(
+        &mut self,
+        _request: &PiSetupProbeRequest,
+    ) -> Result<PiSetupProbeSnapshot, DriverCallError> {
+        let attempt = self.evidence.probes.fetch_add(1, Ordering::SeqCst);
+        if self.failure == DriverFailure::ProbeTimeout && attempt == 0 {
+            std::thread::sleep(Duration::from_millis(100));
+        }
         Ok(self.snapshot.clone())
     }
 
@@ -77,10 +111,15 @@ impl SetupDriver for FakeDriver {
         _snapshot: &PiSetupProbeSnapshot,
         _models: Vec<ModelChoice>,
         _reservation: PiScanReservation,
-    ) -> Result<Box<dyn PreparedRuntime>, String> {
+    ) -> Result<Box<dyn PreparedRuntime>, DriverCallError> {
         self.evidence.prepared.fetch_add(1, Ordering::SeqCst);
+        if self.failure == DriverFailure::PrepareTimeout {
+            std::thread::sleep(Duration::from_millis(100));
+        }
         if self.failure == DriverFailure::Prepare {
-            return Err("injected candidate health-check failure".to_string());
+            return Err(DriverCallError::Failed(
+                "injected candidate health-check failure".to_string(),
+            ));
         }
         Ok(Box::new(FakePreparedRuntime {
             activation_fails: self.failure == DriverFailure::Activation,
@@ -429,6 +468,87 @@ async fn stale_correlation_binding_and_settings_fingerprint_fail_closed() {
     assert!(!root.join("pi_scan/consent-v1.json").exists());
 }
 
+/// Probe timeout must release the controller for Retry and reject the stale late response.
+#[tokio::test]
+async fn probe_timeout_is_correlated_retryable_and_late_response_is_stale() {
+    let root = temp_root("probe-timeout");
+    let (mut channels, evidence) = spawn_fake(&root, false, DriverFailure::ProbeTimeout);
+    channels
+        .request_tx
+        .send(PiScanSetupRequest::BeginSetupProbe {
+            correlation_id: 1,
+            binary: "/opt/pi/bin/pi".to_string(),
+        })
+        .expect("probe send");
+    match recv_event(&mut channels).await {
+        PiScanSetupEvent::Failed {
+            correlation_id,
+            stage,
+            reason,
+        } => {
+            assert_eq!(correlation_id, 1);
+            assert_eq!(stage, PiScanSetupStage::Probe);
+            assert!(reason.contains("Retry is available"));
+        }
+        event => panic!("expected timeout failure, got {event:?}"),
+    }
+    assert_eq!(
+        channels.timeout_rx.recv().await,
+        Some(PiScanSetupTimeout {
+            correlation_id: 1,
+            stage: PiScanSetupStage::Probe,
+            deadline: Duration::from_millis(20),
+        })
+    );
+
+    channels
+        .request_tx
+        .send(PiScanSetupRequest::BeginSetupProbe {
+            correlation_id: 2,
+            binary: "/opt/pi/bin/pi".to_string(),
+        })
+        .expect("retry send");
+    assert!(matches!(
+        recv_event(&mut channels).await,
+        PiScanSetupEvent::CapabilitiesVerified {
+            correlation_id: 2,
+            ..
+        }
+    ));
+    tokio::time::sleep(Duration::from_millis(120)).await;
+    assert!(channels.event_rx.try_recv().is_err());
+    assert_eq!(evidence.probes.load(Ordering::SeqCst), 2);
+}
+
+/// Apply preparation timeout must stay correlated and publish no stale transfer.
+#[tokio::test]
+async fn apply_prepare_timeout_is_correlated_and_late_transfer_is_stale() {
+    let root = temp_root("prepare-timeout");
+    let (mut channels, _) = spawn_fake(&root, false, DriverFailure::PrepareTimeout);
+    let binding = probe_and_validate(&mut channels, candidate()).await;
+    send_apply(&channels, binding);
+    assert!(matches!(
+        recv_event(&mut channels).await,
+        PiScanSetupEvent::Failed {
+            correlation_id: 3,
+            stage: PiScanSetupStage::Activation,
+            reason,
+        } if reason.contains("Retry is available")
+    ));
+    assert_eq!(
+        channels.timeout_rx.recv().await,
+        Some(PiScanSetupTimeout {
+            correlation_id: 3,
+            stage: PiScanSetupStage::Activation,
+            deadline: Duration::from_millis(20),
+        })
+    );
+    tokio::time::sleep(Duration::from_millis(120)).await;
+    assert!(channels.transfer_rx.try_recv().is_err());
+    assert!(!root.join("settings.conf").exists());
+    assert!(!root.join("pi_scan/consent-v1.json").exists());
+}
+
 /// Dry-run must dispatch no probe, runtime preparation, process, or write.
 #[tokio::test]
 async fn dry_run_launches_no_probe_or_runtime_and_writes_nothing() {
@@ -540,9 +660,9 @@ async fn activation_failure_rolls_back_committed_files() {
     assert_eq!(evidence.activated.load(Ordering::SeqCst), 1);
 }
 
-/// Dropping an unaccepted transfer must tear down its candidate and roll back durable files.
+/// Explicit unaccepted-transfer rollback must report success and restore durable files.
 #[tokio::test]
-async fn unaccepted_transfer_tears_down_and_restores_previous_files() {
+async fn unaccepted_transfer_reports_rollback_and_restores_previous_files() {
     let root = temp_root("transfer-drop");
     let prior = "pi_scan_enabled = false\n";
     std::fs::write(root.join("settings.conf"), prior).expect("seed settings");
@@ -554,7 +674,9 @@ async fn unaccepted_transfer_tears_down_and_restores_previous_files() {
         PiScanSetupEvent::Applied { .. }
     ));
     let transfer = channels.transfer_rx.recv().await.expect("transfer");
-    drop(transfer);
+    let report = transfer.rollback_with_outcome();
+    assert_eq!(report.correlation_id, 3);
+    assert_eq!(report.outcome, PiScanRollbackOutcome::Succeeded);
     assert_eq!(
         std::fs::read_to_string(root.join("settings.conf")).expect("settings"),
         prior

@@ -49,8 +49,16 @@ fn render_progress(f: &mut Frame, app: &AppState, wizard: &PiScanSetupWizardStat
     let th = theme();
     let step_number = wizard.step.index() + 1;
     let title = step_title(app, wizard.step);
+    let in_flight = wizard
+        .in_flight_correlation
+        .map_or_else(String::new, |correlation| {
+            format!(
+                " · {} #{correlation}",
+                crate::i18n::t(app, "app.pi_scan.wizard.in_flight")
+            )
+        });
     let compact = format!(
-        "{} {step_number}/7 — {title}",
+        "{} {step_number}/7 — {title}{in_flight}",
         crate::i18n::t(app, "app.pi_scan.wizard.progress")
     );
     let markers = PiScanSetupStep::all()
@@ -231,7 +239,10 @@ fn append_control_rects(
         PiScanSetupStep::Welcome | PiScanSetupStep::Review | PiScanSetupStep::Activate => return,
     };
     for index in 0..wizard.focus_count() {
-        let line = u16::try_from(first_line + index).unwrap_or(u16::MAX);
+        let source_line = u16::try_from(first_line + index).unwrap_or(u16::MAX);
+        let Some(line) = source_line.checked_sub(wizard.body_scroll) else {
+            continue;
+        };
         let row = body_area.y.saturating_add(1).saturating_add(line);
         if row >= body_area.bottom().saturating_sub(1) {
             break;
@@ -320,8 +331,13 @@ fn readiness_lines(app: &AppState, wizard: &PiScanSetupWizardState) -> Vec<Line<
             wizard,
             1,
             format!(
-                "[Enter] {}",
-                crate::i18n::t(app, "app.pi_scan.wizard.readiness.verify")
+                "[Enter] {}{}",
+                crate::i18n::t(app, "app.pi_scan.wizard.readiness.verify"),
+                if wizard.in_flight_correlation.is_some() {
+                    format!(" · {}", crate::i18n::t(app, "app.pi_scan.wizard.in_flight"))
+                } else {
+                    String::new()
+                }
             ),
         ),
         Line::from(format!(
@@ -579,8 +595,9 @@ fn review_lines(app: &AppState, wizard: &PiScanSetupWizardState) -> Vec<Line<'st
             display_or_dash(&settings.https_proxy)
         )),
         Line::from(format!(
-            "{}: head≤15 / observe≤90 / model≤300 / logical≤720 / starts≤5 / tokens≤500000",
-            crate::i18n::t(app, "app.pi_scan.wizard.review.compiled")
+            "{}: {}",
+            crate::i18n::t(app, "app.pi_scan.wizard.review.compiled"),
+            crate::i18n::t(app, "app.pi_scan.wizard.review.compiled_values")
         )),
         Line::from(format!(
             "{}: {}",
@@ -600,7 +617,9 @@ fn activate_lines(app: &AppState, wizard: &PiScanSetupWizardState) -> Vec<Line<'
         PiScanSetupApplyStatus::Activating => ("activating", String::new(), theme().yellow),
         PiScanSetupApplyStatus::Persisting => ("persisting", String::new(), theme().yellow),
         PiScanSetupApplyStatus::Complete => ("complete", String::new(), theme().green),
-        PiScanSetupApplyStatus::Failed(reason) => ("failed", reason.clone(), theme().red),
+        PiScanSetupApplyStatus::Failed(reason) => {
+            ("failed", localize_wizard_message(app, reason), theme().red)
+        }
     };
     let mut lines = vec![Line::from(Span::styled(
         crate::i18n::t(app, &format!("app.pi_scan.wizard.activate.{status_key}")),
@@ -650,10 +669,15 @@ fn focused_line(
 /// Localize state-owned message keys while preserving bounded dynamic controller details.
 fn localize_wizard_message(app: &AppState, message: &str) -> String {
     if message.starts_with("app.pi_scan.wizard.") {
-        crate::i18n::t(app, message)
-    } else {
-        message.to_string()
+        return crate::i18n::t(app, message);
     }
+    if let Some(route) = message
+        .strip_prefix("Previous route is no longer advertised; selected ")
+        .and_then(|detail| detail.strip_suffix(" — review before continuing"))
+    {
+        return crate::i18n::t_fmt1(app, "app.pi_scan.wizard.notices.route_reselected", route);
+    }
+    message.to_string()
 }
 
 /// Render one independent focused yes/no control.

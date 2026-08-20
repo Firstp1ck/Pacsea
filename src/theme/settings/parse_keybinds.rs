@@ -76,6 +76,10 @@ fn apply_global_keybind(key: &str, chord: Option<KeyChord>, settings: &mut Setti
             assign_keybind(chord, &mut settings.keymap.reload_config);
             true
         }
+        "keybind_config_editor_pi_scan_setup" => {
+            assign_keybind(chord, &mut settings.keymap.config_editor_pi_scan_setup);
+            true
+        }
         "keybind_exit" | "keybind_quit" => {
             assign_keybind(chord, &mut settings.keymap.exit);
             true
@@ -530,6 +534,29 @@ mod tests {
         let initial_len = settings6.keymap.help_overlay.len();
         apply_global_keybind("keybind_help", None, &mut settings6);
         assert_eq!(settings6.keymap.help_overlay.len(), initial_len);
+    }
+
+    /// The config-editor Pi Scan setup chord must be configurable independently.
+    #[test]
+    fn parses_config_editor_pi_scan_setup_keybind() {
+        let mut settings = Settings::default();
+        assert_eq!(
+            settings.keymap.config_editor_pi_scan_setup[0],
+            KeyChord {
+                code: KeyCode::Char('g'),
+                mods: KeyModifiers::CONTROL,
+            }
+        );
+
+        parse_keybinds("keybind_config_editor_pi_scan_setup = ALT+P", &mut settings);
+
+        assert_eq!(
+            settings.keymap.config_editor_pi_scan_setup,
+            vec![KeyChord {
+                code: KeyCode::Char('p'),
+                mods: KeyModifiers::ALT,
+            }]
+        );
     }
 
     #[test]

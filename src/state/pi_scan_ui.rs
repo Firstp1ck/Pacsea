@@ -1,6 +1,7 @@
 //! UI projection for the optional Pi-backed AUR scanner workspace.
 
 use std::collections::BTreeSet;
+use std::time::{Duration, Instant};
 
 use crate::logic::pi_scan::result::{Coverage, MergedScanResult, Severity};
 use crate::state::pi_scan::{PiScanConsentState, PiScanRuntimeState};
@@ -204,10 +205,6 @@ pub enum PiScanUiAction {
     UpdateConsent,
     /// Queue currently selected frozen identities.
     QueueSelected,
-    /// Detach from the active progress page.
-    Detach,
-    /// Reopen active progress.
-    Reopen,
     /// Persist a user pause.
     Pause,
     /// Clear a user pause.
@@ -220,6 +217,203 @@ pub enum PiScanUiAction {
     ContinueSelected,
     /// Accept the selected complete current-HEAD result as observation baseline.
     AcceptBaseline,
+}
+
+/// Severity used to style and expire a typed Pi Scan workspace notice.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PiScanNoticeSeverity {
+    /// Informational guidance that expires automatically.
+    Info,
+    /// Successful outcome that expires automatically.
+    Success,
+    /// Warning that remains until explicitly replaced or dismissed.
+    Warning,
+    /// Error that remains until explicitly replaced or dismissed.
+    Error,
+}
+
+/// One typed workspace notice with a monotonic expiry deadline.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PiScanNotice {
+    /// User-facing notice text or localization key awaiting projection.
+    pub text: String,
+    /// Semantic notice severity.
+    pub severity: PiScanNoticeSeverity,
+    /// Monotonic expiry for transient severities; persistent notices use `None`.
+    pub expires_at: Option<Instant>,
+}
+
+impl PiScanNotice {
+    /// What: Build a typed notice from one monotonic reference time.
+    ///
+    /// Inputs:
+    /// - `text`: User-facing text or localization key.
+    /// - `severity`: Semantic notice severity.
+    /// - `now`: Monotonic creation time.
+    ///
+    /// Output:
+    /// - A notice with a six-second deadline for Info/Success or no deadline for Warning/Error.
+    ///
+    /// Details:
+    /// - Wall-clock changes cannot extend or prematurely expire transient notices.
+    #[must_use]
+    pub fn at(text: impl Into<String>, severity: PiScanNoticeSeverity, now: Instant) -> Self {
+        let expires_at = matches!(
+            severity,
+            PiScanNoticeSeverity::Info | PiScanNoticeSeverity::Success
+        )
+        .then(|| now + Duration::from_secs(6));
+        Self {
+            text: text.into(),
+            severity,
+            expires_at,
+        }
+    }
+
+    /// Return whether this notice has reached its monotonic deadline.
+    #[must_use]
+    pub fn is_expired_at(&self, now: Instant) -> bool {
+        self.expires_at.is_some_and(|deadline| now >= deadline)
+    }
+}
+
+/// Independent user-action and background-event workspace notice slots.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PiScanNoticeSlots {
+    /// Foreground notice owned by the latest user-initiated interaction.
+    pub foreground: Option<PiScanNotice>,
+    /// Background notice that cannot overwrite foreground feedback.
+    pub background: Option<PiScanNotice>,
+}
+
+impl PiScanNoticeSlots {
+    /// Set the foreground slot using the current monotonic time.
+    pub fn set_foreground(&mut self, text: impl Into<String>, severity: PiScanNoticeSeverity) {
+        self.set_foreground_at(text, severity, Instant::now());
+    }
+
+    /// Set the foreground slot using an explicit monotonic reference time.
+    pub fn set_foreground_at(
+        &mut self,
+        text: impl Into<String>,
+        severity: PiScanNoticeSeverity,
+        now: Instant,
+    ) {
+        self.foreground = Some(PiScanNotice::at(text, severity, now));
+    }
+
+    /// Set the background slot using the current monotonic time.
+    pub fn set_background(&mut self, text: impl Into<String>, severity: PiScanNoticeSeverity) {
+        self.set_background_at(text, severity, Instant::now());
+    }
+
+    /// Set the background slot using an explicit monotonic reference time.
+    pub fn set_background_at(
+        &mut self,
+        text: impl Into<String>,
+        severity: PiScanNoticeSeverity,
+        now: Instant,
+    ) {
+        self.background = Some(PiScanNotice::at(text, severity, now));
+    }
+
+    /// Remove transient notices whose monotonic deadlines have elapsed.
+    pub fn expire_at(&mut self, now: Instant) {
+        if self
+            .foreground
+            .as_ref()
+            .is_some_and(|notice| notice.is_expired_at(now))
+        {
+            self.foreground = None;
+        }
+        if self
+            .background
+            .as_ref()
+            .is_some_and(|notice| notice.is_expired_at(now))
+        {
+            self.background = None;
+        }
+    }
+
+    /// Return foreground notice text for compatibility rendering.
+    #[must_use]
+    pub fn foreground_text(&self) -> Option<&str> {
+        self.foreground.as_ref().map(|notice| notice.text.as_str())
+    }
+}
+
+/// Exact user intent retained while selected package identities are resolved.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PiScanQueueIntentSnapshot {
+    /// Originally selected package names, sorted and deduplicated.
+    pub package_names: Vec<String>,
+    /// Token reservation context shown when the action was requested.
+    pub reservation_tokens: u64,
+    /// Exact decimal cost-cap text shown when the action was requested.
+    pub reservation_cost_cap: String,
+}
+
+/// Correlation-owned state for one setup Apply transaction that outlives its wizard.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PiScanSetupTransaction {
+    /// Exact setup-controller correlation that owns transfer or rollback completion.
+    pub correlation_id: u64,
+    /// Current user abandonment state.
+    pub abandonment: PiScanSetupAbandonment,
+}
+
+/// Two-Escape abandonment progression for a setup Apply transaction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PiScanSetupAbandonment {
+    /// Apply is proceeding and no abandonment warning has been shown.
+    Active,
+    /// First Escape warned while retaining the wizard and transaction.
+    Warned,
+    /// Second Escape closed the wizard and requested explicit rollback.
+    AbandonRequested,
+}
+
+/// Independent scroll offsets for every Pi Scan workspace view.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct PiScanViewScrollState {
+    /// Setup-page line offset.
+    pub setup: u16,
+    /// Overview-page line offset.
+    pub overview: u16,
+    /// Target-list item offset.
+    pub targets: usize,
+    /// Progress-page line offset.
+    pub progress: u16,
+    /// Result-list item offset.
+    pub results: usize,
+    /// Details-page line offset.
+    pub details: u16,
+}
+
+/// One rendered list-row rectangle retained for mouse hit testing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PiScanListHitRect {
+    /// Zero-based item index represented by the row.
+    pub index: usize,
+    /// Left coordinate.
+    pub x: u16,
+    /// Top coordinate.
+    pub y: u16,
+    /// Rectangle width.
+    pub width: u16,
+    /// Rectangle height.
+    pub height: u16,
+}
+
+impl PiScanListHitRect {
+    /// Return whether one terminal coordinate is inside this half-open rectangle.
+    #[must_use]
+    pub const fn contains(self, column: u16, row: u16) -> bool {
+        column >= self.x
+            && column < self.x.saturating_add(self.width)
+            && row >= self.y
+            && row < self.y.saturating_add(self.height)
+    }
 }
 
 /// Dry-run-only preview that never enters the durable queue.
@@ -243,10 +437,16 @@ pub struct PiScanWorkspaceState {
     pub settings: PiScanSettings,
     /// Current page.
     pub view: PiScanView,
-    /// Selected row on target/result pages.
+    /// Legacy renderer projection synchronized from the active independent selection.
     pub selected: usize,
-    /// Detail scroll offset.
+    /// Independently selected target row.
+    pub selected_target: usize,
+    /// Independently selected result row, preserved when Details opens.
+    pub selected_result: usize,
+    /// Legacy detail-scroll projection synchronized with `view_scroll.details`.
     pub detail_scroll: u16,
+    /// Independent per-view line and item scroll offsets.
+    pub view_scroll: PiScanViewScrollState,
     /// Read-only runtime availability.
     pub availability: PiScanAvailability,
     /// No-model readiness state.
@@ -275,8 +475,6 @@ pub struct PiScanWorkspaceState {
     pub background_paid_execution_confirmed: bool,
     /// Explicit warning confirmation for a readiness warning.
     pub readiness_warning_confirmed: bool,
-    /// Whether active progress is detached from the visible page.
-    pub detached: bool,
     /// Contextual/selectable targets.
     pub targets: Vec<PiScanTarget>,
     /// Validated results only.
@@ -289,10 +487,22 @@ pub struct PiScanWorkspaceState {
     pub pending_action: Option<PiScanUiAction>,
     /// Dry-run preview, when requested.
     pub dry_run_preview: Option<PiScanDryRunPreview>,
-    /// Persistent typed workspace notice.
-    pub notice: Option<String>,
+    /// Exact queue intent retained across identity observation.
+    pub pending_queue_intent: Option<PiScanQueueIntentSnapshot>,
+    /// Number of validated results inserted since Results was last entered.
+    pub unseen_result_count: usize,
+    /// Session-only raw-output visibility override.
+    pub show_raw_output: bool,
+    /// Independent typed foreground/background notice slots.
+    pub notices: PiScanNoticeSlots,
+    /// Correlation-owned setup transaction retained after wizard abandonment.
+    pub setup_transaction: Option<PiScanSetupTransaction>,
     /// Workspace tab hit rectangles.
     pub tab_rects: [Option<(u16, u16, u16, u16)>; 6],
+    /// Rendered target row hit rectangles.
+    pub target_row_rects: Vec<PiScanListHitRect>,
+    /// Rendered result row hit rectangles.
+    pub result_row_rects: Vec<PiScanListHitRect>,
     /// Last setup-controller correlation retained across wizard sessions.
     pub last_setup_correlation: u64,
     /// Active guided setup wizard session; `None` outside the wizard.
@@ -306,7 +516,10 @@ impl Default for PiScanWorkspaceState {
             settings: PiScanSettings::default(),
             view: PiScanView::Setup,
             selected: 0,
+            selected_target: 0,
+            selected_result: 0,
             detail_scroll: 0,
+            view_scroll: PiScanViewScrollState::default(),
             availability: PiScanAvailability::Disabled,
             readiness: PiScanReadiness::Unchecked,
             verified_pi_version: String::new(),
@@ -324,15 +537,20 @@ impl Default for PiScanWorkspaceState {
             fallback_confirmed: false,
             background_paid_execution_confirmed: false,
             readiness_warning_confirmed: false,
-            detached: false,
             targets: Vec::new(),
             results: Vec::new(),
             finding_acknowledgements: BTreeSet::new(),
             stale_acknowledgements: BTreeSet::new(),
             pending_action: None,
             dry_run_preview: None,
-            notice: None,
+            pending_queue_intent: None,
+            unseen_result_count: 0,
+            show_raw_output: false,
+            notices: PiScanNoticeSlots::default(),
+            setup_transaction: None,
             tab_rects: [None; 6],
+            target_row_rects: Vec::new(),
+            result_row_rects: Vec::new(),
             last_setup_correlation: 0,
             wizard: None,
         }
@@ -352,6 +570,13 @@ impl PiScanWorkspaceState {
     /// - Effective settings, runtime, and consent remain untouched until central
     ///   integration dispatches a successful final Apply transaction.
     pub fn begin_setup_wizard(&mut self, first_run: bool) {
+        if self.setup_transaction.is_some() {
+            self.notices.set_foreground(
+                "A previous Pi Scan setup Apply is still resolving; wait for its rollback or completion",
+                PiScanNoticeSeverity::Warning,
+            );
+            return;
+        }
         let mut wizard = crate::state::pi_scan_setup::PiScanSetupWizardState::open(
             self.settings.clone(),
             PiScanConsentState {
@@ -362,14 +587,104 @@ impl PiScanWorkspaceState {
         );
         wizard.last_correlation = self.last_setup_correlation;
         self.wizard = Some(wizard);
-        self.view = PiScanView::Setup;
+        self.set_view(PiScanView::Setup);
         self.pending_action = None;
     }
 
-    /// Drop the isolated wizard draft without any runtime or durable action.
+    /// Drop a non-applying wizard draft and expose first-run restart guidance.
     pub fn cancel_setup_wizard(&mut self) {
+        let first_run = self.wizard.as_ref().is_some_and(|wizard| wizard.first_run);
         self.wizard = None;
         self.pending_action = None;
+        if first_run {
+            self.notices.set_foreground(
+                "Guided setup cancelled — press r to restart it, Esc to leave",
+                PiScanNoticeSeverity::Info,
+            );
+        }
+    }
+
+    /// What: Process Escape while a wizard may own an in-flight Apply transaction.
+    ///
+    /// Inputs:
+    /// - Current wizard status and correlation-owned workspace transaction.
+    ///
+    /// Output:
+    /// - First Apply Escape warns and keeps the wizard; second records abandonment and closes it.
+    ///
+    /// Details:
+    /// - Transaction ownership remains in the workspace so a later transfer can be rolled back
+    ///   explicitly by central projection rather than silently through `Drop`.
+    pub fn cancel_or_abandon_setup_wizard(&mut self) {
+        let applying = self.wizard.as_ref().is_some_and(|wizard| {
+            matches!(
+                wizard.apply_status,
+                crate::state::pi_scan_setup::PiScanSetupApplyStatus::Validating
+                    | crate::state::pi_scan_setup::PiScanSetupApplyStatus::Activating
+                    | crate::state::pi_scan_setup::PiScanSetupApplyStatus::Persisting
+            )
+        });
+        if !applying {
+            self.cancel_setup_wizard();
+            return;
+        }
+        self.ensure_setup_transaction_from_wizard();
+        let Some(transaction) = self.setup_transaction.as_mut() else {
+            return;
+        };
+        if transaction.abandonment == PiScanSetupAbandonment::Active {
+            transaction.abandonment = PiScanSetupAbandonment::Warned;
+            self.notices.set_foreground(
+                "Apply in progress — press Esc again to abandon and roll back",
+                PiScanNoticeSeverity::Warning,
+            );
+            return;
+        }
+        transaction.abandonment = PiScanSetupAbandonment::AbandonRequested;
+        self.wizard = None;
+        self.pending_action = None;
+        self.notices.set_foreground(
+            "Pi Scan setup abandonment requested; waiting for explicit rollback",
+            PiScanNoticeSeverity::Warning,
+        );
+    }
+
+    /// Register the correlation allocated by the wizard's latest Apply request.
+    pub fn register_setup_apply(&mut self) {
+        self.ensure_setup_transaction_from_wizard();
+    }
+
+    /// Return whether a workspace-owned setup transaction matches a correlation.
+    #[must_use]
+    pub fn setup_transaction_matches(&self, correlation_id: u64) -> bool {
+        self.setup_transaction
+            .is_some_and(|transaction| transaction.correlation_id == correlation_id)
+    }
+
+    /// Clear one matching terminal setup transaction after completion or explicit rollback.
+    pub fn finish_setup_transaction(&mut self, correlation_id: u64) -> bool {
+        if !self.setup_transaction_matches(correlation_id) {
+            return false;
+        }
+        self.setup_transaction = None;
+        true
+    }
+
+    /// Recover workspace transaction ownership from the active wizard correlation.
+    fn ensure_setup_transaction_from_wizard(&mut self) {
+        if self.setup_transaction.is_some() {
+            return;
+        }
+        let correlation_id = self
+            .wizard
+            .as_ref()
+            .and_then(|wizard| wizard.in_flight_correlation);
+        if let Some(correlation_id) = correlation_id {
+            self.setup_transaction = Some(PiScanSetupTransaction {
+                correlation_id,
+                abandonment: PiScanSetupAbandonment::Active,
+            });
+        }
     }
 
     /// Return whether material setup facts and foreground consent are currently verified.
@@ -381,9 +696,11 @@ impl PiScanWorkspaceState {
             && self.runtime.consent.paid_execution
     }
 
-    /// Apply settings and derive truthful default-off availability without probing Pi.
-    pub fn apply_settings(&mut self, settings: PiScanSettings, pi_binary_found: bool) {
-        let material_changed = self.setup_facts_verified && self.settings != settings;
+    /// Apply settings and preserve a live runtime-connected availability projection.
+    pub fn apply_settings(&mut self, settings: PiScanSettings, pi_binary_found: bool) -> bool {
+        let runtime_connected = self.availability == PiScanAvailability::RuntimeConnected;
+        let settings_changed = self.settings != settings;
+        let material_changed = self.setup_facts_verified && settings_changed;
         self.settings = settings;
         if material_changed {
             self.setup_facts_verified = false;
@@ -394,7 +711,9 @@ impl PiScanWorkspaceState {
             self.runtime.consent = PiScanConsentState::default();
             self.readiness = PiScanReadiness::Unchecked;
         }
-        self.availability = if !cfg!(target_os = "linux") {
+        self.availability = if runtime_connected {
+            PiScanAvailability::RuntimeConnected
+        } else if !cfg!(target_os = "linux") {
             PiScanAvailability::Unsupported
         } else if !self.settings.enabled {
             PiScanAvailability::Disabled
@@ -403,9 +722,10 @@ impl PiScanWorkspaceState {
         } else {
             PiScanAvailability::RuntimeDisconnected
         };
-        if !self.settings.enabled {
-            self.view = PiScanView::Setup;
+        if !self.settings.enabled && !runtime_connected {
+            self.set_view(PiScanView::Setup);
         }
+        settings_changed
     }
 
     /// Add or select package context when Shift+A opens the workspace.
@@ -436,7 +756,125 @@ impl PiScanWorkspaceState {
                 PiScanView::Setup
             };
         }
+        self.selected_target = 0;
+        self.selected_result = 0;
         self.selected = 0;
+    }
+
+    /// What: Change workspace view while preserving independent list selections.
+    ///
+    /// Inputs:
+    /// - `view`: Destination workspace page.
+    ///
+    /// Output:
+    /// - Updates the active view and legacy renderer selection projection.
+    ///
+    /// Details:
+    /// - Entering Results clears the unseen count; entering Details resets only details line scroll.
+    pub const fn set_view(&mut self, view: PiScanView) {
+        self.view = view;
+        match view {
+            PiScanView::Targets => self.selected = self.selected_target,
+            PiScanView::Results => {
+                self.selected = self.selected_result;
+                self.unseen_result_count = 0;
+            }
+            PiScanView::Details => {
+                self.selected = self.selected_result;
+                self.view_scroll.details = 0;
+                self.detail_scroll = 0;
+            }
+            PiScanView::Setup | PiScanView::Overview | PiScanView::Progress => self.selected = 0,
+        }
+    }
+
+    /// Clamp independent selections and item scroll offsets after asynchronous mutation.
+    pub fn clamp_selection(&mut self) {
+        self.selected_target = clamp_index(self.selected_target, self.targets.len());
+        self.selected_result = clamp_index(self.selected_result, self.results.len());
+        self.view_scroll.targets = clamp_index(self.view_scroll.targets, self.targets.len());
+        self.view_scroll.results = clamp_index(self.view_scroll.results, self.results.len());
+        self.selected = match self.view {
+            PiScanView::Targets => self.selected_target,
+            PiScanView::Results | PiScanView::Details => self.selected_result,
+            PiScanView::Setup | PiScanView::Overview | PiScanView::Progress => 0,
+        };
+    }
+
+    /// Record one validated result insertion without mutating state during rendering.
+    pub fn record_result_inserted(&mut self) {
+        if self.view != PiScanView::Results {
+            self.unseen_result_count = self.unseen_result_count.saturating_add(1);
+        }
+        self.clamp_selection();
+    }
+
+    /// Snapshot exact package-name and reservation intent for later identity resolution.
+    pub fn snapshot_queue_intent(&mut self) {
+        let mut package_names: Vec<String> = self
+            .targets
+            .iter()
+            .filter(|target| target.selected)
+            .map(|target| target.package_name.clone())
+            .collect();
+        package_names.sort();
+        package_names.dedup();
+        self.pending_queue_intent =
+            (!package_names.is_empty()).then(|| PiScanQueueIntentSnapshot {
+                package_names,
+                reservation_tokens: self.settings.background_token_cap_24h,
+                reservation_cost_cap: self.settings.background_cost_cap_24h.clone(),
+            });
+    }
+
+    /// Toggle session-only raw output visibility without rewriting settings.
+    pub const fn toggle_raw_output(&mut self) {
+        self.show_raw_output = !self.show_raw_output;
+    }
+
+    /// Replace target-row hit rectangles after one render.
+    pub fn set_target_row_rects(&mut self, rects: Vec<PiScanListHitRect>) {
+        self.target_row_rects = rects;
+    }
+
+    /// Replace result-row hit rectangles after one render.
+    pub fn set_result_row_rects(&mut self, rects: Vec<PiScanListHitRect>) {
+        self.result_row_rects = rects;
+    }
+
+    /// Resolve one target-list mouse coordinate to its item index.
+    #[must_use]
+    pub fn target_hit_test(&self, column: u16, row: u16) -> Option<usize> {
+        hit_test_rows(&self.target_row_rects, column, row)
+    }
+
+    /// Resolve one result-list mouse coordinate to its item index.
+    #[must_use]
+    pub fn result_hit_test(&self, column: u16, row: u16) -> Option<usize> {
+        hit_test_rows(&self.result_row_rects, column, row)
+    }
+
+    /// Replace the foreground typed notice.
+    pub fn set_foreground_notice(
+        &mut self,
+        text: impl Into<String>,
+        severity: PiScanNoticeSeverity,
+    ) {
+        self.notices.set_foreground(text, severity);
+    }
+
+    /// Replace the background typed notice without overwriting foreground feedback.
+    pub fn set_background_notice(
+        &mut self,
+        text: impl Into<String>,
+        severity: PiScanNoticeSeverity,
+    ) {
+        self.notices.set_background(text, severity);
+    }
+
+    /// Expire transient foreground/background notices at one monotonic instant.
+    pub fn expire_notices_at(&mut self, now: Instant) {
+        self.notices.expire_at(now);
     }
 
     /// Replace the independently consented observation and paid-execution switches.
@@ -450,7 +888,7 @@ impl PiScanWorkspaceState {
     /// Return the selected validated result.
     #[must_use]
     pub fn selected_result(&self) -> Option<&PiScanDisplayResult> {
-        self.results.get(self.selected)
+        self.results.get(self.selected_result)
     }
 
     /// Record high/critical acknowledgement for only the selected result binding.
@@ -478,4 +916,17 @@ impl PiScanWorkspaceState {
             || self.finding_acknowledgements.contains(&binding))
             && (!result.stale || self.stale_acknowledgements.contains(&binding))
     }
+}
+
+/// Clamp an index to a possibly empty collection.
+fn clamp_index(index: usize, len: usize) -> usize {
+    if len == 0 { 0 } else { index.min(len - 1) }
+}
+
+/// Resolve a terminal coordinate against one set of half-open list-row rectangles.
+fn hit_test_rows(rects: &[PiScanListHitRect], column: u16, row: u16) -> Option<usize> {
+    rects
+        .iter()
+        .find(|rect| rect.contains(column, row))
+        .map(|rect| rect.index)
 }

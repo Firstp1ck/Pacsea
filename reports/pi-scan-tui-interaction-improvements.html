@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>Pi Scan TUI interaction improvements — implementation report</title>
+  <style>
+    :root{color-scheme:dark;--bg:#0b1220;--panel:#121c2d;--panel2:#18253a;--text:#e8eef8;--muted:#a9b7cb;--line:#2b3b55;--green:#50d890;--yellow:#f7c65c;--red:#ff7373;--blue:#65b5ff;--code:#07101c;--radius-lg:16px;--radius-md:12px;--shadow:0 14px 36px rgb(0 0 0 / 22%)}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(circle at 15% 0%,#142848 0,transparent 35rem),var(--bg);color:var(--text);font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}a{color:var(--blue)}a:focus-visible,button:focus-visible,summary:focus-visible{outline:3px solid var(--blue);outline-offset:3px}.skip{position:fixed;z-index:20;top:8px;left:8px;transform:translateY(-160%);background:var(--blue);color:#06111f;padding:8px 12px;border-radius:8px;font-weight:800}.skip:focus{transform:none}main{width:min(1120px,calc(100% - 32px));margin:36px auto 64px}header,.panel{background:color-mix(in srgb,var(--panel) 94%,transparent);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow)}header{padding:30px;margin-bottom:20px}.panel{padding:24px;margin:18px 0}h1,h2,h3{line-height:1.25;margin-top:0}h1{font-size:clamp(1.9rem,5vw,3rem);margin-bottom:8px;letter-spacing:-.025em}h2{font-size:1.45rem;border-bottom:1px solid var(--line);padding-bottom:10px}h3{font-size:1.08rem;margin-bottom:6px}p{margin:8px 0 14px}.lead{font-size:1.1rem;max-width:84ch}.muted{color:var(--muted)}code,pre{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}code{background:var(--code);padding:.12em .38em;border-radius:5px}pre{background:var(--code);border:1px solid var(--line);border-radius:10px;padding:14px;overflow:auto;white-space:pre-wrap}.badge{display:inline-block;padding:3px 9px;border-radius:999px;font-size:.78rem;font-weight:750;letter-spacing:.035em;text-transform:uppercase;margin-bottom:8px}.good{color:var(--green)}.warn{color:var(--yellow)}.bad{color:var(--red)}.info{color:var(--blue)}.badge.good{background:rgb(80 216 144 / 14%);border:1px solid rgb(80 216 144 / 38%)}.badge.warn{background:rgb(247 198 92 / 14%);border:1px solid rgb(247 198 92 / 38%)}.badge.info{background:rgb(101 181 255 / 14%);border:1px solid rgb(101 181 255 / 38%)}.callout{border-left:5px solid var(--green);background:rgb(80 216 144 / 8%);border-radius:8px;padding:14px 16px;margin:14px 0}.callout.warn{border-left-color:var(--yellow);background:rgb(247 198 92 / 8%);color:var(--text)}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}.card,.metric{background:var(--panel2);border:1px solid var(--line);border-radius:var(--radius-md);padding:16px}.metric strong{display:block;font-size:1.35rem}.table-wrap{overflow-x:auto;border-radius:10px}table{width:100%;border-collapse:collapse;min-width:680px}th,td{text-align:left;vertical-align:top;padding:11px 9px;border-bottom:1px solid var(--line)}th{color:var(--muted);font-size:.84rem;text-transform:uppercase;letter-spacing:.04em}tbody tr:hover{background:rgb(101 181 255 / 5%)}[role="tablist"]{display:flex;gap:8px;overflow-x:auto;padding:8px;margin:0 0 18px;border:1px solid var(--line);border-radius:12px;background:rgb(7 16 28 / 72%)}[role="tab"]{appearance:none;border:1px solid transparent;border-radius:9px;background:transparent;color:var(--muted);padding:9px 13px;white-space:nowrap;font:inherit;font-weight:750;cursor:pointer}[role="tab"][aria-selected="true"]{color:var(--text);border-color:rgb(101 181 255 / 45%);background:rgb(101 181 255 / 14%)}.tabs-ready [role="tabpanel"][hidden]{display:none}[role="tabpanel"]{scroll-margin-top:16px}figure{margin:18px 0}figure svg{display:block;width:100%;height:auto;background:var(--code);border:1px solid var(--line);border-radius:12px}figcaption{color:var(--muted);margin-top:8px;font-size:.92rem}.node{fill:#182b43;stroke:var(--blue);stroke-width:2}.node.good-node{stroke:var(--green)}.node.warn-node{stroke:var(--yellow)}.node-text{fill:var(--text);font:650 13px system-ui,sans-serif;text-anchor:middle}.small-text{fill:var(--muted);font:12px system-ui,sans-serif;text-anchor:middle}.edge{fill:none;stroke:var(--muted);stroke-width:2.5;marker-end:url(#arrow)}.rollback{stroke:var(--yellow);stroke-dasharray:8 6}details{border-top:1px solid var(--line);padding-top:10px;margin-top:10px}summary{cursor:pointer;color:var(--blue);font-weight:700}footer{color:var(--muted);margin-top:24px;font-size:.9rem}
+    @media(max-width:620px){main{width:min(100% - 18px,1120px);margin-top:10px}header,.panel{padding:18px}[role="tablist"]{position:sticky;top:0;z-index:5}}
+    @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important}}
+    @media print{:root{color-scheme:light}body{background:white;color:#111}main{width:100%;margin:0}header,.panel,.card,.metric{box-shadow:none;background:white;color:#111;border-color:#bbb;break-inside:avoid}[role="tablist"],.skip{display:none!important}[role="tabpanel"],[role="tabpanel"][hidden]{display:block!important}pre,code,figure svg{color:#111;background:#f1f3f5;border-color:#bbb}.muted,figcaption,footer{color:#444}a{color:#111;text-decoration:underline}figure{break-inside:avoid}}
+  </style>
+</head>
+<body>
+<a class="skip" href="#content">Skip to report content</a>
+<main id="content">
+  <header>
+    <span class="badge good">Completed complex feature</span>
+    <h1>Pi Scan TUI interaction improvements</h1>
+    <p class="lead">Implementation and verification report for the interaction hardening work on <code>feat/aur-scan-integrated</code>, based on the integrated working-tree diff from <code>9d00ba04</code>, focused regression tests, the full Rust test suite, and two fresh-context independent reviews.</p>
+    <div class="callout"><strong>Conclusion:</strong> The planned routing, feedback, progress, scrolling, mouse, wizard lifecycle, help, and localization changes are implemented. The final full validation sequence passes. Two reviewer families found no blocker. Three small UX findings were accepted, fixed, and revalidated.</div>
+    <p class="muted"><strong>Confidence: 96/100.</strong> Source, focused tests, all required local gates, review dispositions, and report validation are directly checked. Confidence is reduced because live provider calls and a real external setup transfer were not exercised in this pass.</p>
+  </header>
+
+  <div class="tabs-shell">
+    <nav role="tablist" aria-label="Report sections">
+      <button id="tab-overview" role="tab" aria-selected="true" aria-controls="overview" tabindex="0">Overview</button>
+      <button id="tab-design" role="tab" aria-selected="false" aria-controls="design" tabindex="-1">Design</button>
+      <button id="tab-implementation" role="tab" aria-selected="false" aria-controls="implementation" tabindex="-1">Implementation</button>
+      <button id="tab-review" role="tab" aria-selected="false" aria-controls="review" tabindex="-1">Review</button>
+      <button id="tab-evidence" role="tab" aria-selected="false" aria-controls="evidence" tabindex="-1">Evidence and rollout</button>
+    </nav>
+
+    <section class="panel" id="overview" role="tabpanel" aria-labelledby="tab-overview">
+      <h2>Executive overview</h2>
+      <div class="grid" aria-label="Headline evidence">
+        <div class="metric"><span class="badge good">Implementation</span><strong>4 waves</strong><span class="muted">Runtime foundation, state/input, event integration, and rendering/discoverability.</span></div>
+        <div class="metric"><span class="badge good">Pi Scan tests</span><strong>152 passed</strong><span class="muted">Zero failures; four environment-dependent checks remain ignored by default.</span></div>
+        <div class="metric"><span class="badge good">Library tests</span><strong>1,267 passed</strong><span class="muted">Zero failures; seven declared ignored checks.</span></div>
+        <div class="metric"><span class="badge info">Review</span><strong>2 families</strong><span class="muted">DeepSeek and Moonshot/Kimi, both fresh-context and read-only.</span></div>
+      </div>
+      <h3 style="margin-top:22px">Outcome map</h3>
+      <div class="table-wrap">
+        <table data-overview>
+          <thead><tr><th>Area</th><th>Implemented outcome</th><th>Verification</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td>Input routing</td><td>Pi Scan owns its page keys and wizard text. Package-only globals no longer mutate hidden state. Reload keeps the workspace and live runtime truth.</td><td>BackTab, package-chord, <code>?</code>, SHIFT-printable, reload, and configured-chord regressions.</td><td><span class="good">Verified</span></td></tr>
+            <tr><td>Feedback and runtime truth</td><td>Typed foreground/background notices, severity, expiry, unseen-result tracking, truthful queued Pause/Resume, deterministic Started, and exact queue-intent completion.</td><td>State, event-loop, tick, orchestration, and validated-result tests.</td><td><span class="good">Verified</span></td></tr>
+            <tr><td>Wizard lifecycle</td><td>Controller-enforced deadlines, nonblocking owner transfer, two-Esc abandonment, explicit rollback outcomes, and late-event projection.</td><td>Setup probe/runtime tests plus event-loop rollback and timeout regressions.</td><td><span class="good">Verified</span></td></tr>
+            <tr><td>TUI interaction</td><td>Independent selection, page/list scrolling, wheel input, row clicks, raw output toggle, busy/elapsed display, usage accounting, contextual footer, and Help.</td><td>TestBackend, narrow-render, long-list, mouse, Help, and progress tests.</td><td><span class="good">Verified</span></td></tr>
+            <tr><td>Localization and process</td><td>English, German, and Hungarian keys cover runtime notices and final UX. Four implementation handoffs, two reviews, dispositions, and revalidation are recorded.</td><td>Locale completeness tests, canonical plan, worker handoffs, and review artifacts.</td><td><span class="good">Complete</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" id="design" role="tabpanel" aria-labelledby="tab-design">
+      <h2>Architecture and state flow</h2>
+      <p>The completed design separates user intent, durable runtime work, and TUI projection. Foreground actions carry typed provenance. Long operations finish through channels instead of blocking the redraw path. Apply transaction ownership survives the wizard so abandonment cannot hide rollback results.</p>
+      <figure data-visual-kind="diagram" data-purpose="Explain the interaction, runtime, projection, and rollback ownership flow">
+        <svg role="img" aria-labelledby="flow-title flow-desc" viewBox="0 0 1080 450">
+          <title id="flow-title">Pi Scan interaction and runtime projection flow</title>
+          <desc id="flow-desc">Keyboard and mouse input enters Pi Scan-specific routing, creates typed actions and exact intent snapshots, reaches the sequential runtime or setup controller, returns through provenance-bearing channels, and updates independent workspace state before rendering. An abandoned Apply follows an explicit rollback path.</desc>
+          <defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#a9b7cb"/></marker></defs>
+          <path class="edge" d="M215 110 H300"/><path class="edge" d="M480 110 H565"/><path class="edge" d="M745 110 H830"/>
+          <path class="edge" d="M920 150 V240"/><path class="edge" d="M830 285 H745"/><path class="edge" d="M565 285 H480"/><path class="edge" d="M300 285 H215"/>
+          <path class="edge rollback" d="M655 325 C650 410 275 410 130 150"/>
+          <rect class="node" x="35" y="70" width="180" height="80" rx="12"/><text class="node-text" x="125" y="103">Pi Scan input gate</text><text class="small-text" x="125" y="126">keys · wheel · rows</text>
+          <rect class="node" x="300" y="70" width="180" height="80" rx="12"/><text class="node-text" x="390" y="103">Typed UI action</text><text class="small-text" x="390" y="126">intent snapshot · correlation</text>
+          <rect class="node warn-node" x="565" y="70" width="180" height="80" rx="12"/><text class="node-text" x="655" y="103">Runtime/controller</text><text class="small-text" x="655" y="126">sequential · bounded</text>
+          <rect class="node" x="830" y="70" width="215" height="80" rx="12"/><text class="node-text" x="938" y="103">Typed completion channels</text><text class="small-text" x="938" y="126">notice · timeout · transfer</text>
+          <rect class="node" x="830" y="245" width="215" height="80" rx="12"/><text class="node-text" x="938" y="278">Central projection</text><text class="small-text" x="938" y="301">event loop · monotonic tick</text>
+          <rect class="node good-node" x="565" y="245" width="180" height="80" rx="12"/><text class="node-text" x="655" y="278">Workspace state</text><text class="small-text" x="655" y="301">two notices · selections</text>
+          <rect class="node good-node" x="300" y="245" width="180" height="80" rx="12"/><text class="node-text" x="390" y="278">Localized render</text><text class="small-text" x="390" y="301">status · progress · Help</text>
+          <rect class="node" x="35" y="245" width="180" height="80" rx="12"/><text class="node-text" x="125" y="278">User feedback</text><text class="small-text" x="125" y="301">one frame · truthful state</text>
+          <text class="node-text" x="475" y="430">dashed path: abandoned Apply keeps its correlation, rolls back explicitly, and reports the outcome</text>
+        </svg>
+        <figcaption>The diagram follows the implemented ownership boundaries. It does not imply parallel scan execution. The runtime remains sequential.</figcaption>
+      </figure>
+      <div class="grid">
+        <article class="card"><span class="badge info">Routing</span><h3>Mode-specific ownership</h3><p>Package-only global chords stop before Pi Scan. Printable text with no modifier or SHIFT-only reaches the focused wizard field before Help.</p></article>
+        <article class="card"><span class="badge info">Policy</span><h3>Truthful pause feedback</h3><p>A running scan produces a queued acknowledgement immediately. Durable pause state changes only after persistence succeeds under the existing orchestrator lock.</p></article>
+        <article class="card"><span class="badge info">Setup</span><h3>Transaction outside the wizard</h3><p>The workspace retains Apply correlation and abandonment state. A later transfer rolls back through an explicit result path even after the draft closes.</p></article>
+        <article class="card"><span class="badge info">Rendering</span><h3>State changes before paint</h3><p>Result insertion and unseen counts change in event projection. Rendering records hit rectangles and clamps presentation offsets but does not clear unseen state.</p></article>
+      </div>
+    </section>
+
+    <section class="panel" id="implementation" role="tabpanel" aria-labelledby="tab-implementation">
+      <h2>Implementation map</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Wave</th><th>Main responsibility</th><th>Key files</th><th>Completion evidence</th></tr></thead>
+          <tbody>
+            <tr><td>A</td><td>Runtime protocol, deterministic Started, queued pause durability, controller and whole-probe deadlines, explicit rollback reports.</td><td><code>pi_scan.rs</code>, <code>pi_scan_production.rs</code>, <code>pi_scan_orchestrator.rs</code>, <code>pi_scan_setup.rs</code>, <code>setup_probe.rs</code></td><td>Worker <code>dd29c722</code>; orchestration and setup regressions; full gates.</td></tr>
+            <tr><td>B</td><td>Global/wizard routing, state model, configurable setup chord, notice slots, queue intent, selections, abandonment transitions.</td><td><code>events/global.rs</code>, <code>events/mod.rs</code>, <code>events/pi_scan/keys.rs</code>, <code>state/pi_scan_ui.rs</code>, keymap files</td><td>Worker <code>5d524394</code>; routing and wizard suites; full gates.</td></tr>
+            <tr><td>C</td><td>Channel retention, central projection, exact auto-queue, unseen results, notice expiry, nonblocking transfer completion.</td><td><code>app/runtime/channels.rs</code>, <code>event_loop.rs</code>, <code>tick_handler.rs</code></td><td>Worker <code>19006172</code>; event/tick regressions; full gates.</td></tr>
+            <tr><td>D</td><td>Rendering, progress, scrolling, mouse, Help, top-bar state, and all locale keys.</td><td><code>ui/pi_scan/**</code>, <code>events/pi_scan/mod.rs</code>, <code>ui/modals/help.rs</code>, <code>ui/updates.rs</code>, locales</td><td>Worker <code>852ea6e7</code>; TestBackend and interaction suites; full gates.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <h3>Behavior delivered</h3>
+      <ul>
+        <li>BackTab cycles workspace pages backward. Wizard BackTab reverses focus. Hidden Package-pane state no longer changes under Pi Scan chords.</li>
+        <li>Foreground and background notices cannot overwrite each other. Info and Success expire after six seconds. Warning and Error persist.</li>
+        <li>Results receive an unseen badge until Results is entered. Validated completion does not force a view change.</li>
+        <li>Active work shows elapsed time, a redraw-driven spinner, token/cost reservation, and reconciled background usage.</li>
+        <li>Targets and Results keep separate selections. Lists, Details, and wizard content scroll by keyboard and wheel. Result rows are clickable.</li>
+        <li>Help and contextual footers describe the keys that work on each page. Package mode shows running or unseen Pi Scan state only when enabled.</li>
+      </ul>
+      <div class="callout warn"><strong>Intentional branch decision:</strong> Pause and Resume remain serialized with the active scan because the orchestrator mutex owns durable policy. The UI reports “queued” immediately and “persisted” only after the durability boundary. A lock-independent policy journal remains outside this branch.</div>
+    </section>
+
+    <section class="panel" id="review" role="tabpanel" aria-labelledby="tab-review">
+      <h2>Independent review and dispositions</h2>
+      <p>Two fresh-context reviewers inspected the integrated tree. The implementation provider was OpenAI. The review models came from separate DeepSeek and Moonshot/Kimi author families through OpenRouter. The integration owner checked every reported item against source and tests before assigning a disposition.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Finding</th><th>Severity</th><th>Disposition</th><th>Evidence</th></tr></thead>
+          <tbody>
+            <tr><td>UX-N1 — reload-close notice bypassed localization</td><td>Minor</td><td><span class="good">Accepted, fixed</span></td><td>Dedicated key in all three locales plus German reload-warning regression.</td></tr>
+            <tr><td>UX-N2 — defensive selected-result errors were English literals</td><td>Trivial</td><td><span class="good">Accepted, fixed</span></td><td>Two dedicated locale keys replace the literals.</td></tr>
+            <tr><td>UX-N3 — SHIFT-marked printable text could lose to Help</td><td>Trivial</td><td><span class="good">Accepted, fixed</span></td><td>NONE/SHIFT-only input rule and a SHIFT-question-mark regression.</td></tr>
+            <tr><td>Runtime B3 — duplicate micro-USD parsers</td><td>Maintainability</td><td><span class="warn">Deferred</span></td><td>Both implementations are correct; consolidation would be unrelated refactoring.</td></tr>
+            <tr><td>Runtime B4 — bounded late setup worker threads</td><td>Resource note</td><td><span class="warn">Deferred</span></td><td>Owned external probe processes still terminate and reap under inner deadlines. Late read-only/preparation results cannot publish or replace ownership.</td></tr>
+            <tr><td>UX-N4 — spinner advances once per second</td><td>Cosmetic</td><td><span class="warn">Deferred</span></td><td>Busy state and elapsed time remain truthful. No extra UI tick state was added.</td></tr>
+            <tr><td>B1, B2, B5–B14</td><td>No defect</td><td><span class="info">Rejected as findings</span></td><td>The reviewer marked these as false positives, satisfied requirements, or verification notes.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p><strong>Reviewer runs:</strong> <code>1fada78d</code> using DeepSeek V4 Flash, and <code>15b3c8c9</code> using Moonshot/Kimi K3. <strong>Fix run:</strong> <code>ae37312f</code>.</p>
+      <div class="callout"><strong>Post-fix result:</strong> Focused WS4 tests passed 27/27. Strict Clippy, <code>cargo check</code>, the full serial test suite, and <code>git diff --check</code> passed again. No accepted finding remains open.</div>
+    </section>
+
+    <section class="panel" id="evidence" role="tabpanel" aria-labelledby="tab-evidence">
+      <h2>Validation evidence, usage, and limitations</h2>
+      <div class="grid">
+        <article class="card"><span class="badge good">Formatting</span><h3>Rustfmt clean</h3><p><code>cargo fmt --all</code> completed before every final gate sequence.</p></article>
+        <article class="card"><span class="badge good">Lint</span><h3>Warnings denied</h3><p><code>cargo clippy --all-targets --all-features -- -D warnings</code> passed.</p></article>
+        <article class="card"><span class="badge good">Compile</span><h3>All targets check</h3><p><code>cargo check</code> passed after implementation and after accepted fixes.</p></article>
+        <article class="card"><span class="badge good">Regression</span><h3>Full serial suite</h3><p>Library 1,267 passed, Pi Scan 152 passed, and every other integration and doctest target passed.</p></article>
+      </div>
+      <h3>How to use the finished interactions</h3>
+      <ol>
+        <li>Open Pi Scan from Search with the configured shortcut, default <code>Shift+A</code>. Non-AUR selections now explain what to do next.</li>
+        <li>Move among pages with <code>1–6</code>, Tab, or BackTab. Use <code>j/k</code>, arrows, PgUp/PgDn, <code>g/G</code>, wheel input, and row clicks where listed in the footer.</li>
+        <li>On Progress, use <code>p</code>, <code>u</code>, <code>x</code>, or <code>r</code>. The footer no longer advertises Detach/Reopen.</li>
+        <li>On Details, use <code>a/s/c/b/t</code>. The <code>t</code> toggle switches between structured and canonical raw output for the current session.</li>
+        <li>During Apply, first Esc warns. A second Esc requests abandonment and leaves the correlation active until rollback reports success or failure.</li>
+      </ol>
+      <details open>
+        <summary>Required validation commands</summary>
+        <pre><code>cargo fmt --all
+cargo clippy --all-targets --all-features -- -D warnings
+cargo check
+cargo test -- --test-threads=1
+git diff --check</code></pre>
+      </details>
+      <details>
+        <summary>Residual risks and limits</summary>
+        <ul>
+          <li>Live external Pi/provider behavior was not run in this pass. Four Pi Scan checks remain deliberately ignored unless the environment is configured.</li>
+          <li>Display-width scroll bounds approximate Ratatui's private wrapping for unusual grapheme and whitespace combinations.</li>
+          <li>Timed-out setup helper threads may finish after the controller returns, but their bounded late results have no sender and cannot mutate runtime ownership. Owned probe processes still use terminate-and-reap deadlines.</li>
+          <li>The two micro-USD parsers are equivalent today but remain a maintenance duplication.</li>
+          <li>The spinner advances on wall-clock seconds. This is enough to show liveness but not every redraw.</li>
+        </ul>
+      </details>
+      <h3>Sources and traceability</h3>
+      <ul>
+        <li>Canonical completed plan: <a href="../plans/archive/pi-scan-tui-interaction-improvements.md"><code>plans/archive/pi-scan-tui-interaction-improvements.md</code></a></li>
+        <li>PR record: <a href="../dev/PR/PR_feat-aur-scan-integrated.md"><code>dev/PR/PR_feat-aur-scan-integrated.md</code></a></li>
+        <li>Primary implementation: <code>src/app/runtime/workers/pi_scan_production.rs</code>, <code>src/app/runtime/workers/pi_scan_setup.rs</code>, <code>src/app/runtime/event_loop.rs</code>, <code>src/state/pi_scan_ui.rs</code>, <code>src/events/pi_scan/</code>, and <code>src/ui/pi_scan/</code>.</li>
+        <li>Acceptance coverage: <code>tests/pi_scan/ws4_tui.rs</code>, <code>ws9_orchestration.rs</code>, <code>ws_setup_probe.rs</code>, <code>ws_setup_runtime.rs</code>, and <code>ws_setup_ui.rs</code>.</li>
+      </ul>
+    </section>
+  </div>
+  <footer><p><strong>Generated:</strong> 2026-08-20 · <strong>Scope:</strong> Pi Scan TUI interaction implementation, integration, independent review, remediation, and acceptance evidence.</p></footer>
+</main>
+<script>
+(() => {
+  const list=document.querySelector('[role="tablist"]');
+  if(!list)return;
+  const tabs=[...list.querySelectorAll('[role="tab"]')];
+  document.documentElement.classList.add('tabs-ready');
+  function activate(tab,updateHash=true){
+    tabs.forEach(candidate=>{
+      const selected=candidate===tab;
+      candidate.setAttribute('aria-selected',String(selected));
+      candidate.tabIndex=selected?0:-1;
+      const panel=document.getElementById(candidate.getAttribute('aria-controls'));
+      if(panel)panel.hidden=!selected;
+    });
+    if(updateHash)history.replaceState(null,'',`#${tab.getAttribute('aria-controls')}`);
+  }
+  tabs.forEach((tab,index)=>{
+    tab.addEventListener('click',()=>activate(tab));
+    tab.addEventListener('keydown',event=>{
+      let target=null;
+      if(event.key==='ArrowRight')target=(index+1)%tabs.length;
+      if(event.key==='ArrowLeft')target=(index-1+tabs.length)%tabs.length;
+      if(event.key==='Home')target=0;
+      if(event.key==='End')target=tabs.length-1;
+      if(target===null)return;
+      event.preventDefault();
+      activate(tabs[target]);
+      tabs[target].focus();
+    });
+  });
+  const fromHash=tabs.find(tab=>`#${tab.getAttribute('aria-controls')}`===location.hash);
+  activate(fromHash||tabs[0],false);
+})();
+</script>
+</body>
+</html>

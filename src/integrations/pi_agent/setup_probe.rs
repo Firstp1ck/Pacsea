@@ -26,7 +26,8 @@ use crate::pi_agent::capabilities::{
 };
 use crate::pi_agent::client::{PiRpcClient, RpcTransport, TransportMetadata};
 use crate::pi_agent::process::{
-    EMBEDDED_EXTENSION_SHA256, PACSEA_EXTENSION_COMMAND, configure_environment, pi_argv,
+    EMBEDDED_EXTENSION_SHA256, PACSEA_EXTENSION_COMMAND, configure_environment,
+    default_shutdown_deadline, pi_argv,
 };
 use crate::pi_agent::protocol::{CommandCorrelator, decode_record, encode_command};
 use crate::pi_agent::restricted_tools::SnapshotRegistry;
@@ -39,6 +40,8 @@ use crate::state::pi_scan::PiScanReservation;
 const MAX_CLI_OUTPUT_BYTES: usize = 1024 * 1024;
 /// Whole-process deadline for one inert Pi CLI information command.
 const CLI_INFORMATION_TIMEOUT: Duration = Duration::from_secs(15);
+/// Whole setup-probe deadline including the compiled process teardown reserve.
+pub(crate) const SETUP_PROBE_TOTAL_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Fixed logical-scan token reservation reviewed during setup and runtime revalidation.
 pub(crate) const SETUP_PROBE_RESERVATION_TOKENS: u64 = 500_000;
@@ -319,6 +322,11 @@ pub enum PiSetupProbeError {
         /// Accepted maximum age.
         maximum_age_seconds: u64,
     },
+    /// The whole setup probe exceeded its controller-owned deadline after cleanup.
+    DeadlineExceeded {
+        /// Enforced whole-probe deadline in seconds.
+        deadline_seconds: u64,
+    },
     /// A requested exact route was not advertised by the verified snapshot.
     RouteNotAdvertised {
         /// Requested provider identifier.
@@ -410,6 +418,10 @@ impl fmt::Display for PiSetupProbeError {
                 formatter,
                 "Pi pricing reviewed at Unix time {observed_at_unix_seconds} is stale at {now_unix_seconds} (maximum age {maximum_age_seconds}s); re-run the no-model setup probe"
             ),
+            Self::DeadlineExceeded { deadline_seconds } => write!(
+                formatter,
+                "the no-model Pi setup probe exceeded its {deadline_seconds} second deadline and was terminated and reaped; Retry is available"
+            ),
             Self::RouteNotAdvertised { provider, model } => write!(
                 formatter,
                 "Pi route {provider}/{model} is not in the exact verified advertised snapshot; select an advertised route or re-run setup"
@@ -445,6 +457,7 @@ pub trait PiSetupProbeBackend {
         &mut self,
         executable: &Path,
         flag: &'static str,
+        timeout: Duration,
     ) -> Result<String, PiSetupProbeError>;
 
     /// Launch one isolated direct-argv Pi RPC transport.
@@ -477,8 +490,9 @@ impl PiSetupProbeBackend for SystemPiSetupProbeBackend {
         &mut self,
         executable: &Path,
         flag: &'static str,
+        timeout: Duration,
     ) -> Result<String, PiSetupProbeError> {
-        run_pi_cli_information(executable, flag)
+        run_pi_cli_information_with_timeout(executable, flag, timeout.min(CLI_INFORMATION_TIMEOUT))
     }
 
     fn launch_isolated_rpc(
@@ -522,7 +536,29 @@ impl PiSetupProbeBackend for SystemPiSetupProbeBackend {
 pub fn probe_pi_setup(
     request: &PiSetupProbeRequest,
 ) -> Result<PiSetupProbeSnapshot, PiSetupProbeError> {
-    probe_pi_setup_with_backend(request, &mut SystemPiSetupProbeBackend)
+    probe_pi_setup_with_deadline(request, SETUP_PROBE_TOTAL_TIMEOUT)
+}
+
+/// What: Run the production probe under a whole-operation deadline including cleanup reserve.
+///
+/// Inputs:
+/// - `request`: Exact setup probe policy.
+/// - `total_timeout`: Maximum wall time reserved for operations plus process teardown.
+///
+/// Output:
+/// - Verified setup facts only when every stage finishes before the deadline.
+///
+/// Details:
+/// - The compiled ten-second shutdown bound is reserved before external operations begin.
+///   Existing per-step fifteen-second limits remain lower-level defenses.
+///
+/// # Errors
+/// - Returns a typed deadline only after every owned CLI/RPC child was terminated and reaped.
+pub(crate) fn probe_pi_setup_with_deadline(
+    request: &PiSetupProbeRequest,
+    total_timeout: Duration,
+) -> Result<PiSetupProbeSnapshot, PiSetupProbeError> {
+    probe_pi_setup_with_backend_and_deadline(request, &mut SystemPiSetupProbeBackend, total_timeout)
 }
 
 /// What: Run the setup probe through an injected deterministic backend.
@@ -543,10 +579,39 @@ pub fn probe_pi_setup_with_backend(
     request: &PiSetupProbeRequest,
     backend: &mut dyn PiSetupProbeBackend,
 ) -> Result<PiSetupProbeSnapshot, PiSetupProbeError> {
+    probe_pi_setup_with_backend_and_deadline(request, backend, SETUP_PROBE_TOTAL_TIMEOUT)
+}
+
+/// Run an injected probe with the same whole-deadline and cleanup semantics as production.
+fn probe_pi_setup_with_backend_and_deadline(
+    request: &PiSetupProbeRequest,
+    backend: &mut dyn PiSetupProbeBackend,
+    total_timeout: Duration,
+) -> Result<PiSetupProbeSnapshot, PiSetupProbeError> {
     validate_request(request)?;
+    let cleanup_reserve = default_shutdown_deadline();
+    let operation_timeout =
+        total_timeout
+            .checked_sub(cleanup_reserve)
+            .ok_or(PiSetupProbeError::DeadlineExceeded {
+                deadline_seconds: total_timeout.as_secs(),
+            })?;
+    let operation_deadline = Instant::now() + operation_timeout;
     let executable = backend.resolve_binary(&request.binary)?;
-    let version_output = backend.run_cli_information(&executable, "--version")?;
-    let help_output = backend.run_cli_information(&executable, "--help")?;
+    let version_output = run_bounded_cli_stage(
+        backend,
+        &executable,
+        "--version",
+        operation_deadline,
+        total_timeout,
+    )?;
+    let help_output = run_bounded_cli_stage(
+        backend,
+        &executable,
+        "--help",
+        operation_deadline,
+        total_timeout,
+    )?;
     let pi_version = validate_cli_contract(&version_output, &help_output).map_err(|failure| {
         PiSetupProbeError::UnsupportedCli {
             reasons: failure.reasons,
@@ -555,21 +620,53 @@ pub fn probe_pi_setup_with_backend(
     let mut transport = backend.launch_isolated_rpc(&executable, &request.workspace_parent)?;
     let metadata = transport.metadata();
     let mut correlator = CommandCorrelator::new();
-    let probe = collect_rpc_metadata(transport.as_mut(), &mut correlator);
-    let teardown = transport
-        .reap()
-        .map_err(|error| PiSetupProbeError::Isolation {
-            reason: error.to_string(),
+    let probe = collect_rpc_metadata(transport.as_mut(), &mut correlator, operation_deadline);
+    let deadline_expired = Instant::now() >= operation_deadline;
+    let teardown = if deadline_expired {
+        transport.abort_and_reap(&mut correlator)
+    } else {
+        transport.reap()
+    }
+    .map_err(|error| PiSetupProbeError::Isolation {
+        reason: error.to_string(),
+    });
+    teardown?;
+    if deadline_expired {
+        return Err(PiSetupProbeError::DeadlineExceeded {
+            deadline_seconds: total_timeout.as_secs(),
         });
-    let (models, commands) = match (probe, teardown) {
-        (_, Err(error)) | (Err(error), Ok(())) => return Err(error),
-        (Ok(result), Ok(())) => result,
-    };
+    }
+    let (models, commands) = probe?;
     let tool_names = backend.isolated_tool_names();
     let isolation =
         validate_isolation_contract(metadata, &tool_names, backend.isolation_argv(), &commands)?;
     let routes = parse_advertised_routes(&models, request.reservation_tokens)?;
     build_snapshot(request, executable, pi_version, isolation, routes)
+}
+
+/// Run one CLI stage within both the remaining whole deadline and the per-step bound.
+fn run_bounded_cli_stage(
+    backend: &mut dyn PiSetupProbeBackend,
+    executable: &Path,
+    flag: &'static str,
+    operation_deadline: Instant,
+    total_timeout: Duration,
+) -> Result<String, PiSetupProbeError> {
+    let remaining = operation_deadline.saturating_duration_since(Instant::now());
+    if remaining.is_zero() {
+        return Err(PiSetupProbeError::DeadlineExceeded {
+            deadline_seconds: total_timeout.as_secs(),
+        });
+    }
+    let result =
+        backend.run_cli_information(executable, flag, remaining.min(CLI_INFORMATION_TIMEOUT));
+    if Instant::now() >= operation_deadline {
+        Err(PiSetupProbeError::DeadlineExceeded {
+            deadline_seconds: total_timeout.as_secs(),
+        })
+    } else {
+        result
+    }
 }
 
 /// Validate request invariants before resolving or launching anything.
@@ -613,14 +710,6 @@ fn resolve_setup_probe_binary(configured: &str) -> Result<PathBuf, PiSetupProbeE
             configured: trimmed.to_string(),
         })
     }
-}
-
-/// Run one bounded information-only Pi CLI command with direct argv and positive environment.
-fn run_pi_cli_information(
-    executable: &Path,
-    flag: &'static str,
-) -> Result<String, PiSetupProbeError> {
-    run_pi_cli_information_with_timeout(executable, flag, CLI_INFORMATION_TIMEOUT)
 }
 
 /// Run one direct-argv CLI information probe with bounded time and captured bytes.
@@ -758,13 +847,27 @@ fn cli_invocation_error(flag: &'static str, reason: &str) -> PiSetupProbeError {
 fn collect_rpc_metadata(
     transport: &mut dyn RpcTransport,
     correlator: &mut CommandCorrelator,
+    operation_deadline: Instant,
 ) -> Result<(Value, Vec<CommandDescriptor>), PiSetupProbeError> {
-    let timeout = Duration::from_secs(15);
-    let models = metadata_rpc_call(transport, correlator, SETUP_PROBE_RPC_COMMANDS[0], timeout)?;
-    let commands_value =
-        metadata_rpc_call(transport, correlator, SETUP_PROBE_RPC_COMMANDS[1], timeout)?;
+    let models = metadata_rpc_call(
+        transport,
+        correlator,
+        SETUP_PROBE_RPC_COMMANDS[0],
+        operation_deadline,
+    )?;
+    let commands_value = metadata_rpc_call(
+        transport,
+        correlator,
+        SETUP_PROBE_RPC_COMMANDS[1],
+        operation_deadline,
+    )?;
     let commands = parse_command_inventory(&commands_value)?;
-    let state = metadata_rpc_call(transport, correlator, SETUP_PROBE_RPC_COMMANDS[2], timeout)?;
+    let state = metadata_rpc_call(
+        transport,
+        correlator,
+        SETUP_PROBE_RPC_COMMANDS[2],
+        operation_deadline,
+    )?;
     if state.pointer("/data").and_then(Value::as_object).is_none() {
         return Err(PiSetupProbeError::Rpc {
             command: "get_state",
@@ -779,7 +882,7 @@ fn metadata_rpc_call(
     transport: &mut dyn RpcTransport,
     correlator: &mut CommandCorrelator,
     command: &'static str,
-    timeout: Duration,
+    operation_deadline: Instant,
 ) -> Result<Value, PiSetupProbeError> {
     let id = correlator
         .issue(command)
@@ -789,7 +892,10 @@ fn metadata_rpc_call(
     transport
         .write_record(&encoded)
         .map_err(|_| rpc_error(command, "command write failed"))?;
-    let deadline = Instant::now() + timeout;
+    let deadline = (Instant::now() + Duration::from_secs(15)).min(operation_deadline);
+    if Instant::now() >= deadline {
+        return Err(rpc_error(command, "the whole setup deadline elapsed"));
+    }
     let cancelled = AtomicBool::new(false);
     loop {
         let bytes = transport

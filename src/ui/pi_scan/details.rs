@@ -4,8 +4,9 @@ use crate::state::AppState;
 use ratatui::{Frame, layout::Rect, text::Line};
 
 /// Render coverage, limitations, findings, disagreements, and acknowledgements.
-pub(super) fn render(f: &mut Frame, app: &AppState, area: Rect) {
+pub(super) fn render(f: &mut Frame, app: &mut AppState, area: Rect) {
     let Some(result) = app.pi_scan.selected_result() else {
+        app.pi_scan.view_scroll.details = 0;
         super::body(
             f,
             app,
@@ -60,7 +61,7 @@ pub(super) fn render(f: &mut Frame, app: &AppState, area: Rect) {
             )));
         }
     }
-    if app.pi_scan.settings.show_raw_output {
+    if app.pi_scan.settings.show_raw_output || app.pi_scan.show_raw_output {
         lines.push(Line::from(crate::i18n::t(app, "app.pi_scan.details.raw")));
         lines.extend(
             result
@@ -69,5 +70,8 @@ pub(super) fn render(f: &mut Frame, app: &AppState, area: Rect) {
                 .map(|line| Line::from(line.to_string())),
         );
     }
-    super::body(f, app, area, "app.pi_scan.tabs.details", lines);
+    let scroll = super::clamp_line_scroll(app.pi_scan.view_scroll.details, &lines, area);
+    app.pi_scan.view_scroll.details = scroll;
+    app.pi_scan.detail_scroll = scroll;
+    super::body_scrolled(f, app, area, "app.pi_scan.tabs.details", lines, scroll);
 }

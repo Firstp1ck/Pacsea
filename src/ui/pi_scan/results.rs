@@ -1,6 +1,7 @@
 //! Validated result list page.
 
 use crate::state::AppState;
+use crate::state::pi_scan_ui::PiScanListHitRect;
 use crate::theme::theme;
 use ratatui::{
     Frame,
@@ -10,8 +11,16 @@ use ratatui::{
 };
 
 /// Render only strictly validated typed advisory results.
-pub(super) fn render(f: &mut Frame, app: &AppState, area: Rect) {
+pub(super) fn render(f: &mut Frame, app: &mut AppState, area: Rect) {
     let th = theme();
+    let capacity = usize::from(area.height.saturating_sub(3)).max(1);
+    let offset = visible_offset(
+        app.pi_scan.view_scroll.results,
+        app.pi_scan.selected_result,
+        app.pi_scan.results.len(),
+        capacity,
+    );
+    app.pi_scan.view_scroll.results = offset;
     let mut lines = vec![Line::from(crate::i18n::t(
         app,
         "app.pi_scan.results.advisory",
@@ -19,8 +28,17 @@ pub(super) fn render(f: &mut Frame, app: &AppState, area: Rect) {
     if app.pi_scan.results.is_empty() {
         lines.push(Line::from(crate::i18n::t(app, "app.pi_scan.results.empty")));
     }
-    for (index, result) in app.pi_scan.results.iter().enumerate() {
-        let style = if index == app.pi_scan.selected {
+    let mut rects = Vec::new();
+    for (visible_index, (index, result)) in app
+        .pi_scan
+        .results
+        .iter()
+        .enumerate()
+        .skip(offset)
+        .take(capacity)
+        .enumerate()
+    {
+        let style = if index == app.pi_scan.selected_result {
             Style::default()
                 .fg(th.sapphire)
                 .add_modifier(Modifier::BOLD)
@@ -41,6 +59,29 @@ pub(super) fn render(f: &mut Frame, app: &AppState, area: Rect) {
             ),
             style,
         )));
+        rects.push(PiScanListHitRect {
+            index,
+            x: area.x.saturating_add(1),
+            y: area
+                .y
+                .saturating_add(2)
+                .saturating_add(u16::try_from(visible_index).unwrap_or(u16::MAX)),
+            width: area.width.saturating_sub(2),
+            height: 1,
+        });
     }
+    app.pi_scan.set_result_row_rects(rects);
     super::body(f, app, area, "app.pi_scan.tabs.results", lines);
+}
+
+/// Keep a selected result visible while clamping to the current list capacity.
+fn visible_offset(offset: usize, selected: usize, len: usize, capacity: usize) -> usize {
+    let maximum = len.saturating_sub(capacity);
+    let mut visible = offset.min(maximum);
+    if selected < visible {
+        visible = selected;
+    } else if selected >= visible.saturating_add(capacity) {
+        visible = selected.saturating_add(1).saturating_sub(capacity);
+    }
+    visible.min(maximum)
 }

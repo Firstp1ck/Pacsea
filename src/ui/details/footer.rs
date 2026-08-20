@@ -1305,13 +1305,12 @@ fn build_config_editor_editor_line_spans(
                 .selected_key()
                 .is_some_and(|setting| setting.key.starts_with("pi_scan_"))
             {
-                add_literal_key_entry(
+                add_keybind_entry(
                     &mut spans,
-                    "Ctrl+G",
+                    app.keymap.config_editor_pi_scan_setup.first(),
                     key_style,
                     &i18n::t(app, "app.modals.config_editor.footer.pi_scan_setup"),
                     sep_style,
-                    true,
                 );
             }
             add_literal_key_entry(
@@ -1418,5 +1417,37 @@ mod tests {
             .collect::<String>();
 
         assert!(text.contains("[Shift+A]"));
+    }
+
+    /// Config-editor Pi Scan setup footer must display the configured chord label.
+    #[test]
+    fn config_editor_footer_uses_configured_pi_scan_setup_label() {
+        let mut app = AppState::default();
+        app.keymap.config_editor_pi_scan_setup = vec![KeyChord {
+            code: crossterm::event::KeyCode::Char('p'),
+            mods: crossterm::event::KeyModifiers::ALT,
+        }];
+        let mut state = ConfigEditorState {
+            selected_file: crate::theme::ConfigFile::Settings,
+            view: ConfigEditorView::KeyList,
+            query: "pi_scan_binary".to_string(),
+            ..ConfigEditorState::default()
+        };
+        state.clamp_key_cursor();
+
+        let spans = build_config_editor_editor_line_spans(
+            &app,
+            &state,
+            &theme(),
+            Style::default(),
+            Style::default(),
+        );
+        let text = spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect::<String>();
+
+        assert!(text.contains("[Alt+P]"));
+        assert!(!text.contains("[Ctrl+G]"));
     }
 }

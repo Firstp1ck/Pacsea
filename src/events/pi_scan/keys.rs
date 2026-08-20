@@ -1,6 +1,7 @@
 //! Keyboard state transitions for the Pi Scan workspace.
 
-use crate::state::pi_scan_setup::{PiScanSetupApplyStatus, PiScanSetupHitTarget, PiScanSetupStep};
+use crate::state::pi_scan_setup::{PiScanSetupHitTarget, PiScanSetupStep};
+use crate::state::pi_scan_ui::PiScanNoticeSeverity;
 use crate::state::types::AppMode;
 use crate::state::{
     AppState, PiScanAvailability, PiScanDryRunPreview, PiScanReadiness, PiScanUiAction, PiScanView,
@@ -9,7 +10,7 @@ use crate::state::{
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 /// Open Pi Scan with context from the selected Search result.
-pub fn open_from_search(app: &mut AppState) {
+pub(super) fn open_from_search(app: &mut AppState) {
     let context = app
         .results
         .get(app.selected)
@@ -25,7 +26,7 @@ pub fn open_from_search(app: &mut AppState) {
 }
 
 /// Handle one pressed key while the Pi Scan workspace is active.
-pub fn handle_key(key: KeyEvent, app: &mut AppState) -> bool {
+pub(super) fn handle_key(key: KeyEvent, app: &mut AppState) -> bool {
     if app.pi_scan.wizard.is_some() {
         return handle_wizard(key, app);
     }
@@ -33,7 +34,7 @@ pub fn handle_key(key: KeyEvent, app: &mut AppState) -> bool {
         app.app_mode = AppMode::Package;
         return true;
     }
-    if handle_page_key(key, app) || handle_navigation(key, app) {
+    if handle_page_key(key, app) || handle_navigation(key, app) || handle_scroll_key(key, app) {
         return true;
     }
     match app.pi_scan.view {
@@ -49,7 +50,7 @@ pub fn handle_key(key: KeyEvent, app: &mut AppState) -> bool {
 /// Handle one key inside the isolated keyboard-first setup wizard.
 fn handle_wizard(key: KeyEvent, app: &mut AppState) -> bool {
     if key.code == KeyCode::Esc {
-        app.pi_scan.cancel_setup_wizard();
+        app.pi_scan.cancel_or_abandon_setup_wizard();
         return true;
     }
     let dry_run = app.dry_run;
@@ -62,28 +63,28 @@ fn handle_wizard(key: KeyEvent, app: &mut AppState) -> bool {
         KeyCode::PageUp => wizard.scroll_body(false),
         KeyCode::PageDown => wizard.scroll_body(true),
         KeyCode::Backspace if wizard.edit_text(None, true) => {}
+        KeyCode::Char('n') => wizard.next(dry_run),
         KeyCode::Char(character)
-            if key.modifiers.is_empty() && wizard.edit_text(Some(character), false) => {}
+            if (key.modifiers.is_empty() || key.modifiers == KeyModifiers::SHIFT)
+                && wizard.edit_text(Some(character), false) => {}
         KeyCode::Left | KeyCode::Char('h') => wizard.adjust_focused(false),
         KeyCode::Right | KeyCode::Char('l') => wizard.adjust_focused(true),
         KeyCode::Char(' ') => wizard.toggle_focused(),
-        KeyCode::Enter => activate_focused(app, dry_run),
+        KeyCode::Enter => return activate_focused(app, dry_run),
         KeyCode::Char('b') => wizard.back(),
-        KeyCode::Char('n') => wizard.next(dry_run),
         KeyCode::Char('a') if wizard.step == PiScanSetupStep::Review => {
-            wizard.request_apply(dry_run);
+            return request_wizard_apply(app, dry_run);
         }
         KeyCode::Char('r') => wizard.retry(dry_run),
-        KeyCode::Char('q') => app.pi_scan.cancel_setup_wizard(),
         _ => return false,
     }
     true
 }
 
-/// Activate the focused body control or the page's primary Enter action.
-fn activate_focused(app: &mut AppState, dry_run: bool) {
+/// Activate only the currently focused wizard body control.
+fn activate_focused(app: &mut AppState, dry_run: bool) -> bool {
     let Some(wizard) = app.pi_scan.wizard.as_mut() else {
-        return;
+        return false;
     };
     match (wizard.step, wizard.focus) {
         (PiScanSetupStep::PiReadiness, 1) => wizard.request_probe(dry_run),
@@ -93,32 +94,26 @@ fn activate_focused(app: &mut AppState, dry_run: bool) {
         (PiScanSetupStep::PricingPrivacy, _) | (PiScanSetupStep::OptionalBehavior, 0..=2) => {
             wizard.toggle_focused();
         }
-        (PiScanSetupStep::Review, _) => wizard.request_apply(dry_run),
-        (PiScanSetupStep::Activate, _)
-            if matches!(wizard.apply_status, PiScanSetupApplyStatus::Failed(_)) =>
-        {
-            wizard.retry(dry_run);
-        }
-        (PiScanSetupStep::Activate, _)
-            if matches!(wizard.apply_status, PiScanSetupApplyStatus::Complete) =>
-        {
-            app.pi_scan.cancel_setup_wizard();
-        }
-        (PiScanSetupStep::PiReadiness, 0) if wizard.verified.is_none() => {
-            wizard.request_probe(dry_run);
-        }
-        (PiScanSetupStep::PiReadiness, 0) | (PiScanSetupStep::OptionalBehavior, 7) => {
-            wizard.next(dry_run);
-        }
-        _ => wizard.next(dry_run),
+        _ => return false,
     }
+    true
+}
+
+/// Request final Apply through its explicit wizard action and retain correlation ownership.
+fn request_wizard_apply(app: &mut AppState, dry_run: bool) -> bool {
+    let Some(wizard) = app.pi_scan.wizard.as_mut() else {
+        return false;
+    };
+    wizard.request_apply(dry_run);
+    app.pi_scan.register_setup_apply();
+    true
 }
 
 /// Activate one semantic mouse target through the same state transitions as keys.
 pub(super) fn activate_wizard_target(target: PiScanSetupHitTarget, app: &mut AppState) {
     let dry_run = app.dry_run;
     match target {
-        PiScanSetupHitTarget::Cancel => app.pi_scan.cancel_setup_wizard(),
+        PiScanSetupHitTarget::Cancel => app.pi_scan.cancel_or_abandon_setup_wizard(),
         PiScanSetupHitTarget::Back => {
             if let Some(wizard) = app.pi_scan.wizard.as_mut() {
                 wizard.back();
@@ -135,9 +130,7 @@ pub(super) fn activate_wizard_target(target: PiScanSetupHitTarget, app: &mut App
             }
         }
         PiScanSetupHitTarget::Apply => {
-            if let Some(wizard) = app.pi_scan.wizard.as_mut() {
-                wizard.request_apply(dry_run);
-            }
+            request_wizard_apply(app, dry_run);
         }
         PiScanSetupHitTarget::Control(index) => {
             if let Some(wizard) = app.pi_scan.wizard.as_mut() {
@@ -160,31 +153,176 @@ fn handle_page_key(key: KeyEvent, app: &mut AppState) -> bool {
         KeyCode::BackTab => current.checked_sub(1).unwrap_or(5),
         _ => return false,
     };
-    app.pi_scan.view = PiScanView::all()[next];
-    app.pi_scan.selected = 0;
+    app.pi_scan.set_view(PiScanView::all()[next]);
     true
 }
 
-/// Move target/result selection and details scroll.
+/// Move independent target/result selection or the Details line viewport.
 fn handle_navigation(key: KeyEvent, app: &mut AppState) -> bool {
     let delta = match key.code {
         KeyCode::Up | KeyCode::Char('k') => -1isize,
         KeyCode::Down | KeyCode::Char('j') => 1,
         _ => return false,
     };
-    let len = match app.pi_scan.view {
-        PiScanView::Targets => app.pi_scan.targets.len(),
-        PiScanView::Results | PiScanView::Details => app.pi_scan.results.len(),
-        _ => 0,
-    };
-    if len > 0 {
-        app.pi_scan.selected = app
-            .pi_scan
-            .selected
-            .saturating_add_signed(delta)
-            .min(len - 1);
+    match app.pi_scan.view {
+        PiScanView::Targets if !app.pi_scan.targets.is_empty() => {
+            app.pi_scan.selected_target = app
+                .pi_scan
+                .selected_target
+                .saturating_add_signed(delta)
+                .min(app.pi_scan.targets.len() - 1);
+            app.pi_scan.selected = app.pi_scan.selected_target;
+            keep_selected_visible(
+                app.pi_scan.selected_target,
+                &mut app.pi_scan.view_scroll.targets,
+            );
+            true
+        }
+        PiScanView::Results if !app.pi_scan.results.is_empty() => {
+            app.pi_scan.selected_result = app
+                .pi_scan
+                .selected_result
+                .saturating_add_signed(delta)
+                .min(app.pi_scan.results.len() - 1);
+            app.pi_scan.selected = app.pi_scan.selected_result;
+            keep_selected_visible(
+                app.pi_scan.selected_result,
+                &mut app.pi_scan.view_scroll.results,
+            );
+            true
+        }
+        PiScanView::Details => {
+            app.pi_scan.view_scroll.details = app
+                .pi_scan
+                .view_scroll
+                .details
+                .saturating_add_signed(if delta < 0 { -1i16 } else { 1i16 });
+            app.pi_scan.detail_scroll = app.pi_scan.view_scroll.details;
+            true
+        }
+        PiScanView::Setup
+        | PiScanView::Overview
+        | PiScanView::Progress
+        | PiScanView::Targets
+        | PiScanView::Results => false,
     }
+}
+
+/// Keep one selected item within the conservative minimum list viewport.
+const fn keep_selected_visible(selected: usize, offset: &mut usize) {
+    const MIN_VISIBLE_ROWS: usize = 6;
+    if selected < *offset {
+        *offset = selected;
+    } else if selected >= offset.saturating_add(MIN_VISIBLE_ROWS) {
+        *offset = selected.saturating_add(1).saturating_sub(MIN_VISIBLE_ROWS);
+    }
+}
+
+/// Scroll the current page or list by a page, or jump to its beginning/end.
+fn handle_scroll_key(key: KeyEvent, app: &mut AppState) -> bool {
+    let command = match key.code {
+        KeyCode::PageUp => ScrollCommand::PageUp,
+        KeyCode::PageDown => ScrollCommand::PageDown,
+        KeyCode::Char('g') if key.modifiers.is_empty() => ScrollCommand::Top,
+        KeyCode::Char('G') if key.modifiers.contains(KeyModifiers::SHIFT) => ScrollCommand::Bottom,
+        _ => return false,
+    };
+    apply_scroll_command(app, command);
     true
+}
+
+/// One semantic workspace scroll command shared by page-key handling.
+#[derive(Clone, Copy)]
+enum ScrollCommand {
+    /// Move toward the beginning by one page.
+    PageUp,
+    /// Move toward the end by one page.
+    PageDown,
+    /// Jump to the beginning.
+    Top,
+    /// Jump to the end.
+    Bottom,
+}
+
+/// Scroll the current workspace view by one page from mouse-wheel input.
+pub(super) fn scroll_current(app: &mut AppState, down: bool) {
+    apply_scroll_command(
+        app,
+        if down {
+            ScrollCommand::PageDown
+        } else {
+            ScrollCommand::PageUp
+        },
+    );
+}
+
+/// Apply one scroll command to the current independent view offset and selection.
+fn apply_scroll_command(app: &mut AppState, command: ScrollCommand) {
+    match app.pi_scan.view {
+        PiScanView::Targets => scroll_items(
+            command,
+            &mut app.pi_scan.selected_target,
+            &mut app.pi_scan.view_scroll.targets,
+            app.pi_scan.targets.len(),
+        ),
+        PiScanView::Results => scroll_items(
+            command,
+            &mut app.pi_scan.selected_result,
+            &mut app.pi_scan.view_scroll.results,
+            app.pi_scan.results.len(),
+        ),
+        PiScanView::Setup => scroll_lines(command, &mut app.pi_scan.view_scroll.setup),
+        PiScanView::Overview => scroll_lines(command, &mut app.pi_scan.view_scroll.overview),
+        PiScanView::Progress => scroll_lines(command, &mut app.pi_scan.view_scroll.progress),
+        PiScanView::Details => {
+            scroll_lines(command, &mut app.pi_scan.view_scroll.details);
+            app.pi_scan.detail_scroll = app.pi_scan.view_scroll.details;
+        }
+    }
+    app.pi_scan.selected = match app.pi_scan.view {
+        PiScanView::Targets => app.pi_scan.selected_target,
+        PiScanView::Results | PiScanView::Details => app.pi_scan.selected_result,
+        PiScanView::Setup | PiScanView::Overview | PiScanView::Progress => 0,
+    };
+}
+
+/// Move list selection and offset together for page and boundary navigation.
+fn scroll_items(command: ScrollCommand, selected: &mut usize, offset: &mut usize, len: usize) {
+    const PAGE: usize = 6;
+    if len == 0 {
+        *selected = 0;
+        *offset = 0;
+        return;
+    }
+    match command {
+        ScrollCommand::PageUp => {
+            *selected = selected.saturating_sub(PAGE);
+            *offset = offset.saturating_sub(PAGE);
+        }
+        ScrollCommand::PageDown => {
+            *selected = selected.saturating_add(PAGE).min(len - 1);
+            *offset = offset.saturating_add(PAGE).min(len - 1);
+        }
+        ScrollCommand::Top => {
+            *selected = 0;
+            *offset = 0;
+        }
+        ScrollCommand::Bottom => {
+            *selected = len - 1;
+            *offset = len.saturating_sub(PAGE);
+        }
+    }
+}
+
+/// Move a line-based viewport with renderer-side content clamping.
+const fn scroll_lines(command: ScrollCommand, offset: &mut u16) {
+    const PAGE: u16 = 6;
+    *offset = match command {
+        ScrollCommand::PageUp => offset.saturating_sub(PAGE),
+        ScrollCommand::PageDown => offset.saturating_add(PAGE),
+        ScrollCommand::Top => 0,
+        ScrollCommand::Bottom => u16::MAX,
+    };
 }
 
 /// Apply disclosure and independent consent toggles.
@@ -201,8 +339,9 @@ fn handle_setup(key: KeyEvent, app: &mut AppState) -> bool {
         (KeyCode::Char('v'), KeyModifiers::NONE)
     ) {
         app.pi_scan.pending_action = Some(PiScanUiAction::ProbeSetup);
-        app.pi_scan.notice = Some(
-            "Verifying exact Pi version, route pricing, and provenance before consent…".to_string(),
+        app.pi_scan.set_foreground_notice(
+            "Verifying exact Pi version, route pricing, and provenance before consent…",
+            PiScanNoticeSeverity::Info,
         );
         return true;
     }
@@ -215,9 +354,9 @@ fn handle_setup(key: KeyEvent, app: &mut AppState) -> bool {
     );
     if is_consent_key && !app.pi_scan.setup_facts_verified {
         app.pi_scan.pending_action = Some(PiScanUiAction::ProbeSetup);
-        app.pi_scan.notice = Some(
-            "Review the verified Pi version and exact pricing facts, then press the consent key again"
-                .to_string(),
+        app.pi_scan.set_foreground_notice(
+            "Review the verified Pi version and exact pricing facts, then press the consent key again",
+            PiScanNoticeSeverity::Info,
         );
         return true;
     }
@@ -246,7 +385,9 @@ fn handle_setup(key: KeyEvent, app: &mut AppState) -> bool {
         _ => return false,
     }
     app.pi_scan.pending_action = Some(PiScanUiAction::UpdateConsent);
-    app.pi_scan.notice = Some(crate::i18n::t(app, "app.pi_scan.notices.session_only"));
+    let notice = crate::i18n::t(app, "app.pi_scan.notices.session_only");
+    app.pi_scan
+        .set_foreground_notice(notice, PiScanNoticeSeverity::Info);
     true
 }
 
@@ -254,7 +395,7 @@ fn handle_setup(key: KeyEvent, app: &mut AppState) -> bool {
 fn handle_targets(key: KeyEvent, app: &mut AppState) -> bool {
     match key.code {
         KeyCode::Char(' ') => {
-            if let Some(target) = app.pi_scan.targets.get_mut(app.pi_scan.selected) {
+            if let Some(target) = app.pi_scan.targets.get_mut(app.pi_scan.selected_target) {
                 target.selected = !target.selected;
             }
         }
@@ -274,7 +415,9 @@ fn request_queue(app: &mut AppState) {
         .map(|target| target.package_base.clone())
         .collect();
     if targets.is_empty() {
-        app.pi_scan.notice = Some(crate::i18n::t(app, "app.pi_scan.notices.select_target"));
+        let notice = crate::i18n::t(app, "app.pi_scan.notices.select_target");
+        app.pi_scan
+            .set_foreground_notice(notice, PiScanNoticeSeverity::Warning);
         return;
     }
     if app.dry_run {
@@ -286,7 +429,9 @@ fn request_queue(app: &mut AppState) {
             ),
             disclosure: crate::i18n::t(app, "app.pi_scan.targets.dry_run_disclosure"),
         });
-        app.pi_scan.notice = Some(crate::i18n::t(app, "app.pi_scan.notices.preview_only"));
+        let notice = crate::i18n::t(app, "app.pi_scan.notices.preview_only");
+        app.pi_scan
+            .set_foreground_notice(notice, PiScanNoticeSeverity::Info);
         app.pi_scan.pending_action = Some(PiScanUiAction::QueueSelected);
         return;
     }
@@ -294,7 +439,9 @@ fn request_queue(app: &mut AppState) {
         || !app.pi_scan.disclosure_confirmed
         || !app.pi_scan.runtime.consent.paid_execution
     {
-        app.pi_scan.notice = Some(crate::i18n::t(app, "app.pi_scan.notices.setup_required"));
+        let notice = crate::i18n::t(app, "app.pi_scan.notices.setup_required");
+        app.pi_scan
+            .set_foreground_notice(notice, PiScanNoticeSeverity::Warning);
         return;
     }
     let warning_unconfirmed = matches!(app.pi_scan.readiness, PiScanReadiness::Warning(_))
@@ -302,34 +449,28 @@ fn request_queue(app: &mut AppState) {
     let fallback_unconfirmed =
         !app.pi_scan.settings.fallback_models.trim().is_empty() && !app.pi_scan.fallback_confirmed;
     if warning_unconfirmed || fallback_unconfirmed {
-        app.pi_scan.notice = Some(crate::i18n::t(app, "app.pi_scan.notices.confirm_required"));
+        let notice = crate::i18n::t(app, "app.pi_scan.notices.confirm_required");
+        app.pi_scan
+            .set_foreground_notice(notice, PiScanNoticeSeverity::Warning);
         return;
     }
     if !matches!(
         app.pi_scan.availability,
         PiScanAvailability::RuntimeConnected
     ) {
-        app.pi_scan.notice = Some(crate::i18n::t(
-            app,
-            "app.pi_scan.notices.runtime_disconnected",
-        ));
+        let notice = crate::i18n::t(app, "app.pi_scan.notices.runtime_disconnected");
+        app.pi_scan
+            .set_foreground_notice(notice, PiScanNoticeSeverity::Error);
         return;
     }
+    app.pi_scan.snapshot_queue_intent();
     app.pi_scan.pending_action = Some(PiScanUiAction::QueueSelected);
-    app.pi_scan.view = PiScanView::Progress;
+    app.pi_scan.set_view(PiScanView::Progress);
 }
 
-/// Set detach/reopen/pause/cancel/retry affordance state.
+/// Set pause/cancel/retry affordance state.
 fn handle_progress(key: KeyEvent, app: &mut AppState) -> bool {
     let action = match key.code {
-        KeyCode::Char('d') => {
-            app.pi_scan.detached = true;
-            PiScanUiAction::Detach
-        }
-        KeyCode::Char('o') => {
-            app.pi_scan.detached = false;
-            PiScanUiAction::Reopen
-        }
         KeyCode::Char('p') => PiScanUiAction::Pause,
         KeyCode::Char('u') => PiScanUiAction::Resume,
         KeyCode::Char('x') => {
@@ -340,6 +481,10 @@ fn handle_progress(key: KeyEvent, app: &mut AppState) -> bool {
                 .as_ref()
                 .map(|active| active.correlation_id)
             else {
+                app.pi_scan.set_foreground_notice(
+                    "No active Pi scan to cancel",
+                    PiScanNoticeSeverity::Info,
+                );
                 return true;
             };
             PiScanUiAction::Cancel(id)
@@ -354,7 +499,7 @@ fn handle_progress(key: KeyEvent, app: &mut AppState) -> bool {
 /// Open the selected validated result.
 fn handle_results(key: KeyEvent, app: &mut AppState) -> bool {
     if key.code == KeyCode::Enter && app.pi_scan.selected_result().is_some() {
-        app.pi_scan.view = PiScanView::Details;
+        app.pi_scan.set_view(PiScanView::Details);
         return true;
     }
     false
@@ -371,8 +516,11 @@ fn handle_details(key: KeyEvent, app: &mut AppState) -> bool {
         KeyCode::Char('b') if app.pi_scan.selected_result_acknowledged() => {
             app.pi_scan.pending_action = Some(PiScanUiAction::AcceptBaseline);
         }
+        KeyCode::Char('t') => app.pi_scan.toggle_raw_output(),
         KeyCode::Char('c' | 'b') => {
-            app.pi_scan.notice = Some(crate::i18n::t(app, "app.pi_scan.notices.confirm_required"));
+            let notice = crate::i18n::t(app, "app.pi_scan.notices.confirm_required");
+            app.pi_scan
+                .set_foreground_notice(notice, PiScanNoticeSeverity::Warning);
         }
         _ => return false,
     }

@@ -208,6 +208,80 @@ pub struct PiScanShutdownAck {
     pub warning: Option<String>,
 }
 
+/// Source class for one typed runtime notice.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PiScanNoticeSource {
+    /// Direct response to a foreground user action.
+    Foreground,
+    /// Observation or unattended work not initiated by the current action.
+    Background,
+    /// Runtime lifecycle or recovery information.
+    System,
+}
+
+/// Foreground action attached to runtime notice provenance when available.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PiScanRuntimeAction {
+    /// Request the sticky durable user pause.
+    Pause,
+    /// Request clearing the sticky durable user pause.
+    Resume,
+}
+
+/// What: Typed provenance retained with every new runtime notice protocol message.
+///
+/// Inputs:
+/// - Source class, optional foreground action, and optional active correlation.
+///
+/// Output:
+/// - Projection-safe attribution that never depends on the latest UI action.
+///
+/// Details:
+/// - Background and system producers leave `action` absent unless a later typed action exists.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PiScanNoticeProvenance {
+    /// Foreground, background, or system producer class.
+    pub source: PiScanNoticeSource,
+    /// Exact typed action when this notice acknowledges one.
+    pub action: Option<PiScanRuntimeAction>,
+    /// Active runtime correlation when the notice is tied to one run.
+    pub correlation_id: Option<u64>,
+}
+
+/// Durable policy acknowledgement state.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PiScanPolicyAcknowledgement {
+    /// Persistence is queued behind the active execution under the orchestrator lock.
+    Queued,
+    /// Persistence completed before another execution may start.
+    Persisted,
+    /// Persistence failed and the policy must not be presented as applied.
+    Failed {
+        /// Actionable persistence/recovery guidance.
+        reason: String,
+    },
+}
+
+/// What: Typed runtime notice consumed by later foreground/background UI projection.
+///
+/// Inputs:
+/// - Immutable provenance and truthful policy acknowledgement state.
+///
+/// Output:
+/// - Notice protocol independent from the legacy result channel.
+///
+/// Details:
+/// - The dedicated channel lets Wave C add projection without changing existing result matching.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PiScanRuntimeNotice {
+    /// Attribution and correlation supplied by the runtime producer.
+    pub provenance: PiScanNoticeProvenance,
+    /// Requested sticky user-pause value.
+    pub user_paused: bool,
+    /// Queued, persisted, or failed durability state.
+    pub acknowledgement: PiScanPolicyAcknowledgement,
+}
+
 /// Typed progress update published by the runtime worker.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PiScanProgressMessage {
@@ -439,6 +513,8 @@ pub struct PiScanRuntimeChannels {
     pub progress_rx: mpsc::UnboundedReceiver<PiScanProgressMessage>,
     /// Terminal result receiver for event-loop/WS4 projection.
     pub result_rx: mpsc::UnboundedReceiver<PiScanResultMessage>,
+    /// Typed provenance-bearing runtime notices for later UI projection.
+    pub notice_rx: mpsc::UnboundedReceiver<PiScanRuntimeNotice>,
 }
 
 /// What: Spawn one sequential, default-off Pi scan runtime worker.
@@ -501,6 +577,7 @@ fn spawn_with_state(
     let (shutdown_tx, shutdown_rx) = mpsc::unbounded_channel();
     let (progress_tx, progress_rx) = mpsc::unbounded_channel();
     let (result_tx, result_rx) = mpsc::unbounded_channel();
+    let (_notice_tx, notice_rx) = mpsc::unbounded_channel();
     let worker = PiScanWorker {
         options,
         state,
@@ -520,6 +597,7 @@ fn spawn_with_state(
         shutdown_tx,
         progress_rx,
         result_rx,
+        notice_rx,
     }
 }
 

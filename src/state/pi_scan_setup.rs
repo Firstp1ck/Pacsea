@@ -321,6 +321,15 @@ impl PiScanSetupWizardState {
         self.in_flight_correlation == Some(correlation_id)
     }
 
+    /// Return whether keyboard focus currently owns an editable text field.
+    #[must_use]
+    pub const fn focuses_text_field(&self) -> bool {
+        matches!(
+            (self.step, self.focus),
+            (PiScanSetupStep::PiReadiness, 0) | (PiScanSetupStep::OptionalBehavior, 7)
+        )
+    }
+
     /// Return the number of page-local controls available to keyboard focus.
     #[must_use]
     pub const fn focus_count(&self) -> usize {
@@ -455,15 +464,22 @@ impl PiScanSetupWizardState {
                 .push("app.pi_scan.wizard.validation.no_routes".to_string());
             return true;
         }
-        if !facts.routes.iter().any(|(provider, model)| {
+        let route_changed = !facts.routes.iter().any(|(provider, model)| {
             provider == self.candidate.provider.trim() && model == self.candidate.model.trim()
-        }) {
+        });
+        if route_changed {
             let (provider, model) = facts.routes[0].clone();
             self.candidate.provider = provider;
             self.candidate.model = model;
+            self.notice = Some(format!(
+                "Previous route is no longer advertised; selected {}/{} — review before continuing",
+                self.candidate.provider, self.candidate.model
+            ));
         }
         self.verified = Some(facts);
-        self.notice = Some("app.pi_scan.wizard.notices.readiness_verified".to_string());
+        if !route_changed {
+            self.notice = Some("app.pi_scan.wizard.notices.readiness_verified".to_string());
+        }
         true
     }
 
@@ -985,6 +1001,31 @@ mod tests {
             wizard.pending_action,
             Some(PiScanSetupDraftAction::Apply { .. })
         ));
+    }
+
+    /// Re-probing must call attention to an automatically replaced route.
+    #[test]
+    fn unavailable_candidate_route_sets_review_notice() {
+        let mut wizard = PiScanSetupWizardState::open(
+            PiScanSettings::default(),
+            PiScanConsentState::default(),
+            false,
+        );
+        wizard.candidate.provider = "removed-provider".to_string();
+        wizard.candidate.model = "removed-model".to_string();
+        wizard.request_probe(false);
+        let correlation = wizard.last_correlation;
+
+        assert!(wizard.accept_verified_facts(correlation, facts()));
+
+        assert_eq!(wizard.candidate.provider, "provider-a");
+        assert_eq!(wizard.candidate.model, "model-a");
+        assert!(
+            wizard
+                .notice
+                .as_deref()
+                .is_some_and(|notice| notice.contains("no longer advertised"))
+        );
     }
 
     /// Displayed reservation must follow the current primary and ordered fallback choices.

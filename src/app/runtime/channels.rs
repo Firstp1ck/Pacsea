@@ -11,10 +11,11 @@ use crate::app::runtime::workers::aur_vote::{
 };
 use crate::app::runtime::workers::pi_scan::{
     PiScanCancelMessage, PiScanProgressMessage, PiScanRequestMessage, PiScanResultMessage,
-    PiScanRuntimeOptions, PiScanSessionRegistration, PiScanShutdownMessage,
+    PiScanRuntimeNotice, PiScanRuntimeOptions, PiScanSessionRegistration, PiScanShutdownMessage,
 };
 use crate::app::runtime::workers::pi_scan_setup::{
-    PiScanRuntimeTransfer, PiScanSetupEvent, PiScanSetupRequest,
+    PiScanRollbackReport, PiScanRuntimeTransfer, PiScanSetupEvent, PiScanSetupRequest,
+    PiScanSetupTimeout,
 };
 use crate::integrations::arch_toolkit::{ToolkitContext, ToolkitContextError};
 use crate::state::types::NewsFeedPayload;
@@ -22,6 +23,35 @@ use crate::state::{
     ArchStatusColor, PackageDetails, PackageItem, PkgbuildCheckRequest, PkgbuildCheckResponse,
     QueryInput, SearchResults,
 };
+
+/// Result of the off-thread bounded wait for the previous Pi Scan runtime owner.
+pub struct PiScanOwnerShutdownResult {
+    /// Actionable failure, absent when the durability acknowledgement succeeded.
+    pub(crate) failure: Option<PiScanOwnerShutdownFailure>,
+}
+
+/// Bounded shutdown failure with whether the previous owner is known to have stopped.
+pub struct PiScanOwnerShutdownFailure {
+    /// Actionable durability or liveness failure.
+    pub(crate) reason: String,
+    /// Whether restoring a replacement cannot duplicate a live owner.
+    pub(crate) owner_stopped: bool,
+}
+
+/// Typed completion returned to the central event loop after nonblocking transfer work.
+pub enum PiScanRuntimeTransferCompletion {
+    /// Previous-owner shutdown finished and the retained transfer is ready for final handling.
+    OwnerShutdown {
+        /// Correlated candidate transfer retaining explicit rollback ownership.
+        transfer: Box<PiScanRuntimeTransfer>,
+        /// Exact previous options used if owner restoration becomes necessary.
+        previous_options: Box<PiScanRuntimeOptions>,
+        /// Bounded shutdown result.
+        result: PiScanOwnerShutdownResult,
+    },
+    /// An abandoned transfer completed explicit rollback off the redraw path.
+    Rollback(PiScanRollbackReport),
+}
 
 /// What: Channel definitions for runtime communication.
 ///
@@ -178,6 +208,14 @@ pub struct Channels {
     pub(crate) pi_scan_progress_rx: mpsc::UnboundedReceiver<PiScanProgressMessage>,
     /// Receiver for typed Pi scan terminal results and rejections.
     pub(crate) pi_scan_result_rx: mpsc::UnboundedReceiver<PiScanResultMessage>,
+    /// Receiver for provenance-bearing runtime policy notices.
+    pub(crate) pi_scan_notice_rx: mpsc::UnboundedReceiver<PiScanRuntimeNotice>,
+    /// Sender for nonblocking runtime-transfer follow-up completion.
+    pub(crate) pi_scan_transfer_completion_tx:
+        mpsc::UnboundedSender<PiScanRuntimeTransferCompletion>,
+    /// Receiver for nonblocking runtime-transfer follow-up completion.
+    pub(crate) pi_scan_transfer_completion_rx:
+        mpsc::UnboundedReceiver<PiScanRuntimeTransferCompletion>,
     /// Whether central integration explicitly enabled the runtime worker.
     pub(crate) pi_scan_runtime_enabled: bool,
     /// Runtime options currently authoritative for rollback/restart.
@@ -188,6 +226,8 @@ pub struct Channels {
     pub(crate) pi_scan_setup_event_rx: mpsc::UnboundedReceiver<PiScanSetupEvent>,
     /// Receiver for post-persistence candidate runtime transfers.
     pub(crate) pi_scan_setup_transfer_rx: mpsc::UnboundedReceiver<PiScanRuntimeTransfer>,
+    /// Receiver for correlated setup-controller deadline expiry.
+    pub(crate) pi_scan_setup_timeout_rx: mpsc::UnboundedReceiver<PiScanSetupTimeout>,
 }
 
 /// What: Event channel pair and cancellation flag.
@@ -636,6 +676,8 @@ impl Channels {
             );
         let current_pi_scan_options = pi_scan_options.clone();
         let requested_pi_scan_enabled = pi_scan_options.effective_enabled();
+        let (pi_scan_transfer_completion_tx, pi_scan_transfer_completion_rx) =
+            mpsc::unbounded_channel();
         let production_requested =
             requested_pi_scan_enabled && pi_scan_options.production.is_some();
         let pi_scan_spawn = if production_requested {
@@ -797,11 +839,15 @@ impl Channels {
             pi_scan_shutdown_tx: pi_scan_channels.shutdown_tx,
             pi_scan_progress_rx: pi_scan_channels.progress_rx,
             pi_scan_result_rx: pi_scan_channels.result_rx,
+            pi_scan_notice_rx: pi_scan_channels.notice_rx,
+            pi_scan_transfer_completion_tx,
+            pi_scan_transfer_completion_rx,
             pi_scan_runtime_enabled,
             pi_scan_runtime_options: current_pi_scan_options,
             pi_scan_setup_request_tx: setup_channels.request_tx,
             pi_scan_setup_event_rx: setup_channels.event_rx,
             pi_scan_setup_transfer_rx: setup_channels.transfer_rx,
+            pi_scan_setup_timeout_rx: setup_channels.timeout_rx,
         })
     }
 }

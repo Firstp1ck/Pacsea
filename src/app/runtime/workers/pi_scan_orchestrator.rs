@@ -5,7 +5,7 @@
 //! commit ordering, frozen execution identity, canonical result persistence, budget
 //! reconciliation, stale projection, and non-preemptive sequential execution.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::fmt;
 use std::fs;
 use std::io::Write as _;
@@ -1679,6 +1679,44 @@ struct ActiveCancellation {
     shutdown_requested: Arc<AtomicBool>,
 }
 
+/// What: Persist queued user pause changes before releasing the active registration.
+///
+/// Inputs:
+/// - `orchestrator`: Locked durable owner immediately after one execution returns.
+/// - `active`: Registered active slot whose release permits the next start.
+/// - `pending`: FIFO pause requests accepted while execution held the owner lock.
+///
+/// Output:
+/// - Completion is delivered to every queued requester after its persistence attempt.
+///
+/// Details:
+/// - Lock ordering matches [`PiScanSequentialRunner::queue_user_pause_if_active`]. A poisoned
+///   pending queue leaves the active slot clear but cannot silently report persistence success.
+fn persist_pending_user_pauses<A: OrchestrationAdapter>(
+    orchestrator: &mut PiScanOrchestrator<A>,
+    active: &Arc<Mutex<Option<ActiveCancellation>>>,
+    pending: &Arc<Mutex<VecDeque<PendingUserPause>>>,
+) {
+    let Ok(mut active_slot) = active.lock() else {
+        return;
+    };
+    if let Ok(mut requests) = pending.lock() {
+        while let Some(request) = requests.pop_front() {
+            let result =
+                orchestrator.update_runtime_policy(None, Some(request.paused), false, None);
+            drop(request.completion.send(result));
+        }
+    }
+    *active_slot = None;
+}
+
+/// Completion receiver for one pause mutation queued behind active execution.
+pub type PiScanQueuedPolicyCompletion =
+    tokio::sync::oneshot::Receiver<Result<(), OrchestrationError>>;
+
+/// Correlation and completion pair returned for one queued user-pause request.
+pub type PiScanQueuedUserPause = (u64, PiScanQueuedPolicyCompletion);
+
 /// What: Async-runtime facade for one blocking single-owner orchestrator.
 ///
 /// Inputs:
@@ -1696,6 +1734,16 @@ pub struct PiScanSequentialRunner<A> {
     orchestrator: Arc<Mutex<PiScanOrchestrator<A>>>,
     /// Exact currently active correlation and sticky flag.
     active: Arc<Mutex<Option<ActiveCancellation>>>,
+    /// User pause changes queued while one execution owns the orchestrator lock.
+    pending_user_pauses: Arc<Mutex<VecDeque<PendingUserPause>>>,
+}
+
+/// One user pause mutation waiting for the active execution's durability boundary.
+struct PendingUserPause {
+    /// Requested durable user-pause value.
+    paused: bool,
+    /// Completion delivered after persistence under the orchestrator lock.
+    completion: tokio::sync::oneshot::Sender<Result<(), OrchestrationError>>,
 }
 
 impl<A> Clone for PiScanSequentialRunner<A> {
@@ -1703,6 +1751,7 @@ impl<A> Clone for PiScanSequentialRunner<A> {
         Self {
             orchestrator: Arc::clone(&self.orchestrator),
             active: Arc::clone(&self.active),
+            pending_user_pauses: Arc::clone(&self.pending_user_pauses),
         }
     }
 }
@@ -1723,6 +1772,7 @@ impl<A: OrchestrationAdapter + Send + 'static> PiScanSequentialRunner<A> {
         Self {
             orchestrator: Arc::new(Mutex::new(orchestrator)),
             active: Arc::new(Mutex::new(None)),
+            pending_user_pauses: Arc::new(Mutex::new(VecDeque::new())),
         }
     }
 
@@ -1742,6 +1792,47 @@ impl<A: OrchestrationAdapter + Send + 'static> PiScanSequentialRunner<A> {
             .lock()
             .ok()
             .and_then(|active| active.as_ref().map(|item| item.item.clone()))
+    }
+
+    /// What: Queue a user pause mutation when execution currently owns the orchestrator lock.
+    ///
+    /// Inputs:
+    /// - `paused`: Durable user-pause value requested by the foreground UI action.
+    ///
+    /// Output:
+    /// - A completion receiver when queued, or `None` when no execution is active.
+    ///
+    /// Details:
+    /// - The active slot and pending queue use one lock order so completion cannot race past a
+    ///   request. Queued changes persist before the active slot is released for another start.
+    ///
+    /// # Errors
+    /// - Returns when either synchronization boundary is poisoned.
+    pub fn queue_user_pause_if_active(
+        &self,
+        paused: bool,
+    ) -> Result<Option<PiScanQueuedUserPause>, OrchestrationError> {
+        let active = self.active.lock().map_err(|_| {
+            OrchestrationError::Persistence(
+                "Pi active-policy lock is poisoned; restart Pacsea to recover".to_string(),
+            )
+        })?;
+        let Some(active_correlation) = active
+            .as_ref()
+            .map(|registered| registered.item.correlation_id)
+        else {
+            return Ok(None);
+        };
+        let mut pending = self.pending_user_pauses.lock().map_err(|_| {
+            OrchestrationError::Persistence(
+                "Pi queued-policy lock is poisoned; restart Pacsea to recover".to_string(),
+            )
+        })?;
+        let (completion, receiver) = tokio::sync::oneshot::channel();
+        pending.push_back(PendingUserPause { paused, completion });
+        drop(pending);
+        drop(active);
+        Ok(Some((active_correlation, receiver)))
     }
 
     /// What: Cancel only the exact registered active correlation.
@@ -2162,8 +2253,44 @@ impl<A: OrchestrationAdapter + Send + 'static> PiScanSequentialRunner<A> {
         &self,
         now_unix: u64,
     ) -> Result<Option<ExecutionReceipt>, OrchestrationError> {
+        self.run_next_with_optional_started(now_unix, None).await
+    }
+
+    /// What: Execute one item and publish Started from the exact active-registration seam.
+    ///
+    /// Inputs:
+    /// - `now_unix`: Start and accounting timestamp.
+    /// - `started_tx`: Typed channel receiving the registered active item.
+    ///
+    /// Output:
+    /// - Canonical receipt, idle `None`, or a fail-closed error.
+    ///
+    /// Details:
+    /// - Registration is sent before adapter execution, so an instantly completing fake or real
+    ///   run cannot outrun its Started projection.
+    ///
+    /// # Errors
+    /// - Returns queue, acquisition, execution, cancellation, persistence, or join failures.
+    pub async fn run_next_with_started(
+        &self,
+        now_unix: u64,
+        started_tx: tokio::sync::mpsc::UnboundedSender<crate::state::pi_scan::PiScanActiveItem>,
+    ) -> Result<Option<ExecutionReceipt>, OrchestrationError> {
+        self.run_next_with_optional_started(now_unix, Some(started_tx))
+            .await
+    }
+
+    /// Execute one registered item with an optional deterministic Started publisher.
+    async fn run_next_with_optional_started(
+        &self,
+        now_unix: u64,
+        started_tx: Option<
+            tokio::sync::mpsc::UnboundedSender<crate::state::pi_scan::PiScanActiveItem>,
+        >,
+    ) -> Result<Option<ExecutionReceipt>, OrchestrationError> {
         let owner = Arc::clone(&self.orchestrator);
         let active = Arc::clone(&self.active);
+        let pending_user_pauses = Arc::clone(&self.pending_user_pauses);
         tokio::task::spawn_blocking(move || {
             let cancelled = Arc::new(AtomicBool::new(false));
             let shutdown_requested = Arc::new(AtomicBool::new(false));
@@ -2186,13 +2313,14 @@ impl<A: OrchestrationAdapter + Send + 'static> PiScanSequentialRunner<A> {
                             cancelled: registration_flag,
                             shutdown_requested: registration_shutdown,
                         });
+                        if let Some(sender) = started_tx {
+                            drop(sender.send(item.clone()));
+                        }
                     }
                 },
             );
+            persist_pending_user_pauses(&mut orchestrator, &active, &pending_user_pauses);
             drop(orchestrator);
-            if let Ok(mut slot) = active.lock() {
-                *slot = None;
-            }
             result
         })
         .await

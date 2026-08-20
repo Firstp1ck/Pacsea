@@ -731,12 +731,24 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
             apply_pi_scan_setup_event(app, event);
             false
         }
+        Some(timeout) = channels.pi_scan_setup_timeout_rx.recv() => {
+            apply_pi_scan_setup_timeout(app, timeout);
+            false
+        }
         Some(transfer) = channels.pi_scan_setup_transfer_rx.recv() => {
-            apply_pi_scan_runtime_transfer(app, channels, transfer).await;
+            begin_pi_scan_runtime_transfer(app, channels, transfer);
+            false
+        }
+        Some(completion) = channels.pi_scan_transfer_completion_rx.recv() => {
+            complete_pi_scan_runtime_transfer_follow_up(app, channels, completion);
+            false
+        }
+        Some(notice) = channels.pi_scan_notice_rx.recv() => {
+            apply_pi_scan_runtime_notice(app, notice);
             false
         }
         Some(progress) = channels.pi_scan_progress_rx.recv() => {
-            apply_pi_scan_progress(app, progress);
+            apply_pi_scan_progress(app, Some(&channels.pi_scan_request_tx), progress);
             false
         }
         Some(result) = channels.pi_scan_result_rx.recv() => {
@@ -803,57 +815,63 @@ fn dispatch_pi_scan_setup_action(app: &mut AppState, channels: &Channels) {
         ),
     };
     app.pi_scan.last_setup_correlation = correlation_id;
-    if let Err(error) = channels.pi_scan_setup_request_tx.send(request)
-        && let Some(wizard) = app.pi_scan.wizard.as_mut()
-    {
-        let _ = wizard.accept_failure(
-            correlation_id,
-            apply_action,
-            format!("Pi Scan setup controller is unavailable; retry setup: {error}"),
+    if let Err(error) = channels.pi_scan_setup_request_tx.send(request) {
+        let reason = format!(
+            "{}: {error}",
+            crate::i18n::t(app, "app.pi_scan.wizard.failure.controller_unavailable")
         );
+        let accepted = app.pi_scan.wizard.as_mut().is_some_and(|wizard| {
+            wizard.accept_failure(correlation_id, apply_action, reason.clone())
+        });
+        if !accepted {
+            app.pi_scan.set_foreground_notice(
+                reason,
+                crate::state::pi_scan_ui::PiScanNoticeSeverity::Error,
+            );
+        }
+        if apply_action {
+            app.pi_scan.finish_setup_transaction(correlation_id);
+        }
     }
 }
 
-/// Project one correlated setup-controller event into the isolated wizard draft.
+/// Project one correlated setup-controller event into wizard or workspace state.
 fn apply_pi_scan_setup_event(
     app: &mut AppState,
     event: crate::app::runtime::workers::pi_scan_setup::PiScanSetupEvent,
 ) {
     use crate::app::runtime::workers::pi_scan_setup::{PiScanSetupEvent, PiScanSetupStage};
-    let failure_stage_label = if let PiScanSetupEvent::Failed { stage, .. } = &event {
-        let stage_key = match stage {
-            PiScanSetupStage::Probe => "probe",
-            PiScanSetupStage::CandidateValidation => "validation",
-            PiScanSetupStage::Activation => "activation",
-            PiScanSetupStage::Persistence => "persistence",
-        };
-        Some(crate::i18n::t(
-            app,
-            &format!("app.pi_scan.wizard.failure_stage.{stage_key}"),
-        ))
-    } else {
-        None
-    };
-    let Some(wizard) = app.pi_scan.wizard.as_mut() else {
-        return;
-    };
     match event {
         PiScanSetupEvent::CapabilitiesVerified {
             correlation_id,
             snapshot,
         } => {
-            let _ = wizard.accept_verified_facts(correlation_id, wizard_facts(*snapshot));
+            let accepted = app.pi_scan.wizard.as_mut().is_some_and(|wizard| {
+                wizard.accept_verified_facts(correlation_id, wizard_facts(*snapshot))
+            });
+            log_stale_setup_event(accepted, correlation_id, "capabilities");
         }
         PiScanSetupEvent::CandidateValidated {
             correlation_id,
             validation_binding,
         } => {
-            let _ = wizard.accept_validation(correlation_id, validation_binding);
+            let accepted =
+                app.pi_scan.wizard.as_mut().is_some_and(|wizard| {
+                    wizard.accept_validation(correlation_id, validation_binding)
+                });
+            log_stale_setup_event(accepted, correlation_id, "validation");
         }
         PiScanSetupEvent::Applied { correlation_id, .. } => {
-            let _ = wizard.accept_apply_status(
+            let accepted = app.pi_scan.wizard.as_mut().is_some_and(|wizard| {
+                wizard.accept_apply_status(
+                    correlation_id,
+                    crate::state::PiScanSetupApplyStatus::Persisting,
+                )
+            });
+            log_stale_setup_event(
+                accepted || app.pi_scan.setup_transaction_matches(correlation_id),
                 correlation_id,
-                crate::state::PiScanSetupApplyStatus::Activating,
+                "applied",
             );
         }
         PiScanSetupEvent::Failed {
@@ -861,19 +879,102 @@ fn apply_pi_scan_setup_event(
             stage,
             reason,
         } => {
-            let apply_failure = matches!(
-                stage,
-                PiScanSetupStage::Activation | PiScanSetupStage::Persistence
-            ) || wizard.step == crate::state::PiScanSetupStep::Activate;
-            let _ = wizard.accept_failure(
-                correlation_id,
-                apply_failure,
-                format!(
-                    "{}: {reason}",
-                    failure_stage_label.unwrap_or_else(|| "Pi Scan setup failed".to_string())
-                ),
+            let stage_key = setup_stage_key(stage);
+            let message = format!(
+                "{}: {reason}",
+                crate::i18n::t(
+                    app,
+                    &format!("app.pi_scan.wizard.failure_stage.{stage_key}")
+                )
             );
+            let transaction_matches = app.pi_scan.setup_transaction_matches(correlation_id);
+            let current_correlation =
+                transaction_matches || app.pi_scan.last_setup_correlation == correlation_id;
+            let apply_failure =
+                transaction_matches
+                    || matches!(
+                        stage,
+                        PiScanSetupStage::Activation | PiScanSetupStage::Persistence
+                    )
+                    || app.pi_scan.wizard.as_ref().is_some_and(|wizard| {
+                        wizard.step == crate::state::PiScanSetupStep::Activate
+                    });
+            let accepted = app.pi_scan.wizard.as_mut().is_some_and(|wizard| {
+                wizard.accept_failure(correlation_id, apply_failure, message.clone())
+            });
+            if transaction_matches {
+                app.pi_scan.finish_setup_transaction(correlation_id);
+            }
+            if !accepted && current_correlation {
+                app.pi_scan.set_foreground_notice(
+                    message,
+                    crate::state::pi_scan_ui::PiScanNoticeSeverity::Error,
+                );
+            }
+            log_stale_setup_event(accepted || current_correlation, correlation_id, stage_key);
         }
+    }
+}
+
+/// Project one enforced setup timeout without accepting a stale correlation.
+fn apply_pi_scan_setup_timeout(
+    app: &mut AppState,
+    timeout: crate::app::runtime::workers::pi_scan_setup::PiScanSetupTimeout,
+) {
+    let stage_key = setup_stage_key(timeout.stage);
+    let message = format!(
+        "{}: {}s",
+        crate::i18n::t(
+            app,
+            &format!("app.pi_scan.wizard.failure_timeout.{stage_key}")
+        ),
+        timeout.deadline.as_secs()
+    );
+    let transaction_matches = app
+        .pi_scan
+        .setup_transaction_matches(timeout.correlation_id);
+    let current_correlation =
+        transaction_matches || app.pi_scan.last_setup_correlation == timeout.correlation_id;
+    let accepted = app.pi_scan.wizard.as_mut().is_some_and(|wizard| {
+        wizard.accept_failure(timeout.correlation_id, transaction_matches, message.clone())
+    });
+    if transaction_matches {
+        app.pi_scan.finish_setup_transaction(timeout.correlation_id);
+    }
+    if !accepted && current_correlation {
+        app.pi_scan.set_foreground_notice(
+            message,
+            crate::state::pi_scan_ui::PiScanNoticeSeverity::Error,
+        );
+    }
+    log_stale_setup_event(
+        accepted || current_correlation,
+        timeout.correlation_id,
+        "timeout",
+    );
+}
+
+/// Return the localization suffix for one typed setup stage.
+const fn setup_stage_key(
+    stage: crate::app::runtime::workers::pi_scan_setup::PiScanSetupStage,
+) -> &'static str {
+    use crate::app::runtime::workers::pi_scan_setup::PiScanSetupStage;
+    match stage {
+        PiScanSetupStage::Probe => "probe",
+        PiScanSetupStage::CandidateValidation => "validation",
+        PiScanSetupStage::Activation => "activation",
+        PiScanSetupStage::Persistence => "persistence",
+    }
+}
+
+/// Debug-log one setup response rejected by the current correlation owner.
+fn log_stale_setup_event(accepted: bool, correlation_id: u64, stage: &str) {
+    if !accepted {
+        tracing::debug!(
+            correlation_id,
+            stage,
+            "ignored stale Pi Scan setup response"
+        );
     }
 }
 
@@ -893,31 +994,113 @@ fn wizard_facts(
     }
 }
 
-/// What: Accept one committed candidate transfer and replace the runtime without restart.
-///
-/// Inputs:
-/// - `app`: Current UI/effective settings projection.
-/// - `channels`: Current runtime owner and setup channels.
-/// - `transfer`: Correlated rollback-capable candidate transfer.
-///
-/// Output:
-/// - Installs one production owner or restores the previous owner and reports failure.
-///
-/// Details:
-/// - The old owner reaches its bounded durability boundary before candidate activation.
-async fn apply_pi_scan_runtime_transfer(
+/// Begin one runtime transfer without awaiting its bounded shutdown on the redraw path.
+fn begin_pi_scan_runtime_transfer(
     app: &mut AppState,
-    channels: &mut Channels,
+    channels: &Channels,
     transfer: crate::app::runtime::workers::pi_scan_setup::PiScanRuntimeTransfer,
 ) {
     let correlation_id = transfer.correlation_id();
-    let accepted = app
-        .pi_scan
-        .wizard
-        .as_ref()
-        .is_some_and(|wizard| wizard.accepts_correlation(correlation_id));
-    if !accepted {
-        drop(transfer);
+    if !app.pi_scan.setup_transaction_matches(correlation_id) {
+        tracing::debug!(
+            correlation_id,
+            "rolling back stale Pi Scan runtime transfer"
+        );
+        spawn_pi_scan_transfer_rollback(channels, transfer);
+        return;
+    }
+    if setup_abandonment_requested(app, correlation_id) {
+        spawn_pi_scan_transfer_rollback(channels, transfer);
+        return;
+    }
+    if let Some(wizard) = app.pi_scan.wizard.as_mut() {
+        let _ = wizard.accept_apply_status(
+            correlation_id,
+            crate::state::PiScanSetupApplyStatus::Persisting,
+        );
+    }
+    let previous_options = channels.pi_scan_runtime_options.clone();
+    let shutdown_tx = channels.pi_scan_shutdown_tx.clone();
+    let completion_tx = channels.pi_scan_transfer_completion_tx.clone();
+    tokio::spawn(async move {
+        let result = shutdown_pi_scan_owner(shutdown_tx).await;
+        let completion = super::channels::PiScanRuntimeTransferCompletion::OwnerShutdown {
+            transfer: Box::new(transfer),
+            previous_options: Box::new(previous_options),
+            result,
+        };
+        if let Err(error) = completion_tx.send(completion)
+            && let super::channels::PiScanRuntimeTransferCompletion::OwnerShutdown {
+                transfer, ..
+            } = error.0
+        {
+            drop(transfer.rollback_with_outcome());
+        }
+    });
+}
+
+/// Complete one typed transfer follow-up while retaining final owner swaps in the event loop.
+fn complete_pi_scan_runtime_transfer_follow_up(
+    app: &mut AppState,
+    channels: &mut Channels,
+    completion: super::channels::PiScanRuntimeTransferCompletion,
+) {
+    match completion {
+        super::channels::PiScanRuntimeTransferCompletion::Rollback(report) => {
+            project_pi_scan_rollback_report(app, report);
+        }
+        super::channels::PiScanRuntimeTransferCompletion::OwnerShutdown {
+            transfer,
+            previous_options,
+            result,
+        } => complete_pi_scan_owner_shutdown(
+            app,
+            channels,
+            *transfer,
+            previous_options.as_ref(),
+            result,
+        ),
+    }
+}
+
+/// Finish candidate activation after the previous owner's bounded wait completes.
+fn complete_pi_scan_owner_shutdown(
+    app: &mut AppState,
+    channels: &mut Channels,
+    transfer: crate::app::runtime::workers::pi_scan_setup::PiScanRuntimeTransfer,
+    previous_options: &crate::app::runtime::workers::pi_scan::PiScanRuntimeOptions,
+    result: super::channels::PiScanOwnerShutdownResult,
+) {
+    let correlation_id = transfer.correlation_id();
+    if let Some(failure) = result.failure {
+        let restore = failure
+            .owner_stopped
+            .then(|| restore_pi_scan_owner(channels, previous_options).err())
+            .flatten();
+        let runtime_connected = failure.owner_stopped && restore.is_none();
+        let rollback = transfer.rollback_with_outcome();
+        let reason = combine_setup_failures(
+            app,
+            combine_setup_failures(app, failure.reason, restore),
+            Some(rollback_status(app, &rollback)),
+        );
+        fail_pi_scan_transfer(app, correlation_id, &reason, runtime_connected);
+        return;
+    }
+    if setup_abandonment_requested(app, correlation_id) {
+        let restore = restore_pi_scan_owner(channels, previous_options).err();
+        let mut report = transfer.rollback_with_outcome();
+        if let Some(reason) = restore {
+            report.outcome =
+                crate::app::runtime::workers::pi_scan_setup::PiScanRollbackOutcome::Failed {
+                    reason: combine_setup_failures(
+                        app,
+                        crate::i18n::t(app, "app.pi_scan.notices.setup_rollback_complete"),
+                        Some(reason),
+                    ),
+                };
+        }
+        project_pi_scan_rollback_report(app, report);
         return;
     }
     if let Some(wizard) = app.pi_scan.wizard.as_mut() {
@@ -926,29 +1109,15 @@ async fn apply_pi_scan_runtime_transfer(
             crate::state::PiScanSetupApplyStatus::Activating,
         );
     }
-    let previous_options = channels.pi_scan_runtime_options.clone();
-    let shutdown = shutdown_pi_scan_owner(channels).await;
-    if let Err(failure) = shutdown {
-        let restore = failure
-            .owner_stopped
-            .then(|| restore_pi_scan_owner(channels, &previous_options).err())
-            .flatten();
-        let runtime_connected = failure.owner_stopped && restore.is_none();
-        let rollback = transfer.rollback().err();
-        let reason =
-            combine_setup_failures(combine_setup_failures(failure.reason, restore), rollback);
-        fail_pi_scan_transfer(app, correlation_id, reason, runtime_connected);
-        return;
-    }
     let activated = match transfer.activate() {
         Ok(activated) => activated,
         Err(error) => {
-            let restore = restore_pi_scan_owner(channels, &previous_options).err();
+            let restore = restore_pi_scan_owner(channels, previous_options).err();
             let runtime_connected = restore.is_none();
             fail_pi_scan_transfer(
                 app,
                 correlation_id,
-                combine_setup_failures(error.to_string(), restore),
+                &combine_setup_failures(app, error.to_string(), restore),
                 runtime_connected,
             );
             return;
@@ -960,12 +1129,12 @@ async fn apply_pi_scan_runtime_transfer(
     let runtime = match activated.commit() {
         Ok(runtime) => runtime,
         Err(reason) => {
-            let restore = restore_pi_scan_owner(channels, &previous_options).err();
+            let restore = restore_pi_scan_owner(channels, previous_options).err();
             let runtime_connected = restore.is_none();
             fail_pi_scan_transfer(
                 app,
                 correlation_id,
-                combine_setup_failures(reason, restore),
+                &combine_setup_failures(app, reason, restore),
                 runtime_connected,
             );
             return;
@@ -975,21 +1144,53 @@ async fn apply_pi_scan_runtime_transfer(
     complete_pi_scan_transfer(app, correlation_id, effective, snapshot);
 }
 
-/// Bounded shutdown failure with whether the previous owner is known to have stopped.
-struct PiScanOwnerShutdownFailure {
-    /// Actionable durability or liveness failure.
-    reason: String,
-    /// Whether restoring a replacement cannot duplicate a live owner.
-    owner_stopped: bool,
+/// Return whether one matching setup transaction has requested abandonment.
+fn setup_abandonment_requested(app: &AppState, correlation_id: u64) -> bool {
+    app.pi_scan.setup_transaction.is_some_and(|transaction| {
+        transaction.correlation_id == correlation_id
+            && transaction.abandonment
+                == crate::state::pi_scan_ui::PiScanSetupAbandonment::AbandonRequested
+    })
 }
 
-/// Request bounded durability from the current runtime owner.
-async fn shutdown_pi_scan_owner(channels: &Channels) -> Result<(), PiScanOwnerShutdownFailure> {
+/// Explicitly roll back an unactivated transfer away from the redraw path.
+fn spawn_pi_scan_transfer_rollback(
+    channels: &Channels,
+    transfer: crate::app::runtime::workers::pi_scan_setup::PiScanRuntimeTransfer,
+) {
+    let completion_tx = channels.pi_scan_transfer_completion_tx.clone();
+    tokio::task::spawn_blocking(move || {
+        let report = transfer.rollback_with_outcome();
+        drop(
+            completion_tx.send(super::channels::PiScanRuntimeTransferCompletion::Rollback(
+                report,
+            )),
+        );
+    });
+}
+
+/// Request bounded durability from a cloned runtime endpoint.
+async fn shutdown_pi_scan_owner(
+    shutdown_tx: tokio::sync::mpsc::UnboundedSender<
+        crate::app::runtime::workers::pi_scan::PiScanShutdownMessage,
+    >,
+) -> super::channels::PiScanOwnerShutdownResult {
+    let result = shutdown_pi_scan_owner_inner(shutdown_tx).await;
+    super::channels::PiScanOwnerShutdownResult {
+        failure: result.err(),
+    }
+}
+
+/// Await one shutdown acknowledgement without borrowing central Channels ownership.
+async fn shutdown_pi_scan_owner_inner(
+    shutdown_tx: tokio::sync::mpsc::UnboundedSender<
+        crate::app::runtime::workers::pi_scan::PiScanShutdownMessage,
+    >,
+) -> Result<(), super::channels::PiScanOwnerShutdownFailure> {
     let (acknowledge, receiver) = std::sync::mpsc::sync_channel(1);
-    channels
-        .pi_scan_shutdown_tx
+    shutdown_tx
         .send(crate::app::runtime::workers::pi_scan::PiScanShutdownMessage { acknowledge })
-        .map_err(|error| PiScanOwnerShutdownFailure {
+        .map_err(|error| super::channels::PiScanOwnerShutdownFailure {
             reason: format!("could not stop the previous Pi Scan runtime: {error}"),
             owner_stopped: true,
         })?;
@@ -997,18 +1198,18 @@ async fn shutdown_pi_scan_owner(channels: &Channels) -> Result<(), PiScanOwnerSh
         receiver.recv_timeout(std::time::Duration::from_secs(10))
     })
     .await
-    .map_err(|error| PiScanOwnerShutdownFailure {
+    .map_err(|error| super::channels::PiScanOwnerShutdownFailure {
         reason: format!("Pi Scan shutdown wait failed: {error}"),
         owner_stopped: false,
     })?
-    .map_err(|error| PiScanOwnerShutdownFailure {
+    .map_err(|error| super::channels::PiScanOwnerShutdownFailure {
         reason: format!("Pi Scan shutdown exceeded its bounded deadline: {error}"),
         owner_stopped: false,
     })?;
     if acknowledgement.persisted {
         Ok(())
     } else {
-        Err(PiScanOwnerShutdownFailure {
+        Err(super::channels::PiScanOwnerShutdownFailure {
             reason: acknowledgement.warning.unwrap_or_else(|| {
                 "previous Pi Scan runtime did not reach its durability boundary".to_string()
             }),
@@ -1051,6 +1252,7 @@ fn install_pi_scan_owner(
     channels.pi_scan_shutdown_tx = runtime.shutdown_tx;
     channels.pi_scan_progress_rx = runtime.progress_rx;
     channels.pi_scan_result_rx = runtime.result_rx;
+    channels.pi_scan_notice_rx = runtime.notice_rx;
     channels.pi_scan_runtime_enabled = options.effective_enabled();
     channels.pi_scan_runtime_options = options;
 }
@@ -1100,13 +1302,18 @@ fn complete_pi_scan_transfer(
             crate::state::PiScanSetupApplyStatus::Complete,
         );
     }
+    app.pi_scan.finish_setup_transaction(correlation_id);
+    app.pi_scan.set_foreground_notice(
+        crate::i18n::t(app, "app.pi_scan.notices.setup_complete"),
+        crate::state::pi_scan_ui::PiScanNoticeSeverity::Success,
+    );
 }
 
 /// Keep the previous projection authoritative and expose actionable retry guidance.
 fn fail_pi_scan_transfer(
     app: &mut AppState,
     correlation_id: u64,
-    reason: String,
+    reason: &str,
     runtime_connected: bool,
 ) {
     app.pi_scan.availability = if runtime_connected {
@@ -1114,17 +1321,88 @@ fn fail_pi_scan_transfer(
     } else {
         crate::state::PiScanAvailability::RuntimeDisconnected
     };
-    if let Some(wizard) = app.pi_scan.wizard.as_mut() {
-        let _ = wizard.accept_failure(correlation_id, true, reason);
+    let accepted = app
+        .pi_scan
+        .wizard
+        .as_mut()
+        .is_some_and(|wizard| wizard.accept_failure(correlation_id, true, reason.to_string()));
+    let transaction_matches = app.pi_scan.finish_setup_transaction(correlation_id);
+    if !accepted && transaction_matches {
+        app.pi_scan.set_foreground_notice(
+            format!(
+                "{}: {reason}",
+                crate::i18n::t(app, "app.pi_scan.notices.setup_failed")
+            ),
+            crate::state::pi_scan_ui::PiScanNoticeSeverity::Error,
+        );
     }
 }
 
-/// Append an independent rollback/restart failure without hiding the primary error.
-fn combine_setup_failures(primary: String, secondary: Option<String>) -> String {
-    match secondary {
-        Some(secondary) => {
-            format!("{primary}; restoring the previous runtime also failed: {secondary}")
+/// Project one explicit rollback outcome and terminalize its matching setup transaction.
+fn project_pi_scan_rollback_report(
+    app: &mut AppState,
+    report: crate::app::runtime::workers::pi_scan_setup::PiScanRollbackReport,
+) {
+    let transaction_matches = app.pi_scan.finish_setup_transaction(report.correlation_id);
+    match report.outcome {
+        crate::app::runtime::workers::pi_scan_setup::PiScanRollbackOutcome::Succeeded => {
+            if transaction_matches {
+                app.pi_scan.set_foreground_notice(
+                    crate::i18n::t(app, "app.pi_scan.notices.setup_rollback_complete"),
+                    crate::state::pi_scan_ui::PiScanNoticeSeverity::Warning,
+                );
+            } else {
+                tracing::debug!(
+                    correlation_id = report.correlation_id,
+                    "completed rollback for stale Pi Scan transfer"
+                );
+            }
         }
+        crate::app::runtime::workers::pi_scan_setup::PiScanRollbackOutcome::Failed { reason } => {
+            let message = format!(
+                "{}: {reason}",
+                crate::i18n::t(app, "app.pi_scan.notices.setup_rollback_failed")
+            );
+            if transaction_matches {
+                app.pi_scan.set_foreground_notice(
+                    message,
+                    crate::state::pi_scan_ui::PiScanNoticeSeverity::Error,
+                );
+            } else {
+                app.pi_scan.set_background_notice(
+                    message,
+                    crate::state::pi_scan_ui::PiScanNoticeSeverity::Error,
+                );
+            }
+        }
+    }
+}
+
+/// Return localized explicit rollback status for setup-failure composition.
+fn rollback_status(
+    app: &AppState,
+    report: &crate::app::runtime::workers::pi_scan_setup::PiScanRollbackReport,
+) -> String {
+    match &report.outcome {
+        crate::app::runtime::workers::pi_scan_setup::PiScanRollbackOutcome::Succeeded => {
+            crate::i18n::t(app, "app.pi_scan.notices.setup_rollback_complete")
+        }
+        crate::app::runtime::workers::pi_scan_setup::PiScanRollbackOutcome::Failed { reason } => {
+            format!(
+                "{}: {reason}",
+                crate::i18n::t(app, "app.pi_scan.notices.setup_rollback_failed")
+            )
+        }
+    }
+}
+
+/// Append an independently localized rollback/restart outcome without hiding the primary error.
+fn combine_setup_failures(app: &AppState, primary: String, secondary: Option<String>) -> String {
+    match secondary {
+        Some(secondary) => format!(
+            "{primary}\n{}: {secondary}",
+            crate::i18n::t(app, "app.pi_scan.notices.setup_secondary_outcome")
+        ),
         None => primary,
     }
 }
@@ -1151,6 +1429,20 @@ fn dispatch_pi_scan_ui_action(app: &mut AppState, channels: &Channels) {
     let Some(action) = app.pi_scan.pending_action.take() else {
         return;
     };
+    if matches!(action, PiScanUiAction::Pause | PiScanUiAction::Resume) {
+        let action_key = if action == PiScanUiAction::Pause {
+            "pause"
+        } else {
+            "resume"
+        };
+        app.pi_scan.set_foreground_notice(
+            crate::i18n::t(
+                app,
+                &format!("app.pi_scan.notices.policy.{action_key}.requesting"),
+            ),
+            crate::state::pi_scan_ui::PiScanNoticeSeverity::Info,
+        );
+    }
     let sent = match action {
         PiScanUiAction::ProbeSetup => channels
             .pi_scan_request_tx
@@ -1188,84 +1480,122 @@ fn dispatch_pi_scan_ui_action(app: &mut AppState, channels: &Channels) {
                 requested_at_unix: pi_scan_unix_now(),
             })
             .map_err(|error| error.to_string()),
-        PiScanUiAction::Detach | PiScanUiAction::Reopen => Ok(()),
         PiScanUiAction::ContinueSelected => continue_selected_pi_scan_result(app, channels),
         PiScanUiAction::AcceptBaseline => accept_selected_pi_scan_baseline(app, channels),
     };
     if let Err(reason) = sent {
-        app.pi_scan.notice = Some(reason);
+        app.pi_scan.set_foreground_notice(
+            reason,
+            crate::state::pi_scan_ui::PiScanNoticeSeverity::Error,
+        );
     }
 }
 
 /// Send selected, immutable Pi Scan targets with conservative reservations.
-fn send_selected_pi_scan_targets(app: &AppState, channels: &Channels) -> Result<(), String> {
+fn send_selected_pi_scan_targets(app: &mut AppState, channels: &Channels) -> Result<(), String> {
     if !channels.pi_scan_runtime_enabled {
         return Err(crate::i18n::t(
             app,
             "app.pi_scan.notices.runtime_disconnected",
         ));
     }
-    let reservation = crate::state::pi_scan::PiScanReservation {
-        tokens: app.pi_scan.settings.background_token_cap_24h,
-        cost_microusd: decimal_dollars_to_microusd(&app.pi_scan.settings.background_cost_cap_24h)?,
+    if app.pi_scan.pending_queue_intent.is_none() {
+        app.pi_scan.snapshot_queue_intent();
+    }
+    let Some(intent) = app.pi_scan.pending_queue_intent.as_ref() else {
+        return Err(crate::i18n::t(app, "app.pi_scan.notices.select_target"));
     };
-    let selected: Vec<(String, String)> = app
-        .pi_scan
-        .targets
-        .iter()
-        .filter(|target| target.selected)
-        .filter_map(|target| {
-            target
-                .commit_oid
-                .as_ref()
-                .map(|oid| (target.package_base.clone(), oid.clone()))
-        })
-        .collect();
-    let mut unresolved_package_names: Vec<String> = app
-        .pi_scan
-        .targets
-        .iter()
-        .filter(|target| target.selected && target.commit_oid.is_none())
-        .map(|target| target.package_name.clone())
-        .collect();
-    unresolved_package_names.sort();
-    unresolved_package_names.dedup();
-    if !unresolved_package_names.is_empty() {
+    let unresolved = unresolved_queue_intent_members(app, &intent.package_names);
+    if !unresolved.is_empty() {
         channels
             .pi_scan_request_tx
             .send(
                 crate::app::runtime::workers::pi_scan::PiScanRequestMessage::ManualObservation {
-                    package_names: unresolved_package_names,
+                    package_names: unresolved.clone(),
                 },
             )
             .map_err(|error| error.to_string())?;
+        app.pi_scan.set_foreground_notice(
+            format!(
+                "{}: {}",
+                crate::i18n::t(app, "app.pi_scan.notices.resolving_queue_intent"),
+                unresolved.join(", ")
+            ),
+            crate::state::pi_scan_ui::PiScanNoticeSeverity::Info,
+        );
+        return Ok(());
     }
-    if selected.is_empty() {
-        if app.pi_scan.targets.iter().any(|target| target.selected) {
-            return Ok(());
-        }
-        return Err("select at least one target before queueing".to_string());
+    enqueue_resolved_queue_intent(app, &channels.pi_scan_request_tx)
+}
+
+/// Return exact intended package names whose immutable identities remain unresolved.
+fn unresolved_queue_intent_members(app: &AppState, package_names: &[String]) -> Vec<String> {
+    package_names
+        .iter()
+        .filter(|package_name| {
+            !app.pi_scan.targets.iter().any(|target| {
+                target.package_name == package_name.as_str() && target.commit_oid.is_some()
+            })
+        })
+        .cloned()
+        .collect()
+}
+
+/// Consume and enqueue one fully resolved exact queue-intent snapshot.
+fn enqueue_resolved_queue_intent(
+    app: &mut AppState,
+    request_tx: &tokio::sync::mpsc::UnboundedSender<
+        crate::app::runtime::workers::pi_scan::PiScanRequestMessage,
+    >,
+) -> Result<(), String> {
+    let Some(intent) = app.pi_scan.pending_queue_intent.as_ref() else {
+        return Ok(());
+    };
+    let reservation = crate::state::pi_scan::PiScanReservation {
+        tokens: intent.reservation_tokens,
+        cost_microusd: decimal_dollars_to_microusd(&intent.reservation_cost_cap)?,
+    };
+    let mut identities = Vec::with_capacity(intent.package_names.len());
+    for package_name in &intent.package_names {
+        let target = app
+            .pi_scan
+            .targets
+            .iter()
+            .find(|target| target.package_name == *package_name && target.commit_oid.is_some())
+            .ok_or_else(|| {
+                format!(
+                    "{}: {package_name}",
+                    crate::i18n::t(app, "app.pi_scan.notices.queue_intent_unresolved")
+                )
+            })?;
+        identities.push((
+            target.package_base.clone(),
+            target.commit_oid.clone().unwrap_or_default(),
+        ));
     }
     let base_request_id = pi_scan_unix_now();
-    for (index, (package_base, commit_oid)) in selected.into_iter().enumerate() {
-        let key = crate::state::pi_scan::PiScanQueueKey {
-            package_base: crate::logic::pi_scan::identity::PackageBase::new(package_base)
-                .map_err(|error| error.to_string())?,
-            commit_oid: crate::logic::pi_scan::identity::CommitOid::new(commit_oid)
-                .map_err(|error| error.to_string())?,
-        };
+    for (index, (package_base, commit_oid)) in identities.into_iter().enumerate() {
         let request = crate::state::pi_scan::PiScanJobRequest {
             request_id: base_request_id.saturating_add(index as u64),
-            key,
+            key: crate::state::pi_scan::PiScanQueueKey {
+                package_base: crate::logic::pi_scan::identity::PackageBase::new(package_base)
+                    .map_err(|error| error.to_string())?,
+                commit_oid: crate::logic::pi_scan::identity::CommitOid::new(commit_oid)
+                    .map_err(|error| error.to_string())?,
+            },
             priority: crate::state::pi_scan::PiScanPriority::Foreground,
             reservation,
             manual_budget_override_confirmed: false,
         };
-        channels
-            .pi_scan_request_tx
+        request_tx
             .send(crate::app::runtime::workers::pi_scan::PiScanRequestMessage::Enqueue(request))
             .map_err(|error| error.to_string())?;
     }
+    app.pi_scan.pending_queue_intent = None;
+    app.pi_scan.set_foreground_notice(
+        crate::i18n::t(app, "app.pi_scan.notices.queue_intent_submitted"),
+        crate::state::pi_scan_ui::PiScanNoticeSeverity::Success,
+    );
     Ok(())
 }
 
@@ -1277,7 +1607,7 @@ fn continue_selected_pi_scan_result(app: &AppState, channels: &Channels) -> Resu
     let result = app
         .pi_scan
         .selected_result()
-        .ok_or_else(|| "select a validated Pi scan result before continuing".to_string())?;
+        .ok_or_else(|| crate::i18n::t(app, "app.pi_scan.notices.select_result_continue"))?;
     let package_base = crate::logic::pi_scan::identity::PackageBase::new(
         result.validated.identity.package_base.clone(),
     )
@@ -1304,9 +1634,10 @@ fn accept_selected_pi_scan_baseline(app: &AppState, channels: &Channels) -> Resu
     if !app.pi_scan.selected_result_acknowledged() {
         return Err(crate::i18n::t(app, "app.pi_scan.notices.confirm_required"));
     }
-    let result = app.pi_scan.selected_result().ok_or_else(|| {
-        "select a validated Pi scan result before accepting a baseline".to_string()
-    })?;
+    let result = app
+        .pi_scan
+        .selected_result()
+        .ok_or_else(|| crate::i18n::t(app, "app.pi_scan.notices.select_result_baseline"))?;
     if result.stale
         || result.validated.coverage != crate::logic::pi_scan::result::Coverage::Complete
         || result.validated.identity.commit_oid != result.observed_head_oid
@@ -1361,9 +1692,69 @@ fn decimal_dollars_to_microusd(value: &str) -> Result<u64, String> {
         .ok_or_else(|| "Pi scan cost cap is too large".to_string())
 }
 
+/// Project one provenance-bearing runtime policy acknowledgement into workspace state.
+fn apply_pi_scan_runtime_notice(
+    app: &mut AppState,
+    notice: crate::app::runtime::workers::pi_scan::PiScanRuntimeNotice,
+) {
+    use crate::app::runtime::workers::pi_scan::{
+        PiScanNoticeSource, PiScanPolicyAcknowledgement, PiScanRuntimeAction,
+    };
+    let action_key = match notice.provenance.action {
+        Some(PiScanRuntimeAction::Pause) => "pause",
+        Some(PiScanRuntimeAction::Resume) => "resume",
+        None => "policy",
+    };
+    let (state_key, severity) = match &notice.acknowledgement {
+        PiScanPolicyAcknowledgement::Queued => (
+            "queued",
+            crate::state::pi_scan_ui::PiScanNoticeSeverity::Info,
+        ),
+        PiScanPolicyAcknowledgement::Persisted => {
+            if notice.user_paused {
+                app.pi_scan
+                    .runtime
+                    .pause_reasons
+                    .insert(crate::state::pi_scan::PiScanPauseReason::User);
+            } else {
+                app.pi_scan
+                    .runtime
+                    .pause_reasons
+                    .remove(&crate::state::pi_scan::PiScanPauseReason::User);
+            }
+            (
+                "persisted",
+                crate::state::pi_scan_ui::PiScanNoticeSeverity::Success,
+            )
+        }
+        PiScanPolicyAcknowledgement::Failed { .. } => (
+            "failed",
+            crate::state::pi_scan_ui::PiScanNoticeSeverity::Error,
+        ),
+    };
+    let mut text = crate::i18n::t(
+        app,
+        &format!("app.pi_scan.notices.policy.{action_key}.{state_key}"),
+    );
+    if let PiScanPolicyAcknowledgement::Failed { reason } = notice.acknowledgement {
+        text = format!("{text}: {reason}");
+    }
+    match notice.provenance.source {
+        PiScanNoticeSource::Foreground => app.pi_scan.set_foreground_notice(text, severity),
+        PiScanNoticeSource::Background | PiScanNoticeSource::System => {
+            app.pi_scan.set_background_notice(text, severity);
+        }
+    }
+}
+
 /// Project one typed worker progress message into the cohesive workspace state.
 fn apply_pi_scan_progress(
     app: &mut AppState,
+    request_tx: Option<
+        &tokio::sync::mpsc::UnboundedSender<
+            crate::app::runtime::workers::pi_scan::PiScanRequestMessage,
+        >,
+    >,
     progress: crate::app::runtime::workers::pi_scan::PiScanProgressMessage,
 ) {
     use crate::app::runtime::workers::pi_scan::PiScanProgressMessage;
@@ -1422,36 +1813,12 @@ fn apply_pi_scan_progress(
                     .any(|result| result.binding() == binding)
                 {
                     app.pi_scan.results.push(restored);
+                    app.pi_scan.record_result_inserted();
                 }
             }
         }
         PiScanProgressMessage::Observed { targets } => {
-            for observed in targets {
-                let package_base = observed.package_base.as_str().to_string();
-                let commit_oid = observed.commit_oid.as_str().to_string();
-                let exact_exists = app.pi_scan.targets.iter().any(|target| {
-                    target.package_base == package_base
-                        && target.commit_oid.as_deref() == Some(commit_oid.as_str())
-                });
-                if exact_exists {
-                    continue;
-                }
-                if let Some(target) = app.pi_scan.targets.iter_mut().find(|target| {
-                    target.package_name == observed.package_name && target.commit_oid.is_none()
-                }) {
-                    target.package_base = package_base;
-                    target.commit_oid = Some(commit_oid);
-                } else {
-                    app.pi_scan.targets.push(crate::state::PiScanTarget {
-                        package_name: observed.package_name,
-                        package_base,
-                        commit_oid: Some(commit_oid),
-                        selected: false,
-                        status: crate::state::PiScanTargetStatus::Unbaselined,
-                    });
-                }
-            }
-            app.pi_scan.readiness = crate::state::PiScanReadiness::Confirmed;
+            apply_pi_scan_observation(app, request_tx, targets);
         }
         PiScanProgressMessage::Queued { request, .. } => {
             set_pi_scan_target_key_status(
@@ -1497,6 +1864,84 @@ fn apply_pi_scan_progress(
         | PiScanProgressMessage::SessionRegistered { .. }
         | PiScanProgressMessage::Shutdown(_) => {}
     }
+    app.pi_scan.clamp_selection();
+}
+
+/// Project exact observed identities and complete only their matching queue intent.
+fn apply_pi_scan_observation(
+    app: &mut AppState,
+    request_tx: Option<
+        &tokio::sync::mpsc::UnboundedSender<
+            crate::app::runtime::workers::pi_scan::PiScanRequestMessage,
+        >,
+    >,
+    targets: Vec<crate::pi_scan_orchestrator::FrozenScanIdentity>,
+) {
+    let observation_matches_intent =
+        app.pi_scan
+            .pending_queue_intent
+            .as_ref()
+            .is_some_and(|intent| {
+                targets.iter().any(|observed| {
+                    intent
+                        .package_names
+                        .iter()
+                        .any(|name| name == &observed.package_name)
+                })
+            });
+    for observed in targets {
+        let package_base = observed.package_base.as_str().to_string();
+        let commit_oid = observed.commit_oid.as_str().to_string();
+        if let Some(target) = app.pi_scan.targets.iter_mut().find(|target| {
+            target.package_name == observed.package_name && target.commit_oid.is_none()
+        }) {
+            target.package_base = package_base;
+            target.commit_oid = Some(commit_oid);
+            continue;
+        }
+        let exact_exists = app.pi_scan.targets.iter().any(|target| {
+            target.package_base == package_base
+                && target.commit_oid.as_deref() == Some(commit_oid.as_str())
+        });
+        if exact_exists {
+            continue;
+        }
+        app.pi_scan.targets.push(crate::state::PiScanTarget {
+            package_name: observed.package_name,
+            package_base,
+            commit_oid: Some(commit_oid),
+            selected: false,
+            status: crate::state::PiScanTargetStatus::Unbaselined,
+        });
+    }
+    app.pi_scan.readiness = crate::state::PiScanReadiness::Confirmed;
+    if !observation_matches_intent {
+        return;
+    }
+    let Some(request_tx) = request_tx else {
+        return;
+    };
+    let Some(intent) = app.pi_scan.pending_queue_intent.as_ref() else {
+        return;
+    };
+    let unresolved = unresolved_queue_intent_members(app, &intent.package_names);
+    if unresolved.is_empty() {
+        if let Err(reason) = enqueue_resolved_queue_intent(app, request_tx) {
+            app.pi_scan.set_foreground_notice(
+                reason,
+                crate::state::pi_scan_ui::PiScanNoticeSeverity::Error,
+            );
+        }
+        return;
+    }
+    app.pi_scan.set_foreground_notice(
+        format!(
+            "{}: {}",
+            crate::i18n::t(app, "app.pi_scan.notices.queue_intent_unresolved"),
+            unresolved.join(", ")
+        ),
+        crate::state::pi_scan_ui::PiScanNoticeSeverity::Info,
+    );
 }
 
 /// Restore full target identities and queue/terminal state after a production restart.
@@ -1580,26 +2025,48 @@ fn apply_pi_scan_result(
             coverage_notes,
         } => {
             set_pi_scan_target_key_status(app, &key, crate::state::PiScanTargetStatus::Completed);
-            app.pi_scan.notice = Some(format!(
-                "dry-run acquired {status} immutable evidence with {manifest_count} manifests and {} coverage notes; Pi was not launched and no scanner state was written",
-                coverage_notes.len()
-            ));
+            app.pi_scan.set_foreground_notice(
+                format!(
+                    "{}: {status}; {manifest_count}; {}",
+                    crate::i18n::t(app, "app.pi_scan.notices.dry_run_acquired"),
+                    coverage_notes.len()
+                ),
+                crate::state::pi_scan_ui::PiScanNoticeSeverity::Success,
+            );
         }
         PiScanResultMessage::Validated(receipt) => {
             let receipt = *receipt;
+            let package_base = receipt.result.identity.package_base.clone();
             set_pi_scan_target_identity_status(
                 app,
-                receipt.result.identity.package_base.as_str(),
+                package_base.as_str(),
                 receipt.result.identity.commit_oid.as_str(),
                 crate::state::PiScanTargetStatus::Completed,
             );
             app.pi_scan.runtime.active = None;
-            app.pi_scan.results.push(crate::state::PiScanDisplayResult {
+            let display = crate::state::PiScanDisplayResult {
                 validated: receipt.result,
                 observed_head_oid: receipt.observed_head_oid.as_str().to_string(),
                 stale: receipt.stale,
                 mutable_sources: receipt.mutable_sources,
-            });
+            };
+            let binding = display.binding();
+            if !app
+                .pi_scan
+                .results
+                .iter()
+                .any(|result| result.binding() == binding)
+            {
+                app.pi_scan.results.push(display);
+                app.pi_scan.record_result_inserted();
+                app.pi_scan.set_foreground_notice(
+                    format!(
+                        "{}: {package_base}",
+                        crate::i18n::t(app, "app.pi_scan.notices.validated_complete")
+                    ),
+                    crate::state::pi_scan_ui::PiScanNoticeSeverity::Success,
+                );
+            }
         }
         PiScanResultMessage::BaselineAccepted { result_binding } => {
             if app
@@ -1608,8 +2075,15 @@ fn apply_pi_scan_result(
                 .iter()
                 .any(|result| result.binding() == result_binding)
             {
-                app.pi_scan.notice =
-                    Some("accepted complete current-HEAD Pi scan baseline persisted".to_string());
+                app.pi_scan.set_foreground_notice(
+                    crate::i18n::t(app, "app.pi_scan.notices.baseline_persisted"),
+                    crate::state::pi_scan_ui::PiScanNoticeSeverity::Success,
+                );
+            } else {
+                app.pi_scan.set_foreground_notice(
+                    crate::i18n::t(app, "app.pi_scan.notices.baseline_binding_changed"),
+                    crate::state::pi_scan_ui::PiScanNoticeSeverity::Warning,
+                );
             }
         }
         PiScanResultMessage::ContinuationValidated {
@@ -1624,7 +2098,10 @@ fn apply_pi_scan_result(
                 &result_binding,
                 stale,
             ) {
-                app.pi_scan.notice = Some(reason);
+                app.pi_scan.set_foreground_notice(
+                    reason,
+                    crate::state::pi_scan_ui::PiScanNoticeSeverity::Error,
+                );
             }
         }
         PiScanResultMessage::Completed(record) => {
@@ -1644,7 +2121,20 @@ fn apply_pi_scan_result(
             );
             app.pi_scan.runtime.active = None;
             app.pi_scan.runtime.terminal.push(record);
-            app.pi_scan.notice = warning;
+            if let Some(warning) = warning {
+                app.pi_scan.set_foreground_notice(
+                    format!(
+                        "{}: {warning}",
+                        crate::i18n::t(app, "app.pi_scan.notices.cancelled")
+                    ),
+                    crate::state::pi_scan_ui::PiScanNoticeSeverity::Warning,
+                );
+            } else if app.pi_scan.notices.foreground.is_none() {
+                app.pi_scan.set_foreground_notice(
+                    crate::i18n::t(app, "app.pi_scan.notices.cancelled"),
+                    crate::state::pi_scan_ui::PiScanNoticeSeverity::Info,
+                );
+            }
         }
         PiScanResultMessage::Rejected { reason } => {
             tracing::warn!(reason, "Pi scan runtime request rejected");
@@ -1655,9 +2145,16 @@ fn apply_pi_scan_result(
                     crate::state::PiScanTargetStatus::Failed,
                 );
             }
-            app.pi_scan.notice = Some(reason);
+            app.pi_scan.set_foreground_notice(
+                format!(
+                    "{}: {reason}",
+                    crate::i18n::t(app, "app.pi_scan.notices.runtime_rejected")
+                ),
+                crate::state::pi_scan_ui::PiScanNoticeSeverity::Error,
+            );
         }
     }
+    app.pi_scan.clamp_selection();
 }
 
 /// Finish a linked continuation only after the exact result remains current and acknowledged.
@@ -1714,6 +2211,11 @@ fn finish_pi_scan_continuation(
         .send(item)
         .map_err(|error| format!("could not continue the acknowledged Pi scan result: {error}"))?;
     app.app_mode = crate::state::types::AppMode::Package;
+    app.toast_message = Some(format!(
+        "{}: {package_name}",
+        crate::i18n::t(app, "app.pi_scan.notices.continuation_complete")
+    ));
+    app.toast_expires_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(6));
     Ok(())
 }
 
@@ -2362,11 +2864,15 @@ pub async fn run_event_loop(
 #[cfg(test)]
 mod tests {
     use super::apply_pi_scan_progress;
+    use super::apply_pi_scan_result;
+    use super::apply_pi_scan_runtime_notice;
     use super::handle_aur_vote_response;
     use super::handle_aur_vote_state_response;
     use super::handle_index_notification;
     use super::handle_news_content;
     use super::handle_updates_list;
+    use super::install_pi_scan_owner;
+    use super::project_pi_scan_rollback_report;
     use crate::app::runtime::background::Channels;
     use crate::app::runtime::workers::UpdateCheckPayload;
     use crate::state::AppState;
@@ -2394,6 +2900,389 @@ mod tests {
             severity: None,
             packages: Vec::new(),
         }
+    }
+
+    /// Build one deterministic Pi Scan request for projection regressions.
+    fn pi_scan_request(
+        package_base: &str,
+        oid_character: char,
+    ) -> crate::state::pi_scan::PiScanJobRequest {
+        crate::state::pi_scan::PiScanJobRequest {
+            request_id: 7,
+            key: crate::state::pi_scan::PiScanQueueKey {
+                package_base: crate::logic::pi_scan::identity::PackageBase::new(package_base)
+                    .expect("package base"),
+                commit_oid: crate::logic::pi_scan::identity::CommitOid::new(
+                    oid_character.to_string().repeat(40),
+                )
+                .expect("commit oid"),
+            },
+            priority: crate::state::pi_scan::PiScanPriority::Foreground,
+            reservation: crate::state::pi_scan::PiScanReservation {
+                tokens: 100,
+                cost_microusd: 20,
+            },
+            manual_budget_override_confirmed: false,
+        }
+    }
+
+    /// Build one deterministic validated execution receipt for projection regressions.
+    fn pi_scan_receipt(package_base: &str) -> crate::pi_scan_orchestrator::ExecutionReceipt {
+        let request = pi_scan_request(package_base, 'a');
+        crate::pi_scan_orchestrator::ExecutionReceipt {
+            result: crate::logic::pi_scan::result::MergedScanResult {
+                identity: crate::logic::pi_scan::result::ExpectedIdentity {
+                    scan_id: "scan-validated".to_string(),
+                    package_base: package_base.to_string(),
+                    commit_oid: request.key.commit_oid.as_str().to_string(),
+                },
+                coverage: crate::logic::pi_scan::result::Coverage::Complete,
+                limitations: Vec::new(),
+                findings: Vec::new(),
+            },
+            observed_head_oid: request.key.commit_oid,
+            provenance: crate::logic::pi_scan::result::ScanProvenance {
+                pi_version: "0.84.0".to_string(),
+                extension_sha256: "b".repeat(64),
+                prompt_version: "pacsea-scan-prompt-1".to_string(),
+                schema_version: "pacsea-scan-result-1".to_string(),
+                tool_contract_version: "pacsea-scan-tools-1".to_string(),
+                attempts: Vec::new(),
+            },
+            manifests: vec![crate::logic::pi_scan::manifest::CanonicalManifest::new(
+                Vec::new(),
+            )],
+            usage: crate::state::pi_scan::PiScanActualUsage {
+                tokens: 10,
+                cost_microusd: 2,
+            },
+            stale: false,
+            mutable_sources: Vec::new(),
+        }
+    }
+
+    #[tokio::test]
+    /// Replacing the runtime owner must retain its dedicated typed notice receiver.
+    async fn pi_scan_owner_replacement_retains_notice_receiver() {
+        use crate::app::runtime::workers::pi_scan::{
+            PiScanNoticeProvenance, PiScanNoticeSource, PiScanPolicyAcknowledgement,
+            PiScanRuntimeAction, PiScanRuntimeChannels, PiScanRuntimeNotice,
+        };
+        let mut channels =
+            Channels::new(std::path::PathBuf::from("/tmp")).expect("channels should construct");
+        let (request_tx, _request_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (cancel_tx, _cancel_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (session_tx, _session_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (shutdown_tx, _shutdown_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (_progress_tx, progress_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (_result_tx, result_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (notice_tx, notice_rx) = tokio::sync::mpsc::unbounded_channel();
+        let notice = PiScanRuntimeNotice {
+            provenance: PiScanNoticeProvenance {
+                source: PiScanNoticeSource::Foreground,
+                action: Some(PiScanRuntimeAction::Pause),
+                correlation_id: None,
+            },
+            user_paused: true,
+            acknowledgement: PiScanPolicyAcknowledgement::Queued,
+        };
+        notice_tx.send(notice.clone()).expect("notice send");
+
+        install_pi_scan_owner(
+            &mut channels,
+            PiScanRuntimeChannels {
+                request_tx,
+                cancel_tx,
+                session_tx,
+                shutdown_tx,
+                progress_rx,
+                result_rx,
+                notice_rx,
+            },
+            crate::app::runtime::workers::pi_scan::PiScanRuntimeOptions::default(),
+        );
+
+        assert_eq!(channels.pi_scan_notice_rx.try_recv(), Ok(notice));
+    }
+
+    #[test]
+    /// Setup failures after wizard closure must surface and terminalize workspace ownership.
+    fn pi_scan_closed_wizard_setup_failure_reaches_workspace_notice() {
+        let mut app = AppState::default();
+        app.pi_scan.setup_transaction = Some(crate::state::pi_scan_ui::PiScanSetupTransaction {
+            correlation_id: 55,
+            abandonment: crate::state::pi_scan_ui::PiScanSetupAbandonment::Active,
+        });
+
+        super::apply_pi_scan_setup_event(
+            &mut app,
+            crate::app::runtime::workers::pi_scan_setup::PiScanSetupEvent::Failed {
+                correlation_id: 55,
+                stage: crate::app::runtime::workers::pi_scan_setup::PiScanSetupStage::Activation,
+                reason: "candidate failed".to_string(),
+            },
+        );
+
+        assert!(app.pi_scan.setup_transaction.is_none());
+        assert!(app.pi_scan.notices.foreground.is_some());
+
+        let mut timed_out = AppState::default();
+        timed_out.pi_scan.last_setup_correlation = 56;
+        super::apply_pi_scan_setup_timeout(
+            &mut timed_out,
+            crate::app::runtime::workers::pi_scan_setup::PiScanSetupTimeout {
+                correlation_id: 56,
+                stage: crate::app::runtime::workers::pi_scan_setup::PiScanSetupStage::Probe,
+                deadline: std::time::Duration::from_secs(30),
+            },
+        );
+        assert!(timed_out.pi_scan.notices.foreground.is_some());
+    }
+
+    #[test]
+    /// Typed policy acknowledgements distinguish queued, persisted, and failed durability.
+    fn pi_scan_policy_notice_projects_without_false_persistence() {
+        use crate::app::runtime::workers::pi_scan::{
+            PiScanNoticeProvenance, PiScanNoticeSource, PiScanPolicyAcknowledgement,
+            PiScanRuntimeAction, PiScanRuntimeNotice,
+        };
+        let mut app = AppState::default();
+        let provenance = PiScanNoticeProvenance {
+            source: PiScanNoticeSource::Foreground,
+            action: Some(PiScanRuntimeAction::Pause),
+            correlation_id: Some(8),
+        };
+
+        apply_pi_scan_runtime_notice(
+            &mut app,
+            PiScanRuntimeNotice {
+                provenance,
+                user_paused: true,
+                acknowledgement: PiScanPolicyAcknowledgement::Queued,
+            },
+        );
+        assert!(
+            !app.pi_scan
+                .runtime
+                .pause_reasons
+                .contains(&crate::state::pi_scan::PiScanPauseReason::User)
+        );
+
+        apply_pi_scan_runtime_notice(
+            &mut app,
+            PiScanRuntimeNotice {
+                provenance,
+                user_paused: true,
+                acknowledgement: PiScanPolicyAcknowledgement::Persisted,
+            },
+        );
+        assert!(
+            app.pi_scan
+                .runtime
+                .pause_reasons
+                .contains(&crate::state::pi_scan::PiScanPauseReason::User)
+        );
+
+        apply_pi_scan_runtime_notice(
+            &mut app,
+            PiScanRuntimeNotice {
+                provenance: PiScanNoticeProvenance {
+                    source: PiScanNoticeSource::Background,
+                    action: Some(PiScanRuntimeAction::Resume),
+                    correlation_id: Some(8),
+                },
+                user_paused: false,
+                acknowledgement: PiScanPolicyAcknowledgement::Failed {
+                    reason: "durability unavailable".to_string(),
+                },
+            },
+        );
+        assert!(
+            app.pi_scan
+                .runtime
+                .pause_reasons
+                .contains(&crate::state::pi_scan::PiScanPauseReason::User)
+        );
+        assert!(app.pi_scan.notices.background.is_some());
+    }
+
+    #[tokio::test]
+    /// Cancellation without a teardown warning must retain existing foreground feedback.
+    async fn pi_scan_cancelled_without_warning_preserves_foreground_feedback() {
+        let mut app = AppState::default();
+        app.pi_scan.set_foreground_notice(
+            "cancel requested",
+            crate::state::pi_scan_ui::PiScanNoticeSeverity::Info,
+        );
+        let request = pi_scan_request("cancel-demo", 'c');
+        let record = crate::state::pi_scan::PiScanTerminalRecord {
+            request,
+            correlation_id: 9,
+            status: crate::state::pi_scan::PiScanTerminalStatus::Cancelled,
+            finished_at_unix: 10,
+        };
+        let channels =
+            Channels::new(std::path::PathBuf::from("/tmp")).expect("channels should construct");
+
+        apply_pi_scan_result(
+            &mut app,
+            &channels,
+            crate::app::runtime::workers::pi_scan::PiScanResultMessage::Cancelled {
+                record,
+                warning: None,
+            },
+        );
+
+        assert_eq!(
+            app.pi_scan.notices.foreground_text(),
+            Some("cancel requested")
+        );
+
+        app.pi_scan.notices.foreground = None;
+        let request = pi_scan_request("cancel-demo-empty", 'd');
+        apply_pi_scan_result(
+            &mut app,
+            &channels,
+            crate::app::runtime::workers::pi_scan::PiScanResultMessage::Cancelled {
+                record: crate::state::pi_scan::PiScanTerminalRecord {
+                    request,
+                    correlation_id: 10,
+                    status: crate::state::pi_scan::PiScanTerminalStatus::Cancelled,
+                    finished_at_unix: 11,
+                },
+                warning: None,
+            },
+        );
+        assert!(app.pi_scan.notices.foreground.is_some());
+    }
+
+    #[tokio::test]
+    /// A unique validated result must announce completion and increment unseen state once.
+    async fn pi_scan_validated_inserts_announces_and_increments_unseen_once() {
+        let mut app = AppState::default();
+        app.pi_scan.view = crate::state::PiScanView::Progress;
+        let channels =
+            Channels::new(std::path::PathBuf::from("/tmp")).expect("channels should construct");
+        let message = crate::app::runtime::workers::pi_scan::PiScanResultMessage::Validated(
+            Box::new(pi_scan_receipt("validated-demo")),
+        );
+
+        apply_pi_scan_result(&mut app, &channels, message.clone());
+        apply_pi_scan_result(&mut app, &channels, message);
+
+        assert_eq!(app.pi_scan.results.len(), 1);
+        assert_eq!(app.pi_scan.unseen_result_count, 1);
+        assert!(app.pi_scan.notices.foreground.is_some());
+    }
+
+    #[test]
+    /// An abandoned transfer must terminalize through an explicit correlated rollback report.
+    fn pi_scan_abandoned_transfer_explicitly_reports_rollback() {
+        let mut app = AppState::default();
+        app.pi_scan.setup_transaction = Some(crate::state::pi_scan_ui::PiScanSetupTransaction {
+            correlation_id: 44,
+            abandonment: crate::state::pi_scan_ui::PiScanSetupAbandonment::AbandonRequested,
+        });
+
+        project_pi_scan_rollback_report(
+            &mut app,
+            crate::app::runtime::workers::pi_scan_setup::PiScanRollbackReport {
+                correlation_id: 44,
+                outcome:
+                    crate::app::runtime::workers::pi_scan_setup::PiScanRollbackOutcome::Succeeded,
+            },
+        );
+
+        assert!(app.pi_scan.setup_transaction.is_none());
+        assert!(app.pi_scan.notices.foreground.is_some());
+    }
+
+    #[test]
+    /// Exact queue intent waits for every intended identity and ignores unrelated observations.
+    fn pi_scan_exact_queue_intent_waits_for_all_intended_identities() {
+        let mut app = AppState::default();
+        app.pi_scan.targets.extend([
+            crate::state::PiScanTarget {
+                package_name: "alpha-bin".to_string(),
+                package_base: "alpha-bin".to_string(),
+                commit_oid: None,
+                selected: true,
+                status: crate::state::PiScanTargetStatus::Unbaselined,
+            },
+            crate::state::PiScanTarget {
+                package_name: "beta-bin".to_string(),
+                package_base: "beta-bin".to_string(),
+                commit_oid: None,
+                selected: true,
+                status: crate::state::PiScanTargetStatus::Unbaselined,
+            },
+        ]);
+        app.pi_scan.snapshot_queue_intent();
+        let (request_tx, mut request_rx) = tokio::sync::mpsc::unbounded_channel();
+        let observed = |package_name: &str, package_base: &str, character: char| {
+            crate::pi_scan_orchestrator::FrozenScanIdentity {
+                scan_id: format!("scan-{package_name}"),
+                package_name: package_name.to_string(),
+                package_base: crate::logic::pi_scan::identity::PackageBase::new(package_base)
+                    .expect("package base"),
+                installed_names: vec![package_name.to_string()],
+                installed_version: "1.0-1".to_string(),
+                candidate_version: None,
+                commit_oid: crate::logic::pi_scan::identity::CommitOid::new(
+                    character.to_string().repeat(40),
+                )
+                .expect("commit oid"),
+                observed_head_oid: crate::logic::pi_scan::identity::CommitOid::new(
+                    character.to_string().repeat(40),
+                )
+                .expect("observed oid"),
+                cycle_id: "manual".to_string(),
+                provider: "provider".to_string(),
+                model: "model".to_string(),
+                priority: crate::state::pi_scan::PiScanPriority::Foreground,
+                reservation: crate::state::pi_scan::PiScanReservation {
+                    tokens: 100,
+                    cost_microusd: 20,
+                },
+            }
+        };
+
+        apply_pi_scan_progress(
+            &mut app,
+            Some(&request_tx),
+            crate::app::runtime::workers::pi_scan::PiScanProgressMessage::Observed {
+                targets: vec![observed("unrelated-bin", "unrelated", 'c')],
+            },
+        );
+        assert!(app.pi_scan.pending_queue_intent.is_some());
+        assert!(request_rx.try_recv().is_err());
+        apply_pi_scan_progress(
+            &mut app,
+            Some(&request_tx),
+            crate::app::runtime::workers::pi_scan::PiScanProgressMessage::Observed {
+                targets: vec![observed("alpha-bin", "alpha", 'a')],
+            },
+        );
+        assert!(app.pi_scan.pending_queue_intent.is_some());
+        assert!(request_rx.try_recv().is_err());
+        apply_pi_scan_progress(
+            &mut app,
+            Some(&request_tx),
+            crate::app::runtime::workers::pi_scan::PiScanProgressMessage::Observed {
+                targets: vec![observed("beta-bin", "beta", 'b')],
+            },
+        );
+        assert!(app.pi_scan.pending_queue_intent.is_none());
+        let mut queued = Vec::new();
+        while let Ok(message) = request_rx.try_recv() {
+            if let crate::app::runtime::workers::pi_scan::PiScanRequestMessage::Enqueue(request) =
+                message
+            {
+                queued.push(request.key.package_base.as_str().to_string());
+            }
+        }
+        queued.sort();
+        assert_eq!(queued, ["alpha", "beta"]);
     }
 
     #[test]
@@ -2511,6 +3400,7 @@ mod tests {
         let mut app = AppState::default();
         apply_pi_scan_progress(
             &mut app,
+            None,
             crate::app::runtime::workers::pi_scan::PiScanProgressMessage::RestoredConsent {
                 consent: crate::state::pi_scan::PiScanConsentState {
                     background_observation: true,
@@ -2545,6 +3435,7 @@ mod tests {
         let mut app = AppState::default();
         apply_pi_scan_progress(
             &mut app,
+            None,
             crate::app::runtime::workers::pi_scan::PiScanProgressMessage::SetupVerified(
                 crate::pi_scan_orchestrator::SetupSnapshot {
                     pi_version: "0.84.0".to_string(),
@@ -2628,9 +3519,10 @@ mod tests {
             crate::app::runtime::workers::pi_scan::PiScanProgressMessage::RestoredResults {
                 documents: vec![document.clone()],
             };
-        apply_pi_scan_progress(&mut app, progress);
+        apply_pi_scan_progress(&mut app, None, progress);
         apply_pi_scan_progress(
             &mut app,
+            None,
             crate::app::runtime::workers::pi_scan::PiScanProgressMessage::RestoredResults {
                 documents: vec![document],
             },

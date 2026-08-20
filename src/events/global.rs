@@ -865,6 +865,25 @@ fn handle_menu_numeric_selection(
     }
 }
 
+/// What: Report whether Package-only global chords apply in the current app mode.
+///
+/// Inputs:
+/// - `app`: Current application state whose mode owns the active interaction surface.
+///
+/// Output:
+/// - `true` only when hidden Package-pane state may be addressed by global chords.
+///
+/// Details:
+/// - Config Editor and Pi Scan own their navigation keys, so Package-only PKGBUILD,
+///   comments, and sorting chords must not preempt either mode. Exit, help, and reload
+///   remain independently global and do not use this helper.
+const fn package_global_chords_apply(app: &AppState) -> bool {
+    !matches!(
+        app.app_mode,
+        crate::state::types::AppMode::ConfigEditor | crate::state::types::AppMode::PiScan
+    )
+}
+
 /// What: Handle global keybinds (help, theme reload, exit, PKGBUILD, comments, sort).
 ///
 /// Inputs:
@@ -919,9 +938,7 @@ fn handle_global_keybinds(
     }
 
     // Comments toggle - check FIRST before other keybinds to ensure it's not intercepted
-    if !matches!(app.app_mode, crate::state::types::AppMode::ConfigEditor)
-        && matches_keybind(ke, &km.comments_toggle)
-    {
+    if package_global_chords_apply(app) && matches_keybind(ke, &km.comments_toggle) {
         tracing::debug!("[Keybind] Comments toggle matched, calling handle_toggle_comments");
         return Some(handle_toggle_comments(app, comments_tx));
     }
@@ -948,19 +965,19 @@ fn handle_global_keybinds(
 
     // PKGBUILD toggle (only if no modal is active - modals should handle their own keys)
     if matches!(app.modal, crate::state::Modal::None)
-        && !matches!(app.app_mode, crate::state::types::AppMode::ConfigEditor)
+        && package_global_chords_apply(app)
         && matches_keybind(ke, &km.show_pkgbuild)
     {
         return Some(handle_toggle_pkgbuild(app, pkgb_tx));
     }
     if matches!(app.modal, crate::state::Modal::None)
-        && !matches!(app.app_mode, crate::state::types::AppMode::ConfigEditor)
+        && package_global_chords_apply(app)
         && matches_keybind(ke, &km.run_pkgbuild_checks)
     {
         return Some(handle_run_pkgbuild_checks(app, pkgb_check_tx));
     }
     if matches!(app.modal, crate::state::Modal::None)
-        && !matches!(app.app_mode, crate::state::types::AppMode::ConfigEditor)
+        && package_global_chords_apply(app)
         && matches_keybind(ke, &km.cycle_pkgbuild_sections)
     {
         return Some(handle_cycle_pkgbuild_sections(app));
@@ -968,7 +985,7 @@ fn handle_global_keybinds(
 
     // Sort change (only if no modal is active - modals should handle their own keys)
     if matches!(app.modal, crate::state::Modal::None)
-        && !matches!(app.app_mode, crate::state::types::AppMode::ConfigEditor)
+        && package_global_chords_apply(app)
         && matches_keybind(ke, &km.change_sort)
     {
         return Some(handle_change_sort(app, details_tx));

@@ -311,14 +311,30 @@ pub fn apply_settings_to_app_state(app: &mut AppState, prefs: &crate::theme::Set
     app.search_normal_mode = prefs.search_startup_mode;
     app.fuzzy_search_enabled = prefs.fuzzy_search;
     app.installed_packages_mode = prefs.installed_packages_mode;
+    let preserve_pi_scan_mode = app.app_mode == crate::state::types::AppMode::PiScan;
+    let wizard_was_open = app.pi_scan.wizard.is_some();
     let pi_binary_found = configured_pi_binary_found(&prefs.pi_scan.binary);
-    app.pi_scan
+    let pi_scan_settings_changed = app
+        .pi_scan
         .apply_settings(prefs.pi_scan.clone(), pi_binary_found);
-    app.app_mode = if prefs.start_in_news {
-        crate::state::types::AppMode::News
+    if preserve_pi_scan_mode {
+        app.app_mode = crate::state::types::AppMode::PiScan;
+        if pi_scan_settings_changed && wizard_was_open {
+            app.pi_scan.wizard = None;
+            app.pi_scan.pending_action = None;
+            let notice = crate::i18n::t(app, "app.pi_scan.notices.settings_changed_reload");
+            app.pi_scan.set_foreground_notice(
+                notice,
+                crate::state::pi_scan_ui::PiScanNoticeSeverity::Warning,
+            );
+        }
     } else {
-        crate::state::types::AppMode::Package
-    };
+        app.app_mode = if prefs.start_in_news {
+            crate::state::types::AppMode::News
+        } else {
+            crate::state::types::AppMode::Package
+        };
+    }
     app.news_filter_show_arch_news = prefs.news_filter_show_arch_news;
     app.news_filter_show_advisories = prefs.news_filter_show_advisories;
     app.news_filter_show_pkg_updates = prefs.news_filter_show_pkg_updates;

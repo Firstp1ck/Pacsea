@@ -39,7 +39,7 @@ const CONFIG_EDITOR_DUAL_LABEL_GAP: u16 = 2;
 /// - Mirrors the non-News branch of `render_updates_button` so Config editor can show the same text
 ///   alongside the news strip without duplicating conditionals.
 fn package_updates_top_bar_label(app: &AppState) -> String {
-    if app.updates_loading {
+    let updates = if app.updates_loading {
         i18n::t(app, "app.updates_button.loading")
     } else if let Some(count) = app.updates_count {
         if count > 0 {
@@ -55,7 +55,22 @@ fn package_updates_top_bar_label(app: &AppState) -> String {
         }
     } else {
         i18n::t(app, "app.updates_button.none")
+    };
+    if !app.pi_scan.settings.enabled {
+        return updates;
     }
+    let pi_status = if app.pi_scan.runtime.active.is_some() {
+        Some(i18n::t(app, "app.pi_scan.top_bar.running"))
+    } else if app.pi_scan.unseen_result_count > 0 {
+        Some(i18n::t_fmt1(
+            app,
+            "app.pi_scan.top_bar.new_results",
+            app.pi_scan.unseen_result_count,
+        ))
+    } else {
+        None
+    };
+    pi_status.map_or_else(|| updates.clone(), |status| format!("{updates} · {status}"))
 }
 
 /// What: Build the news-mode top bar strip label.
@@ -96,7 +111,11 @@ fn pi_scan_top_bar_label(app: &AppState) -> String {
             i18n::t(app, "app.pi_scan.status.connected")
         }
     };
-    format!("Pi Scan: {state} · {queued} queued")
+    format!(
+        "{}: {state} · {}",
+        i18n::t(app, "app.pi_scan.title"),
+        i18n::t_fmt1(app, "app.pi_scan.top_bar.queued", queued)
+    )
 }
 
 /// What: Draw updates and news top labels as one horizontally centered group (config editor).
@@ -194,6 +213,14 @@ fn render_config_editor_dual_top_labels(
 /// - Records clickable rectangle for mouse interaction
 pub fn render_updates_button(f: &mut Frame, app: &mut AppState, area: Rect) {
     let th = theme();
+    if matches!(app.app_mode, AppMode::PiScan) {
+        clear_top_bar_menu_rects(app);
+        app.news_button_rect = None;
+        let label = pi_scan_top_bar_label(app);
+        render_updates_button_inner(f, app, area, &label, &th);
+        app.updates_button_rect = None;
+        return;
+    }
 
     // Check if lockout status should be displayed
     let lockout_text: Option<String> = if app.faillock_locked {
@@ -277,10 +304,7 @@ pub fn render_updates_button(f: &mut Frame, app: &mut AppState, area: Rect) {
             let label = news_top_bar_label(app);
             render_news_button_inner(f, app, updates_chunk, &label, &th);
         }
-        AppMode::PiScan => {
-            let label = pi_scan_top_bar_label(app);
-            render_updates_button_inner(f, app, updates_chunk, &label, &th);
-        }
+        AppMode::PiScan => unreachable!("Pi Scan returns before package controls are laid out"),
         AppMode::Package => {
             let label = package_updates_top_bar_label(app);
             render_updates_button_inner(f, app, updates_chunk, &label, &th);

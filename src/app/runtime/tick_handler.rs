@@ -961,6 +961,8 @@ pub fn handle_tick(
         app.ring_resume_at = None;
     }
 
+    expire_pi_scan_notices(app, Instant::now());
+
     // Clear expired toast, but don't clear news loading toast while news are still loading
     if let Some(deadline) = app.toast_expires_at
         && std::time::Instant::now() >= deadline
@@ -975,6 +977,11 @@ pub fn handle_tick(
             app.toast_expires_at = None;
         }
     }
+}
+
+/// Expire transient Pi Scan notices from the central monotonic tick.
+fn expire_pi_scan_notices(app: &mut AppState, now: Instant) {
+    app.pi_scan.expire_notices_at(now);
 }
 
 /// What: Handle news update event.
@@ -1041,6 +1048,36 @@ pub fn handle_status(app: &mut AppState, txt: &str, color: ArchStatusColor) {
 mod tests {
     use super::*;
     use crate::install::ExecutorRequest;
+
+    #[test]
+    /// The central monotonic tick expires transient notices but retains persistent errors.
+    fn pi_scan_notice_expiry_runs_from_tick_projection() {
+        let mut app = AppState::default();
+        let now = Instant::now();
+        app.pi_scan.notices.set_foreground_at(
+            "temporary",
+            crate::state::pi_scan_ui::PiScanNoticeSeverity::Info,
+            now,
+        );
+        app.pi_scan.notices.set_background_at(
+            "persistent",
+            crate::state::pi_scan_ui::PiScanNoticeSeverity::Error,
+            now,
+        );
+
+        expire_pi_scan_notices(&mut app, now + std::time::Duration::from_secs(7));
+
+        assert!(app.pi_scan.notices.foreground.is_none());
+        assert_eq!(
+            app.pi_scan
+                .notices
+                .background
+                .as_ref()
+                .map(|notice| notice.text.as_str()),
+            Some("persistent")
+        );
+    }
+
     use crate::state::Modal;
     use crate::state::modal::{PreflightAction, PreflightTab};
 

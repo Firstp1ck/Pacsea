@@ -162,6 +162,29 @@ pub fn handle_event(
     )
 }
 
+/// What: Report whether a focused Pi Scan text field owns one printable key.
+///
+/// Inputs:
+/// - `ke`: Pressed terminal key.
+/// - `app`: Current application and wizard focus state.
+///
+/// Output:
+/// - `true` when the key must reach wizard editing before global printable chords.
+///
+/// Details:
+/// - This gives field text precedence over the global `?` help chord without affecting
+///   non-printable global exit or reload shortcuts.
+fn pi_scan_text_field_owns_printable_key(ke: &crossterm::event::KeyEvent, app: &AppState) -> bool {
+    matches!(app.app_mode, AppMode::PiScan)
+        && app
+            .pi_scan
+            .wizard
+            .as_ref()
+            .is_some_and(crate::state::PiScanSetupWizardState::focuses_text_field)
+        && matches!(ke.code, KeyCode::Char(character) if !character.is_control())
+        && (ke.modifiers.is_empty() || ke.modifiers == KeyModifiers::SHIFT)
+}
+
 #[allow(clippy::too_many_arguments)]
 /// What: Event dispatcher variant that includes PKGBUILD checks channel wiring.
 pub fn handle_event_with_pkgbuild_checks(
@@ -203,6 +226,13 @@ pub fn handle_event_with_pkgbuild_checks(
             })
         {
             modals::handle_config_editor_mode_key(*ke, app);
+            return false;
+        }
+
+        // A focused Pi Scan text field owns printable input before the global
+        // help chord so `?` remains ordinary field content.
+        if pi_scan_text_field_owns_printable_key(ke, app) {
+            pi_scan::handle_key(*ke, app);
             return false;
         }
 

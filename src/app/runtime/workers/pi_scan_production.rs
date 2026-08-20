@@ -14,9 +14,10 @@ use serde_json::Value;
 use sha2::{Digest as _, Sha256};
 
 use crate::app::runtime::workers::pi_scan::{
-    PiScanCancelMessage, PiScanProgressMessage, PiScanRequestMessage, PiScanResultMessage,
-    PiScanRuntimeChannels, PiScanRuntimeOptions, PiScanSessionRegistration, PiScanShutdownAck,
-    PiScanShutdownMessage,
+    PiScanCancelMessage, PiScanNoticeProvenance, PiScanNoticeSource, PiScanPolicyAcknowledgement,
+    PiScanProgressMessage, PiScanRequestMessage, PiScanResultMessage, PiScanRuntimeAction,
+    PiScanRuntimeChannels, PiScanRuntimeNotice, PiScanRuntimeOptions, PiScanSessionRegistration,
+    PiScanShutdownAck, PiScanShutdownMessage,
 };
 use crate::install::resolve_command_on_path;
 use crate::logic::pi_scan::acquisition::{
@@ -1309,6 +1310,8 @@ fn spawn_production_channels(
     let (shutdown_tx, shutdown_rx) = tokio::sync::mpsc::unbounded_channel();
     let (progress_tx, progress_rx) = tokio::sync::mpsc::unbounded_channel();
     let (result_tx, result_rx) = tokio::sync::mpsc::unbounded_channel();
+    let (notice_tx, notice_rx) = tokio::sync::mpsc::unbounded_channel();
+    let (execution_tx, execution_rx) = tokio::sync::mpsc::unbounded_channel();
 
     if !restored.documents.is_empty() {
         drop(progress_tx.send(PiScanProgressMessage::RestoredResults {
@@ -1319,13 +1322,25 @@ fn spawn_production_channels(
         reject(&result_tx, warning);
     }
 
+    let request_senders = ProductionRequestSenders {
+        progress: progress_tx.clone(),
+        result: result_tx.clone(),
+        execution: execution_tx,
+        notice: notice_tx,
+    };
     tokio::spawn(run_production_requests(
         runner.clone(),
         request_rx,
+        request_senders,
+        settings.clone(),
+        dry_run,
+    ));
+    tokio::spawn(run_production_execution(
+        runner.clone(),
+        execution_rx,
         progress_tx.clone(),
         result_tx.clone(),
         settings,
-        dry_run,
     ));
     tokio::spawn(run_production_cancellations(
         runner.clone(),
@@ -1343,7 +1358,21 @@ fn spawn_production_channels(
         shutdown_tx,
         progress_rx,
         result_rx,
+        notice_rx,
     }
+}
+
+/// Runtime request-loop output channels grouped to keep protocol ownership cohesive.
+#[derive(Clone)]
+struct ProductionRequestSenders {
+    /// Progress projection sender.
+    progress: tokio::sync::mpsc::UnboundedSender<PiScanProgressMessage>,
+    /// Terminal and legacy rejection sender.
+    result: tokio::sync::mpsc::UnboundedSender<PiScanResultMessage>,
+    /// Sequential execution wake-up sender.
+    execution: tokio::sync::mpsc::UnboundedSender<()>,
+    /// Provenance-bearing runtime notice sender.
+    notice: tokio::sync::mpsc::UnboundedSender<PiScanRuntimeNotice>,
 }
 
 /// Session-owned consent projection controlling when external work may start.
@@ -1373,11 +1402,13 @@ const fn background_observation_due(consent: &RuntimeConsentProjection) -> bool 
 async fn run_production_requests(
     runner: PiScanSequentialRunner<ProductionOrchestrationAdapter>,
     mut request_rx: tokio::sync::mpsc::UnboundedReceiver<PiScanRequestMessage>,
-    progress_tx: tokio::sync::mpsc::UnboundedSender<PiScanProgressMessage>,
-    result_tx: tokio::sync::mpsc::UnboundedSender<PiScanResultMessage>,
+    senders: ProductionRequestSenders,
     settings: ProductionRuntimeSettings,
     dry_run: bool,
 ) {
+    let progress_tx = senders.progress.clone();
+    let result_tx = senders.result.clone();
+    let execution_tx = senders.execution.clone();
     let restored_state = match runner.state_snapshot().await {
         Ok(state) => state,
         Err(error) => {
@@ -1474,7 +1505,7 @@ async fn run_production_requests(
             && consent.background_paid_execution
             && !dry_run
         {
-            drain_eligible_queue(&runner, &progress_tx, &result_tx, &settings).await;
+            request_execution(&execution_tx);
         }
     }
     let mut interval =
@@ -1487,8 +1518,7 @@ async fn run_production_requests(
                 handle_production_request(
                     &runner,
                     request,
-                    &progress_tx,
-                    &result_tx,
+                    &senders,
                     &settings,
                     &mut consent,
                     dry_run,
@@ -1510,7 +1540,7 @@ async fn run_production_requests(
                     && consent.background_paid_execution
                     && !dry_run
                 {
-                    drain_eligible_queue(&runner, &progress_tx, &result_tx, &settings).await;
+                    request_execution(&execution_tx);
                 }
             }
         }
@@ -1551,12 +1581,15 @@ struct ProductionConsentUpdate {
 async fn handle_production_request(
     runner: &PiScanSequentialRunner<ProductionOrchestrationAdapter>,
     request: PiScanRequestMessage,
-    progress_tx: &tokio::sync::mpsc::UnboundedSender<PiScanProgressMessage>,
-    result_tx: &tokio::sync::mpsc::UnboundedSender<PiScanResultMessage>,
+    senders: &ProductionRequestSenders,
     settings: &ProductionRuntimeSettings,
     consent_state: &mut RuntimeConsentProjection,
     dry_run: bool,
 ) {
+    let progress_tx = &senders.progress;
+    let result_tx = &senders.result;
+    let execution_tx = &senders.execution;
+    let notice_tx = &senders.notice;
     match request {
         PiScanRequestMessage::ProbeSetup if dry_run => reject(
             result_tx,
@@ -1580,8 +1613,15 @@ async fn handle_production_request(
             );
         }
         PiScanRequestMessage::Enqueue(request) => {
-            handle_production_enqueue(runner, request, progress_tx, result_tx, settings, dry_run)
-                .await;
+            handle_production_enqueue(
+                runner,
+                request,
+                progress_tx,
+                result_tx,
+                dry_run,
+                execution_tx,
+            )
+            .await;
         }
         PiScanRequestMessage::SetConsentDetails {
             consent,
@@ -1601,8 +1641,7 @@ async fn handle_production_request(
                         readiness_warning_confirmed,
                     }),
                 },
-                progress_tx,
-                result_tx,
+                senders,
                 settings,
                 consent_state,
                 dry_run,
@@ -1616,8 +1655,7 @@ async fn handle_production_request(
                     consent,
                     setup: None,
                 },
-                progress_tx,
-                result_tx,
+                senders,
                 settings,
                 consent_state,
                 dry_run,
@@ -1625,12 +1663,7 @@ async fn handle_production_request(
             .await;
         }
         PiScanRequestMessage::SetUserPaused(paused) => {
-            publish_policy_result(
-                runner
-                    .update_runtime_policy(None, Some(paused), false, None)
-                    .await,
-                result_tx,
-            );
+            handle_user_pause(runner, paused, notice_tx, result_tx).await;
         }
         PiScanRequestMessage::PauseForService => {
             publish_policy_result(
@@ -1715,8 +1748,8 @@ async fn handle_production_enqueue(
     request: crate::state::pi_scan::PiScanJobRequest,
     progress_tx: &tokio::sync::mpsc::UnboundedSender<PiScanProgressMessage>,
     result_tx: &tokio::sync::mpsc::UnboundedSender<PiScanResultMessage>,
-    settings: &ProductionRuntimeSettings,
     dry_run: bool,
+    execution_tx: &tokio::sync::mpsc::UnboundedSender<()>,
 ) {
     if dry_run {
         match runner.dry_run_acquisition(request.key.clone()).await {
@@ -1741,7 +1774,7 @@ async fn handle_production_enqueue(
                 request,
                 queue_len: 1,
             }));
-            drain_eligible_queue(runner, progress_tx, result_tx, settings).await;
+            request_execution(execution_tx);
         }
         Err(error) => reject(result_tx, error.to_string()),
     }
@@ -1751,12 +1784,14 @@ async fn handle_production_enqueue(
 async fn apply_production_consent(
     runner: &PiScanSequentialRunner<ProductionOrchestrationAdapter>,
     update: ProductionConsentUpdate,
-    progress_tx: &tokio::sync::mpsc::UnboundedSender<PiScanProgressMessage>,
-    result_tx: &tokio::sync::mpsc::UnboundedSender<PiScanResultMessage>,
+    senders: &ProductionRequestSenders,
     settings: &ProductionRuntimeSettings,
     consent_state: &mut RuntimeConsentProjection,
     dry_run: bool,
 ) {
+    let progress_tx = &senders.progress;
+    let result_tx = &senders.result;
+    let execution_tx = &senders.execution;
     let setup_identity = if let Some(setup) = update.setup {
         let needs_verification = setup.disclosure_confirmed
             || setup.fallback_confirmed
@@ -1832,7 +1867,7 @@ async fn apply_production_consent(
         && consent_state.background_paid_execution
         && !dry_run
     {
-        drain_eligible_queue(runner, progress_tx, result_tx, settings).await;
+        request_execution(execution_tx);
     }
 }
 
@@ -1849,6 +1884,116 @@ fn publish_observation(
         }
         Err(error) => reject(result_tx, format!("{context} failed: {error}")),
     }
+}
+
+/// Queue one execution wake-up without blocking the runtime request owner.
+fn request_execution(execution_tx: &tokio::sync::mpsc::UnboundedSender<()>) {
+    let _ = execution_tx.send(());
+}
+
+/// What: Own all production execution starts independently from policy request reception.
+///
+/// Inputs:
+/// - Serialized runner, coalescing wake-up receiver, projection channels, and route settings.
+///
+/// Output:
+/// - Sequential queue drain after each wake-up.
+///
+/// Details:
+/// - The runner lock remains the sole execution owner. Separating this loop lets Pause/Resume
+///   publish a truthful queued acknowledgement while a model call is still active.
+async fn run_production_execution(
+    runner: PiScanSequentialRunner<ProductionOrchestrationAdapter>,
+    mut execution_rx: tokio::sync::mpsc::UnboundedReceiver<()>,
+    progress_tx: tokio::sync::mpsc::UnboundedSender<PiScanProgressMessage>,
+    result_tx: tokio::sync::mpsc::UnboundedSender<PiScanResultMessage>,
+    settings: ProductionRuntimeSettings,
+) {
+    while execution_rx.recv().await.is_some() {
+        drain_eligible_queue(&runner, &progress_tx, &result_tx, &settings).await;
+        while execution_rx.try_recv().is_ok() {}
+    }
+}
+
+/// What: Publish a truthful pause acknowledgement and persist it at the correct boundary.
+///
+/// Inputs:
+/// - Runner, requested pause value, typed notice sender, and legacy error sender.
+///
+/// Output:
+/// - Immediate `Queued` while active, followed by `Persisted` or `Failed`.
+///
+/// Details:
+/// - Idle changes use the ordinary owner lock. Active changes are completed by `run_next` before
+///   releasing its active registration, which prevents another job from starting first.
+async fn handle_user_pause(
+    runner: &PiScanSequentialRunner<ProductionOrchestrationAdapter>,
+    paused: bool,
+    notice_tx: &tokio::sync::mpsc::UnboundedSender<PiScanRuntimeNotice>,
+    result_tx: &tokio::sync::mpsc::UnboundedSender<PiScanResultMessage>,
+) {
+    let queued = match runner.queue_user_pause_if_active(paused) {
+        Ok(queued) => queued,
+        Err(error) => {
+            publish_policy_notice(notice_tx, paused, None, Err(error.to_string()));
+            reject(result_tx, error.to_string());
+            return;
+        }
+    };
+    if let Some((correlation_id, completion)) = queued {
+        publish_policy_notice(
+            notice_tx,
+            paused,
+            Some(correlation_id),
+            Ok(PiScanPolicyAcknowledgement::Queued),
+        );
+        let result = completion.await.map_err(|_| {
+            "queued Pi pause persistence completion was lost; retry the policy action".to_string()
+        });
+        let result = result.and_then(|outcome| outcome.map_err(|error| error.to_string()));
+        publish_policy_notice(
+            notice_tx,
+            paused,
+            Some(correlation_id),
+            result.map(|()| PiScanPolicyAcknowledgement::Persisted),
+        );
+        return;
+    }
+    let result = runner
+        .update_runtime_policy(None, Some(paused), false, None)
+        .await
+        .map_err(|error| error.to_string());
+    publish_policy_notice(
+        notice_tx,
+        paused,
+        None,
+        result.map(|()| PiScanPolicyAcknowledgement::Persisted),
+    );
+}
+
+/// Publish one provenance-bearing pause policy notice.
+fn publish_policy_notice(
+    notice_tx: &tokio::sync::mpsc::UnboundedSender<PiScanRuntimeNotice>,
+    paused: bool,
+    correlation_id: Option<u64>,
+    acknowledgement: Result<PiScanPolicyAcknowledgement, String>,
+) {
+    let action = if paused {
+        PiScanRuntimeAction::Pause
+    } else {
+        PiScanRuntimeAction::Resume
+    };
+    let acknowledgement =
+        acknowledgement.unwrap_or_else(|reason| PiScanPolicyAcknowledgement::Failed { reason });
+    drop(notice_tx.send(PiScanRuntimeNotice {
+        provenance: PiScanNoticeProvenance {
+            source: PiScanNoticeSource::Foreground,
+            action: Some(action),
+            correlation_id,
+        },
+        user_paused: paused,
+        acknowledgement,
+    }));
 }
 
 /// Drain sequential eligible work until queue, pause, consent, or budget blocks the next start.
@@ -1885,18 +2030,14 @@ async fn execute_one(
     result_tx: &tokio::sync::mpsc::UnboundedSender<PiScanResultMessage>,
 ) -> bool {
     let started_at = unix_now();
+    let (started_tx, mut started_rx) = tokio::sync::mpsc::unbounded_channel();
     let run = {
         let runner = runner.clone();
-        tokio::spawn(async move { runner.run_next(started_at).await })
+        tokio::spawn(async move { runner.run_next_with_started(started_at, started_tx).await })
     };
-    let mut active = None;
-    while !run.is_finished() {
-        if let Some(item) = runner.active_item() {
-            drop(progress_tx.send(PiScanProgressMessage::Started(item.clone())));
-            active = Some(item);
-            break;
-        }
-        tokio::time::sleep(Duration::from_millis(5)).await;
+    let active = started_rx.recv().await;
+    if let Some(item) = active.as_ref() {
+        drop(progress_tx.send(PiScanProgressMessage::Started(item.clone())));
     }
     let had_active = active.is_some();
     match run.await {
@@ -2036,9 +2177,12 @@ mod tests {
     use super::{
         ProbedModel, ProductionOrchestrationAdapter, RuntimeConsentProjection,
         background_observation_due, classify_foreign_rpc_result, missing_selected_foreign_packages,
-        publish_observation, reservation_from_probed_models, resolve_production_adapter_config,
+        publish_observation, publish_policy_notice, reservation_from_probed_models,
+        resolve_production_adapter_config,
     };
-    use crate::app::runtime::workers::pi_scan::PiScanResultMessage;
+    use crate::app::runtime::workers::pi_scan::{
+        PiScanNoticeSource, PiScanPolicyAcknowledgement, PiScanResultMessage, PiScanRuntimeAction,
+    };
     use crate::logic::pi_scan::acquisition::AcquisitionError;
     use crate::pi_agent::session::ModelChoice;
     use crate::pi_scan_orchestrator::{OrchestrationAdapter, OrchestrationError};
@@ -2079,6 +2223,25 @@ mod tests {
             Ok(PiScanResultMessage::Rejected { reason })
                 if reason == "background startup observation failed: network unavailable"
         ));
+    }
+
+    /// Policy acknowledgement must carry typed foreground provenance independent of UI history.
+    #[test]
+    fn policy_notice_carries_action_and_correlation_provenance() {
+        let (notice_tx, mut notice_rx) = tokio::sync::mpsc::unbounded_channel();
+
+        publish_policy_notice(
+            &notice_tx,
+            true,
+            Some(42),
+            Ok(PiScanPolicyAcknowledgement::Queued),
+        );
+
+        let notice = notice_rx.try_recv().expect("typed notice");
+        assert_eq!(notice.provenance.source, PiScanNoticeSource::Foreground);
+        assert_eq!(notice.provenance.action, Some(PiScanRuntimeAction::Pause));
+        assert_eq!(notice.provenance.correlation_id, Some(42));
+        assert_eq!(notice.acknowledgement, PiScanPolicyAcknowledgement::Queued);
     }
 
     /// An uninstalled search result must produce scoped guidance instead of scanning everything.

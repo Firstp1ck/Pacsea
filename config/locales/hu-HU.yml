@@ -76,8 +76,12 @@ hu-HU:
         disabled: "disabled" # TODO: translate to Hungarian
         unsupported: "unsupported platform" # TODO: translate to Hungarian
         missing_pi: "Pi missing" # TODO: translate to Hungarian
-        disconnected: "runtime default-off" # TODO: translate to Hungarian
+        disconnected: "runtime disconnected" # TODO: translate to Hungarian
         connected: "runtime connected" # TODO: translate to Hungarian
+      top_bar:
+        queued: "{} queued" # TODO: translate to Hungarian
+        running: "Pi Scan: running" # TODO: translate to Hungarian
+        new_results: "Pi Scan: {} new results" # TODO: translate to Hungarian
       common:
         confirmed: "confirmed" # TODO: translate to Hungarian
         not_confirmed: "not confirmed" # TODO: translate to Hungarian
@@ -99,8 +103,8 @@ hu-HU:
       setup:
         rerun_wizard: "Az irányított beállítás újbóli futtatása"
         missing_pi: "Pi was not found. Install Pi, set pi_scan_binary, then restart Pacsea." # TODO: translate to Hungarian
-        integration_pending: "Pi exists, but scanner runtime channels remain default-off in this build." # TODO: translate to Hungarian
-        enable_hint: "Enable pi_scan_enabled in settings.conf after reviewing every disclosure." # TODO: translate to Hungarian
+        integration_pending: "Pi exists, but the scanner runtime is disconnected. Run guided setup or review the reported runtime error." # TODO: translate to Hungarian
+        enable_hint: "Run guided setup and review every disclosure before enabling Pi Scan." # TODO: translate to Hungarian
         unsupported: "Native Pi scanning runs only on Arch/Linux." # TODO: translate to Hungarian
         connected: "Runtime channel attached; setup confirmations still apply." # TODO: translate to Hungarian
         readiness_unchecked: "not probed; no model call was made" # TODO: translate to Hungarian
@@ -115,6 +119,12 @@ hu-HU:
         readiness: "Readiness" # TODO: translate to Hungarian
         config: "Configuration" # TODO: translate to Hungarian
         effective_compiled: "Effective / compiled maxima" # TODO: translate to Hungarian
+        effective_values: "head {}/15 · observe {}/90 · model {}/300 · logical {}/720 · starts {}/5 · tokens {}/500000" # TODO: translate to Hungarian
+        thinking: "Thinking" # TODO: translate to Hungarian
+        tool_contract: "Tool contract" # TODO: translate to Hungarian
+        verified_pi: "Verified Pi" # TODO: translate to Hungarian
+        verified_route: "Verified selected route" # TODO: translate to Hungarian
+        pricing_binding: "Pricing binding" # TODO: translate to Hungarian
         disclosure_consent: "Provider/privacy/cost/coverage disclosure" # TODO: translate to Hungarian
         observation_consent: "Background observation consent (read-only network activity)" # TODO: translate to Hungarian
         paid_consent: "Hozzájárulás a fizetős előtérbeli futtatáshoz"
@@ -162,12 +172,21 @@ hu-HU:
           validation: "A jelölt ellenőrzése sikertelen"
           activation: "A futtatókörnyezet aktiválása sikertelen"
           persistence: "A beállítás mentése sikertelen"
+        failure:
+          controller_unavailable: "A beállításvezérlő nem érhető el. Zárja be az irányított beállítást, nyissa meg újra, majd próbálja ismét."
+        failure_timeout:
+          probe: "A Pi képességvizsgálata túllépte az időkorlátot; ellenőrizze a Pi programot, majd próbálja újra."
+          validation: "A jelölt ellenőrzése túllépte az időkorlátot; tekintse át az útvonalat, majd próbálja újra."
+          activation: "A futtatókörnyezet aktiválása túllépte az időkorlátot; a korábbi futtatókörnyezet marad érvényben. Próbálja újra, amikor készen áll."
+          persistence: "A beállítás mentése túllépte az időkorlátot; a korábbi beállítások maradnak érvényben. Próbálja újra, amikor készen áll."
+        in_flight: "folyamatban"
         notices:
           dry_run_review: "Csak a tervezett értékeket tekintse át; a Pi ellenőrzéséhez lépjen ki a próbaüzemből."
           verifying: "A Pi ellenőrzése modellhívás nélkül…"
           readiness_verified: "A Pi készenléte ellenőrizve; válasszon pontosan jelzett útvonalat."
           validation_write_free: "A jelöltellenőrzés nem okozott tartós változást."
           validating: "Az izolált jelölt ellenőrzése írás nélkül…"
+          route_reselected: "A korábbi útvonalat már nem hirdetik; a(z) {} lett kiválasztva. Folytatás előtt tekintse át."
         welcome:
           summary: "Ez a hétlépéses varázsló a settings.conf szerkesztése és a Pacsea újraindítása nélkül állítja be a Pi Scant."
           advisory: "A Pi Scan csak tanácsadó jellegű: kockázatokat hagyhat ki, és nem bizonyítja egy csomag biztonságát."
@@ -221,9 +240,10 @@ hu-HU:
           timeouts: "Head / megfigyelés / modell / teljes időkorlát másodpercben"
           limits: "Token / megőrzés / nyers kimenet / HTTPS-proxy"
           compiled: "Beépített maximumok"
+          compiled_values: "head≤15 / megfigyelés≤90 / modell≤300 / teljes≤720 / indítás≤5 / token≤500000"
           binding: "Pontos árkötés"
           transaction: "Az Alkalmazás újra ellenőriz, teszteli a jelöltet, atomikusan ment, majd lecseréli a futtatókörnyezetet."
-          advisory: "A Mégse továbbra is csak a piszkozatot veti el; a meglévő speciális Beállítás oldal elérhető marad."
+          advisory: "Alkalmazás előtt a Mégse csak a piszkozatot veti el. Alkalmazás közben az első Esc figyelmeztet, a második kifejezett visszaállítást kér."
         activate:
           idle: "Aktiválásra kész."
           validating: "A pontos útvonal, árak, korlátok és hozzájárulási kötés újbóli ellenőrzése…"
@@ -236,13 +256,16 @@ hu-HU:
           no_restart: "A sikeres aktiválás ebben a folyamatban vált át az üzemi futtatókörnyezetre."
           advisory: "A kész állapot beállított és csatlakoztatott rendszert jelent, nem biztonságos csomagot."
         footer:
-          notice: "A varázsló módosításai az Alkalmazásig izoláltak; a Mégse nem érinti a lemezt, futtatókörnyezetet, várólistát vagy hozzájárulást."
-          keys: "Tab fókusz · Enter/Szóköz módosítás · ←/→ beállítás · PgUp/PgDn görgetés · n Tovább · b Vissza · Esc Mégse · ? Súgó"
+          notice: "A varázsló módosításai az Alkalmazásig izoláltak; a folyamatban lévő Alkalmazás két Esc-et igényel, és jelenti a kifejezett visszaállítást."
+          keys: "Tab fókusz · Enter/Szóköz módosítás · ←/→ beállítás · PgUp/PgDn görgetés · n Tovább · b Vissza · a Alkalmazás · r Újra · Esc Mégse · ? Súgó"
       overview:
         active: "Active" # TODO: translate to Hungarian
         queued: "Queued" # TODO: translate to Hungarian
         pauses: "Pause reasons" # TODO: translate to Hungarian
-        budgets: "Unattended limits" # TODO: translate to Hungarian
+        budgets: "Unattended usage / limits" # TODO: translate to Hungarian
+        tokens_used: "tokens" # TODO: translate to Hungarian
+        cost_used: "cost" # TODO: translate to Hungarian
+        background_notice: "Background" # TODO: translate to Hungarian
         consents: "Observation / paid consent" # TODO: translate to Hungarian
         advisory: "Advisory only: no result authorizes installation and incomplete coverage remains visible." # TODO: translate to Hungarian
       targets:
@@ -251,10 +274,11 @@ hu-HU:
         dry_run_preview: "Dry-run process preview" # TODO: translate to Hungarian
         dry_run_disclosure: "Dry-run makes no Pi/model call and mutates no scanner queue, consent, budget, result, or durable state." # TODO: translate to Hungarian
       progress:
-        keys: "d detach · o reopen · p pause · u resume · x cancel · r retry" # TODO: translate to Hungarian
+        keys: "p Pause · u Resume · x Cancel · r Retry" # TODO: translate to Hungarian
         active: "Active" # TODO: translate to Hungarian
-        detached: "detached" # TODO: translate to Hungarian
         no_active: "No active scan." # TODO: translate to Hungarian
+        running_for: "Running for" # TODO: translate to Hungarian
+        reservation: "reservation ceiling" # TODO: translate to Hungarian
       results:
         advisory: "Validated advisory output only. Model text that failed schema/evidence validation is not rendered." # TODO: translate to Hungarian
         empty: "No validated result is available." # TODO: translate to Hungarian
@@ -263,20 +287,69 @@ hu-HU:
         coverage: "Coverage" # TODO: translate to Hungarian
         stale: "Stale identity" # TODO: translate to Hungarian
         acknowledged: "Continuation acknowledgement satisfied" # TODO: translate to Hungarian
-        ack_keys: "a acknowledges high/critical findings; s separately acknowledges stale identity; c continues the acknowledged result. All are bound to this exact result." # TODO: translate to Hungarian
+        ack_keys: "a acknowledges high/critical findings · s acknowledges stale identity · c continues · b accepts baseline · t toggles canonical raw data. All are bound to this exact result." # TODO: translate to Hungarian
         disagreement: "  Model severity disagreement is retained; highest severity controls acknowledgement." # TODO: translate to Hungarian
         raw: "Canonical validated-data view:" # TODO: translate to Hungarian
       footer:
         title: "Status / Help" # TODO: translate to Hungarian
-        notice: "No Pi model/network call or durable scanner write occurs in this workspace-only integration." # TODO: translate to Hungarian
-        keys: "1–6 pages · Tab cycle · j/k move · Enter action · Esc Package mode · ? Help" # TODO: translate to Hungarian
+        notice: "Pi Scan is advisory; configured runtime actions may use the network, call the selected model, and persist scanner state." # TODO: translate to Hungarian
+        background: "background" # TODO: translate to Hungarian
+        keys:
+          setup: "r Guided setup · v Verify · c/o/p/b/f/w consent · PgUp/PgDn · g/G · Esc Package · ? Help" # TODO: translate to Hungarian
+          overview: "PgUp/PgDn scroll · g/G top/bottom · Esc Package · ? Help" # TODO: translate to Hungarian
+          targets: "j/k move · PgUp/PgDn · g/G · Space select · Enter queue · Esc Package · ? Help" # TODO: translate to Hungarian
+          progress: "p Pause · u Resume · x Cancel · r Retry · PgUp/PgDn · g/G · Esc Package · ? Help" # TODO: translate to Hungarian
+          results: "j/k move · PgUp/PgDn · g/G · Enter Details · Esc Package · ? Help" # TODO: translate to Hungarian
+          details: "j/k scroll · PgUp/PgDn · g/G · a/s acknowledge · c continue · b baseline · t raw · Esc Package · ? Help" # TODO: translate to Hungarian
       notices:
-        session_only: "Consent preview changed only in UI; default-off runtime channels are not attached." # TODO: translate to Hungarian
+        session_only: "Consent preference updated; the runtime applies persisted consent before eligible work starts." # TODO: translate to Hungarian
+        non_aur_entry: "Pi Scan analyzes AUR packages; select an AUR result in Search and press Shift+A to add a target." # TODO: translate to Hungarian
+        settings_changed_reload: "A Pi Scan beállításai megváltoztak az újratöltés során; az irányított beállítás bezárult, hogy áttekinthesse az új értékeket."
+        select_result_continue: "Folytatás előtt válasszon ki egy ellenőrzött Pi Scan-eredményt."
+        select_result_baseline: "Az alapérték elfogadása előtt válasszon ki egy ellenőrzött Pi Scan-eredményt."
+        no_active_cancel: "No active Pi scan to cancel." # TODO: translate to Hungarian
+        verifying_setup: "Verifying exact Pi version, route pricing, and provenance before consent…" # TODO: translate to Hungarian
+        review_setup_facts: "Review the verified Pi version and exact pricing facts, then press the consent key again." # TODO: translate to Hungarian
+        setup_still_resolving: "A previous Pi Scan setup Apply is still resolving; wait for rollback or completion." # TODO: translate to Hungarian
+        guided_setup_cancelled: "Guided setup cancelled — press r to restart it, Esc to leave." # TODO: translate to Hungarian
+        apply_abandon_warning: "Apply is in progress — press Esc again to abandon and roll back." # TODO: translate to Hungarian
+        apply_abandon_requested: "Pi Scan setup abandonment requested; waiting for explicit rollback." # TODO: translate to Hungarian
         select_target: "Select at least one target." # TODO: translate to Hungarian
         preview_only: "Dry-run preview created; no Pi process, model call, or durable scanner mutation occurred." # TODO: translate to Hungarian
         setup_required: "Confirm the disclosure and paid execution consent before requesting a manual scan." # TODO: translate to Hungarian
         confirm_required: "Confirm the configured fallback and any readiness warning before queueing." # TODO: translate to Hungarian
-        runtime_disconnected: "Runtime remains default-off. Central integration must construct Channels with PiScanRuntimeOptions from validated settings." # TODO: translate to Hungarian
+        runtime_disconnected: "The Pi Scan runtime is disconnected. Run guided setup and Retry, or review the reported runtime error." # TODO: translate to Hungarian
+        resolving_queue_intent: "Resolving selected targets before queueing" # TODO: translate to Hungarian
+        queue_intent_unresolved: "Could not resolve the selected target" # TODO: translate to Hungarian
+        queue_intent_submitted: "Selected targets were submitted to the sequential scan queue." # TODO: translate to Hungarian
+        validated_complete: "Scan finished; open Results" # TODO: translate to Hungarian
+        cancelled: "Scan cancelled." # TODO: translate to Hungarian
+        baseline_persisted: "The selected complete current-HEAD result was accepted as the observation baseline." # TODO: translate to Hungarian
+        baseline_binding_changed: "The baseline was persisted, but the displayed result binding has since changed." # TODO: translate to Hungarian
+        continuation_complete: "Scan result accepted and continued to the package flow" # TODO: translate to Hungarian
+        runtime_rejected: "Pi Scan runtime rejected the request" # TODO: translate to Hungarian
+        dry_run_acquired: "Dry-run acquisition completed" # TODO: translate to Hungarian
+        setup_complete: "Pi Scan setup completed and the production runtime is connected." # TODO: translate to Hungarian
+        setup_failed: "Pi Scan setup failed" # TODO: translate to Hungarian
+        setup_rollback_complete: "Pi Scan setup rollback completed; the previous configuration remains authoritative." # TODO: translate to Hungarian
+        setup_rollback_failed: "Pi Scan setup rollback failed" # TODO: translate to Hungarian
+        setup_secondary_outcome: "Secondary rollback outcome" # TODO: translate to Hungarian
+        policy:
+          pause:
+            requesting: "Requesting pause…" # TODO: translate to Hungarian
+            queued: "Pause queued until the active scan finishes." # TODO: translate to Hungarian
+            persisted: "Pi Scan is paused by the user." # TODO: translate to Hungarian
+            failed: "Pause could not be persisted" # TODO: translate to Hungarian
+          resume:
+            requesting: "Requesting resume…" # TODO: translate to Hungarian
+            queued: "Resume queued until the active scan finishes." # TODO: translate to Hungarian
+            persisted: "Pi Scan resumed." # TODO: translate to Hungarian
+            failed: "Resume could not be persisted" # TODO: translate to Hungarian
+          policy:
+            requesting: "Requesting policy update…" # TODO: translate to Hungarian
+            queued: "Policy update queued until the active scan finishes." # TODO: translate to Hungarian
+            persisted: "Policy update persisted." # TODO: translate to Hungarian
+            failed: "Policy update could not be persisted" # TODO: translate to Hungarian
 
     titles:
       search: "Keresés"
@@ -724,6 +797,7 @@ hu-HU:
         title: " Súgó "
         heading: "PacSea súgó"
         sections:
+          pi_scan: "Pi Scan workspace:" # TODO: translate to Hungarian
           search: "Keresés:"
           search_normal: "Keresés (normál keresés):"
           install: "Telepítés:"
@@ -734,6 +808,15 @@ hu-HU:
           repositories_modal: "Tárolók párbeszédablak:"
           foreign_overlap_dialog: "Tárolóátfedés / AUR vs. tároló / figyelmeztetés:"
           config_editor: "Konfigurációszerkesztő:"
+        pi_scan_lines:
+          - "  • Entry: Shift+A from an AUR Search result; use the configured setup chord from the config editor" # TODO: translate to Hungarian
+          - "  • Pages: 1–6, Tab/BackTab · j/k move or scroll · PgUp/PgDn · g/G top/bottom" # TODO: translate to Hungarian
+          - "  • Targets: Space select · Enter queue" # TODO: translate to Hungarian
+          - "  • Progress: p pause · u resume · x cancel · r retry" # TODO: translate to Hungarian
+          - "  • Results: Enter opens Details" # TODO: translate to Hungarian
+          - "  • Details: a/s acknowledge · c continue · b baseline · t raw-data toggle" # TODO: translate to Hungarian
+          - "  • Wizard: Tab/BackTab focus · Enter/Space activate · ←/→ adjust · PgUp/PgDn scroll" # TODO: translate to Hungarian
+          - "  • Wizard: n Next · b Back · a Apply · r Retry · Esc Cancel/leave" # TODO: translate to Hungarian
         mouse_lines:
           - "  • Listák (találatok/legutóbbi/telepítés) és PKGBUILD görgetése egérgörgővel"
           - "  • PKGBUILD be/ki: kattintson a „PKGBUILD megjelenítése” gombra a részleteknél"
@@ -797,6 +880,7 @@ hu-HU:
           select_right: "  Jobb oldali kiválasztása"
           open_arch_status: "  Arch Linux állapotának megnyitása"
           open_pi_scan: "  Open Pi Scan workspace" # TODO: translate to Hungarian
+          pi_scan_setup: "Pi Scan guided setup" # TODO: translate to Hungarian
           config_lists_menu: "  Konfigurációk/Listák menü"
           options_menu: "  Beállítások menü"
           panels_menu: "  Panelek menü"

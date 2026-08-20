@@ -200,6 +200,39 @@ fn build_global_bindings(
     );
 }
 
+/// What: Build the localized Pi Scan workspace and wizard help section.
+///
+/// Inputs:
+/// - `lines`: Mutable help-line collection.
+/// - `app`: Application state for translations and configured chords.
+/// - `th`: Active theme used for the configured chord label.
+/// - `km`: Effective keymap.
+///
+/// Output:
+/// - Adds entry, workspace page actions, scrolling, and wizard controls.
+///
+/// Details:
+/// - The config-editor setup entry uses the effective configured chord rather than a literal.
+fn build_pi_scan_help(
+    lines: &mut Vec<Line<'static>>,
+    app: &AppState,
+    th: &crate::theme::Theme,
+    km: &crate::theme::KeyMap,
+) {
+    add_section_header(lines, app, th, "app.modals.help.sections.pi_scan");
+    add_binding_if_some(
+        lines,
+        app,
+        th,
+        km.config_editor_pi_scan_setup.first().copied(),
+        "app.modals.help.key_labels.pi_scan_setup",
+    );
+    lines.extend(parse_yaml_lines(&i18n::t(
+        app,
+        "app.modals.help.pi_scan_lines",
+    )));
+}
+
 /// What: Build search pane keybindings section.
 ///
 /// Inputs:
@@ -649,6 +682,7 @@ pub fn render_help(f: &mut Frame, app: &mut AppState, area: Rect) {
     lines.push(Line::from(""));
 
     // Build all sections using helper functions
+    build_pi_scan_help(&mut lines, app, &th, km);
     build_global_bindings(&mut lines, app, &th, km);
     lines.push(Line::from(""));
 

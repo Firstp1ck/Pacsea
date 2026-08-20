@@ -39,6 +39,8 @@ struct FakeAdapter {
     execution_started: Option<Arc<AtomicBool>>,
     /// Whether execution waits for sticky cancellation.
     wait_for_cancel: bool,
+    /// Whether execution returns an immediate canonical success.
+    instant_success: bool,
     /// Scripted linked-continuation HEAD staleness.
     continuation_stale: Option<bool>,
     /// Scripted mutable-source staleness.
@@ -114,6 +116,9 @@ impl OrchestrationAdapter for FakeAdapter {
         }
         if cancelled.load(Ordering::SeqCst) {
             return Err(ExecutionFailure::Cancelled);
+        }
+        if self.instant_success {
+            return Ok(success(target, false));
         }
         self.executions.pop_front().unwrap_or_else(|| {
             Err(ExecutionFailure::Service(
@@ -548,6 +553,126 @@ fn manual_queue_requires_full_frozen_identity_and_exact_pricing() {
     let mut invalid = target;
     invalid.model.clear();
     assert!(orchestrator.enqueue_frozen(invalid, 2).is_err());
+}
+
+#[tokio::test]
+async fn fast_run_reports_started_from_the_active_registration_seam() {
+    let temp = tempfile::tempdir().expect("temp");
+    let adapter = FakeAdapter {
+        setup: Some(setup()),
+        packages: vec![package("demo", "demo")],
+        observations: VecDeque::from(vec![ObservationPackage {
+            package_base: PackageBase::new("demo").expect("base"),
+            head_oid: oid(1),
+            commits: vec![ObservationCommit {
+                oid: oid(1),
+                relevance: CommitBuildRelevance::BuildRelevant,
+            }],
+            truncated: false,
+            paused_for_rebaseline: false,
+        }]),
+        instant_success: true,
+        ..FakeAdapter::default()
+    };
+    let mut orchestrator =
+        PiScanOrchestrator::new(config(temp.path(), false), adapter).expect("construct");
+    orchestrator.startup_observation(1).expect("observe");
+    let runner = PiScanSequentialRunner::new(orchestrator);
+    let (started_tx, mut started_rx) = tokio::sync::mpsc::unbounded_channel();
+
+    let receipt = runner
+        .run_next_with_started(2, started_tx)
+        .await
+        .expect("fast run")
+        .expect("receipt");
+    let started = started_rx.try_recv().expect("deterministic Started");
+
+    assert_eq!(started.request.key.package_base.as_str(), "demo");
+    assert_eq!(
+        started.request.key.commit_oid.as_str(),
+        receipt.result.identity.commit_oid
+    );
+}
+
+#[tokio::test]
+async fn active_pause_queues_then_persists_before_the_next_start() {
+    let temp = tempfile::tempdir().expect("temp");
+    let started = Arc::new(AtomicBool::new(false));
+    let adapter = FakeAdapter {
+        setup: Some(setup()),
+        packages: vec![package("demo", "demo"), package("other", "other")],
+        observations: VecDeque::from(vec![
+            ObservationPackage {
+                package_base: PackageBase::new("demo").expect("base"),
+                head_oid: oid(1),
+                commits: vec![ObservationCommit {
+                    oid: oid(1),
+                    relevance: CommitBuildRelevance::BuildRelevant,
+                }],
+                truncated: false,
+                paused_for_rebaseline: false,
+            },
+            ObservationPackage {
+                package_base: PackageBase::new("other").expect("base"),
+                head_oid: oid(2),
+                commits: vec![ObservationCommit {
+                    oid: oid(2),
+                    relevance: CommitBuildRelevance::BuildRelevant,
+                }],
+                truncated: false,
+                paused_for_rebaseline: false,
+            },
+        ]),
+        execution_started: Some(Arc::clone(&started)),
+        wait_for_cancel: true,
+        ..FakeAdapter::default()
+    };
+    let mut orchestrator =
+        PiScanOrchestrator::new(config(temp.path(), false), adapter).expect("construct");
+    orchestrator.startup_observation(1).expect("observe");
+    let runner = PiScanSequentialRunner::new(orchestrator);
+    let execution_runner = runner.clone();
+    let execution = tokio::spawn(async move { execution_runner.run_next(2).await });
+    let correlation = tokio::time::timeout(Duration::from_secs(2), async {
+        loop {
+            if started.load(Ordering::SeqCst)
+                && let Some(correlation) = runner.active_correlation()
+            {
+                return correlation;
+            }
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    })
+    .await
+    .expect("active registration");
+
+    let (queued_correlation, persisted) = runner
+        .queue_user_pause_if_active(true)
+        .expect("queue pause")
+        .expect("active pause must queue");
+    assert_eq!(queued_correlation, correlation);
+    assert!(runner.cancel(correlation));
+    assert!(matches!(
+        execution.await.expect("join"),
+        Err(OrchestrationError::Cancelled)
+    ));
+    persisted
+        .await
+        .expect("policy completion")
+        .expect("policy persisted");
+
+    let state = runner.state_snapshot().await.expect("state");
+    assert!(
+        state
+            .runtime
+            .pause_reasons
+            .contains(&pacsea::state::pi_scan::PiScanPauseReason::User)
+    );
+    assert_eq!(state.runtime.queue.len(), 1);
+    assert!(matches!(
+        runner.run_next(3).await,
+        Err(OrchestrationError::Paused(reason)) if reason.contains("User")
+    ));
 }
 
 #[tokio::test]

@@ -22,7 +22,7 @@ use crate::app::runtime::workers::pi_scan::{
 use crate::pi_agent::session::ModelChoice;
 use crate::pi_agent::setup_probe::{
     PiSetupAdvertisedRoute, PiSetupProbeRequest, PiSetupProbeSnapshot,
-    SETUP_PROBE_MAXIMUM_PRICING_AGE, SETUP_PROBE_RESERVATION_TOKENS, probe_pi_setup,
+    SETUP_PROBE_MAXIMUM_PRICING_AGE, SETUP_PROBE_RESERVATION_TOKENS,
 };
 use crate::pi_scan_orchestrator::{PiScanSetupConsentState, SetupSnapshot};
 use crate::state::pi_scan::{PiScanBudgetLimits, PiScanConsentState, PiScanReservation};
@@ -31,6 +31,12 @@ use crate::theme::PiScanSettings;
 
 /// Bounded production shutdown wait used by rollback.
 const TRANSFER_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
+/// Maximum controller wait for one no-model setup probe.
+const SETUP_PROBE_TIMEOUT: Duration = Duration::from_secs(30);
+/// Maximum controller wait for candidate validation blocking work.
+const SETUP_VALIDATION_TIMEOUT: Duration = Duration::from_secs(10);
+/// Maximum controller wait for apply preparation blocking work.
+const SETUP_APPLY_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// What: Configuration for one setup-only controller instance.
 ///
@@ -182,6 +188,26 @@ pub enum PiScanSetupEvent {
     },
 }
 
+/// What: Correlated controller deadline expiry retained separately from legacy failure projection.
+///
+/// Inputs:
+/// - Exact request correlation, setup stage, and enforced operation deadline.
+///
+/// Output:
+/// - Typed timeout protocol for actionable Retry and stale-response rejection.
+///
+/// Details:
+/// - The controller also emits the existing `Failed` event so current projection remains safe.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PiScanSetupTimeout {
+    /// Request whose operation exceeded its deadline.
+    pub correlation_id: u64,
+    /// Setup stage that timed out.
+    pub stage: PiScanSetupStage,
+    /// Enforced controller/driver boundary.
+    pub deadline: Duration,
+}
+
 /// Typed channel endpoints owned by central integration for guided setup.
 pub struct PiScanSetupChannels {
     /// Correlated request sender.
@@ -190,6 +216,39 @@ pub struct PiScanSetupChannels {
     pub event_rx: mpsc::UnboundedReceiver<PiScanSetupEvent>,
     /// Prepared runtime transfers, emitted only after durable commit.
     pub transfer_rx: mpsc::UnboundedReceiver<PiScanRuntimeTransfer>,
+    /// Correlated deadline expiries for later actionable UI projection.
+    pub timeout_rx: mpsc::UnboundedReceiver<PiScanSetupTimeout>,
+}
+
+/// Explicit rollback result retained for later workspace transaction projection.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PiScanRollbackOutcome {
+    /// Candidate teardown and durable restoration both completed.
+    Succeeded,
+    /// At least one teardown or restoration step failed visibly.
+    Failed {
+        /// Actionable combined failure text.
+        reason: String,
+    },
+}
+
+impl PiScanRollbackOutcome {
+    /// Convert the typed projection primitive back to the existing result contract.
+    fn into_result(self) -> Result<(), String> {
+        match self {
+            Self::Succeeded => Ok(()),
+            Self::Failed { reason } => Err(reason),
+        }
+    }
+}
+
+/// Correlated explicit rollback report for an abandoned setup transaction.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PiScanRollbackReport {
+    /// Apply correlation retaining transaction ownership after the wizard closes.
+    pub correlation_id: u64,
+    /// Explicit successful or failed rollback outcome.
+    pub outcome: PiScanRollbackOutcome,
 }
 
 /// What: A durable, correlated candidate awaiting exclusive runtime ownership.
@@ -263,6 +322,7 @@ impl PiScanRuntimeTransfer {
             })?;
         match candidate.activate() {
             Ok(channels) => Ok(PiScanActivatedRuntime {
+                correlation_id: self.correlation_id,
                 channels: Some(channels),
                 commit: Some(commit),
                 effective: self.effective.clone(),
@@ -282,7 +342,23 @@ impl PiScanRuntimeTransfer {
     ///
     /// # Errors
     /// - Combines candidate teardown and durable rollback failures explicitly.
-    pub fn rollback(mut self) -> Result<(), String> {
+    pub fn rollback(self) -> Result<(), String> {
+        self.rollback_with_outcome().outcome.into_result()
+    }
+
+    /// What: Explicitly roll back this transfer and retain its correlated outcome.
+    ///
+    /// Inputs:
+    /// - Unactivated transfer still owning candidate teardown and durable file restoration.
+    ///
+    /// Output:
+    /// - Correlated success or combined failure suitable for workspace notice projection.
+    ///
+    /// Details:
+    /// - This is the reporting path for later abandonment handling; `Drop` remains only a
+    ///   fail-safe cleanup guard and cannot claim an outcome.
+    #[must_use]
+    pub fn rollback_with_outcome(mut self) -> PiScanRollbackReport {
         let teardown = self
             .candidate
             .take()
@@ -291,7 +367,14 @@ impl PiScanRuntimeTransfer {
             .commit
             .take()
             .map_or(Ok(()), DurableSetupCommit::rollback);
-        combine_results(teardown, rollback)
+        let outcome = match combine_results(teardown, rollback) {
+            Ok(()) => PiScanRollbackOutcome::Succeeded,
+            Err(reason) => PiScanRollbackOutcome::Failed { reason },
+        };
+        PiScanRollbackReport {
+            correlation_id: self.correlation_id,
+            outcome,
+        }
     }
 }
 
@@ -342,6 +425,8 @@ impl std::error::Error for PiScanRuntimeActivationError {}
 /// Details:
 /// - The integration owner swaps Channels only by consuming [`Self::commit`].
 pub struct PiScanActivatedRuntime {
+    /// Apply correlation retaining transaction ownership through activation.
+    correlation_id: u64,
     /// Candidate runtime channels.
     channels: Option<PiScanRuntimeChannels>,
     /// Durable rollback guard.
@@ -390,13 +475,36 @@ impl PiScanActivatedRuntime {
     ///
     /// # Errors
     /// - Combines runtime shutdown and file rollback failures explicitly.
-    pub fn rollback(mut self) -> Result<(), String> {
+    pub fn rollback(self) -> Result<(), String> {
+        self.rollback_with_outcome().outcome.into_result()
+    }
+
+    /// What: Shut down an activated candidate and explicitly report correlated rollback.
+    ///
+    /// Inputs:
+    /// - Activated candidate not yet committed into shared runtime ownership.
+    ///
+    /// Output:
+    /// - Correlated success or combined shutdown/restoration failure.
+    ///
+    /// Details:
+    /// - The report lets later workspace transaction state surface abandonment after the wizard
+    ///   closes without relying on implicit `Drop` cleanup.
+    #[must_use]
+    pub fn rollback_with_outcome(mut self) -> PiScanRollbackReport {
         let shutdown = self.channels.take().map_or(Ok(()), shutdown_candidate);
         let rollback = self
             .commit
             .take()
             .map_or(Ok(()), DurableSetupCommit::rollback);
-        combine_results(shutdown, rollback)
+        let outcome = match combine_results(shutdown, rollback) {
+            Ok(()) => PiScanRollbackOutcome::Succeeded,
+            Err(reason) => PiScanRollbackOutcome::Failed { reason },
+        };
+        PiScanRollbackReport {
+            correlation_id: self.correlation_id,
+            outcome,
+        }
     }
 }
 
@@ -411,12 +519,33 @@ impl Drop for PiScanActivatedRuntime {
     }
 }
 
+/// Failure returned by one controller-bounded driver operation.
+enum DriverCallError {
+    /// Driver completed with an actionable failure.
+    Failed(String),
+    /// Controller deadline expired after owned resources were cleaned up.
+    TimedOut(Duration),
+}
+
 /// Driver boundary for production metadata probing and inert runtime preparation.
 trait SetupDriver: Send {
+    /// Create an independent operation driver so a timed-out read-only call cannot retain the controller.
+    fn fork(&self) -> Box<dyn SetupDriver>;
+    /// Return the controller-enforced deadline for one stage.
+    fn operation_timeout(&self, stage: PiScanSetupStage) -> Duration {
+        match stage {
+            PiScanSetupStage::Probe => SETUP_PROBE_TIMEOUT,
+            PiScanSetupStage::CandidateValidation => SETUP_VALIDATION_TIMEOUT,
+            PiScanSetupStage::Activation | PiScanSetupStage::Persistence => SETUP_APPLY_TIMEOUT,
+        }
+    }
     /// Deterministic current Unix time.
     fn now_unix_seconds(&self) -> u64;
     /// Run one exact no-model setup probe.
-    fn probe(&mut self, request: &PiSetupProbeRequest) -> Result<PiSetupProbeSnapshot, String>;
+    fn probe(
+        &mut self,
+        request: &PiSetupProbeRequest,
+    ) -> Result<PiSetupProbeSnapshot, DriverCallError>;
     /// Prepare and health-check a runtime without creating Channels or accepting queue work.
     fn prepare_runtime(
         &mut self,
@@ -425,7 +554,7 @@ trait SetupDriver: Send {
         snapshot: &PiSetupProbeSnapshot,
         models: Vec<ModelChoice>,
         reservation: PiScanReservation,
-    ) -> Result<Box<dyn PreparedRuntime>, String>;
+    ) -> Result<Box<dyn PreparedRuntime>, DriverCallError>;
 
     /// Deterministic test seam immediately before durable commit.
     fn before_commit(&mut self, _options: &PiScanSetupControllerOptions) -> Result<(), String> {
@@ -462,12 +591,29 @@ trait PreparedRuntime: Send {
 struct ProductionSetupDriver;
 
 impl SetupDriver for ProductionSetupDriver {
+    fn fork(&self) -> Box<dyn SetupDriver> {
+        Box::new(Self)
+    }
+
     fn now_unix_seconds(&self) -> u64 {
         unix_now()
     }
 
-    fn probe(&mut self, request: &PiSetupProbeRequest) -> Result<PiSetupProbeSnapshot, String> {
-        probe_pi_setup(request).map_err(|error| error.to_string())
+    fn probe(
+        &mut self,
+        request: &PiSetupProbeRequest,
+    ) -> Result<PiSetupProbeSnapshot, DriverCallError> {
+        const PRODUCTION_PROBE_TOTAL_TIMEOUT: Duration = Duration::from_secs(29);
+        crate::pi_agent::setup_probe::probe_pi_setup_with_deadline(
+            request,
+            PRODUCTION_PROBE_TOTAL_TIMEOUT,
+        )
+        .map_err(|error| match error {
+            crate::pi_agent::setup_probe::PiSetupProbeError::DeadlineExceeded { .. } => {
+                DriverCallError::TimedOut(SETUP_PROBE_TIMEOUT)
+            }
+            other => DriverCallError::Failed(other.to_string()),
+        })
     }
 
     fn prepare_runtime(
@@ -477,11 +623,14 @@ impl SetupDriver for ProductionSetupDriver {
         _snapshot: &PiSetupProbeSnapshot,
         models: Vec<ModelChoice>,
         reservation: PiScanReservation,
-    ) -> Result<Box<dyn PreparedRuntime>, String> {
-        validate_runtime_paths(options)?;
-        let production = production_runtime_settings(settings, models, reservation)?;
+    ) -> Result<Box<dyn PreparedRuntime>, DriverCallError> {
+        validate_runtime_paths(options).map_err(DriverCallError::Failed)?;
+        let production = production_runtime_settings(settings, models, reservation)
+            .map_err(DriverCallError::Failed)?;
         let root = options.state_path.parent().ok_or_else(|| {
-            "Pi Scan state path has no private parent; fix configuration and retry".to_string()
+            DriverCallError::Failed(
+                "Pi Scan state path has no private parent; fix configuration and retry".to_string(),
+            )
         })?;
         drop(
             crate::pi_scan_production::resolve_production_adapter_config(
@@ -496,7 +645,8 @@ impl SetupDriver for ProductionSetupDriver {
                 production.reservation,
                 &production.https_proxy,
                 false,
-            )?,
+            )
+            .map_err(DriverCallError::Failed)?,
         );
         Ok(Box::new(ProductionPreparedRuntime {
             options: PiScanRuntimeOptions {
@@ -581,6 +731,37 @@ fn snapshot_config_file(path: &Path) -> Result<SetupFileSnapshot, SetupFileError
             path: path.to_path_buf(),
             source,
         }),
+    }
+}
+
+/// What: Snapshot one validation input under the controller's blocking-operation deadline.
+///
+/// Inputs:
+/// - `path`: Exact settings file whose fingerprint becomes part of validation.
+/// - `deadline`: Maximum controller wait before Retry is released.
+///
+/// Output:
+/// - Exact snapshot, actionable file failure, or typed timeout.
+///
+/// Details:
+/// - Snapshotting is read-only. Any late response is dropped and cannot update validation state.
+fn snapshot_config_file_with_deadline(
+    path: PathBuf,
+    deadline: Duration,
+) -> Result<SetupFileSnapshot, DriverCallError> {
+    let (sender, receiver) = std_mpsc::sync_channel(1);
+    std::thread::spawn(move || {
+        drop(sender.send(snapshot_config_file(&path)));
+    });
+    match receiver.recv_timeout(deadline) {
+        Ok(Ok(snapshot)) => Ok(snapshot),
+        Ok(Err(error)) => Err(DriverCallError::Failed(format!(
+            "could not fingerprint settings.conf: {error}"
+        ))),
+        Err(std_mpsc::RecvTimeoutError::Timeout) => Err(DriverCallError::TimedOut(deadline)),
+        Err(std_mpsc::RecvTimeoutError::Disconnected) => Err(DriverCallError::Failed(
+            "settings fingerprint worker stopped unexpectedly; retry validation".to_string(),
+        )),
     }
 }
 
@@ -883,6 +1064,8 @@ struct SetupController {
     event_tx: mpsc::UnboundedSender<PiScanSetupEvent>,
     /// Prepared runtime ownership transfers.
     transfer_tx: mpsc::UnboundedSender<PiScanRuntimeTransfer>,
+    /// Correlated controller deadline notifications.
+    timeout_tx: mpsc::UnboundedSender<PiScanSetupTimeout>,
 }
 
 impl SetupController {
@@ -949,7 +1132,7 @@ impl SetupController {
         self.probe = None;
         self.validation = None;
         let request = self.probe_request(binary);
-        match self.driver.probe(&request) {
+        match self.probe_with_deadline(request, PiScanSetupStage::Probe) {
             Ok(snapshot) => {
                 let projection = setup_projection(&snapshot, None);
                 self.probe = Some(snapshot);
@@ -958,11 +1141,14 @@ impl SetupController {
                     snapshot: Box::new(projection),
                 }
             }
-            Err(reason) => PiScanSetupEvent::Failed {
+            Err(DriverCallError::Failed(reason)) => PiScanSetupEvent::Failed {
                 correlation_id,
                 stage: PiScanSetupStage::Probe,
                 reason,
             },
+            Err(DriverCallError::TimedOut(deadline)) => {
+                self.timeout_failure(correlation_id, PiScanSetupStage::Probe, deadline)
+            }
         }
     }
 
@@ -985,11 +1171,16 @@ impl SetupController {
                     validation_binding,
                 }
             }
-            Err(reason) => PiScanSetupEvent::Failed {
+            Err(DriverCallError::Failed(reason)) => PiScanSetupEvent::Failed {
                 correlation_id,
                 stage: PiScanSetupStage::CandidateValidation,
                 reason,
             },
+            Err(DriverCallError::TimedOut(deadline)) => self.timeout_failure(
+                correlation_id,
+                PiScanSetupStage::CandidateValidation,
+                deadline,
+            ),
         }
     }
 
@@ -1026,12 +1217,15 @@ impl SetupController {
         }
         let fresh = match self.reprobe_reviewed(&reviewed) {
             Ok(snapshot) => snapshot,
-            Err(reason) => {
+            Err(DriverCallError::Failed(reason)) => {
                 return PiScanSetupEvent::Failed {
                     correlation_id,
                     stage: PiScanSetupStage::Probe,
                     reason,
                 };
+            }
+            Err(DriverCallError::TimedOut(deadline)) => {
+                return self.timeout_failure(correlation_id, PiScanSetupStage::Probe, deadline);
             }
         };
         let (models, reservation) = match selected_models_and_reservation(&normalized, &fresh) {
@@ -1043,20 +1237,26 @@ impl SetupController {
                 Ok(binding) => binding,
                 Err(reason) => return failed_binding(correlation_id, &reason),
             };
-        let candidate_runtime = match self.driver.prepare_runtime(
-            &self.options,
-            &normalized,
-            &fresh,
+        let candidate_runtime = match self.prepare_with_deadline(
+            normalized.clone(),
+            fresh.clone(),
             models,
             reservation,
         ) {
             Ok(runtime) => runtime,
-            Err(reason) => {
+            Err(DriverCallError::Failed(reason)) => {
                 return PiScanSetupEvent::Failed {
                     correlation_id,
                     stage: PiScanSetupStage::Activation,
                     reason,
                 };
+            }
+            Err(DriverCallError::TimedOut(deadline)) => {
+                return self.timeout_failure(
+                    correlation_id,
+                    PiScanSetupStage::Activation,
+                    deadline,
+                );
             }
         };
         if let Err(reason) = self.driver.before_commit(&self.options) {
@@ -1115,21 +1315,34 @@ impl SetupController {
         candidate: PiScanSettings,
         consent: PiScanConsentState,
         confirmations: PiScanSetupConfirmations,
-    ) -> Result<ValidationRecord, String> {
-        let candidate = normalize_candidate(candidate)?;
-        validate_confirmations(&candidate, consent, confirmations)?;
+    ) -> Result<ValidationRecord, DriverCallError> {
+        let candidate = normalize_candidate(candidate).map_err(DriverCallError::Failed)?;
+        validate_confirmations(&candidate, consent, confirmations)
+            .map_err(DriverCallError::Failed)?;
         let snapshot = self.probe.as_ref().ok_or_else(|| {
-            "run the no-model Pi setup probe before validating the candidate".to_string()
+            DriverCallError::Failed(
+                "run the no-model Pi setup probe before validating the candidate".to_string(),
+            )
         })?;
         snapshot
             .validate_pricing_freshness(self.driver.now_unix_seconds())
-            .map_err(|error| error.to_string())?;
-        if snapshot.executable != resolve_reviewed_binary(snapshot, &candidate.binary)? {
-            return Err("Pi executable changed after the verified probe; probe again".to_string());
+            .map_err(|error| DriverCallError::Failed(error.to_string()))?;
+        let reviewed_binary = resolve_reviewed_binary(snapshot, &candidate.binary)
+            .map_err(DriverCallError::Failed)?;
+        if snapshot.executable != reviewed_binary {
+            return Err(DriverCallError::Failed(
+                "Pi executable changed after the verified probe; probe again".to_string(),
+            ));
         }
-        drop(selected_models_and_reservation(&candidate, snapshot)?);
-        let settings = snapshot_config_file(&self.options.settings_path)
-            .map_err(|error| format!("could not fingerprint settings.conf: {error}"))?;
+        drop(
+            selected_models_and_reservation(&candidate, snapshot)
+                .map_err(DriverCallError::Failed)?,
+        );
+        let settings = snapshot_config_file_with_deadline(
+            self.options.settings_path.clone(),
+            self.driver
+                .operation_timeout(PiScanSetupStage::CandidateValidation),
+        )?;
         let binding = validation_binding(
             correlation_id,
             &candidate,
@@ -1148,26 +1361,118 @@ impl SetupController {
         })
     }
 
+    /// What: Run one no-model probe on a replaceable driver under a controller deadline.
+    ///
+    /// Inputs:
+    /// - `request`: Exact isolated setup probe request.
+    /// - `stage`: Correlated stage controlling the configured deadline.
+    ///
+    /// Output:
+    /// - Fresh probe facts, a driver failure, or typed timeout.
+    ///
+    /// Details:
+    /// - A late read-only response has no event sender and is therefore stale; the controller
+    ///   immediately remains available for a higher-correlation Retry.
+    fn probe_with_deadline(
+        &self,
+        request: PiSetupProbeRequest,
+        stage: PiScanSetupStage,
+    ) -> Result<PiSetupProbeSnapshot, DriverCallError> {
+        let deadline = self.driver.operation_timeout(stage);
+        let mut driver = self.driver.fork();
+        let (sender, receiver) = std_mpsc::sync_channel(1);
+        std::thread::spawn(move || {
+            drop(sender.send(driver.probe(&request)));
+        });
+        match receiver.recv_timeout(deadline) {
+            Ok(Ok(snapshot)) => Ok(snapshot),
+            Ok(Err(error)) => Err(error),
+            Err(std_mpsc::RecvTimeoutError::Timeout) => Err(DriverCallError::TimedOut(deadline)),
+            Err(std_mpsc::RecvTimeoutError::Disconnected) => Err(DriverCallError::Failed(
+                "Pi setup probe worker stopped unexpectedly; retry the probe".to_string(),
+            )),
+        }
+    }
+
+    /// What: Prepare one queue-inert runtime under the Apply operation deadline.
+    ///
+    /// Inputs:
+    /// - Normalized settings, fresh probe facts, exact models, and bounded reservation.
+    ///
+    /// Output:
+    /// - Prepared runtime, driver failure, or typed timeout.
+    ///
+    /// Details:
+    /// - Production preparation launches no runtime Channels. A late prepared value is dropped
+    ///   without transfer and cannot replace production ownership.
+    fn prepare_with_deadline(
+        &self,
+        settings: PiScanSettings,
+        snapshot: PiSetupProbeSnapshot,
+        models: Vec<ModelChoice>,
+        reservation: PiScanReservation,
+    ) -> Result<Box<dyn PreparedRuntime>, DriverCallError> {
+        let deadline = self.driver.operation_timeout(PiScanSetupStage::Activation);
+        let mut driver = self.driver.fork();
+        let options = self.options.clone();
+        let (sender, receiver) = std_mpsc::sync_channel(1);
+        std::thread::spawn(move || {
+            let result =
+                driver.prepare_runtime(&options, &settings, &snapshot, models, reservation);
+            drop(sender.send(result));
+        });
+        match receiver.recv_timeout(deadline) {
+            Ok(Ok(runtime)) => Ok(runtime),
+            Ok(Err(error)) => Err(error),
+            Err(std_mpsc::RecvTimeoutError::Timeout) => Err(DriverCallError::TimedOut(deadline)),
+            Err(std_mpsc::RecvTimeoutError::Disconnected) => Err(DriverCallError::Failed(
+                "Pi runtime preparation worker stopped unexpectedly; retry Apply".to_string(),
+            )),
+        }
+    }
+
+    /// Build one legacy failure plus a typed correlated timeout notification.
+    fn timeout_failure(
+        &self,
+        correlation_id: u64,
+        stage: PiScanSetupStage,
+        deadline: Duration,
+    ) -> PiScanSetupEvent {
+        let _ = self.timeout_tx.send(PiScanSetupTimeout {
+            correlation_id,
+            stage,
+            deadline,
+        });
+        PiScanSetupEvent::Failed {
+            correlation_id,
+            stage,
+            reason: format!(
+                "Pi Scan setup operation exceeded its {} second deadline; Retry is available and any late response will be ignored",
+                deadline.as_secs_f64()
+            ),
+        }
+    }
+
     /// Re-run WS2A and require every material reviewed fact to remain exact.
     fn reprobe_reviewed(
-        &mut self,
+        &self,
         reviewed: &ValidationRecord,
-    ) -> Result<PiSetupProbeSnapshot, String> {
+    ) -> Result<PiSetupProbeSnapshot, DriverCallError> {
         let request = self.probe_request(reviewed.candidate.binary.clone());
-        let fresh = self.driver.probe(&request)?;
+        let fresh = self.probe_with_deadline(request, PiScanSetupStage::Probe)?;
         fresh
             .validate_pricing_freshness(self.driver.now_unix_seconds())
-            .map_err(|error| error.to_string())?;
+            .map_err(|error| DriverCallError::Failed(error.to_string()))?;
         if !same_material_probe(&reviewed.snapshot, &fresh) {
-            return Err(
+            return Err(DriverCallError::Failed(
                 "Pi version, tool contract, advertised routes, or exact pricing changed after review; probe and validate again"
                     .to_string(),
-            );
+            ));
         }
-        drop(selected_models_and_reservation(
-            &reviewed.candidate,
-            &fresh,
-        )?);
+        drop(
+            selected_models_and_reservation(&reviewed.candidate, &fresh)
+                .map_err(DriverCallError::Failed)?,
+        );
         Ok(fresh)
     }
 
@@ -1214,6 +1519,7 @@ fn spawn_pi_scan_setup_controller_with_driver(
     let (request_tx, request_rx) = mpsc::unbounded_channel();
     let (event_tx, event_rx) = mpsc::unbounded_channel();
     let (transfer_tx, transfer_rx) = mpsc::unbounded_channel();
+    let (timeout_tx, timeout_rx) = mpsc::unbounded_channel();
     tokio::task::spawn_blocking(move || {
         SetupController {
             options,
@@ -1223,6 +1529,7 @@ fn spawn_pi_scan_setup_controller_with_driver(
             validation: None,
             event_tx,
             transfer_tx,
+            timeout_tx,
         }
         .run(request_rx);
     });
@@ -1230,6 +1537,7 @@ fn spawn_pi_scan_setup_controller_with_driver(
         request_tx,
         event_rx,
         transfer_rx,
+        timeout_rx,
     }
 }
 

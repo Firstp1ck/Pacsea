@@ -13,7 +13,7 @@ pub(super) fn render(f: &mut Frame, app: &mut AppState, area: Rect) {
 }
 
 /// Preserve the existing advanced setup/details page outside the guided wizard.
-fn render_advanced(f: &mut Frame, app: &AppState, area: Rect) {
+fn render_advanced(f: &mut Frame, app: &mut AppState, area: Rect) {
     let pi = &app.pi_scan;
     let setting = &pi.settings;
     let availability = match pi.availability {
@@ -64,16 +64,20 @@ fn render_advanced(f: &mut Frame, app: &AppState, area: Rect) {
         )),
         Line::from(crate::i18n::t(app, "app.pi_scan.setup.privacy_cost")),
         Line::from(format!(
-            "Thinking: {} · tool contract: {}",
+            "{}: {} · {}: {}",
+            crate::i18n::t(app, "app.pi_scan.setup.thinking"),
             setting.thinking,
+            crate::i18n::t(app, "app.pi_scan.setup.tool_contract"),
             crate::pi_agent::TOOL_CONTRACT_VERSION
         )),
         Line::from(format!(
-            "[v] Verified Pi: {}",
+            "[v] {}: {}",
+            crate::i18n::t(app, "app.pi_scan.setup.verified_pi"),
             display_or_unset(&pi.verified_pi_version)
         )),
         Line::from(format!(
-            "Verified selected route: {}/{}",
+            "{}: {}/{}",
+            crate::i18n::t(app, "app.pi_scan.setup.verified_route"),
             display_or_unset(&pi.verified_provider),
             display_or_unset(&pi.verified_model)
         )),
@@ -99,7 +103,8 @@ fn render_advanced(f: &mut Frame, app: &AppState, area: Rect) {
             }
         )),
         Line::from(format!(
-            "Pricing binding: {}",
+            "{}: {}",
+            crate::i18n::t(app, "app.pi_scan.setup.pricing_binding"),
             display_or_unset(&pi.verified_pricing_binding)
         )),
         Line::from(crate::i18n::t(app, "app.pi_scan.setup.coverage")),
@@ -113,16 +118,7 @@ fn render_advanced(f: &mut Frame, app: &AppState, area: Rect) {
             crate::i18n::t(app, "app.pi_scan.setup.config"),
             issue_line
         )),
-        Line::from(format!(
-            "{}: head {}/15 · observe {}/90 · model {}/300 · logical {}/720 · starts {}/5 · tokens {}/500000",
-            crate::i18n::t(app, "app.pi_scan.setup.effective_compiled"),
-            setting.head_query_timeout_seconds,
-            setting.observation_deadline_seconds,
-            setting.model_attempt_timeout_seconds,
-            setting.logical_timeout_seconds,
-            setting.background_starts_per_hour,
-            setting.background_token_cap_24h,
-        )),
+        effective_compiled_line(app, setting),
         Line::from(format!(
             "[c] {}: {}",
             crate::i18n::t(app, "app.pi_scan.setup.disclosure_consent"),
@@ -154,7 +150,32 @@ fn render_advanced(f: &mut Frame, app: &AppState, area: Rect) {
             yes_no(app, pi.readiness_warning_confirmed)
         )),
     ];
-    super::body(f, app, area, "app.pi_scan.tabs.setup", lines);
+    let scroll = super::clamp_line_scroll(app.pi_scan.view_scroll.setup, &lines, area);
+    app.pi_scan.view_scroll.setup = scroll;
+    super::body_scrolled(f, app, area, "app.pi_scan.tabs.setup", lines, scroll);
+}
+
+/// Render effective settings beside the immutable compiled maxima.
+fn effective_compiled_line(
+    app: &AppState,
+    setting: &crate::theme::PiScanSettings,
+) -> Line<'static> {
+    Line::from(format!(
+        "{}: {}",
+        crate::i18n::t(app, "app.pi_scan.setup.effective_compiled"),
+        crate::i18n::t_fmt(
+            app,
+            "app.pi_scan.setup.effective_values",
+            &[
+                &setting.head_query_timeout_seconds,
+                &setting.observation_deadline_seconds,
+                &setting.model_attempt_timeout_seconds,
+                &setting.logical_timeout_seconds,
+                &setting.background_starts_per_hour,
+                &setting.background_token_cap_24h,
+            ],
+        )
+    ))
 }
 
 /// Display an unset provider/model field without implying auto-selection.

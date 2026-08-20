@@ -2,6 +2,7 @@
 
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -9,8 +10,8 @@ use serde_json::Value;
 
 use super::{
     PiSetupProbeBackend, PiSetupProbeError, PiSetupProbeRequest, SETUP_PROBE_RPC_COMMANDS,
-    probe_pi_setup, probe_pi_setup_with_backend, resolve_setup_probe_binary,
-    run_pi_cli_information_with_timeout,
+    probe_pi_setup, probe_pi_setup_with_backend, probe_pi_setup_with_backend_and_deadline,
+    resolve_setup_probe_binary, run_pi_cli_information_with_timeout,
 };
 use crate::pi_agent::RESTRICTED_TOOL_NAMES;
 use crate::pi_agent::capabilities::REQUIRED_PI_FLAGS;
@@ -31,16 +32,32 @@ struct FakeRpcTransport {
     commands: CommandLog,
     /// Trusted transport metadata under test.
     metadata: TransportMetadata,
+    /// Whether reads wait through the supplied whole-operation deadline.
+    timeout_reads: bool,
+    /// Whether deadline cleanup used correlated abort and reap.
+    aborted: Arc<AtomicBool>,
+    /// Whether normal reap was used instead of timeout abort.
+    normally_reaped: Arc<AtomicBool>,
 }
 
 impl FakeRpcTransport {
     /// Construct one isolated fake transport.
-    fn new(models: Vec<Value>, commands: CommandLog, metadata: TransportMetadata) -> Self {
+    fn new(
+        models: Vec<Value>,
+        commands: CommandLog,
+        metadata: TransportMetadata,
+        timeout_reads: bool,
+        aborted: Arc<AtomicBool>,
+        normally_reaped: Arc<AtomicBool>,
+    ) -> Self {
         Self {
             models,
             responses: VecDeque::new(),
             commands,
             metadata,
+            timeout_reads,
+            aborted,
+            normally_reaped,
         }
     }
 
@@ -89,9 +106,17 @@ impl RpcTransport for FakeRpcTransport {
 
     fn read_record(
         &mut self,
-        _deadline: Instant,
+        deadline: Instant,
         _cancelled: &std::sync::atomic::AtomicBool,
     ) -> Result<Vec<u8>, TransportError> {
+        if self.timeout_reads {
+            std::thread::sleep(
+                deadline
+                    .saturating_duration_since(Instant::now())
+                    .saturating_add(Duration::from_millis(1)),
+            );
+            return Err(TransportError::Timeout);
+        }
         self.responses.pop_front().ok_or(TransportError::Closed)
     }
 
@@ -107,10 +132,12 @@ impl RpcTransport for FakeRpcTransport {
         &mut self,
         _correlator: &mut CommandCorrelator,
     ) -> Result<(), TransportError> {
+        self.aborted.store(true, Ordering::SeqCst);
         Ok(())
     }
 
     fn reap(&mut self) -> Result<(), TransportError> {
+        self.normally_reaped.store(true, Ordering::SeqCst);
         Ok(())
     }
 }
@@ -133,6 +160,12 @@ struct FakeBackend {
     metadata: TransportMetadata,
     /// Shared outbound command log.
     commands: CommandLog,
+    /// Whether RPC reads consume the whole operation deadline.
+    timeout_reads: bool,
+    /// Shared timeout-abort evidence.
+    aborted: Arc<AtomicBool>,
+    /// Shared normal-reap evidence.
+    normally_reaped: Arc<AtomicBool>,
 }
 
 impl FakeBackend {
@@ -153,6 +186,9 @@ impl FakeBackend {
                 tool_contract_version: crate::pi_agent::TOOL_CONTRACT_VERSION.to_string(),
             },
             commands: Arc::new(Mutex::new(Vec::new())),
+            timeout_reads: false,
+            aborted: Arc::new(AtomicBool::new(false)),
+            normally_reaped: Arc::new(AtomicBool::new(false)),
         }
     }
 }
@@ -166,6 +202,7 @@ impl PiSetupProbeBackend for FakeBackend {
         &mut self,
         _executable: &Path,
         flag: &'static str,
+        _timeout: Duration,
     ) -> Result<String, PiSetupProbeError> {
         match flag {
             "--version" => Ok(self.version.clone()),
@@ -186,6 +223,9 @@ impl PiSetupProbeBackend for FakeBackend {
             self.models.clone(),
             Arc::clone(&self.commands),
             self.metadata.clone(),
+            self.timeout_reads,
+            Arc::clone(&self.aborted),
+            Arc::clone(&self.normally_reaped),
         )))
     }
 
@@ -295,6 +335,24 @@ fn pricing_binding_excludes_observation_time_but_freshness_remains_typed() {
         first.pricing_observed_at_unix_seconds,
         second.pricing_observed_at_unix_seconds
     );
+}
+
+/// Whole RPC deadline must abort/reap before returning actionable Retry.
+#[test]
+fn whole_probe_deadline_aborts_and_reaps_before_return() {
+    let mut backend = FakeBackend::passing(vec![route("provider", "model", 1.0, 2.0)]);
+    backend.timeout_reads = true;
+    let aborted = Arc::clone(&backend.aborted);
+    let normally_reaped = Arc::clone(&backend.normally_reaped);
+    let total_timeout = crate::pi_agent::process::default_shutdown_deadline()
+        .saturating_add(Duration::from_millis(20));
+
+    let error = probe_pi_setup_with_backend_and_deadline(&request(), &mut backend, total_timeout)
+        .expect_err("whole deadline must fail after cleanup");
+
+    assert!(matches!(error, PiSetupProbeError::DeadlineExceeded { .. }));
+    assert!(aborted.load(Ordering::SeqCst));
+    assert!(!normally_reaped.load(Ordering::SeqCst));
 }
 
 /// Hung CLI information commands must be killed within their configured deadline.

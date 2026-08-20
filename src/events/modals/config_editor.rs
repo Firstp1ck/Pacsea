@@ -42,10 +42,12 @@ use crate::theme::{
 /// - Moves editor state out of `app` temporarily to avoid mutable borrow
 ///   conflicts when save handlers mutate global app fields.
 pub(in crate::events) fn handle_config_editor_mode_key(ke: KeyEvent, app: &mut AppState) -> bool {
-    let opens_pi_scan_setup = matches!(
-        (ke.code, ke.modifiers),
-        (KeyCode::Char('g'), modifiers) if modifiers.contains(KeyModifiers::CONTROL)
-    ) && app.config_editor_state.popup.is_none()
+    let pressed = KeyChord {
+        code: ke.code,
+        mods: ke.modifiers,
+    };
+    let opens_pi_scan_setup = app.keymap.config_editor_pi_scan_setup.contains(&pressed)
+        && app.config_editor_state.popup.is_none()
         && app
             .config_editor_state
             .selected_key()

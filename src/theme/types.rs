@@ -577,6 +577,8 @@ pub struct KeyMap {
     pub help_overlay: Vec<KeyChord>,
     /// Key chords to reload configuration.
     pub reload_config: Vec<KeyChord>,
+    /// Key chords to open guided Pi Scan setup from a selected config-editor setting.
+    pub config_editor_pi_scan_setup: Vec<KeyChord>,
     /// Key chords to exit the application.
     pub exit: Vec<KeyChord>,
     /// Global: Show/Hide PKGBUILD viewer
@@ -1195,6 +1197,10 @@ fn build_default_keymap() -> KeyMap {
     KeyMap {
         help_overlay: global.0,
         reload_config: global.1,
+        config_editor_pi_scan_setup: vec![KeyChord {
+            code: KeyCode::Char('g'),
+            mods: ctrl,
+        }],
         exit: global.2,
         show_pkgbuild: global.3,
         comments_toggle: global.4,

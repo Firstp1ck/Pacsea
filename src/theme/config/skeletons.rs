@@ -488,6 +488,7 @@ pub const KEYBINDS_SKELETON_CONTENT: &str = "# Pacsea keybindings configuration\
 # GLOBAL — App\n\
 keybind_help = ?\n\
 keybind_reload_config = CTRL+R\n\
+keybind_config_editor_pi_scan_setup = CTRL+G\n\
 keybind_exit = CTRL+Q\n\
 keybind_show_pkgbuild = CTRL+X\n\
 keybind_comments_toggle = CTRL+T\n\

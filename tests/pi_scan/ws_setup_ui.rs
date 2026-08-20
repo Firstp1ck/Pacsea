@@ -13,6 +13,14 @@ use pacsea::state::types::AppMode;
 use pacsea::state::{AppState, PiScanSetupWizardState};
 use ratatui::{Terminal, backend::TestBackend};
 
+/// Load the shipped English locale for user-facing wizard render assertions.
+fn load_english(app: &mut AppState) {
+    let locales = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("config/locales");
+    let translations = pacsea::i18n::load_locale_file("en-US", &locales).expect("English locale");
+    app.translations.clone_from(&translations);
+    app.translations_fallback = translations;
+}
+
 /// Build deterministic exact advertised route and pricing facts.
 fn verified_facts() -> PiScanSetupVerifiedFacts {
     PiScanSetupVerifiedFacts {
@@ -65,7 +73,7 @@ fn keyboard_flow_reaches_apply_with_independent_defaults() {
     let mut app = AppState::default();
     app.pi_scan.begin_setup_wizard(true);
     assert!(pacsea::events::pi_scan::handle_key(
-        KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE),
+        KeyEvent::new(KeyCode::Char('n'), KeyModifiers::NONE),
         &mut app,
     ));
     let wizard = app.pi_scan.wizard.as_mut().expect("wizard");
@@ -74,7 +82,7 @@ fn keyboard_flow_reaches_apply_with_independent_defaults() {
     assert!(wizard.accept_verified_facts(probe, verified_facts()));
 
     pacsea::events::pi_scan::handle_key(
-        KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE),
+        KeyEvent::new(KeyCode::Char('n'), KeyModifiers::NONE),
         &mut app,
     );
     assert_eq!(
@@ -107,6 +115,147 @@ fn keyboard_flow_reaches_apply_with_independent_defaults() {
         wizard.pending_action,
         Some(PiScanSetupDraftAction::Apply { .. })
     ));
+}
+
+/// Enter activates only focused controls while `n` alone advances wizard pages.
+#[test]
+fn enter_activates_focused_control_and_n_alone_advances() {
+    let mut app = AppState::default();
+    app.pi_scan.begin_setup_wizard(true);
+
+    assert!(!pacsea::events::pi_scan::handle_key(
+        KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE),
+        &mut app,
+    ));
+    assert_eq!(
+        app.pi_scan.wizard.as_ref().expect("wizard").step,
+        PiScanSetupStep::Welcome
+    );
+    assert!(pacsea::events::pi_scan::handle_key(
+        KeyEvent::new(KeyCode::Char('n'), KeyModifiers::NONE),
+        &mut app,
+    ));
+    assert_eq!(
+        app.pi_scan.wizard.as_ref().expect("wizard").step,
+        PiScanSetupStep::PiReadiness
+    );
+
+    let wizard = app.pi_scan.wizard.as_mut().expect("wizard");
+    wizard.step = PiScanSetupStep::PricingPrivacy;
+    wizard.focus = 0;
+    assert!(!wizard.confirmations.disclosure_confirmed);
+    assert!(pacsea::events::pi_scan::handle_key(
+        KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE),
+        &mut app,
+    ));
+    assert!(
+        app.pi_scan
+            .wizard
+            .as_ref()
+            .expect("wizard")
+            .confirmations
+            .disclosure_confirmed
+    );
+}
+
+/// `BackTab` must reverse wizard focus instead of mutating hidden Package sorting.
+#[test]
+fn wizard_backtab_reverses_focus() {
+    let mut app = AppState::default();
+    app.pi_scan.begin_setup_wizard(true);
+    let wizard = app.pi_scan.wizard.as_mut().expect("wizard");
+    wizard.step = PiScanSetupStep::PricingPrivacy;
+    wizard.focus = 0;
+
+    assert!(pacsea::events::pi_scan::handle_key(
+        KeyEvent::new(KeyCode::BackTab, KeyModifiers::SHIFT),
+        &mut app,
+    ));
+
+    assert_eq!(app.pi_scan.wizard.as_ref().expect("wizard").focus, 2);
+}
+
+/// Apply abandonment must use first-Escape warning and second-Escape ownership retention.
+#[test]
+fn apply_abandonment_requires_two_escape_presses() {
+    let mut app = AppState::default();
+    app.pi_scan.begin_setup_wizard(false);
+    let wizard = app.pi_scan.wizard.as_mut().expect("wizard");
+    wizard.step = PiScanSetupStep::Review;
+    wizard.validation_binding = "binding".to_string();
+
+    assert!(pacsea::events::pi_scan::handle_key(
+        KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE),
+        &mut app,
+    ));
+    let correlation = app
+        .pi_scan
+        .wizard
+        .as_ref()
+        .expect("wizard")
+        .in_flight_correlation
+        .expect("apply correlation");
+    assert!(app.pi_scan.setup_transaction_matches(correlation));
+
+    assert!(pacsea::events::pi_scan::handle_key(
+        KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE),
+        &mut app,
+    ));
+    assert!(app.pi_scan.wizard.is_some());
+    assert_eq!(
+        app.pi_scan
+            .setup_transaction
+            .expect("transaction")
+            .abandonment,
+        pacsea::state::pi_scan_ui::PiScanSetupAbandonment::Warned
+    );
+
+    assert!(pacsea::events::pi_scan::handle_key(
+        KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE),
+        &mut app,
+    ));
+    assert!(app.pi_scan.wizard.is_none());
+    assert_eq!(
+        app.pi_scan
+            .setup_transaction
+            .expect("transaction")
+            .abandonment,
+        pacsea::state::pi_scan_ui::PiScanSetupAbandonment::AbandonRequested
+    );
+}
+
+/// A first-run cancel must explain how to restart guided setup and how to leave.
+#[test]
+fn first_run_cancel_sets_restart_and_leave_guidance() {
+    let mut app = AppState::default();
+    app.pi_scan.begin_setup_wizard(true);
+
+    assert!(pacsea::events::pi_scan::handle_key(
+        KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE),
+        &mut app,
+    ));
+
+    let notice = app
+        .pi_scan
+        .notices
+        .foreground
+        .as_ref()
+        .expect("cancel guidance");
+    assert!(notice.text.contains("press r"));
+    assert!(notice.text.contains("Esc to leave"));
+}
+
+/// Wizard-only `q` is unbound; Escape is the sole cancel key.
+#[test]
+fn q_does_not_cancel_the_wizard() {
+    let mut app = AppState::default();
+    app.pi_scan.begin_setup_wizard(true);
+
+    assert!(!pacsea::events::pi_scan::handle_key(
+        KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE),
+        &mut app,
+    ));
+    assert!(app.pi_scan.wizard.is_some());
 }
 
 /// Dry-run keyboard actions must not queue a Pi probe or Apply.
@@ -239,6 +388,52 @@ fn pricing_page_omits_catalog_dump_and_formats_the_reservation() {
     assert!(!rendered.contains("micro-USD"));
 }
 
+/// In-flight probe and retryable Apply failure state must be visible in the rendered wizard.
+#[test]
+fn wizard_renders_in_flight_and_retryable_failure_guidance() {
+    let mut app = AppState {
+        app_mode: AppMode::PiScan,
+        ..AppState::default()
+    };
+    load_english(&mut app);
+    app.pi_scan.begin_setup_wizard(false);
+    let wizard = app.pi_scan.wizard.as_mut().expect("wizard");
+    wizard.step = PiScanSetupStep::PiReadiness;
+    wizard.request_probe(false);
+    let backend = TestBackend::new(100, 24);
+    let mut terminal = Terminal::new(backend).expect("terminal");
+    terminal
+        .draw(|frame| pacsea::ui::ui(frame, &mut app))
+        .expect("in-flight render");
+    let rendered = terminal
+        .backend()
+        .buffer()
+        .content
+        .iter()
+        .map(ratatui::buffer::Cell::symbol)
+        .collect::<String>();
+    assert!(rendered.contains("working #1"), "{rendered:?}");
+
+    let wizard = app.pi_scan.wizard.as_mut().expect("wizard");
+    wizard.step = PiScanSetupStep::Activate;
+    wizard.in_flight_correlation = None;
+    wizard.apply_status = pacsea::state::pi_scan_setup::PiScanSetupApplyStatus::Failed(
+        "app.pi_scan.wizard.failure_timeout.activation".to_string(),
+    );
+    terminal
+        .draw(|frame| pacsea::ui::ui(frame, &mut app))
+        .expect("failure render");
+    let rendered = terminal
+        .backend()
+        .buffer()
+        .content
+        .iter()
+        .map(ratatui::buffer::Cell::symbol)
+        .collect::<String>();
+    assert!(rendered.contains("Runtime activation timed out"));
+    assert!(rendered.contains("Correct the reported issue"));
+}
+
 /// Mouse hit targets must use the same Next transition as keyboard input.
 #[test]
 fn mouse_next_uses_shared_transition() {
@@ -324,6 +519,35 @@ fn wizard_body_scroll_is_keyboard_reachable_and_bounded() {
         KeyEvent::new(KeyCode::PageUp, KeyModifiers::NONE),
         &mut app,
     );
+    assert_eq!(app.pi_scan.wizard.as_ref().expect("wizard").body_scroll, 0);
+}
+
+/// Mouse wheel must scroll the wizard body through the same bounded state as PageDown/PageUp.
+#[test]
+fn wizard_mouse_wheel_scrolls_body() {
+    let mut app = AppState::default();
+    app.pi_scan.begin_setup_wizard(false);
+
+    assert!(pacsea::events::pi_scan::handle_mouse(
+        MouseEvent {
+            kind: MouseEventKind::ScrollDown,
+            column: 10,
+            row: 8,
+            modifiers: KeyModifiers::NONE,
+        },
+        &mut app,
+    ));
+    assert_eq!(app.pi_scan.wizard.as_ref().expect("wizard").body_scroll, 3);
+
+    assert!(pacsea::events::pi_scan::handle_mouse(
+        MouseEvent {
+            kind: MouseEventKind::ScrollUp,
+            column: 10,
+            row: 8,
+            modifiers: KeyModifiers::NONE,
+        },
+        &mut app,
+    ));
     assert_eq!(app.pi_scan.wizard.as_ref().expect("wizard").body_scroll, 0);
 }
 
