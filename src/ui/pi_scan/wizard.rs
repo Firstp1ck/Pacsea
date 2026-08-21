@@ -543,7 +543,10 @@ fn optional_lines(app: &AppState, wizard: &PiScanSetupWizardState) -> Vec<Line<'
             format!(
                 "← {}: {} →",
                 crate::i18n::t(app, "app.pi_scan.wizard.optional.starts"),
-                wizard.candidate.background_starts_per_hour
+                super::setup::budget_count_value(
+                    app,
+                    u64::from(wizard.candidate.background_starts_per_hour)
+                )
             ),
         ),
         focused_line(
@@ -553,7 +556,7 @@ fn optional_lines(app: &AppState, wizard: &PiScanSetupWizardState) -> Vec<Line<'
             format!(
                 "← {}: {} →",
                 crate::i18n::t(app, "app.pi_scan.wizard.optional.tokens"),
-                wizard.candidate.background_token_cap_24h
+                super::setup::budget_count_value(app, wizard.candidate.background_token_cap_24h)
             ),
         ),
         focused_line(
@@ -563,7 +566,7 @@ fn optional_lines(app: &AppState, wizard: &PiScanSetupWizardState) -> Vec<Line<'
             format!(
                 "← {}: {} →",
                 crate::i18n::t(app, "app.pi_scan.wizard.optional.cost"),
-                wizard.candidate.background_cost_cap_24h
+                super::setup::budget_decimal_value(app, &wizard.candidate.background_cost_cap_24h)
             ),
         ),
         focused_line(
@@ -599,6 +602,10 @@ fn review_lines(app: &AppState, wizard: &PiScanSetupWizardState) -> Vec<Line<'st
     let pricing_observed = facts.map_or(0, |facts| facts.pricing_observed_at_unix_seconds);
     let pricing_age = facts.map_or(0, |facts| facts.maximum_pricing_age_seconds);
     let reservation = wizard.reviewed_reservation();
+    let starts =
+        super::setup::budget_count_value(app, u64::from(settings.background_starts_per_hour));
+    let tokens = super::setup::budget_count_value(app, settings.background_token_cap_24h);
+    let cost = super::setup::budget_decimal_value(app, &settings.background_cost_cap_24h);
     vec![
         Line::from(crate::i18n::t(app, "app.pi_scan.wizard.review.explanation")),
         Line::from(format!(
@@ -641,8 +648,8 @@ fn review_lines(app: &AppState, wizard: &PiScanSetupWizardState) -> Vec<Line<'st
             "{}: {} / {} / {}",
             crate::i18n::t(app, "app.pi_scan.wizard.review.background"),
             yes_no(app, settings.background_enabled),
-            settings.background_starts_per_hour,
-            settings.background_cost_cap_24h
+            starts,
+            cost
         )),
         Line::from(format!(
             "{}: {} / {} / {} / {}",
@@ -655,7 +662,7 @@ fn review_lines(app: &AppState, wizard: &PiScanSetupWizardState) -> Vec<Line<'st
         Line::from(format!(
             "{}: {} / {} / {} / {}",
             crate::i18n::t(app, "app.pi_scan.wizard.review.limits"),
-            settings.background_token_cap_24h,
+            tokens,
             settings.result_retention_days,
             yes_no(app, settings.show_raw_output),
             display_or_dash(&settings.https_proxy)

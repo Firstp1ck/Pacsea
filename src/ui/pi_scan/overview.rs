@@ -1,12 +1,16 @@
 //! Scanner overview page.
 
 use crate::state::AppState;
-use crate::state::pi_scan::{PiScanAccountingClass, PiScanPauseReason};
+use crate::state::pi_scan::{
+    PiScanAccountingClass, PiScanBudgetDimension, PiScanPauseReason, START_WINDOW_SECONDS,
+    USAGE_WINDOW_SECONDS,
+};
 use ratatui::{
     Frame,
     layout::Rect,
     text::{Line, Span},
 };
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::SemanticTone;
 
@@ -84,43 +88,89 @@ fn push_activity_lines(lines: &mut Vec<Line<'static>>, app: &AppState) {
 
 /// Append rolling unattended usage and configured limits.
 fn push_budget_lines(lines: &mut Vec<Line<'static>>, app: &AppState) {
+    let now_unix = unix_now();
     let pi = &app.pi_scan;
-    let (consumed_tokens, consumed_cost) = pi
-        .runtime
-        .budget
-        .records
-        .iter()
-        .filter(|record| record.class == PiScanAccountingClass::Background)
-        .fold((0u64, 0u64), |(tokens, cost), record| {
-            (
-                tokens.saturating_add(record.consumed_tokens.unwrap_or(0)),
-                cost.saturating_add(record.consumed_cost_microusd.unwrap_or(0)),
-            )
-        });
+    let (starts, tokens, cost) = conservative_background_usage(app, now_unix);
+    let limits = pi.runtime.budget_limits;
     push_section_gap(lines, app, "app.pi_scan.overview.sections.budget");
     lines.push(super::labeled_line(
         crate::i18n::t(app, "app.pi_scan.overview.starts_limit"),
-        format!("{}/h", pi.settings.background_starts_per_hour),
+        format!(
+            "{} / {}",
+            starts,
+            super::budget_limit_value(app, PiScanBudgetDimension::Starts, limits)
+        ),
         SemanticTone::Normal,
     ));
     lines.push(super::labeled_line(
         crate::i18n::t(app, "app.pi_scan.overview.tokens_used"),
         format!(
             "{} / {}",
-            super::format_token_count(consumed_tokens),
-            super::format_token_count(pi.settings.background_token_cap_24h)
+            super::format_token_count(tokens),
+            super::budget_limit_value(app, PiScanBudgetDimension::Tokens, limits)
         ),
         SemanticTone::Normal,
     ));
     lines.push(super::labeled_line(
         crate::i18n::t(app, "app.pi_scan.overview.cost_used"),
         format!(
-            "{} / ${} USD",
-            super::format_microusd(consumed_cost),
-            pi.settings.background_cost_cap_24h
+            "{} / {}",
+            super::format_microusd(cost),
+            super::budget_limit_value(app, PiScanBudgetDimension::Cost, limits)
         ),
         SemanticTone::Normal,
     ));
+}
+
+/// What: Compute conservative rolling unattended usage for Overview presentation.
+///
+/// Inputs:
+/// - `app`: Runtime accounting projection.
+/// - `now_unix`: Current rolling-window timestamp.
+///
+/// Output:
+/// - Starts/hour, effective tokens/24h, and effective micro-USD/24h.
+///
+/// Details:
+/// - Unknown active consumption remains charged at the full reservation via effective usage.
+fn conservative_background_usage(app: &AppState, now_unix: u64) -> (u32, u64, u64) {
+    let mut starts = 0u32;
+    let mut tokens = 0u64;
+    let mut cost = 0u64;
+    for record in app
+        .pi_scan
+        .runtime
+        .budget
+        .records
+        .iter()
+        .filter(|record| record.class == PiScanAccountingClass::Background)
+    {
+        let age = now_unix.saturating_sub(record.started_at_unix);
+        if age < START_WINDOW_SECONDS {
+            starts = starts.saturating_add(1);
+        }
+        if age < USAGE_WINDOW_SECONDS {
+            tokens = tokens.saturating_add(record.effective_tokens());
+            cost = cost.saturating_add(record.effective_cost_microusd());
+        }
+    }
+    (starts, tokens, cost)
+}
+
+/// What: Read the current Unix second for rolling Overview accounting.
+///
+/// Inputs:
+/// - Current system clock.
+///
+/// Output:
+/// - Unix seconds, falling back to zero before the epoch.
+///
+/// Details:
+/// - This affects display only; scheduler decisions remain runtime-owned.
+fn unix_now() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |duration| duration.as_secs())
 }
 
 /// Append independent observation and paid-execution permissions.
@@ -232,6 +282,30 @@ mod tests {
                 "missing {heading:?}: {rendered:?}"
             );
         }
+    }
+
+    /// Numeric zero runtime limits render as Unlimited rather than raw zero caps.
+    #[test]
+    fn overview_renders_zero_runtime_limits_as_unlimited() {
+        let backend = TestBackend::new(100, 30);
+        let mut terminal = Terminal::new(backend).expect("test terminal");
+        let mut app = AppState::default();
+        load_english(&mut app);
+        app.pi_scan.runtime.budget_limits.starts_per_hour = 0;
+        app.pi_scan.runtime.budget_limits.tokens_per_24h = 0;
+        app.pi_scan.runtime.budget_limits.cost_microusd_per_24h = 0;
+        terminal
+            .draw(|frame| render(frame, &mut app, frame.area()))
+            .expect("overview render");
+        let rendered = terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .map(ratatui::buffer::Cell::symbol)
+            .collect::<String>();
+        assert!(rendered.matches("Unlimited").count() >= 3, "{rendered:?}");
+        assert!(!rendered.contains("0/h"), "{rendered:?}");
     }
 
     /// Overview remains renderable at the compact supported dimensions.

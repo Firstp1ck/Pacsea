@@ -85,6 +85,8 @@ pub struct PiScanSettings {
     pub background_starts_per_hour: u32,
     /// Unattended token cap per rolling 24 hours.
     pub background_token_cap_24h: u64,
+    /// Parser diagnostic retained when a known token-cap value is malformed or overflows.
+    pub background_token_cap_24h_parse_error: Option<String>,
     /// Decimal dollar cost cap per rolling 24 hours.
     pub background_cost_cap_24h: String,
     /// Detailed result retention in days.
@@ -112,6 +114,7 @@ impl Default for PiScanSettings {
             logical_timeout_seconds: 720,
             background_starts_per_hour: 5,
             background_token_cap_24h: 500_000,
+            background_token_cap_24h_parse_error: None,
             background_cost_cap_24h: "0.00".to_string(),
             result_retention_days: 30,
             show_raw_output: false,
@@ -121,6 +124,44 @@ impl Default for PiScanSettings {
 }
 
 impl PiScanSettings {
+    /// What: Persist all three Pi Scan budget values in one settings-file transaction.
+    ///
+    /// Inputs:
+    /// - `limits`: Exact starts, tokens, and micro-USD policy to serialize.
+    ///
+    /// Output:
+    /// - Success after one atomic replacement, or actionable config-write text.
+    ///
+    /// Details:
+    /// - Numeric zero serializes as the Unlimited representation. Unrelated settings, including
+    ///   route/privacy/setup gates, are preserved by the underlying patch transaction.
+    pub(crate) fn persist_budget_limits_atomic(
+        limits: crate::state::pi_scan::PiScanBudgetLimits,
+    ) -> Result<(), String> {
+        let starts = limits.starts_per_hour.to_string();
+        let tokens = limits.tokens_per_24h.to_string();
+        let cost = format_pi_scan_budget_microusd(limits.cost_microusd_per_24h);
+        crate::theme::config::patch::patch_settings_keys_atomic(
+            &[
+                crate::theme::config::patch::SettingsPatch {
+                    key: "pi_scan_background_starts_per_hour",
+                    value: &starts,
+                },
+                crate::theme::config::patch::SettingsPatch {
+                    key: "pi_scan_background_token_cap_24h",
+                    value: &tokens,
+                },
+                crate::theme::config::patch::SettingsPatch {
+                    key: "pi_scan_background_cost_cap_24h",
+                    value: &cost,
+                },
+            ],
+            false,
+        )
+        .map(|_| ())
+        .map_err(|error| format!("could not persist Pi scan budget settings atomically: {error}"))
+    }
+
     /// Return actionable configuration issues without silently raising or clamping limits.
     #[must_use]
     pub fn validation_issues(&self) -> Vec<String> {
@@ -155,18 +196,14 @@ impl PiScanSettings {
             self.logical_timeout_seconds,
             720,
         );
-        if self.background_starts_per_hour > 5 {
-            issues.push("pi_scan_background_starts_per_hour cannot exceed 5".to_string());
-        }
-        if self.background_token_cap_24h > 500_000 {
-            issues.push("pi_scan_background_token_cap_24h cannot exceed 500000".to_string());
-        }
         if self.result_retention_days == 0 {
             issues.push("pi_scan_result_retention_days must be at least 1".to_string());
         }
-        if parse_nonnegative_decimal(&self.background_cost_cap_24h).is_none() {
-            issues
-                .push("pi_scan_background_cost_cap_24h must be a non-negative decimal".to_string());
+        if let Some(error) = &self.background_token_cap_24h_parse_error {
+            issues.push(error.clone());
+        }
+        if let Err(error) = parse_pi_scan_cost_microusd(&self.background_cost_cap_24h) {
+            issues.push(error);
         }
         let proxy = self.https_proxy.trim();
         if !proxy.is_empty() && (!proxy.starts_with("https://") || proxy.contains('@')) {
@@ -176,6 +213,16 @@ impl PiScanSettings {
     }
 }
 
+/// Format micro-USD as an exact parser-compatible decimal dollar setting.
+pub fn format_pi_scan_budget_microusd(value: u64) -> String {
+    let dollars = value / 1_000_000;
+    let mut fraction = format!("{:06}", value % 1_000_000);
+    while fraction.len() > 2 && fraction.ends_with('0') {
+        fraction.pop();
+    }
+    format!("{dollars}.{fraction}")
+}
+
 /// Add a positive bounded setting violation.
 fn check_pi_scan_upper(issues: &mut Vec<String>, key: &str, value: u64, maximum: u64) {
     if value == 0 || value > maximum {
@@ -183,17 +230,45 @@ fn check_pi_scan_upper(issues: &mut Vec<String>, key: &str, value: u64, maximum:
     }
 }
 
-/// Validate a non-negative decimal without floating-point ambiguity.
-fn parse_nonnegative_decimal(value: &str) -> Option<()> {
+/// What: Parse one exact Pi Scan decimal-dollar cap as integer micro-USD.
+///
+/// Inputs:
+/// - `value`: Non-negative decimal text with at most six fractional digits.
+///
+/// Output:
+/// - Exact native-range micro-USD, including zero and `u64::MAX`.
+///
+/// Details:
+/// - Malformed input and arithmetic overflow return an actionable validation issue; neither is
+///   ever converted to the zero/Unlimited policy.
+///
+/// # Errors
+/// - Returns an actionable key-specific issue for malformed, fractional-precision, or overflow
+///   input.
+pub fn parse_pi_scan_cost_microusd(value: &str) -> Result<u64, String> {
+    let invalid = || {
+        "pi_scan_background_cost_cap_24h must be a non-negative decimal with at most six fractional digits"
+            .to_string()
+    };
+    let overflow =
+        || "pi_scan_background_cost_cap_24h exceeds the maximum exact micro-USD value".to_string();
     let trimmed = value.trim();
     let (whole, fraction) = trimmed.split_once('.').map_or((trimmed, ""), |parts| parts);
-    if whole.is_empty() || !whole.chars().all(|ch| ch.is_ascii_digit()) {
-        return None;
+    if whole.is_empty()
+        || !whole.chars().all(|character| character.is_ascii_digit())
+        || fraction.len() > 6
+        || !fraction.chars().all(|character| character.is_ascii_digit())
+    {
+        return Err(invalid());
     }
-    if !fraction.chars().all(|ch| ch.is_ascii_digit()) || fraction.len() > 6 {
-        return None;
-    }
-    Some(())
+    let dollars = whole.parse::<u64>().map_err(|_| overflow())?;
+    let micros = format!("{fraction:0<6}")
+        .parse::<u64>()
+        .map_err(|_| invalid())?;
+    dollars
+        .checked_mul(1_000_000)
+        .and_then(|value| value.checked_add(micros))
+        .ok_or_else(overflow)
 }
 
 /// User-configurable application settings parsed from `pacsea.conf`.
@@ -517,6 +592,54 @@ impl KeyChord {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    /// What: Verify finite Pi Scan budgets accept native-range values needed by exact doubling.
+    ///
+    /// Inputs:
+    /// - Starts above the legacy five-start cap and tokens above the legacy 500k cap.
+    ///
+    /// Output:
+    /// - No configuration validation issue rejects either finite value.
+    ///
+    /// Details:
+    /// - Native integer parsing and checked adjustment arithmetic remain the authoritative bounds.
+    fn pi_scan_finite_budgets_are_not_limited_by_legacy_defaults() {
+        let settings = PiScanSettings {
+            background_starts_per_hour: 10,
+            background_token_cap_24h: 1_000_000,
+            background_cost_cap_24h: "18446744073709.551615".to_string(),
+            ..PiScanSettings::default()
+        };
+
+        assert!(settings.validation_issues().is_empty());
+        assert_eq!(
+            format_pi_scan_budget_microusd(u64::MAX),
+            "18446744073709.551615"
+        );
+        assert_eq!(format_pi_scan_budget_microusd(0), "0.00");
+    }
+
+    #[test]
+    /// What: Enforce exact native micro-USD bounds without weakening invalid input to Unlimited.
+    fn pi_scan_cost_parser_accepts_exact_bounds_and_rejects_overflow() {
+        assert_eq!(parse_pi_scan_cost_microusd("0"), Ok(0));
+        assert_eq!(parse_pi_scan_cost_microusd("0.00"), Ok(0));
+        assert_eq!(
+            parse_pi_scan_cost_microusd("18446744073709.551615"),
+            Ok(u64::MAX)
+        );
+        assert!(parse_pi_scan_cost_microusd("18446744073709.551616").is_err());
+        assert!(parse_pi_scan_cost_microusd("malformed").is_err());
+
+        let overflow = PiScanSettings {
+            background_cost_cap_24h: "18446744073709.551616".to_string(),
+            ..PiScanSettings::default()
+        };
+        assert!(overflow.validation_issues().iter().any(|issue| {
+            issue.contains("pi_scan_background_cost_cap_24h") && issue.contains("maximum")
+        }));
+    }
 
     #[test]
     /// What: Ensure `KeyChord::label` renders user-facing text for modifier and key combinations.

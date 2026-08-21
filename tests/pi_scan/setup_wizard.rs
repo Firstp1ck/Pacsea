@@ -133,6 +133,73 @@ fn wizard_cancel_restores_original_state_without_writes() {
     );
 }
 
+/// Guided numeric adjustments preserve valid values above former UI maxima.
+#[test]
+fn wizard_budget_adjustments_do_not_collapse_large_valid_values() {
+    let mut wizard = pacsea::state::PiScanSetupWizardState::open(
+        PiScanSettings::default(),
+        PiScanConsentState::default(),
+        false,
+    );
+    wizard.step = pacsea::state::PiScanSetupStep::OptionalBehavior;
+
+    wizard.focus = 3;
+    wizard.candidate.background_starts_per_hour = 10;
+    wizard.adjust_focused(true);
+    assert_eq!(wizard.candidate.background_starts_per_hour, 11);
+
+    wizard.focus = 4;
+    wizard.candidate.background_token_cap_24h = 1_000_000;
+    wizard.adjust_focused(true);
+    assert_eq!(wizard.candidate.background_token_cap_24h, 1_010_000);
+
+    wizard.focus = 5;
+    wizard.candidate.background_cost_cap_24h = "10001.123456".to_string();
+    wizard.adjust_focused(true);
+    assert_eq!(wizard.candidate.background_cost_cap_24h, "10002.123456");
+}
+
+/// Guided numeric adjustments stop exactly at native integer and micro-USD boundaries.
+#[test]
+fn wizard_budget_adjustments_are_checked_at_native_boundaries() {
+    let mut wizard = pacsea::state::PiScanSetupWizardState::open(
+        PiScanSettings::default(),
+        PiScanConsentState::default(),
+        false,
+    );
+    wizard.step = pacsea::state::PiScanSetupStep::OptionalBehavior;
+
+    wizard.focus = 3;
+    wizard.candidate.background_starts_per_hour = u32::MAX;
+    wizard.adjust_focused(true);
+    assert_eq!(wizard.candidate.background_starts_per_hour, u32::MAX);
+    wizard.adjust_focused(false);
+    assert_eq!(wizard.candidate.background_starts_per_hour, u32::MAX - 1);
+
+    wizard.focus = 4;
+    wizard.candidate.background_token_cap_24h = u64::MAX;
+    wizard.adjust_focused(true);
+    assert_eq!(wizard.candidate.background_token_cap_24h, u64::MAX);
+    wizard.adjust_focused(false);
+    assert_eq!(wizard.candidate.background_token_cap_24h, u64::MAX - 10_000);
+
+    wizard.focus = 5;
+    wizard.candidate.background_cost_cap_24h = "18446744073709.551615".to_string();
+    wizard.adjust_focused(true);
+    assert_eq!(
+        wizard.candidate.background_cost_cap_24h,
+        "18446744073709.551615"
+    );
+    wizard.adjust_focused(false);
+    assert_eq!(
+        wizard.candidate.background_cost_cap_24h,
+        "18446744073708.551615"
+    );
+    wizard.candidate.background_cost_cap_24h = "0.500000".to_string();
+    wizard.adjust_focused(false);
+    assert_eq!(wizard.candidate.background_cost_cap_24h, "0.50");
+}
+
 /// Contract: the probe verifies Pi and enumerates routes without a model call.
 #[tokio::test]
 #[ignore = "Wave 0 contract: WS2 no-model capability probe"]

@@ -128,7 +128,7 @@ pub enum PiScanPauseReason {
 /// - Limits used before reserving a background start.
 ///
 /// Details:
-/// - The zero default cost cap permits only reservations whose cost is exactly zero.
+/// - Numeric zero is the persisted representation of Unlimited for each independent limit.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PiScanBudgetLimits {
     /// Maximum unattended starts in the rolling hour.
@@ -147,6 +147,69 @@ impl Default for PiScanBudgetLimits {
             cost_microusd_per_24h: 0,
         }
     }
+}
+
+/// One independently configurable unattended budget dimension.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PiScanBudgetDimension {
+    /// Rolling starts-per-hour limit.
+    Starts,
+    /// Rolling tokens-per-24-hours limit.
+    Tokens,
+    /// Rolling micro-USD-per-24-hours limit.
+    Cost,
+}
+
+/// User-selected policy for currently exceeded unattended limits.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PiScanBudgetAdjustment {
+    /// Multiply each affected finite limit by exactly two with checked arithmetic.
+    Double,
+    /// Set each affected limit to numeric zero, the persisted Unlimited representation.
+    Unlimited,
+}
+
+/// Rejected budget adjustment that leaves policy and pauses unchanged.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PiScanBudgetAdjustmentError {
+    /// Exact doubling overflowed the native type for one affected dimension.
+    Overflow(PiScanBudgetDimension),
+}
+
+impl fmt::Display for PiScanBudgetAdjustmentError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self::Overflow(dimension) = self;
+        write!(
+            formatter,
+            "Pi scan {dimension:?} budget cannot be doubled without overflow; choose Unlimited or enter a smaller finite value"
+        )
+    }
+}
+
+impl std::error::Error for PiScanBudgetAdjustmentError {}
+
+/// What: Authoritative result of applying one budget adjustment.
+///
+/// Inputs:
+/// - Previous/current limits and scheduler-classified affected/remaining dimensions.
+///
+/// Output:
+/// - Projection-safe evidence of the exact mutation and derived pause state.
+///
+/// Details:
+/// - User and service pauses are not represented as budget success and remain independently sticky.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PiScanBudgetAdjustmentResult {
+    /// Limits before the adjustment.
+    pub previous_limits: PiScanBudgetLimits,
+    /// Limits after the adjustment.
+    pub current_limits: PiScanBudgetLimits,
+    /// Dimensions exceeded when Apply was authoritatively recomputed.
+    pub affected: BTreeSet<PiScanBudgetDimension>,
+    /// Dimensions still exceeded after applying and revalidating the selected policy.
+    pub remaining_exceeded: BTreeSet<PiScanBudgetDimension>,
+    /// Whether the scheduler-derived Budget pause remains.
+    pub budget_paused: bool,
 }
 
 /// Accounting source for one started scan.
@@ -394,6 +457,74 @@ impl PiScanRuntimeState {
         }
     }
 
+    /// What: Classify every finite budget exceeded by the next queued background reservation.
+    ///
+    /// Inputs:
+    /// - `now_unix`: Deterministic Unix time used for rolling windows.
+    ///
+    /// Output:
+    /// - Scheduler-owned set of exceeded budget dimensions.
+    ///
+    /// Details:
+    /// - Numeric zero means Unlimited and is never classified as exceeded. Unknown active usage
+    ///   remains conservatively charged at its reservation, and arithmetic overflow exceeds a
+    ///   finite limit rather than wrapping.
+    #[must_use]
+    pub fn exceeded_budget_limits(&self, now_unix: u64) -> BTreeSet<PiScanBudgetDimension> {
+        self.queue
+            .iter()
+            .find(|item| item.priority == PiScanPriority::Background)
+            .map_or_else(BTreeSet::new, |item| {
+                self.exceeded_for_reservation(item.reservation, now_unix)
+            })
+    }
+
+    /// What: Adjust every and only currently exceeded budget and revalidate its derived pause.
+    ///
+    /// Inputs:
+    /// - `adjustment`: Exact checked Double or affected-only Unlimited policy.
+    /// - `now_unix`: Deterministic rolling-window timestamp.
+    ///
+    /// Output:
+    /// - Exact previous/current limits, affected set, residual exceeded set, and pause state.
+    ///
+    /// Details:
+    /// - The exceeded set is recomputed at Apply time. Overflow rejects before any mutation;
+    ///   user/service pauses and consent are never changed.
+    ///
+    /// # Errors
+    /// - Returns [`PiScanBudgetAdjustmentError::Overflow`] without mutation when Double cannot
+    ///   be represented exactly.
+    pub fn adjust_exceeded_budgets(
+        &mut self,
+        adjustment: PiScanBudgetAdjustment,
+        now_unix: u64,
+    ) -> Result<PiScanBudgetAdjustmentResult, PiScanBudgetAdjustmentError> {
+        let previous_limits = self.budget_limits;
+        let affected = self.exceeded_budget_limits(now_unix);
+        if affected.is_empty() {
+            return Ok(PiScanBudgetAdjustmentResult {
+                previous_limits,
+                current_limits: previous_limits,
+                affected,
+                remaining_exceeded: BTreeSet::new(),
+                budget_paused: false,
+            });
+        }
+        self.prune_budget(now_unix);
+        let current_limits = adjusted_limits(previous_limits, &affected, adjustment)?;
+        self.budget_limits = current_limits;
+        let budget_paused = self.revalidate_budget_pause(now_unix);
+        let remaining_exceeded = self.exceeded_budget_limits(now_unix);
+        Ok(PiScanBudgetAdjustmentResult {
+            previous_limits,
+            current_limits,
+            affected,
+            remaining_exceeded,
+            budget_paused,
+        })
+    }
+
     /// What: Revalidate and automatically clear or set the rolling budget pause.
     ///
     /// Inputs:
@@ -612,11 +743,49 @@ impl PiScanRuntimeState {
         Ok(active)
     }
 
-    /// Return whether an unattended reservation fits every rolling limit.
+    /// Return whether an unattended reservation fits every finite rolling limit.
     fn background_budget_fits(&self, reservation: PiScanReservation, now_unix: u64) -> bool {
-        let mut starts = 0u32;
-        let mut tokens = 0u64;
-        let mut cost = 0u64;
+        self.exceeded_for_reservation(reservation, now_unix)
+            .is_empty()
+    }
+
+    /// Classify finite limits exceeded by one reservation under conservative rolling usage.
+    fn exceeded_for_reservation(
+        &self,
+        reservation: PiScanReservation,
+        now_unix: u64,
+    ) -> BTreeSet<PiScanBudgetDimension> {
+        let usage = self.background_usage(now_unix);
+        let mut exceeded = BTreeSet::new();
+        if finite_starts_exceeded(
+            usage.starts,
+            usage.starts_overflowed,
+            self.budget_limits.starts_per_hour,
+        ) {
+            exceeded.insert(PiScanBudgetDimension::Starts);
+        }
+        if finite_usage_exceeded(
+            usage.tokens,
+            usage.tokens_overflowed,
+            reservation.tokens,
+            self.budget_limits.tokens_per_24h,
+        ) {
+            exceeded.insert(PiScanBudgetDimension::Tokens);
+        }
+        if finite_usage_exceeded(
+            usage.cost_microusd,
+            usage.cost_overflowed,
+            reservation.cost_microusd,
+            self.budget_limits.cost_microusd_per_24h,
+        ) {
+            exceeded.insert(PiScanBudgetDimension::Cost);
+        }
+        exceeded
+    }
+
+    /// Compute conservative rolling background usage without discarding aggregate overflow truth.
+    fn background_usage(&self, now_unix: u64) -> RollingBackgroundUsage {
+        let mut usage = RollingBackgroundUsage::default();
         for record in self
             .budget
             .records
@@ -625,17 +794,23 @@ impl PiScanRuntimeState {
         {
             let age = now_unix.saturating_sub(record.started_at_unix);
             if age < START_WINDOW_SECONDS {
-                starts = starts.saturating_add(1);
+                let (starts, overflowed) = usage.starts.overflowing_add(1);
+                usage.starts = starts;
+                usage.starts_overflowed |= overflowed;
             }
             if age < USAGE_WINDOW_SECONDS {
-                tokens = tokens.saturating_add(record.effective_tokens());
-                cost = cost.saturating_add(record.effective_cost_microusd());
+                let (tokens, tokens_overflowed) =
+                    usage.tokens.overflowing_add(record.effective_tokens());
+                usage.tokens = tokens;
+                usage.tokens_overflowed |= tokens_overflowed;
+                let (cost, cost_overflowed) = usage
+                    .cost_microusd
+                    .overflowing_add(record.effective_cost_microusd());
+                usage.cost_microusd = cost;
+                usage.cost_overflowed |= cost_overflowed;
             }
         }
-        starts < self.budget_limits.starts_per_hour
-            && tokens.saturating_add(reservation.tokens) <= self.budget_limits.tokens_per_24h
-            && cost.saturating_add(reservation.cost_microusd)
-                <= self.budget_limits.cost_microusd_per_24h
+        usage
     }
 
     /// Record a new active reservation.
@@ -941,6 +1116,76 @@ pub fn save_pi_scan_state_atomic(
 struct SchemaHeader {
     /// Observed schema version.
     schema_version: u32,
+}
+
+/// Conservative rolling totals plus sticky arithmetic-overflow evidence.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct RollingBackgroundUsage {
+    /// Starts in the rolling hour.
+    starts: u32,
+    /// Whether the mathematical start count exceeded `u32`.
+    starts_overflowed: bool,
+    /// Tokens in the rolling 24-hour window when representable.
+    tokens: u64,
+    /// Whether the mathematical token total exceeded `u64`.
+    tokens_overflowed: bool,
+    /// Micro-USD in the rolling 24-hour window when representable.
+    cost_microusd: u64,
+    /// Whether the mathematical cost total exceeded `u64`.
+    cost_overflowed: bool,
+}
+
+/// Return whether a finite starts limit is exceeded by the next start.
+const fn finite_starts_exceeded(current: u32, overflowed: bool, limit: u32) -> bool {
+    limit != 0 && (overflowed || current >= limit)
+}
+
+/// Return whether a finite usage limit is exceeded by a conservative reservation.
+fn finite_usage_exceeded(current: u64, overflowed: bool, reservation: u64, limit: u64) -> bool {
+    limit != 0
+        && (overflowed
+            || current
+                .checked_add(reservation)
+                .is_none_or(|total| total > limit))
+}
+
+/// Build an all-or-nothing adjusted limit set for scheduler-classified dimensions.
+fn adjusted_limits(
+    previous: PiScanBudgetLimits,
+    affected: &BTreeSet<PiScanBudgetDimension>,
+    adjustment: PiScanBudgetAdjustment,
+) -> Result<PiScanBudgetLimits, PiScanBudgetAdjustmentError> {
+    let mut adjusted = previous;
+    for dimension in affected {
+        match (dimension, adjustment) {
+            (PiScanBudgetDimension::Starts, PiScanBudgetAdjustment::Double) => {
+                adjusted.starts_per_hour = previous.starts_per_hour.checked_mul(2).ok_or(
+                    PiScanBudgetAdjustmentError::Overflow(PiScanBudgetDimension::Starts),
+                )?;
+            }
+            (PiScanBudgetDimension::Tokens, PiScanBudgetAdjustment::Double) => {
+                adjusted.tokens_per_24h = previous.tokens_per_24h.checked_mul(2).ok_or(
+                    PiScanBudgetAdjustmentError::Overflow(PiScanBudgetDimension::Tokens),
+                )?;
+            }
+            (PiScanBudgetDimension::Cost, PiScanBudgetAdjustment::Double) => {
+                adjusted.cost_microusd_per_24h =
+                    previous.cost_microusd_per_24h.checked_mul(2).ok_or(
+                        PiScanBudgetAdjustmentError::Overflow(PiScanBudgetDimension::Cost),
+                    )?;
+            }
+            (PiScanBudgetDimension::Starts, PiScanBudgetAdjustment::Unlimited) => {
+                adjusted.starts_per_hour = 0;
+            }
+            (PiScanBudgetDimension::Tokens, PiScanBudgetAdjustment::Unlimited) => {
+                adjusted.tokens_per_24h = 0;
+            }
+            (PiScanBudgetDimension::Cost, PiScanBudgetAdjustment::Unlimited) => {
+                adjusted.cost_microusd_per_24h = 0;
+            }
+        }
+    }
+    Ok(adjusted)
 }
 
 /// Set or clear one pause reason without affecting the others.

@@ -1936,8 +1936,8 @@ fn production_runtime_settings(
     models: Vec<ModelChoice>,
     reservation: PiScanReservation,
 ) -> Result<crate::pi_scan_production::ProductionRuntimeSettings, String> {
-    let cost_microusd = decimal_dollars_to_microusd(&settings.background_cost_cap_24h)
-        .ok_or_else(|| "Pi Scan background cost cap is not a valid decimal".to_string())?;
+    let cost_microusd =
+        crate::theme::parse_pi_scan_cost_microusd(&settings.background_cost_cap_24h)?;
     Ok(crate::pi_scan_production::ProductionRuntimeSettings {
         binary: settings.binary.clone(),
         models,
@@ -1978,25 +1978,6 @@ fn validate_runtime_paths(options: &PiScanSetupControllerOptions) -> Result<(), 
         return Err("Pi Scan setup paths must be absolute".to_string());
     }
     Ok(())
-}
-
-/// Convert decimal dollars to integer micro-USD without floating-point drift.
-fn decimal_dollars_to_microusd(value: &str) -> Option<u64> {
-    let trimmed = value.trim();
-    let (whole, fraction) = trimmed.split_once('.').map_or((trimmed, ""), |parts| parts);
-    if whole.is_empty()
-        || !whole.chars().all(|character| character.is_ascii_digit())
-        || fraction.len() > 6
-        || !fraction.chars().all(|character| character.is_ascii_digit())
-    {
-        return None;
-    }
-    let dollars = whole.parse::<u64>().ok()?;
-    let mut micros = fraction.to_string();
-    micros.push_str(&"0".repeat(6usize.saturating_sub(micros.len())));
-    dollars
-        .checked_mul(1_000_000)?
-        .checked_add(micros.parse::<u64>().ok()?)
 }
 
 /// Build a stale/review mismatch failure.

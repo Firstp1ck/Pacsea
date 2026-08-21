@@ -11,7 +11,7 @@ use std::fs;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
@@ -26,8 +26,9 @@ use crate::logic::pi_scan::manifest::CanonicalManifest;
 use crate::logic::pi_scan::result::{MergedScanResult, ScanProvenance};
 use crate::logic::pi_scan::result_store::{StoredScanResult, load_result, save_result_atomic};
 use crate::state::pi_scan::{
-    PiScanActualUsage, PiScanBudgetLimits, PiScanConsentState, PiScanJobRequest, PiScanPriority,
-    PiScanQueueKey, PiScanReservation, PiScanRuntimeState, PiScanStartBlock, PiScanTerminalStatus,
+    PiScanActualUsage, PiScanBudgetAdjustment, PiScanBudgetAdjustmentResult, PiScanBudgetLimits,
+    PiScanConsentState, PiScanJobRequest, PiScanPriority, PiScanQueueKey, PiScanReservation,
+    PiScanRuntimeState, PiScanStartBlock, PiScanTerminalStatus,
 };
 use crate::state::{PiScanExecutionPhase, PiScanExecutionProgress};
 
@@ -35,6 +36,34 @@ use crate::state::{PiScanExecutionPhase, PiScanExecutionProgress};
 pub const ORCHESTRATION_SCHEMA_VERSION: u32 = 1;
 /// Independent consent schema understood by this build.
 const CONSENT_SCHEMA_VERSION: u32 = 1;
+
+/// Authoritative result of one durable rolling-budget revalidation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PiScanBudgetRevalidation {
+    /// Derived pause/accounting state did not change.
+    Unchanged {
+        /// Whether the next queued background item remains budget-paused.
+        budget_paused: bool,
+    },
+    /// Derived pause/accounting state changed and was persisted.
+    Changed {
+        /// Exact runtime projection after the durable transition.
+        runtime: Box<PiScanRuntimeState>,
+    },
+}
+
+impl PiScanBudgetRevalidation {
+    /// Return whether the authoritative projection remains budget-paused.
+    #[must_use]
+    pub fn budget_paused(&self) -> bool {
+        match self {
+            Self::Unchanged { budget_paused } => *budget_paused,
+            Self::Changed { runtime } => runtime
+                .pause_reasons
+                .contains(&crate::state::pi_scan::PiScanPauseReason::Budget),
+        }
+    }
+}
 
 /// What: Effective central-orchestrator configuration.
 ///
@@ -753,6 +782,27 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
     /// # Errors
     /// - Returns a persistence error for malformed, newer, or unreadable durable state.
     pub fn new(config: OrchestrationConfig, adapter: A) -> Result<Self, OrchestrationError> {
+        Self::new_with_legacy_consent_binding(config, adapter, None)
+    }
+
+    /// What: Load an orchestrator with one exact legacy consent binding eligible for migration.
+    ///
+    /// Inputs:
+    /// - `config`: Effective current gates, limits, binding, and private paths.
+    /// - `adapter`: Production external seams.
+    /// - `legacy_consent_binding`: Exactly recomputed prior budget-inclusive binding, if supported.
+    ///
+    /// Output:
+    /// - Ready orchestrator with valid legacy consent rewritten under the current binding.
+    ///
+    /// Details:
+    /// - Both persisted binding fields must equal the supplied legacy value. Any partial or
+    ///   unrelated mismatch follows the normal fail-closed consent reset path.
+    pub(crate) fn new_with_legacy_consent_binding(
+        config: OrchestrationConfig,
+        adapter: A,
+        legacy_consent_binding: Option<&str>,
+    ) -> Result<Self, OrchestrationError> {
         if config.observation_interval_seconds < 900 {
             return Err(OrchestrationError::Disabled(
                 "Pi scan observation interval must be at least 900 seconds; fix the setting and restart"
@@ -802,12 +852,26 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
         }
         state.runtime.budget_limits = config.budget_limits;
         let mut consent_needs_save = false;
-        if let Some(document) = consent_document {
+        if let Some(mut document) = consent_document {
             if document.configuration_binding == config.consent_binding
                 && document.setup.configuration_binding == config.consent_binding
             {
                 state.runtime.set_consent(document.runtime);
                 state.setup_consent = document.setup;
+            } else if legacy_consent_binding.is_some_and(|legacy| {
+                document.configuration_binding == legacy
+                    && document.setup.configuration_binding == legacy
+            }) {
+                document
+                    .configuration_binding
+                    .clone_from(&config.consent_binding);
+                document
+                    .setup
+                    .configuration_binding
+                    .clone_from(&config.consent_binding);
+                state.runtime.set_consent(document.runtime);
+                state.setup_consent = document.setup;
+                consent_needs_save = true;
             } else {
                 reset_consent_for_binding(&mut state, &config.consent_binding);
                 consent_needs_save = true;
@@ -1322,6 +1386,94 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
         Ok(())
     }
 
+    /// What: Apply and durably coordinate one scheduler-owned budget adjustment.
+    ///
+    /// Inputs:
+    /// - `adjustment`: Exact checked Double or affected-only Unlimited policy.
+    /// - `now_unix`: Deterministic rolling-window timestamp.
+    ///
+    /// Output:
+    /// - Exact affected and residual limits after both settings and orchestration persistence.
+    ///
+    /// Details:
+    /// - Settings commit first while the owner lock prevents execution. Orchestration state then
+    ///   commits the same limits. On failure, prior in-memory policy and settings are restored
+    ///   where possible; route/privacy/setup consent is never changed.
+    ///
+    /// # Errors
+    /// - Returns overflow or durable transaction failures without waking execution.
+    pub fn adjust_budgets(
+        &mut self,
+        adjustment: PiScanBudgetAdjustment,
+        now_unix: u64,
+    ) -> Result<PiScanBudgetAdjustmentResult, OrchestrationError> {
+        if self.config.dry_run {
+            let mut preview = self.state.runtime.clone();
+            return preview
+                .adjust_exceeded_budgets(adjustment, now_unix)
+                .map_err(|error| OrchestrationError::Persistence(error.to_string()));
+        }
+        let previous_runtime = self.state.runtime.clone();
+        let previous_config_limits = self.config.budget_limits;
+        let result = self
+            .state
+            .runtime
+            .adjust_exceeded_budgets(adjustment, now_unix)
+            .map_err(|error| OrchestrationError::Persistence(error.to_string()))?;
+        if result.affected.is_empty() {
+            return Ok(result);
+        }
+        if let Err(error) = persist_budget_settings(result.current_limits) {
+            self.state.runtime = previous_runtime;
+            return Err(OrchestrationError::Persistence(error));
+        }
+        self.config.budget_limits = result.current_limits;
+        if let Err(error) = self.persist() {
+            self.state.runtime = previous_runtime;
+            self.config.budget_limits = previous_config_limits;
+            let settings_rollback = persist_budget_settings(previous_config_limits);
+            let state_rollback = self.persist();
+            return Err(budget_transaction_rollback_error(
+                &error,
+                settings_rollback,
+                state_rollback,
+            ));
+        }
+        Ok(result)
+    }
+
+    /// What: Revalidate rolling budgets and durably persist any derived pause transition.
+    ///
+    /// Inputs:
+    /// - `now_unix`: Deterministic rolling-window timestamp.
+    ///
+    /// Output:
+    /// - Whether the next queued background item remains budget-paused.
+    ///
+    /// Details:
+    /// - User and service pauses remain untouched. A failed persistence restores the prior in-memory
+    ///   runtime projection so callers cannot wake from an uncommitted transition.
+    ///
+    /// # Errors
+    /// - Returns when a changed pause projection cannot be persisted.
+    pub fn revalidate_budgets(
+        &mut self,
+        now_unix: u64,
+    ) -> Result<PiScanBudgetRevalidation, OrchestrationError> {
+        let previous_runtime = self.state.runtime.clone();
+        let budget_paused = self.state.runtime.revalidate_budget_pause(now_unix);
+        if self.state.runtime == previous_runtime {
+            return Ok(PiScanBudgetRevalidation::Unchanged { budget_paused });
+        }
+        if let Err(error) = self.persist() {
+            self.state.runtime = previous_runtime;
+            return Err(error);
+        }
+        Ok(PiScanBudgetRevalidation::Changed {
+            runtime: Box::new(self.state.runtime.clone()),
+        })
+    }
+
     /// What: Execute at most one queued target through the adapter.
     ///
     /// Inputs:
@@ -1346,7 +1498,14 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
             return Ok(None);
         }
         let shutdown_requested = AtomicBool::new(false);
-        self.run_next_registered(now_unix, cancelled, &shutdown_requested, |_| {}, |_| {})
+        self.run_next_registered(
+            now_unix,
+            cancelled,
+            &shutdown_requested,
+            None,
+            |_| {},
+            |_| {},
+        )
     }
 
     /// Execute one item while publishing its active correlation and transient phases.
@@ -1355,6 +1514,7 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
         now_unix: u64,
         cancelled: &AtomicBool,
         shutdown_requested: &AtomicBool,
+        unattended_authorization: Option<&PiScanUnattendedAuthorization>,
         register: F,
         publish_phase: P,
     ) -> Result<Option<ExecutionReceipt>, OrchestrationError>
@@ -1373,6 +1533,19 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
             .queue
             .iter()
             .any(|request| request.priority == PiScanPriority::Foreground);
+        let unattended_guard = if has_foreground {
+            None
+        } else if let Some(authorization) = unattended_authorization {
+            let Ok(guard) = authorization.allowed.read() else {
+                return Ok(None);
+            };
+            if !*guard {
+                return Ok(None);
+            }
+            Some(guard)
+        } else {
+            None
+        };
         if !self.config.background_execution && !has_foreground {
             return Err(OrchestrationError::Paused(
                 "unattended Pi execution is disabled; enable it explicitly or queue manual foreground work"
@@ -1389,6 +1562,7 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
         };
         self.persist()?;
         register(&active);
+        drop(unattended_guard);
         let progress = PiScanExecutionPhaseReporter::new(active.correlation_id, &publish_phase);
         progress.report(PiScanExecutionPhase::Preparing);
         let Some(target) = self.state.targets.get(&active.request.request_id).cloned() else {
@@ -1800,6 +1974,70 @@ pub type PiScanQueuedPolicyCompletion =
 
 /// Correlation and completion pair returned for one queued user-pause request.
 pub type PiScanQueuedUserPause = (u64, PiScanQueuedPolicyCompletion);
+
+/// What: Synchronized unattended-start authorization linearized with scheduler ownership.
+///
+/// Inputs:
+/// - Constructed with the current complete session-level unattended authorization decision.
+///
+/// Output:
+/// - A shared policy cell whose read guard can span the owner-locked start transition.
+///
+/// Details:
+/// - Revocation writers complete before later owner-lock start decisions can read authorization.
+/// - Foreground scheduling never consults this policy cell.
+pub struct PiScanUnattendedAuthorization {
+    /// Current complete session-level unattended authorization decision.
+    allowed: RwLock<bool>,
+}
+
+impl PiScanUnattendedAuthorization {
+    /// What: Create one synchronized unattended-start policy cell.
+    ///
+    /// Inputs:
+    /// - `allowed`: Initial complete session-level authorization decision.
+    ///
+    /// Output:
+    /// - A policy cell ready to share with the sequential runner.
+    ///
+    /// Details:
+    /// - Callers should initialize fail-closed until current consent has been restored.
+    #[must_use]
+    pub const fn new(allowed: bool) -> Self {
+        Self {
+            allowed: RwLock::new(allowed),
+        }
+    }
+
+    /// What: Publish one complete session-level unattended authorization decision.
+    ///
+    /// Inputs:
+    /// - `allowed`: Newly authoritative decision after evaluating every session-level gate.
+    ///
+    /// Output:
+    /// - No return value; a poisoned lock remains fail-closed to start readers.
+    ///
+    /// Details:
+    /// - Revocation publication does not acquire the scheduler owner lock, preserving the lock
+    ///   order used by consent persistence and start scheduling.
+    pub fn publish(&self, allowed: bool) {
+        if let Ok(mut current) = self.allowed.write() {
+            *current = allowed;
+        }
+    }
+
+    /// Return the current authorization decision, failing closed on lock poison.
+    #[cfg(test)]
+    pub(crate) fn currently_allowed(&self) -> bool {
+        self.allowed.read().is_ok_and(|current| *current)
+    }
+}
+
+impl Default for PiScanUnattendedAuthorization {
+    fn default() -> Self {
+        Self::new(false)
+    }
+}
 
 /// What: Async-runtime facade for one blocking single-owner orchestrator.
 ///
@@ -2320,6 +2558,59 @@ impl<A: OrchestrationAdapter + Send + 'static> PiScanSequentialRunner<A> {
         })?
     }
 
+    /// Apply one budget adjustment while holding the central owner lock off the UI thread.
+    ///
+    /// # Errors
+    /// - Returns overflow, lock, persistence, or blocking-task failures.
+    pub async fn adjust_budgets(
+        &self,
+        adjustment: PiScanBudgetAdjustment,
+        now_unix: u64,
+    ) -> Result<PiScanBudgetAdjustmentResult, OrchestrationError> {
+        let owner = Arc::clone(&self.orchestrator);
+        tokio::task::spawn_blocking(move || {
+            owner
+                .lock()
+                .map_err(|_| {
+                    OrchestrationError::Persistence(
+                        "Pi orchestration owner lock is poisoned during budget adjustment"
+                            .to_string(),
+                    )
+                })?
+                .adjust_budgets(adjustment, now_unix)
+        })
+        .await
+        .map_err(|error| {
+            OrchestrationError::Persistence(format!("Pi budget adjustment task failed: {error}"))
+        })?
+    }
+
+    /// Revalidate rolling budgets while holding the central owner lock off the UI thread.
+    ///
+    /// # Errors
+    /// - Returns lock, persistence, or blocking-task failures.
+    pub async fn revalidate_budgets(
+        &self,
+        now_unix: u64,
+    ) -> Result<PiScanBudgetRevalidation, OrchestrationError> {
+        let owner = Arc::clone(&self.orchestrator);
+        tokio::task::spawn_blocking(move || {
+            owner
+                .lock()
+                .map_err(|_| {
+                    OrchestrationError::Persistence(
+                        "Pi orchestration owner lock is poisoned during budget revalidation"
+                            .to_string(),
+                    )
+                })?
+                .revalidate_budgets(now_unix)
+        })
+        .await
+        .map_err(|error| {
+            OrchestrationError::Persistence(format!("Pi budget revalidation task failed: {error}"))
+        })?
+    }
+
     /// What: Execute one item on the blocking pool with exact cancellation registration.
     ///
     /// Inputs:
@@ -2337,7 +2628,7 @@ impl<A: OrchestrationAdapter + Send + 'static> PiScanSequentialRunner<A> {
         &self,
         now_unix: u64,
     ) -> Result<Option<ExecutionReceipt>, OrchestrationError> {
-        self.run_next_with_optional_progress(now_unix, None, None)
+        self.run_next_with_optional_progress(now_unix, None, None, None)
             .await
     }
 
@@ -2361,7 +2652,7 @@ impl<A: OrchestrationAdapter + Send + 'static> PiScanSequentialRunner<A> {
         now_unix: u64,
         started_tx: tokio::sync::mpsc::UnboundedSender<crate::state::pi_scan::PiScanActiveItem>,
     ) -> Result<Option<ExecutionReceipt>, OrchestrationError> {
-        self.run_next_with_optional_progress(now_unix, Some(started_tx), None)
+        self.run_next_with_optional_progress(now_unix, Some(started_tx), None, None)
             .await
     }
 
@@ -2387,8 +2678,41 @@ impl<A: OrchestrationAdapter + Send + 'static> PiScanSequentialRunner<A> {
         started_tx: tokio::sync::mpsc::UnboundedSender<crate::state::pi_scan::PiScanActiveItem>,
         phase_tx: tokio::sync::mpsc::UnboundedSender<PiScanExecutionProgress>,
     ) -> Result<Option<ExecutionReceipt>, OrchestrationError> {
-        self.run_next_with_optional_progress(now_unix, Some(started_tx), Some(phase_tx))
+        self.run_next_with_optional_progress(now_unix, Some(started_tx), Some(phase_tx), None)
             .await
+    }
+
+    /// What: Execute one item with an owner-level unattended-start authorization gate.
+    ///
+    /// Inputs:
+    /// - `now_unix`: Start and accounting timestamp.
+    /// - `started_tx`: Typed channel receiving the registered active item.
+    /// - `phase_tx`: Typed channel receiving transient execution phases.
+    /// - `unattended_authorization`: Shared complete session authorization read under owner lock.
+    ///
+    /// Output:
+    /// - Canonical receipt, idle `None`, or a fail-closed error.
+    ///
+    /// Details:
+    /// - Foreground requests bypass this session-only gate; background requests are checked while
+    ///   the central owner lock is held immediately before scheduling.
+    ///
+    /// # Errors
+    /// - Returns queue, acquisition, execution, cancellation, persistence, or join failures.
+    pub async fn run_next_with_progress_policy(
+        &self,
+        now_unix: u64,
+        started_tx: tokio::sync::mpsc::UnboundedSender<crate::state::pi_scan::PiScanActiveItem>,
+        phase_tx: tokio::sync::mpsc::UnboundedSender<PiScanExecutionProgress>,
+        unattended_authorization: Arc<PiScanUnattendedAuthorization>,
+    ) -> Result<Option<ExecutionReceipt>, OrchestrationError> {
+        self.run_next_with_optional_progress(
+            now_unix,
+            Some(started_tx),
+            Some(phase_tx),
+            Some(unattended_authorization),
+        )
+        .await
     }
 
     /// Execute one registered item with optional deterministic progress publishers.
@@ -2399,6 +2723,7 @@ impl<A: OrchestrationAdapter + Send + 'static> PiScanSequentialRunner<A> {
             tokio::sync::mpsc::UnboundedSender<crate::state::pi_scan::PiScanActiveItem>,
         >,
         phase_tx: Option<tokio::sync::mpsc::UnboundedSender<PiScanExecutionProgress>>,
+        unattended_authorization: Option<Arc<PiScanUnattendedAuthorization>>,
     ) -> Result<Option<ExecutionReceipt>, OrchestrationError> {
         let owner = Arc::clone(&self.orchestrator);
         let active = Arc::clone(&self.active);
@@ -2418,6 +2743,7 @@ impl<A: OrchestrationAdapter + Send + 'static> PiScanSequentialRunner<A> {
                 now_unix,
                 &cancelled,
                 &shutdown_requested,
+                unattended_authorization.as_deref(),
                 |item| {
                     if let Ok(mut slot) = active.lock() {
                         *slot = Some(ActiveCancellation {
@@ -2584,6 +2910,29 @@ fn reset_consent_for_binding(state: &mut OrchestrationState, binding: &str) {
         configuration_binding: binding.to_string(),
         ..PiScanSetupConsentState::default()
     };
+}
+
+/// Persist all three budget settings through one atomic settings-file replacement.
+fn persist_budget_settings(limits: PiScanBudgetLimits) -> Result<(), String> {
+    crate::theme::PiScanSettings::persist_budget_limits_atomic(limits)
+}
+
+/// Combine a failed state commit with best-effort settings/state rollback evidence.
+fn budget_transaction_rollback_error(
+    original: &OrchestrationError,
+    settings_rollback: Result<(), String>,
+    state_rollback: Result<(), OrchestrationError>,
+) -> OrchestrationError {
+    use std::fmt::Write as _;
+
+    let mut reason = format!("Pi budget transaction did not commit: {original}");
+    if let Err(error) = settings_rollback {
+        let _ = write!(reason, "; settings rollback failed: {error}");
+    }
+    if let Err(error) = state_rollback {
+        let _ = write!(reason, "; orchestration rollback failed: {error}");
+    }
+    OrchestrationError::Persistence(reason)
 }
 
 /// Persist the independent versioned consent document with private atomic permissions.

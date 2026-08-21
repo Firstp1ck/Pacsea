@@ -271,59 +271,65 @@ fn pi_scan_runtime_options_for_settings(
     dry_run: bool,
 ) -> crate::app::runtime::workers::pi_scan::PiScanRuntimeOptions {
     let root = crate::theme::config_dir().join("pi_scan");
+    let cost_microusd =
+        crate::theme::parse_pi_scan_cost_microusd(&settings.background_cost_cap_24h);
     let settings_valid = settings.validation_issues().is_empty();
     let enabled = settings.enabled && settings_valid;
-    let production = settings_valid.then(|| {
-        let mut models = Vec::new();
-        if !settings.provider.trim().is_empty() && !settings.model.trim().is_empty() {
-            models.push(crate::pi_agent::session::ModelChoice {
-                provider: settings.provider.trim().to_string(),
-                model: settings.model.trim().to_string(),
-            });
-        }
-        for fallback in settings
-            .fallback_models
-            .split(',')
-            .map(str::trim)
-            .filter(|model| !model.is_empty())
-        {
-            let (provider, model) = fallback.split_once('/').map_or_else(
-                || (settings.provider.trim(), fallback),
-                |(provider, model)| (provider, model),
-            );
-            models.push(crate::pi_agent::session::ModelChoice {
-                provider: provider.to_string(),
-                model: model.to_string(),
-            });
-        }
-        crate::pi_scan_production::ProductionRuntimeSettings {
-            binary: settings.binary.clone(),
-            models,
-            background_execution: settings.background_enabled,
-            thinking: settings.thinking.clone(),
-            observation_interval_seconds: settings.observation_interval_seconds,
-            model_attempt_timeout: std::time::Duration::from_secs(
-                settings.model_attempt_timeout_seconds,
-            ),
-            logical_timeout: std::time::Duration::from_secs(settings.logical_timeout_seconds),
-            head_query_timeout: std::time::Duration::from_secs(settings.head_query_timeout_seconds),
-            observation_deadline: std::time::Duration::from_secs(
-                settings.observation_deadline_seconds,
-            ),
-            result_retention_days: settings.result_retention_days,
-            reservation: crate::state::pi_scan::PiScanReservation {
-                tokens: crate::pi_agent::setup_probe::SETUP_PROBE_RESERVATION_TOKENS,
-                cost_microusd: u64::MAX,
-            },
-            budget_limits: crate::state::pi_scan::PiScanBudgetLimits {
-                starts_per_hour: settings.background_starts_per_hour,
-                tokens_per_24h: settings.background_token_cap_24h,
-                cost_microusd_per_24h: pi_scan_cost_cap_microusd(&settings.background_cost_cap_24h)
-                    .unwrap_or(0),
-            },
-            https_proxy: settings.https_proxy.clone(),
-        }
-    });
+    let production = cost_microusd
+        .ok()
+        .filter(|_| settings_valid)
+        .map(|cost_microusd| {
+            let mut models = Vec::new();
+            if !settings.provider.trim().is_empty() && !settings.model.trim().is_empty() {
+                models.push(crate::pi_agent::session::ModelChoice {
+                    provider: settings.provider.trim().to_string(),
+                    model: settings.model.trim().to_string(),
+                });
+            }
+            for fallback in settings
+                .fallback_models
+                .split(',')
+                .map(str::trim)
+                .filter(|model| !model.is_empty())
+            {
+                let (provider, model) = fallback.split_once('/').map_or_else(
+                    || (settings.provider.trim(), fallback),
+                    |(provider, model)| (provider, model),
+                );
+                models.push(crate::pi_agent::session::ModelChoice {
+                    provider: provider.to_string(),
+                    model: model.to_string(),
+                });
+            }
+            crate::pi_scan_production::ProductionRuntimeSettings {
+                binary: settings.binary.clone(),
+                models,
+                background_execution: settings.background_enabled,
+                thinking: settings.thinking.clone(),
+                observation_interval_seconds: settings.observation_interval_seconds,
+                model_attempt_timeout: std::time::Duration::from_secs(
+                    settings.model_attempt_timeout_seconds,
+                ),
+                logical_timeout: std::time::Duration::from_secs(settings.logical_timeout_seconds),
+                head_query_timeout: std::time::Duration::from_secs(
+                    settings.head_query_timeout_seconds,
+                ),
+                observation_deadline: std::time::Duration::from_secs(
+                    settings.observation_deadline_seconds,
+                ),
+                result_retention_days: settings.result_retention_days,
+                reservation: crate::state::pi_scan::PiScanReservation {
+                    tokens: crate::pi_agent::setup_probe::SETUP_PROBE_RESERVATION_TOKENS,
+                    cost_microusd: u64::MAX,
+                },
+                budget_limits: crate::state::pi_scan::PiScanBudgetLimits {
+                    starts_per_hour: settings.background_starts_per_hour,
+                    tokens_per_24h: settings.background_token_cap_24h,
+                    cost_microusd_per_24h: cost_microusd,
+                },
+                https_proxy: settings.https_proxy.clone(),
+            }
+        });
     crate::app::runtime::workers::pi_scan::PiScanRuntimeOptions {
         enabled,
         dry_run,
@@ -333,18 +339,45 @@ fn pi_scan_runtime_options_for_settings(
     }
 }
 
-/// Convert a validated decimal dollar cap to integer micro-USD without floating-point drift.
-fn pi_scan_cost_cap_microusd(value: &str) -> Option<u64> {
-    let trimmed = value.trim();
-    let (whole, fraction) = trimmed.split_once('.').map_or((trimmed, ""), |parts| parts);
-    if whole.is_empty()
-        || !whole.chars().all(|character| character.is_ascii_digit())
-        || fraction.len() > 6
-        || !fraction.chars().all(|character| character.is_ascii_digit())
-    {
-        return None;
+#[cfg(test)]
+mod pi_scan_budget_validation_tests {
+    use super::pi_scan_runtime_options_for_settings;
+
+    /// Runtime construction accepts explicit Unlimited and the exact native micro-USD maximum.
+    #[test]
+    fn runtime_cost_budget_preserves_exact_zero_and_maximum() {
+        for (text, expected) in [("0.00", 0), ("18446744073709.551615", u64::MAX)] {
+            let settings = crate::theme::PiScanSettings {
+                enabled: true,
+                background_cost_cap_24h: text.to_string(),
+                ..crate::theme::PiScanSettings::default()
+            };
+            let options = pi_scan_runtime_options_for_settings(&settings, false);
+            assert!(options.enabled);
+            assert_eq!(
+                options
+                    .production
+                    .expect("valid runtime")
+                    .budget_limits
+                    .cost_microusd_per_24h,
+                expected
+            );
+        }
     }
-    let dollars = whole.parse::<u64>().ok()?;
-    let micros = format!("{fraction:0<6}").parse::<u64>().ok()?;
-    dollars.checked_mul(1_000_000)?.checked_add(micros)
+
+    /// Runtime construction fails closed instead of converting malformed or overflowing cost to zero.
+    #[test]
+    fn runtime_cost_budget_rejects_malformed_and_overflow_values() {
+        for text in ["malformed", "18446744073709.551616"] {
+            let settings = crate::theme::PiScanSettings {
+                enabled: true,
+                background_cost_cap_24h: text.to_string(),
+                ..crate::theme::PiScanSettings::default()
+            };
+            let options = pi_scan_runtime_options_for_settings(&settings, false);
+            assert!(!options.enabled);
+            assert!(options.production.is_none());
+            assert!(!settings.validation_issues().is_empty());
+        }
+    }
 }

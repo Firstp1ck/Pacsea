@@ -90,6 +90,7 @@ hu-HU:
         allowed: "allowed" # TODO: translate to Hungarian
         not_allowed: "not allowed" # TODO: translate to Hungarian
         none: "none" # TODO: translate to Hungarian
+        unlimited: "Korlátlan"
         package_base: "package base" # TODO: translate to Hungarian
         commit: "commit" # TODO: translate to Hungarian
       coverage:
@@ -129,7 +130,9 @@ hu-HU:
           at_least: "{} must be at least {}" # TODO: translate to Hungarian
           between: "{} must be between 1 and {}" # TODO: translate to Hungarian
           cannot_exceed: "{} cannot exceed {}" # TODO: translate to Hungarian
-          nonnegative_decimal: "{} must be a non-negative decimal" # TODO: translate to Hungarian
+          native_integer: "{} nemnegatív egész szám kell legyen, legfeljebb {}"
+          exact_decimal: "{} nemnegatív tizedes szám kell legyen, legfeljebb hat tizedesjeggyel"
+          exact_cost_maximum: "{} meghaladja a pontos mikro-USD érték maximumát"
           https_proxy: "{} must be credential-free HTTPS or empty" # TODO: translate to Hungarian
         feature_background: "Feature enabled / paid background enabled" # TODO: translate to Hungarian
         provider_model: "Provider / model" # TODO: translate to Hungarian
@@ -138,8 +141,8 @@ hu-HU:
         coverage: "Coverage: results are advisory and can be incomplete; they do not prove installed bytes or package safety." # TODO: translate to Hungarian
         readiness: "Readiness" # TODO: translate to Hungarian
         config: "Configuration" # TODO: translate to Hungarian
-        effective_compiled: "Effective / compiled maxima" # TODO: translate to Hungarian
-        effective_values: "head {}/15 · observe {}/90 · model {}/300 · logical {}/720 · starts {}/5 · tokens {}/500000" # TODO: translate to Hungarian
+        effective_compiled: "Érvényes beállítások / beépített időkorlát-maximumok"
+        effective_values: "head {}/15 · megfigyelés {}/90 · modell {}/300 · teljes {}/720 · indítás {} · token {} · költség {} (a 0 keret = Korlátlan)"
         thinking: "Thinking" # TODO: translate to Hungarian
         tool_contract: "Tool contract" # TODO: translate to Hungarian
         verified_pi: "Verified Pi" # TODO: translate to Hungarian
@@ -243,12 +246,12 @@ hu-HU:
           observation: "Csak olvasható háttérmegfigyelés"
           background_paid: "Fizetős háttérbeli futtatás"
           fallback: "Rendezett pontos tartalék útvonal"
-          starts: "Háttérindítás/óra (legfeljebb 5)"
-          tokens: "Háttértoken/24 óra (legfeljebb 500000)"
-          cost: "Háttérköltség USD/24 óra"
+          starts: "Háttérindítás/óra (0 = Korlátlan)"
+          tokens: "Háttértoken/24 óra (0 = Korlátlan)"
+          cost: "Háttérköltség USD/24 óra (0 = Korlátlan)"
           retention: "Eredménymegőrzés napokban"
           proxy: "Hitelesítő adatok nélküli HTTPS-proxy"
-          defaults: "Alapértékek: megfigyelés ki · fizetős háttér ki · tartalék útvonal ki · költség 0.00."
+          defaults: "Konzervatív alapértékek: megfigyelés ki · fizetős háttér ki · tartalék útvonal ki · költség Korlátlan (0.00-ként tárolva)."
         review:
           explanation: "Tekintsen át minden érvényes értéket. Az izolált ellenőrzés nem okozott tartós változást."
           route: "Program · pontos útvonal · gondolkodási szint"
@@ -256,11 +259,11 @@ hu-HU:
           pricing: "Legrosszabb token / mikro-USD / Unix-ellenőrzési idő / frissesség másodpercben"
           fallback: "Rendezett tartalék útvonal"
           confirmations: "Tájékoztató / fizetős előtér / megfigyelés / fizetős háttér / tartalék / készenlét"
-          background: "Háttér engedélyezve / indítás óránként / költség USD"
+          background: "Háttér engedélyezve / indítás óránként / költség USD (0 = Korlátlan)"
           timeouts: "Head / megfigyelés / modell / teljes időkorlát másodpercben"
-          limits: "Token / megőrzés / nyers kimenet / HTTPS-proxy"
-          compiled: "Beépített maximumok"
-          compiled_values: "head≤15 / megfigyelés≤90 / modell≤300 / teljes≤720 / indítás≤5 / token≤500000"
+          limits: "Token (0 = Korlátlan) / megőrzés / nyers kimenet / HTTPS-proxy"
+          compiled: "Beépített időkorlát-maximumok"
+          compiled_values: "head≤15 / megfigyelés≤90 / modell≤300 / teljes≤720 (keretek: 0 = Korlátlan)"
           binding: "Pontos árkötés"
           transaction: "Az Alkalmazás újra ellenőriz, teszteli a jelöltet, atomikusan ment, majd lecseréli a futtatókörnyezetet."
           advisory: "Alkalmazás előtt a Mégse csak a piszkozatot veti el. Alkalmazás közben az első Esc figyelmeztet, a második kifejezett visszaállítást kér."
@@ -297,6 +300,16 @@ hu-HU:
         observation_permission: "Background observation" # TODO: translate to Hungarian
         paid_permission: "Paid execution" # TODO: translate to Hungarian
         advisory: "Advisory only: no result authorizes installation and incomplete coverage remains visible." # TODO: translate to Hungarian
+      budget_dialog:
+        title: "Felügyelet nélküli keretek módosítása"
+        prompt: "Válassza ki, hogyan módosuljon a következő háttérvizsgálatot jelenleg blokkoló összes korlát."
+        double: "Érintett korlátok megduplázása"
+        unlimited: "Érintett korlátok beállítása Korlátlan értékre"
+        unlimited_warning: "A Korlátlan megszünteti ezeket a költési plafonokat; a fizetős háttérbeli modellhívások külön szüneteltetésig folytatódhatnak."
+        overflow: "nem duplázható meg pontosan"
+        submitting: "Alkalmazás a Pi Scan futtatókörnyezetén keresztül…"
+        rejected: "A módosítás elutasítva"
+        keys: "Tab/←/→ fókusz · Enter Alkalmazás · Esc Mégse"
       targets:
         list_heading: "Scan targets" # TODO: translate to Hungarian
         hint: "Space selects targets; Enter queues or creates a dry-run preview." # TODO: translate to Hungarian
@@ -334,7 +347,7 @@ hu-HU:
           service: "service pause" # TODO: translate to Hungarian
           budget: "budget pause" # TODO: translate to Hungarian
         budget_limits: "Limit(s) currently exceeded" # TODO: translate to Hungarian
-        budget_solution: "Wait for the rolling window to expire, or open Setup (1) and press r to increase the affected limit. Would you like to increase it?" # TODO: translate to Hungarian
+        budget_solution: "Várja meg a gördülő időablak lejártát, vagy nyomja meg itt a b billentyűt az érintett korlátok Duplázás vagy Korlátlan módosításához. A Duplázás után is maradhat túllépett korlát."
         budget_unknown: "the next reservation could not be classified" # TODO: translate to Hungarian
         limit_starts: "background starts/hour" # TODO: translate to Hungarian
         limit_tokens: "background tokens/24h" # TODO: translate to Hungarian
@@ -407,15 +420,16 @@ hu-HU:
         background: "background" # TODO: translate to Hungarian
         keys:
           setup: "r Guided setup · v Verify · c/o/p/b/f/w consent · PgUp/PgDn · g/G · Esc Package · ? Help" # TODO: translate to Hungarian
-          overview: "PgUp/PgDn scroll · g/G top/bottom · Esc Package · ? Help" # TODO: translate to Hungarian
+          overview: "b Keret · PgUp/PgDn görgetés · g/G eleje/vége · Esc csomag · ? súgó"
           targets: "j/k move · PgUp/PgDn · g/G · Space select · Enter queue · Esc Package · ? Help" # TODO: translate to Hungarian
-          progress: "p Pause · u Resume · x Cancel · r Retry · PgUp/PgDn · g/G · Esc Package · ? Help" # TODO: translate to Hungarian
+          progress: "p Szünet · u Folytatás · x Megszakítás · r Újra · b Keret · PgUp/PgDn · g/G · Esc csomag · ? súgó"
           results: "j/k move · PgUp/PgDn · g/G · Enter Details · Esc Package · ? Help" # TODO: translate to Hungarian
           details: "j/k csomagválasztás · PgUp/PgDn görgetés · Enter/szóköz kibontás · g/G eleje/vége · a/s jóváhagyás · c folytatás · b alapérték · t nyers adat · Esc csomag · ? súgó" # TODO: translate to Hungarian
       notices:
         session_only: "Consent preference updated; the runtime applies persisted consent before eligible work starts." # TODO: translate to Hungarian
         non_aur_entry: "Pi Scan analyzes AUR packages; select an AUR result in Search and press Shift+A to add a target." # TODO: translate to Hungarian
         settings_changed_reload: "A Pi Scan beállításai megváltoztak az újratöltés során; az irányított beállítás bezárult, hogy áttekinthesse az új értékeket."
+        budget_reload_requires_restart: "A Pi Scan költségkeret-beállításai az élő futtatókörnyezeten kívül változtak. A csatlakoztatott futtatókörnyezet megtartja a jelenlegi korlátokat; indítsa újra a Pacsea alkalmazást a szerkesztett értékek alkalmazásához, vagy használja a b billentyűt egy költségkeret miatt szüneteltetett Áttekintés/Folyamat oldalon a közvetlen élő módosításhoz."
         select_result_continue: "Folytatás előtt válasszon ki egy ellenőrzött Pi Scan-eredményt."
         select_result_baseline: "Az alapérték elfogadása előtt válasszon ki egy ellenőrzött Pi Scan-eredményt."
         no_active_cancel: "No active Pi scan to cancel." # TODO: translate to Hungarian
@@ -445,6 +459,12 @@ hu-HU:
         setup_rollback_complete: "Pi Scan setup rollback completed; the previous configuration remains authoritative." # TODO: translate to Hungarian
         setup_rollback_failed: "Pi Scan setup rollback failed" # TODO: translate to Hungarian
         setup_secondary_outcome: "Secondary rollback outcome" # TODO: translate to Hungarian
+        budget_no_longer_blocked: "A várakozó háttérvizsgálatot már nem blokkolja a keret; egyetlen korlát sem változott."
+        budget_no_longer_blocked_preview: "Próbafuttatási előnézet: a várakozó háttérvizsgálatot már nem blokkolja a keret; egyetlen korlát sem változna."
+        budget_preview: "Csak próbafuttatási előnézet: a javasolt keretek nem lettek kiírva, és a futtatókörnyezet állapota nem változott."
+        budget_applied: "A keretek alkalmazva; nem maradt keret miatti szünet."
+        budget_applied_residual: "A keretek alkalmazva, de a munka továbbra is szünetel a következő túllépés miatt"
+        budget_rejected: "A keret módosítása nem lett alkalmazva"
         policy:
           pause:
             requesting: "Requesting pause…" # TODO: translate to Hungarian
@@ -804,6 +824,16 @@ hu-HU:
           popup_reset: "Érték visszaállítása"
           export: "Érvényes értékek exportálása"
           pi_scan_setup: "Az irányított Pi Scan-beállítás megnyitása"
+        settings:
+          pi_scan_background_starts_per_hour:
+            label: "Pi Scan: háttérindítás/óra"
+            summary: "Gördülő felügyelet nélküli indítási keret; a 0 jelentése Korlátlan."
+          pi_scan_background_token_cap_24h:
+            label: "Pi Scan: háttértoken/24 óra"
+            summary: "Gördülő felügyelet nélküli tokenkeret; a 0 jelentése Korlátlan."
+          pi_scan_background_cost_cap_24h:
+            label: "Pi Scan: háttérköltség/24 óra"
+            summary: "Nem negatív decimális dollárkeret; a 0 vagy 0.00 jelentése Korlátlan."
       alert:
         header_configuration_error: "Konfigurációs hiba"
         header_clipboard_copy: "Másolás a vágólapra"
@@ -923,6 +953,7 @@ hu-HU:
           - "  • Entry: Shift+A from an AUR Search result; use the configured setup chord from the config editor" # TODO: translate to Hungarian
           - "  • Pages: 1–6, Tab/BackTab · j/k move or scroll · PgUp/PgDn · g/G top/bottom" # TODO: translate to Hungarian
           - "  • Targets: Space select · Enter queue" # TODO: translate to Hungarian
+          - "  • Áttekintés/Folyamat: b módosítja a jelenleg túllépett kereteket Duplázás vagy Korlátlan értékkel"
           - "  • Progress: p pause · u resume · x cancel · r retry" # TODO: translate to Hungarian
           - "  • Results: Enter opens Details" # TODO: translate to Hungarian
           - "  • Details: a/s acknowledge · c continue · b baseline · t raw-data toggle" # TODO: translate to Hungarian

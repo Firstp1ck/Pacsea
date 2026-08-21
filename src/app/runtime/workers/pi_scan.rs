@@ -10,9 +10,10 @@ use crate::pi_agent::process::{
 };
 use crate::pi_agent::protocol::CommandCorrelator;
 use crate::state::pi_scan::{
-    PiScanActiveItem, PiScanActualUsage, PiScanConsentState, PiScanJobRequest,
-    PiScanPersistedState, PiScanPersistenceError, PiScanQueueKey, PiScanRuntimeState,
-    PiScanStartBlock, PiScanTerminalRecord, load_pi_scan_state, save_pi_scan_state_atomic,
+    PiScanActiveItem, PiScanActualUsage, PiScanBudgetAdjustment, PiScanBudgetAdjustmentResult,
+    PiScanConsentState, PiScanJobRequest, PiScanPersistedState, PiScanPersistenceError,
+    PiScanQueueKey, PiScanRuntimeState, PiScanStartBlock, PiScanTerminalRecord, load_pi_scan_state,
+    save_pi_scan_state_atomic,
 };
 use std::fmt;
 use std::path::PathBuf;
@@ -87,7 +88,7 @@ pub const fn pi_scan_runtime_supported() -> bool {
 ///
 /// Details:
 /// - These commands never contain source bodies, prompts, credentials, or Pi wire records.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug)]
 pub enum PiScanRequestMessage {
     /// Probe and publish exact setup facts without changing consent.
     ProbeSetup,
@@ -156,6 +157,15 @@ pub enum PiScanRequestMessage {
         mutable_sources: Vec<crate::logic::pi_scan::acquisition::MutableSourceIdentity>,
         /// Exact result/acknowledgement binding awaiting continuation.
         result_binding: String,
+    },
+    /// Adjust every budget exceeded by the next queued background reservation.
+    AdjustBudgets {
+        /// Exact checked Double or affected-only Unlimited policy.
+        adjustment: PiScanBudgetAdjustment,
+        /// Unix timestamp used to recompute and revalidate rolling windows.
+        now_unix: u64,
+        /// Request-owned typed acknowledgement destination.
+        acknowledge: mpsc::UnboundedSender<PiScanBudgetAdjustmentAcknowledgement>,
     },
     /// Revalidate rolling windows at a deterministic timestamp.
     RevalidateBudgets {
@@ -315,6 +325,8 @@ pub enum PiScanProgressMessage {
     },
     /// One request became active and is ready for deferred acquisition/execution.
     Started(PiScanActiveItem),
+    /// Authoritative durable runtime projection after rolling-budget state changed.
+    BudgetRevalidated(Box<PiScanRuntimeState>),
     /// Correlation-owned transient execution phase from the production adapter.
     PhaseChanged(crate::state::PiScanExecutionProgress),
     /// Work remains queued behind a policy gate.
@@ -333,6 +345,47 @@ pub enum PiScanProgressMessage {
     },
     /// Worker reached its shutdown durability boundary.
     Shutdown(PiScanShutdownAck),
+}
+
+/// What: Typed acknowledgement for one authoritative budget adjustment request.
+///
+/// Inputs:
+/// - Selected adjustment, exact scheduler result, and durability/dry-run facts.
+///
+/// Output:
+/// - Projection-safe success or preview consumed by WS2 without reclassifying limits.
+///
+/// Details:
+/// - `durable` is true only after both settings and owner state cross their persistence boundary.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PiScanBudgetAdjustmentAcknowledgement {
+    /// Authoritative Apply found no exceeded budget and performed no mutation or wake.
+    NoLongerBlocked {
+        /// Requested adjustment policy.
+        adjustment: PiScanBudgetAdjustment,
+        /// Exact empty-affected scheduler result.
+        result: PiScanBudgetAdjustmentResult,
+        /// Whether this acknowledgement came from inert dry-run evaluation.
+        dry_run: bool,
+    },
+    /// Adjustment was durably applied or inertly previewed.
+    Applied {
+        /// Requested adjustment policy.
+        adjustment: PiScanBudgetAdjustment,
+        /// Exact affected/residual scheduler result.
+        result: PiScanBudgetAdjustmentResult,
+        /// Whether the applied policy is durable.
+        durable: bool,
+        /// Whether this is an inert dry-run preview.
+        dry_run: bool,
+    },
+    /// Adjustment was rejected without an execution wake.
+    Rejected {
+        /// Requested adjustment policy.
+        adjustment: PiScanBudgetAdjustment,
+        /// Actionable rejection reason.
+        reason: String,
+    },
 }
 
 /// Typed terminal or rejection message published by the runtime worker.
@@ -663,6 +716,15 @@ impl PiScanWorker {
             return;
         }
         let now = request_timestamp(&request).unwrap_or_else(unix_now);
+        if let PiScanRequestMessage::AdjustBudgets {
+            adjustment,
+            now_unix,
+            acknowledge,
+        } = request
+        {
+            self.handle_budget_adjustment(adjustment, now_unix, &acknowledge);
+            return;
+        }
         let mutation = match request {
             PiScanRequestMessage::ProbeSetup | PiScanRequestMessage::ManualObservation { .. } => {
                 Err(
@@ -706,6 +768,7 @@ impl PiScanWorker {
                 "linked continuation validation requires the production Pi orchestrator"
                     .to_string(),
             ),
+            PiScanRequestMessage::AdjustBudgets { .. } => unreachable!("handled above"),
             PiScanRequestMessage::RevalidateBudgets { now_unix } => {
                 self.state.revalidate_budget_pause(now_unix);
                 Ok(())
@@ -731,10 +794,85 @@ impl PiScanWorker {
                     .progress_tx
                     .send(PiScanProgressMessage::DryRunPreview(job));
             }
+            PiScanRequestMessage::AdjustBudgets {
+                adjustment,
+                now_unix,
+                acknowledge,
+            } => {
+                let mut preview = self.state.clone();
+                let acknowledgement = match preview.adjust_exceeded_budgets(adjustment, now_unix)
+                {
+                    Ok(result) if result.affected.is_empty() => {
+                        PiScanBudgetAdjustmentAcknowledgement::NoLongerBlocked {
+                            adjustment,
+                            result,
+                            dry_run: true,
+                        }
+                    }
+                    Ok(result) => PiScanBudgetAdjustmentAcknowledgement::Applied {
+                        adjustment,
+                        result,
+                        durable: false,
+                        dry_run: true,
+                    },
+                    Err(error) => PiScanBudgetAdjustmentAcknowledgement::Rejected {
+                        adjustment,
+                        reason: error.to_string(),
+                    },
+                };
+                let _ = acknowledge.send(acknowledgement);
+            }
             _ => self.reject(
                 "dry-run preview did not mutate Pi scan consent, pause, budget, queue, result, or durable state",
             ),
         }
+    }
+
+    /// Apply one inert-owner adjustment with rollback on persistence failure.
+    fn handle_budget_adjustment(
+        &mut self,
+        adjustment: PiScanBudgetAdjustment,
+        now_unix: u64,
+        acknowledge: &mpsc::UnboundedSender<PiScanBudgetAdjustmentAcknowledgement>,
+    ) {
+        let previous = self.state.clone();
+        let result = match self.state.adjust_exceeded_budgets(adjustment, now_unix) {
+            Ok(result) => result,
+            Err(error) => {
+                let reason = error.to_string();
+                let _ = acknowledge.send(PiScanBudgetAdjustmentAcknowledgement::Rejected {
+                    adjustment,
+                    reason: reason.clone(),
+                });
+                self.reject(&reason);
+                return;
+            }
+        };
+        if result.affected.is_empty() {
+            let _ = acknowledge.send(PiScanBudgetAdjustmentAcknowledgement::NoLongerBlocked {
+                adjustment,
+                result,
+                dry_run: false,
+            });
+            return;
+        }
+        if let Err(error) = self.persist() {
+            self.state = previous;
+            let reason = error.to_string();
+            let _ = acknowledge.send(PiScanBudgetAdjustmentAcknowledgement::Rejected {
+                adjustment,
+                reason: reason.clone(),
+            });
+            self.reject(&reason);
+            return;
+        }
+        let _ = acknowledge.send(PiScanBudgetAdjustmentAcknowledgement::Applied {
+            adjustment,
+            result,
+            durable: true,
+            dry_run: false,
+        });
+        self.dispatch(now_unix);
     }
 
     /// Append a queue item and publish its exact queue depth.
@@ -933,7 +1071,8 @@ const fn request_timestamp(request: &PiScanRequestMessage) -> Option<u64> {
         PiScanRequestMessage::Complete {
             finished_at_unix, ..
         } => Some(*finished_at_unix),
-        PiScanRequestMessage::RevalidateBudgets { now_unix } => Some(*now_unix),
+        PiScanRequestMessage::AdjustBudgets { now_unix, .. }
+        | PiScanRequestMessage::RevalidateBudgets { now_unix } => Some(*now_unix),
         PiScanRequestMessage::ProbeSetup
         | PiScanRequestMessage::ManualObservation { .. }
         | PiScanRequestMessage::Enqueue(_)

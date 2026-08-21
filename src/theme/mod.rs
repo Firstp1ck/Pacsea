@@ -45,7 +45,13 @@ pub use paths::{
 };
 pub use settings::settings;
 pub use store::{reload_theme, theme};
-pub use types::{KeyChord, KeyMap, PackageMarker, PiScanSettings, Settings, Theme};
+pub(crate) use types::format_pi_scan_budget_microusd;
+pub use types::{
+    KeyChord, KeyMap, PackageMarker, PiScanSettings, Settings, Theme, parse_pi_scan_cost_microusd,
+};
+
+#[cfg(test)]
+pub(crate) use config::patch::fail_next_parent_directory_sync_after_rename;
 
 #[cfg(test)]
 static TEST_MUTEX: std::sync::OnceLock<std::sync::Mutex<()>> = std::sync::OnceLock::new();

@@ -387,6 +387,7 @@ pi_scan_head_query_timeout_seconds = 15\n\
 pi_scan_observation_deadline_seconds = 90\n\
 pi_scan_model_attempt_timeout_seconds = 300\n\
 pi_scan_logical_timeout_seconds = 720\n\
+# A numeric zero means Unlimited for each of the following independent budgets.\n\
 pi_scan_background_starts_per_hour = 5\n\
 pi_scan_background_token_cap_24h = 500000\n\
 pi_scan_background_cost_cap_24h = 0.00\n\

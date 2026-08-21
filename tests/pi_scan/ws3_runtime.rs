@@ -3,11 +3,13 @@
 use super::*;
 use crate::logic::pi_scan::identity::{CommitOid, PackageBase};
 use crate::state::pi_scan::{
-    PI_SCAN_RUNTIME_SCHEMA_VERSION, PiScanActualUsage, PiScanBudgetLimits, PiScanConsentState,
+    PI_SCAN_RUNTIME_SCHEMA_VERSION, PiScanActualUsage, PiScanBudgetAdjustment,
+    PiScanBudgetAdjustmentError, PiScanBudgetDimension, PiScanBudgetLimits, PiScanConsentState,
     PiScanJobRequest, PiScanPauseReason, PiScanPersistedState, PiScanPersistenceError,
     PiScanPriority, PiScanQueueKey, PiScanReservation, PiScanRuntimeState, PiScanStartBlock,
     PiScanTerminalStatus, load_pi_scan_state, save_pi_scan_state_atomic,
 };
+use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::time::{Duration, timeout};
@@ -276,6 +278,332 @@ fn rolling_background_budgets_reserve_account_and_resume() {
     );
 }
 
+/// What: Verify numeric zero independently disables starts, tokens, and cost checks.
+///
+/// Inputs:
+/// - Three paid background states whose next reservation exceeds one zero-valued limit.
+///
+/// Output:
+/// - Every state starts because zero is the explicit Unlimited representation.
+///
+/// Details:
+/// - Reproduces the prior zero-cost pause while also fixing starts and tokens consistently.
+#[test]
+fn zero_budget_limits_are_unlimited_for_background_starts() {
+    let scenarios = [
+        PiScanBudgetLimits {
+            starts_per_hour: 0,
+            tokens_per_24h: 10,
+            cost_microusd_per_24h: 10,
+        },
+        PiScanBudgetLimits {
+            starts_per_hour: 1,
+            tokens_per_24h: 0,
+            cost_microusd_per_24h: 10,
+        },
+        PiScanBudgetLimits {
+            starts_per_hour: 1,
+            tokens_per_24h: 10,
+            cost_microusd_per_24h: 0,
+        },
+    ];
+    for limits in scenarios {
+        let mut state = PiScanRuntimeState {
+            budget_limits: limits,
+            ..PiScanRuntimeState::default()
+        };
+        enable_paid_execution(&mut state);
+        state
+            .enqueue(request(
+                1,
+                "unlimited-demo",
+                PiScanPriority::Background,
+                5,
+                5,
+            ))
+            .expect("queued");
+        assert!(
+            state.start_next(1, true).expect("eligible").is_some(),
+            "zero-valued limit must be Unlimited: {limits:?}"
+        );
+    }
+}
+
+/// What: Verify exact checked Double changes every and only currently exceeded limit.
+///
+/// Inputs:
+/// - A queued reservation exceeding starts and tokens while cost still fits.
+///
+/// Output:
+/// - Starts and tokens double exactly; cost and independent pauses remain unchanged.
+///
+/// Details:
+/// - The doubled token limit deliberately remains insufficient and keeps the derived budget pause.
+#[test]
+fn double_adjusts_only_exceeded_limits_and_revalidates_pause() {
+    let mut state = PiScanRuntimeState {
+        budget_limits: PiScanBudgetLimits {
+            starts_per_hour: 1,
+            tokens_per_24h: 4,
+            cost_microusd_per_24h: 100,
+        },
+        ..PiScanRuntimeState::default()
+    };
+    enable_paid_execution(&mut state);
+    state.set_user_paused(true);
+    state.pause_for_service();
+    state
+        .budget
+        .records
+        .push(crate::state::pi_scan::PiScanBudgetRecord {
+            correlation_id: 99,
+            started_at_unix: 1,
+            class: crate::state::pi_scan::PiScanAccountingClass::Background,
+            reserved: PiScanReservation {
+                tokens: 3,
+                cost_microusd: 10,
+            },
+            consumed_tokens: None,
+            consumed_cost_microusd: None,
+        });
+    state
+        .enqueue(request(1, "adjust-demo", PiScanPriority::Background, 6, 20))
+        .expect("queued");
+    assert_eq!(
+        state.exceeded_budget_limits(2),
+        BTreeSet::from([PiScanBudgetDimension::Starts, PiScanBudgetDimension::Tokens,])
+    );
+
+    let result = state
+        .adjust_exceeded_budgets(PiScanBudgetAdjustment::Double, 2)
+        .expect("exact double");
+
+    assert_eq!(result.previous_limits.starts_per_hour, 1);
+    assert_eq!(result.current_limits.starts_per_hour, 2);
+    assert_eq!(result.current_limits.tokens_per_24h, 8);
+    assert_eq!(result.current_limits.cost_microusd_per_24h, 100);
+    assert_eq!(
+        result.remaining_exceeded,
+        BTreeSet::from([PiScanBudgetDimension::Tokens])
+    );
+    assert!(result.budget_paused);
+    assert!(state.pause_reasons.contains(&PiScanPauseReason::User));
+    assert!(state.pause_reasons.contains(&PiScanPauseReason::Service));
+}
+
+/// What: Verify Unlimited affects only exceeded fields and removes their checks.
+///
+/// Inputs:
+/// - One cost-exceeded request under finite starts and tokens.
+///
+/// Output:
+/// - Cost becomes zero/Unlimited while starts and tokens remain finite.
+///
+/// Details:
+/// - A successful revalidation clears only the derived Budget pause.
+#[test]
+fn unlimited_changes_only_affected_fields_and_clears_budget_pause() {
+    let mut state = PiScanRuntimeState {
+        budget_limits: PiScanBudgetLimits {
+            starts_per_hour: 5,
+            tokens_per_24h: 100,
+            cost_microusd_per_24h: 4,
+        },
+        ..PiScanRuntimeState::default()
+    };
+    enable_paid_execution(&mut state);
+    state
+        .enqueue(request(1, "unlimit-demo", PiScanPriority::Background, 5, 5))
+        .expect("queued");
+    assert!(state.revalidate_budget_pause(1));
+
+    let result = state
+        .adjust_exceeded_budgets(PiScanBudgetAdjustment::Unlimited, 1)
+        .expect("unlimited");
+
+    assert_eq!(
+        result.affected,
+        BTreeSet::from([PiScanBudgetDimension::Cost])
+    );
+    assert_eq!(result.current_limits.starts_per_hour, 5);
+    assert_eq!(result.current_limits.tokens_per_24h, 100);
+    assert_eq!(result.current_limits.cost_microusd_per_24h, 0);
+    assert!(result.remaining_exceeded.is_empty());
+    assert!(!result.budget_paused);
+}
+
+/// What: Verify stale Apply with no authoritative hit leaves the complete state untouched.
+///
+/// Inputs:
+/// - An idle state and either adjustment choice.
+///
+/// Output:
+/// - Empty affected/residual sets and byte-for-byte unchanged runtime state.
+///
+/// Details:
+/// - The acknowledgement layer uses the empty affected set to close a stale modal without writes.
+#[test]
+fn no_hit_budget_adjustment_is_state_inert() {
+    for adjustment in [
+        PiScanBudgetAdjustment::Double,
+        PiScanBudgetAdjustment::Unlimited,
+    ] {
+        let mut state = PiScanRuntimeState::default();
+        let before = state.clone();
+
+        let result = state
+            .adjust_exceeded_budgets(adjustment, 50_000)
+            .expect("no-hit acknowledgement");
+
+        assert!(result.affected.is_empty());
+        assert!(result.remaining_exceeded.is_empty());
+        assert!(!result.budget_paused);
+        assert_eq!(state, before);
+    }
+}
+
+/// Aggregate token overflow must exceed a finite maximum even for a zero reservation.
+#[test]
+fn aggregate_token_overflow_exceeds_finite_maximum() {
+    let mut state = PiScanRuntimeState {
+        budget_limits: PiScanBudgetLimits {
+            starts_per_hour: 0,
+            tokens_per_24h: u64::MAX,
+            cost_microusd_per_24h: 0,
+        },
+        ..PiScanRuntimeState::default()
+    };
+    for (correlation_id, tokens) in [(1, u64::MAX), (2, 1)] {
+        state
+            .budget
+            .records
+            .push(crate::state::pi_scan::PiScanBudgetRecord {
+                correlation_id,
+                started_at_unix: 1,
+                class: crate::state::pi_scan::PiScanAccountingClass::Background,
+                reserved: PiScanReservation {
+                    tokens,
+                    cost_microusd: 0,
+                },
+                consumed_tokens: None,
+                consumed_cost_microusd: None,
+            });
+    }
+    state
+        .enqueue(request(
+            3,
+            "token-overflow",
+            PiScanPriority::Background,
+            0,
+            0,
+        ))
+        .expect("queued");
+
+    assert_eq!(
+        state.exceeded_budget_limits(2),
+        BTreeSet::from([PiScanBudgetDimension::Tokens])
+    );
+}
+
+/// Aggregate cost overflow must exceed a finite maximum even for a zero reservation.
+#[test]
+fn aggregate_cost_overflow_exceeds_finite_maximum() {
+    let mut state = PiScanRuntimeState {
+        budget_limits: PiScanBudgetLimits {
+            starts_per_hour: 0,
+            tokens_per_24h: 0,
+            cost_microusd_per_24h: u64::MAX,
+        },
+        ..PiScanRuntimeState::default()
+    };
+    for (correlation_id, cost_microusd) in [(1, u64::MAX), (2, 1)] {
+        state
+            .budget
+            .records
+            .push(crate::state::pi_scan::PiScanBudgetRecord {
+                correlation_id,
+                started_at_unix: 1,
+                class: crate::state::pi_scan::PiScanAccountingClass::Background,
+                reserved: PiScanReservation {
+                    tokens: 0,
+                    cost_microusd,
+                },
+                consumed_tokens: None,
+                consumed_cost_microusd: None,
+            });
+    }
+    state
+        .enqueue(request(
+            3,
+            "cost-overflow",
+            PiScanPriority::Background,
+            0,
+            0,
+        ))
+        .expect("queued");
+
+    assert_eq!(
+        state.exceeded_budget_limits(2),
+        BTreeSet::from([PiScanBudgetDimension::Cost])
+    );
+}
+
+/// What: Verify Double overflow rejects the entire adjustment without mutation.
+///
+/// Inputs:
+/// - Exceeded starts and cost limits where cost cannot double in `u64`.
+///
+/// Output:
+/// - A typed overflow error and byte-for-byte unchanged budget/pause state.
+///
+/// Details:
+/// - No successfully doubled sibling field may leak through a rejected transaction.
+#[test]
+fn double_overflow_rejects_without_partial_mutation() {
+    let mut state = PiScanRuntimeState {
+        budget_limits: PiScanBudgetLimits {
+            starts_per_hour: 1,
+            tokens_per_24h: 0,
+            cost_microusd_per_24h: u64::MAX,
+        },
+        ..PiScanRuntimeState::default()
+    };
+    enable_paid_execution(&mut state);
+    state
+        .budget
+        .records
+        .push(crate::state::pi_scan::PiScanBudgetRecord {
+            correlation_id: 99,
+            started_at_unix: 1,
+            class: crate::state::pi_scan::PiScanAccountingClass::Background,
+            reserved: PiScanReservation {
+                tokens: 0,
+                cost_microusd: u64::MAX,
+            },
+            consumed_tokens: None,
+            consumed_cost_microusd: None,
+        });
+    state
+        .enqueue(request(
+            1,
+            "overflow-demo",
+            PiScanPriority::Background,
+            0,
+            1,
+        ))
+        .expect("queued");
+    assert!(state.revalidate_budget_pause(2));
+    let before = state.clone();
+
+    assert_eq!(
+        state.adjust_exceeded_budgets(PiScanBudgetAdjustment::Double, 2),
+        Err(PiScanBudgetAdjustmentError::Overflow(
+            PiScanBudgetDimension::Cost
+        ))
+    );
+    assert_eq!(state, before);
+}
+
 /// What: Verify independent consents and sticky user/service/budget pause clearing rules.
 ///
 /// Inputs:
@@ -493,6 +821,21 @@ async fn dry_run_never_mutates_durable_state_or_launches_execution() {
         .expect("preview deadline")
         .expect("preview");
     assert_eq!(progress, PiScanProgressMessage::DryRunPreview(job));
+    let (budget_ack_tx, mut budget_ack_rx) = tokio::sync::mpsc::unbounded_channel();
+    channels
+        .request_tx
+        .send(PiScanRequestMessage::AdjustBudgets {
+            adjustment: PiScanBudgetAdjustment::Unlimited,
+            now_unix: 1,
+            acknowledge: budget_ack_tx,
+        })
+        .expect("budget preview");
+    assert!(matches!(
+        timeout(Duration::from_secs(2), budget_ack_rx.recv())
+            .await
+            .expect("budget preview deadline"),
+        Some(PiScanBudgetAdjustmentAcknowledgement::NoLongerBlocked { dry_run: true, .. })
+    ));
     let (ack_tx, ack_rx) = std::sync::mpsc::sync_channel(1);
     channels
         .shutdown_tx
@@ -511,6 +854,128 @@ async fn dry_run_never_mutates_durable_state_or_launches_execution() {
         b"durable-sentinel"
     );
     assert!(!options.quarantine_dir.exists());
+}
+
+/// What: Verify the inert owner persists an adjustment before acknowledging and dispatching.
+///
+/// Inputs:
+/// - A durably queued cost-paused background request and exact Double command.
+///
+/// Output:
+/// - Typed durable acknowledgement, resumed dispatch, and restart-visible doubled cost limit.
+///
+/// Details:
+/// - The request-owned acknowledgement channel avoids requiring UI/result enum changes in WS1.
+#[tokio::test]
+async fn inert_owner_acknowledges_only_after_adjustment_is_durable() {
+    let temp = tempfile::tempdir().expect("temp dir");
+    let options = enabled_options(temp.path(), false);
+    let mut state = PiScanRuntimeState {
+        budget_limits: PiScanBudgetLimits {
+            starts_per_hour: 5,
+            tokens_per_24h: 100,
+            cost_microusd_per_24h: 4,
+        },
+        ..PiScanRuntimeState::default()
+    };
+    enable_paid_execution(&mut state);
+    state
+        .enqueue(request(1, "inert-adjust", PiScanPriority::Background, 5, 5))
+        .expect("queued");
+    assert!(state.revalidate_budget_pause(1));
+    save_pi_scan_state_atomic(
+        &options.state_path,
+        &PiScanPersistedState {
+            schema_version: PI_SCAN_RUNTIME_SCHEMA_VERSION,
+            state,
+        },
+    )
+    .expect("seed state");
+    let mut channels = spawn_pi_scan_worker(options.clone()).expect("worker");
+    let (ack_tx, mut ack_rx) = tokio::sync::mpsc::unbounded_channel();
+
+    channels
+        .request_tx
+        .send(PiScanRequestMessage::AdjustBudgets {
+            adjustment: PiScanBudgetAdjustment::Double,
+            now_unix: 2,
+            acknowledge: ack_tx,
+        })
+        .expect("adjustment");
+
+    let acknowledgement = timeout(Duration::from_secs(2), ack_rx.recv())
+        .await
+        .expect("ack deadline")
+        .expect("ack");
+    assert!(matches!(
+        acknowledgement,
+        PiScanBudgetAdjustmentAcknowledgement::Applied {
+            durable: true,
+            dry_run: false,
+            ref result,
+            ..
+        } if result.current_limits.cost_microusd_per_24h == 8 && !result.budget_paused
+    ));
+    let started = receive_started(&mut channels).await;
+    assert_eq!(started.request.key.package_base.as_str(), "inert-adjust");
+    let restarted =
+        load_pi_scan_state(&options.state_path, &options.quarantine_dir, 3).expect("restart load");
+    assert_eq!(restarted.state.budget_limits.cost_microusd_per_24h, 8);
+}
+
+/// What: Verify an inert stale Apply acknowledges without persistence or dispatch.
+///
+/// Inputs:
+/// - An idle durable worker and an Unlimited request whose authoritative affected set is empty.
+///
+/// Output:
+/// - Typed no-longer-blocked acknowledgement, unchanged state bytes, and no Started wake.
+///
+/// Details:
+/// - This covers the non-production owner path independently from the orchestrator transaction.
+#[tokio::test]
+async fn inert_no_hit_adjustment_is_write_free_and_wake_free() {
+    let temp = tempfile::tempdir().expect("temp dir");
+    let options = enabled_options(temp.path(), false);
+    let state = PiScanRuntimeState::default();
+    save_pi_scan_state_atomic(
+        &options.state_path,
+        &PiScanPersistedState {
+            schema_version: PI_SCAN_RUNTIME_SCHEMA_VERSION,
+            state,
+        },
+    )
+    .expect("seed state");
+    let before = std::fs::read(&options.state_path).expect("before");
+    let mut channels = spawn_pi_scan_worker(options.clone()).expect("worker");
+    let (ack_tx, mut ack_rx) = tokio::sync::mpsc::unbounded_channel();
+
+    channels
+        .request_tx
+        .send(PiScanRequestMessage::AdjustBudgets {
+            adjustment: PiScanBudgetAdjustment::Unlimited,
+            now_unix: 1,
+            acknowledge: ack_tx,
+        })
+        .expect("adjustment");
+
+    assert!(matches!(
+        timeout(Duration::from_secs(2), ack_rx.recv())
+            .await
+            .expect("ack deadline"),
+        Some(PiScanBudgetAdjustmentAcknowledgement::NoLongerBlocked {
+            adjustment: PiScanBudgetAdjustment::Unlimited,
+            dry_run: false,
+            ..
+        })
+    ));
+    assert_eq!(std::fs::read(&options.state_path).expect("after"), before);
+    assert!(
+        timeout(Duration::from_millis(100), channels.progress_rx.recv())
+            .await
+            .is_err(),
+        "no-hit Apply must not wake dispatch"
+    );
 }
 
 /// Recorder proving the worker calls the registered correlated abort/reap target.

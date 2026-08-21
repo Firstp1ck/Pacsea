@@ -561,17 +561,23 @@ impl PiScanSetupWizardState {
             (PiScanSetupStep::Route, 0) => self.cycle_route(increase),
             (PiScanSetupStep::Route, 1) => self.cycle_thinking(increase),
             (PiScanSetupStep::OptionalBehavior, 3) => {
-                self.candidate.background_starts_per_hour =
-                    adjust_u32(self.candidate.background_starts_per_hour, increase, 0, 5, 1);
+                self.candidate.background_starts_per_hour = adjust_u32(
+                    self.candidate.background_starts_per_hour,
+                    increase,
+                    0,
+                    u32::MAX,
+                    1,
+                );
             }
             (PiScanSetupStep::OptionalBehavior, 4) => {
                 self.candidate.background_token_cap_24h = adjust_u64(
                     self.candidate.background_token_cap_24h,
                     increase,
                     0,
-                    500_000,
+                    u64::MAX,
                     10_000,
                 );
+                self.candidate.background_token_cap_24h_parse_error = None;
             }
             (PiScanSetupStep::OptionalBehavior, 5) => {
                 self.candidate.background_cost_cap_24h =
@@ -870,19 +876,18 @@ fn adjust_u64(value: u64, increase: bool, minimum: u64, maximum: u64, step: u64)
     }
 }
 
-/// Adjust the optional background dollar cap in conservative one-dollar steps.
+/// Adjust the optional exact micro-USD cap in conservative one-dollar steps.
 fn adjust_cost(value: &str, increase: bool) -> String {
-    let whole = value
-        .split_once('.')
-        .map_or(value, |(whole, _)| whole)
-        .parse::<u64>()
-        .unwrap_or(0);
-    let adjusted = if increase {
-        whole.saturating_add(1).min(10_000)
-    } else {
-        whole.saturating_sub(1)
+    let Ok(microusd) = crate::theme::parse_pi_scan_cost_microusd(value) else {
+        return value.to_string();
     };
-    format!("{adjusted}.00")
+    let step = 1_000_000;
+    let adjusted = if increase {
+        microusd.checked_add(step).unwrap_or(microusd)
+    } else {
+        microusd.checked_sub(step).unwrap_or(microusd)
+    };
+    crate::theme::format_pi_scan_budget_microusd(adjusted)
 }
 
 #[cfg(test)]

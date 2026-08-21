@@ -16,10 +16,10 @@ use pacsea::pi_scan_orchestrator::{
     DiscoveredPackage, DryRunAcquisitionReceipt, ExecutionFailure, ExecutionReceipt,
     FrozenScanIdentity, ObservationCommit, ObservationPackage, OrchestrationAdapter,
     OrchestrationConfig, OrchestrationError, PiScanOrchestrator, PiScanSequentialRunner,
-    SetupSnapshot, UpdateCandidate,
+    PiScanUnattendedAuthorization, SetupSnapshot, UpdateCandidate,
 };
 use pacsea::state::pi_scan::{
-    PiScanActualUsage, PiScanPriority, PiScanQueueKey, PiScanReservation,
+    PiScanActualUsage, PiScanBudgetAdjustment, PiScanPriority, PiScanQueueKey, PiScanReservation,
 };
 
 /// Ordered fake adapter proving orchestration ordering and policy gates without external I/O.
@@ -39,6 +39,8 @@ struct FakeAdapter {
     execution_started: Option<Arc<AtomicBool>>,
     /// Whether execution waits for sticky cancellation.
     wait_for_cancel: bool,
+    /// Optional deterministic release gate for an active execution.
+    execution_release: Option<Arc<AtomicBool>>,
     /// Whether execution returns an immediate canonical success.
     instant_success: bool,
     /// Scripted linked-continuation HEAD staleness.
@@ -114,6 +116,14 @@ impl OrchestrationAdapter for FakeAdapter {
                 "fake cancellation deadline elapsed".to_string(),
             ));
         }
+        if let Some(release) = &self.execution_release {
+            while !release.load(Ordering::SeqCst) {
+                if cancelled.load(Ordering::SeqCst) {
+                    return Err(ExecutionFailure::Cancelled);
+                }
+                std::thread::sleep(Duration::from_millis(2));
+            }
+        }
         if cancelled.load(Ordering::SeqCst) {
             return Err(ExecutionFailure::Cancelled);
         }
@@ -165,6 +175,23 @@ impl OrchestrationAdapter for FakeAdapter {
             .push(format!("recheck:{package_base}:{observed_head_oid}"));
         self.continuation_stale
             .ok_or_else(|| "missing fake continuation recheck".to_string())
+    }
+}
+
+/// Process-global config-root guard for isolated settings transaction tests.
+struct ConfigOverrideGuard;
+
+impl ConfigOverrideGuard {
+    /// Install a temporary config root until this guard drops.
+    fn install(path: &Path) -> Self {
+        pacsea::theme::set_config_dir_override(Some(path.to_path_buf()));
+        Self
+    }
+}
+
+impl Drop for ConfigOverrideGuard {
+    fn drop(&mut self) {
+        pacsea::theme::set_config_dir_override(None);
     }
 }
 
@@ -850,10 +877,202 @@ fn failed_or_cancelled_identity_can_be_retried_without_reobservation() {
 }
 
 #[test]
-fn exact_background_budget_blocks_before_external_execution() {
+fn zero_background_cost_budget_is_unlimited_before_external_execution() {
     let temp = tempfile::tempdir().expect("temp");
+    let mut unlimited = config(temp.path(), false);
+    unlimited.budget_limits.cost_microusd_per_24h = 0;
+    let adapter = FakeAdapter {
+        setup: Some(setup()),
+        packages: vec![package("demo", "demo")],
+        observations: VecDeque::from(vec![ObservationPackage {
+            package_base: PackageBase::new("demo").expect("base"),
+            head_oid: oid(1),
+            commits: vec![ObservationCommit {
+                oid: oid(1),
+                relevance: CommitBuildRelevance::BuildRelevant,
+            }],
+            truncated: false,
+            paused_for_rebaseline: false,
+        }]),
+        instant_success: true,
+        ..FakeAdapter::default()
+    };
+    let mut orchestrator = PiScanOrchestrator::new(unlimited, adapter).expect("construct");
+    orchestrator.startup_observation(1).expect("observe");
+    assert!(
+        orchestrator
+            .run_next(2, &AtomicBool::new(false))
+            .expect("zero cost is Unlimited")
+            .is_some()
+    );
+    assert!(
+        orchestrator
+            .adapter()
+            .log
+            .iter()
+            .any(|entry| entry.starts_with("execute:"))
+    );
+}
+
+#[test]
+fn budget_adjustment_persists_settings_runtime_consent_and_resumes_after_restart() {
+    let temp = tempfile::tempdir().expect("temp");
+    let config_root = temp.path().join("config");
+    std::fs::create_dir_all(&config_root).expect("config root");
+    std::fs::write(
+        config_root.join("settings.conf"),
+        "pi_scan_provider = provider\npi_scan_model = model\npi_scan_background_starts_per_hour = 5\npi_scan_background_token_cap_24h = 500000\npi_scan_background_cost_cap_24h = 0.00004\n",
+    )
+    .expect("settings");
+    let _override = ConfigOverrideGuard::install(&config_root);
     let mut bounded = config(temp.path(), false);
-    bounded.budget_limits.cost_microusd_per_24h = 0;
+    bounded.budget_limits.cost_microusd_per_24h = 40;
+    let adapter = FakeAdapter {
+        setup: Some(setup()),
+        packages: vec![package("demo", "demo")],
+        observations: VecDeque::from(vec![ObservationPackage {
+            package_base: PackageBase::new("demo").expect("base"),
+            head_oid: oid(1),
+            commits: vec![ObservationCommit {
+                oid: oid(1),
+                relevance: CommitBuildRelevance::BuildRelevant,
+            }],
+            truncated: false,
+            paused_for_rebaseline: false,
+        }]),
+        ..FakeAdapter::default()
+    };
+    let mut first = PiScanOrchestrator::new(bounded, adapter).expect("construct");
+    let target = first.startup_observation(1).expect("observe")[0].clone();
+    first
+        .update_setup_consent(pacsea::pi_scan_orchestrator::PiScanSetupConsentState {
+            configuration_binding: String::new(),
+            disclosure_confirmed: true,
+            fallback_confirmed: true,
+            background_paid_execution: true,
+            readiness_warning_confirmed: true,
+            confirmed_pi_version: "0.84.0".to_string(),
+            confirmed_pricing_binding: "test-pricing-v1".to_string(),
+        })
+        .expect("setup consent");
+    assert!(matches!(
+        first.run_next(2, &AtomicBool::new(false)),
+        Err(OrchestrationError::Paused(_))
+    ));
+
+    let adjusted = first
+        .adjust_budgets(PiScanBudgetAdjustment::Double, 2)
+        .expect("durable adjustment");
+
+    assert_eq!(adjusted.current_limits.cost_microusd_per_24h, 80);
+    assert!(!adjusted.budget_paused);
+    let settings = std::fs::read_to_string(config_root.join("settings.conf")).expect("settings");
+    assert!(settings.contains("pi_scan_background_cost_cap_24h = 0.00008"));
+    assert!(settings.contains("pi_scan_provider = provider"));
+    drop(first);
+
+    let mut restarted_config = config(temp.path(), false);
+    restarted_config.budget_limits.cost_microusd_per_24h = 80;
+    let mut restarted = PiScanOrchestrator::new(
+        restarted_config,
+        FakeAdapter {
+            setup: Some(setup()),
+            instant_success: true,
+            ..FakeAdapter::default()
+        },
+    )
+    .expect("restart");
+    let (runtime_consent, setup_consent) = restarted.consent_snapshot();
+    assert!(runtime_consent.background_observation && runtime_consent.paid_execution);
+    assert!(setup_consent.disclosure_confirmed);
+    assert!(setup_consent.background_paid_execution);
+    assert_eq!(
+        restarted
+            .state()
+            .runtime
+            .budget_limits
+            .cost_microusd_per_24h,
+        80
+    );
+    restarted.adapter_mut().instant_success = true;
+    assert!(
+        restarted
+            .run_next(3, &AtomicBool::new(false))
+            .expect("post-restart drain")
+            .is_some()
+    );
+    assert_eq!(
+        restarted
+            .state()
+            .runtime
+            .terminal
+            .last()
+            .map(|record| &record.request.key),
+        Some(&PiScanQueueKey {
+            package_base: target.package_base,
+            commit_oid: target.commit_oid,
+        })
+    );
+}
+
+#[test]
+fn no_hit_budget_adjustment_does_not_touch_settings_or_owner_state() {
+    let temp = tempfile::tempdir().expect("temp");
+    let config_root = temp.path().join("config");
+    std::fs::create_dir_all(&config_root).expect("config root");
+    let settings_path = config_root.join("settings.conf");
+    std::fs::write(
+        &settings_path,
+        "pi_scan_background_starts_per_hour = 5\npi_scan_background_token_cap_24h = 500000\npi_scan_background_cost_cap_24h = 0.00004\nunrelated = keep\n",
+    )
+    .expect("settings");
+    let _override = ConfigOverrideGuard::install(&config_root);
+    let mut owner = PiScanOrchestrator::new(
+        config(temp.path(), false),
+        FakeAdapter {
+            setup: Some(setup()),
+            ..FakeAdapter::default()
+        },
+    )
+    .expect("construct");
+    owner
+        .update_runtime_policy(None, None, false, None)
+        .expect("seed owner state");
+    let state_path = temp.path().join("orchestration-v1.json");
+    let settings_before = std::fs::read(&settings_path).expect("settings before");
+    let state_before = std::fs::read(&state_path).expect("state before");
+    let runtime_before = owner.state().runtime.clone();
+
+    let result = owner
+        .adjust_budgets(PiScanBudgetAdjustment::Unlimited, 1)
+        .expect("no-hit acknowledgement");
+
+    assert!(result.affected.is_empty());
+    assert_eq!(owner.state().runtime, runtime_before);
+    assert_eq!(
+        std::fs::read(&settings_path).expect("settings after"),
+        settings_before
+    );
+    assert_eq!(
+        std::fs::read(&state_path).expect("state after"),
+        state_before
+    );
+}
+
+#[test]
+fn budget_adjustment_rolls_back_settings_when_owner_persistence_fails() {
+    let temp = tempfile::tempdir().expect("temp");
+    let config_root = temp.path().join("config");
+    std::fs::create_dir_all(&config_root).expect("config root");
+    let settings_path = config_root.join("settings.conf");
+    std::fs::write(
+        &settings_path,
+        "pi_scan_background_starts_per_hour = 5\npi_scan_background_token_cap_24h = 500000\npi_scan_background_cost_cap_24h = 0.00004\n",
+    )
+    .expect("settings");
+    let _override = ConfigOverrideGuard::install(&config_root);
+    let mut bounded = config(temp.path(), false);
+    bounded.budget_limits.cost_microusd_per_24h = 40;
     let adapter = FakeAdapter {
         setup: Some(setup()),
         packages: vec![package("demo", "demo")],
@@ -873,15 +1092,28 @@ fn exact_background_budget_blocks_before_external_execution() {
     orchestrator.startup_observation(1).expect("observe");
     assert!(matches!(
         orchestrator.run_next(2, &AtomicBool::new(false)),
-        Err(OrchestrationError::Paused(reason)) if reason.contains("reservation")
+        Err(OrchestrationError::Paused(_))
     ));
+    let state_path = temp.path().join("orchestration-v1.json");
+    std::fs::remove_file(&state_path).expect("remove state");
+    std::fs::create_dir(&state_path).expect("blocking directory");
+
     assert!(
-        !orchestrator
-            .adapter()
-            .log
-            .iter()
-            .any(|entry| entry.starts_with("execute:"))
+        orchestrator
+            .adjust_budgets(PiScanBudgetAdjustment::Double, 2)
+            .is_err()
     );
+    assert_eq!(
+        orchestrator
+            .state()
+            .runtime
+            .budget_limits
+            .cost_microusd_per_24h,
+        40
+    );
+    let settings = std::fs::read_to_string(settings_path).expect("settings");
+    assert!(settings.contains("pi_scan_background_cost_cap_24h = 0.00004"));
+    assert!(!settings.contains("pi_scan_background_cost_cap_24h = 0.00008"));
 }
 
 #[test]
@@ -1311,4 +1543,112 @@ fn persisted_explicit_consent_is_not_flattened_on_restart() {
     .expect("recover");
     assert!(!recovered.state().runtime.consent.background_observation);
     assert!(!recovered.state().runtime.consent.paid_execution);
+}
+
+/// Exercise one two-item background drain authorization revocation while the first item is active.
+async fn assert_unattended_revocation_stops_second_start() {
+    let temp = tempfile::tempdir().expect("temp");
+    let started = Arc::new(AtomicBool::new(false));
+    let release = Arc::new(AtomicBool::new(false));
+    let adapter = FakeAdapter {
+        setup: Some(setup()),
+        packages: vec![package("first", "first"), package("second", "second")],
+        observations: VecDeque::from(vec![
+            ObservationPackage {
+                package_base: PackageBase::new("first").expect("base"),
+                head_oid: oid(1),
+                commits: vec![ObservationCommit {
+                    oid: oid(1),
+                    relevance: CommitBuildRelevance::BuildRelevant,
+                }],
+                truncated: false,
+                paused_for_rebaseline: false,
+            },
+            ObservationPackage {
+                package_base: PackageBase::new("second").expect("base"),
+                head_oid: oid(2),
+                commits: vec![ObservationCommit {
+                    oid: oid(2),
+                    relevance: CommitBuildRelevance::BuildRelevant,
+                }],
+                truncated: false,
+                paused_for_rebaseline: false,
+            },
+        ]),
+        execution_started: Some(Arc::clone(&started)),
+        execution_release: Some(Arc::clone(&release)),
+        instant_success: true,
+        ..FakeAdapter::default()
+    };
+    let mut owner = PiScanOrchestrator::new(config(temp.path(), false), adapter).expect("owner");
+    owner.startup_observation(1).expect("queue two jobs");
+    let runner = PiScanSequentialRunner::new(owner);
+    let authorization = Arc::new(PiScanUnattendedAuthorization::new(true));
+    let running = runner.clone();
+    let first_authorization = Arc::clone(&authorization);
+    let first = tokio::spawn(async move {
+        let (started_tx, _started_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (phase_tx, _phase_rx) = tokio::sync::mpsc::unbounded_channel();
+        running
+            .run_next_with_progress_policy(2, started_tx, phase_tx, first_authorization)
+            .await
+    });
+    tokio::time::timeout(Duration::from_secs(2), async {
+        while !started.load(Ordering::SeqCst) {
+            tokio::time::sleep(Duration::from_millis(2)).await;
+        }
+    })
+    .await
+    .expect("first start deadline");
+
+    let waiting = runner.clone();
+    let waiting_authorization = Arc::clone(&authorization);
+    let waiting_started = Arc::new(AtomicBool::new(false));
+    let waiting_started_in_task = Arc::clone(&waiting_started);
+    let (started_tx, mut started_rx) = tokio::sync::mpsc::unbounded_channel();
+    let (phase_tx, _phase_rx) = tokio::sync::mpsc::unbounded_channel();
+    let second = tokio::spawn(async move {
+        waiting_started_in_task.store(true, Ordering::SeqCst);
+        waiting
+            .run_next_with_progress_policy(3, started_tx, phase_tx, waiting_authorization)
+            .await
+    });
+    tokio::time::timeout(Duration::from_secs(2), async {
+        while !waiting_started.load(Ordering::SeqCst) {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("second owner-lock attempt deadline");
+
+    authorization.publish(false);
+    release.store(true, Ordering::SeqCst);
+    assert!(
+        first
+            .await
+            .expect("first join")
+            .expect("first run")
+            .is_some()
+    );
+    assert!(
+        second
+            .await
+            .expect("second join")
+            .expect("gated second run")
+            .is_none()
+    );
+    assert!(started_rx.try_recv().is_err());
+    let state = runner.state_snapshot().await.expect("state");
+    assert_eq!(state.runtime.terminal.len(), 1);
+    assert_eq!(state.runtime.queue.len(), 1);
+}
+
+#[tokio::test]
+async fn observation_revocation_while_first_background_job_is_active_blocks_second() {
+    assert_unattended_revocation_stops_second_start().await;
+}
+
+#[tokio::test]
+async fn background_paid_revocation_while_first_background_job_is_active_blocks_second() {
+    assert_unattended_revocation_stops_second_start().await;
 }

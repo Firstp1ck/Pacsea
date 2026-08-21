@@ -689,15 +689,12 @@ pub const EDITABLE_SETTINGS: &[EditableSetting] = &[
     ),
     pi_setting(
         "pi_scan_background_starts_per_hour",
-        ValueKind::IntRange { min: 0, max: 5 },
-    ),
-    pi_setting(
-        "pi_scan_background_token_cap_24h",
         ValueKind::IntRange {
             min: 0,
-            max: 500_000,
+            max: 4_294_967_295,
         },
     ),
+    pi_setting("pi_scan_background_token_cap_24h", ValueKind::String),
     pi_setting("pi_scan_background_cost_cap_24h", ValueKind::String),
     pi_setting(
         "pi_scan_result_retention_days",

@@ -8,6 +8,7 @@ use crate::state::{
     Source,
 };
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Open Pi Scan with context from the selected Search result.
 pub(super) fn open_from_search(app: &mut AppState) {
@@ -30,6 +31,9 @@ pub(super) fn handle_key(key: KeyEvent, app: &mut AppState) -> bool {
     if app.pi_scan.wizard.is_some() {
         return handle_wizard(key, app);
     }
+    if app.pi_scan.budget_dialog.is_some() {
+        return handle_budget_dialog(key, app);
+    }
     if key.code == KeyCode::Esc {
         app.app_mode = AppMode::Package;
         return true;
@@ -43,8 +47,73 @@ pub(super) fn handle_key(key: KeyEvent, app: &mut AppState) -> bool {
         PiScanView::Progress => handle_progress(key, app),
         PiScanView::Results => handle_results(key, app),
         PiScanView::Details => handle_details(key, app),
-        PiScanView::Overview => false,
+        PiScanView::Overview => handle_budget_key(key, app),
     }
+}
+
+/// What: Handle one key while the focused budget choice owns keyboard input.
+///
+/// Inputs:
+/// - `key`: Pressed key event.
+/// - `app`: Workspace containing the active budget dialog.
+///
+/// Output:
+/// - True for every dialog-owned focus, confirm, and cancel key.
+///
+/// Details:
+/// - Enter dispatches once, Esc closes only before/after submission, and Tab/arrows/h/l move focus.
+fn handle_budget_dialog(key: KeyEvent, app: &mut AppState) -> bool {
+    match key.code {
+        KeyCode::Esc => app.pi_scan.cancel_budget_dialog(),
+        KeyCode::Enter => app.pi_scan.submit_budget_dialog(),
+        KeyCode::Tab
+        | KeyCode::BackTab
+        | KeyCode::Left
+        | KeyCode::Right
+        | KeyCode::Up
+        | KeyCode::Down
+        | KeyCode::Char('h' | 'j' | 'k' | 'l') => {
+            if let Some(dialog) = app.pi_scan.budget_dialog.as_mut() {
+                dialog.toggle_selection();
+            }
+            true
+        }
+        _ => false,
+    }
+}
+
+/// What: Open the direct budget choice for an eligible Overview/Progress projection.
+///
+/// Inputs:
+/// - `key`: Candidate plain `b` key.
+/// - `app`: Workspace runtime projection.
+///
+/// Output:
+/// - Whether the key opened the choice.
+///
+/// Details:
+/// - Ineligible projections ignore the key and never enter guided setup.
+fn handle_budget_key(key: KeyEvent, app: &mut AppState) -> bool {
+    matches!(
+        (key.code, key.modifiers),
+        (KeyCode::Char('b'), KeyModifiers::NONE)
+    ) && app.pi_scan.open_budget_dialog_at(pi_scan_unix_now())
+}
+
+/// What: Read Unix time for rolling budget eligibility at an interactive key press.
+///
+/// Inputs:
+/// - Current system clock.
+///
+/// Output:
+/// - Unix seconds, or zero if the clock predates the epoch.
+///
+/// Details:
+/// - Runtime Apply still recomputes authoritatively using its request timestamp.
+fn pi_scan_unix_now() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |duration| duration.as_secs())
 }
 
 /// Handle one key inside the isolated keyboard-first setup wizard.
@@ -482,6 +551,9 @@ fn request_queue(app: &mut AppState) {
 
 /// Set pause/cancel/retry affordance state.
 fn handle_progress(key: KeyEvent, app: &mut AppState) -> bool {
+    if handle_budget_key(key, app) {
+        return true;
+    }
     let action = match key.code {
         KeyCode::Char('p') => PiScanUiAction::Pause,
         KeyCode::Char('u') => PiScanUiAction::Resume,
@@ -550,7 +622,29 @@ mod tests {
     use super::*;
     use crate::logic::pi_scan::result::{Coverage, ExpectedIdentity, MergedScanResult};
     use crate::state::PiScanDisplayResult;
+    use crate::state::pi_scan::{
+        PiScanJobRequest, PiScanPauseReason, PiScanPriority, PiScanQueueKey, PiScanReservation,
+    };
     use crate::state::pi_scan_setup::{PiScanSetupDraftAction, PiScanSetupStep};
+
+    /// Build queued background work for direct budget-adjustment keyboard tests.
+    fn budget_blocked_request() -> PiScanJobRequest {
+        PiScanJobRequest {
+            request_id: 99,
+            key: PiScanQueueKey {
+                package_base: crate::logic::pi_scan::identity::PackageBase::new("budget-demo")
+                    .expect("package base"),
+                commit_oid: crate::logic::pi_scan::identity::CommitOid::new("a".repeat(40))
+                    .expect("commit oid"),
+            },
+            priority: PiScanPriority::Background,
+            reservation: PiScanReservation {
+                tokens: 501,
+                cost_microusd: 1,
+            },
+            manual_budget_override_confirmed: false,
+        }
+    }
 
     /// Build a minimal validated result for keyboard interaction tests.
     fn display_result(package: &str) -> PiScanDisplayResult {
@@ -636,6 +730,132 @@ mod tests {
             })
         ));
         assert!(app.pi_scan.pending_action.is_none());
+    }
+
+    /// Plain b opens the direct budget choice only for queued budget-blocked work.
+    #[test]
+    fn budget_key_opens_direct_choice_without_guided_setup() {
+        let mut app = AppState {
+            app_mode: AppMode::PiScan,
+            ..AppState::default()
+        };
+        app.pi_scan.set_view(PiScanView::Overview);
+        app.pi_scan
+            .runtime
+            .queue
+            .push_back(budget_blocked_request());
+        app.pi_scan.runtime.budget_limits.tokens_per_24h = 500;
+        app.pi_scan
+            .runtime
+            .pause_reasons
+            .insert(PiScanPauseReason::Budget);
+
+        assert!(handle_key(
+            KeyEvent::new(KeyCode::Char('b'), KeyModifiers::NONE),
+            &mut app,
+        ));
+        assert!(app.pi_scan.wizard.is_none());
+        assert!(app.pi_scan.pending_action.is_none());
+    }
+
+    /// Budget choice focus, cancellation, submission, and pending keys are deterministic.
+    #[test]
+    fn budget_dialog_handles_focus_enter_escape_and_pending_state() {
+        let mut app = AppState {
+            app_mode: AppMode::PiScan,
+            ..AppState::default()
+        };
+        app.pi_scan.set_view(PiScanView::Progress);
+        app.pi_scan
+            .runtime
+            .queue
+            .push_back(budget_blocked_request());
+        app.pi_scan.runtime.budget_limits.tokens_per_24h = 500;
+        app.pi_scan
+            .runtime
+            .pause_reasons
+            .insert(PiScanPauseReason::Budget);
+
+        assert!(handle_key(
+            KeyEvent::new(KeyCode::Char('b'), KeyModifiers::NONE),
+            &mut app,
+        ));
+        let dialog = app.pi_scan.budget_dialog.as_ref().expect("dialog");
+        assert_eq!(
+            dialog.selection,
+            crate::state::pi_scan::PiScanBudgetAdjustment::Double
+        );
+        assert!(handle_key(
+            KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE),
+            &mut app,
+        ));
+        assert_eq!(
+            app.pi_scan
+                .budget_dialog
+                .as_ref()
+                .expect("dialog")
+                .selection,
+            crate::state::pi_scan::PiScanBudgetAdjustment::Unlimited
+        );
+        assert!(handle_key(
+            KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE),
+            &mut app,
+        ));
+        assert!(app.pi_scan.budget_dialog.is_none());
+
+        assert!(handle_key(
+            KeyEvent::new(KeyCode::Char('b'), KeyModifiers::NONE),
+            &mut app,
+        ));
+        assert!(handle_key(
+            KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE),
+            &mut app,
+        ));
+        assert_eq!(
+            app.pi_scan.pending_action,
+            Some(PiScanUiAction::AdjustBudgets(
+                crate::state::pi_scan::PiScanBudgetAdjustment::Double
+            ))
+        );
+        assert_eq!(
+            app.pi_scan.budget_dialog.as_ref().expect("dialog").status,
+            crate::state::pi_scan_ui::PiScanBudgetDialogStatus::Submitting
+        );
+        assert!(handle_key(
+            KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE),
+            &mut app,
+        ));
+        assert!(app.pi_scan.budget_dialog.is_some());
+        assert!(handle_key(
+            KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE),
+            &mut app,
+        ));
+        assert_eq!(
+            app.pi_scan.pending_action,
+            Some(PiScanUiAction::AdjustBudgets(
+                crate::state::pi_scan::PiScanBudgetAdjustment::Double
+            ))
+        );
+    }
+
+    /// Ineligible b is ignored and Progress r remains the independent Retry action.
+    #[test]
+    fn budget_key_requires_budget_block_and_progress_retry_is_unchanged() {
+        let mut app = AppState::default();
+        app.pi_scan.set_view(PiScanView::Overview);
+        assert!(!handle_key(
+            KeyEvent::new(KeyCode::Char('b'), KeyModifiers::NONE),
+            &mut app,
+        ));
+        assert!(app.pi_scan.budget_dialog.is_none());
+
+        app.pi_scan.set_view(PiScanView::Progress);
+        assert!(handle_key(
+            KeyEvent::new(KeyCode::Char('r'), KeyModifiers::NONE),
+            &mut app,
+        ));
+        assert_eq!(app.pi_scan.pending_action, Some(PiScanUiAction::Retry));
+        assert!(app.pi_scan.budget_dialog.is_none());
     }
 
     /// Enter on a result opens Details with that selected package expanded.

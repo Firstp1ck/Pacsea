@@ -317,6 +317,16 @@ pub fn apply_settings_to_app_state(app: &mut AppState, prefs: &crate::theme::Set
     let pi_scan_settings_changed = app
         .pi_scan
         .apply_settings(prefs.pi_scan.clone(), pi_binary_found);
+    let connected_budget_diverged = app.pi_scan.availability
+        == crate::state::pi_scan_ui::PiScanAvailability::RuntimeConnected
+        && !app.pi_scan.budget_settings_match_runtime();
+    if connected_budget_diverged && !pi_scan_settings_changed {
+        let notice = crate::i18n::t(app, "app.pi_scan.notices.budget_reload_requires_restart");
+        app.pi_scan.set_foreground_notice(
+            notice,
+            crate::state::pi_scan_ui::PiScanNoticeSeverity::Warning,
+        );
+    }
     if preserve_pi_scan_mode {
         app.app_mode = crate::state::types::AppMode::PiScan;
         if pi_scan_settings_changed && wizard_was_open {

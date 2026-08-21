@@ -249,11 +249,14 @@ fn push_section_gap(lines: &mut Vec<Line<'static>>, app: &AppState, key: &str) {
     lines.push(super::section_heading(app, key));
 }
 
-/// Render effective settings beside the immutable compiled maxima.
+/// Render effective settings beside immutable timeout maxima and truthful budget values.
 fn effective_compiled_line(
     app: &AppState,
     setting: &crate::theme::PiScanSettings,
 ) -> Line<'static> {
+    let starts = budget_count_value(app, u64::from(setting.background_starts_per_hour));
+    let tokens = budget_count_value(app, setting.background_token_cap_24h);
+    let cost = budget_decimal_value(app, &setting.background_cost_cap_24h);
     super::labeled_line(
         crate::i18n::t(app, "app.pi_scan.setup.effective_compiled"),
         crate::i18n::t_fmt(
@@ -264,12 +267,68 @@ fn effective_compiled_line(
                 &setting.observation_deadline_seconds,
                 &setting.model_attempt_timeout_seconds,
                 &setting.logical_timeout_seconds,
-                &setting.background_starts_per_hour,
-                &setting.background_token_cap_24h,
+                &starts,
+                &tokens,
+                &cost,
             ],
         ),
         SemanticTone::Muted,
     )
+}
+
+/// What: Format one integer budget setting with numeric-zero Unlimited semantics.
+///
+/// Inputs:
+/// - `app`: Localization projection.
+/// - `value`: Starts or token budget.
+///
+/// Output:
+/// - Localized Unlimited or the finite decimal integer.
+///
+/// Details:
+/// - This is display-only and does not alter the persisted numeric representation.
+pub(super) fn budget_count_value(app: &AppState, value: u64) -> String {
+    if value == 0 {
+        crate::i18n::t(app, "app.pi_scan.common.unlimited")
+    } else {
+        value.to_string()
+    }
+}
+
+/// What: Format one decimal-dollar budget setting with numeric-zero Unlimited semantics.
+///
+/// Inputs:
+/// - `app`: Localization projection.
+/// - `value`: Parsed settings text retained exactly for finite display.
+///
+/// Output:
+/// - Localized Unlimited for any valid decimal zero, otherwise the original text.
+///
+/// Details:
+/// - Invalid text remains visible for the adjacent validation error instead of being relabeled.
+pub(super) fn budget_decimal_value(app: &AppState, value: &str) -> String {
+    if decimal_is_zero(value) {
+        crate::i18n::t(app, "app.pi_scan.common.unlimited")
+    } else {
+        value.to_string()
+    }
+}
+
+/// Return whether settings text is a syntactically valid decimal containing only zero digits.
+fn decimal_is_zero(value: &str) -> bool {
+    let trimmed = value.trim();
+    let mut separator_seen = false;
+    let mut digit_seen = false;
+    for character in trimmed.chars() {
+        if character == '.' && !separator_seen {
+            separator_seen = true;
+        } else if character == '0' {
+            digit_seen = true;
+        } else {
+            return false;
+        }
+    }
+    digit_seen
 }
 
 /// Localize one known settings validation issue while preserving unknown text verbatim.
@@ -299,20 +358,24 @@ fn localize_setting_issue(app: &AppState, issue: &str) -> String {
             "app.pi_scan.setup.validation_issue.between",
             &[&"pi_scan_logical_timeout_seconds", &720],
         ),
-        "pi_scan_background_starts_per_hour cannot exceed 5" => (
-            "app.pi_scan.setup.validation_issue.cannot_exceed",
-            &[&"pi_scan_background_starts_per_hour", &5],
-        ),
-        "pi_scan_background_token_cap_24h cannot exceed 500000" => (
-            "app.pi_scan.setup.validation_issue.cannot_exceed",
-            &[&"pi_scan_background_token_cap_24h", &500_000],
-        ),
         "pi_scan_result_retention_days must be at least 1" => (
             "app.pi_scan.setup.validation_issue.at_least",
             &[&"pi_scan_result_retention_days", &1],
         ),
-        "pi_scan_background_cost_cap_24h must be a non-negative decimal" => (
-            "app.pi_scan.setup.validation_issue.nonnegative_decimal",
+        "pi_scan_background_token_cap_24h must be a non-negative integer no greater than 18446744073709551615" => {
+            (
+                "app.pi_scan.setup.validation_issue.native_integer",
+                &[&"pi_scan_background_token_cap_24h", &u64::MAX],
+            )
+        }
+        "pi_scan_background_cost_cap_24h must be a non-negative decimal with at most six fractional digits" => {
+            (
+                "app.pi_scan.setup.validation_issue.exact_decimal",
+                &[&"pi_scan_background_cost_cap_24h"],
+            )
+        }
+        "pi_scan_background_cost_cap_24h exceeds the maximum exact micro-USD value" => (
+            "app.pi_scan.setup.validation_issue.exact_cost_maximum",
             &[&"pi_scan_background_cost_cap_24h"],
         ),
         "pi_scan_https_proxy must be credential-free HTTPS or empty" => (
@@ -465,6 +528,31 @@ mod tests {
         }
     }
 
+    /// Advanced Setup renders each numeric-zero budget as Unlimited without legacy maxima.
+    #[test]
+    fn advanced_setup_renders_zero_budgets_as_unlimited() {
+        let backend = TestBackend::new(120, 40);
+        let mut terminal = Terminal::new(backend).expect("test terminal");
+        let mut app = AppState::default();
+        load_english(&mut app);
+        app.pi_scan.settings.background_starts_per_hour = 0;
+        app.pi_scan.settings.background_token_cap_24h = 0;
+        app.pi_scan.settings.background_cost_cap_24h = "0.00".to_string();
+        terminal
+            .draw(|frame| render(frame, &mut app, frame.area()))
+            .expect("advanced setup render");
+        let rendered = terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .map(ratatui::buffer::Cell::symbol)
+            .collect::<String>();
+        assert!(rendered.matches("Unlimited").count() >= 3, "{rendered:?}");
+        assert!(!rendered.contains("starts 0/5"), "{rendered:?}");
+        assert!(!rendered.contains("tokens 0/500000"), "{rendered:?}");
+    }
+
     /// German Advanced Setup localizes finite settings validation issues.
     #[test]
     fn advanced_setup_localizes_german_validation_issue() {
@@ -490,25 +578,66 @@ mod tests {
         assert!(!rendered.contains("must be between"));
     }
 
-    /// Every finite settings validation issue has localized German UI wording.
+    /// Current token and exact-cost validation producers localize in every shipped Setup locale.
     #[test]
-    fn all_known_validation_issues_have_german_ui_wording() {
-        let mut app = AppState::default();
-        load_locale(&mut app, "de-DE");
-        for issue in [
-            "pi_scan_binary must name the Pi executable",
-            "pi_scan_observation_interval_seconds must be at least 900",
-            "pi_scan_head_query_timeout_seconds must be between 1 and 15",
-            "pi_scan_observation_deadline_seconds must be between 1 and 90",
-            "pi_scan_model_attempt_timeout_seconds must be between 1 and 300",
-            "pi_scan_logical_timeout_seconds must be between 1 and 720",
-            "pi_scan_background_starts_per_hour cannot exceed 5",
-            "pi_scan_background_token_cap_24h cannot exceed 500000",
-            "pi_scan_result_retention_days must be at least 1",
-            "pi_scan_background_cost_cap_24h must be a non-negative decimal",
-            "pi_scan_https_proxy must be credential-free HTTPS or empty",
+    fn current_budget_validation_issues_localize_in_every_setup_locale() {
+        let token_issue = "pi_scan_background_token_cap_24h must be a non-negative integer no greater than 18446744073709551615";
+        let token = crate::theme::PiScanSettings {
+            background_token_cap_24h_parse_error: Some(token_issue.to_string()),
+            ..crate::theme::PiScanSettings::default()
+        };
+        let mut issues = token.validation_issues();
+        for value in ["malformed", "1.1234567", "18446744073709.551616"] {
+            let cost = crate::theme::PiScanSettings {
+                background_cost_cap_24h: value.to_string(),
+                ..crate::theme::PiScanSettings::default()
+            };
+            issues.extend(
+                cost.validation_issues()
+                    .into_iter()
+                    .filter(|issue| issue.starts_with("pi_scan_background_cost_cap_24h")),
+            );
+        }
+        assert_eq!(issues.len(), 4);
+
+        for (locale, expected_fragments) in [
+            (
+                "en-US",
+                [
+                    "must be a non-negative integer no greater than",
+                    "must be a non-negative decimal with at most six fractional digits",
+                    "exceeds the maximum exact micro-USD value",
+                ],
+            ),
+            (
+                "de-DE",
+                [
+                    "muss eine nichtnegative ganze Zahl sein, die nicht größer ist als",
+                    "muss eine nichtnegative Dezimalzahl mit höchstens sechs Nachkommastellen sein",
+                    "überschreitet den maximalen exakten Mikro-USD-Wert",
+                ],
+            ),
+            (
+                "hu-HU",
+                [
+                    "nemnegatív egész szám kell legyen, legfeljebb",
+                    "nemnegatív tizedes szám kell legyen, legfeljebb hat tizedesjeggyel",
+                    "meghaladja a pontos mikro-USD érték maximumát",
+                ],
+            ),
         ] {
-            assert_ne!(localize_setting_issue(&app, issue), issue);
+            let mut app = AppState::default();
+            load_locale(&mut app, locale);
+            let localized = issues
+                .iter()
+                .map(|issue| localize_setting_issue(&app, issue))
+                .collect::<Vec<_>>();
+            for fragment in expected_fragments {
+                assert!(
+                    localized.iter().any(|issue| issue.contains(fragment)),
+                    "{locale} did not localize {fragment:?}: {localized:?}"
+                );
+            }
         }
     }
 

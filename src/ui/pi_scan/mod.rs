@@ -13,7 +13,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph},
+    widgets::{Block, Borders, Clear, Paragraph, Wrap},
 };
 
 use crate::state::pi_scan_ui::{PiScanNotice, PiScanNoticeSeverity};
@@ -155,6 +155,273 @@ pub fn render(f: &mut Frame, app: &mut AppState, area: Rect) {
         PiScanView::Details => details::render(f, app, chunks[1]),
     }
     render_footer(f, app, chunks[2]);
+    if app.pi_scan.budget_dialog.is_some() {
+        render_budget_dialog(f, app, area);
+    }
+}
+
+/// What: Render the focused responsive Double/Unlimited budget choice above the workspace.
+///
+/// Inputs:
+/// - `f`: Target frame.
+/// - `app`: Workspace with deterministic dialog state and localized copy.
+/// - `area`: Full Pi Scan workspace rectangle.
+///
+/// Output:
+/// - A centered overlay containing affected limits, old-to-proposed values, warning, and status.
+///
+/// Details:
+/// - The overlay remains bounded at narrow dimensions and never mutates scheduler projection.
+fn render_budget_dialog(f: &mut Frame, app: &AppState, area: Rect) {
+    let Some(dialog) = app.pi_scan.budget_dialog.as_ref() else {
+        return;
+    };
+    let overlay = budget_dialog_area(area);
+    let mut lines = vec![Line::from(crate::i18n::t(
+        app,
+        "app.pi_scan.budget_dialog.prompt",
+    ))];
+    for dimension in &dialog.affected {
+        lines.push(budget_change_line(app, dialog, *dimension));
+    }
+    lines.push(Line::from(""));
+    lines.push(budget_choice_line(
+        app,
+        dialog,
+        crate::state::pi_scan::PiScanBudgetAdjustment::Double,
+        "app.pi_scan.budget_dialog.double",
+    ));
+    lines.push(budget_choice_line(
+        app,
+        dialog,
+        crate::state::pi_scan::PiScanBudgetAdjustment::Unlimited,
+        "app.pi_scan.budget_dialog.unlimited",
+    ));
+    lines.push(Line::from(Span::styled(
+        format!(
+            "⚠ {}",
+            crate::i18n::t(app, "app.pi_scan.budget_dialog.unlimited_warning")
+        ),
+        semantic_style(SemanticTone::Warning),
+    )));
+    push_budget_dialog_status(&mut lines, app, dialog);
+    lines.push(Line::from(crate::i18n::t(
+        app,
+        "app.pi_scan.budget_dialog.keys",
+    )));
+    f.render_widget(Clear, overlay);
+    f.render_widget(
+        Paragraph::new(lines).wrap(Wrap { trim: false }).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(crate::i18n::t(app, "app.pi_scan.budget_dialog.title")),
+        ),
+        overlay,
+    );
+}
+
+/// What: Compute a centered budget-dialog rectangle bounded by the current terminal.
+///
+/// Inputs:
+/// - `area`: Full available workspace.
+///
+/// Output:
+/// - Centered rectangle using at most 76 columns and 16 rows.
+///
+/// Details:
+/// - Saturating arithmetic keeps 20x10 and smaller renders valid.
+const fn budget_dialog_area(area: Rect) -> Rect {
+    let width = if area.width < 76 { area.width } else { 76 };
+    let height = if area.height < 16 { area.height } else { 16 };
+    Rect {
+        x: area.x.saturating_add(area.width.saturating_sub(width) / 2),
+        y: area
+            .y
+            .saturating_add(area.height.saturating_sub(height) / 2),
+        width,
+        height,
+    }
+}
+
+/// What: Render one scheduler-classified limit with its visible old and proposed value.
+///
+/// Inputs:
+/// - `app`: Localization state.
+/// - `dialog`: Open-time limit snapshot and selected policy.
+/// - `dimension`: One affected budget dimension.
+///
+/// Output:
+/// - Localized label and `old → proposed` line.
+///
+/// Details:
+/// - Checked-overflow proposals remain explicit instead of silently clamping.
+fn budget_change_line(
+    app: &AppState,
+    dialog: &crate::state::pi_scan_ui::PiScanBudgetDialogState,
+    dimension: crate::state::pi_scan::PiScanBudgetDimension,
+) -> Line<'static> {
+    let old = budget_limit_value(app, dimension, dialog.previous_limits);
+    let proposed = proposed_budget_limit_value(app, dialog, dimension);
+    labeled_line(
+        crate::i18n::t(app, budget_dimension_key(dimension)),
+        format!("{old} → {proposed}"),
+        SemanticTone::Normal,
+    )
+}
+
+/// What: Format the currently selected proposal for one affected limit.
+///
+/// Inputs:
+/// - `app`: Localization state.
+/// - `dialog`: Selected policy and open-time limits.
+/// - `dimension`: Affected dimension.
+///
+/// Output:
+/// - Exact doubled value, Unlimited, or explicit overflow text.
+///
+/// Details:
+/// - This is presentation-only; WS1 remains authoritative for Apply-time arithmetic.
+fn proposed_budget_limit_value(
+    app: &AppState,
+    dialog: &crate::state::pi_scan_ui::PiScanBudgetDialogState,
+    dimension: crate::state::pi_scan::PiScanBudgetDimension,
+) -> String {
+    use crate::state::pi_scan::{PiScanBudgetAdjustment, PiScanBudgetDimension};
+    if dialog.selection == PiScanBudgetAdjustment::Unlimited {
+        return crate::i18n::t(app, "app.pi_scan.common.unlimited");
+    }
+    let mut proposed = dialog.previous_limits;
+    let doubled = match dimension {
+        PiScanBudgetDimension::Starts => proposed
+            .starts_per_hour
+            .checked_mul(2)
+            .map(|value| proposed.starts_per_hour = value),
+        PiScanBudgetDimension::Tokens => proposed
+            .tokens_per_24h
+            .checked_mul(2)
+            .map(|value| proposed.tokens_per_24h = value),
+        PiScanBudgetDimension::Cost => proposed
+            .cost_microusd_per_24h
+            .checked_mul(2)
+            .map(|value| proposed.cost_microusd_per_24h = value),
+    };
+    doubled.map_or_else(
+        || crate::i18n::t(app, "app.pi_scan.budget_dialog.overflow"),
+        |()| budget_limit_value(app, dimension, proposed),
+    )
+}
+
+/// What: Render one selectable adjustment option with visible keyboard focus.
+///
+/// Inputs:
+/// - `app`: Localization state.
+/// - `dialog`: Current selection/status.
+/// - `choice`: Option represented by this line.
+/// - `key`: Localized option label key.
+///
+/// Output:
+/// - Focus-marked option line.
+///
+/// Details:
+/// - Focus remains visible while submitting or showing a rejection.
+fn budget_choice_line(
+    app: &AppState,
+    dialog: &crate::state::pi_scan_ui::PiScanBudgetDialogState,
+    choice: crate::state::pi_scan::PiScanBudgetAdjustment,
+    key: &str,
+) -> Line<'static> {
+    let selected = dialog.selection == choice;
+    Line::from(Span::styled(
+        format!(
+            "  {} {}",
+            if selected { "▶" } else { " " },
+            crate::i18n::t(app, key)
+        ),
+        semantic_style(if selected {
+            SemanticTone::Active
+        } else {
+            SemanticTone::Muted
+        }),
+    ))
+}
+
+/// What: Append pending or rejected runtime status to the budget dialog.
+///
+/// Inputs:
+/// - `lines`: Overlay output buffer.
+/// - `app`: Localization state.
+/// - `dialog`: Current submission status and optional rejection.
+///
+/// Output:
+/// - No line while choosing, or a visible pending/rejected status line.
+///
+/// Details:
+/// - Rejection detail remains actionable and does not close the choice.
+fn push_budget_dialog_status(
+    lines: &mut Vec<Line<'static>>,
+    app: &AppState,
+    dialog: &crate::state::pi_scan_ui::PiScanBudgetDialogState,
+) {
+    use crate::state::pi_scan_ui::PiScanBudgetDialogStatus;
+    match dialog.status {
+        PiScanBudgetDialogStatus::Choosing => {}
+        PiScanBudgetDialogStatus::Submitting => lines.push(Line::from(Span::styled(
+            crate::i18n::t(app, "app.pi_scan.budget_dialog.submitting"),
+            semantic_style(SemanticTone::Active),
+        ))),
+        PiScanBudgetDialogStatus::Rejected => lines.push(Line::from(Span::styled(
+            format!(
+                "{}: {}",
+                crate::i18n::t(app, "app.pi_scan.budget_dialog.rejected"),
+                dialog.rejection.as_deref().unwrap_or_default()
+            ),
+            semantic_style(SemanticTone::Error),
+        ))),
+    }
+}
+
+/// Map one budget dimension to its shared localized label.
+const fn budget_dimension_key(
+    dimension: crate::state::pi_scan::PiScanBudgetDimension,
+) -> &'static str {
+    match dimension {
+        crate::state::pi_scan::PiScanBudgetDimension::Starts => "app.pi_scan.progress.limit_starts",
+        crate::state::pi_scan::PiScanBudgetDimension::Tokens => "app.pi_scan.progress.limit_tokens",
+        crate::state::pi_scan::PiScanBudgetDimension::Cost => "app.pi_scan.progress.limit_cost",
+    }
+}
+
+/// What: Format one runtime-owned budget limit with truthful Unlimited semantics.
+///
+/// Inputs:
+/// - `app`: Localization state.
+/// - `dimension`: Starts, tokens, or cost.
+/// - `limits`: Current authoritative runtime limits.
+///
+/// Output:
+/// - Grouped finite value or localized Unlimited for numeric zero.
+///
+/// Details:
+/// - Cost remains exact integer micro-USD and finite starts include the rolling unit.
+pub(super) fn budget_limit_value(
+    app: &AppState,
+    dimension: crate::state::pi_scan::PiScanBudgetDimension,
+    limits: crate::state::pi_scan::PiScanBudgetLimits,
+) -> String {
+    use crate::state::pi_scan::PiScanBudgetDimension;
+    let unlimited = match dimension {
+        PiScanBudgetDimension::Starts => limits.starts_per_hour == 0,
+        PiScanBudgetDimension::Tokens => limits.tokens_per_24h == 0,
+        PiScanBudgetDimension::Cost => limits.cost_microusd_per_24h == 0,
+    };
+    if unlimited {
+        return crate::i18n::t(app, "app.pi_scan.common.unlimited");
+    }
+    match dimension {
+        PiScanBudgetDimension::Starts => format!("{}/h", limits.starts_per_hour),
+        PiScanBudgetDimension::Tokens => format_token_count(limits.tokens_per_24h),
+        PiScanBudgetDimension::Cost => format_microusd(limits.cost_microusd_per_24h),
+    }
 }
 
 /// Draw tabs and record mouse hit rectangles.

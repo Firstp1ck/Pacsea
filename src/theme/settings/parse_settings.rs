@@ -186,9 +186,18 @@ fn parse_pi_scan_settings(key: &str, val: &str, settings: &mut Settings) -> bool
         "pi_scan_background_starts_per_hour" => {
             return assign_u32(val, &mut pi.background_starts_per_hour);
         }
-        "pi_scan_background_token_cap_24h" => {
-            return assign_u64(val, &mut pi.background_token_cap_24h);
-        }
+        "pi_scan_background_token_cap_24h" => match val.parse::<u64>() {
+            Ok(parsed) => {
+                pi.background_token_cap_24h = parsed;
+                pi.background_token_cap_24h_parse_error = None;
+            }
+            Err(_) => {
+                pi.background_token_cap_24h_parse_error = Some(
+                        "pi_scan_background_token_cap_24h must be a non-negative integer no greater than 18446744073709551615"
+                            .to_string(),
+                    );
+            }
+        },
         "pi_scan_background_cost_cap_24h" => pi.background_cost_cap_24h = val.trim().to_string(),
         "pi_scan_result_retention_days" => return assign_u32(val, &mut pi.result_retention_days),
         "pi_scan_show_raw_output" => pi.show_raw_output = parse_bool(val),
@@ -656,6 +665,63 @@ mod tests {
         );
         assert_eq!(settings.selected_countries, "Switzerland, Germany");
         assert_eq!(settings.mirror_count, 7);
+    }
+
+    #[test]
+    /// What: Accept the complete native token-cap range and preserve the prior value on malformed input.
+    fn parse_settings_pi_scan_token_cap_handles_native_u64_bounds() {
+        let path = Path::new("settings.conf");
+        let mut settings = Settings::default();
+
+        parse_settings(
+            &format!("pi_scan_background_token_cap_24h = {}\n", u64::MAX),
+            path,
+            &mut settings,
+        );
+        assert_eq!(settings.pi_scan.background_token_cap_24h, u64::MAX);
+
+        parse_settings(
+            "pi_scan_background_token_cap_24h = 18446744073709551616\n",
+            path,
+            &mut settings,
+        );
+        assert_eq!(settings.pi_scan.background_token_cap_24h, u64::MAX);
+        assert!(settings.pi_scan.validation_issues().iter().any(|issue| {
+            issue.contains("pi_scan_background_token_cap_24h")
+                && issue.contains("18446744073709551615")
+        }));
+        parse_settings(
+            "pi_scan_background_token_cap_24h = malformed\n",
+            path,
+            &mut settings,
+        );
+        assert_eq!(settings.pi_scan.background_token_cap_24h, u64::MAX);
+        assert!(!settings.pi_scan.validation_issues().is_empty());
+        parse_settings(
+            "pi_scan_background_token_cap_24h = 0\n",
+            path,
+            &mut settings,
+        );
+        assert_eq!(settings.pi_scan.background_token_cap_24h, 0);
+        assert!(settings.pi_scan.validation_issues().is_empty());
+    }
+
+    #[test]
+    /// What: Surface malformed startup token caps even when parsing starts from fresh defaults.
+    fn parse_settings_pi_scan_invalid_token_cap_marks_default_invalid() {
+        let path = Path::new("settings.conf");
+        let mut settings = Settings::default();
+
+        parse_settings(
+            "pi_scan_background_token_cap_24h = malformed\n",
+            path,
+            &mut settings,
+        );
+
+        assert_eq!(settings.pi_scan.background_token_cap_24h, 500_000);
+        assert!(settings.pi_scan.validation_issues().iter().any(|issue| {
+            issue.contains("pi_scan_background_token_cap_24h") && issue.contains("non-negative")
+        }));
     }
 
     #[test]

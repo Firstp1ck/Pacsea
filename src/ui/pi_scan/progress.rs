@@ -534,63 +534,30 @@ fn unix_now_millis() -> u128 {
 
 /// Return the exact rolling limits that block the next background reservation.
 fn budget_limit_hit_names(app: &AppState, now_unix: u64) -> String {
-    let Some(next) = app
-        .pi_scan
-        .runtime
-        .queue
-        .iter()
-        .find(|item| item.priority == crate::state::pi_scan::PiScanPriority::Background)
-    else {
+    let exceeded = app.pi_scan.runtime.exceeded_budget_limits(now_unix);
+    if exceeded.is_empty() {
         return crate::i18n::t(app, "app.pi_scan.progress.budget_unknown");
-    };
-    let mut starts = 0_u32;
-    let mut tokens = 0_u64;
-    let mut cost = 0_u64;
-    for record in
-        app.pi_scan.runtime.budget.records.iter().filter(|record| {
-            record.class == crate::state::pi_scan::PiScanAccountingClass::Background
+    }
+    exceeded
+        .iter()
+        .map(|dimension| {
+            crate::i18n::t(
+                app,
+                match dimension {
+                    crate::state::pi_scan::PiScanBudgetDimension::Starts => {
+                        "app.pi_scan.progress.limit_starts"
+                    }
+                    crate::state::pi_scan::PiScanBudgetDimension::Tokens => {
+                        "app.pi_scan.progress.limit_tokens"
+                    }
+                    crate::state::pi_scan::PiScanBudgetDimension::Cost => {
+                        "app.pi_scan.progress.limit_cost"
+                    }
+                },
+            )
         })
-    {
-        let age = now_unix.saturating_sub(record.started_at_unix);
-        if age < crate::state::pi_scan::START_WINDOW_SECONDS {
-            starts = starts.saturating_add(1);
-        }
-        if age < crate::state::pi_scan::USAGE_WINDOW_SECONDS {
-            tokens = tokens.saturating_add(record.effective_tokens());
-            cost = cost.saturating_add(record.effective_cost_microusd());
-        }
-    }
-    let limits = &app.pi_scan.settings;
-    let mut hit = Vec::new();
-    if starts >= limits.background_starts_per_hour {
-        hit.push(crate::i18n::t(app, "app.pi_scan.progress.limit_starts"));
-    }
-    if tokens.saturating_add(next.reservation.tokens) > limits.background_token_cap_24h {
-        hit.push(crate::i18n::t(app, "app.pi_scan.progress.limit_tokens"));
-    }
-    let cost_limit = parse_cost_microusd(&limits.background_cost_cap_24h);
-    if cost.saturating_add(next.reservation.cost_microusd) > cost_limit {
-        hit.push(crate::i18n::t(app, "app.pi_scan.progress.limit_cost"));
-    }
-    if hit.is_empty() {
-        crate::i18n::t(app, "app.pi_scan.progress.budget_unknown")
-    } else {
-        hit.join(", ")
-    }
-}
-
-/// Parse a decimal USD cap into micro-USD without floating-point rounding.
-fn parse_cost_microusd(value: &str) -> u64 {
-    let trimmed = value.trim();
-    let (whole, fraction) = trimmed.split_once('.').map_or((trimmed, ""), |parts| parts);
-    let whole = whole.parse::<u64>().unwrap_or(0);
-    let mut fraction_digits = fraction.chars().take(6).collect::<String>();
-    while fraction_digits.len() < 6 {
-        fraction_digits.push('0');
-    }
-    whole
-        .saturating_mul(1_000_000)
-        .saturating_add(fraction_digits.parse::<u64>().unwrap_or(0))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 #[cfg(test)]
@@ -599,8 +566,59 @@ mod tests {
         PROGRESS_BAR_WIDTH, SPINNER_FRAME_MS, SPINNER_FRAMES, active_phase, count_outcomes,
         pause_reason_key, phase_key, progress_bar, spinner_frame,
     };
-    use crate::state::pi_scan::{PiScanPauseReason, PiScanTerminalStatus};
+    use crate::state::pi_scan::{
+        PiScanJobRequest, PiScanPauseReason, PiScanPriority, PiScanQueueKey, PiScanReservation,
+        PiScanTerminalStatus,
+    };
     use crate::state::{AppState, PiScanExecutionPhase, PiScanExecutionProgress};
+
+    /// Build one budget-blocked background request for guidance rendering.
+    fn budget_request() -> PiScanJobRequest {
+        PiScanJobRequest {
+            request_id: 1,
+            key: PiScanQueueKey {
+                package_base: crate::logic::pi_scan::identity::PackageBase::new("budget-demo")
+                    .expect("package base"),
+                commit_oid: crate::logic::pi_scan::identity::CommitOid::new("b".repeat(40))
+                    .expect("commit oid"),
+            },
+            priority: PiScanPriority::Background,
+            reservation: PiScanReservation {
+                tokens: 501,
+                cost_microusd: 1,
+            },
+            manual_budget_override_confirmed: false,
+        }
+    }
+
+    /// Budget guidance uses direct b adjustment and never routes through Setup+r.
+    #[test]
+    fn budget_pause_guidance_uses_direct_budget_key() {
+        let backend = ratatui::backend::TestBackend::new(120, 24);
+        let mut terminal = ratatui::Terminal::new(backend).expect("test terminal");
+        let mut app = AppState::default();
+        let locales = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("config/locales");
+        app.translations =
+            crate::i18n::load_locale_file("en-US", &locales).expect("English locale");
+        app.pi_scan.runtime.queue.push_back(budget_request());
+        app.pi_scan.runtime.budget_limits.tokens_per_24h = 500;
+        app.pi_scan
+            .runtime
+            .pause_reasons
+            .insert(PiScanPauseReason::Budget);
+        terminal
+            .draw(|frame| super::render(frame, &mut app, frame.area()))
+            .expect("progress render");
+        let rendered = terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .map(ratatui::buffer::Cell::symbol)
+            .collect::<String>();
+        assert!(rendered.contains("press b"), "{rendered:?}");
+        assert!(!rendered.contains("Setup (1)"), "{rendered:?}");
+    }
 
     /// The spinner starts at frame zero, advances per interval, and wraps around.
     #[test]

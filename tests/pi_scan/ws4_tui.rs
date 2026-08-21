@@ -188,6 +188,16 @@ fn scan_request() -> pacsea::state::pi_scan::PiScanJobRequest {
     }
 }
 
+/// Build deterministic queued background work that exceeds finite token and cost limits.
+fn budget_blocked_request() -> pacsea::state::pi_scan::PiScanJobRequest {
+    let mut request = scan_request();
+    request.priority = pacsea::state::pi_scan::PiScanPriority::Background;
+    request.reservation.tokens = 501;
+    request.reservation.cost_microusd = 11;
+    request.manual_budget_override_confirmed = false;
+    request
+}
+
 /// Channel tuple used by the public event dispatcher test.
 type EventChannels = (
     mpsc::UnboundedSender<pacsea::state::QueryInput>,
@@ -226,7 +236,7 @@ fn pi_scan_settings_are_conservative_and_report_raised_limits() {
 
     settings.head_query_timeout_seconds = 16;
     settings.background_token_cap_24h = 500_001;
-    assert_eq!(settings.validation_issues().len(), 2);
+    assert_eq!(settings.validation_issues().len(), 1);
 }
 
 /// Verify Shift+A opens Pi Scan globally with the selected AUR context.
@@ -728,7 +738,68 @@ fn dry_run_target_action_creates_preview_without_queue_mutation() {
     );
 }
 
-/// Material Pi Scan reload changes close only the wizard and explain the reset.
+/// Budget-only external reloads preserve consent while the connected owner stays authoritative.
+#[test]
+fn budget_only_pi_scan_reload_preserves_connected_runtime_limits() {
+    let mut app = AppState {
+        app_mode: AppMode::PiScan,
+        ..AppState::default()
+    };
+    load_english(&mut app);
+    app.pi_scan.availability = PiScanAvailability::RuntimeConnected;
+    app.pi_scan.setup_facts_verified = true;
+    app.pi_scan.disclosure_confirmed = true;
+    app.pi_scan.fallback_confirmed = true;
+    app.pi_scan.background_paid_execution_confirmed = true;
+    app.pi_scan.readiness_warning_confirmed = true;
+    app.pi_scan.runtime.consent.background_observation = true;
+    app.pi_scan.runtime.consent.paid_execution = true;
+    app.pi_scan.readiness = pacsea::state::PiScanReadiness::Confirmed;
+    app.pi_scan.runtime.budget_limits = pacsea::state::pi_scan::PiScanBudgetLimits {
+        starts_per_hour: 5,
+        tokens_per_24h: 500_000,
+        cost_microusd_per_24h: 50,
+    };
+    app.pi_scan.begin_setup_wizard(false);
+    let mut settings = pacsea::theme::Settings::default();
+    settings.pi_scan = app.pi_scan.settings.clone();
+    settings.pi_scan.background_starts_per_hour = 0;
+    settings.pi_scan.background_token_cap_24h = 1_000_001;
+    settings.pi_scan.background_cost_cap_24h = "18446744073709.551615".to_string();
+
+    pacsea::app::apply_settings_to_app_state(&mut app, &settings);
+
+    assert!(app.pi_scan.setup_facts_verified);
+    assert!(app.pi_scan.disclosure_confirmed);
+    assert!(app.pi_scan.fallback_confirmed);
+    assert!(app.pi_scan.background_paid_execution_confirmed);
+    assert!(app.pi_scan.readiness_warning_confirmed);
+    assert!(app.pi_scan.runtime.consent.background_observation);
+    assert!(app.pi_scan.runtime.consent.paid_execution);
+    assert_eq!(
+        app.pi_scan.readiness,
+        pacsea::state::PiScanReadiness::Confirmed
+    );
+    assert!(app.pi_scan.wizard.is_some());
+    assert_eq!(
+        app.pi_scan.runtime.budget_limits,
+        pacsea::state::pi_scan::PiScanBudgetLimits {
+            starts_per_hour: 5,
+            tokens_per_24h: 500_000,
+            cost_microusd_per_24h: 50,
+        }
+    );
+    assert_eq!(app.pi_scan.settings.background_starts_per_hour, 0);
+    assert_eq!(app.pi_scan.settings.background_token_cap_24h, 1_000_001);
+    assert_eq!(
+        app.pi_scan.notices.foreground_text(),
+        Some(
+            "Pi Scan budget settings changed outside the live runtime. The connected runtime keeps its current limits; restart Pacsea to apply the edited values, or use b on a budget-paused Overview/Progress page for a direct live adjustment."
+        )
+    );
+}
+
+/// Material Pi Scan reload changes close the wizard and reset verified consent state.
 #[test]
 fn material_pi_scan_reload_closes_wizard_with_typed_notice() {
     let mut app = AppState {
@@ -738,6 +809,14 @@ fn material_pi_scan_reload_closes_wizard_with_typed_notice() {
     load_english(&mut app);
     app.pi_scan.availability = PiScanAvailability::RuntimeConnected;
     app.pi_scan.begin_setup_wizard(false);
+    app.pi_scan.setup_facts_verified = true;
+    app.pi_scan.disclosure_confirmed = true;
+    app.pi_scan.fallback_confirmed = true;
+    app.pi_scan.background_paid_execution_confirmed = true;
+    app.pi_scan.readiness_warning_confirmed = true;
+    app.pi_scan.runtime.consent.background_observation = true;
+    app.pi_scan.runtime.consent.paid_execution = true;
+    app.pi_scan.readiness = pacsea::state::PiScanReadiness::Confirmed;
     let mut settings = pacsea::theme::Settings::default();
     settings.pi_scan = app.pi_scan.settings.clone();
     settings.pi_scan.provider = "changed-provider".to_string();
@@ -750,6 +829,17 @@ fn material_pi_scan_reload_closes_wizard_with_typed_notice() {
         PiScanAvailability::RuntimeConnected
     );
     assert!(app.pi_scan.wizard.is_none());
+    assert!(!app.pi_scan.setup_facts_verified);
+    assert!(!app.pi_scan.disclosure_confirmed);
+    assert!(!app.pi_scan.fallback_confirmed);
+    assert!(!app.pi_scan.background_paid_execution_confirmed);
+    assert!(!app.pi_scan.readiness_warning_confirmed);
+    assert!(!app.pi_scan.runtime.consent.background_observation);
+    assert!(!app.pi_scan.runtime.consent.paid_execution);
+    assert_eq!(
+        app.pi_scan.readiness,
+        pacsea::state::PiScanReadiness::Unchecked
+    );
     let notice = app
         .pi_scan
         .notices
@@ -863,7 +953,9 @@ fn all_locales_include_pi_scan_workspace_translations() {
             "app.pi_scan.setup.validation_issue.at_least",
             "app.pi_scan.setup.validation_issue.between",
             "app.pi_scan.setup.validation_issue.cannot_exceed",
-            "app.pi_scan.setup.validation_issue.nonnegative_decimal",
+            "app.pi_scan.setup.validation_issue.native_integer",
+            "app.pi_scan.setup.validation_issue.exact_decimal",
+            "app.pi_scan.setup.validation_issue.exact_cost_maximum",
             "app.pi_scan.setup.validation_issue.https_proxy",
             "app.pi_scan.wizard.pricing.selected_route",
             "app.pi_scan.wizard.pricing.worst_case",
@@ -894,6 +986,9 @@ fn all_locales_include_pi_scan_workspace_translations() {
             "app.pi_scan.results.completion.one_finding",
             "app.pi_scan.results.completion.many_findings",
             "app.pi_scan.details.ack_keys",
+            "app.pi_scan.budget_dialog.title",
+            "app.pi_scan.budget_dialog.unlimited_warning",
+            "app.pi_scan.notices.budget_applied_residual",
             "app.pi_scan.footer.keys.targets",
             "app.pi_scan.footer.keys.progress",
             "app.pi_scan.footer.keys.results",
@@ -953,6 +1048,7 @@ fn pi_scan_help_renders_workspace_wizard_and_configured_chord() {
     let rendered = render_text(&mut app, 120, 60);
 
     assert!(rendered.contains("Pi Scan workspace"), "{rendered:?}");
+    assert!(rendered.contains("Overview/Progress: b adjusts currently exceeded budgets"));
     assert!(rendered.contains("Progress: p pause · u resume · x cancel · r retry"));
     assert!(rendered.contains("Wizard:"));
     assert!(rendered.contains("Ctrl+G"));
@@ -960,9 +1056,9 @@ fn pi_scan_help_renders_workspace_wizard_and_configured_chord() {
     assert!(!rendered.contains("Reopen"));
 }
 
-/// Progress footer must advertise exactly the four production actions and no removed controls.
+/// Progress footer advertises retry plus the eligible direct budget action and no removed controls.
 #[test]
-fn progress_footer_advertises_exact_p_u_x_r_actions() {
+fn progress_footer_advertises_retry_and_budget_actions() {
     let mut app = AppState {
         app_mode: AppMode::PiScan,
         ..AppState::default()
@@ -972,13 +1068,162 @@ fn progress_footer_advertises_exact_p_u_x_r_actions() {
 
     let rendered = render_text(&mut app, 120, 24);
 
-    assert!(rendered.contains("p Pause · u Resume · x Cancel · r Retry"));
+    assert!(rendered.contains("p Pause · u Resume · x Cancel · r Retry · b Budget"));
     assert!(!rendered.contains("detach"));
     assert!(!rendered.contains("reopen"));
     assert!(app.updates_button_rect.is_none());
     assert!(app.config_button_rect.is_none());
     assert!(app.panels_button_rect.is_none());
     assert!(app.options_button_rect.is_none());
+}
+
+/// Focused budget choice renders affected values, Unlimited warning, focus, and narrow layout.
+#[test]
+fn budget_dialog_renders_choices_warning_values_and_narrow_dimensions() {
+    let mut app = AppState {
+        app_mode: AppMode::PiScan,
+        ..AppState::default()
+    };
+    load_english(&mut app);
+    app.pi_scan.set_view(PiScanView::Overview);
+    app.pi_scan
+        .runtime
+        .queue
+        .push_back(budget_blocked_request());
+    app.pi_scan.runtime.budget_limits.tokens_per_24h = 500;
+    app.pi_scan.runtime.budget_limits.cost_microusd_per_24h = 10;
+    app.pi_scan
+        .runtime
+        .pause_reasons
+        .insert(pacsea::state::pi_scan::PiScanPauseReason::Budget);
+    assert!(app.pi_scan.open_budget_dialog_at(1));
+
+    let focused = render_text(&mut app, 100, 30);
+    for expected in [
+        "Adjust unattended budgets",
+        "▶ Double affected limits",
+        "Set affected limits to Unlimited",
+        "500 → 1,000",
+        "$0.00001 USD → $0.00002 USD",
+        "Unlimited removes these spending ceilings",
+        "Enter Apply · Esc Cancel",
+    ] {
+        assert!(
+            focused.contains(expected),
+            "missing {expected:?}: {focused:?}"
+        );
+    }
+
+    assert!(pacsea::events::pi_scan::handle_key(
+        KeyEvent::new(KeyCode::Right, KeyModifiers::NONE),
+        &mut app,
+    ));
+    let unlimited = render_text(&mut app, 100, 30);
+    assert!(
+        unlimited.contains("▶ Set affected limits to Unlimited"),
+        "{unlimited:?}"
+    );
+    assert!(unlimited.contains("500 → Unlimited"), "{unlimited:?}");
+
+    let narrow = render_text(&mut app, 20, 10);
+    assert!(!narrow.trim().is_empty());
+}
+
+/// Guided setup formats all zero budgets as Unlimited in optional and review projections.
+#[test]
+fn guided_setup_renders_zero_budgets_as_unlimited_without_legacy_maxima() {
+    let mut app = AppState {
+        app_mode: AppMode::PiScan,
+        ..AppState::default()
+    };
+    load_english(&mut app);
+    app.pi_scan.begin_setup_wizard(true);
+    let wizard = app.pi_scan.wizard.as_mut().expect("wizard");
+    wizard.candidate.background_starts_per_hour = 0;
+    wizard.candidate.background_token_cap_24h = 0;
+    wizard.candidate.background_cost_cap_24h = "0.00".to_string();
+    wizard.step = pacsea::state::PiScanSetupStep::OptionalBehavior;
+
+    let optional = render_text(&mut app, 160, 50);
+    assert!(optional.matches("Unlimited").count() >= 3, "{optional:?}");
+    assert!(!optional.contains("max 5"), "{optional:?}");
+    assert!(!optional.contains("max 500000"), "{optional:?}");
+
+    app.pi_scan.wizard.as_mut().expect("wizard").step = pacsea::state::PiScanSetupStep::Review;
+    let review = render_text(&mut app, 160, 50);
+    assert!(review.matches("Unlimited").count() >= 3, "{review:?}");
+    assert!(!review.contains("starts≤5"), "{review:?}");
+    assert!(!review.contains("tokens≤500000"), "{review:?}");
+}
+
+/// Shipped locale copy replaces legacy maxima and explains numeric-zero Unlimited semantics.
+#[test]
+fn budget_copy_is_localized_without_legacy_maxima() {
+    let locales = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("config/locales");
+    for (locale, warning_fragment) in [
+        ("en-US", "spending ceilings"),
+        ("de-DE", "Ausgabenobergrenzen"),
+        ("hu-HU", "költési plafonokat"),
+    ] {
+        let translations = pacsea::i18n::load_locale_file(locale, &locales)
+            .unwrap_or_else(|error| panic!("{locale} locale failed: {error}"));
+        let guidance = translations
+            .get("app.pi_scan.progress.budget_solution")
+            .expect("budget guidance");
+        let warning = translations
+            .get("app.pi_scan.budget_dialog.unlimited_warning")
+            .expect("Unlimited warning");
+        assert!(guidance.contains('b'), "{locale}: {guidance}");
+        assert!(!guidance.contains("Setup (1)"), "{locale}: {guidance}");
+        assert!(
+            !guidance.contains("Einrichtung (1)"),
+            "{locale}: {guidance}"
+        );
+        assert!(warning.contains(warning_fragment), "{locale}: {warning}");
+        for key in [
+            "app.pi_scan.setup.effective_values",
+            "app.pi_scan.wizard.optional.starts",
+            "app.pi_scan.wizard.optional.tokens",
+            "app.pi_scan.wizard.optional.cost",
+            "app.pi_scan.wizard.optional.defaults",
+            "app.pi_scan.wizard.review.background",
+            "app.pi_scan.wizard.review.limits",
+            "app.pi_scan.wizard.review.compiled_values",
+            "app.modals.config_editor.settings.pi_scan_background_starts_per_hour.summary",
+            "app.modals.config_editor.settings.pi_scan_background_token_cap_24h.summary",
+            "app.modals.config_editor.settings.pi_scan_background_cost_cap_24h.summary",
+        ] {
+            let text = translations
+                .get(key)
+                .unwrap_or_else(|| panic!("{locale} missing {key}"));
+            assert!(
+                text.contains('0') && text.to_lowercase().contains("unlimited")
+                    || text.contains('0') && text.contains("Unbegrenzt")
+                    || text.contains('0') && text.contains("Korlátlan")
+                    || key.ends_with("compiled_values")
+                        && !text.contains("starts")
+                        && !text.contains("Starts")
+                        && !text.contains("indítás"),
+                "{locale} {key}: {text}"
+            );
+            assert!(!text.contains("starts≤5"), "{locale} {key}: {text}");
+            assert!(!text.contains("Starts≤5"), "{locale} {key}: {text}");
+            assert!(!text.contains("indítás≤5"), "{locale} {key}: {text}");
+            assert!(!text.contains("tokens≤500000"), "{locale} {key}: {text}");
+            assert!(!text.contains("Token≤500000"), "{locale} {key}: {text}");
+            assert!(!text.contains("token≤500000"), "{locale} {key}: {text}");
+        }
+    }
+
+    let settings = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("config/settings.conf"),
+    )
+    .expect("shipped settings");
+    assert!(
+        settings
+            .contains("numeric zero means Unlimited for each of the following independent budgets"),
+        "{settings}"
+    );
 }
 
 /// Opening Pi Scan without an AUR package must explain how to add a target.
@@ -1179,7 +1424,10 @@ fn active_progress_and_overview_render_elapsed_reservation_and_consumed_usage() 
         .records
         .push(pacsea::state::pi_scan::PiScanBudgetRecord {
             correlation_id: 7,
-            started_at_unix: 1,
+            started_at_unix: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("clock")
+                .as_secs(),
             class: pacsea::state::pi_scan::PiScanAccountingClass::Background,
             reserved: request.reservation,
             consumed_tokens: Some(1_234),

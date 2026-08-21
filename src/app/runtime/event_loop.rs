@@ -686,6 +686,7 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
                 &channels.post_summary_req_tx,
                 &channels.news_content_req_tx,
             );
+            poll_pi_scan_budget_acknowledgement(app);
             false
         }
         Some(items) = channels.news_rx.recv() => {
@@ -1480,6 +1481,9 @@ fn dispatch_pi_scan_ui_action(app: &mut AppState, channels: &Channels) {
                 requested_at_unix: pi_scan_unix_now(),
             })
             .map_err(|error| error.to_string()),
+        PiScanUiAction::AdjustBudgets(adjustment) => {
+            dispatch_pi_scan_budget_adjustment(app, channels, adjustment)
+        }
         PiScanUiAction::ContinueSelected => continue_selected_pi_scan_result(app, channels),
         PiScanUiAction::AcceptBaseline => accept_selected_pi_scan_baseline(app, channels),
     };
@@ -1488,6 +1492,249 @@ fn dispatch_pi_scan_ui_action(app: &mut AppState, channels: &Channels) {
             reason,
             crate::state::pi_scan_ui::PiScanNoticeSeverity::Error,
         );
+    }
+}
+
+/// What: Dispatch one budget adjustment with request-owned typed acknowledgement ownership.
+///
+/// Inputs:
+/// - `app`: Submitting focused dialog.
+/// - `channels`: Current sequential runtime owner.
+/// - `adjustment`: Exact Double or Unlimited selection.
+///
+/// Output:
+/// - Sends [`PiScanRequestMessage::AdjustBudgets`] or retains an actionable rejection.
+///
+/// Details:
+/// - This seam performs no settings or state-file writes and never opens guided setup.
+fn dispatch_pi_scan_budget_adjustment(
+    app: &mut AppState,
+    channels: &Channels,
+    adjustment: crate::state::pi_scan::PiScanBudgetAdjustment,
+) -> Result<(), String> {
+    let (acknowledge, receiver) = tokio::sync::mpsc::unbounded_channel();
+    app.pi_scan.budget_acknowledgement_rx = Some(receiver);
+    let request = crate::app::runtime::workers::pi_scan::PiScanRequestMessage::AdjustBudgets {
+        adjustment,
+        now_unix: pi_scan_unix_now(),
+        acknowledge,
+    };
+    if let Err(error) = channels.pi_scan_request_tx.send(request) {
+        app.pi_scan.budget_acknowledgement_rx = None;
+        if let Some(dialog) = app.pi_scan.budget_dialog.as_mut() {
+            dialog.status = crate::state::pi_scan_ui::PiScanBudgetDialogStatus::Rejected;
+            dialog.rejection = Some(error.to_string());
+        }
+        return Err(error.to_string());
+    }
+    Ok(())
+}
+
+/// What: Poll and project at most one terminal budget acknowledgement on the redraw tick.
+///
+/// Inputs:
+/// - `app`: Workspace retaining the request-owned receiver.
+///
+/// Output:
+/// - Applies one acknowledgement, leaves an empty receiver pending, or clears disconnection.
+///
+/// Details:
+/// - Tick polling avoids adding a second receiver owner and keeps central event-loop mutation serialized.
+fn poll_pi_scan_budget_acknowledgement(app: &mut AppState) {
+    let received = app
+        .pi_scan
+        .budget_acknowledgement_rx
+        .as_mut()
+        .map(tokio::sync::mpsc::UnboundedReceiver::try_recv);
+    match received {
+        Some(Ok(acknowledgement)) => {
+            app.pi_scan.budget_acknowledgement_rx = None;
+            apply_pi_scan_budget_acknowledgement(app, acknowledgement);
+        }
+        Some(Err(tokio::sync::mpsc::error::TryRecvError::Disconnected)) => {
+            app.pi_scan.budget_acknowledgement_rx = None;
+            reject_pi_scan_budget_dialog(
+                app,
+                "The Pi Scan runtime closed the budget acknowledgement channel; retry the adjustment",
+            );
+        }
+        Some(Err(tokio::sync::mpsc::error::TryRecvError::Empty)) | None => {}
+    }
+}
+
+/// What: Project one authoritative typed budget acknowledgement into visible workspace state.
+///
+/// Inputs:
+/// - `app`: Runtime/UI projection.
+/// - `acknowledgement`: Request-owned terminal response from WS1.
+///
+/// Output:
+/// - Closes successful/stale choices, projects durable limits/pause, or retains rejection.
+///
+/// Details:
+/// - Dry-run previews never mutate limits or pauses. User and Service pauses are untouched.
+fn apply_pi_scan_budget_acknowledgement(
+    app: &mut AppState,
+    acknowledgement: crate::app::runtime::workers::pi_scan::PiScanBudgetAdjustmentAcknowledgement,
+) {
+    use crate::app::runtime::workers::pi_scan::PiScanBudgetAdjustmentAcknowledgement;
+    match acknowledgement {
+        PiScanBudgetAdjustmentAcknowledgement::NoLongerBlocked { dry_run, .. } => {
+            app.pi_scan.budget_dialog = None;
+            app.pi_scan.set_foreground_notice(
+                crate::i18n::t(
+                    app,
+                    if dry_run {
+                        "app.pi_scan.notices.budget_no_longer_blocked_preview"
+                    } else {
+                        "app.pi_scan.notices.budget_no_longer_blocked"
+                    },
+                ),
+                crate::state::pi_scan_ui::PiScanNoticeSeverity::Info,
+            );
+        }
+        PiScanBudgetAdjustmentAcknowledgement::Applied {
+            result, dry_run, ..
+        } => apply_pi_scan_budget_result(app, &result, dry_run),
+        PiScanBudgetAdjustmentAcknowledgement::Rejected { reason, .. } => {
+            reject_pi_scan_budget_dialog(app, &reason);
+        }
+    }
+}
+
+/// What: Project an Applied acknowledgement using runtime-owned limits and residual pause truth.
+///
+/// Inputs:
+/// - `app`: Workspace projection.
+/// - `result`: Authoritative WS1 adjustment result.
+/// - `dry_run`: Whether the result is preview-only.
+///
+/// Output:
+/// - Preview notice without mutation, or current limits plus derived Budget pause.
+///
+/// Details:
+/// - A residual exceeded set is named explicitly; Double is never described as guaranteed resume.
+fn apply_pi_scan_budget_result(
+    app: &mut AppState,
+    result: &crate::state::pi_scan::PiScanBudgetAdjustmentResult,
+    dry_run: bool,
+) {
+    app.pi_scan.budget_dialog = None;
+    if dry_run {
+        app.pi_scan.set_foreground_notice(
+            crate::i18n::t(app, "app.pi_scan.notices.budget_preview"),
+            crate::state::pi_scan_ui::PiScanNoticeSeverity::Info,
+        );
+        return;
+    }
+    app.pi_scan.runtime.budget_limits = result.current_limits;
+    project_budget_limits_into_settings(&mut app.pi_scan.settings, result.current_limits);
+    if result.budget_paused {
+        app.pi_scan
+            .runtime
+            .pause_reasons
+            .insert(crate::state::pi_scan::PiScanPauseReason::Budget);
+    } else {
+        app.pi_scan
+            .runtime
+            .pause_reasons
+            .remove(&crate::state::pi_scan::PiScanPauseReason::Budget);
+    }
+    let (text, severity) = if result.remaining_exceeded.is_empty() {
+        (
+            crate::i18n::t(app, "app.pi_scan.notices.budget_applied"),
+            crate::state::pi_scan_ui::PiScanNoticeSeverity::Success,
+        )
+    } else {
+        let dimensions = result
+            .remaining_exceeded
+            .iter()
+            .map(|dimension| crate::i18n::t(app, budget_dimension_key(*dimension)))
+            .collect::<Vec<_>>()
+            .join(", ");
+        (
+            format!(
+                "{}: {dimensions}",
+                crate::i18n::t(app, "app.pi_scan.notices.budget_applied_residual")
+            ),
+            crate::state::pi_scan_ui::PiScanNoticeSeverity::Warning,
+        )
+    };
+    app.pi_scan.set_foreground_notice(text, severity);
+}
+
+/// What: Project authoritative runtime budget limits into the effective UI settings snapshot.
+///
+/// Inputs:
+/// - `settings`: Setup/config and queue-intent projection to synchronize.
+/// - `limits`: Authoritative applied starts, token, and micro-USD limits.
+///
+/// Output:
+/// - Replaces all three settings budget fields using exact parser-compatible decimal formatting.
+///
+/// Details:
+/// - Numeric-zero cost remains `0.00`; non-zero values retain up to six exact fractional digits.
+fn project_budget_limits_into_settings(
+    settings: &mut crate::theme::PiScanSettings,
+    limits: crate::state::pi_scan::PiScanBudgetLimits,
+) {
+    settings.background_starts_per_hour = limits.starts_per_hour;
+    settings.background_token_cap_24h = limits.tokens_per_24h;
+    settings.background_cost_cap_24h = format_budget_microusd(limits.cost_microusd_per_24h);
+}
+
+/// What: Format integer micro-USD as exact parser-compatible decimal dollars.
+///
+/// Inputs:
+/// - `value`: Cost policy in micro-USD.
+///
+/// Output:
+/// - Decimal text with at least two and at most six fractional digits.
+///
+/// Details:
+/// - Trailing zeroes beyond cents are omitted without rounding or floating-point conversion.
+fn format_budget_microusd(value: u64) -> String {
+    let dollars = value / 1_000_000;
+    let mut fraction = format!("{:06}", value % 1_000_000);
+    while fraction.len() > 2 && fraction.ends_with('0') {
+        fraction.pop();
+    }
+    format!("{dollars}.{fraction}")
+}
+
+/// What: Retain a rejected dialog as a visible and retryable choice.
+///
+/// Inputs:
+/// - `app`: Submitting workspace.
+/// - `reason`: Actionable runtime rejection detail.
+///
+/// Output:
+/// - Rejected dialog state and persistent error notice.
+///
+/// Details:
+/// - Selection remains unchanged so Enter retries and focus keys can choose Unlimited.
+fn reject_pi_scan_budget_dialog(app: &mut AppState, reason: &str) {
+    if let Some(dialog) = app.pi_scan.budget_dialog.as_mut() {
+        dialog.status = crate::state::pi_scan_ui::PiScanBudgetDialogStatus::Rejected;
+        dialog.rejection = Some(reason.to_string());
+    }
+    app.pi_scan.set_foreground_notice(
+        format!(
+            "{}: {reason}",
+            crate::i18n::t(app, "app.pi_scan.notices.budget_rejected")
+        ),
+        crate::state::pi_scan_ui::PiScanNoticeSeverity::Error,
+    );
+}
+
+/// Map one budget dimension to its localized user-facing label.
+const fn budget_dimension_key(
+    dimension: crate::state::pi_scan::PiScanBudgetDimension,
+) -> &'static str {
+    match dimension {
+        crate::state::pi_scan::PiScanBudgetDimension::Starts => "app.pi_scan.progress.limit_starts",
+        crate::state::pi_scan::PiScanBudgetDimension::Tokens => "app.pi_scan.progress.limit_tokens",
+        crate::state::pi_scan::PiScanBudgetDimension::Cost => "app.pi_scan.progress.limit_cost",
     }
 }
 
@@ -1670,26 +1917,7 @@ fn accept_selected_pi_scan_baseline(app: &AppState, channels: &Channels) -> Resu
 
 /// Convert a validated non-negative decimal dollar amount to integer micro-USD.
 fn decimal_dollars_to_microusd(value: &str) -> Result<u64, String> {
-    let trimmed = value.trim();
-    let (whole, fraction) = trimmed.split_once('.').map_or((trimmed, ""), |parts| parts);
-    let dollars = whole
-        .parse::<u64>()
-        .map_err(|_| "Pi scan cost cap is not a valid non-negative decimal".to_string())?;
-    if fraction.len() > 6 || !fraction.chars().all(|character| character.is_ascii_digit()) {
-        return Err("Pi scan cost cap supports at most six decimal places".to_string());
-    }
-    let padded = format!("{fraction:0<6}");
-    let micros = if padded.is_empty() {
-        0
-    } else {
-        padded
-            .parse::<u64>()
-            .map_err(|_| "Pi scan cost cap fraction is invalid".to_string())?
-    };
-    dollars
-        .checked_mul(1_000_000)
-        .and_then(|value| value.checked_add(micros))
-        .ok_or_else(|| "Pi scan cost cap is too large".to_string())
+    crate::theme::parse_pi_scan_cost_microusd(value)
 }
 
 /// Project one provenance-bearing runtime policy acknowledgement into workspace state.
@@ -1852,6 +2080,9 @@ fn apply_pi_scan_progress(
                 phase: crate::state::PiScanExecutionPhase::Preparing,
             });
             app.pi_scan.runtime.active = Some(active);
+        }
+        PiScanProgressMessage::BudgetRevalidated(runtime) => {
+            app.pi_scan.runtime = *runtime;
         }
         PiScanProgressMessage::PhaseChanged(progress) => {
             if app
@@ -2960,20 +3191,74 @@ pub async fn run_event_loop(
 
 #[cfg(test)]
 mod tests {
+    use super::apply_pi_scan_budget_acknowledgement;
     use super::apply_pi_scan_progress;
     use super::apply_pi_scan_result;
     use super::apply_pi_scan_runtime_notice;
+    use super::dispatch_pi_scan_ui_action;
     use super::handle_aur_vote_response;
     use super::handle_aur_vote_state_response;
     use super::handle_index_notification;
     use super::handle_news_content;
     use super::handle_updates_list;
     use super::install_pi_scan_owner;
+    use super::poll_pi_scan_budget_acknowledgement;
     use super::project_pi_scan_rollback_report;
     use crate::app::runtime::background::Channels;
     use crate::app::runtime::workers::UpdateCheckPayload;
     use crate::state::AppState;
     use crate::state::types::{NewsFeedItem, NewsFeedSource};
+    use std::collections::BTreeSet;
+
+    /// What: Attach a deterministic submitting budget dialog for acknowledgement tests.
+    ///
+    /// Inputs:
+    /// - `app`: Workspace under test.
+    /// - `selection`: Double or Unlimited request selection.
+    ///
+    /// Output:
+    /// - A submitting dialog affecting Tokens under the default runtime limit snapshot.
+    ///
+    /// Details:
+    /// - No receiver is needed when testing the terminal projection function directly.
+    fn attach_budget_dialog(
+        app: &mut AppState,
+        selection: crate::state::pi_scan::PiScanBudgetAdjustment,
+    ) {
+        app.pi_scan.budget_dialog = Some(crate::state::pi_scan_ui::PiScanBudgetDialogState {
+            selection,
+            affected: BTreeSet::from([crate::state::pi_scan::PiScanBudgetDimension::Tokens]),
+            previous_limits: app.pi_scan.runtime.budget_limits,
+            status: crate::state::pi_scan_ui::PiScanBudgetDialogStatus::Submitting,
+            rejection: None,
+        });
+    }
+
+    /// What: Build one deterministic authoritative budget result for projection tests.
+    ///
+    /// Inputs:
+    /// - `previous`: Limits before Apply.
+    /// - `current`: Limits after Apply.
+    /// - `remaining`: Scheduler-owned residual exceeded set.
+    ///
+    /// Output:
+    /// - Typed result affecting Tokens with pause truth derived from `remaining`.
+    ///
+    /// Details:
+    /// - Keeps acknowledgement tests independent from scheduler implementation details.
+    fn budget_result(
+        previous: crate::state::pi_scan::PiScanBudgetLimits,
+        current: crate::state::pi_scan::PiScanBudgetLimits,
+        remaining: BTreeSet<crate::state::pi_scan::PiScanBudgetDimension>,
+    ) -> crate::state::pi_scan::PiScanBudgetAdjustmentResult {
+        crate::state::pi_scan::PiScanBudgetAdjustmentResult {
+            previous_limits: previous,
+            current_limits: current,
+            affected: BTreeSet::from([crate::state::pi_scan::PiScanBudgetDimension::Tokens]),
+            budget_paused: !remaining.is_empty(),
+            remaining_exceeded: remaining,
+        }
+    }
 
     /// What: Build a minimal `NewsFeedItem` for news content tests.
     ///
@@ -3056,6 +3341,281 @@ mod tests {
             stale: false,
             mutable_sources: Vec::new(),
         }
+    }
+
+    /// Typed dispatch retains its request-owned receiver and polling projects the exact response.
+    #[tokio::test]
+    async fn budget_dispatch_owns_and_polls_typed_acknowledgement() {
+        let mut app = AppState {
+            app_mode: crate::state::types::AppMode::PiScan,
+            ..AppState::default()
+        };
+        let mut channels =
+            Channels::new(std::path::PathBuf::from("/tmp")).expect("channels should construct");
+        let (request_tx, mut request_rx) = tokio::sync::mpsc::unbounded_channel();
+        channels.pi_scan_request_tx = request_tx;
+        attach_budget_dialog(
+            &mut app,
+            crate::state::pi_scan::PiScanBudgetAdjustment::Double,
+        );
+        app.pi_scan.budget_dialog.as_mut().expect("dialog").status =
+            crate::state::pi_scan_ui::PiScanBudgetDialogStatus::Choosing;
+        assert!(app.pi_scan.submit_budget_dialog());
+
+        dispatch_pi_scan_ui_action(&mut app, &channels);
+        assert!(app.pi_scan.budget_acknowledgement_rx.is_some());
+        let request = request_rx.try_recv().expect("typed adjustment request");
+        let crate::app::runtime::workers::pi_scan::PiScanRequestMessage::AdjustBudgets {
+            adjustment,
+            acknowledge,
+            ..
+        } = request
+        else {
+            panic!("unexpected Pi Scan request")
+        };
+        assert_eq!(
+            adjustment,
+            crate::state::pi_scan::PiScanBudgetAdjustment::Double
+        );
+        let previous = app.pi_scan.runtime.budget_limits;
+        let current = crate::state::pi_scan::PiScanBudgetLimits {
+            tokens_per_24h: previous.tokens_per_24h * 2,
+            ..previous
+        };
+        acknowledge
+            .send(
+                crate::app::runtime::workers::pi_scan::PiScanBudgetAdjustmentAcknowledgement::Applied {
+                    adjustment,
+                    result: budget_result(previous, current, BTreeSet::new()),
+                    durable: true,
+                    dry_run: false,
+                },
+            )
+            .expect("typed acknowledgement");
+
+        poll_pi_scan_budget_acknowledgement(&mut app);
+        assert!(app.pi_scan.budget_acknowledgement_rx.is_none());
+        assert!(app.pi_scan.budget_dialog.is_none());
+        assert_eq!(app.pi_scan.runtime.budget_limits, current);
+    }
+
+    /// Applied acknowledgement projects authoritative limits and preserves unrelated pauses.
+    #[test]
+    fn budget_applied_projects_limits_residual_pause_and_sticky_pauses() {
+        let mut app = AppState::default();
+        app.pi_scan.targets.push(crate::state::PiScanTarget {
+            package_name: "budget-projection".to_string(),
+            package_base: "budget-projection".to_string(),
+            commit_oid: None,
+            selected: true,
+            status: crate::state::PiScanTargetStatus::Unbaselined,
+        });
+        app.pi_scan.runtime.pause_reasons.extend([
+            crate::state::pi_scan::PiScanPauseReason::User,
+            crate::state::pi_scan::PiScanPauseReason::Service,
+            crate::state::pi_scan::PiScanPauseReason::Budget,
+        ]);
+        attach_budget_dialog(
+            &mut app,
+            crate::state::pi_scan::PiScanBudgetAdjustment::Double,
+        );
+        let previous = app.pi_scan.runtime.budget_limits;
+        let current = crate::state::pi_scan::PiScanBudgetLimits {
+            starts_per_hour: 0,
+            tokens_per_24h: 1_000_001,
+            cost_microusd_per_24h: 1,
+        };
+        apply_pi_scan_budget_acknowledgement(
+            &mut app,
+            crate::app::runtime::workers::pi_scan::PiScanBudgetAdjustmentAcknowledgement::Applied {
+                adjustment: crate::state::pi_scan::PiScanBudgetAdjustment::Double,
+                result: budget_result(previous, current, BTreeSet::new()),
+                durable: true,
+                dry_run: false,
+            },
+        );
+        assert_eq!(app.pi_scan.runtime.budget_limits, current);
+        assert_eq!(app.pi_scan.settings.background_starts_per_hour, 0);
+        assert_eq!(app.pi_scan.settings.background_token_cap_24h, 1_000_001);
+        assert_eq!(app.pi_scan.settings.background_cost_cap_24h, "0.000001");
+        app.pi_scan.snapshot_queue_intent();
+        let intent = app
+            .pi_scan
+            .pending_queue_intent
+            .as_ref()
+            .expect("queue intent");
+        assert_eq!(intent.reservation_tokens, 1_000_001);
+        assert_eq!(intent.reservation_cost_cap, "0.000001");
+        assert!(
+            app.pi_scan
+                .runtime
+                .pause_reasons
+                .contains(&crate::state::pi_scan::PiScanPauseReason::User)
+        );
+        assert!(
+            app.pi_scan
+                .runtime
+                .pause_reasons
+                .contains(&crate::state::pi_scan::PiScanPauseReason::Service)
+        );
+        assert!(
+            !app.pi_scan
+                .runtime
+                .pause_reasons
+                .contains(&crate::state::pi_scan::PiScanPauseReason::Budget)
+        );
+        assert!(app.pi_scan.budget_dialog.is_none());
+
+        attach_budget_dialog(
+            &mut app,
+            crate::state::pi_scan::PiScanBudgetAdjustment::Double,
+        );
+        apply_pi_scan_budget_acknowledgement(
+            &mut app,
+            crate::app::runtime::workers::pi_scan::PiScanBudgetAdjustmentAcknowledgement::Applied {
+                adjustment: crate::state::pi_scan::PiScanBudgetAdjustment::Double,
+                result: budget_result(
+                    current,
+                    current,
+                    BTreeSet::from([crate::state::pi_scan::PiScanBudgetDimension::Tokens]),
+                ),
+                durable: true,
+                dry_run: false,
+            },
+        );
+        assert!(
+            app.pi_scan
+                .runtime
+                .pause_reasons
+                .contains(&crate::state::pi_scan::PiScanPauseReason::Budget)
+        );
+        assert!(
+            app.pi_scan
+                .notices
+                .foreground_text()
+                .is_some_and(|text| text.contains("app.pi_scan.notices.budget_applied_residual"))
+        );
+    }
+
+    /// Dry-run, stale-modal, and rejection acknowledgements obey their distinct mutation rules.
+    #[test]
+    fn budget_acknowledgements_handle_preview_no_longer_blocked_and_rejection() {
+        let mut app = AppState::default();
+        let previous = app.pi_scan.runtime.budget_limits;
+        let previous_settings = app.pi_scan.settings.clone();
+        let proposed = crate::state::pi_scan::PiScanBudgetLimits {
+            tokens_per_24h: previous.tokens_per_24h * 2,
+            ..previous
+        };
+        attach_budget_dialog(
+            &mut app,
+            crate::state::pi_scan::PiScanBudgetAdjustment::Double,
+        );
+        apply_pi_scan_budget_acknowledgement(
+            &mut app,
+            crate::app::runtime::workers::pi_scan::PiScanBudgetAdjustmentAcknowledgement::Applied {
+                adjustment: crate::state::pi_scan::PiScanBudgetAdjustment::Double,
+                result: budget_result(previous, proposed, BTreeSet::new()),
+                durable: false,
+                dry_run: true,
+            },
+        );
+        assert_eq!(app.pi_scan.runtime.budget_limits, previous);
+        assert_eq!(app.pi_scan.settings, previous_settings);
+        assert!(app.pi_scan.budget_dialog.is_none());
+
+        attach_budget_dialog(
+            &mut app,
+            crate::state::pi_scan::PiScanBudgetAdjustment::Unlimited,
+        );
+        let no_hit = crate::state::pi_scan::PiScanBudgetAdjustmentResult {
+            previous_limits: previous,
+            current_limits: previous,
+            affected: BTreeSet::new(),
+            remaining_exceeded: BTreeSet::new(),
+            budget_paused: false,
+        };
+        apply_pi_scan_budget_acknowledgement(
+            &mut app,
+            crate::app::runtime::workers::pi_scan::PiScanBudgetAdjustmentAcknowledgement::NoLongerBlocked {
+                adjustment: crate::state::pi_scan::PiScanBudgetAdjustment::Unlimited,
+                result: no_hit,
+                dry_run: false,
+            },
+        );
+        assert_eq!(app.pi_scan.runtime.budget_limits, previous);
+        assert_eq!(app.pi_scan.settings, previous_settings);
+        assert!(app.pi_scan.budget_dialog.is_none());
+
+        attach_budget_dialog(
+            &mut app,
+            crate::state::pi_scan::PiScanBudgetAdjustment::Double,
+        );
+        apply_pi_scan_budget_acknowledgement(
+            &mut app,
+            crate::app::runtime::workers::pi_scan::PiScanBudgetAdjustmentAcknowledgement::Rejected {
+                adjustment: crate::state::pi_scan::PiScanBudgetAdjustment::Double,
+                reason: "overflow; choose Unlimited".to_string(),
+            },
+        );
+        let dialog = app.pi_scan.budget_dialog.as_ref().expect("rejected dialog");
+        assert_eq!(
+            dialog.status,
+            crate::state::pi_scan_ui::PiScanBudgetDialogStatus::Rejected
+        );
+        assert_eq!(
+            dialog.rejection.as_deref(),
+            Some("overflow; choose Unlimited")
+        );
+        assert_eq!(app.pi_scan.runtime.budget_limits, previous);
+    }
+
+    #[test]
+    /// Budget revalidation projects authoritative pause/accounting state without observation wake.
+    fn budget_revalidation_progress_clears_stale_ui_pause_without_request_channel() {
+        let mut app = AppState::default();
+        app.pi_scan.runtime.consent.background_observation = false;
+        app.pi_scan
+            .runtime
+            .pause_reasons
+            .insert(crate::state::pi_scan::PiScanPauseReason::Budget);
+        app.pi_scan
+            .runtime
+            .budget
+            .records
+            .push(crate::state::pi_scan::PiScanBudgetRecord {
+                correlation_id: 1,
+                started_at_unix: 1,
+                class: crate::state::pi_scan::PiScanAccountingClass::Background,
+                reserved: crate::state::pi_scan::PiScanReservation {
+                    tokens: 10,
+                    cost_microusd: 10,
+                },
+                consumed_tokens: None,
+                consumed_cost_microusd: None,
+            });
+        let mut authoritative = app.pi_scan.runtime.clone();
+        authoritative
+            .pause_reasons
+            .remove(&crate::state::pi_scan::PiScanPauseReason::Budget);
+        authoritative.budget.records.clear();
+
+        apply_pi_scan_progress(
+            &mut app,
+            None,
+            crate::app::runtime::workers::pi_scan::PiScanProgressMessage::BudgetRevalidated(
+                Box::new(authoritative),
+            ),
+        );
+
+        assert!(!app.pi_scan.runtime.consent.background_observation);
+        assert!(app.pi_scan.runtime.budget.records.is_empty());
+        assert!(
+            !app.pi_scan
+                .runtime
+                .pause_reasons
+                .contains(&crate::state::pi_scan::PiScanPauseReason::Budget)
+        );
     }
 
     #[tokio::test]

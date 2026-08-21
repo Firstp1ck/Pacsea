@@ -4,7 +4,10 @@ use std::collections::BTreeSet;
 use std::time::{Duration, Instant};
 
 use crate::logic::pi_scan::result::{Coverage, MergedScanResult, Severity};
-use crate::state::pi_scan::{PiScanConsentState, PiScanRuntimeState};
+use crate::state::pi_scan::{
+    PiScanBudgetAdjustment, PiScanBudgetDimension, PiScanBudgetLimits, PiScanConsentState,
+    PiScanPauseReason, PiScanPriority, PiScanRuntimeState,
+};
 use crate::theme::PiScanSettings;
 
 /// Keyboard-selectable Pi Scan workspace page.
@@ -250,6 +253,74 @@ pub enum PiScanUiAction {
     ContinueSelected,
     /// Accept the selected complete current-HEAD result as observation baseline.
     AcceptBaseline,
+    /// Dispatch one typed adjustment for the scheduler-classified exceeded budgets.
+    AdjustBudgets(PiScanBudgetAdjustment),
+}
+
+/// What: Interaction phase for the focused in-place budget adjustment choice.
+///
+/// Inputs:
+/// - Keyboard selection, confirmation, runtime dispatch, and typed acknowledgement outcomes.
+///
+/// Output:
+/// - Deterministic focus and submission behavior for the overlay.
+///
+/// Details:
+/// - Rejected choices remain actionable; submitting choices ignore duplicate confirmation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PiScanBudgetDialogStatus {
+    /// Double or Unlimited can be selected and confirmed.
+    Choosing,
+    /// A typed request was queued and its request-owned acknowledgement is pending.
+    Submitting,
+    /// The runtime rejected the request; selection and retry remain available.
+    Rejected,
+}
+
+/// What: Focused in-place budget adjustment projection.
+///
+/// Inputs:
+/// - Scheduler-classified affected limits and the runtime limit snapshot visible when opened.
+///
+/// Output:
+/// - Selected policy, old/proposed display values, status, and optional rejection detail.
+///
+/// Details:
+/// - Double is the deterministic default. The runtime recomputes affected limits on Apply.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PiScanBudgetDialogState {
+    /// Currently focused adjustment policy.
+    pub selection: PiScanBudgetAdjustment,
+    /// Scheduler-classified dimensions visible when the dialog opened.
+    pub affected: BTreeSet<PiScanBudgetDimension>,
+    /// Runtime-owned limits visible when the dialog opened.
+    pub previous_limits: PiScanBudgetLimits,
+    /// Current interaction phase.
+    pub status: PiScanBudgetDialogStatus,
+    /// Actionable runtime rejection detail, when present.
+    pub rejection: Option<String>,
+}
+
+impl PiScanBudgetDialogState {
+    /// What: Move focus between the two approved adjustment choices.
+    ///
+    /// Inputs:
+    /// - Current focused choice.
+    ///
+    /// Output:
+    /// - The opposite choice, with any prior rejection retained until resubmission.
+    ///
+    /// Details:
+    /// - Movement is inert while a typed acknowledgement is pending.
+    pub fn toggle_selection(&mut self) {
+        if self.status == PiScanBudgetDialogStatus::Submitting {
+            return;
+        }
+        self.selection = match self.selection {
+            PiScanBudgetAdjustment::Double => PiScanBudgetAdjustment::Unlimited,
+            PiScanBudgetAdjustment::Unlimited => PiScanBudgetAdjustment::Double,
+        };
+    }
 }
 
 /// Severity used to style and expire a typed Pi Scan workspace notice.
@@ -461,7 +532,7 @@ pub struct PiScanDryRunPreview {
 }
 
 /// Cohesive Pi Scan workspace projection rooted in the WS3 runtime state.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 #[allow(clippy::struct_excessive_bools)] // Independent consent/confirmation flags are distinct approved user decisions.
 pub struct PiScanWorkspaceState {
     /// Cohesive queue/consent/budget projection owned by the runtime contract.
@@ -522,6 +593,14 @@ pub struct PiScanWorkspaceState {
     pub stale_acknowledgements: BTreeSet<String>,
     /// Last inert UI action awaiting central dispatch.
     pub pending_action: Option<PiScanUiAction>,
+    /// Focused budget adjustment choice, submission, or actionable rejection.
+    pub budget_dialog: Option<PiScanBudgetDialogState>,
+    /// Request-owned typed acknowledgement receiver retained until one terminal response.
+    pub budget_acknowledgement_rx: Option<
+        tokio::sync::mpsc::UnboundedReceiver<
+            crate::app::runtime::workers::pi_scan::PiScanBudgetAdjustmentAcknowledgement,
+        >,
+    >,
     /// Dry-run preview, when requested.
     pub dry_run_preview: Option<PiScanDryRunPreview>,
     /// Exact queue intent retained across identity observation.
@@ -581,6 +660,8 @@ impl Default for PiScanWorkspaceState {
             finding_acknowledgements: BTreeSet::new(),
             stale_acknowledgements: BTreeSet::new(),
             pending_action: None,
+            budget_dialog: None,
+            budget_acknowledgement_rx: None,
             dry_run_preview: None,
             pending_queue_intent: None,
             unseen_result_count: 0,
@@ -594,6 +675,58 @@ impl Default for PiScanWorkspaceState {
             wizard: None,
         }
     }
+}
+
+/// What: Determine whether a settings reload changed anything beyond the three mutable budgets.
+///
+/// Inputs:
+/// - `previous`: Effective settings before reload.
+/// - `current`: Newly parsed settings.
+///
+/// Output:
+/// - True when provider, model, privacy, feature, timeout, or another non-budget field changed.
+///
+/// Details:
+/// - Replacing the three previous budget fields with current values makes structural equality a
+///   single source of truth as [`PiScanSettings`] evolves.
+fn pi_scan_material_settings_changed(previous: &PiScanSettings, current: &PiScanSettings) -> bool {
+    let mut comparable = previous.clone();
+    comparable.background_starts_per_hour = current.background_starts_per_hour;
+    comparable.background_token_cap_24h = current.background_token_cap_24h;
+    comparable
+        .background_cost_cap_24h
+        .clone_from(&current.background_cost_cap_24h);
+    comparable != *current
+}
+
+/// What: Synchronize runtime budget policy from one valid parsed settings snapshot.
+///
+/// Inputs:
+/// - `runtime`: Live runtime projection receiving authoritative limits.
+/// - `settings`: Effective settings including decimal-dollar cost.
+///
+/// Output:
+/// - Replaces all three limits when the decimal cost is exactly representable as micro-USD.
+///
+/// Details:
+/// - Invalid settings remain visible to validation without converting an invalid cost into the
+///   more permissive Unlimited policy.
+fn synchronize_runtime_budget_limits(runtime: &mut PiScanRuntimeState, settings: &PiScanSettings) {
+    if let Some(limits) = settings_budget_limits(settings) {
+        runtime.budget_limits = limits;
+    }
+}
+
+/// Convert one parsed settings projection into exact runtime budget limits.
+fn settings_budget_limits(settings: &PiScanSettings) -> Option<PiScanBudgetLimits> {
+    Some(PiScanBudgetLimits {
+        starts_per_hour: settings.background_starts_per_hour,
+        tokens_per_24h: settings.background_token_cap_24h,
+        cost_microusd_per_24h: crate::theme::parse_pi_scan_cost_microusd(
+            &settings.background_cost_cap_24h,
+        )
+        .ok()?,
+    })
 }
 
 impl PiScanWorkspaceState {
@@ -735,13 +868,31 @@ impl PiScanWorkspaceState {
             && self.runtime.consent.paid_execution
     }
 
-    /// Apply settings and preserve a live runtime-connected availability projection.
+    /// What: Apply settings while distinguishing mutable budgets from material setup identity.
+    ///
+    /// Inputs:
+    /// - `settings`: Newly parsed settings-file projection.
+    /// - `pi_binary_found`: Whether the configured Pi executable is currently available.
+    ///
+    /// Output:
+    /// - Whether a material non-budget setting changed and reload UI should reset its draft.
+    ///
+    /// Details:
+    /// - Budget-only reloads preserve setup facts and every consent/confirmation. While connected,
+    ///   the runtime owner remains authoritative until an explicit owner update or restart; an
+    ///   external settings edit therefore cannot silently replace only the UI projection.
+    /// - Provider, model, privacy, and other settings retain the existing verified-setup reset
+    ///   behavior.
     pub fn apply_settings(&mut self, settings: PiScanSettings, pi_binary_found: bool) -> bool {
         let runtime_connected = self.availability == PiScanAvailability::RuntimeConnected;
         let settings_changed = self.settings != settings;
-        let material_changed = self.setup_facts_verified && settings_changed;
+        let material_changed =
+            settings_changed && pi_scan_material_settings_changed(&self.settings, &settings);
         self.settings = settings;
-        if material_changed {
+        if !runtime_connected {
+            synchronize_runtime_budget_limits(&mut self.runtime, &self.settings);
+        }
+        if self.setup_facts_verified && material_changed {
             self.setup_facts_verified = false;
             self.disclosure_confirmed = false;
             self.fallback_confirmed = false;
@@ -764,7 +915,14 @@ impl PiScanWorkspaceState {
         if !self.settings.enabled && !runtime_connected {
             self.set_view(PiScanView::Setup);
         }
-        settings_changed
+        material_changed
+    }
+
+    /// Return whether parsed budget settings equal the connected owner's live projection.
+    #[must_use]
+    pub fn budget_settings_match_runtime(&self) -> bool {
+        settings_budget_limits(&self.settings)
+            .is_some_and(|limits| limits == self.runtime.budget_limits)
     }
 
     /// Add or select package context when Shift+A opens the workspace.
@@ -852,6 +1010,101 @@ impl PiScanWorkspaceState {
             self.unseen_result_count = self.unseen_result_count.saturating_add(1);
         }
         self.clamp_selection();
+    }
+
+    /// What: Return whether the direct budget choice is eligible at one rolling-window time.
+    ///
+    /// Inputs:
+    /// - `now_unix`: Deterministic Unix timestamp used by scheduler classification.
+    ///
+    /// Output:
+    /// - True only on Overview/Progress with queued background work currently blocked by Budget.
+    ///
+    /// Details:
+    /// - User and service pauses neither create nor suppress eligibility; only the Budget pause
+    ///   and scheduler-owned exceeded set control this focused action.
+    #[must_use]
+    pub fn budget_adjustment_eligible_at(&self, now_unix: u64) -> bool {
+        matches!(self.view, PiScanView::Overview | PiScanView::Progress)
+            && self
+                .runtime
+                .pause_reasons
+                .contains(&PiScanPauseReason::Budget)
+            && self
+                .runtime
+                .queue
+                .iter()
+                .any(|request| request.priority == PiScanPriority::Background)
+            && !self.runtime.exceeded_budget_limits(now_unix).is_empty()
+    }
+
+    /// What: Open the focused direct budget choice when current projection is eligible.
+    ///
+    /// Inputs:
+    /// - `now_unix`: Deterministic timestamp for the scheduler-owned affected projection.
+    ///
+    /// Output:
+    /// - Whether a dialog was opened, always defaulting focus to Double.
+    ///
+    /// Details:
+    /// - This does not dispatch, mutate limits, write files, or invoke guided setup.
+    pub fn open_budget_dialog_at(&mut self, now_unix: u64) -> bool {
+        if !self.budget_adjustment_eligible_at(now_unix) || self.budget_dialog.is_some() {
+            return false;
+        }
+        self.budget_dialog = Some(PiScanBudgetDialogState {
+            selection: PiScanBudgetAdjustment::Double,
+            affected: self.runtime.exceeded_budget_limits(now_unix),
+            previous_limits: self.runtime.budget_limits,
+            status: PiScanBudgetDialogStatus::Choosing,
+            rejection: None,
+        });
+        true
+    }
+
+    /// What: Confirm the focused choice through the pending typed-dispatch seam.
+    ///
+    /// Inputs:
+    /// - Current dialog selection and status.
+    ///
+    /// Output:
+    /// - A single [`PiScanUiAction::AdjustBudgets`] and Submitting state.
+    ///
+    /// Details:
+    /// - Duplicate Enter presses while pending are consumed without dispatching again.
+    pub fn submit_budget_dialog(&mut self) -> bool {
+        let Some(dialog) = self.budget_dialog.as_mut() else {
+            return false;
+        };
+        if dialog.status == PiScanBudgetDialogStatus::Submitting {
+            return true;
+        }
+        dialog.status = PiScanBudgetDialogStatus::Submitting;
+        dialog.rejection = None;
+        self.pending_action = Some(PiScanUiAction::AdjustBudgets(dialog.selection));
+        true
+    }
+
+    /// What: Cancel an unsubmitted or rejected budget choice.
+    ///
+    /// Inputs:
+    /// - Current dialog status.
+    ///
+    /// Output:
+    /// - Closes the dialog only when no acknowledgement is pending.
+    ///
+    /// Details:
+    /// - A submitting request keeps receiver ownership until its terminal acknowledgement.
+    pub fn cancel_budget_dialog(&mut self) -> bool {
+        let Some(dialog) = self.budget_dialog.as_ref() else {
+            return false;
+        };
+        if dialog.status == PiScanBudgetDialogStatus::Submitting {
+            return true;
+        }
+        self.budget_dialog = None;
+        self.pending_action = None;
+        true
     }
 
     /// Snapshot exact package-name and reservation intent for later identity resolution.

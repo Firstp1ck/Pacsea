@@ -888,8 +888,24 @@ fn validate_semantic_string_key(key: &str, value: &str) -> Result<(), String> {
         "locale" => validate_locale_value(value),
         "preferred_terminal" => validate_preferred_terminal_value(value),
         "selected_countries" => validate_selected_countries_value(value),
+        "pi_scan_background_token_cap_24h" => validate_u64_decimal(value),
+        "pi_scan_background_cost_cap_24h" => crate::theme::parse_pi_scan_cost_microusd(value)
+            .map(|_| ())
+            .map_err(|error| error.replace("pi_scan_background_cost_cap_24h ", "")),
         _ => Ok(()),
     }
+}
+
+/// Validate one unsigned 64-bit decimal setting without imposing a product-specific maximum.
+fn validate_u64_decimal(value: &str) -> Result<(), String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() || !trimmed.chars().all(|character| character.is_ascii_digit()) {
+        return Err("expected a non-negative decimal integer".to_string());
+    }
+    trimmed
+        .parse::<u64>()
+        .map(|_| ())
+        .map_err(|_| "value exceeds the maximum unsigned 64-bit integer".to_string())
 }
 
 /// What: Validate locale value using the app's locale format and shipped locale set.
@@ -1237,6 +1253,27 @@ mod tests {
         assert!(validate_value(&popup, "10").is_ok());
         assert!(validate_value(&popup, "1000").is_err());
         assert!(validate_value(&popup, "abc").is_err());
+    }
+
+    #[test]
+    fn validate_pi_scan_token_cap_accepts_full_u64_range_only() {
+        let s = setting("pi_scan_background_token_cap_24h");
+        let popup = EditPopupState::from_current(s, "0");
+        assert!(validate_value(&popup, "0").is_ok());
+        assert!(validate_value(&popup, &u64::MAX.to_string()).is_ok());
+        assert!(validate_value(&popup, "abc").is_err());
+        assert!(validate_value(&popup, "18446744073709551616").is_err());
+    }
+
+    #[test]
+    fn validate_pi_scan_cost_cap_accepts_exact_micro_usd_native_bounds_only() {
+        let s = setting("pi_scan_background_cost_cap_24h");
+        let popup = EditPopupState::from_current(s, "0");
+        assert!(validate_value(&popup, "0").is_ok());
+        assert!(validate_value(&popup, "0.00").is_ok());
+        assert!(validate_value(&popup, "18446744073709.551615").is_ok());
+        assert!(validate_value(&popup, "18446744073709.551616").is_err());
+        assert!(validate_value(&popup, "malformed").is_err());
     }
 
     #[test]
