@@ -4,14 +4,15 @@ use crate::state::pi_scan::{
     PiScanActiveItem, PiScanPauseReason, PiScanRuntimeState, PiScanTerminalStatus,
 };
 use crate::state::{AppState, PiScanExecutionPhase};
-use crate::theme::theme;
 use ratatui::{
     Frame,
     layout::Rect,
-    style::{Modifier, Style},
+    style::Modifier,
     text::{Line, Span},
 };
 use std::time::{SystemTime, UNIX_EPOCH};
+
+use super::SemanticTone;
 
 /// Braille spinner frames cycled by the periodic redraw tick.
 const SPINNER_FRAMES: [&str; 10] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
@@ -79,27 +80,29 @@ pub(super) fn render(f: &mut Frame, app: &mut AppState, area: Rect) {
     let spinner = spinner_frame(now_millis);
     let pi = &app.pi_scan;
     let counts = session_counts(&pi.runtime);
-    let mut lines = Vec::new();
-    if counts.total() > 0 {
-        lines.push(summary_line(
-            app,
-            &counts,
-            spinner,
-            !pi.runtime.pause_reasons.is_empty(),
-        ));
-        lines.push(Line::from(String::new()));
-    }
+    let mut lines = vec![
+        super::section_heading(app, "app.pi_scan.progress.sections.session"),
+        summary_line(app, &counts, spinner, !pi.runtime.pause_reasons.is_empty()),
+        Line::from(String::new()),
+        super::section_heading(app, "app.pi_scan.progress.sections.current"),
+    ];
     let now_secs = u64::try_from(now_millis / 1_000).unwrap_or(0);
     if let Some(active) = &pi.runtime.active {
         push_active_lines(&mut lines, app, active, spinner, now_secs);
     } else if counts.queued > 0 {
         push_waiting_lines(&mut lines, app, spinner, now_secs);
     } else {
-        lines.push(Line::from(crate::i18n::t(
-            app,
-            "app.pi_scan.progress.no_active",
-        )));
+        lines.push(super::labeled_line(
+            crate::i18n::t(app, "app.pi_scan.progress.active"),
+            crate::i18n::t(app, "app.pi_scan.progress.no_active"),
+            SemanticTone::Muted,
+        ));
     }
+    lines.push(Line::from(String::new()));
+    lines.push(super::section_heading(
+        app,
+        "app.pi_scan.progress.sections.queue",
+    ));
     push_queue_lines(&mut lines, app);
     let scroll = super::clamp_line_scroll(pi.view_scroll.progress, &lines, area);
     app.pi_scan.view_scroll.progress = scroll;
@@ -126,53 +129,67 @@ fn summary_line(
     spinner: &'static str,
     paused: bool,
 ) -> Line<'static> {
-    let th = theme();
     let pending = counts.running + counts.queued > 0;
+    let empty = counts.total() == 0;
     let blocked = paused && counts.running == 0 && counts.queued > 0;
+    let marker_tone = if empty {
+        SemanticTone::Muted
+    } else if blocked {
+        SemanticTone::Warning
+    } else if pending {
+        SemanticTone::Active
+    } else {
+        SemanticTone::Success
+    };
+    let marker = if empty {
+        "— ".to_string()
+    } else if blocked {
+        "⏸ ".to_string()
+    } else if pending {
+        format!("{spinner} ")
+    } else {
+        "✔ ".to_string()
+    };
+    let bar_tone = if empty {
+        SemanticTone::Muted
+    } else if pending {
+        SemanticTone::Warning
+    } else {
+        SemanticTone::Success
+    };
     let mut spans = vec![
-        if blocked {
-            Span::styled(
-                "⏸ ",
-                Style::default().fg(th.yellow).add_modifier(Modifier::BOLD),
-            )
-        } else if pending {
-            Span::styled(
-                format!("{spinner} "),
-                Style::default()
-                    .fg(th.sapphire)
-                    .add_modifier(Modifier::BOLD),
-            )
-        } else {
-            Span::styled("✔ ", Style::default().fg(th.green))
-        },
+        Span::styled(
+            marker,
+            super::semantic_style(marker_tone).add_modifier(Modifier::BOLD),
+        ),
         Span::styled(
             format!(
                 "[{}] ",
                 progress_bar(counts.done(), counts.total(), PROGRESS_BAR_WIDTH)
             ),
-            Style::default().fg(th.green),
+            super::semantic_style(bar_tone),
         ),
         Span::styled(
             format!("{}/{}", counts.done(), counts.total()),
-            Style::default().fg(th.text).add_modifier(Modifier::BOLD),
+            super::semantic_style(SemanticTone::Normal).add_modifier(Modifier::BOLD),
         ),
     ];
-    let categories: [(usize, &str, ratatui::style::Color); 6] = [
-        (counts.running, "running", th.sapphire),
-        (counts.queued, "queued", th.subtext1),
-        (counts.completed, "completed", th.green),
-        (counts.failed, "failed", th.red),
-        (counts.cancelled, "cancelled", th.yellow),
-        (counts.interrupted, "interrupted", th.yellow),
+    let categories: [(usize, &str, SemanticTone); 6] = [
+        (counts.running, "running", SemanticTone::Active),
+        (counts.queued, "queued", SemanticTone::Warning),
+        (counts.completed, "completed", SemanticTone::Success),
+        (counts.failed, "failed", SemanticTone::Error),
+        (counts.cancelled, "cancelled", SemanticTone::Warning),
+        (counts.interrupted, "interrupted", SemanticTone::Warning),
     ];
-    for (count, key, color) in categories {
+    for (count, key, tone) in categories {
         if count == 0 {
             continue;
         }
         let label = crate::i18n::t(app, &format!("app.pi_scan.target_status.{key}"));
         spans.push(Span::styled(
             format!(" · {count} {label}"),
-            Style::default().fg(color),
+            super::semantic_style(tone),
         ));
     }
     Line::from(spans)
@@ -200,21 +217,25 @@ fn push_active_lines(
     spinner: &'static str,
     now_secs: u64,
 ) {
-    let th = theme();
     let elapsed = now_secs.saturating_sub(active.started_at_unix);
     lines.push(Line::from(vec![
+        Span::raw("  "),
         Span::styled(
             format!("{}: ", crate::i18n::t(app, "app.pi_scan.progress.active")),
-            Style::default().fg(th.text).add_modifier(Modifier::BOLD),
+            super::semantic_style(SemanticTone::Muted),
+        ),
+        Span::styled(
+            active.request.key.package_base.as_str().to_string(),
+            super::semantic_style(SemanticTone::Active).add_modifier(Modifier::BOLD),
         ),
         Span::styled(
             format!(
-                "{} @ {} (#{})",
-                active.request.key.package_base,
-                active.request.key.commit_oid,
+                " · {}: {} · #{}",
+                crate::i18n::t(app, "app.pi_scan.targets.commit"),
+                super::short_identity(active.request.key.commit_oid.as_str()),
                 active.correlation_id
             ),
-            Style::default().fg(th.text),
+            super::semantic_style(SemanticTone::Muted),
         ),
     ]));
     let phase = active_phase(app, active.correlation_id).map_or_else(
@@ -223,25 +244,21 @@ fn push_active_lines(
     );
     lines.push(Line::from(vec![
         Span::styled(
-            format!("{spinner} "),
-            Style::default()
-                .fg(th.sapphire)
-                .add_modifier(Modifier::BOLD),
+            format!("  {spinner} "),
+            super::semantic_style(SemanticTone::Active).add_modifier(Modifier::BOLD),
         ),
         Span::styled(
             format!(
                 "{}: {phase}",
                 crate::i18n::t(app, "app.pi_scan.progress.current_step")
             ),
-            Style::default()
-                .fg(th.sapphire)
-                .add_modifier(Modifier::BOLD),
+            super::semantic_style(SemanticTone::Active).add_modifier(Modifier::BOLD),
         ),
     ]));
-    lines.push(Line::from(Span::styled(
+    lines.push(super::labeled_line(
+        crate::i18n::t(app, "app.pi_scan.progress.running_for"),
         format!(
-            "   {} {:02}:{:02} · {} {} {} / {}",
-            crate::i18n::t(app, "app.pi_scan.progress.running_for"),
+            "{:02}:{:02} · {} {} {} / {}",
             elapsed / 60,
             elapsed % 60,
             crate::i18n::t(app, "app.pi_scan.progress.reservation"),
@@ -249,8 +266,8 @@ fn push_active_lines(
             crate::i18n::t(app, "app.pi_scan.wizard.pricing.tokens"),
             super::format_microusd(active.request.reservation.cost_microusd),
         ),
-        Style::default().fg(th.subtext1),
-    )));
+        SemanticTone::Muted,
+    ));
 }
 
 /// What: Return the transient phase only when it belongs to the active correlation.
@@ -306,17 +323,16 @@ fn push_waiting_lines(
     spinner: &'static str,
     now_unix: u64,
 ) {
-    let th = theme();
     let reasons = &app.pi_scan.runtime.pause_reasons;
     let marker = if reasons.is_empty() { spinner } else { "⏸" };
     lines.push(Line::from(vec![
         Span::styled(
-            format!("{marker} "),
-            Style::default().fg(th.yellow).add_modifier(Modifier::BOLD),
+            format!("  {marker} "),
+            super::semantic_style(SemanticTone::Warning).add_modifier(Modifier::BOLD),
         ),
         Span::styled(
             crate::i18n::t(app, "app.pi_scan.progress.waiting"),
-            Style::default().fg(th.yellow),
+            super::semantic_style(SemanticTone::Warning),
         ),
     ]));
     if reasons.is_empty() {
@@ -327,25 +343,23 @@ fn push_waiting_lines(
         .map(|reason| crate::i18n::t(app, pause_reason_key(*reason)))
         .collect::<Vec<_>>()
         .join(", ");
-    lines.push(Line::from(Span::styled(
-        format!(
-            "   {}: {localized}",
-            crate::i18n::t(app, "app.pi_scan.progress.paused")
-        ),
-        Style::default().fg(th.red),
-    )));
+    lines.push(super::labeled_line(
+        crate::i18n::t(app, "app.pi_scan.progress.paused"),
+        localized,
+        SemanticTone::Warning,
+    ));
     if reasons.contains(&PiScanPauseReason::Budget) {
+        lines.push(super::labeled_line(
+            crate::i18n::t(app, "app.pi_scan.progress.budget_limits"),
+            budget_limit_hit_names(app, now_unix),
+            SemanticTone::Warning,
+        ));
         lines.push(Line::from(Span::styled(
             format!(
-                "   {}: {}",
-                crate::i18n::t(app, "app.pi_scan.progress.budget_limits"),
-                budget_limit_hit_names(app, now_unix),
+                "  {}",
+                crate::i18n::t(app, "app.pi_scan.progress.budget_solution")
             ),
-            Style::default().fg(th.yellow),
-        )));
-        lines.push(Line::from(Span::styled(
-            crate::i18n::t(app, "app.pi_scan.progress.budget_solution"),
-            Style::default().fg(th.text),
+            super::semantic_style(SemanticTone::Normal),
         )));
     }
 }
@@ -363,7 +377,14 @@ fn push_waiting_lines(
 /// - Position numbers make the sequential order visible while the dimmed prefix keeps
 ///   focus on the package identity.
 fn push_queue_lines(lines: &mut Vec<Line<'static>>, app: &AppState) {
-    let th = theme();
+    if app.pi_scan.runtime.queue.is_empty() {
+        lines.push(super::labeled_line(
+            crate::i18n::t(app, "app.pi_scan.progress.sections.queue"),
+            crate::i18n::t(app, "app.pi_scan.progress.queue_empty"),
+            SemanticTone::Muted,
+        ));
+        return;
+    }
     for (index, request) in app.pi_scan.runtime.queue.iter().enumerate() {
         let priority = crate::i18n::t(
             app,
@@ -378,19 +399,23 @@ fn push_queue_lines(lines: &mut Vec<Line<'static>>, app: &AppState) {
         );
         lines.push(Line::from(vec![
             Span::styled(
-                format!("{:>4}. ", index + 1),
-                Style::default().fg(th.overlay1),
+                format!("  {}. ", index + 1),
+                super::semantic_style(SemanticTone::Warning).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                request.key.package_base.as_str().to_string(),
+                super::semantic_style(SemanticTone::Normal).add_modifier(Modifier::BOLD),
             ),
             Span::styled(
                 format!(
-                    "{} @ {} ({priority}) · {} {} / {}",
-                    request.key.package_base,
-                    request.key.commit_oid,
+                    " — {priority} · {}: {} · {} {} / {}",
+                    crate::i18n::t(app, "app.pi_scan.targets.commit"),
+                    super::short_identity(request.key.commit_oid.as_str()),
                     super::format_token_count(request.reservation.tokens),
                     crate::i18n::t(app, "app.pi_scan.wizard.pricing.tokens"),
                     super::format_microusd(request.reservation.cost_microusd),
                 ),
-                Style::default().fg(th.text),
+                super::semantic_style(SemanticTone::Muted),
             ),
         ]));
     }

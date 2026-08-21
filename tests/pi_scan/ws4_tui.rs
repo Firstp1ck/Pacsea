@@ -12,31 +12,132 @@ use pacsea::state::{
     AppState, Focus, PackageItem, PiScanAvailability, PiScanDisplayResult, PiScanExecutionPhase,
     PiScanExecutionProgress, PiScanUiAction, PiScanView, PkgbuildCheckRequest, Source,
 };
-use ratatui::{Terminal, backend::TestBackend};
+use ratatui::{Terminal, backend::TestBackend, buffer::Buffer, style::Color};
 use tokio::sync::mpsc;
+
+/// Load one shipped locale into application state for render assertions.
+fn load_locale(app: &mut AppState, locale: &str) {
+    let locales = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("config/locales");
+    app.translations = pacsea::i18n::load_locale_file(locale, &locales).expect("requested locale");
+    app.translations_fallback =
+        pacsea::i18n::load_locale_file("en-US", &locales).expect("English fallback locale");
+}
 
 /// Load the shipped English locale into an application state for render assertions.
 fn load_english(app: &mut AppState) {
-    let locales = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("config/locales");
-    let translations = pacsea::i18n::load_locale_file("en-US", &locales).expect("English locale");
-    app.translations.clone_from(&translations);
-    app.translations_fallback = translations;
+    load_locale(app, "en-US");
 }
 
-/// Render one full application frame and return its visible terminal text.
-fn render_text(app: &mut AppState, width: u16, height: u16) -> String {
+/// Render one full application frame and return its final terminal buffer.
+fn render_buffer(app: &mut AppState, width: u16, height: u16) -> Buffer {
     let backend = TestBackend::new(width, height);
     let mut terminal = Terminal::new(backend).expect("test terminal");
     terminal
         .draw(|frame| pacsea::ui::ui(frame, app))
         .expect("test render");
-    terminal
-        .backend()
-        .buffer()
+    terminal.backend().buffer().clone()
+}
+
+/// Render one full application frame and return its visible terminal text.
+fn render_text(app: &mut AppState, width: u16, height: u16) -> String {
+    render_buffer(app, width, height)
         .content
         .iter()
         .map(ratatui::buffer::Cell::symbol)
         .collect::<String>()
+}
+
+/// Locate the first terminal cell containing one rendered text fragment.
+fn position_for_text(buffer: &Buffer, needle: &str) -> Option<(u16, u16)> {
+    for y in buffer.area.y..buffer.area.bottom() {
+        let mut line = String::new();
+        let mut cell_starts = Vec::new();
+        for x in buffer.area.x..buffer.area.right() {
+            cell_starts.push((line.len(), x));
+            line.push_str(buffer[(x, y)].symbol());
+        }
+        if let Some(byte_index) = line.find(needle) {
+            let x = cell_starts
+                .iter()
+                .rev()
+                .find_map(|(start, x)| (*start <= byte_index).then_some(*x))?;
+            return Some((x, y));
+        }
+    }
+    None
+}
+
+/// Return the foreground color of the first cell in one rendered text fragment.
+fn foreground_for_text(buffer: &Buffer, needle: &str) -> Color {
+    for y in buffer.area.y..buffer.area.bottom() {
+        let mut line = String::new();
+        let mut cell_starts = Vec::new();
+        for x in buffer.area.x..buffer.area.right() {
+            cell_starts.push((line.len(), x));
+            line.push_str(buffer[(x, y)].symbol());
+        }
+        if let Some(byte_index) = line.find(needle) {
+            let x = cell_starts
+                .iter()
+                .rev()
+                .find_map(|(start, x)| (*start <= byte_index).then_some(*x))
+                .expect("rendered cell position");
+            return buffer[(x, y)].fg;
+        }
+    }
+    panic!("rendered text fragment not found: {needle:?}");
+}
+
+/// Render and click one visible wizard label, scrolling until the label enters the viewport.
+fn click_wizard_label(
+    step: pacsea::state::PiScanSetupStep,
+    width: u16,
+    label: &str,
+    expected_index: usize,
+) -> (AppState, u16) {
+    let mut app = AppState {
+        app_mode: AppMode::PiScan,
+        ..AppState::default()
+    };
+    load_english(&mut app);
+    app.pi_scan.begin_setup_wizard(true);
+    let wizard = app.pi_scan.wizard.as_mut().expect("wizard");
+    wizard.step = step;
+    wizard.focus = (expected_index + 1) % wizard.focus_count();
+    if step == pacsea::state::PiScanSetupStep::Route {
+        wizard.candidate.provider = "provider-one".to_string();
+        wizard.candidate.model = "model-one".to_string();
+        wizard.verified = Some(pacsea::state::PiScanSetupVerifiedFacts {
+            routes: vec![
+                ("provider-one".to_string(), "model-one".to_string()),
+                ("provider-two".to_string(), "model-two".to_string()),
+            ],
+            ..pacsea::state::PiScanSetupVerifiedFacts::default()
+        });
+    }
+    for scroll in 0..=30 {
+        app.pi_scan.wizard.as_mut().expect("wizard").body_scroll = scroll;
+        let buffer = render_buffer(&mut app, width, 24);
+        let Some((column, row)) = position_for_text(&buffer, label) else {
+            continue;
+        };
+        assert!(pacsea::events::pi_scan::handle_mouse(
+            MouseEvent {
+                kind: MouseEventKind::Down(MouseButton::Left),
+                column,
+                row,
+                modifiers: KeyModifiers::NONE,
+            },
+            &mut app,
+        ));
+        assert_eq!(
+            app.pi_scan.wizard.as_ref().expect("wizard").focus,
+            expected_index,
+            "clicking {label:?} at width {width} and scroll {scroll} selected the wrong control"
+        );
+        return (app, scroll);
+    }
+    panic!("wizard label {label:?} was not visible at width {width}");
 }
 
 /// Build one deterministic validated display result for list and details regressions.
@@ -758,6 +859,12 @@ fn all_locales_include_pi_scan_workspace_translations() {
             "app.pi_scan.tabs.setup",
             "app.pi_scan.setup.privacy_cost",
             "app.pi_scan.setup.pricing_binding",
+            "app.pi_scan.setup.validation_issue.executable",
+            "app.pi_scan.setup.validation_issue.at_least",
+            "app.pi_scan.setup.validation_issue.between",
+            "app.pi_scan.setup.validation_issue.cannot_exceed",
+            "app.pi_scan.setup.validation_issue.nonnegative_decimal",
+            "app.pi_scan.setup.validation_issue.https_proxy",
             "app.pi_scan.wizard.pricing.selected_route",
             "app.pi_scan.wizard.pricing.worst_case",
             "app.pi_scan.wizard.pricing.tokens",
@@ -782,6 +889,10 @@ fn all_locales_include_pi_scan_workspace_translations() {
             "app.pi_scan.progress.phase.rechecking_identity",
             "app.pi_scan.progress.phase.validating_result",
             "app.pi_scan.progress.phase.finalizing",
+            "app.pi_scan.results.completion.complete_no_findings",
+            "app.pi_scan.results.completion.incomplete_no_findings",
+            "app.pi_scan.results.completion.one_finding",
+            "app.pi_scan.results.completion.many_findings",
             "app.pi_scan.details.ack_keys",
             "app.pi_scan.footer.keys.targets",
             "app.pi_scan.footer.keys.progress",
@@ -1087,7 +1198,10 @@ fn active_progress_and_overview_render_elapsed_reservation_and_consumed_usage() 
 
     app.pi_scan.set_view(PiScanView::Overview);
     let overview = render_text(&mut app, 120, 24);
-    assert!(overview.contains("tokens 1,234"), "{overview:?}");
+    assert!(
+        overview.contains("Tokens used / limit: 1,234"),
+        "{overview:?}"
+    );
     assert!(overview.contains("$0.05 USD"));
 }
 
@@ -1118,7 +1232,7 @@ fn queued_progress_renders_static_pause_reasons_and_position() {
     );
     assert!(progress.contains("Paused: user pause, budget pause"));
     assert!(progress.contains("1 queued"));
-    assert!(progress.contains("1. demo @"));
+    assert!(progress.contains("1. demo — foreground · commit: aaaaaaaaaaaa"));
     assert!(progress.contains('⏸'), "{progress:?}");
     for frame in ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] {
         assert!(
@@ -1172,6 +1286,357 @@ fn progress_summary_renders_mixed_counts_and_narrow_active_layout() {
     let narrow = render_text(&mut app, 20, 10);
     assert!(!narrow.trim().is_empty());
     assert!(app.pi_scan.view_scroll.progress < u16::MAX);
+}
+
+/// Targets, Progress, and Results share hierarchy, short identities, and semantic styles.
+#[test]
+fn readability_tabs_render_hierarchy_short_identities_and_semantic_styles() {
+    let mut app = AppState {
+        app_mode: AppMode::PiScan,
+        ..AppState::default()
+    };
+    load_english(&mut app);
+    let exact_target_oid = "0123456789abcdef0123456789abcdef01234567";
+    for (name, status) in [
+        (
+            "selected-package",
+            pacsea::state::PiScanTargetStatus::Queued,
+        ),
+        (
+            "completed-package",
+            pacsea::state::PiScanTargetStatus::Completed,
+        ),
+        ("failed-package", pacsea::state::PiScanTargetStatus::Failed),
+    ] {
+        app.pi_scan.targets.push(pacsea::state::PiScanTarget {
+            package_name: name.to_string(),
+            package_base: name.trim_end_matches("-package").to_string(),
+            commit_oid: Some(exact_target_oid.to_string()),
+            selected: true,
+            status,
+        });
+    }
+    app.pi_scan.set_view(PiScanView::Targets);
+    let target_buffer = render_buffer(&mut app, 160, 30);
+    let target_text = target_buffer
+        .content
+        .iter()
+        .map(ratatui::buffer::Cell::symbol)
+        .collect::<String>();
+    let th = pacsea::theme::theme();
+    assert!(target_text.contains("Scan targets"), "{target_text:?}");
+    assert!(target_text.contains("commit: 0123456789ab"));
+    assert!(!target_text.contains(exact_target_oid));
+    assert_eq!(
+        foreground_for_text(&target_buffer, "selected-package"),
+        th.sapphire
+    );
+    assert_eq!(
+        foreground_for_text(&target_buffer, "queued · base"),
+        th.yellow
+    );
+    assert_eq!(
+        foreground_for_text(&target_buffer, "completed · base"),
+        th.green
+    );
+    assert_eq!(foreground_for_text(&target_buffer, "failed · base"), th.red);
+
+    let request = scan_request();
+    app.pi_scan.runtime.active = Some(pacsea::state::pi_scan::PiScanActiveItem {
+        correlation_id: 7,
+        request: request.clone(),
+        started_at_unix: 1,
+        cancellation_suppressed: false,
+    });
+    app.pi_scan.runtime.queue.push_back(request);
+    app.pi_scan.set_view(PiScanView::Progress);
+    let progress = render_text(&mut app, 160, 30);
+    for heading in ["Session", "Current work", "Queue"] {
+        assert!(
+            progress.contains(heading),
+            "missing {heading:?}: {progress:?}"
+        );
+    }
+    assert!(progress.contains("commit: aaaaaaaaaaaa"), "{progress:?}");
+    assert!(!progress.contains("aaaaaaaaaaaaa"), "{progress:?}");
+
+    let mut current = display_result("current-result", 0);
+    current.validated.identity.commit_oid = "abcdefabcdefabcdefabcdefabcdefabcdefabcd".to_string();
+    current.observed_head_oid = current.validated.identity.commit_oid.clone();
+    let mut stale = display_result("stale-result", 1);
+    stale.validated.coverage = Coverage::Incomplete;
+    stale.validated.findings[0].severity = Severity::High;
+    stale.stale = true;
+    app.pi_scan.results.extend([current, stale]);
+    app.pi_scan.set_view(PiScanView::Results);
+    let result_buffer = render_buffer(&mut app, 160, 30);
+    let result_text = result_buffer
+        .content
+        .iter()
+        .map(ratatui::buffer::Cell::symbol)
+        .collect::<String>();
+    assert!(result_text.contains("Validated results"), "{result_text:?}");
+    assert!(
+        result_text.contains("commit: abcdefabcdef"),
+        "{result_text:?}"
+    );
+    assert!(
+        result_text.contains("[CURRENT IDENTITY]"),
+        "{result_text:?}"
+    );
+    assert!(result_text.contains("[STALE IDENTITY]"), "{result_text:?}");
+    assert!(result_text.contains("[high]"), "{result_text:?}");
+    assert_eq!(
+        foreground_for_text(&result_buffer, "Complete — no findings"),
+        th.green
+    );
+    assert_eq!(foreground_for_text(&result_buffer, "incomplete"), th.yellow);
+    assert_eq!(
+        foreground_for_text(&result_buffer, "[STALE IDENTITY]"),
+        th.red
+    );
+    assert_eq!(foreground_for_text(&result_buffer, "high"), th.red);
+}
+
+/// Wrapped wizard labels activate only their own page-local controls at common widths.
+#[test]
+fn wrapped_wizard_labels_activate_their_own_controls() {
+    let mut narrow_pricing_scroll = 0;
+    for width in [80, 48] {
+        let (readiness_binary, _) = click_wizard_label(
+            pacsea::state::PiScanSetupStep::PiReadiness,
+            width,
+            "Pi executable: pi_",
+            0,
+        );
+        assert!(
+            readiness_binary
+                .pi_scan
+                .wizard
+                .as_ref()
+                .expect("wizard")
+                .pending_action
+                .is_none()
+        );
+        let (readiness_verify, _) = click_wizard_label(
+            pacsea::state::PiScanSetupStep::PiReadiness,
+            width,
+            "[Enter] Verify without",
+            1,
+        );
+        assert!(matches!(
+            readiness_verify
+                .pi_scan
+                .wizard
+                .as_ref()
+                .expect("wizard")
+                .pending_action,
+            Some(pacsea::state::pi_scan_setup::PiScanSetupDraftAction::Probe { .. })
+        ));
+
+        let (route_primary, _) = click_wizard_label(
+            pacsea::state::PiScanSetupStep::Route,
+            width,
+            "← Primary route:",
+            0,
+        );
+        let route_wizard = route_primary.pi_scan.wizard.as_ref().expect("wizard");
+        assert_eq!(route_wizard.candidate.provider, "provider-two");
+        assert_eq!(route_wizard.candidate.thinking, "medium");
+        let (route_thinking, _) = click_wizard_label(
+            pacsea::state::PiScanSetupStep::Route,
+            width,
+            "← Thinking:",
+            1,
+        );
+        let thinking_wizard = route_thinking.pi_scan.wizard.as_ref().expect("wizard");
+        assert_eq!(thinking_wizard.candidate.provider, "provider-one");
+        assert_eq!(thinking_wizard.candidate.thinking, "high");
+
+        for (label, expected_index) in [
+            ("[Space] I reviewed privacy", 0),
+            ("[Space] I separately allow", 1),
+            ("[Space] I separately accept", 2),
+        ] {
+            let (pricing, scroll) = click_wizard_label(
+                pacsea::state::PiScanSetupStep::PricingPrivacy,
+                width,
+                label,
+                expected_index,
+            );
+            if width == 48 {
+                narrow_pricing_scroll = narrow_pricing_scroll.max(scroll);
+            }
+            let confirmations = &pricing
+                .pi_scan
+                .wizard
+                .as_ref()
+                .expect("wizard")
+                .confirmations;
+            assert_eq!(
+                [
+                    confirmations.disclosure_confirmed,
+                    confirmations.foreground_paid_confirmed,
+                    confirmations.readiness_warning_confirmed,
+                ],
+                std::array::from_fn(|index| index == expected_index),
+                "clicking {label:?} changed the wrong confirmation"
+            );
+        }
+    }
+    assert!(
+        narrow_pricing_scroll > 0,
+        "narrow Pricing regression did not exercise body scrolling"
+    );
+}
+
+/// German Results rows localize zero, one, and multiple-finding completion wording.
+#[test]
+fn german_results_localize_completion_wording_by_finding_count() {
+    let mut app = AppState {
+        app_mode: AppMode::PiScan,
+        ..AppState::default()
+    };
+    load_locale(&mut app, "de-DE");
+    app.pi_scan.results.extend([
+        display_result("keine-funde", 0),
+        display_result("ein-fund", 1),
+        display_result("mehrere-funde", 2),
+    ]);
+    app.pi_scan.set_view(PiScanView::Results);
+
+    let rendered = render_text(&mut app, 180, 30);
+
+    for expected in [
+        "Vollständig — keine Funde im analysierten Umfang",
+        "1 Fund im analysierten Umfang",
+        "2 Funde im analysierten Umfang",
+    ] {
+        assert!(
+            rendered.contains(expected),
+            "missing localized completion {expected:?}: {rendered:?}"
+        );
+    }
+    assert!(!rendered.contains("finding(s) in analyzed scope"));
+}
+
+/// WS2 list pages remain renderable and keep bounded scroll state at 20x10.
+#[test]
+fn readability_tabs_render_at_twenty_by_ten() {
+    let mut app = AppState {
+        app_mode: AppMode::PiScan,
+        ..AppState::default()
+    };
+    load_english(&mut app);
+    app.pi_scan.targets.push(pacsea::state::PiScanTarget {
+        package_name: "narrow-target".to_string(),
+        package_base: "narrow".to_string(),
+        commit_oid: Some("a".repeat(40)),
+        selected: true,
+        status: pacsea::state::PiScanTargetStatus::Paused,
+    });
+    app.pi_scan.runtime.queue.push_back(scan_request());
+    app.pi_scan.results.push(display_result("narrow-result", 1));
+    app.pi_scan.view_scroll.progress = u16::MAX;
+
+    for view in [
+        PiScanView::Targets,
+        PiScanView::Progress,
+        PiScanView::Results,
+    ] {
+        app.pi_scan.set_view(view);
+        let buffer = render_buffer(&mut app, 20, 10);
+        assert_eq!(buffer.area.width, 20);
+        assert_eq!(buffer.area.height, 10);
+        assert!(buffer.content.iter().any(|cell| cell.symbol() != " "));
+        match view {
+            PiScanView::Targets => {
+                let rect = app.pi_scan.target_row_rects[0];
+                assert_eq!(buffer[(rect.x, rect.y)].symbol(), "[");
+            }
+            PiScanView::Results => {
+                let rect = app.pi_scan.result_row_rects[0];
+                let row = (rect.x..rect.x.saturating_add(rect.width))
+                    .map(|x| buffer[(x, rect.y)].symbol())
+                    .collect::<String>();
+                assert!(row.contains("narrow-result"), "{row:?}");
+            }
+            _ => {}
+        }
+    }
+    assert!(app.pi_scan.view_scroll.progress < u16::MAX);
+}
+
+/// Target and result hit rectangles stay on exact one-row visual seams.
+#[test]
+fn target_and_result_hit_rectangles_match_visual_rows() {
+    let mut app = AppState {
+        app_mode: AppMode::PiScan,
+        ..AppState::default()
+    };
+    load_english(&mut app);
+    app.pi_scan
+        .targets
+        .extend((0..3).map(|index| pacsea::state::PiScanTarget {
+            package_name: format!("target-{index}"),
+            package_base: format!("base-{index}"),
+            commit_oid: Some(format!("{index:040}")),
+            selected: index != 1,
+            status: pacsea::state::PiScanTargetStatus::Queued,
+        }));
+    app.pi_scan.set_view(PiScanView::Targets);
+    let target_buffer = render_buffer(&mut app, 100, 24);
+    let target_rects = app.pi_scan.target_row_rects.clone();
+    assert_eq!(target_rects.len(), 3);
+    for (index, rect) in target_rects.iter().copied().enumerate() {
+        assert_eq!(rect.index, index);
+        assert_eq!(rect.height, 1);
+        assert_eq!(target_buffer[(rect.x, rect.y)].symbol(), "[");
+        assert_eq!(app.pi_scan.target_hit_test(rect.x, rect.y), Some(index));
+        assert_eq!(
+            app.pi_scan
+                .target_hit_test(rect.x + rect.width.saturating_sub(1), rect.y),
+            Some(index)
+        );
+        assert_eq!(
+            app.pi_scan.target_hit_test(rect.x + rect.width, rect.y),
+            None
+        );
+        if index > 0 {
+            assert_eq!(rect.y, target_rects[index - 1].y + 1);
+        }
+    }
+
+    app.pi_scan.results.extend([
+        display_result("first-result", 0),
+        display_result("second-result", 1),
+        display_result("third-result", 0),
+    ]);
+    app.pi_scan.set_view(PiScanView::Results);
+    let result_buffer = render_buffer(&mut app, 100, 24);
+    let result_rects = app.pi_scan.result_row_rects.clone();
+    assert_eq!(result_rects.len(), 3);
+    for (index, rect) in result_rects.iter().copied().enumerate() {
+        assert_eq!(rect.index, index);
+        assert_eq!(rect.height, 1);
+        let row_text = (rect.x..rect.x.saturating_add(rect.width))
+            .map(|x| result_buffer[(x, rect.y)].symbol())
+            .collect::<String>();
+        assert!(row_text.contains(&format!("{}-result", ["first", "second", "third"][index])));
+        assert_eq!(app.pi_scan.result_hit_test(rect.x, rect.y), Some(index));
+        assert_eq!(
+            app.pi_scan
+                .result_hit_test(rect.x + rect.width.saturating_sub(1), rect.y),
+            Some(index)
+        );
+        assert_eq!(
+            app.pi_scan.result_hit_test(rect.x + rect.width, rect.y),
+            None
+        );
+        if index > 0 {
+            assert_eq!(rect.y, result_rects[index - 1].y + 1);
+        }
+    }
 }
 
 /// Verify approved no-findings wording and narrow terminal rendering remain deterministic.

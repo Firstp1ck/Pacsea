@@ -38,63 +38,96 @@ pub(super) fn render(f: &mut Frame, app: &mut AppState, area: Rect) {
     render_step(f, app, &wizard, chunks[1]);
     render_validation(f, app, &wizard, chunks[2]);
     let mut hit_rects = render_controls(f, app, &wizard, chunks[3]);
-    append_control_rects(&wizard, chunks[1], &mut hit_rects);
+    append_control_rects(app, &wizard, chunks[1], &mut hit_rects);
     if let Some(live) = app.pi_scan.wizard.as_mut() {
         live.set_hit_rects(hit_rects);
     }
 }
 
-/// Draw fixed seven-step progress with the current page always visible.
+/// Draw fixed seven-step progress with distinct complete/current/upcoming states.
 fn render_progress(f: &mut Frame, app: &AppState, wizard: &PiScanSetupWizardState, area: Rect) {
     let th = theme();
     let step_number = wizard.step.index() + 1;
     let title = step_title(app, wizard.step);
-    let in_flight = wizard
-        .in_flight_correlation
-        .map_or_else(String::new, |correlation| {
+    let mut title_spans = vec![Span::styled(
+        format!(
+            "{} {step_number}/7 — {title}",
+            crate::i18n::t(app, "app.pi_scan.wizard.progress")
+        ),
+        Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+    )];
+    if let Some(correlation) = wizard.in_flight_correlation {
+        title_spans.push(Span::styled(
             format!(
-                " · {} #{correlation}",
+                " · ⏳ {} #{correlation}",
                 crate::i18n::t(app, "app.pi_scan.wizard.in_flight")
-            )
-        });
-    let compact = format!(
-        "{} {step_number}/7 — {title}{in_flight}",
-        crate::i18n::t(app, "app.pi_scan.wizard.progress")
-    );
-    let markers = PiScanSetupStep::all()
-        .iter()
-        .enumerate()
-        .map(|(index, _)| match index.cmp(&wizard.step.index()) {
-            std::cmp::Ordering::Less => "●",
-            std::cmp::Ordering::Equal => "◆",
-            std::cmp::Ordering::Greater => "○",
-        })
-        .collect::<Vec<_>>()
-        .join(" ");
-    let lines = if area.height == 1 {
-        vec![Line::from(vec![
-            Span::styled("◆ ", Style::default().fg(th.sapphire)),
-            Span::styled(
-                compact,
-                Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
             ),
-        ])]
+            Style::default().fg(th.yellow).add_modifier(Modifier::BOLD),
+        ));
+    }
+    let lines = if area.height == 1 {
+        let mut compact = vec![Span::styled(
+            "◆ ",
+            Style::default()
+                .fg(th.sapphire)
+                .add_modifier(Modifier::BOLD),
+        )];
+        compact.extend(title_spans);
+        vec![Line::from(compact)]
     } else {
-        vec![
-            Line::from(Span::styled(
-                compact,
-                Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
-            )),
-            Line::from(Span::styled(markers, Style::default().fg(th.sapphire))),
-        ]
+        vec![Line::from(title_spans), progress_marker_line(wizard.step)]
     };
     f.render_widget(Paragraph::new(lines), area);
+}
+
+/// Build completed/current/upcoming progress markers with independent semantic colors.
+fn progress_marker_line(step: PiScanSetupStep) -> Line<'static> {
+    let th = theme();
+    let mut spans = Vec::new();
+    for (index, _) in PiScanSetupStep::all().iter().enumerate() {
+        if index > 0 {
+            spans.push(Span::raw(" "));
+        }
+        let (marker, style) = match index.cmp(&step.index()) {
+            std::cmp::Ordering::Less => ("●", Style::default().fg(th.green)),
+            std::cmp::Ordering::Equal => (
+                "◆",
+                Style::default()
+                    .fg(th.sapphire)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            std::cmp::Ordering::Greater => ("○", Style::default().fg(th.overlay1)),
+        };
+        spans.push(Span::styled(marker, style));
+    }
+    Line::from(spans)
 }
 
 /// Draw one page body with keyboard focus styling.
 fn render_step(f: &mut Frame, app: &AppState, wizard: &PiScanSetupWizardState, area: Rect) {
     let title = step_title(app, wizard.step);
-    let lines = match wizard.step {
+    let lines = step_lines(app, wizard);
+    let th = theme();
+    f.render_widget(
+        Paragraph::new(lines)
+            .wrap(Wrap { trim: false })
+            .scroll((wizard.body_scroll, 0))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(th.overlay1))
+                    .title(Span::styled(
+                        title,
+                        Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+                    )),
+            ),
+        area,
+    );
+}
+
+/// Build the current page body once for both rendering and wrapped mouse seams.
+fn step_lines(app: &AppState, wizard: &PiScanSetupWizardState) -> Vec<Line<'static>> {
+    match wizard.step {
         PiScanSetupStep::Welcome => welcome_lines(app, wizard),
         PiScanSetupStep::PiReadiness => readiness_lines(app, wizard),
         PiScanSetupStep::Route => route_lines(app, wizard),
@@ -102,29 +135,15 @@ fn render_step(f: &mut Frame, app: &AppState, wizard: &PiScanSetupWizardState, a
         PiScanSetupStep::OptionalBehavior => optional_lines(app, wizard),
         PiScanSetupStep::Review => review_lines(app, wizard),
         PiScanSetupStep::Activate => activate_lines(app, wizard),
-    };
-    f.render_widget(
-        Paragraph::new(lines)
-            .wrap(Wrap { trim: false })
-            .scroll((wizard.body_scroll, 0))
-            .block(Block::default().borders(Borders::ALL).title(title)),
-        area,
-    );
+    }
 }
 
 /// Draw inline validation or the current non-destructive status notice.
 fn render_validation(f: &mut Frame, app: &AppState, wizard: &PiScanSetupWizardState, area: Rect) {
     let th = theme();
-    let (text, color) = if wizard.validation_issues.is_empty() {
+    let (marker, text, color) = if !wizard.validation_issues.is_empty() {
         (
-            wizard.notice.as_ref().map_or_else(
-                || crate::i18n::t(app, "app.pi_scan.wizard.validation.ready"),
-                |notice| localize_wizard_message(app, notice),
-            ),
-            th.green,
-        )
-    } else {
-        (
+            "! ",
             wizard
                 .validation_issues
                 .iter()
@@ -133,13 +152,44 @@ fn render_validation(f: &mut Frame, app: &AppState, wizard: &PiScanSetupWizardSt
                 .join(" · "),
             th.red,
         )
+    } else if let Some(notice) = wizard.notice.as_ref() {
+        let (marker, color) = notice_presentation(notice);
+        (marker, localize_wizard_message(app, notice), color)
+    } else {
+        (
+            "✓ ",
+            crate::i18n::t(app, "app.pi_scan.wizard.validation.ready"),
+            th.green,
+        )
     };
     f.render_widget(
-        Paragraph::new(text)
-            .style(Style::default().fg(color))
-            .wrap(Wrap { trim: true }),
+        Paragraph::new(Line::from(vec![
+            Span::styled(
+                marker,
+                Style::default().fg(color).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(text, Style::default().fg(color)),
+        ]))
+        .wrap(Wrap { trim: true }),
         area,
     );
+}
+
+/// Select a truthful marker and semantic color for each known persistent notice state.
+fn notice_presentation(notice: &str) -> (&'static str, ratatui::style::Color) {
+    let th = theme();
+    match notice {
+        "app.pi_scan.wizard.notices.readiness_verified"
+        | "app.pi_scan.wizard.notices.validation_write_free" => ("✓ ", th.green),
+        "app.pi_scan.wizard.notices.dry_run_review" => ("⚠ ", th.yellow),
+        "app.pi_scan.wizard.notices.verifying" | "app.pi_scan.wizard.notices.validating" => {
+            ("⏳ ", th.yellow)
+        }
+        message if message.starts_with("Previous route is no longer advertised; selected ") => {
+            ("⚠ ", th.yellow)
+        }
+        _ => ("⏳ ", th.yellow),
+    }
 }
 
 /// Draw contextual navigation buttons and return exact click rectangles.
@@ -226,8 +276,9 @@ fn control_hit_rects(
         .collect()
 }
 
-/// Add click seams for visible page-local control rows.
+/// Add click seams for every visible wrapped row of each page-local control.
 fn append_control_rects(
+    app: &AppState,
     wizard: &PiScanSetupWizardState,
     body_area: Rect,
     hit_rects: &mut Vec<PiScanSetupHitRect>,
@@ -238,22 +289,37 @@ fn append_control_rects(
         PiScanSetupStep::OptionalBehavior => 0,
         PiScanSetupStep::Welcome | PiScanSetupStep::Review | PiScanSetupStep::Activate => return,
     };
-    for index in 0..wizard.focus_count() {
-        let source_line = u16::try_from(first_line + index).unwrap_or(u16::MAX);
-        let Some(line) = source_line.checked_sub(wizard.body_scroll) else {
-            continue;
-        };
-        let row = body_area.y.saturating_add(1).saturating_add(line);
-        if row >= body_area.bottom().saturating_sub(1) {
-            break;
+    let inner_width = usize::from(body_area.width.saturating_sub(2).max(1));
+    let inner_height = body_area.height.saturating_sub(2);
+    let scroll_start = usize::from(wizard.body_scroll);
+    let scroll_end = scroll_start.saturating_add(usize::from(inner_height));
+    let lines = step_lines(app, wizard);
+    let mut visual_start = lines
+        .iter()
+        .take(first_line)
+        .map(|line| super::wrapped_line_count(line, inner_width))
+        .sum::<usize>();
+    for (index, line) in lines
+        .iter()
+        .skip(first_line)
+        .take(wizard.focus_count())
+        .enumerate()
+    {
+        let visual_end = visual_start.saturating_add(super::wrapped_line_count(line, inner_width));
+        let visible_start = visual_start.max(scroll_start);
+        let visible_end = visual_end.min(scroll_end);
+        for visual_row in visible_start..visible_end {
+            hit_rects.push(PiScanSetupHitRect {
+                target: PiScanSetupHitTarget::Control(index),
+                x: body_area.x.saturating_add(1),
+                y: body_area.y.saturating_add(1).saturating_add(
+                    u16::try_from(visual_row.saturating_sub(scroll_start)).unwrap_or(u16::MAX),
+                ),
+                width: body_area.width.saturating_sub(2),
+                height: 1,
+            });
         }
-        hit_rects.push(PiScanSetupHitRect {
-            target: PiScanSetupHitTarget::Control(index),
-            x: body_area.x.saturating_add(1),
-            y: row,
-            width: body_area.width.saturating_sub(2),
-            height: 1,
-        });
+        visual_start = visual_end;
     }
 }
 
@@ -626,7 +692,10 @@ fn activate_lines(app: &AppState, wizard: &PiScanSetupWizardState) -> Vec<Line<'
         Style::default().fg(color).add_modifier(Modifier::BOLD),
     ))];
     if !detail.is_empty() {
-        lines.push(Line::from(detail));
+        lines.push(Line::from(Span::styled(
+            format!("! {detail}"),
+            Style::default().fg(theme().red),
+        )));
         lines.push(Line::from(crate::i18n::t(
             app,
             "app.pi_scan.wizard.activate.retry_guidance",
@@ -654,6 +723,16 @@ fn focused_line(
     index: usize,
     text: String,
 ) -> Line<'static> {
+    focused_line_with_style(wizard, index, text, Style::default().fg(theme().text))
+}
+
+/// Render one focused line while retaining semantic state color when unfocused.
+fn focused_line_with_style(
+    wizard: &PiScanSetupWizardState,
+    index: usize,
+    text: String,
+    unfocused: Style,
+) -> Line<'static> {
     let th = theme();
     let style = if wizard.focus == index {
         Style::default()
@@ -661,7 +740,7 @@ fn focused_line(
             .bg(th.sapphire)
             .add_modifier(Modifier::BOLD)
     } else {
-        Style::default().fg(th.text)
+        unfocused
     };
     Line::from(Span::styled(text, style))
 }
@@ -688,8 +767,8 @@ fn focused_toggle(
     key: &str,
     value: bool,
 ) -> Line<'static> {
-    focused_line(
-        app,
+    let th = theme();
+    focused_line_with_style(
         wizard,
         index,
         format!(
@@ -697,6 +776,7 @@ fn focused_toggle(
             crate::i18n::t(app, key),
             yes_no(app, value)
         ),
+        Style::default().fg(if value { th.green } else { th.yellow }),
     )
 }
 
@@ -741,6 +821,19 @@ mod tests {
     use crate::state::pi_scan::PiScanConsentState;
     use ratatui::{Terminal, backend::TestBackend};
 
+    /// Completed, current, and upcoming progress markers use distinct semantic colors.
+    #[test]
+    fn progress_markers_use_semantic_colors() {
+        let line = progress_marker_line(PiScanSetupStep::Route);
+        let th = theme();
+        assert_eq!(line.spans[0].content, "●");
+        assert_eq!(line.spans[0].style.fg, Some(th.green));
+        assert_eq!(line.spans[4].content, "◆");
+        assert_eq!(line.spans[4].style.fg, Some(th.sapphire));
+        assert_eq!(line.spans[6].content, "○");
+        assert_eq!(line.spans[6].style.fg, Some(th.overlay1));
+    }
+
     /// Render each wizard page at narrow supported dimensions without panic.
     #[test]
     fn all_wizard_steps_render_at_narrow_dimensions() {
@@ -773,6 +866,36 @@ mod tests {
         }
     }
 
+    /// Wizard notices pair pending, completed, and warning wording with truthful styles.
+    #[test]
+    fn wizard_notices_use_truthful_markers_and_colors() {
+        let th = theme();
+        for notice in [
+            "app.pi_scan.wizard.notices.verifying",
+            "app.pi_scan.wizard.notices.validating",
+        ] {
+            let (text, color) = rendered_notice(notice);
+            assert!(text.starts_with("⏳ "), "pending notice marker: {text:?}");
+            assert_eq!(color, th.yellow);
+        }
+        for notice in [
+            "app.pi_scan.wizard.notices.readiness_verified",
+            "app.pi_scan.wizard.notices.validation_write_free",
+        ] {
+            let (text, color) = rendered_notice(notice);
+            assert!(text.starts_with("✓ "), "completed notice marker: {text:?}");
+            assert_eq!(color, th.green);
+        }
+        for notice in [
+            "app.pi_scan.wizard.notices.dry_run_review",
+            "Previous route is no longer advertised; selected provider/model — review before continuing",
+        ] {
+            let (text, color) = rendered_notice(notice);
+            assert!(text.starts_with("⚠ "), "warning notice marker: {text:?}");
+            assert_eq!(color, th.yellow);
+        }
+    }
+
     /// Rendered footer and body controls must expose deterministic mouse seams.
     #[test]
     fn render_records_footer_and_body_hit_targets() {
@@ -799,7 +922,7 @@ mod tests {
             .find(|rect| matches!(rect.target, PiScanSetupHitTarget::Control(7)))
             .expect("last optional control hit seam");
         assert_eq!(first_control.y, 3);
-        assert_eq!(last_control.y, 10);
+        assert_eq!(last_control.y, 11);
         assert!(
             hit_rects
                 .iter()
@@ -810,5 +933,31 @@ mod tests {
                 .iter()
                 .any(|rect| { matches!(rect.target, PiScanSetupHitTarget::Next) })
         );
+    }
+
+    /// Render one persistent notice and return its visible marker/text and marker color.
+    fn rendered_notice(notice: &str) -> (String, ratatui::style::Color) {
+        let backend = TestBackend::new(120, 1);
+        let mut terminal = Terminal::new(backend).expect("test terminal");
+        let mut app = AppState::default();
+        let locales = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("config/locales");
+        app.translations =
+            crate::i18n::load_locale_file("en-US", &locales).expect("English locale");
+        let mut wizard = PiScanSetupWizardState::open(
+            app.pi_scan.settings.clone(),
+            PiScanConsentState::default(),
+            true,
+        );
+        wizard.notice = Some(notice.to_string());
+        terminal
+            .draw(|frame| render_validation(frame, &app, &wizard, frame.area()))
+            .expect("notice render");
+        let buffer = terminal.backend().buffer();
+        let text = buffer
+            .content
+            .iter()
+            .map(ratatui::buffer::Cell::symbol)
+            .collect::<String>();
+        (text, buffer[(0, 0)].fg)
     }
 }

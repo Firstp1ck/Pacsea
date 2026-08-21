@@ -85,6 +85,13 @@ hu-HU:
       common:
         confirmed: "confirmed" # TODO: translate to Hungarian
         not_confirmed: "not confirmed" # TODO: translate to Hungarian
+        enabled: "enabled" # TODO: translate to Hungarian
+        disabled: "disabled" # TODO: translate to Hungarian
+        allowed: "allowed" # TODO: translate to Hungarian
+        not_allowed: "not allowed" # TODO: translate to Hungarian
+        none: "none" # TODO: translate to Hungarian
+        package_base: "package base" # TODO: translate to Hungarian
+        commit: "commit" # TODO: translate to Hungarian
       coverage:
         complete: "complete" # TODO: translate to Hungarian
         incomplete: "incomplete" # TODO: translate to Hungarian
@@ -101,7 +108,13 @@ hu-HU:
         interrupted: "interrupted" # TODO: translate to Hungarian
         cancelled: "cancelled" # TODO: translate to Hungarian
       setup:
+        sections:
+          runtime: "Runtime" # TODO: translate to Hungarian
+          route_cost: "Route and cost" # TODO: translate to Hungarian
+          safety: "Safety and coverage" # TODO: translate to Hungarian
+          permissions: "Permissions" # TODO: translate to Hungarian
         rerun_wizard: "Az irányított beállítás újbóli futtatása"
+        availability: "Runtime status" # TODO: translate to Hungarian
         missing_pi: "Pi was not found. Install Pi, set pi_scan_binary, then restart Pacsea." # TODO: translate to Hungarian
         integration_pending: "Pi exists, but the scanner runtime is disconnected. Run guided setup or review the reported runtime error." # TODO: translate to Hungarian
         enable_hint: "Run guided setup and review every disclosure before enabling Pi Scan." # TODO: translate to Hungarian
@@ -111,6 +124,13 @@ hu-HU:
         readiness_warning: "warning" # TODO: translate to Hungarian
         readiness_confirmed: "confirmed" # TODO: translate to Hungarian
         config_within_bounds: "configured limits are within compiled bounds" # TODO: translate to Hungarian
+        validation_issue:
+          executable: "{} must name the Pi executable" # TODO: translate to Hungarian
+          at_least: "{} must be at least {}" # TODO: translate to Hungarian
+          between: "{} must be between 1 and {}" # TODO: translate to Hungarian
+          cannot_exceed: "{} cannot exceed {}" # TODO: translate to Hungarian
+          nonnegative_decimal: "{} must be a non-negative decimal" # TODO: translate to Hungarian
+          https_proxy: "{} must be credential-free HTTPS or empty" # TODO: translate to Hungarian
         feature_background: "Feature enabled / paid background enabled" # TODO: translate to Hungarian
         provider_model: "Provider / model" # TODO: translate to Hungarian
         fallback: "Ordered fallback" # TODO: translate to Hungarian
@@ -259,22 +279,39 @@ hu-HU:
           notice: "A varázsló módosításai az Alkalmazásig izoláltak; a folyamatban lévő Alkalmazás két Esc-et igényel, és jelenti a kifejezett visszaállítást."
           keys: "Tab fókusz · Enter/Szóköz módosítás · ←/→ beállítás · PgUp/PgDn görgetés · n Tovább · b Vissza · a Alkalmazás · r Újra · Esc Mégse · ? Súgó"
       overview:
+        sections:
+          activity: "Current activity" # TODO: translate to Hungarian
+          budget: "Unattended budget" # TODO: translate to Hungarian
+          permissions: "Permissions" # TODO: translate to Hungarian
+          notices: "Notices" # TODO: translate to Hungarian
         active: "Active" # TODO: translate to Hungarian
+        no_active: "No active scan" # TODO: translate to Hungarian
         queued: "Queued" # TODO: translate to Hungarian
         pauses: "Pause reasons" # TODO: translate to Hungarian
         budgets: "Unattended usage / limits" # TODO: translate to Hungarian
-        tokens_used: "tokens" # TODO: translate to Hungarian
-        cost_used: "cost" # TODO: translate to Hungarian
+        starts_limit: "Starts limit" # TODO: translate to Hungarian
+        tokens_used: "Tokens used / limit" # TODO: translate to Hungarian
+        cost_used: "Cost used / limit" # TODO: translate to Hungarian
         background_notice: "Background" # TODO: translate to Hungarian
         consents: "Observation / paid consent" # TODO: translate to Hungarian
+        observation_permission: "Background observation" # TODO: translate to Hungarian
+        paid_permission: "Paid execution" # TODO: translate to Hungarian
         advisory: "Advisory only: no result authorizes installation and incomplete coverage remains visible." # TODO: translate to Hungarian
       targets:
+        list_heading: "Scan targets" # TODO: translate to Hungarian
         hint: "Space selects targets; Enter queues or creates a dry-run preview." # TODO: translate to Hungarian
+        package_base: "base" # TODO: translate to Hungarian
+        commit: "commit" # TODO: translate to Hungarian
         empty: "No AUR target in context. Return to Search, select an AUR package, then press Shift+A." # TODO: translate to Hungarian
         dry_run_preview: "Dry-run process preview" # TODO: translate to Hungarian
         dry_run_disclosure: "Dry-run makes no Pi/model call and mutates no scanner queue, consent, budget, result, or durable state." # TODO: translate to Hungarian
       progress:
+        sections:
+          session: "Session" # TODO: translate to Hungarian
+          current: "Current work" # TODO: translate to Hungarian
+          queue: "Queue" # TODO: translate to Hungarian
         keys: "p Pause · u Resume · x Cancel · r Retry" # TODO: translate to Hungarian
+        queue_empty: "No scans are queued." # TODO: translate to Hungarian
         active: "Active" # TODO: translate to Hungarian
         no_active: "No active scan." # TODO: translate to Hungarian
         running_for: "Running for" # TODO: translate to Hungarian
@@ -303,9 +340,22 @@ hu-HU:
         limit_tokens: "background tokens/24h" # TODO: translate to Hungarian
         limit_cost: "background cost/24h" # TODO: translate to Hungarian
       results:
+        list_heading: "Validated results" # TODO: translate to Hungarian
         advisory: "Validated advisory output only. Model text that failed schema/evidence validation is not rendered." # TODO: translate to Hungarian
         empty: "No validated result is available." # TODO: translate to Hungarian
+        current: "[CURRENT IDENTITY]" # TODO: translate to Hungarian
         stale: "[STALE IDENTITY]" # TODO: translate to Hungarian
+        completion:
+          complete_no_findings: "Complete — no findings in analyzed scope" # TODO: translate to Hungarian
+          incomplete_no_findings: "Incomplete — no findings in analyzed scope" # TODO: translate to Hungarian
+          one_finding: "{} finding(s) in analyzed scope" # TODO: translate to Hungarian
+          many_findings: "{} finding(s) in analyzed scope" # TODO: translate to Hungarian
+        severity:
+          critical: "critical" # TODO: translate to Hungarian
+          high: "high" # TODO: translate to Hungarian
+          medium: "medium" # TODO: translate to Hungarian
+          low: "low" # TODO: translate to Hungarian
+          info: "info" # TODO: translate to Hungarian
       details:
         package_list_hint: "Select a package with j/k. Press Enter or Space to open or close its report." # TODO: translate to Hungarian
         selected: "selected" # TODO: translate to Hungarian

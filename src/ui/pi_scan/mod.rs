@@ -21,8 +21,104 @@ use crate::state::{AppState, PiScanAvailability, PiScanView};
 use crate::theme::theme;
 use unicode_width::UnicodeWidthChar;
 
+/// Number of commit-identity characters shown outside Technical Details.
+const SHORT_IDENTITY_LENGTH: usize = 12;
+
 /// Height of the always-visible Pi Scan notice and keybind footer.
 const FOOTER_HEIGHT: u16 = 3;
+
+/// Semantic emphasis shared by Pi Scan workspace renderers.
+#[derive(Clone, Copy)]
+pub(super) enum SemanticTone {
+    /// Selected, active, or directly actionable content.
+    Active,
+    /// Complete, confirmed, or current content.
+    Success,
+    /// Pending, paused, incomplete, or warning content.
+    Warning,
+    /// Failed, invalid, disconnected, or critical content.
+    Error,
+    /// Supporting labels and secondary metadata.
+    Muted,
+    /// Ordinary primary content without semantic state.
+    Normal,
+}
+
+/// What: Shorten one immutable identity for human-facing workspace rows.
+///
+/// Inputs:
+/// - `identity`: Exact identity retained by scanner state.
+///
+/// Output:
+/// - At most the first 12 Unicode scalar values.
+///
+/// Details:
+/// - Exact commit identities remain available in Technical Details.
+/// - Character iteration avoids slicing a potentially non-ASCII diagnostic value mid-codepoint.
+pub(super) fn short_identity(identity: &str) -> String {
+    identity.chars().take(SHORT_IDENTITY_LENGTH).collect()
+}
+
+/// What: Build a balanced Pi Scan section heading.
+///
+/// Inputs:
+/// - `app`: Application state used for localization.
+/// - `key`: Translation key for the heading.
+///
+/// Output:
+/// - Mauve bold heading line shared across workspace pages.
+///
+/// Details:
+/// - Callers own blank-line placement so compact terminals retain useful content.
+pub(super) fn section_heading(app: &AppState, key: &str) -> Line<'static> {
+    let th = theme();
+    Line::from(Span::styled(
+        crate::i18n::t(app, key),
+        Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+    ))
+}
+
+/// What: Build one indented label/value row with semantic value emphasis.
+///
+/// Inputs:
+/// - `label`: Human-facing localized label.
+/// - `value`: Human-facing value including a textual or symbolic state cue.
+/// - `tone`: Semantic color category for the value.
+///
+/// Output:
+/// - A line with a muted label and semantically styled value.
+///
+/// Details:
+/// - Color supplements rather than replaces the supplied textual state cue.
+pub(super) fn labeled_line(
+    label: impl Into<String>,
+    value: impl Into<String>,
+    tone: SemanticTone,
+) -> Line<'static> {
+    let th = theme();
+    Line::from(vec![
+        Span::styled("  ", Style::default()),
+        Span::styled(
+            format!("{}: ", label.into()),
+            Style::default().fg(th.overlay1),
+        ),
+        Span::styled(value.into(), semantic_style(tone)),
+    ])
+}
+
+/// Select the shared style for one semantic emphasis category.
+pub(super) fn semantic_style(tone: SemanticTone) -> Style {
+    let th = theme();
+    let color = match tone {
+        SemanticTone::Active => th.sapphire,
+        SemanticTone::Success => th.green,
+        SemanticTone::Warning => th.yellow,
+        SemanticTone::Error => th.red,
+        SemanticTone::Muted => th.subtext1,
+        SemanticTone::Normal => th.text,
+    };
+    Style::default().fg(color)
+}
 
 /// What: Locate the top edge of the Pi Scan keybind footer.
 ///
@@ -105,7 +201,7 @@ fn render_tabs(f: &mut Frame, app: &mut AppState, area: Rect) {
     };
     spans.push(Span::styled(
         format!("  {status}"),
-        Style::default().fg(th.yellow),
+        Style::default().fg(availability_color(&app.pi_scan.availability, &th)),
     ));
     f.render_widget(
         Paragraph::new(Line::from(spans)).block(Block::default().borders(Borders::BOTTOM)),
@@ -187,8 +283,19 @@ pub(super) fn localized_notice(app: &AppState, notice: &PiScanNotice) -> String 
     key.map_or_else(|| notice.text.clone(), |key| crate::i18n::t(app, key))
 }
 
+/// Select the semantic foreground color for one workspace availability state.
+const fn availability_color(availability: &PiScanAvailability, th: &crate::theme::Theme) -> Color {
+    match availability {
+        PiScanAvailability::RuntimeConnected => th.green,
+        PiScanAvailability::Disabled => th.yellow,
+        PiScanAvailability::Unsupported
+        | PiScanAvailability::MissingBinary
+        | PiScanAvailability::RuntimeDisconnected => th.red,
+    }
+}
+
 /// Select a semantic foreground color for one notice severity.
-const fn notice_color(notice: &PiScanNotice, th: &crate::theme::Theme) -> Color {
+pub(super) const fn notice_color(notice: &PiScanNotice, th: &crate::theme::Theme) -> Color {
     match notice.severity {
         PiScanNoticeSeverity::Info => th.sapphire,
         PiScanNoticeSeverity::Success => th.green,
@@ -284,8 +391,8 @@ pub(super) fn clamp_line_scroll(offset: u16, lines: &[Line<'static>], area: Rect
     offset.min(u16::try_from(maximum).unwrap_or(u16::MAX))
 }
 
-/// Estimate Ratatui's word wrapping from display widths for scroll-bound calculation.
-fn wrapped_line_count(line: &Line<'static>, width: usize) -> usize {
+/// Count Ratatui-style word-wrapped display rows for scrolling and mouse hit seams.
+pub(super) fn wrapped_line_count(line: &Line<'static>, width: usize) -> usize {
     let text = line
         .spans
         .iter()
@@ -338,7 +445,15 @@ const fn pack_word(
 
 #[cfg(test)]
 mod tests {
-    use super::{format_microusd, format_token_count};
+    use super::{format_microusd, format_token_count, short_identity};
+
+    /// Human-facing identities use twelve characters without splitting Unicode values.
+    #[test]
+    fn short_identity_is_deterministic_and_unicode_safe() {
+        assert_eq!(short_identity("0123456789abcdef"), "0123456789ab");
+        assert_eq!(short_identity("abc"), "abc");
+        assert_eq!(short_identity("áéíóöőúüűxyzmore"), "áéíóöőúüűxyz");
+    }
 
     /// Token counts remain readable at zero and across grouping boundaries.
     #[test]
