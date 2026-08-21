@@ -28,7 +28,7 @@ use crate::logic::pi_scan::acquisition::{
 };
 use crate::logic::pi_scan::identity::{AurRepoUrl, CommitOid, PackageName};
 use crate::logic::pi_scan::network::{
-    SystemNetworkAdapter, fetch_aur_rpc_package_base, fetch_aur_rpc_package_base_with_timeout,
+    SystemNetworkAdapter, fetch_aur_rpc_package_base, fetch_aur_rpc_package_bases_with_timeout,
 };
 use crate::logic::pi_scan::observer::{
     ExplicitHttpsProxyGitRunner, GitCommandRunner, GitInvocation, ObservationCycle,
@@ -413,27 +413,6 @@ fn run_git_success(
     }
 }
 
-/// What: Classify one foreign-package AUR lookup for discovery.
-///
-/// Inputs:
-/// - `result`: Typed exact-name AUR RPC outcome.
-///
-/// Output:
-/// - `Some` mapping for AUR packages, `None` for non-AUR foreign packages, or a fatal error.
-///
-/// Details:
-/// - Only an explicit unresolved-package classification is skippable; transport, schema, and
-///   identity failures remain fail-closed for the complete observation cycle.
-fn classify_foreign_rpc_result(
-    result: Result<AurRpcData, AcquisitionError>,
-) -> Result<Option<AurRpcData>, String> {
-    match result {
-        Ok(rpc) => Ok(Some(rpc)),
-        Err(AcquisitionError::PackageBaseUnresolved { .. }) => Ok(None),
-        Err(error) => Err(error.to_string()),
-    }
-}
-
 /// What: Find selected package names absent from the installed foreign-package inventory.
 ///
 /// Inputs:
@@ -491,40 +470,55 @@ fn enumerate_foreign_filtered(
             ));
         }
     }
+    let packages: Vec<(PackageName, String)> = foreign
+        .into_iter()
+        .filter(|(name, _)| selected.is_none_or(|package_names| package_names.contains(name)))
+        .map(|(name, version)| {
+            PackageName::new(name)
+                .map(|package_name| (package_name, version))
+                .map_err(|error| error.to_string())
+        })
+        .collect::<Result<_, _>>()?;
+    let package_names: Vec<&str> = packages
+        .iter()
+        .map(|(package_name, _)| package_name.as_str())
+        .collect();
+    let timeout = adapter
+        .observation_cycle
+        .remaining_deadline()
+        .map_err(|error| error.to_string())?;
+    let rpc = if package_names.is_empty() {
+        AurRpcData::default()
+    } else {
+        let mut network = adapter.network()?;
+        fetch_aur_rpc_package_bases_with_timeout(&mut network, &package_names, timeout)
+            .map_err(|error| error.to_string())?
+    };
     let mut grouped: BTreeMap<String, DiscoveredPackage> = BTreeMap::new();
-    for (name, version) in foreign {
-        if selected.is_some_and(|package_names| !package_names.contains(&name)) {
+    for (package_name, version) in packages {
+        let name = package_name.as_str().to_string();
+        if !rpc.package_bases.contains_key(&name) {
             continue;
         }
-        let package_name = PackageName::new(name.clone()).map_err(|error| error.to_string())?;
-        let mut network = adapter.network()?;
-        let timeout = adapter
-            .observation_cycle
-            .remaining_deadline()
-            .map_err(|error| error.to_string())?;
-        let rpc_result =
-            fetch_aur_rpc_package_base_with_timeout(&mut network, package_name.as_str(), timeout);
-        let Some(rpc) = classify_foreign_rpc_result(rpc_result)? else {
-            continue;
-        };
         let package_base =
             resolve_package_base(&package_name, &rpc).map_err(|error| error.to_string())?;
+        let package_base_name = package_base.as_str().to_string();
         adapter
             .rpc_by_base
-            .entry(package_base.as_str().to_string())
-            .or_insert_with(|| rpc.clone());
-        let entry = grouped
-            .entry(package_base.as_str().to_string())
-            .or_insert_with(|| {
-                let candidate = adapter.update_candidates.get(&name);
-                DiscoveredPackage {
-                    package_base: package_base.clone(),
-                    installed_names: Vec::new(),
-                    installed_version: candidate
-                        .map_or_else(|| version.clone(), |item| item.current_version.clone()),
-                    candidate_version: candidate.map(|item| item.candidate_version.clone()),
-                }
-            });
+            .entry(package_base_name.clone())
+            .or_default()
+            .package_bases
+            .insert(name.clone(), package_base_name.clone());
+        let entry = grouped.entry(package_base_name).or_insert_with(|| {
+            let candidate = adapter.update_candidates.get(&name);
+            DiscoveredPackage {
+                package_base: package_base.clone(),
+                installed_names: Vec::new(),
+                installed_version: candidate
+                    .map_or_else(|| version.clone(), |item| item.current_version.clone()),
+                candidate_version: candidate.map(|item| item.candidate_version.clone()),
+            }
+        });
         if !entry.installed_names.contains(&name) {
             if entry.candidate_version.is_none() {
                 entry.candidate_version = adapter
@@ -964,6 +958,8 @@ impl ProductionOrchestrationAdapter {
             "connection reset",
             "connection refused",
             "dns",
+            "http 429",
+            "rate limit",
             "status 500",
             "status 502",
             "status 503",
@@ -2516,12 +2512,12 @@ mod tests {
         ProbedModel, ProductionAdapterConfig, ProductionBudgetAdjustmentRequest,
         ProductionOrchestrationAdapter, ProductionPolicyProjection, ProductionRequestSenders,
         ProductionRuntimeSettings, RuntimeConsentProjection, background_observation_due,
-        classify_foreign_rpc_result, handle_production_budget_adjustment,
-        handle_production_budget_revalidation, legacy_budget_inclusive_consent_binding,
-        missing_selected_foreign_packages, production_background_wake_eligible,
-        production_consent_binding, publish_cancelled, publish_failed, publish_observation,
-        publish_policy_notice, request_background_execution_if_eligible,
-        reservation_from_probed_models, resolve_production_adapter_config,
+        handle_production_budget_adjustment, handle_production_budget_revalidation,
+        legacy_budget_inclusive_consent_binding, missing_selected_foreign_packages,
+        production_background_wake_eligible, production_consent_binding, publish_cancelled,
+        publish_failed, publish_observation, publish_policy_notice,
+        request_background_execution_if_eligible, reservation_from_probed_models,
+        resolve_production_adapter_config,
     };
     use crate::app::runtime::workers::pi_scan::{
         PiScanBudgetAdjustmentAcknowledgement, PiScanNoticeSource, PiScanPolicyAcknowledgement,
@@ -3025,17 +3021,17 @@ mod tests {
         );
     }
 
-    /// Non-AUR foreign packages must not block discovery of later exact AUR packages.
+    /// HTTP 429 is transient so an execution-time metadata fetch receives the bounded retry.
     #[test]
-    fn unresolved_foreign_package_is_skipped_during_discovery() {
-        let classified =
-            classify_foreign_rpc_result(Err(AcquisitionError::PackageBaseUnresolved {
-                package_name: "qml-vulkan".to_string(),
-                reason: "AUR returned no exact result".to_string(),
-            }))
-            .expect("non-AUR foreign package is skippable during discovery");
+    fn aur_rpc_rate_limit_is_transient_before_model_execution() {
+        let error = AcquisitionError::Network {
+            url: "https://aur.archlinux.org/rpc/v5/info".to_string(),
+            reason: "AUR RPC rate limit reached (HTTP 429); wait before retrying".to_string(),
+        };
 
-        assert!(classified.is_none());
+        assert!(ProductionOrchestrationAdapter::is_transient_pre_model(
+            &error
+        ));
     }
 
     /// Verify Pi native per-million prices produce an exact conservative reservation.
