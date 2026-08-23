@@ -52,6 +52,25 @@ fn push_activity_lines(lines: &mut Vec<Line<'static>>, app: &AppState) {
         },
     );
     lines.push(super::labeled_line(
+        format!(
+            "[B] {}",
+            crate::i18n::t(app, "app.pi_scan.background_toggle.label")
+        ),
+        crate::i18n::t(
+            app,
+            if pi.settings.background_enabled {
+                "app.pi_scan.background_toggle.on"
+            } else {
+                "app.pi_scan.background_toggle.off"
+            },
+        ),
+        if pi.settings.background_enabled {
+            SemanticTone::Success
+        } else {
+            SemanticTone::Warning
+        },
+    ));
+    lines.push(super::labeled_line(
         crate::i18n::t(app, "app.pi_scan.overview.active"),
         active,
         active_tone,
@@ -282,6 +301,27 @@ mod tests {
                 "missing {heading:?}: {rendered:?}"
             );
         }
+    }
+
+    /// Overview exposes the direct Shift+B background scan control and current preference.
+    #[test]
+    fn overview_renders_background_toggle_control() {
+        let backend = TestBackend::new(100, 30);
+        let mut terminal = Terminal::new(backend).expect("test terminal");
+        let mut app = AppState::default();
+        load_english(&mut app);
+        terminal
+            .draw(|frame| render(frame, &mut app, frame.area()))
+            .expect("overview render");
+        let rendered = terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .map(ratatui::buffer::Cell::symbol)
+            .collect::<String>();
+        assert!(rendered.contains("[B] Background scans"), "{rendered:?}");
+        assert!(rendered.contains("Off"), "{rendered:?}");
     }
 
     /// Numeric zero runtime limits render as Unlimited rather than raw zero caps.

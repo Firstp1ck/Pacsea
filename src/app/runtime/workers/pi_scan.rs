@@ -114,6 +114,13 @@ pub enum PiScanRequestMessage {
         /// Readiness-warning confirmation.
         readiness_warning_confirmed: bool,
     },
+    /// Persist and hot-apply the unattended Pi execution preference.
+    SetBackgroundExecution {
+        /// Requested effective unattended execution state.
+        enabled: bool,
+        /// Request-owned typed acknowledgement destination.
+        acknowledge: mpsc::UnboundedSender<PiScanBackgroundExecutionAcknowledgement>,
+    },
     /// Apply or clear the user-owned sticky pause.
     SetUserPaused(bool),
     /// Apply a service/security/readiness pause.
@@ -181,6 +188,13 @@ pub struct PiScanCancelMessage {
     pub correlation_id: u64,
     /// Cancellation timestamp in Unix seconds.
     pub requested_at_unix: u64,
+}
+
+/// User-owned pause mutation routed independently from potentially blocking runtime requests.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PiScanUserPauseMessage {
+    /// Durable user-pause value requested by the UI.
+    pub paused: bool,
 }
 
 /// What: Bounded worker shutdown request with an acknowledgement channel.
@@ -345,6 +359,49 @@ pub enum PiScanProgressMessage {
     },
     /// Worker reached its shutdown durability boundary.
     Shutdown(PiScanShutdownAck),
+}
+
+/// What: Report one authoritative unattended-execution toggle outcome.
+///
+/// Inputs:
+/// - Requested state plus runtime-owned setup, persistence, and effective-policy facts.
+///
+/// Output:
+/// - Durable applied, inert preview, setup-required, or fail-closed failure projection.
+///
+/// Details:
+/// - A failed disable may be session-off while disk still says on, so failures carry the effective
+///   runtime state independently from the requested and persisted values.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PiScanBackgroundExecutionAcknowledgement {
+    /// The setting crossed its durability boundary and is effective for this runtime.
+    Applied {
+        /// Authoritative effective unattended execution preference.
+        enabled: bool,
+    },
+    /// Dry-run preview; no settings, policy, queue, or execution state changed.
+    DryRunPreview {
+        /// Requested preview state.
+        enabled: bool,
+    },
+    /// Enabling requires existing setup or consent to be completed first.
+    NeedsSetup {
+        /// Requested state that could not be applied.
+        requested_enabled: bool,
+        /// Unchanged current-session effective state.
+        effective_enabled: bool,
+        /// Actionable missing prerequisite.
+        reason: String,
+    },
+    /// Persistence or runtime ownership failed without weakening the effective policy.
+    Failed {
+        /// Requested state that failed.
+        requested_enabled: bool,
+        /// Fail-closed current-session effective state after the failure.
+        effective_enabled: bool,
+        /// Actionable failure and restart/retry guidance.
+        reason: String,
+    },
 }
 
 /// What: Typed acknowledgement for one authoritative budget adjustment request.
@@ -570,6 +627,8 @@ impl PiScanAbortTarget for CorrelatedPiAbortTarget {
 pub struct PiScanRuntimeChannels {
     /// General runtime request sender.
     pub request_tx: mpsc::UnboundedSender<PiScanRequestMessage>,
+    /// User pause sender isolated from potentially blocking runtime requests.
+    pub user_pause_tx: mpsc::UnboundedSender<PiScanUserPauseMessage>,
     /// Cancellation sender.
     pub cancel_tx: mpsc::UnboundedSender<PiScanCancelMessage>,
     /// Started-session registration sender.
@@ -639,26 +698,30 @@ fn spawn_with_state(
     state: PiScanRuntimeState,
 ) -> PiScanRuntimeChannels {
     let (request_tx, request_rx) = mpsc::unbounded_channel();
+    let (user_pause_tx, user_pause_rx) = mpsc::unbounded_channel();
     let (cancel_tx, cancel_rx) = mpsc::unbounded_channel();
     let (session_tx, session_rx) = mpsc::unbounded_channel();
     let (shutdown_tx, shutdown_rx) = mpsc::unbounded_channel();
     let (progress_tx, progress_rx) = mpsc::unbounded_channel();
     let (result_tx, result_rx) = mpsc::unbounded_channel();
-    let (_notice_tx, notice_rx) = mpsc::unbounded_channel();
+    let (notice_tx, notice_rx) = mpsc::unbounded_channel();
     let worker = PiScanWorker {
         options,
         state,
         request_rx,
+        user_pause_rx,
         cancel_rx,
         session_rx,
         shutdown_rx,
         progress_tx,
         result_tx,
+        notice_tx,
         abort_target: None,
     };
     tokio::spawn(worker.run());
     PiScanRuntimeChannels {
         request_tx,
+        user_pause_tx,
         cancel_tx,
         session_tx,
         shutdown_tx,
@@ -676,6 +739,8 @@ struct PiScanWorker {
     state: PiScanRuntimeState,
     /// General request receiver.
     request_rx: mpsc::UnboundedReceiver<PiScanRequestMessage>,
+    /// User pause receiver isolated from general request ordering.
+    user_pause_rx: mpsc::UnboundedReceiver<PiScanUserPauseMessage>,
     /// Cancellation receiver.
     cancel_rx: mpsc::UnboundedReceiver<PiScanCancelMessage>,
     /// Process-target registration receiver.
@@ -686,6 +751,8 @@ struct PiScanWorker {
     progress_tx: mpsc::UnboundedSender<PiScanProgressMessage>,
     /// Result sender.
     result_tx: mpsc::UnboundedSender<PiScanResultMessage>,
+    /// User pause acknowledgement sender.
+    notice_tx: mpsc::UnboundedSender<PiScanRuntimeNotice>,
     /// Cancellation target for the active correlation, when Pi has started.
     abort_target: Option<Box<dyn PiScanAbortTarget>>,
 }
@@ -698,6 +765,7 @@ impl PiScanWorker {
         loop {
             tokio::select! {
                 Some(request) = self.request_rx.recv() => self.handle_request(request),
+                Some(pause) = self.user_pause_rx.recv() => self.handle_user_pause(pause),
                 Some(cancel) = self.cancel_rx.recv() => self.handle_cancel(cancel),
                 Some(registration) = self.session_rx.recv() => self.register_session(registration),
                 Some(shutdown) = self.shutdown_rx.recv() => {
@@ -708,6 +776,40 @@ impl PiScanWorker {
                 else => break,
             }
         }
+    }
+
+    /// Persist one isolated user pause mutation and publish its durable acknowledgement.
+    fn handle_user_pause(&mut self, request: PiScanUserPauseMessage) {
+        let result = if self.options.dry_run || !self.options.effective_enabled() {
+            Err("Pi pause is inert because scanning is disabled or dry-run is active".to_string())
+        } else {
+            self.state.set_user_paused(request.paused);
+            self.persist().map_err(|error| error.to_string())
+        };
+        let action = if request.paused {
+            PiScanRuntimeAction::Pause
+        } else {
+            PiScanRuntimeAction::Resume
+        };
+        let acknowledgement = result.map_or_else(
+            |reason| PiScanPolicyAcknowledgement::Failed { reason },
+            |()| PiScanPolicyAcknowledgement::Persisted,
+        );
+        drop(
+            self.notice_tx.send(PiScanRuntimeNotice {
+                provenance: PiScanNoticeProvenance {
+                    source: PiScanNoticeSource::Foreground,
+                    action: Some(action),
+                    correlation_id: self
+                        .state
+                        .active
+                        .as_ref()
+                        .map(|active| active.correlation_id),
+                },
+                user_paused: request.paused,
+                acknowledgement,
+            }),
+        );
     }
 
     /// Apply one typed request and attempt a non-preemptive dispatch.
@@ -730,6 +832,20 @@ impl PiScanWorker {
             self.handle_budget_adjustment(adjustment, now_unix, &acknowledge);
             return;
         }
+        if let PiScanRequestMessage::SetBackgroundExecution {
+            enabled,
+            acknowledge,
+        } = request
+        {
+            let _ = acknowledge.send(PiScanBackgroundExecutionAcknowledgement::Failed {
+                requested_enabled: enabled,
+                effective_enabled: false,
+                reason:
+                    "the production Pi runtime is unavailable; complete Pi Scan setup and retry"
+                        .to_string(),
+            });
+            return;
+        }
         let mutation = match request {
             PiScanRequestMessage::ProbeSetup | PiScanRequestMessage::ManualObservation { .. } => {
                 Err(
@@ -742,6 +858,9 @@ impl PiScanWorker {
             | PiScanRequestMessage::SetConsentDetails { consent, .. } => {
                 self.state.set_consent(consent);
                 Ok(())
+            }
+            PiScanRequestMessage::SetBackgroundExecution { .. } => {
+                unreachable!("handled above")
             }
             PiScanRequestMessage::SetUserPaused(paused) => {
                 self.state.set_user_paused(paused);
@@ -798,6 +917,14 @@ impl PiScanWorker {
                 let _ = self
                     .progress_tx
                     .send(PiScanProgressMessage::DryRunPreview(job));
+            }
+            PiScanRequestMessage::SetBackgroundExecution {
+                enabled,
+                acknowledge,
+            } => {
+                let _ = acknowledge.send(
+                    PiScanBackgroundExecutionAcknowledgement::DryRunPreview { enabled },
+                );
             }
             PiScanRequestMessage::AdjustBudgets {
                 adjustment,
@@ -1083,6 +1210,7 @@ const fn request_timestamp(request: &PiScanRequestMessage) -> Option<u64> {
         | PiScanRequestMessage::Enqueue(_)
         | PiScanRequestMessage::SetConsent(_)
         | PiScanRequestMessage::SetConsentDetails { .. }
+        | PiScanRequestMessage::SetBackgroundExecution { .. }
         | PiScanRequestMessage::SetUserPaused(_)
         | PiScanRequestMessage::PauseForService
         | PiScanRequestMessage::ClearServicePause { .. }

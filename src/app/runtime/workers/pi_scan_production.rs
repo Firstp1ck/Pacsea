@@ -15,10 +15,11 @@ use serde_json::Value;
 use sha2::{Digest as _, Sha256};
 
 use crate::app::runtime::workers::pi_scan::{
-    PiScanBudgetAdjustmentAcknowledgement, PiScanCancelMessage, PiScanNoticeProvenance,
-    PiScanNoticeSource, PiScanPolicyAcknowledgement, PiScanProgressMessage, PiScanRequestMessage,
-    PiScanResultMessage, PiScanRuntimeAction, PiScanRuntimeChannels, PiScanRuntimeNotice,
-    PiScanRuntimeOptions, PiScanSessionRegistration, PiScanShutdownAck, PiScanShutdownMessage,
+    PiScanBackgroundExecutionAcknowledgement, PiScanBudgetAdjustmentAcknowledgement,
+    PiScanCancelMessage, PiScanNoticeProvenance, PiScanNoticeSource, PiScanPolicyAcknowledgement,
+    PiScanProgressMessage, PiScanRequestMessage, PiScanResultMessage, PiScanRuntimeAction,
+    PiScanRuntimeChannels, PiScanRuntimeNotice, PiScanRuntimeOptions, PiScanSessionRegistration,
+    PiScanShutdownAck, PiScanShutdownMessage, PiScanUserPauseMessage,
 };
 use crate::install::resolve_command_on_path;
 use crate::logic::pi_scan::acquisition::{
@@ -62,7 +63,7 @@ use crate::pi_scan_orchestrator::{
 };
 use crate::state::PiScanExecutionPhase;
 use crate::state::pi_scan::{
-    PiScanActualUsage, PiScanBudgetLimits, PiScanReservation, PiScanTerminalRecord,
+    PiScanActualUsage, PiScanBudgetLimits, PiScanPriority, PiScanReservation, PiScanTerminalRecord,
     PiScanTerminalStatus,
 };
 
@@ -1195,8 +1196,9 @@ pub(crate) fn spawn_production_pi_scan_worker(
         ));
     }
     let consent_binding = production_consent_binding(&settings);
-    let legacy_consent_binding = legacy_budget_inclusive_consent_binding(&settings);
-    let orchestrator = PiScanOrchestrator::new_with_legacy_consent_binding(
+    let legacy_background_binding = legacy_background_consent_binding(&settings);
+    let legacy_budget_binding = legacy_budget_inclusive_consent_binding(&settings);
+    let orchestrator = PiScanOrchestrator::new_with_legacy_consent_bindings(
         OrchestrationConfig {
             enabled: options.effective_enabled(),
             setup_confirmed: false,
@@ -1219,7 +1221,7 @@ pub(crate) fn spawn_production_pi_scan_worker(
             budget_limits: settings.budget_limits,
         },
         ProductionOrchestrationAdapter::new(adapter_config),
-        Some(&legacy_consent_binding),
+        &[&legacy_background_binding, &legacy_budget_binding],
     )
     .map_err(|error| error.to_string())?;
     let runner = PiScanSequentialRunner::new(orchestrator);
@@ -1287,17 +1289,35 @@ fn apply_result_retention(
 
 /// Hash material provider/model/privacy/pricing configuration for consent invalidation.
 pub(crate) fn production_consent_binding(settings: &ProductionRuntimeSettings) -> String {
-    production_consent_binding_with_budget_policy(settings, false)
+    production_consent_binding_with_operational_policy(settings, false, false)
 }
 
-/// Recompute the exact pre-migration budget-inclusive production consent binding.
+/// Recompute the exact prior binding that included the mutable background preference.
+fn legacy_background_consent_binding(settings: &ProductionRuntimeSettings) -> String {
+    production_consent_binding_with_operational_policy(settings, true, false)
+}
+
+/// Recompute the older binding that included background and budget operational policy.
 fn legacy_budget_inclusive_consent_binding(settings: &ProductionRuntimeSettings) -> String {
-    production_consent_binding_with_budget_policy(settings, true)
+    production_consent_binding_with_operational_policy(settings, true, true)
 }
 
-/// Hash production consent material with an explicitly selected legacy budget policy shape.
-fn production_consent_binding_with_budget_policy(
+/// What: Hash consent material with selected historical operational-policy fields.
+///
+/// Inputs:
+/// - `settings`: Exact provider/model/privacy/pricing and operational settings.
+/// - `include_background_policy`: Whether to reproduce the former background-setting field.
+/// - `include_budget_policy`: Whether to reproduce the older three budget fields.
+///
+/// Output:
+/// - Lowercase SHA-256 material binding.
+///
+/// Details:
+/// - Current consent excludes both mutable policy groups. Legacy callers select only exact known
+///   historical shapes so migration never broadens to partial or unrelated bindings.
+fn production_consent_binding_with_operational_policy(
     settings: &ProductionRuntimeSettings,
+    include_background_policy: bool,
     include_budget_policy: bool,
 ) -> String {
     let mut material = serde_json::json!({
@@ -1305,7 +1325,6 @@ fn production_consent_binding_with_budget_policy(
         "models": settings.models.iter().map(|model| {
             serde_json::json!({"provider": model.provider, "model": model.model})
         }).collect::<Vec<_>>(),
-        "background_execution": settings.background_execution,
         "thinking": settings.thinking,
         "https_proxy": settings.https_proxy,
         "extension_sha256": crate::pi_agent::process::EMBEDDED_EXTENSION_SHA256,
@@ -1313,6 +1332,9 @@ fn production_consent_binding_with_budget_policy(
         "prompt_version": crate::logic::pi_scan::prompt::PROMPT_VERSION,
         "result_schema": crate::logic::pi_scan::prompt::SCHEMA_VERSION,
     });
+    if include_background_policy {
+        material["background_execution"] = serde_json::json!(settings.background_execution);
+    }
     if include_budget_policy {
         material["budget_starts_per_hour"] =
             serde_json::json!(settings.budget_limits.starts_per_hour);
@@ -1345,6 +1367,7 @@ fn spawn_production_channels(
     restored: StoredResultBatch,
 ) -> PiScanRuntimeChannels {
     let (request_tx, request_rx) = tokio::sync::mpsc::unbounded_channel();
+    let (user_pause_tx, user_pause_rx) = tokio::sync::mpsc::unbounded_channel();
     let (cancel_tx, cancel_rx) = tokio::sync::mpsc::unbounded_channel();
     let (session_tx, session_rx) = tokio::sync::mpsc::unbounded_channel();
     let (shutdown_tx, shutdown_rx) = tokio::sync::mpsc::unbounded_channel();
@@ -1367,7 +1390,7 @@ fn spawn_production_channels(
         progress: progress_tx.clone(),
         result: result_tx.clone(),
         execution: execution_tx,
-        notice: notice_tx,
+        notice: notice_tx.clone(),
         policy: Arc::clone(&policy),
     };
     tokio::spawn(run_production_requests(
@@ -1385,6 +1408,12 @@ fn spawn_production_channels(
         settings,
         policy,
     ));
+    tokio::spawn(run_production_user_pauses(
+        runner.clone(),
+        user_pause_rx,
+        notice_tx,
+        result_tx.clone(),
+    ));
     tokio::spawn(run_production_cancellations(
         runner.clone(),
         cancel_rx,
@@ -1396,6 +1425,7 @@ fn spawn_production_channels(
 
     PiScanRuntimeChannels {
         request_tx,
+        user_pause_tx,
         cancel_tx,
         session_tx,
         shutdown_tx,
@@ -1511,7 +1541,7 @@ async fn run_production_requests(
     runner: PiScanSequentialRunner<ProductionOrchestrationAdapter>,
     mut request_rx: tokio::sync::mpsc::UnboundedReceiver<PiScanRequestMessage>,
     senders: ProductionRequestSenders,
-    settings: ProductionRuntimeSettings,
+    mut settings: ProductionRuntimeSettings,
     dry_run: bool,
 ) {
     let progress_tx = senders.progress.clone();
@@ -1625,7 +1655,7 @@ async fn run_production_requests(
                     &runner,
                     request,
                     &senders,
-                    &settings,
+                    &mut settings,
                     &mut consent,
                     dry_run,
                 ).await;
@@ -1707,7 +1737,7 @@ async fn handle_production_request(
     runner: &PiScanSequentialRunner<ProductionOrchestrationAdapter>,
     request: PiScanRequestMessage,
     senders: &ProductionRequestSenders,
-    settings: &ProductionRuntimeSettings,
+    settings: &mut ProductionRuntimeSettings,
     consent_state: &mut RuntimeConsentProjection,
     dry_run: bool,
 ) {
@@ -1783,6 +1813,21 @@ async fn handle_production_request(
                 senders,
                 settings,
                 consent_state,
+                dry_run,
+            )
+            .await;
+        }
+        PiScanRequestMessage::SetBackgroundExecution {
+            enabled,
+            acknowledge,
+        } => {
+            handle_production_background_execution(
+                runner,
+                enabled,
+                acknowledge,
+                senders,
+                settings,
+                *consent_state,
                 dry_run,
             )
             .await;
@@ -1894,6 +1939,145 @@ async fn handle_production_request(
             "production Pi completion is accepted only from the central orchestrator".to_string(),
         ),
     }
+}
+
+/// What: Return the first missing durable prerequisite for unattended paid execution.
+///
+/// Inputs:
+/// - `settings`: Current route order whose fallback confirmation must match.
+/// - `runtime`: Durable observation and foreground-paid consent.
+/// - `setup`: Durable disclosure, background-paid, and verified setup identity.
+///
+/// Output:
+/// - One actionable setup issue, or `None` when existing consent permits enablement.
+///
+/// Details:
+/// - Readiness-warning acceptance is required only when setup produced a warning; that condition is
+///   resolved by guided setup before these durable identity fields are accepted.
+fn background_enablement_issue(
+    settings: &ProductionRuntimeSettings,
+    runtime: crate::state::pi_scan::PiScanConsentState,
+    setup: &PiScanSetupConsentState,
+) -> Option<String> {
+    if !runtime.background_observation {
+        return Some("background observation consent is not enabled".to_string());
+    }
+    if !runtime.paid_execution {
+        return Some("foreground paid-execution consent is not enabled".to_string());
+    }
+    if !setup.disclosure_confirmed {
+        return Some(
+            "provider, privacy, cost, and coverage disclosure is not confirmed".to_string(),
+        );
+    }
+    if !setup.background_paid_execution {
+        return Some("independent paid background-execution consent is not enabled".to_string());
+    }
+    let fallback_required = settings.models.len() > 1;
+    if setup.fallback_confirmed != fallback_required {
+        return Some(
+            "ordered fallback confirmation no longer matches the configured routes".to_string(),
+        );
+    }
+    if setup.confirmed_pi_version.is_empty() || setup.confirmed_pricing_binding.is_empty() {
+        return Some(
+            "verified Pi version or exact route pricing confirmation is missing".to_string(),
+        );
+    }
+    None
+}
+
+/// What: Persist one background preference away from the async request owner.
+///
+/// Inputs:
+/// - `enabled`: Exact durable operational preference.
+///
+/// Output:
+/// - Atomic settings result or actionable task/config failure text.
+///
+/// Details:
+/// - Callers establish authorization ordering before or after awaiting this bounded blocking task.
+async fn persist_background_enabled(enabled: bool) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        crate::theme::PiScanSettings::persist_background_enabled_atomic(enabled)
+    })
+    .await
+    .map_err(|error| format!("Pi background preference persistence task failed: {error}"))?
+}
+
+/// What: Persist and hot-apply one unattended-execution preference with fail-closed ordering.
+///
+/// Inputs:
+/// - Runtime owner, requested state, request-owned acknowledgement, shared policy/wake senders,
+///   mutable request-owner settings, current consent projection, and dry-run state.
+///
+/// Output:
+/// - Exactly one best-effort typed acknowledgement; eligible enablement may queue one wake.
+///
+/// Details:
+/// - Disable revokes before file I/O and remains session-off on failure. Enable validates consent,
+///   persists first, publishes authorization second, acknowledges, and only then wakes.
+async fn handle_production_background_execution(
+    runner: &PiScanSequentialRunner<ProductionOrchestrationAdapter>,
+    enabled: bool,
+    acknowledge: tokio::sync::mpsc::UnboundedSender<PiScanBackgroundExecutionAcknowledgement>,
+    senders: &ProductionRequestSenders,
+    settings: &mut ProductionRuntimeSettings,
+    consent: RuntimeConsentProjection,
+    dry_run: bool,
+) {
+    if dry_run {
+        let _ =
+            acknowledge.send(PiScanBackgroundExecutionAcknowledgement::DryRunPreview { enabled });
+        return;
+    }
+    if !enabled {
+        senders.policy.authorization.publish(false);
+        settings.background_execution = false;
+        let acknowledgement = persist_background_enabled(false).await.map_or_else(
+                |error| PiScanBackgroundExecutionAcknowledgement::Failed {
+                    requested_enabled: false,
+                    effective_enabled: false,
+                    reason: format!(
+                        "{error}; background scans remain off for this session, but restart may restore the previous saved setting"
+                    ),
+                },
+                |()| PiScanBackgroundExecutionAcknowledgement::Applied { enabled: false },
+            );
+        let _ = acknowledge.send(acknowledgement);
+        return;
+    }
+    let (runtime, setup) = match runner.consent_snapshot().await {
+        Ok(snapshot) => snapshot,
+        Err(error) => {
+            let _ = acknowledge.send(PiScanBackgroundExecutionAcknowledgement::Failed {
+                requested_enabled: true,
+                effective_enabled: settings.background_execution,
+                reason: error.to_string(),
+            });
+            return;
+        }
+    };
+    if let Some(reason) = background_enablement_issue(settings, runtime, &setup) {
+        let _ = acknowledge.send(PiScanBackgroundExecutionAcknowledgement::NeedsSetup {
+            requested_enabled: true,
+            effective_enabled: settings.background_execution,
+            reason,
+        });
+        return;
+    }
+    if let Err(error) = persist_background_enabled(true).await {
+        let _ = acknowledge.send(PiScanBackgroundExecutionAcknowledgement::Failed {
+            requested_enabled: true,
+            effective_enabled: settings.background_execution,
+            reason: error,
+        });
+        return;
+    }
+    settings.background_execution = true;
+    senders.policy.publish(consent, settings, false);
+    let _ = acknowledge.send(PiScanBackgroundExecutionAcknowledgement::Applied { enabled: true });
+    request_background_execution_if_eligible(&senders.execution, settings, consent, false);
 }
 
 /// Apply, acknowledge, and conditionally wake one production budget adjustment.
@@ -2160,6 +2344,18 @@ async fn run_production_execution(
     }
 }
 
+/// Own foreground pause requests independently from general operations that may wait on execution.
+async fn run_production_user_pauses(
+    runner: PiScanSequentialRunner<ProductionOrchestrationAdapter>,
+    mut user_pause_rx: tokio::sync::mpsc::UnboundedReceiver<PiScanUserPauseMessage>,
+    notice_tx: tokio::sync::mpsc::UnboundedSender<PiScanRuntimeNotice>,
+    result_tx: tokio::sync::mpsc::UnboundedSender<PiScanResultMessage>,
+) {
+    while let Some(request) = user_pause_rx.recv().await {
+        handle_user_pause(&runner, request.paused, &notice_tx, &result_tx).await;
+    }
+}
+
 /// What: Publish a truthful pause acknowledgement and persist it at the correct boundary.
 ///
 /// Inputs:
@@ -2241,9 +2437,23 @@ fn publish_policy_notice(
     }));
 }
 
-/// Drain sequential eligible work until queue, pause, consent, or budget blocks the next start.
-async fn drain_eligible_queue(
-    runner: &PiScanSequentialRunner<ProductionOrchestrationAdapter>,
+/// What: Drain eligible work without crossing from a foreground batch into background work.
+///
+/// Inputs:
+/// - `runner`: Serialized queue and execution owner.
+/// - `progress_tx`: Active and phase projection channel.
+/// - `result_tx`: Terminal result and rejection channel.
+/// - `settings`: Exact production route settings.
+/// - `policy`: Current unattended-start authorization.
+///
+/// Output:
+/// - Completes when no eligible work remains or after the last queued foreground item settles.
+///
+/// Details:
+/// - A foreground selection may contain several packages. Those packages remain one batch, but
+///   queued background packages wait for a later background wake.
+async fn drain_eligible_queue<A: OrchestrationAdapter + Send + 'static>(
+    runner: &PiScanSequentialRunner<A>,
     progress_tx: &tokio::sync::mpsc::UnboundedSender<PiScanProgressMessage>,
     result_tx: &tokio::sync::mpsc::UnboundedSender<PiScanResultMessage>,
     settings: &ProductionRuntimeSettings,
@@ -2266,16 +2476,51 @@ async fn drain_eligible_queue(
             }
         }
     }
-    while execute_one(runner, progress_tx, result_tx, policy.start_authorization()).await {}
+    loop {
+        let Some(priority) =
+            execute_one(runner, progress_tx, result_tx, policy.start_authorization()).await
+        else {
+            break;
+        };
+        if priority != PiScanPriority::Foreground {
+            continue;
+        }
+        match runner.state_snapshot().await {
+            Ok(state)
+                if state
+                    .runtime
+                    .queue
+                    .iter()
+                    .any(|request| request.priority == PiScanPriority::Foreground) => {}
+            Ok(_) => break,
+            Err(error) => {
+                reject(result_tx, error.to_string());
+                break;
+            }
+        }
+    }
 }
 
-/// Execute at most one queued item while publishing its exact active correlation.
-async fn execute_one(
-    runner: &PiScanSequentialRunner<ProductionOrchestrationAdapter>,
+/// What: Execute at most one queued item and return the priority that actually started.
+///
+/// Inputs:
+/// - `runner`: Serialized queue and execution owner.
+/// - `progress_tx`: Active and phase projection channel.
+/// - `result_tx`: Terminal result and rejection channel.
+/// - `unattended_authorization`: Start-time authorization for background work.
+///
+/// Output:
+/// - The started item's priority after completion or cancellation, otherwise `None`.
+///
+/// Details:
+/// - The caller uses the returned priority to keep foreground and background drain boundaries
+///   separate without changing queue ordering or preemption.
+async fn execute_one<A: OrchestrationAdapter + Send + 'static>(
+    runner: &PiScanSequentialRunner<A>,
     progress_tx: &tokio::sync::mpsc::UnboundedSender<PiScanProgressMessage>,
     result_tx: &tokio::sync::mpsc::UnboundedSender<PiScanResultMessage>,
     unattended_authorization: Arc<PiScanUnattendedAuthorization>,
-) -> bool {
+) -> Option<PiScanPriority> {
     let started_at = unix_now();
     let (started_tx, mut started_rx) = tokio::sync::mpsc::unbounded_channel();
     let (phase_tx, mut phase_rx) = tokio::sync::mpsc::unbounded_channel();
@@ -2302,33 +2547,33 @@ async fn execute_one(
             drop(phase_progress_tx.send(PiScanProgressMessage::PhaseChanged(update)));
         }
     });
-    let had_active = active.is_some();
+    let active_priority = active.as_ref().map(|item| item.request.priority);
     let outcome = run.await;
     let _ = phase_forwarder.await;
     match outcome {
         Ok(Ok(Some(receipt))) => {
             let record = terminal_record_for_active(runner, active.as_ref()).await;
             publish_validated_completion(receipt, record, result_tx);
-            true
+            active_priority
         }
-        Ok(Ok(None)) => false,
+        Ok(Ok(None)) => None,
         Ok(Err(OrchestrationError::Cancelled)) => {
             let record = terminal_record_for_active(runner, active.as_ref()).await;
             publish_cancelled(record, result_tx);
-            had_active
+            active_priority
         }
         Ok(Err(error)) => {
             let reason = error.to_string();
             let record = terminal_record_for_active(runner, active.as_ref()).await;
             publish_failed(record, result_tx, reason);
-            false
+            None
         }
         Err(error) => {
             reject(
                 result_tx,
                 format!("Pi orchestration execution task failed: {error}"),
             );
-            false
+            None
         }
     }
 }
@@ -2345,8 +2590,8 @@ async fn execute_one(
 /// Details:
 /// - Correlation, request ID, and immutable queue key must all match. Missing or unavailable
 ///   state is never replaced with a guessed terminal disposition.
-async fn terminal_record_for_active(
-    runner: &PiScanSequentialRunner<ProductionOrchestrationAdapter>,
+async fn terminal_record_for_active<A: OrchestrationAdapter + Send + 'static>(
+    runner: &PiScanSequentialRunner<A>,
     active: Option<&crate::state::pi_scan::PiScanActiveItem>,
 ) -> Option<PiScanTerminalRecord> {
     let active = active?;
@@ -2544,7 +2789,9 @@ mod tests {
         ProbedModel, ProductionAdapterConfig, ProductionBudgetAdjustmentRequest,
         ProductionOrchestrationAdapter, ProductionPolicyProjection, ProductionRequestSenders,
         ProductionRuntimeSettings, RuntimeConsentProjection, background_observation_due,
+        drain_eligible_queue, handle_production_background_execution,
         handle_production_budget_adjustment, handle_production_budget_revalidation,
+        handle_production_request, legacy_background_consent_binding,
         legacy_budget_inclusive_consent_binding, missing_selected_foreign_packages,
         production_background_wake_eligible, production_consent_binding, publish_cancelled,
         publish_failed, publish_observation, publish_policy_notice, publish_validated_completion,
@@ -2552,24 +2799,29 @@ mod tests {
         resolve_production_adapter_config,
     };
     use crate::app::runtime::workers::pi_scan::{
-        PiScanBudgetAdjustmentAcknowledgement, PiScanNoticeSource, PiScanPolicyAcknowledgement,
-        PiScanProgressMessage, PiScanResultMessage, PiScanRuntimeAction,
+        PiScanBackgroundExecutionAcknowledgement, PiScanBudgetAdjustmentAcknowledgement,
+        PiScanNoticeSource, PiScanPolicyAcknowledgement, PiScanProgressMessage,
+        PiScanRequestMessage, PiScanResultMessage, PiScanRuntimeAction,
     };
     use crate::logic::pi_scan::acquisition::AcquisitionError;
+    use crate::logic::pi_scan::baseline::CommitBuildRelevance;
     use crate::logic::pi_scan::identity::{CommitOid, PackageBase};
     use crate::pi_agent::session::ModelChoice;
     use crate::pi_scan_orchestrator::{
-        ORCHESTRATION_SCHEMA_VERSION, OrchestrationAdapter, OrchestrationConfig,
+        DiscoveredPackage, ExecutionFailure, FrozenScanIdentity, ORCHESTRATION_SCHEMA_VERSION,
+        ObservationCommit, ObservationPackage, OrchestrationAdapter, OrchestrationConfig,
         OrchestrationError, OrchestrationState, PiScanOrchestrator, PiScanSetupConsentState,
+        SetupSnapshot,
     };
     use crate::state::pi_scan::{
         PiScanAccountingClass, PiScanBudgetAdjustment, PiScanBudgetLimits, PiScanBudgetRecord,
         PiScanConsentState, PiScanJobRequest, PiScanPauseReason, PiScanPriority, PiScanQueueKey,
         PiScanReservation, PiScanTerminalRecord, PiScanTerminalStatus, USAGE_WINDOW_SECONDS,
     };
-    use std::collections::BTreeSet;
+    use std::collections::{BTreeSet, VecDeque};
     use std::path::{Path, PathBuf};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
     use std::time::Duration;
 
     /// Build deterministic production settings for consent-binding tests.
@@ -2643,6 +2895,359 @@ mod tests {
         })
     }
 
+    /// Reset one temporary configuration-root override when its test scope ends.
+    struct ConfigRootGuard;
+
+    impl ConfigRootGuard {
+        /// Install one isolated configuration root for a filesystem-mutating test.
+        fn install(root: &Path) -> Self {
+            crate::theme::set_config_dir_override(Some(root.to_path_buf()));
+            Self
+        }
+    }
+
+    impl Drop for ConfigRootGuard {
+        fn drop(&mut self) {
+            crate::theme::set_config_dir_override(None);
+        }
+    }
+
+    /// Build settings text whose normal parser yields one valid production runtime.
+    fn restart_settings_text(background_enabled: bool, marker: &str) -> String {
+        format!(
+            "pi_scan_enabled = true\npi_scan_background_enabled = {background_enabled}\npi_scan_binary = pi\npi_scan_provider = provider\npi_scan_model = model\npi_scan_thinking = medium\npi_scan_background_cost_cap_24h = 0.00005\nrestart_test_marker = {marker}\n"
+        )
+    }
+
+    /// Build the typed request channels used by focused production-owner tests.
+    fn production_test_senders(
+        policy: Arc<ProductionPolicyProjection>,
+    ) -> (
+        ProductionRequestSenders,
+        tokio::sync::mpsc::UnboundedReceiver<()>,
+    ) {
+        let (progress, _progress_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (result, _result_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (execution, execution_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (notice, _notice_rx) = tokio::sync::mpsc::unbounded_channel();
+        (
+            ProductionRequestSenders {
+                progress,
+                result,
+                execution,
+                notice,
+                policy,
+            },
+            execution_rx,
+        )
+    }
+
+    /// Exercise one persisted toggle through normal settings parsing and runtime reconstruction.
+    async fn assert_background_toggle_restart(
+        initial_enabled: bool,
+        requested_enabled: bool,
+        marker: &str,
+    ) {
+        let temp = tempfile::tempdir().expect("temp");
+        let _config_root = ConfigRootGuard::install(temp.path());
+        std::fs::write(
+            temp.path().join("settings.conf"),
+            restart_settings_text(initial_enabled, marker),
+        )
+        .expect("initial settings");
+        let loaded = crate::theme::settings();
+        let options =
+            crate::app::runtime::pi_scan_runtime_options_for_settings(&loaded.pi_scan, false);
+        let mut runtime_settings = options.production.expect("valid production settings");
+        assert_eq!(runtime_settings.background_execution, initial_enabled);
+        let owner_root = temp.path().join("owner");
+        let binding = production_consent_binding(&runtime_settings);
+        let mut config = consent_test_config(&owner_root, binding.clone());
+        config.background_execution = runtime_settings.background_execution;
+        let mut owner = PiScanOrchestrator::new(config, consent_test_adapter(&owner_root))
+            .expect("initial owner");
+        persist_ready_test_consent(&mut owner);
+        let runner = crate::pi_scan_orchestrator::PiScanSequentialRunner::new(owner);
+        let policy = Arc::new(ProductionPolicyProjection::default());
+        let consent = RuntimeConsentProjection {
+            observation_enabled: true,
+            observation_started: true,
+            paid_execution: true,
+            background_paid_execution: true,
+        };
+        policy.publish(consent, &runtime_settings, false);
+        let (senders, mut execution_rx) = production_test_senders(Arc::clone(&policy));
+        let (acknowledge, mut acknowledgement_rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut consent_state = consent;
+
+        handle_production_request(
+            &runner,
+            PiScanRequestMessage::SetBackgroundExecution {
+                enabled: requested_enabled,
+                acknowledge,
+            },
+            &senders,
+            &mut runtime_settings,
+            &mut consent_state,
+            false,
+        )
+        .await;
+
+        assert!(matches!(
+            acknowledgement_rx.recv().await,
+            Some(PiScanBackgroundExecutionAcknowledgement::Applied { enabled })
+                if enabled == requested_enabled
+        ));
+        assert_eq!(runtime_settings.background_execution, requested_enabled);
+        assert_eq!(policy.unattended_execution_allowed(), requested_enabled);
+        if requested_enabled {
+            assert!(execution_rx.try_recv().is_ok());
+        } else {
+            assert!(execution_rx.try_recv().is_err());
+        }
+        drop(runner);
+
+        let restarted = crate::theme::settings();
+        let restarted_options =
+            crate::app::runtime::pi_scan_runtime_options_for_settings(&restarted.pi_scan, false);
+        let restarted_settings = restarted_options
+            .production
+            .expect("valid restarted production settings");
+        assert_eq!(restarted_settings.background_execution, requested_enabled);
+        assert_eq!(production_consent_binding(&restarted_settings), binding);
+        let mut restarted_config = consent_test_config(&owner_root, binding.clone());
+        restarted_config.background_execution = restarted_settings.background_execution;
+        let recovered =
+            PiScanOrchestrator::new(restarted_config, consent_test_adapter(&owner_root))
+                .expect("restarted owner");
+        let (runtime, setup) = recovered.consent_snapshot();
+        assert!(runtime.background_observation && runtime.paid_execution);
+        assert!(setup.disclosure_confirmed);
+        assert!(setup.background_paid_execution);
+        assert_eq!(setup.configuration_binding, binding);
+    }
+
+    /// Deterministic adapter that blocks the first model execution until explicitly released.
+    struct BlockingTestAdapter {
+        /// Installed package bases returned to one observation cycle.
+        packages: Vec<DiscoveredPackage>,
+        /// Oldest-first scripted official-AUR observations.
+        observations: VecDeque<ObservationPackage>,
+        /// Marker published after the first execution starts.
+        started: Arc<AtomicBool>,
+        /// Gate allowing the first execution to complete.
+        release: Arc<AtomicBool>,
+        /// Number of model executions actually entered.
+        execution_count: Arc<AtomicU64>,
+    }
+
+    impl OrchestrationAdapter for BlockingTestAdapter {
+        fn probe_setup(&mut self) -> Result<SetupSnapshot, String> {
+            Ok(blocking_test_setup())
+        }
+
+        fn enumerate_foreign(&mut self) -> Result<Vec<DiscoveredPackage>, String> {
+            Ok(self.packages.clone())
+        }
+
+        fn observe_package(
+            &mut self,
+            _package: &DiscoveredPackage,
+            _cursor: Option<&CommitOid>,
+        ) -> Result<ObservationPackage, String> {
+            self.observations
+                .pop_front()
+                .ok_or_else(|| "missing blocking test observation".to_string())
+        }
+
+        fn execute(
+            &mut self,
+            target: &FrozenScanIdentity,
+            cancelled: &AtomicBool,
+        ) -> Result<crate::pi_scan_orchestrator::ExecutionReceipt, ExecutionFailure> {
+            let execution_number = self.execution_count.fetch_add(1, Ordering::SeqCst) + 1;
+            if execution_number == 1 {
+                self.started.store(true, Ordering::SeqCst);
+                for _ in 0..1_000 {
+                    if self.release.load(Ordering::SeqCst) {
+                        break;
+                    }
+                    if cancelled.load(Ordering::SeqCst) {
+                        return Err(ExecutionFailure::Cancelled);
+                    }
+                    std::thread::sleep(Duration::from_millis(2));
+                }
+                if !self.release.load(Ordering::SeqCst) {
+                    return Err(ExecutionFailure::Service(
+                        "blocking test release deadline elapsed".to_string(),
+                    ));
+                }
+            }
+            Ok(blocking_test_receipt(target))
+        }
+    }
+
+    /// Build the two-package blocking adapter used by the typed active-disable regression.
+    fn blocking_test_adapter(
+        started: Arc<AtomicBool>,
+        release: Arc<AtomicBool>,
+        execution_count: Arc<AtomicU64>,
+    ) -> BlockingTestAdapter {
+        BlockingTestAdapter {
+            packages: ["first", "second"]
+                .into_iter()
+                .map(|name| DiscoveredPackage {
+                    package_base: PackageBase::new(name).expect("package base"),
+                    installed_names: vec![name.to_string()],
+                    installed_version: "1.0-1".to_string(),
+                    candidate_version: None,
+                })
+                .collect(),
+            observations: VecDeque::from([
+                ObservationPackage {
+                    package_base: PackageBase::new("first").expect("first base"),
+                    head_oid: CommitOid::new("1".repeat(40)).expect("first OID"),
+                    commits: vec![ObservationCommit {
+                        oid: CommitOid::new("1".repeat(40)).expect("first OID"),
+                        relevance: CommitBuildRelevance::BuildRelevant,
+                    }],
+                    truncated: false,
+                    paused_for_rebaseline: false,
+                },
+                ObservationPackage {
+                    package_base: PackageBase::new("second").expect("second base"),
+                    head_oid: CommitOid::new("2".repeat(40)).expect("second OID"),
+                    commits: vec![ObservationCommit {
+                        oid: CommitOid::new("2".repeat(40)).expect("second OID"),
+                        relevance: CommitBuildRelevance::BuildRelevant,
+                    }],
+                    truncated: false,
+                    paused_for_rebaseline: false,
+                },
+            ]),
+            started,
+            release,
+            execution_count,
+        }
+    }
+
+    /// Build the exact verified setup identity used by the blocking adapter.
+    fn blocking_test_setup() -> SetupSnapshot {
+        SetupSnapshot {
+            pi_version: "0.84.0".to_string(),
+            available_models: vec![("provider".to_string(), "model".to_string())],
+            selected_provider: "provider".to_string(),
+            selected_model: "model".to_string(),
+            reservation: PiScanReservation {
+                tokens: 10_000,
+                cost_microusd: 50,
+            },
+            route_reservations: vec![(
+                "provider".to_string(),
+                "model".to_string(),
+                PiScanReservation {
+                    tokens: 10_000,
+                    cost_microusd: 50,
+                },
+            )],
+            pricing_binding: "pricing-v1".to_string(),
+            pricing_observed_at_unix_seconds: 1,
+            maximum_pricing_age_seconds: 900,
+            pricing_summary: vec!["provider/model test pricing".to_string()],
+        }
+    }
+
+    /// Build one canonical successful receipt for the exact blocking-adapter target.
+    fn blocking_test_receipt(
+        target: &FrozenScanIdentity,
+    ) -> crate::pi_scan_orchestrator::ExecutionReceipt {
+        crate::pi_scan_orchestrator::ExecutionReceipt {
+            result: crate::logic::pi_scan::result::MergedScanResult {
+                identity: crate::logic::pi_scan::result::ExpectedIdentity {
+                    scan_id: target.scan_id.clone(),
+                    package_base: target.package_base.as_str().to_string(),
+                    commit_oid: target.commit_oid.as_str().to_string(),
+                },
+                coverage: crate::logic::pi_scan::result::Coverage::Complete,
+                limitations: Vec::new(),
+                findings: Vec::new(),
+            },
+            observed_head_oid: target.observed_head_oid.clone(),
+            provenance: crate::logic::pi_scan::result::ScanProvenance {
+                pi_version: "0.84.0".to_string(),
+                extension_sha256: "b".repeat(64),
+                prompt_version: "pacsea-scan-prompt-1".to_string(),
+                schema_version: "pacsea-scan-result-1".to_string(),
+                tool_contract_version: "pacsea-scan-tools-1".to_string(),
+                attempts: Vec::new(),
+            },
+            manifests: vec![crate::logic::pi_scan::manifest::CanonicalManifest::new(
+                Vec::new(),
+            )],
+            usage: crate::state::pi_scan::PiScanActualUsage {
+                tokens: 10,
+                cost_microusd: 2,
+            },
+            stale: false,
+            mutable_sources: Vec::new(),
+        }
+    }
+
+    /// A foreground drain must stop before the next queued background package.
+    #[tokio::test]
+    async fn foreground_drain_stops_before_background_queue() {
+        let temp = tempfile::tempdir().expect("temp");
+        let started = Arc::new(AtomicBool::new(false));
+        let release = Arc::new(AtomicBool::new(true));
+        let execution_count = Arc::new(AtomicU64::new(0));
+        let adapter =
+            blocking_test_adapter(Arc::clone(&started), release, Arc::clone(&execution_count));
+        let mut config = consent_test_config(temp.path(), "foreground-drain-binding".to_string());
+        config.setup_confirmed = true;
+        config.initial_consent = PiScanConsentState {
+            background_observation: true,
+            paid_execution: true,
+        };
+        let mut owner = PiScanOrchestrator::new(config, adapter).expect("owner");
+        owner
+            .startup_observation(1)
+            .expect("queue two background packages");
+        let selected_key = owner
+            .state()
+            .runtime
+            .queue
+            .front()
+            .expect("first queued package")
+            .key
+            .clone();
+        owner
+            .promote_queued(&selected_key)
+            .expect("promote selected package");
+        let runner = crate::pi_scan_orchestrator::PiScanSequentialRunner::new(owner);
+        let settings = consent_test_settings();
+        let policy = ProductionPolicyProjection::default();
+        policy.publish(
+            RuntimeConsentProjection {
+                observation_enabled: true,
+                observation_started: true,
+                paid_execution: true,
+                background_paid_execution: true,
+            },
+            &settings,
+            false,
+        );
+        let (progress_tx, _progress_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (result_tx, _result_rx) = tokio::sync::mpsc::unbounded_channel();
+
+        drain_eligible_queue(&runner, &progress_tx, &result_tx, &settings, &policy).await;
+
+        let state = runner.state_snapshot().await.expect("state");
+        assert_eq!(execution_count.load(Ordering::SeqCst), 1);
+        assert_eq!(state.runtime.terminal.len(), 1);
+        assert_eq!(state.runtime.queue.len(), 1);
+        assert_eq!(state.runtime.queue[0].priority, PiScanPriority::Background);
+    }
+
     /// Persist one orchestration state envelope for production-owner recovery tests.
     fn persist_test_state(root: &Path, state: &OrchestrationState) {
         let path = root.join("orchestration-v1.json");
@@ -2677,6 +3282,34 @@ mod tests {
                 fallback_confirmed: true,
                 background_paid_execution: true,
                 readiness_warning_confirmed: true,
+                confirmed_pi_version: "0.84.0".to_string(),
+                confirmed_pricing_binding: "pricing-v1".to_string(),
+            })
+            .expect("setup consent");
+    }
+
+    /// Persist setup and consent matching the single-route test settings exactly.
+    fn persist_ready_test_consent(
+        orchestrator: &mut PiScanOrchestrator<ProductionOrchestrationAdapter>,
+    ) {
+        orchestrator
+            .update_runtime_policy(
+                Some(PiScanConsentState {
+                    background_observation: true,
+                    paid_execution: true,
+                }),
+                None,
+                false,
+                None,
+            )
+            .expect("runtime consent");
+        orchestrator
+            .update_setup_consent(PiScanSetupConsentState {
+                configuration_binding: String::new(),
+                disclosure_confirmed: true,
+                fallback_confirmed: false,
+                background_paid_execution: true,
+                readiness_warning_confirmed: false,
                 confirmed_pi_version: "0.84.0".to_string(),
                 confirmed_pricing_binding: "pricing-v1".to_string(),
             })
@@ -3160,27 +3793,523 @@ mod tests {
         );
     }
 
-    /// Budget policy changes must preserve the material route/privacy/setup consent binding.
+    /// Fixed vectors anchor both released historical consent-binding shapes.
     #[test]
-    fn production_consent_binding_excludes_mutable_budget_policy() {
+    fn historical_consent_binding_vectors_are_stable() {
+        let settings = consent_test_settings();
+        assert_eq!(
+            legacy_background_consent_binding(&settings),
+            "0e16b5e9abddab90234c4557064034780e7408487cd6ca519aa50143e22975ea"
+        );
+        assert_eq!(
+            legacy_budget_inclusive_consent_binding(&settings),
+            "8ffa99864e7718d8b51fb46422adda980edb099181cd027d9c6c02b88e50dcb6"
+        );
+    }
+
+    /// Budget and background operational policy changes preserve material consent identity.
+    #[test]
+    fn production_consent_binding_excludes_mutable_operational_policy() {
         let settings = consent_test_settings();
         let original = production_consent_binding(&settings);
-        let legacy = legacy_budget_inclusive_consent_binding(&settings);
-        assert_ne!(legacy, original);
-        let mut changed_budget = settings.clone();
-        changed_budget.budget_limits = PiScanBudgetLimits {
+        let legacy_background = legacy_background_consent_binding(&settings);
+        let legacy_budget = legacy_budget_inclusive_consent_binding(&settings);
+        assert_ne!(legacy_background, original);
+        assert_ne!(legacy_budget, original);
+        assert_ne!(legacy_background, legacy_budget);
+        let mut changed_policy = settings.clone();
+        changed_policy.background_execution = false;
+        changed_policy.budget_limits = PiScanBudgetLimits {
             starts_per_hour: 10,
             tokens_per_24h: 1_000_000,
             cost_microusd_per_24h: 100,
         };
-        assert_eq!(production_consent_binding(&changed_budget), original);
+        assert_eq!(production_consent_binding(&changed_policy), original);
+        assert_ne!(
+            legacy_background_consent_binding(&changed_policy),
+            legacy_background
+        );
+        assert_ne!(
+            legacy_budget_inclusive_consent_binding(&changed_policy),
+            legacy_budget
+        );
         let mut changed_route = settings;
         changed_route.models[0].model = "other-model".to_string();
         assert_ne!(production_consent_binding(&changed_route), original);
-        assert_ne!(
-            legacy_budget_inclusive_consent_binding(&changed_budget),
-            legacy
+    }
+
+    /// Successful enable persists through normal parsing/runtime reconstruction and keeps consent.
+    #[tokio::test]
+    async fn background_toggle_restart_round_trips_effective_policy_on_enable() {
+        assert_background_toggle_restart(false, true, "enable-restart-boundary").await;
+    }
+
+    /// Successful disable persists through normal parsing/runtime reconstruction and keeps consent.
+    #[tokio::test]
+    async fn background_toggle_restart_round_trips_effective_policy_on_disable() {
+        assert_background_toggle_restart(
+            true,
+            false,
+            "disable-restart-boundary-with-longer-marker",
+        )
+        .await;
+    }
+
+    /// Enabling persists before publication and wakes only after every consent gate is ready.
+    #[tokio::test]
+    async fn background_toggle_enable_is_durable_before_authorization_and_wake() {
+        let temp = tempfile::tempdir().expect("temp");
+        crate::theme::set_config_dir_override(Some(temp.path().to_path_buf()));
+        std::fs::write(
+            temp.path().join("settings.conf"),
+            "pi_scan_background_enabled = false\n",
+        )
+        .expect("settings");
+        let mut settings = consent_test_settings();
+        settings.background_execution = false;
+        let binding = production_consent_binding(&settings);
+        let mut owner = PiScanOrchestrator::new(
+            consent_test_config(temp.path(), binding),
+            consent_test_adapter(temp.path()),
+        )
+        .expect("owner");
+        persist_ready_test_consent(&mut owner);
+        let runner = crate::pi_scan_orchestrator::PiScanSequentialRunner::new(owner);
+        let (progress, _progress_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (result, _result_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (execution, mut execution_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (notice, _notice_rx) = tokio::sync::mpsc::unbounded_channel();
+        let policy = Arc::new(ProductionPolicyProjection::default());
+        let senders = ProductionRequestSenders {
+            progress,
+            result,
+            execution,
+            notice,
+            policy: Arc::clone(&policy),
+        };
+        let consent = RuntimeConsentProjection {
+            observation_enabled: true,
+            observation_started: true,
+            paid_execution: true,
+            background_paid_execution: true,
+        };
+        let (acknowledge, mut acknowledgement_rx) = tokio::sync::mpsc::unbounded_channel();
+
+        handle_production_background_execution(
+            &runner,
+            true,
+            acknowledge,
+            &senders,
+            &mut settings,
+            consent,
+            false,
+        )
+        .await;
+
+        assert!(matches!(
+            acknowledgement_rx.recv().await,
+            Some(PiScanBackgroundExecutionAcknowledgement::Applied { enabled: true })
+        ));
+        assert!(settings.background_execution);
+        assert!(policy.unattended_execution_allowed());
+        assert_eq!(
+            std::fs::read_to_string(temp.path().join("settings.conf")).expect("settings"),
+            "pi_scan_background_enabled = true\n"
         );
+        assert!(execution_rx.try_recv().is_ok());
+        crate::theme::set_config_dir_override(None);
+    }
+
+    /// Enable persistence failure never publishes authorization or wakes execution.
+    #[tokio::test]
+    #[cfg(unix)]
+    async fn background_toggle_enable_save_failure_keeps_prior_off_state() {
+        let temp = tempfile::tempdir().expect("temp");
+        crate::theme::set_config_dir_override(Some(temp.path().to_path_buf()));
+        std::fs::write(
+            temp.path().join("settings.conf"),
+            "pi_scan_background_enabled = false\n",
+        )
+        .expect("settings");
+        let mut settings = consent_test_settings();
+        settings.background_execution = false;
+        let mut owner = PiScanOrchestrator::new(
+            consent_test_config(temp.path(), production_consent_binding(&settings)),
+            consent_test_adapter(temp.path()),
+        )
+        .expect("owner");
+        persist_ready_test_consent(&mut owner);
+        let runner = crate::pi_scan_orchestrator::PiScanSequentialRunner::new(owner);
+        let (progress, _progress_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (result, _result_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (execution, mut execution_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (notice, _notice_rx) = tokio::sync::mpsc::unbounded_channel();
+        let policy = Arc::new(ProductionPolicyProjection::default());
+        let senders = ProductionRequestSenders {
+            progress,
+            result,
+            execution,
+            notice,
+            policy: Arc::clone(&policy),
+        };
+        let consent = RuntimeConsentProjection {
+            observation_enabled: true,
+            observation_started: true,
+            paid_execution: true,
+            background_paid_execution: true,
+        };
+        let (acknowledge, mut acknowledgement_rx) = tokio::sync::mpsc::unbounded_channel();
+        crate::theme::fail_next_parent_directory_sync_after_rename();
+
+        handle_production_background_execution(
+            &runner,
+            true,
+            acknowledge,
+            &senders,
+            &mut settings,
+            consent,
+            false,
+        )
+        .await;
+
+        assert!(matches!(
+            acknowledgement_rx.recv().await,
+            Some(PiScanBackgroundExecutionAcknowledgement::Failed {
+                requested_enabled: true,
+                effective_enabled: false,
+                ..
+            })
+        ));
+        assert!(!settings.background_execution);
+        assert!(!policy.unattended_execution_allowed());
+        assert_eq!(
+            std::fs::read_to_string(temp.path().join("settings.conf")).expect("settings"),
+            "pi_scan_background_enabled = false\n"
+        );
+        assert!(execution_rx.try_recv().is_err());
+        crate::theme::set_config_dir_override(None);
+    }
+
+    /// Missing durable consent rejects enablement without settings or runtime mutation.
+    #[tokio::test]
+    async fn background_toggle_enable_requires_existing_setup_and_consent() {
+        let temp = tempfile::tempdir().expect("temp");
+        crate::theme::set_config_dir_override(Some(temp.path().to_path_buf()));
+        std::fs::write(
+            temp.path().join("settings.conf"),
+            "pi_scan_background_enabled = false\n",
+        )
+        .expect("settings");
+        let mut settings = consent_test_settings();
+        settings.background_execution = false;
+        let owner = PiScanOrchestrator::new(
+            consent_test_config(temp.path(), production_consent_binding(&settings)),
+            consent_test_adapter(temp.path()),
+        )
+        .expect("owner");
+        let runner = crate::pi_scan_orchestrator::PiScanSequentialRunner::new(owner);
+        let (progress, _progress_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (result, _result_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (execution, mut execution_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (notice, _notice_rx) = tokio::sync::mpsc::unbounded_channel();
+        let policy = Arc::new(ProductionPolicyProjection::default());
+        let senders = ProductionRequestSenders {
+            progress,
+            result,
+            execution,
+            notice,
+            policy: Arc::clone(&policy),
+        };
+        let consent = RuntimeConsentProjection {
+            observation_enabled: false,
+            observation_started: false,
+            paid_execution: false,
+            background_paid_execution: false,
+        };
+        let (acknowledge, mut acknowledgement_rx) = tokio::sync::mpsc::unbounded_channel();
+
+        handle_production_background_execution(
+            &runner,
+            true,
+            acknowledge,
+            &senders,
+            &mut settings,
+            consent,
+            false,
+        )
+        .await;
+
+        assert!(matches!(
+            acknowledgement_rx.recv().await,
+            Some(PiScanBackgroundExecutionAcknowledgement::NeedsSetup {
+                requested_enabled: true,
+                effective_enabled: false,
+                ..
+            })
+        ));
+        assert!(!settings.background_execution);
+        assert!(!policy.unattended_execution_allowed());
+        assert_eq!(
+            std::fs::read_to_string(temp.path().join("settings.conf")).expect("settings"),
+            "pi_scan_background_enabled = false\n"
+        );
+        assert!(execution_rx.try_recv().is_err());
+        crate::theme::set_config_dir_override(None);
+    }
+
+    /// Disable revokes first and remains session-off when atomic persistence rolls back.
+    #[tokio::test]
+    #[cfg(unix)]
+    async fn background_toggle_disable_save_failure_stays_fail_closed() {
+        let temp = tempfile::tempdir().expect("temp");
+        crate::theme::set_config_dir_override(Some(temp.path().to_path_buf()));
+        std::fs::write(
+            temp.path().join("settings.conf"),
+            "pi_scan_background_enabled = true\n",
+        )
+        .expect("settings");
+        let mut settings = consent_test_settings();
+        let owner = PiScanOrchestrator::new(
+            consent_test_config(temp.path(), production_consent_binding(&settings)),
+            consent_test_adapter(temp.path()),
+        )
+        .expect("owner");
+        let runner = crate::pi_scan_orchestrator::PiScanSequentialRunner::new(owner);
+        let (progress, _progress_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (result, _result_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (execution, mut execution_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (notice, _notice_rx) = tokio::sync::mpsc::unbounded_channel();
+        let policy = Arc::new(ProductionPolicyProjection::default());
+        let senders = ProductionRequestSenders {
+            progress,
+            result,
+            execution,
+            notice,
+            policy: Arc::clone(&policy),
+        };
+        let consent = RuntimeConsentProjection {
+            observation_enabled: true,
+            observation_started: true,
+            paid_execution: true,
+            background_paid_execution: true,
+        };
+        policy.publish(consent, &settings, false);
+        let (acknowledge, mut acknowledgement_rx) = tokio::sync::mpsc::unbounded_channel();
+        crate::theme::fail_next_parent_directory_sync_after_rename();
+
+        handle_production_background_execution(
+            &runner,
+            false,
+            acknowledge,
+            &senders,
+            &mut settings,
+            consent,
+            false,
+        )
+        .await;
+
+        assert!(matches!(
+            acknowledgement_rx.recv().await,
+            Some(PiScanBackgroundExecutionAcknowledgement::Failed {
+                requested_enabled: false,
+                effective_enabled: false,
+                ..
+            })
+        ));
+        assert!(!settings.background_execution);
+        assert!(!policy.unattended_execution_allowed());
+        assert_eq!(
+            std::fs::read_to_string(temp.path().join("settings.conf")).expect("settings"),
+            "pi_scan_background_enabled = true\n"
+        );
+        assert!(execution_rx.try_recv().is_err());
+        crate::theme::set_config_dir_override(None);
+    }
+
+    /// Typed disable persists and acknowledges while one active job finishes and the next stays queued.
+    #[tokio::test]
+    async fn typed_background_disable_blocks_second_active_queue_start() {
+        let temp = tempfile::tempdir().expect("temp");
+        let _config_root = ConfigRootGuard::install(temp.path());
+        std::fs::write(
+            temp.path().join("settings.conf"),
+            "pi_scan_background_enabled = true\n",
+        )
+        .expect("settings");
+        let started = Arc::new(AtomicBool::new(false));
+        let release = Arc::new(AtomicBool::new(false));
+        let execution_count = Arc::new(AtomicU64::new(0));
+        let fake_root = temp.path().join("blocking-owner");
+        let adapter = blocking_test_adapter(
+            Arc::clone(&started),
+            Arc::clone(&release),
+            Arc::clone(&execution_count),
+        );
+        let mut blocking_config = consent_test_config(&fake_root, "blocking-binding".to_string());
+        blocking_config.setup_confirmed = true;
+        blocking_config.initial_consent = PiScanConsentState {
+            background_observation: true,
+            paid_execution: true,
+        };
+        let mut blocking_owner =
+            PiScanOrchestrator::new(blocking_config, adapter).expect("blocking owner");
+        blocking_owner
+            .startup_observation(1)
+            .expect("queue two background jobs");
+        let blocking_runner =
+            crate::pi_scan_orchestrator::PiScanSequentialRunner::new(blocking_owner);
+        let production_root = temp.path().join("production-owner");
+        let mut settings = consent_test_settings();
+        let production_owner = PiScanOrchestrator::new(
+            consent_test_config(&production_root, production_consent_binding(&settings)),
+            consent_test_adapter(&production_root),
+        )
+        .expect("production request owner");
+        let production_runner =
+            crate::pi_scan_orchestrator::PiScanSequentialRunner::new(production_owner);
+        let policy = Arc::new(ProductionPolicyProjection::default());
+        let consent = RuntimeConsentProjection {
+            observation_enabled: true,
+            observation_started: true,
+            paid_execution: true,
+            background_paid_execution: true,
+        };
+        policy.publish(consent, &settings, false);
+        let (senders, mut execution_rx) = production_test_senders(Arc::clone(&policy));
+        let running = blocking_runner.clone();
+        let first_authorization = policy.start_authorization();
+        let first = tokio::spawn(async move {
+            let (started_tx, _started_rx) = tokio::sync::mpsc::unbounded_channel();
+            let (phase_tx, _phase_rx) = tokio::sync::mpsc::unbounded_channel();
+            running
+                .run_next_with_progress_policy(2, started_tx, phase_tx, first_authorization)
+                .await
+        });
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while !started.load(Ordering::SeqCst) {
+                tokio::time::sleep(Duration::from_millis(2)).await;
+            }
+        })
+        .await
+        .expect("first execution start deadline");
+        let (acknowledge, mut acknowledgement_rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut consent_state = consent;
+
+        handle_production_request(
+            &production_runner,
+            PiScanRequestMessage::SetBackgroundExecution {
+                enabled: false,
+                acknowledge,
+            },
+            &senders,
+            &mut settings,
+            &mut consent_state,
+            false,
+        )
+        .await;
+
+        assert!(matches!(
+            acknowledgement_rx.recv().await,
+            Some(PiScanBackgroundExecutionAcknowledgement::Applied { enabled: false })
+        ));
+        assert!(!settings.background_execution);
+        assert!(!policy.unattended_execution_allowed());
+        assert_eq!(
+            std::fs::read_to_string(temp.path().join("settings.conf")).expect("settings"),
+            "pi_scan_background_enabled = false\n"
+        );
+        assert!(execution_rx.try_recv().is_err());
+        assert!(!first.is_finished());
+        release.store(true, Ordering::SeqCst);
+        assert!(
+            first
+                .await
+                .expect("first join")
+                .expect("first run")
+                .is_some()
+        );
+        let (started_tx, mut started_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (phase_tx, _phase_rx) = tokio::sync::mpsc::unbounded_channel();
+        assert!(
+            blocking_runner
+                .run_next_with_progress_policy(
+                    3,
+                    started_tx,
+                    phase_tx,
+                    policy.start_authorization(),
+                )
+                .await
+                .expect("blocked second run")
+                .is_none()
+        );
+        assert!(started_rx.try_recv().is_err());
+        assert_eq!(execution_count.load(Ordering::SeqCst), 1);
+        let state = blocking_runner.state_snapshot().await.expect("state");
+        assert_eq!(state.runtime.terminal.len(), 1);
+        assert_eq!(state.runtime.queue.len(), 1);
+    }
+
+    /// Dry-run reports a preview without changing policy, settings, disk, or execution wake state.
+    #[tokio::test]
+    async fn background_toggle_dry_run_is_inert() {
+        let temp = tempfile::tempdir().expect("temp");
+        crate::theme::set_config_dir_override(Some(temp.path().to_path_buf()));
+        std::fs::write(
+            temp.path().join("settings.conf"),
+            "pi_scan_background_enabled = false\n",
+        )
+        .expect("settings");
+        let mut settings = consent_test_settings();
+        settings.background_execution = false;
+        let owner = PiScanOrchestrator::new(
+            consent_test_config(temp.path(), production_consent_binding(&settings)),
+            consent_test_adapter(temp.path()),
+        )
+        .expect("owner");
+        let runner = crate::pi_scan_orchestrator::PiScanSequentialRunner::new(owner);
+        let (progress, _progress_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (result, _result_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (execution, mut execution_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (notice, _notice_rx) = tokio::sync::mpsc::unbounded_channel();
+        let policy = Arc::new(ProductionPolicyProjection::default());
+        let senders = ProductionRequestSenders {
+            progress,
+            result,
+            execution,
+            notice,
+            policy: Arc::clone(&policy),
+        };
+        let consent = RuntimeConsentProjection {
+            observation_enabled: true,
+            observation_started: true,
+            paid_execution: true,
+            background_paid_execution: true,
+        };
+        let (acknowledge, mut acknowledgement_rx) = tokio::sync::mpsc::unbounded_channel();
+
+        handle_production_background_execution(
+            &runner,
+            true,
+            acknowledge,
+            &senders,
+            &mut settings,
+            consent,
+            true,
+        )
+        .await;
+
+        assert!(matches!(
+            acknowledgement_rx.recv().await,
+            Some(PiScanBackgroundExecutionAcknowledgement::DryRunPreview { enabled: true })
+        ));
+        assert!(!settings.background_execution);
+        assert!(!policy.unattended_execution_allowed());
+        assert_eq!(
+            std::fs::read_to_string(temp.path().join("settings.conf")).expect("settings"),
+            "pi_scan_background_enabled = false\n"
+        );
+        assert!(execution_rx.try_recv().is_err());
+        crate::theme::set_config_dir_override(None);
     }
 
     /// A production stale Apply acknowledges without owner writes or execution wake.
@@ -3243,52 +4372,84 @@ mod tests {
         assert!(!temp.path().join("orchestration-v1.json").exists());
     }
 
-    /// Legacy budget-inclusive consent migrates once without losing any confirmation.
+    /// Current consent survives restart when only the background preference changes.
     #[test]
-    fn valid_legacy_budget_consent_migrates_and_rewrites_both_bindings() {
+    fn background_preference_restart_preserves_current_consent() {
         let temp = tempfile::tempdir().expect("temp");
-        let settings = consent_test_settings();
-        let current = production_consent_binding(&settings);
-        let legacy = legacy_budget_inclusive_consent_binding(&settings);
+        let mut enabled_settings = consent_test_settings();
+        let binding = production_consent_binding(&enabled_settings);
         let mut first = PiScanOrchestrator::new(
-            consent_test_config(temp.path(), legacy.clone()),
+            consent_test_config(temp.path(), binding.clone()),
             consent_test_adapter(temp.path()),
         )
-        .expect("legacy owner");
-        persist_test_consent(&mut first);
+        .expect("enabled owner");
+        persist_ready_test_consent(&mut first);
         drop(first);
 
-        let recovered = PiScanOrchestrator::new_with_legacy_consent_binding(
-            consent_test_config(temp.path(), current.clone()),
-            consent_test_adapter(temp.path()),
-            Some(&legacy),
-        )
-        .expect("migrated owner");
+        enabled_settings.background_execution = false;
+        assert_eq!(production_consent_binding(&enabled_settings), binding);
+        let mut disabled_config = consent_test_config(temp.path(), binding.clone());
+        disabled_config.background_execution = false;
+        let recovered = PiScanOrchestrator::new(disabled_config, consent_test_adapter(temp.path()))
+            .expect("disabled restart");
 
         let (runtime, setup) = recovered.consent_snapshot();
         assert!(runtime.background_observation && runtime.paid_execution);
         assert!(setup.disclosure_confirmed);
-        assert!(setup.fallback_confirmed);
         assert!(setup.background_paid_execution);
-        assert!(setup.readiness_warning_confirmed);
-        assert_eq!(setup.confirmed_pi_version, "0.84.0");
-        assert_eq!(setup.confirmed_pricing_binding, "pricing-v1");
-        assert_eq!(setup.configuration_binding, current);
-        let document: serde_json::Value = serde_json::from_slice(
-            &std::fs::read(temp.path().join("consent-v1.json")).expect("consent bytes"),
-        )
-        .expect("consent JSON");
-        assert_eq!(document["configuration_binding"], current);
-        assert_eq!(document["setup"]["configuration_binding"], current);
+        assert_eq!(setup.configuration_binding, binding);
     }
 
-    /// An unrelated mismatch must not be accepted through the one-binding migration allowance.
+    /// Both exact historical operational-policy bindings migrate without losing consent.
+    #[test]
+    fn valid_legacy_operational_bindings_migrate_and_rewrite_both_fields() {
+        let settings = consent_test_settings();
+        let current = production_consent_binding(&settings);
+        let legacy_background = legacy_background_consent_binding(&settings);
+        let legacy_budget = legacy_budget_inclusive_consent_binding(&settings);
+        for legacy in [&legacy_background, &legacy_budget] {
+            let temp = tempfile::tempdir().expect("temp");
+            let mut first = PiScanOrchestrator::new(
+                consent_test_config(temp.path(), legacy.clone()),
+                consent_test_adapter(temp.path()),
+            )
+            .expect("legacy owner");
+            persist_test_consent(&mut first);
+            drop(first);
+
+            let recovered = PiScanOrchestrator::new_with_legacy_consent_bindings(
+                consent_test_config(temp.path(), current.clone()),
+                consent_test_adapter(temp.path()),
+                &[&legacy_background, &legacy_budget],
+            )
+            .expect("migrated owner");
+
+            let (runtime, setup) = recovered.consent_snapshot();
+            assert!(runtime.background_observation && runtime.paid_execution);
+            assert!(setup.disclosure_confirmed);
+            assert!(setup.fallback_confirmed);
+            assert!(setup.background_paid_execution);
+            assert!(setup.readiness_warning_confirmed);
+            assert_eq!(setup.confirmed_pi_version, "0.84.0");
+            assert_eq!(setup.confirmed_pricing_binding, "pricing-v1");
+            assert_eq!(setup.configuration_binding, current);
+            let document: serde_json::Value = serde_json::from_slice(
+                &std::fs::read(temp.path().join("consent-v1.json")).expect("consent bytes"),
+            )
+            .expect("consent JSON");
+            assert_eq!(document["configuration_binding"], current);
+            assert_eq!(document["setup"]["configuration_binding"], current);
+        }
+    }
+
+    /// An unrelated mismatch must not be accepted through the bounded migration allowance.
     #[test]
     fn unrelated_consent_mismatch_resets_instead_of_migrating() {
         let temp = tempfile::tempdir().expect("temp");
         let settings = consent_test_settings();
         let current = production_consent_binding(&settings);
-        let legacy = legacy_budget_inclusive_consent_binding(&settings);
+        let legacy_background = legacy_background_consent_binding(&settings);
+        let legacy_budget = legacy_budget_inclusive_consent_binding(&settings);
         let unrelated = "unrelated-material-binding".to_string();
         let mut first = PiScanOrchestrator::new(
             consent_test_config(temp.path(), unrelated),
@@ -3298,10 +4459,10 @@ mod tests {
         persist_test_consent(&mut first);
         drop(first);
 
-        let recovered = PiScanOrchestrator::new_with_legacy_consent_binding(
+        let recovered = PiScanOrchestrator::new_with_legacy_consent_bindings(
             consent_test_config(temp.path(), current.clone()),
             consent_test_adapter(temp.path()),
-            Some(&legacy),
+            &[&legacy_background, &legacy_budget],
         )
         .expect("reset owner");
 
@@ -3311,6 +4472,46 @@ mod tests {
         assert!(!setup.fallback_confirmed);
         assert!(!setup.background_paid_execution);
         assert!(!setup.readiness_warning_confirmed);
+        assert_eq!(setup.configuration_binding, current);
+    }
+
+    /// Mixed historical binding fields must reset consent rather than migrate partially.
+    #[test]
+    fn partial_legacy_consent_match_resets_instead_of_migrating() {
+        let temp = tempfile::tempdir().expect("temp");
+        let settings = consent_test_settings();
+        let current = production_consent_binding(&settings);
+        let legacy_background = legacy_background_consent_binding(&settings);
+        let legacy_budget = legacy_budget_inclusive_consent_binding(&settings);
+        let mut first = PiScanOrchestrator::new(
+            consent_test_config(temp.path(), legacy_background.clone()),
+            consent_test_adapter(temp.path()),
+        )
+        .expect("legacy owner");
+        persist_test_consent(&mut first);
+        drop(first);
+        let path = temp.path().join("consent-v1.json");
+        let mut document: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&path).expect("consent bytes"))
+                .expect("consent JSON");
+        document["setup"]["configuration_binding"] = serde_json::json!(legacy_budget);
+        std::fs::write(
+            &path,
+            serde_json::to_vec_pretty(&document).expect("consent JSON bytes"),
+        )
+        .expect("mixed consent fixture");
+
+        let recovered = PiScanOrchestrator::new_with_legacy_consent_bindings(
+            consent_test_config(temp.path(), current.clone()),
+            consent_test_adapter(temp.path()),
+            &[&legacy_background, &legacy_budget],
+        )
+        .expect("reset owner");
+
+        let (runtime, setup) = recovered.consent_snapshot();
+        assert_eq!(runtime, PiScanConsentState::default());
+        assert!(!setup.disclosure_confirmed);
+        assert!(!setup.background_paid_execution);
         assert_eq!(setup.configuration_binding, current);
     }
 

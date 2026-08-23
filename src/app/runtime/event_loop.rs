@@ -686,6 +686,7 @@ async fn process_channel_messages(app: &mut AppState, channels: &mut Channels) -
                 &channels.post_summary_req_tx,
                 &channels.news_content_req_tx,
             );
+            poll_pi_scan_background_acknowledgement(app);
             poll_pi_scan_budget_acknowledgement(app);
             false
         }
@@ -1248,6 +1249,7 @@ fn install_pi_scan_owner(
     options: crate::app::runtime::workers::pi_scan::PiScanRuntimeOptions,
 ) {
     channels.pi_scan_request_tx = runtime.request_tx;
+    channels.pi_scan_user_pause_tx = runtime.user_pause_tx;
     channels.pi_scan_cancel_tx = runtime.cancel_tx;
     channels.pi_scan_session_tx = runtime.session_tx;
     channels.pi_scan_shutdown_tx = runtime.shutdown_tx;
@@ -1436,10 +1438,15 @@ fn dispatch_pi_scan_ui_action(app: &mut AppState, channels: &Channels) {
         } else {
             "resume"
         };
+        let state_key = if app.pi_scan.runtime.active.is_some() {
+            "queued"
+        } else {
+            "requesting"
+        };
         app.pi_scan.set_foreground_notice(
             crate::i18n::t(
                 app,
-                &format!("app.pi_scan.notices.policy.{action_key}.requesting"),
+                &format!("app.pi_scan.notices.policy.{action_key}.{state_key}"),
             ),
             crate::state::pi_scan_ui::PiScanNoticeSeverity::Info,
         );
@@ -1463,16 +1470,19 @@ fn dispatch_pi_scan_ui_action(app: &mut AppState, channels: &Channels) {
                 },
             )
             .map_err(|error| error.to_string()),
+        PiScanUiAction::SetBackgroundExecution(enabled) => {
+            dispatch_pi_scan_background_toggle(app, channels, enabled)
+        }
         PiScanUiAction::QueueSelected | PiScanUiAction::Retry => {
             send_selected_pi_scan_targets(app, channels)
         }
         PiScanUiAction::Pause => channels
-            .pi_scan_request_tx
-            .send(crate::app::runtime::workers::pi_scan::PiScanRequestMessage::SetUserPaused(true))
+            .pi_scan_user_pause_tx
+            .send(crate::app::runtime::workers::pi_scan::PiScanUserPauseMessage { paused: true })
             .map_err(|error| error.to_string()),
         PiScanUiAction::Resume => channels
-            .pi_scan_request_tx
-            .send(crate::app::runtime::workers::pi_scan::PiScanRequestMessage::SetUserPaused(false))
+            .pi_scan_user_pause_tx
+            .send(crate::app::runtime::workers::pi_scan::PiScanUserPauseMessage { paused: false })
             .map_err(|error| error.to_string()),
         PiScanUiAction::Cancel(correlation_id) => {
             let sent = channels
@@ -1482,11 +1492,16 @@ fn dispatch_pi_scan_ui_action(app: &mut AppState, channels: &Channels) {
                     requested_at_unix: pi_scan_unix_now(),
                 })
                 .map_err(|error| error.to_string());
-            if sent.is_ok()
-                && let Some(active) = app.pi_scan.runtime.active.as_mut()
-                && active.correlation_id == correlation_id
-            {
-                active.cancellation_suppressed = true;
+            if sent.is_ok() {
+                if let Some(active) = app.pi_scan.runtime.active.as_mut()
+                    && active.correlation_id == correlation_id
+                {
+                    active.cancellation_suppressed = true;
+                }
+                app.pi_scan.set_foreground_notice(
+                    crate::i18n::t(app, "app.pi_scan.notices.cancel_requested"),
+                    crate::state::pi_scan_ui::PiScanNoticeSeverity::Warning,
+                );
             }
             sent
         }
@@ -1501,6 +1516,115 @@ fn dispatch_pi_scan_ui_action(app: &mut AppState, channels: &Channels) {
             reason,
             crate::state::pi_scan_ui::PiScanNoticeSeverity::Error,
         );
+    }
+}
+
+/// Dispatch one unattended preference request with request-owned acknowledgement ownership.
+fn dispatch_pi_scan_background_toggle(
+    app: &mut AppState,
+    channels: &Channels,
+    enabled: bool,
+) -> Result<(), String> {
+    let (acknowledge, receiver) = tokio::sync::mpsc::unbounded_channel();
+    app.pi_scan.background_acknowledgement_rx = Some(receiver);
+    let request =
+        crate::app::runtime::workers::pi_scan::PiScanRequestMessage::SetBackgroundExecution {
+            enabled,
+            acknowledge,
+        };
+    if channels.pi_scan_request_tx.send(request).is_err() {
+        app.pi_scan.finish_background_toggle();
+        return Err(crate::i18n::t(
+            app,
+            "app.pi_scan.notices.background_channel_closed",
+        ));
+    }
+    Ok(())
+}
+
+/// Poll and project at most one unattended-setting acknowledgement on the redraw tick.
+fn poll_pi_scan_background_acknowledgement(app: &mut AppState) {
+    let received = app
+        .pi_scan
+        .background_acknowledgement_rx
+        .as_mut()
+        .map(tokio::sync::mpsc::UnboundedReceiver::try_recv);
+    match received {
+        Some(Ok(acknowledgement)) => {
+            apply_pi_scan_background_acknowledgement(app, acknowledgement);
+        }
+        Some(Err(tokio::sync::mpsc::error::TryRecvError::Disconnected)) => {
+            app.pi_scan.finish_background_toggle();
+            app.pi_scan.set_foreground_notice(
+                crate::i18n::t(app, "app.pi_scan.notices.background_channel_closed"),
+                crate::state::pi_scan_ui::PiScanNoticeSeverity::Error,
+            );
+        }
+        Some(Err(tokio::sync::mpsc::error::TryRecvError::Empty)) | None => {}
+    }
+}
+
+/// Project one authoritative unattended-setting acknowledgement into the workspace.
+fn apply_pi_scan_background_acknowledgement(
+    app: &mut AppState,
+    acknowledgement: crate::app::runtime::workers::pi_scan::PiScanBackgroundExecutionAcknowledgement,
+) {
+    use crate::app::runtime::workers::pi_scan::PiScanBackgroundExecutionAcknowledgement;
+    app.pi_scan.finish_background_toggle();
+    match acknowledgement {
+        PiScanBackgroundExecutionAcknowledgement::Applied { enabled } => {
+            app.pi_scan.settings.background_enabled = enabled;
+            let key = if enabled {
+                "app.pi_scan.notices.background_enabled"
+            } else {
+                "app.pi_scan.notices.background_disabled"
+            };
+            app.pi_scan.set_foreground_notice(
+                crate::i18n::t(app, key),
+                crate::state::pi_scan_ui::PiScanNoticeSeverity::Success,
+            );
+        }
+        PiScanBackgroundExecutionAcknowledgement::DryRunPreview { enabled } => {
+            let key = if enabled {
+                "app.pi_scan.notices.background_enable_preview"
+            } else {
+                "app.pi_scan.notices.background_disable_preview"
+            };
+            app.pi_scan.set_foreground_notice(
+                crate::i18n::t(app, key),
+                crate::state::pi_scan_ui::PiScanNoticeSeverity::Info,
+            );
+        }
+        PiScanBackgroundExecutionAcknowledgement::NeedsSetup {
+            effective_enabled,
+            reason,
+            ..
+        } => {
+            app.pi_scan.settings.background_enabled = effective_enabled;
+            app.pi_scan.begin_setup_wizard(false);
+            app.pi_scan.set_foreground_notice(
+                crate::i18n::t_fmt1(app, "app.pi_scan.notices.background_needs_setup", &reason),
+                crate::state::pi_scan_ui::PiScanNoticeSeverity::Warning,
+            );
+        }
+        PiScanBackgroundExecutionAcknowledgement::Failed {
+            requested_enabled,
+            effective_enabled,
+            reason,
+        } => {
+            app.pi_scan.settings.background_enabled = effective_enabled;
+            let text = if !requested_enabled && !effective_enabled {
+                crate::i18n::t_fmt1(
+                    app,
+                    "app.pi_scan.notices.background_disable_failed",
+                    &reason,
+                )
+            } else {
+                crate::i18n::t_fmt1(app, "app.pi_scan.notices.background_toggle_failed", &reason)
+            };
+            app.pi_scan
+                .set_foreground_notice(text, crate::state::pi_scan_ui::PiScanNoticeSeverity::Error);
+        }
     }
 }
 
@@ -3207,6 +3331,25 @@ mod startup_news_tests {
     }
 }
 
+/// What: Prepare the final popup when exit must abort an active Pi AUR scan.
+///
+/// Inputs:
+/// - `app`: Current application and Pi Scan runtime projection.
+///
+/// Output:
+/// - `true` when a closing popup was installed and needs one final draw.
+///
+/// Details:
+/// - Idle exits preserve the current modal. Active exits replace it with a non-interactive status
+///   that remains visible while bounded cleanup aborts and reaps the Pi process group.
+fn prepare_pi_scan_exit_popup(app: &mut AppState) -> bool {
+    if app.pi_scan.runtime.active.is_none() {
+        return false;
+    }
+    app.modal = crate::state::Modal::ClosingPiScan;
+    true
+}
+
 /// What: Run the main event loop, processing all channel messages and rendering the UI.
 ///
 /// Inputs:
@@ -3238,6 +3381,11 @@ pub async fn run_event_loop(
         }
 
         if process_channel_messages(app, channels).await {
+            if prepare_pi_scan_exit_popup(app)
+                && let Some(terminal) = terminal.as_mut()
+            {
+                let _ = terminal.draw(|frame| ui(frame, app));
+            }
             break;
         }
     }
@@ -3245,10 +3393,12 @@ pub async fn run_event_loop(
 
 #[cfg(test)]
 mod tests {
+    use super::apply_pi_scan_background_acknowledgement;
     use super::apply_pi_scan_budget_acknowledgement;
     use super::apply_pi_scan_progress;
     use super::apply_pi_scan_result;
     use super::apply_pi_scan_runtime_notice;
+    use super::dispatch_pi_scan_background_toggle;
     use super::dispatch_pi_scan_ui_action;
     use super::handle_aur_vote_response;
     use super::handle_aur_vote_state_response;
@@ -3256,6 +3406,7 @@ mod tests {
     use super::handle_news_content;
     use super::handle_updates_list;
     use super::install_pi_scan_owner;
+    use super::poll_pi_scan_background_acknowledgement;
     use super::poll_pi_scan_budget_acknowledgement;
     use super::process_channel_messages;
     use super::project_pi_scan_rollback_report;
@@ -3452,6 +3603,154 @@ mod tests {
         assert!(app.pi_scan.budget_acknowledgement_rx.is_none());
         assert!(app.pi_scan.budget_dialog.is_none());
         assert_eq!(app.pi_scan.runtime.budget_limits, current);
+    }
+
+    /// Toggle dispatch retains one receiver and projects only the runtime acknowledgement.
+    #[tokio::test]
+    async fn background_toggle_dispatch_owns_and_polls_typed_acknowledgement() {
+        let mut app = AppState {
+            app_mode: crate::state::types::AppMode::PiScan,
+            ..AppState::default()
+        };
+        app.pi_scan.settings.enabled = true;
+        app.pi_scan.availability = crate::state::PiScanAvailability::RuntimeConnected;
+        app.pi_scan.setup_facts_verified = true;
+        app.pi_scan.disclosure_confirmed = true;
+        app.pi_scan.runtime.consent = crate::state::pi_scan::PiScanConsentState {
+            background_observation: true,
+            paid_execution: true,
+        };
+        app.pi_scan.background_paid_execution_confirmed = true;
+        app.pi_scan.readiness = crate::state::PiScanReadiness::Confirmed;
+        assert!(app.pi_scan.request_background_toggle());
+        let mut channels =
+            Channels::new(std::path::PathBuf::from("/tmp")).expect("channels should construct");
+        let (request_tx, mut request_rx) = tokio::sync::mpsc::unbounded_channel();
+        channels.pi_scan_request_tx = request_tx;
+
+        dispatch_pi_scan_ui_action(&mut app, &channels);
+        assert!(app.pi_scan.background_acknowledgement_rx.is_some());
+        let request = request_rx.try_recv().expect("typed background request");
+        let crate::app::runtime::workers::pi_scan::PiScanRequestMessage::SetBackgroundExecution {
+            enabled,
+            acknowledge,
+        } = request
+        else {
+            panic!("unexpected Pi Scan request")
+        };
+        assert!(enabled);
+        acknowledge
+            .send(
+                crate::app::runtime::workers::pi_scan::PiScanBackgroundExecutionAcknowledgement::Applied {
+                    enabled: true,
+                },
+            )
+            .expect("typed acknowledgement");
+
+        poll_pi_scan_background_acknowledgement(&mut app);
+        assert!(app.pi_scan.background_acknowledgement_rx.is_none());
+        assert!(app.pi_scan.background_toggle_pending.is_none());
+        assert!(app.pi_scan.settings.background_enabled);
+    }
+
+    /// A dropped request channel reports localized retry guidance instead of a raw channel error.
+    #[tokio::test]
+    async fn background_toggle_send_failure_uses_localized_channel_guidance() {
+        let mut app = AppState::default();
+        let locales = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("config/locales");
+        app.translations = crate::i18n::load_locale_file("de-DE", &locales).expect("German locale");
+        app.pi_scan.background_toggle_pending = Some(true);
+        let expected = crate::i18n::t(&app, "app.pi_scan.notices.background_channel_closed");
+        let mut channels =
+            Channels::new(std::path::PathBuf::from("/tmp")).expect("channels should construct");
+        let (request_tx, request_rx) = tokio::sync::mpsc::unbounded_channel();
+        drop(request_rx);
+        channels.pi_scan_request_tx = request_tx;
+
+        let reason = dispatch_pi_scan_background_toggle(&mut app, &channels, true)
+            .expect_err("closed request channel must reject the toggle");
+
+        assert_eq!(reason, expected);
+        assert!(app.pi_scan.background_acknowledgement_rx.is_none());
+        assert!(app.pi_scan.background_toggle_pending.is_none());
+    }
+
+    /// Enable failures retain runtime detail inside localized actionable guidance.
+    #[test]
+    fn background_toggle_enable_failure_wraps_runtime_detail_in_locale() {
+        let mut app = AppState::default();
+        let locales = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("config/locales");
+        app.translations = crate::i18n::load_locale_file("de-DE", &locales).expect("German locale");
+
+        apply_pi_scan_background_acknowledgement(
+            &mut app,
+            crate::app::runtime::workers::pi_scan::PiScanBackgroundExecutionAcknowledgement::Failed {
+                requested_enabled: true,
+                effective_enabled: false,
+                reason: "disk full".to_string(),
+            },
+        );
+
+        assert_eq!(
+            app.pi_scan.notices.foreground_text(),
+            Some("Die Einstellung für Hintergrundscans konnte nicht geändert werden: disk full")
+        );
+    }
+
+    /// Preview, setup guidance, fail-closed disable, and closed channels stay runtime-authoritative.
+    #[test]
+    fn background_toggle_acknowledgements_project_distinct_outcomes() {
+        let mut app = AppState::default();
+        let locales = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("config/locales");
+        app.translations =
+            crate::i18n::load_locale_file("en-US", &locales).expect("English locale");
+        app.pi_scan.settings.background_enabled = true;
+        apply_pi_scan_background_acknowledgement(
+            &mut app,
+            crate::app::runtime::workers::pi_scan::PiScanBackgroundExecutionAcknowledgement::DryRunPreview {
+                enabled: false,
+            },
+        );
+        assert!(app.pi_scan.settings.background_enabled);
+
+        let consent = app.pi_scan.runtime.consent;
+        apply_pi_scan_background_acknowledgement(
+            &mut app,
+            crate::app::runtime::workers::pi_scan::PiScanBackgroundExecutionAcknowledgement::NeedsSetup {
+                requested_enabled: true,
+                effective_enabled: false,
+                reason: "missing consent".to_string(),
+            },
+        );
+        assert!(app.pi_scan.wizard.is_some());
+        assert_eq!(app.pi_scan.runtime.consent, consent);
+        assert!(!app.pi_scan.settings.background_enabled);
+
+        app.pi_scan.wizard = None;
+        app.pi_scan.settings.background_enabled = true;
+        apply_pi_scan_background_acknowledgement(
+            &mut app,
+            crate::app::runtime::workers::pi_scan::PiScanBackgroundExecutionAcknowledgement::Failed {
+                requested_enabled: false,
+                effective_enabled: false,
+                reason: "runtime unavailable".to_string(),
+            },
+        );
+        assert!(!app.pi_scan.settings.background_enabled);
+        assert!(
+            app.pi_scan
+                .notices
+                .foreground_text()
+                .is_some_and(|text| text.contains("restart"))
+        );
+
+        let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
+        drop(sender);
+        app.pi_scan.background_acknowledgement_rx = Some(receiver);
+        app.pi_scan.background_toggle_pending = Some(true);
+        poll_pi_scan_background_acknowledgement(&mut app);
+        assert!(app.pi_scan.background_acknowledgement_rx.is_none());
+        assert!(app.pi_scan.background_toggle_pending.is_none());
     }
 
     /// Applied acknowledgement projects authoritative limits and preserves unrelated pauses.
@@ -3683,6 +3982,7 @@ mod tests {
         let mut channels =
             Channels::new(std::path::PathBuf::from("/tmp")).expect("channels should construct");
         let (request_tx, _request_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (user_pause_tx, _user_pause_rx) = tokio::sync::mpsc::unbounded_channel();
         let (cancel_tx, _cancel_rx) = tokio::sync::mpsc::unbounded_channel();
         let (session_tx, _session_rx) = tokio::sync::mpsc::unbounded_channel();
         let (shutdown_tx, _shutdown_rx) = tokio::sync::mpsc::unbounded_channel();
@@ -3704,6 +4004,7 @@ mod tests {
             &mut channels,
             PiScanRuntimeChannels {
                 request_tx,
+                user_pause_tx,
                 cancel_tx,
                 session_tx,
                 shutdown_tx,
@@ -4818,6 +5119,33 @@ mod tests {
         assert!(app.pi_scan.runtime.active.is_none());
     }
 
+    /// Active Pi work prepares the final closing overlay before cleanup begins.
+    #[test]
+    fn active_pi_scan_prepares_exit_popup() {
+        let mut app = AppState::default();
+        app.pi_scan.runtime.active = Some(crate::state::pi_scan::PiScanActiveItem {
+            correlation_id: 88,
+            request: pi_scan_request("closing-demo", 'c'),
+            started_at_unix: 1,
+            cancellation_suppressed: false,
+        });
+
+        assert!(super::prepare_pi_scan_exit_popup(&mut app));
+        assert!(matches!(app.modal, crate::state::Modal::ClosingPiScan));
+    }
+
+    /// Idle exit leaves the current modal untouched and needs no final redraw.
+    #[test]
+    fn idle_exit_does_not_prepare_pi_scan_popup() {
+        let mut app = AppState {
+            modal: crate::state::Modal::Help,
+            ..AppState::default()
+        };
+
+        assert!(!super::prepare_pi_scan_exit_popup(&mut app));
+        assert!(matches!(app.modal, crate::state::Modal::Help));
+    }
+
     /// What: Route Progress-page pause and cancel keys through the live event-loop dispatch path.
     ///
     /// Inputs:
@@ -4835,6 +5163,9 @@ mod tests {
             app_mode: crate::state::types::AppMode::PiScan,
             ..AppState::default()
         };
+        let locales = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("config/locales");
+        app.translations =
+            crate::i18n::load_locale_file("en-US", &locales).expect("English locale");
         app.pi_scan.set_view(crate::state::PiScanView::Progress);
         app.pi_scan.runtime.active = Some(crate::state::pi_scan::PiScanActiveItem {
             correlation_id: 77,
@@ -4844,9 +5175,11 @@ mod tests {
         });
         let mut channels =
             Channels::new(std::path::PathBuf::from("/tmp")).expect("channels should construct");
-        let (request_tx, mut request_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (request_tx, _request_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (user_pause_tx, mut user_pause_rx) = tokio::sync::mpsc::unbounded_channel();
         let (cancel_tx, mut cancel_rx) = tokio::sync::mpsc::unbounded_channel();
         channels.pi_scan_request_tx = request_tx;
+        channels.pi_scan_user_pause_tx = user_pause_tx;
         channels.pi_scan_cancel_tx = cancel_tx;
 
         channels
@@ -4859,10 +5192,19 @@ mod tests {
             ))
             .expect("pause event");
         assert!(!process_channel_messages(&mut app, &mut channels).await);
-        assert!(matches!(
-            request_rx.try_recv().expect("pause request"),
-            crate::app::runtime::workers::pi_scan::PiScanRequestMessage::SetUserPaused(true)
-        ));
+        assert_eq!(
+            user_pause_rx.try_recv().expect("pause request"),
+            crate::app::runtime::workers::pi_scan::PiScanUserPauseMessage { paused: true }
+        );
+        assert_eq!(
+            app.pi_scan
+                .notices
+                .foreground
+                .as_ref()
+                .expect("pause feedback")
+                .text,
+            "Pause queued until the active scan finishes."
+        );
 
         channels
             .event_tx
@@ -4877,6 +5219,15 @@ mod tests {
         assert_eq!(
             cancel_rx.try_recv().expect("cancel request").correlation_id,
             77
+        );
+        assert_eq!(
+            app.pi_scan
+                .notices
+                .foreground
+                .as_ref()
+                .expect("cancel feedback")
+                .text,
+            "Cancelling active scan…"
         );
     }
 }

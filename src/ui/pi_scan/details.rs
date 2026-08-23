@@ -1,17 +1,24 @@
 //! Selected validated-result detail page.
 
 use crate::logic::pi_scan::result::{Coverage, MergedScanResult, Severity};
+use crate::state::pi_scan_ui::PiScanActionHitRect;
 use crate::state::{AppState, PiScanDisplayResult};
 use crate::theme::theme;
 use ratatui::{
     Frame,
-    layout::Rect,
+    layout::{Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
+    widgets::Paragraph,
 };
+use unicode_width::UnicodeWidthStr;
+
+/// Height reserved for the fixed continuation action row.
+const CONTINUE_ACTION_HEIGHT: u16 = 1;
 
 /// Render every validated result as a package-labeled expandable report.
 pub(super) fn render(f: &mut Frame, app: &mut AppState, area: Rect) {
+    app.pi_scan.set_details_continue_action_rect(None);
     if app.pi_scan.results.is_empty() {
         app.pi_scan.view_scroll.details = 0;
         super::body(
@@ -24,6 +31,13 @@ pub(super) fn render(f: &mut Frame, app: &mut AppState, area: Rect) {
         return;
     }
 
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Min(1),
+            Constraint::Length(CONTINUE_ACTION_HEIGHT),
+        ])
+        .split(area);
     let results = app.pi_scan.results.clone();
     let selected = app.pi_scan.selected_result;
     let show_raw = app.pi_scan.show_raw_output;
@@ -48,10 +62,58 @@ pub(super) fn render(f: &mut Frame, app: &mut AppState, area: Rect) {
         }
     }
 
-    let scroll = super::clamp_line_scroll(app.pi_scan.view_scroll.details, &lines, area);
+    let scroll = super::clamp_line_scroll(app.pi_scan.view_scroll.details, &lines, chunks[0]);
     app.pi_scan.view_scroll.details = scroll;
     app.pi_scan.detail_scroll = scroll;
-    super::body_scrolled(f, app, area, "app.pi_scan.tabs.details", lines, scroll);
+    super::body_scrolled(f, app, chunks[0], "app.pi_scan.tabs.details", lines, scroll);
+    render_continue_action(f, app, chunks[1]);
+}
+
+/// What: Render and record the fixed Details continuation action.
+///
+/// Inputs:
+/// - `f`: Target terminal frame.
+/// - `app`: Localization and state-owned mouse rectangle.
+/// - `area`: Fixed row reserved below the scrollable report.
+///
+/// Output:
+/// - Draws the localized keyboard/button action and records its clickable bounds.
+///
+/// Details:
+/// - The row remains outside Details scrolling, and narrow layouts retain the leading `c` key cue.
+fn render_continue_action(f: &mut Frame, app: &mut AppState, area: Rect) {
+    let label = crate::i18n::t(app, "app.pi_scan.continuation.action");
+    let text = format!("[c] {label}");
+    f.render_widget(
+        Paragraph::new(Line::from(vec![
+            Span::styled(
+                "[c] ",
+                Style::default()
+                    .fg(theme().crust)
+                    .bg(theme().sapphire)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                label,
+                Style::default()
+                    .fg(theme().sapphire)
+                    .add_modifier(Modifier::BOLD),
+            ),
+        ]))
+        .style(Style::default().bg(theme().surface1)),
+        area,
+    );
+    if area.width == 0 || area.height == 0 {
+        return;
+    }
+    let text_width = u16::try_from(UnicodeWidthStr::width(text.as_str())).unwrap_or(u16::MAX);
+    app.pi_scan
+        .set_details_continue_action_rect(Some(PiScanActionHitRect {
+            x: area.x,
+            y: area.y,
+            width: area.width.min(text_width),
+            height: 1,
+        }));
 }
 
 /// What: Add one compact package header with an expansion marker.

@@ -238,21 +238,31 @@ fn push_active_lines(
             super::semantic_style(SemanticTone::Muted),
         ),
     ]));
-    let phase = active_phase(app, active.correlation_id).map_or_else(
-        || crate::i18n::t(app, "app.pi_scan.progress.working"),
-        |phase| crate::i18n::t(app, phase_key(phase)),
-    );
+    let (phase, phase_tone) = if active.cancellation_suppressed {
+        (
+            crate::i18n::t(app, "app.pi_scan.progress.cancelling"),
+            SemanticTone::Warning,
+        )
+    } else {
+        (
+            active_phase(app, active.correlation_id).map_or_else(
+                || crate::i18n::t(app, "app.pi_scan.progress.working"),
+                |phase| crate::i18n::t(app, phase_key(phase)),
+            ),
+            SemanticTone::Active,
+        )
+    };
     lines.push(Line::from(vec![
         Span::styled(
             format!("  {spinner} "),
-            super::semantic_style(SemanticTone::Active).add_modifier(Modifier::BOLD),
+            super::semantic_style(phase_tone).add_modifier(Modifier::BOLD),
         ),
         Span::styled(
             format!(
                 "{}: {phase}",
                 crate::i18n::t(app, "app.pi_scan.progress.current_step")
             ),
-            super::semantic_style(SemanticTone::Active).add_modifier(Modifier::BOLD),
+            super::semantic_style(phase_tone).add_modifier(Modifier::BOLD),
         ),
     ]));
     lines.push(super::labeled_line(
@@ -377,48 +387,82 @@ fn push_waiting_lines(
 /// - Position numbers make the sequential order visible while the dimmed prefix keeps
 ///   focus on the package identity.
 fn push_queue_lines(lines: &mut Vec<Line<'static>>, app: &AppState) {
-    if app.pi_scan.runtime.queue.is_empty() {
+    if let Some(active) = app.pi_scan.runtime.active.as_ref() {
+        push_queue_request_line(lines, app, &active.request, None);
+    }
+    for (index, request) in app.pi_scan.runtime.queue.iter().enumerate() {
+        push_queue_request_line(lines, app, request, Some(index + 1));
+    }
+    if app.pi_scan.runtime.active.is_none() && app.pi_scan.runtime.queue.is_empty() {
         lines.push(super::labeled_line(
             crate::i18n::t(app, "app.pi_scan.progress.sections.queue"),
             crate::i18n::t(app, "app.pi_scan.progress.queue_empty"),
             SemanticTone::Muted,
         ));
-        return;
     }
-    for (index, request) in app.pi_scan.runtime.queue.iter().enumerate() {
-        let priority = crate::i18n::t(
-            app,
-            match request.priority {
-                crate::state::pi_scan::PiScanPriority::Foreground => {
-                    "app.pi_scan.priority.foreground"
-                }
-                crate::state::pi_scan::PiScanPriority::Background => {
-                    "app.pi_scan.priority.background"
-                }
-            },
-        );
-        lines.push(Line::from(vec![
-            Span::styled(
-                format!("  {}. ", index + 1),
-                super::semantic_style(SemanticTone::Warning).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(
-                request.key.package_base.as_str().to_string(),
-                super::semantic_style(SemanticTone::Normal).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(
-                format!(
-                    " — {priority} · {}: {} · {} {} / {}",
-                    crate::i18n::t(app, "app.pi_scan.targets.commit"),
-                    super::short_identity(request.key.commit_oid.as_str()),
-                    super::format_token_count(request.reservation.tokens),
-                    crate::i18n::t(app, "app.pi_scan.wizard.pricing.tokens"),
-                    super::format_microusd(request.reservation.cost_microusd),
-                ),
-                super::semantic_style(SemanticTone::Muted),
-            ),
-        ]));
+}
+
+/// What: Append one active or pending request to the Queue section.
+///
+/// Inputs:
+/// - `lines`: Output line buffer.
+/// - `app`: Application state used for localized labels.
+/// - `request`: Exact active or queued scan request.
+/// - `position`: Pending queue position, or `None` for the currently scanned package.
+///
+/// Output:
+/// - Adds one styled row to `lines`.
+///
+/// Details:
+/// - The active row uses a play marker and reversed active styling. Pending rows keep their
+///   one-based queue positions and existing warning/normal styling.
+fn push_queue_request_line(
+    lines: &mut Vec<Line<'static>>,
+    app: &AppState,
+    request: &crate::state::pi_scan::PiScanJobRequest,
+    position: Option<usize>,
+) {
+    let active = position.is_none();
+    let prefix = position.map_or_else(|| "  ▶ ".to_string(), |index| format!("  {index}. "));
+    let prefix_tone = if active {
+        SemanticTone::Active
+    } else {
+        SemanticTone::Warning
+    };
+    let mut package_style = super::semantic_style(if active {
+        SemanticTone::Active
+    } else {
+        SemanticTone::Normal
+    })
+    .add_modifier(Modifier::BOLD);
+    if active {
+        package_style = package_style.add_modifier(Modifier::REVERSED);
     }
+    let priority = crate::i18n::t(
+        app,
+        match request.priority {
+            crate::state::pi_scan::PiScanPriority::Foreground => "app.pi_scan.priority.foreground",
+            crate::state::pi_scan::PiScanPriority::Background => "app.pi_scan.priority.background",
+        },
+    );
+    lines.push(Line::from(vec![
+        Span::styled(
+            prefix,
+            super::semantic_style(prefix_tone).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(request.key.package_base.as_str().to_string(), package_style),
+        Span::styled(
+            format!(
+                " — {priority} · {}: {} · {} {} / {}",
+                crate::i18n::t(app, "app.pi_scan.targets.commit"),
+                super::short_identity(request.key.commit_oid.as_str()),
+                super::format_token_count(request.reservation.tokens),
+                crate::i18n::t(app, "app.pi_scan.wizard.pricing.tokens"),
+                super::format_microusd(request.reservation.cost_microusd),
+            ),
+            super::semantic_style(SemanticTone::Muted),
+        ),
+    ]));
 }
 
 /// What: Project session counters from the cohesive runtime state.
@@ -564,7 +608,8 @@ fn budget_limit_hit_names(app: &AppState, now_unix: u64) -> String {
 mod tests {
     use super::{
         PROGRESS_BAR_WIDTH, SPINNER_FRAME_MS, SPINNER_FRAMES, active_phase, count_outcomes,
-        pause_reason_key, phase_key, progress_bar, spinner_frame,
+        pause_reason_key, phase_key, progress_bar, push_active_lines, push_queue_lines,
+        spinner_frame,
     };
     use crate::state::pi_scan::{
         PiScanJobRequest, PiScanPauseReason, PiScanPriority, PiScanQueueKey, PiScanReservation,
@@ -618,6 +663,70 @@ mod tests {
             .collect::<String>();
         assert!(rendered.contains("press b"), "{rendered:?}");
         assert!(!rendered.contains("Setup (1)"), "{rendered:?}");
+    }
+
+    /// Background work receives the same active-row highlight as foreground work.
+    #[test]
+    fn queue_highlights_active_background_package() {
+        let mut app = AppState::default();
+        let mut active_request = budget_request();
+        active_request.request_id = 2;
+        active_request.key.package_base =
+            crate::logic::pi_scan::identity::PackageBase::new("active-demo").expect("package base");
+        app.pi_scan.runtime.active = Some(crate::state::pi_scan::PiScanActiveItem {
+            correlation_id: 9,
+            request: active_request,
+            started_at_unix: 1,
+            cancellation_suppressed: false,
+        });
+        app.pi_scan.runtime.queue.push_back(budget_request());
+
+        let mut lines = Vec::new();
+        push_queue_lines(&mut lines, &app);
+        let first_row = lines[0]
+            .spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect::<String>();
+
+        assert!(first_row.starts_with("  ▶ active-demo"), "{first_row:?}");
+        assert!(
+            lines[0].spans[1]
+                .style
+                .add_modifier
+                .contains(ratatui::style::Modifier::REVERSED),
+            "background active row must use the active highlight"
+        );
+    }
+
+    /// Cancellation replaces the running phase with immediate visible feedback.
+    #[test]
+    fn active_cancellation_renders_cancelling_state() {
+        let mut app = AppState::default();
+        let locales = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("config/locales");
+        app.translations =
+            crate::i18n::load_locale_file("en-US", &locales).expect("English locale");
+        let active = crate::state::pi_scan::PiScanActiveItem {
+            correlation_id: 10,
+            request: budget_request(),
+            started_at_unix: 1,
+            cancellation_suppressed: true,
+        };
+        app.pi_scan.active_progress = Some(PiScanExecutionProgress {
+            correlation_id: 10,
+            phase: PiScanExecutionPhase::RunningModel,
+        });
+
+        let mut lines = Vec::new();
+        push_active_lines(&mut lines, &app, &active, "⠋", 2);
+        let rendered = lines
+            .iter()
+            .flat_map(|line| line.spans.iter())
+            .map(|span| span.content.as_ref())
+            .collect::<String>();
+
+        assert!(rendered.contains("Cancelling active scan"), "{rendered:?}");
+        assert!(!rendered.contains("Running model"), "{rendered:?}");
     }
 
     /// The spinner starts at frame zero, advances per interval, and wraps around.

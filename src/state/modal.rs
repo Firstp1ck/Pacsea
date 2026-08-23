@@ -692,6 +692,28 @@ pub struct PreflightSummaryData {
     pub summary_notes: Vec<String>,
 }
 
+/// What: Exact immutable result contract shown by the Pi Scan continuation confirmation.
+///
+/// Inputs:
+/// - Created from the selected validated result when Review & continue is requested.
+///
+/// Output:
+/// - Binds confirmation to one package/result and discloses which acknowledgements it records.
+///
+/// Details:
+/// - The binding and package base are revalidated before any acknowledgement or continuation is queued.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PiScanContinuationConfirmation {
+    /// Immutable binding computed from the validated result and observed identity.
+    pub result_binding: String,
+    /// Canonical package base named by the validated result.
+    pub package_base: String,
+    /// Whether confirmation records the required high/critical-finding acknowledgement.
+    pub finding_acknowledgement_required: bool,
+    /// Whether confirmation records the required stale-identity acknowledgement.
+    pub stale_acknowledgement_required: bool,
+}
+
 /// What: Captures all dialog state for the various modal overlays presented in
 /// the Pacsea TUI.
 ///
@@ -715,6 +737,15 @@ pub enum Modal {
     Loading {
         /// Loading message text.
         message: String,
+    },
+    /// Non-interactive closing status shown while an active Pi AUR scan is aborted.
+    ClosingPiScan,
+    /// Confirmation boundary for continuing one exact Pi Scan result.
+    ConfirmPiScanContinuation {
+        /// Immutable result identity and disclosed acknowledgement requirements.
+        confirmation: PiScanContinuationConfirmation,
+        /// Vertical popup content offset for narrow terminals.
+        scroll: u16,
     },
     /// Confirmation dialog for installing the given items.
     ConfirmInstall {
@@ -1061,6 +1092,15 @@ mod tests {
         matches!(m, super::Modal::None);
         let _ = super::Modal::Alert {
             message: "hi".into(),
+        };
+        let _ = super::Modal::ConfirmPiScanContinuation {
+            confirmation: super::PiScanContinuationConfirmation {
+                result_binding: "binding".into(),
+                package_base: "package-base".into(),
+                finding_acknowledgement_required: true,
+                stale_acknowledgement_required: false,
+            },
+            scroll: 0,
         };
         let _ = super::Modal::ConfirmInstall { items: Vec::new() };
         let _ = super::Modal::ConfirmReinstall {

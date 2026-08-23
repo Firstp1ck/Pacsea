@@ -405,3 +405,52 @@ fn pi_scan_scroll_does_not_exit_app() {
         );
     }
 }
+
+#[test]
+/// Pi Scan continuation confirmation owns all mouse input until confirmed or cancelled.
+fn pi_scan_continuation_confirmation_blocks_workspace_mouse_input() {
+    let mut app = new_app();
+    app.app_mode = crate::state::types::AppMode::PiScan;
+    app.pi_scan.set_view(crate::state::PiScanView::Details);
+    app.pi_scan.tab_rects[4] = Some((5, 2, 12, 1));
+    app.modal = crate::state::Modal::ConfirmPiScanContinuation {
+        confirmation: crate::state::modal::PiScanContinuationConfirmation {
+            result_binding: "binding".to_string(),
+            package_base: "demo".to_string(),
+            finding_acknowledgement_required: false,
+            stale_acknowledgement_required: false,
+        },
+        scroll: 0,
+    };
+    let (dtx, _drx) = mpsc::unbounded_channel::<PackageItem>();
+    let (ptx, _prx) = mpsc::unbounded_channel::<PackageItem>();
+    let (atx, _arx) = mpsc::unbounded_channel::<PackageItem>();
+    let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
+    let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
+    let (qtx, _qrx) = mpsc::unbounded_channel::<QueryInput>();
+    let (pkgb_check_tx, _pkgb_check_rx) = mpsc::unbounded_channel::<PkgbuildCheckRequest>();
+
+    let should_exit = handle_mouse_event_with_pkgbuild_checks(
+        MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: 6,
+            row: 2,
+            modifiers: KeyModifiers::empty(),
+        },
+        &mut app,
+        &dtx,
+        &ptx,
+        &atx,
+        &pkgb_tx,
+        &comments_tx,
+        &qtx,
+        &pkgb_check_tx,
+    );
+
+    assert!(!should_exit);
+    assert_eq!(app.pi_scan.view, crate::state::PiScanView::Details);
+    assert!(matches!(
+        app.modal,
+        crate::state::Modal::ConfirmPiScanContinuation { .. }
+    ));
+}

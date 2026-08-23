@@ -567,6 +567,35 @@ fn ws8_dry_run_publishes_no_root_and_leaves_no_workspace() {
 }
 
 #[test]
+fn ws8_retry_uses_fresh_workspace_when_prior_attempt_remains() {
+    let temp = tempfile::tempdir().expect("temp parent");
+    let stale_workspace = temp.path().join("pacsea-scan-scan-retry");
+    std::fs::create_dir(&stale_workspace).expect("stale workspace");
+    std::fs::write(stale_workspace.join("sentinel"), "prior attempt").expect("sentinel");
+    let (recipe, payload) = complete_fixture();
+    let mut git = FakeGit::with_recipe(recipe);
+    let mut http = FakeHttp::single(payload);
+
+    let outcome = acquire_package(
+        &request("scan-retry", false),
+        temp.path(),
+        Path::new("/usr/bin/git"),
+        &mut http,
+        &mut PublicResolver,
+        &mut git,
+        &mut UnavailableSignatureVerifier,
+    )
+    .expect("retry must use a fresh workspace");
+    let retry_workspace = outcome.workspace_root().expect("live workspace");
+
+    assert_ne!(retry_workspace, stale_workspace);
+    assert_eq!(
+        std::fs::read_to_string(stale_workspace.join("sentinel")).expect("untouched sentinel"),
+        "prior attempt"
+    );
+}
+
+#[test]
 fn ws8_workspace_is_always_cleaned_when_the_outcome_is_dropped() {
     let temp = tempfile::tempdir().expect("temp parent");
     let (recipe, payload) = complete_fixture();

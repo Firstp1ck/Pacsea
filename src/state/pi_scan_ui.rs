@@ -239,6 +239,8 @@ pub enum PiScanUiAction {
     ProbeSetup,
     /// Persist explicit runtime/setup consent changes.
     UpdateConsent,
+    /// Persist and hot-apply the unattended Pi execution preference.
+    SetBackgroundExecution(bool),
     /// Queue currently selected frozen identities.
     QueueSelected,
     /// Persist a user pause.
@@ -520,6 +522,30 @@ impl PiScanListHitRect {
     }
 }
 
+/// One rendered action rectangle retained for mouse hit testing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PiScanActionHitRect {
+    /// Left coordinate.
+    pub x: u16,
+    /// Top coordinate.
+    pub y: u16,
+    /// Rectangle width.
+    pub width: u16,
+    /// Rectangle height.
+    pub height: u16,
+}
+
+impl PiScanActionHitRect {
+    /// Return whether one terminal coordinate is inside this half-open rectangle.
+    #[must_use]
+    pub const fn contains(self, column: u16, row: u16) -> bool {
+        column >= self.x
+            && column < self.x.saturating_add(self.width)
+            && row >= self.y
+            && row < self.y.saturating_add(self.height)
+    }
+}
+
 /// Dry-run-only preview that never enters the durable queue.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PiScanDryRunPreview {
@@ -593,6 +619,14 @@ pub struct PiScanWorkspaceState {
     pub stale_acknowledgements: BTreeSet<String>,
     /// Last inert UI action awaiting central dispatch.
     pub pending_action: Option<PiScanUiAction>,
+    /// Requested unattended state retained until one runtime acknowledgement.
+    pub background_toggle_pending: Option<bool>,
+    /// Request-owned unattended-setting acknowledgement receiver.
+    pub background_acknowledgement_rx: Option<
+        tokio::sync::mpsc::UnboundedReceiver<
+            crate::app::runtime::workers::pi_scan::PiScanBackgroundExecutionAcknowledgement,
+        >,
+    >,
     /// Focused budget adjustment choice, submission, or actionable rejection.
     pub budget_dialog: Option<PiScanBudgetDialogState>,
     /// Request-owned typed acknowledgement receiver retained until one terminal response.
@@ -619,6 +653,8 @@ pub struct PiScanWorkspaceState {
     pub target_row_rects: Vec<PiScanListHitRect>,
     /// Rendered result row hit rectangles.
     pub result_row_rects: Vec<PiScanListHitRect>,
+    /// Rendered Details Review & continue action rectangle.
+    pub details_continue_action_rect: Option<PiScanActionHitRect>,
     /// Last setup-controller correlation retained across wizard sessions.
     pub last_setup_correlation: u64,
     /// Active guided setup wizard session; `None` outside the wizard.
@@ -660,6 +696,8 @@ impl Default for PiScanWorkspaceState {
             finding_acknowledgements: BTreeSet::new(),
             stale_acknowledgements: BTreeSet::new(),
             pending_action: None,
+            background_toggle_pending: None,
+            background_acknowledgement_rx: None,
             budget_dialog: None,
             budget_acknowledgement_rx: None,
             dry_run_preview: None,
@@ -671,6 +709,7 @@ impl Default for PiScanWorkspaceState {
             tab_rects: [None; 6],
             target_row_rects: Vec::new(),
             result_row_rects: Vec::new(),
+            details_continue_action_rect: None,
             last_setup_correlation: 0,
             wizard: None,
         }
@@ -691,6 +730,7 @@ impl Default for PiScanWorkspaceState {
 ///   single source of truth as [`PiScanSettings`] evolves.
 fn pi_scan_material_settings_changed(previous: &PiScanSettings, current: &PiScanSettings) -> bool {
     let mut comparable = previous.clone();
+    comparable.background_enabled = current.background_enabled;
     comparable.background_starts_per_hour = current.background_starts_per_hour;
     comparable.background_token_cap_24h = current.background_token_cap_24h;
     comparable
@@ -868,6 +908,59 @@ impl PiScanWorkspaceState {
             && self.runtime.consent.paid_execution
     }
 
+    /// Return whether every existing prerequisite permits a background-enable request.
+    ///
+    /// Details:
+    /// - This checks consent and verified setup facts, not whether observation has already succeeded.
+    #[must_use]
+    pub fn background_toggle_ready(&self) -> bool {
+        let fallback_required = !self.settings.fallback_models.trim().is_empty();
+        let readiness_ready = match self.readiness {
+            PiScanReadiness::Unchecked => false,
+            PiScanReadiness::Warning(_) => self.readiness_warning_confirmed,
+            PiScanReadiness::Confirmed => true,
+        };
+        self.settings.enabled
+            && self.availability == PiScanAvailability::RuntimeConnected
+            && self.setup_facts_verified
+            && self.disclosure_confirmed
+            && self.runtime.consent.background_observation
+            && self.runtime.consent.paid_execution
+            && self.background_paid_execution_confirmed
+            && self.fallback_confirmed == fallback_required
+            && readiness_ready
+    }
+
+    /// Request one duplicate-safe unattended execution toggle or route incomplete setup.
+    ///
+    /// Details:
+    /// - Disabling is always dispatchable. Enabling never grants consent and opens guided setup when
+    ///   an existing prerequisite is missing.
+    pub fn request_background_toggle(&mut self) -> bool {
+        if self.background_toggle_pending.is_some() || self.background_acknowledgement_rx.is_some()
+        {
+            return true;
+        }
+        let enabled = !self.settings.background_enabled;
+        if enabled && !self.background_toggle_ready() {
+            self.begin_setup_wizard(false);
+            self.notices.set_foreground(
+                "app.pi_scan.notices.background_setup_required",
+                PiScanNoticeSeverity::Warning,
+            );
+            return true;
+        }
+        self.background_toggle_pending = Some(enabled);
+        self.pending_action = Some(PiScanUiAction::SetBackgroundExecution(enabled));
+        true
+    }
+
+    /// Clear request-owned toggle state after one terminal response or channel failure.
+    pub fn finish_background_toggle(&mut self) {
+        self.background_toggle_pending = None;
+        self.background_acknowledgement_rx = None;
+    }
+
     /// What: Apply settings while distinguishing mutable budgets from material setup identity.
     ///
     /// Inputs:
@@ -883,11 +976,14 @@ impl PiScanWorkspaceState {
     ///   external settings edit therefore cannot silently replace only the UI projection.
     /// - Provider, model, privacy, and other settings retain the existing verified-setup reset
     ///   behavior.
-    pub fn apply_settings(&mut self, settings: PiScanSettings, pi_binary_found: bool) -> bool {
+    pub fn apply_settings(&mut self, mut settings: PiScanSettings, pi_binary_found: bool) -> bool {
         let runtime_connected = self.availability == PiScanAvailability::RuntimeConnected;
         let settings_changed = self.settings != settings;
         let material_changed =
             settings_changed && pi_scan_material_settings_changed(&self.settings, &settings);
+        if runtime_connected {
+            settings.background_enabled = self.settings.background_enabled;
+        }
         self.settings = settings;
         if !runtime_connected {
             synchronize_runtime_budget_limits(&mut self.runtime, &self.settings);
@@ -970,6 +1066,9 @@ impl PiScanWorkspaceState {
     /// - Entering Results clears the unseen count; entering Details resets only details line scroll.
     pub fn set_view(&mut self, view: PiScanView) {
         let entering_details = self.view != PiScanView::Details && view == PiScanView::Details;
+        if view != PiScanView::Details {
+            self.details_continue_action_rect = None;
+        }
         self.view = view;
         match view {
             PiScanView::Targets => self.selected = self.selected_target,
@@ -1170,6 +1269,18 @@ impl PiScanWorkspaceState {
         hit_test_rows(&self.result_row_rects, column, row)
     }
 
+    /// Replace the Details Review & continue action rectangle after one render.
+    pub const fn set_details_continue_action_rect(&mut self, rect: Option<PiScanActionHitRect>) {
+        self.details_continue_action_rect = rect;
+    }
+
+    /// Return whether one coordinate activates the rendered Details continuation action.
+    #[must_use]
+    pub fn details_continue_action_hit_test(&self, column: u16, row: u16) -> bool {
+        self.details_continue_action_rect
+            .is_some_and(|rect| rect.contains(column, row))
+    }
+
     /// Replace the foreground typed notice.
     pub fn set_foreground_notice(
         &mut self,
@@ -1221,6 +1332,51 @@ impl PiScanWorkspaceState {
         }
     }
 
+    /// What: Confirm one exact disclosed Pi Scan continuation contract.
+    ///
+    /// Inputs:
+    /// - `confirmation`: Immutable binding, package base, and acknowledgement requirements shown by the modal.
+    ///
+    /// Output:
+    /// - Queues continuation after exact validation, or returns actionable fail-closed guidance.
+    ///
+    /// Details:
+    /// - No acknowledgement is written until every payload field matches the currently selected result.
+    ///
+    /// # Errors
+    ///
+    /// Returns actionable guidance when the selected result is missing or no longer matches the payload.
+    pub fn confirm_continuation(
+        &mut self,
+        confirmation: &crate::state::modal::PiScanContinuationConfirmation,
+    ) -> Result<(), &'static str> {
+        let Some(result) = self.selected_result() else {
+            self.pending_action = None;
+            return Err("app.pi_scan.continuation.result_missing");
+        };
+        let binding = result.binding();
+        let package_base = result.validated.identity.package_base.clone();
+        let finding_required = result.needs_finding_acknowledgement()
+            && !self.finding_acknowledgements.contains(&binding);
+        let stale_required = result.stale && !self.stale_acknowledgements.contains(&binding);
+        if binding != confirmation.result_binding
+            || package_base != confirmation.package_base
+            || finding_required != confirmation.finding_acknowledgement_required
+            || stale_required != confirmation.stale_acknowledgement_required
+        {
+            self.pending_action = None;
+            return Err("app.pi_scan.continuation.result_changed");
+        }
+        if confirmation.finding_acknowledgement_required {
+            self.finding_acknowledgements.insert(binding.clone());
+        }
+        if confirmation.stale_acknowledgement_required {
+            self.stale_acknowledgements.insert(binding);
+        }
+        self.pending_action = Some(PiScanUiAction::ContinueSelected);
+        Ok(())
+    }
+
     /// Return whether selected-result continuation is currently allowed.
     #[must_use]
     pub fn selected_result_acknowledged(&self) -> bool {
@@ -1254,6 +1410,27 @@ mod tests {
 
     /// Build a minimal validated result for expansion-state tests.
     fn display_result(package: &str) -> PiScanDisplayResult {
+        display_result_with_requirements(package, false, false)
+    }
+
+    /// Build one validated result with configurable acknowledgement requirements.
+    fn display_result_with_requirements(
+        package: &str,
+        finding_required: bool,
+        stale: bool,
+    ) -> PiScanDisplayResult {
+        let findings = finding_required
+            .then(|| crate::logic::pi_scan::result::MergedFinding {
+                fingerprint: "fingerprint".to_string(),
+                severity: Severity::High,
+                snapshot: "recipe".to_string(),
+                path: "PKGBUILD".to_string(),
+                evidence: "evidence".to_string(),
+                assessments: Vec::new(),
+                disagreement: false,
+            })
+            .into_iter()
+            .collect();
         PiScanDisplayResult {
             validated: MergedScanResult {
                 identity: ExpectedIdentity {
@@ -1263,10 +1440,10 @@ mod tests {
                 },
                 coverage: Coverage::Complete,
                 limitations: Vec::new(),
-                findings: Vec::new(),
+                findings,
             },
             observed_head_oid: "head".to_string(),
-            stale: false,
+            stale,
             mutable_sources: Vec::new(),
         }
     }
@@ -1311,5 +1488,167 @@ mod tests {
         assert!(state.expanded_results.is_empty());
         assert_eq!(state.view_scroll.details, 0);
         assert_eq!(state.detail_scroll, 0);
+    }
+
+    /// Exact confirmation records only its required acknowledgement categories and queues continuation.
+    #[test]
+    fn continuation_confirmation_records_exact_required_acknowledgements() {
+        let mut state = PiScanWorkspaceState::default();
+        state
+            .results
+            .push(display_result_with_requirements("alpha", true, true));
+        let result = state.selected_result().expect("selected result");
+        let binding = result.binding();
+        let confirmation = crate::state::modal::PiScanContinuationConfirmation {
+            result_binding: binding.clone(),
+            package_base: "alpha".to_string(),
+            finding_acknowledgement_required: true,
+            stale_acknowledgement_required: true,
+        };
+
+        assert_eq!(state.confirm_continuation(&confirmation), Ok(()));
+        assert_eq!(
+            state.finding_acknowledgements,
+            BTreeSet::from([binding.clone()])
+        );
+        assert_eq!(state.stale_acknowledgements, BTreeSet::from([binding]));
+        assert_eq!(state.pending_action, Some(PiScanUiAction::ContinueSelected));
+    }
+
+    /// Confirmation discloses and records only acknowledgement categories still pending.
+    #[test]
+    fn continuation_confirmation_accepts_preacknowledged_categories() {
+        let mut state = PiScanWorkspaceState::default();
+        state
+            .results
+            .push(display_result_with_requirements("alpha", true, true));
+        let binding = state.selected_result().expect("selected result").binding();
+        state.finding_acknowledgements.insert(binding.clone());
+        let confirmation = crate::state::modal::PiScanContinuationConfirmation {
+            result_binding: binding.clone(),
+            package_base: "alpha".to_string(),
+            finding_acknowledgement_required: false,
+            stale_acknowledgement_required: true,
+        };
+
+        assert_eq!(state.confirm_continuation(&confirmation), Ok(()));
+        assert_eq!(
+            state.finding_acknowledgements,
+            BTreeSet::from([binding.clone()])
+        );
+        assert_eq!(state.stale_acknowledgements, BTreeSet::from([binding]));
+        assert_eq!(state.pending_action, Some(PiScanUiAction::ContinueSelected));
+    }
+
+    /// Build a connected, verified, independently consented background-toggle projection.
+    fn ready_background_state() -> PiScanWorkspaceState {
+        PiScanWorkspaceState {
+            runtime: PiScanRuntimeState {
+                consent: PiScanConsentState {
+                    background_observation: true,
+                    paid_execution: true,
+                },
+                ..PiScanRuntimeState::default()
+            },
+            settings: PiScanSettings {
+                enabled: true,
+                ..PiScanSettings::default()
+            },
+            availability: PiScanAvailability::RuntimeConnected,
+            readiness: PiScanReadiness::Confirmed,
+            setup_facts_verified: true,
+            disclosure_confirmed: true,
+            background_paid_execution_confirmed: true,
+            ..PiScanWorkspaceState::default()
+        }
+    }
+
+    /// Background enablement uses existing consent without requiring an observation success.
+    #[test]
+    fn background_toggle_ready_uses_consent_not_observation_progress() {
+        assert!(ready_background_state().background_toggle_ready());
+    }
+
+    /// Missing prerequisites open guided setup without mutating consent or dispatching a toggle.
+    #[test]
+    fn background_toggle_missing_setup_is_guided_and_inert() {
+        let mut state = PiScanWorkspaceState::default();
+        let consent = state.runtime.consent;
+
+        assert!(state.request_background_toggle());
+        assert!(state.wizard.is_some());
+        assert_eq!(state.runtime.consent, consent);
+        assert!(state.pending_action.is_none());
+        assert!(state.background_toggle_pending.is_none());
+    }
+
+    /// Duplicate toggle presses retain one request until the runtime acknowledges it.
+    #[test]
+    fn background_toggle_request_is_duplicate_safe() {
+        let mut state = ready_background_state();
+
+        assert!(state.request_background_toggle());
+        assert!(state.request_background_toggle());
+        assert_eq!(state.background_toggle_pending, Some(true));
+        assert_eq!(
+            state.pending_action,
+            Some(PiScanUiAction::SetBackgroundExecution(true))
+        );
+    }
+
+    /// Connected reload keeps the runtime owner's operational preference and current consent.
+    #[test]
+    fn connected_reload_preserves_runtime_background_preference() {
+        let mut state = PiScanWorkspaceState {
+            settings: PiScanSettings {
+                enabled: true,
+                background_enabled: true,
+                ..PiScanSettings::default()
+            },
+            availability: PiScanAvailability::RuntimeConnected,
+            setup_facts_verified: true,
+            disclosure_confirmed: true,
+            runtime: PiScanRuntimeState {
+                consent: PiScanConsentState {
+                    paid_execution: true,
+                    ..PiScanConsentState::default()
+                },
+                ..PiScanRuntimeState::default()
+            },
+            ..PiScanWorkspaceState::default()
+        };
+        let mut parsed = state.settings.clone();
+        parsed.background_enabled = false;
+
+        assert!(!state.apply_settings(parsed, true));
+        assert!(state.settings.background_enabled);
+        assert!(state.setup_facts_verified);
+        assert!(state.disclosure_confirmed);
+        assert!(state.runtime.consent.paid_execution);
+    }
+
+    /// Binding drift fails before acknowledgements or continuation can be recorded.
+    #[test]
+    fn continuation_confirmation_binding_drift_fails_closed() {
+        let mut state = PiScanWorkspaceState::default();
+        state
+            .results
+            .push(display_result_with_requirements("alpha", true, true));
+        let confirmation = crate::state::modal::PiScanContinuationConfirmation {
+            result_binding: state.selected_result().expect("selected result").binding(),
+            package_base: "alpha".to_string(),
+            finding_acknowledgement_required: true,
+            stale_acknowledgement_required: true,
+        };
+        state.results[0].observed_head_oid = "changed-head".to_string();
+
+        let error = state
+            .confirm_continuation(&confirmation)
+            .expect_err("binding drift must fail");
+
+        assert_eq!(error, "app.pi_scan.continuation.result_changed");
+        assert!(state.finding_acknowledgements.is_empty());
+        assert!(state.stale_acknowledgements.is_empty());
+        assert!(state.pending_action.is_none());
     }
 }

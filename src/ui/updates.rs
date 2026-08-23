@@ -73,6 +73,61 @@ fn package_updates_top_bar_label(app: &AppState) -> String {
     pi_status.map_or_else(|| updates.clone(), |status| format!("{updates} · {status}"))
 }
 
+/// Build the compact app-wide unattended Pi scan preference indicator.
+fn background_indicator_label(app: &AppState) -> String {
+    let key = if app.pi_scan.background_toggle_pending.is_some() {
+        "app.pi_scan.top_bar.background_pending"
+    } else if app.pi_scan.settings.background_enabled {
+        if app.pi_scan.background_toggle_ready() {
+            "app.pi_scan.top_bar.background_on"
+        } else {
+            "app.pi_scan.top_bar.background_setup"
+        }
+    } else if app.pi_scan.runtime.active.as_ref().is_some_and(|active| {
+        active.request.priority == crate::state::pi_scan::PiScanPriority::Background
+    }) {
+        "app.pi_scan.top_bar.background_finishing"
+    } else {
+        "app.pi_scan.top_bar.background_off"
+    };
+    i18n::t(app, key)
+}
+
+/// Draw the reserved app-wide unattended Pi status segment.
+fn render_background_indicator(
+    f: &mut Frame,
+    app: &AppState,
+    area: Rect,
+    label: &str,
+    th: &crate::theme::Theme,
+) {
+    let attention = app.pi_scan.background_toggle_pending.is_some()
+        || (app.pi_scan.settings.background_enabled && !app.pi_scan.background_toggle_ready())
+        || (!app.pi_scan.settings.background_enabled
+            && app.pi_scan.runtime.active.as_ref().is_some_and(|active| {
+                active.request.priority == crate::state::pi_scan::PiScanPriority::Background
+            }));
+    let color = if attention {
+        th.yellow
+    } else if app.pi_scan.settings.background_enabled {
+        th.green
+    } else {
+        th.overlay1
+    };
+    f.render_widget(
+        Paragraph::new(Line::from(Span::styled(
+            label.to_string(),
+            Style::default()
+                .fg(color)
+                .bg(th.base)
+                .add_modifier(Modifier::BOLD),
+        )))
+        .alignment(Alignment::Right)
+        .block(Block::default().style(Style::default().bg(th.base))),
+        area,
+    );
+}
+
 /// What: Build the news-mode top bar strip label.
 ///
 /// Inputs:
@@ -206,6 +261,7 @@ fn render_config_editor_dual_top_labels(
 ///   or "Loading news..." if still loading
 /// - In Config editor mode: Shows both package updates and news labels as one centered group (with a
 ///   narrow-terminal fallback split); two click targets.
+/// - The Pi background indicator is reserved at the left edge before mode-specific labels.
 /// - Config/Lists, Panels, and Options (or collapsed Menu) render on this same row to the right of the
 ///   updates/news label (before lockout text when present).
 /// - Shows lockout status on the right if user is locked out
@@ -213,11 +269,20 @@ fn render_config_editor_dual_top_labels(
 /// - Records clickable rectangle for mouse interaction
 pub fn render_updates_button(f: &mut Frame, app: &mut AppState, area: Rect) {
     let th = theme();
+    let background_label = background_indicator_label(app);
+    let background_width = u16::try_from(background_label.width())
+        .unwrap_or(area.width)
+        .min(area.width);
     if matches!(app.app_mode, AppMode::PiScan) {
         clear_top_bar_menu_rects(app);
         app.news_button_rect = None;
+        let chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Length(background_width), Constraint::Min(0)])
+            .split(area);
+        render_background_indicator(f, app, chunks[0], &background_label, &th);
         let label = pi_scan_top_bar_label(app);
-        render_updates_button_inner(f, app, area, &label, &th);
+        render_updates_button_inner(f, app, chunks[1], &label, &th);
         app.updates_button_rect = None;
         return;
     }
@@ -249,44 +314,29 @@ pub fn render_updates_button(f: &mut Frame, app: &mut AppState, area: Rect) {
         )
     });
 
-    let width_for_menus_and_label = area.width.saturating_sub(lockout_w);
-    let max_menu_w = width_for_menus_and_label.saturating_sub(MIN_UPDATES_LABEL_SLOT);
+    let width_for_menus_and_label = area
+        .width
+        .saturating_sub(lockout_w)
+        .saturating_sub(background_width);
+    let updates_label_slot = width_for_menus_and_label.min(MIN_UPDATES_LABEL_SLOT);
+    let max_menu_w = width_for_menus_and_label.saturating_sub(updates_label_slot);
     let menu_cluster_w = top_bar_menu_cluster_width(max_menu_w, app);
 
     if menu_cluster_w == 0 {
         clear_top_bar_menu_rects(app);
     }
 
-    let chunks: Vec<Rect> = match (lockout_w > 0, menu_cluster_w > 0) {
-        (true, true) => Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Min(MIN_UPDATES_LABEL_SLOT),
-                Constraint::Length(menu_cluster_w),
-                Constraint::Length(lockout_w),
-            ])
-            .split(area)
-            .to_vec(),
-        (true, false) => Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Min(MIN_UPDATES_LABEL_SLOT),
-                Constraint::Length(lockout_w),
-            ])
-            .split(area)
-            .to_vec(),
-        (false, true) => Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Min(MIN_UPDATES_LABEL_SLOT),
-                Constraint::Length(menu_cluster_w),
-            ])
-            .split(area)
-            .to_vec(),
-        (false, false) => vec![area],
-    };
+    let chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Length(background_width),
+            Constraint::Min(updates_label_slot),
+            Constraint::Length(menu_cluster_w),
+            Constraint::Length(lockout_w),
+        ])
+        .split(area);
 
-    let updates_chunk = chunks[0];
+    let updates_chunk = chunks[1];
     match app.app_mode {
         AppMode::ConfigEditor => {
             let updates_label = package_updates_top_bar_label(app);
@@ -311,31 +361,25 @@ pub fn render_updates_button(f: &mut Frame, app: &mut AppState, area: Rect) {
         }
     }
 
-    if menu_cluster_w > 0 && chunks.len() >= 2 {
-        render_top_bar_menu_cluster(f, app, chunks[1]);
+    render_background_indicator(f, app, chunks[0], &background_label, &th);
+    if menu_cluster_w > 0 {
+        render_top_bar_menu_cluster(f, app, chunks[2]);
     }
 
-    if lockout_w > 0 {
-        let lock_chunk = if menu_cluster_w > 0 {
-            chunks.get(2).copied()
-        } else {
-            chunks.get(1).copied()
-        };
-        if let (Some(lockout), Some(lock_chunk)) = (lockout_text, lock_chunk) {
-            let lockout_style = Style::default()
-                .fg(th.red)
-                .bg(th.base)
-                .add_modifier(Modifier::BOLD);
-            let lockout_line = Line::from(Span::styled(lockout, lockout_style));
-            let lockout_paragraph = Paragraph::new(lockout_line)
-                .alignment(Alignment::Right)
-                .block(
-                    Block::default()
-                        .borders(ratatui::widgets::Borders::NONE)
-                        .style(Style::default().bg(th.base)),
-                );
-            f.render_widget(lockout_paragraph, lock_chunk);
-        }
+    if let Some(lockout) = lockout_text.filter(|_| lockout_w > 0) {
+        let lockout_style = Style::default()
+            .fg(th.red)
+            .bg(th.base)
+            .add_modifier(Modifier::BOLD);
+        let lockout_line = Line::from(Span::styled(lockout, lockout_style));
+        let lockout_paragraph = Paragraph::new(lockout_line)
+            .alignment(Alignment::Right)
+            .block(
+                Block::default()
+                    .borders(ratatui::widgets::Borders::NONE)
+                    .style(Style::default().bg(th.base)),
+            );
+        f.render_widget(lockout_paragraph, chunks[3]);
     }
 }
 
@@ -457,4 +501,121 @@ fn render_news_button_inner(
         .x
         .saturating_add(area.width.saturating_sub(button_width) / 2);
     app.news_button_rect = Some((button_x, area.y, button_width, area.height));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{background_indicator_label, render_updates_button};
+    use crate::state::types::AppMode;
+    use crate::state::{AppState, PiScanAvailability, PiScanReadiness};
+    use ratatui::{Terminal, backend::TestBackend};
+
+    /// Build a fully consented connected projection with background scans enabled.
+    fn ready_app() -> AppState {
+        let mut app = AppState::default();
+        let locales = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("config/locales");
+        app.translations =
+            crate::i18n::load_locale_file("en-US", &locales).expect("English locale");
+        app.pi_scan.settings.enabled = true;
+        app.pi_scan.settings.background_enabled = true;
+        app.pi_scan.availability = PiScanAvailability::RuntimeConnected;
+        app.pi_scan.setup_facts_verified = true;
+        app.pi_scan.disclosure_confirmed = true;
+        app.pi_scan.runtime.consent.background_observation = true;
+        app.pi_scan.runtime.consent.paid_execution = true;
+        app.pi_scan.background_paid_execution_confirmed = true;
+        app.pi_scan.readiness = PiScanReadiness::Confirmed;
+        app
+    }
+
+    /// Render one top-bar row into plain text.
+    fn render_row(width: u16, app: &mut AppState) -> String {
+        let backend = TestBackend::new(width, 1);
+        let mut terminal = Terminal::new(backend).expect("terminal");
+        terminal
+            .draw(|frame| render_updates_button(frame, app, frame.area()))
+            .expect("top bar render");
+        terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .map(ratatui::buffer::Cell::symbol)
+            .collect()
+    }
+
+    /// Build one active background item for the finishing-indicator case.
+    fn background_active_item() -> crate::state::pi_scan::PiScanActiveItem {
+        crate::state::pi_scan::PiScanActiveItem {
+            correlation_id: 1,
+            request: crate::state::pi_scan::PiScanJobRequest {
+                request_id: 1,
+                key: crate::state::pi_scan::PiScanQueueKey {
+                    package_base: crate::logic::pi_scan::identity::PackageBase::new("demo")
+                        .expect("base"),
+                    commit_oid: crate::logic::pi_scan::identity::CommitOid::new("a".repeat(40))
+                        .expect("oid"),
+                },
+                priority: crate::state::pi_scan::PiScanPriority::Background,
+                reservation: crate::state::pi_scan::PiScanReservation {
+                    tokens: 1,
+                    cost_microusd: 1,
+                },
+                manual_budget_override_confirmed: false,
+            },
+            started_at_unix: 1,
+            cancellation_suppressed: false,
+        }
+    }
+
+    /// Full label, narrow distinguishing token, and state mutator for one indicator case.
+    type IndicatorCase = (&'static str, &'static str, fn(&mut AppState));
+
+    /// Every background state remains distinguishable in every mode and supported top-bar width.
+    #[test]
+    fn background_indicator_renders_state_mode_and_width_matrix() {
+        let cases: [IndicatorCase; 5] = [
+            ("Pi BG: ON", "ON", |_| {}),
+            ("Pi BG: OFF", "OFF", |app| {
+                app.pi_scan.settings.background_enabled = false;
+            }),
+            ("Pi BG: OFF · finishing", "·", |app| {
+                app.pi_scan.settings.background_enabled = false;
+                app.pi_scan.runtime.active = Some(background_active_item());
+            }),
+            ("Pi BG: SETUP", "SETUP", |app| {
+                app.pi_scan.setup_facts_verified = false;
+            }),
+            ("Pi BG: …", "…", |app| {
+                app.pi_scan.background_toggle_pending = Some(false);
+            }),
+        ];
+        for mode in [
+            AppMode::Package,
+            AppMode::News,
+            AppMode::ConfigEditor,
+            AppMode::PiScan,
+        ] {
+            for (full_label, narrow_token, configure) in cases {
+                let mut app = ready_app();
+                app.app_mode = mode;
+                configure(&mut app);
+                assert_eq!(background_indicator_label(&app), full_label);
+                let normal = render_row(42, &mut app);
+                assert!(
+                    normal.contains(full_label),
+                    "{mode:?} normal row did not contain {full_label:?}: {normal:?}"
+                );
+                assert!(
+                    normal.starts_with(full_label),
+                    "{mode:?} normal row did not place {full_label:?} on the left: {normal:?}"
+                );
+                let narrow = render_row(14, &mut app);
+                assert!(
+                    narrow.contains(narrow_token),
+                    "{mode:?} narrow row did not distinguish {full_label:?}: {narrow:?}"
+                );
+            }
+        }
+    }
 }

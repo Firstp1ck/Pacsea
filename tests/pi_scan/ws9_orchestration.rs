@@ -582,6 +582,49 @@ fn manual_queue_requires_full_frozen_identity_and_exact_pricing() {
     assert!(orchestrator.enqueue_frozen(invalid, 2).is_err());
 }
 
+/// A persisted foreground request revalidates a recoverable service pause before starting.
+#[test]
+fn foreground_start_recovers_a_revalidated_service_pause() {
+    let temp = tempfile::tempdir().expect("temp");
+    let adapter = FakeAdapter {
+        setup: Some(setup()),
+        instant_success: true,
+        ..FakeAdapter::default()
+    };
+    let mut orchestrator =
+        PiScanOrchestrator::new(config(temp.path(), false), adapter).expect("construct");
+    let target = FrozenScanIdentity {
+        scan_id: "resume-1".to_string(),
+        package_name: "demo".to_string(),
+        package_base: PackageBase::new("demo").expect("base"),
+        installed_names: vec!["demo".to_string()],
+        installed_version: "1.0-1".to_string(),
+        candidate_version: None,
+        commit_oid: oid(10),
+        observed_head_oid: oid(10),
+        cycle_id: "manual".to_string(),
+        provider: "provider".to_string(),
+        model: "model".to_string(),
+        reservation: PiScanReservation {
+            tokens: 10_000,
+            cost_microusd: 50,
+        },
+        priority: PiScanPriority::Foreground,
+    };
+    orchestrator.enqueue_frozen(target, 1).expect("queue");
+    orchestrator
+        .update_runtime_policy(None, None, true, None)
+        .expect("persist service pause");
+
+    assert!(
+        orchestrator
+            .run_next(2, &AtomicBool::new(false))
+            .expect("foreground start revalidates service")
+            .is_some()
+    );
+    assert!(orchestrator.state().runtime.pause_reasons.is_empty());
+}
+
 #[tokio::test]
 async fn fast_run_reports_started_from_the_active_registration_seam() {
     let temp = tempfile::tempdir().expect("temp");
@@ -1641,6 +1684,49 @@ async fn assert_unattended_revocation_stops_second_start() {
     let state = runner.state_snapshot().await.expect("state");
     assert_eq!(state.runtime.terminal.len(), 1);
     assert_eq!(state.runtime.queue.len(), 1);
+}
+
+#[tokio::test]
+async fn dynamic_authorization_enables_an_initially_disabled_background_config() {
+    let temp = tempfile::tempdir().expect("temp");
+    let adapter = FakeAdapter {
+        setup: Some(setup()),
+        packages: vec![package("dynamic", "dynamic")],
+        observations: VecDeque::from([ObservationPackage {
+            package_base: PackageBase::new("dynamic").expect("base"),
+            head_oid: oid(1),
+            commits: vec![ObservationCommit {
+                oid: oid(1),
+                relevance: CommitBuildRelevance::BuildRelevant,
+            }],
+            truncated: false,
+            paused_for_rebaseline: false,
+        }]),
+        instant_success: true,
+        ..FakeAdapter::default()
+    };
+    let mut runtime_config = config(temp.path(), false);
+    runtime_config.background_execution = false;
+    let mut owner = PiScanOrchestrator::new(runtime_config, adapter).expect("owner");
+    owner.startup_observation(1).expect("queue background job");
+    let runner = PiScanSequentialRunner::new(owner);
+    let (started_tx, _started_rx) = tokio::sync::mpsc::unbounded_channel();
+    let (phase_tx, _phase_rx) = tokio::sync::mpsc::unbounded_channel();
+
+    let receipt = runner
+        .run_next_with_progress_policy(
+            2,
+            started_tx,
+            phase_tx,
+            Arc::new(PiScanUnattendedAuthorization::new(true)),
+        )
+        .await
+        .expect("dynamic authorization start");
+
+    assert!(receipt.is_some());
+    let state = runner.state_snapshot().await.expect("state");
+    assert!(state.runtime.queue.is_empty());
+    assert_eq!(state.runtime.terminal.len(), 1);
 }
 
 #[tokio::test]

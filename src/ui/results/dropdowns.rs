@@ -388,6 +388,50 @@ fn render_panels_menu(
     f.render_widget(menu, rect);
 }
 
+/// What: Build mode-specific labels for the Options dropdown.
+///
+/// Inputs:
+/// - `app`: Application state containing the active app mode and package filter state.
+///
+/// Output:
+/// - Labels in the exact order shared by rendered numbers and event dispatch.
+///
+/// Details:
+/// - Package and News modes include general Pi Scan workspace navigation; Config Editor retains its
+///   existing mode-switching entries.
+fn options_menu_labels(app: &AppState) -> Vec<String> {
+    let news_mode = matches!(app.app_mode, crate::state::types::AppMode::News);
+    let config_editor_mode = matches!(app.app_mode, crate::state::types::AppMode::ConfigEditor);
+    let mode_toggle_label = if news_mode {
+        i18n::t(app, "app.results.options_menu.package_mode")
+    } else {
+        i18n::t(app, "app.results.options_menu.news_management")
+    };
+    let mut options = Vec::new();
+    if !news_mode && !config_editor_mode {
+        let label_toggle = if app.installed_only_mode {
+            i18n::t(app, "app.results.options_menu.list_all_packages")
+        } else {
+            i18n::t(app, "app.results.options_menu.list_installed_packages")
+        };
+        options.push(label_toggle);
+    }
+    options.push(i18n::t(app, "app.results.options_menu.update_system"));
+    options.push(i18n::t(app, "app.results.options_menu.tui_optional_deps"));
+    options.push(i18n::t(app, "app.results.options_menu.repositories"));
+    if config_editor_mode {
+        options.push(i18n::t(app, "app.results.options_menu.package_mode"));
+        options.push(i18n::t(app, "app.results.options_menu.news_management"));
+    } else {
+        options.push(i18n::t(
+            app,
+            "app.results.options_menu.open_pi_scan_workspace",
+        ));
+        options.push(mode_toggle_label);
+    }
+    options
+}
+
 /// What: Render Options dropdown menu.
 ///
 /// Inputs:
@@ -409,31 +453,7 @@ fn render_options_menu(
         return;
     }
 
-    let news_mode = matches!(app.app_mode, crate::state::types::AppMode::News);
-    let config_editor_mode = matches!(app.app_mode, crate::state::types::AppMode::ConfigEditor);
-    let mode_toggle_label = if news_mode {
-        i18n::t(app, "app.results.options_menu.package_mode")
-    } else {
-        i18n::t(app, "app.results.options_menu.news_management")
-    };
-    let mut opts: Vec<String> = Vec::new();
-    if !news_mode && !config_editor_mode {
-        let label_toggle = if app.installed_only_mode {
-            i18n::t(app, "app.results.options_menu.list_all_packages")
-        } else {
-            i18n::t(app, "app.results.options_menu.list_installed_packages")
-        };
-        opts.push(label_toggle);
-    }
-    opts.push(i18n::t(app, "app.results.options_menu.update_system"));
-    opts.push(i18n::t(app, "app.results.options_menu.tui_optional_deps"));
-    opts.push(i18n::t(app, "app.results.options_menu.repositories"));
-    if config_editor_mode {
-        opts.push(i18n::t(app, "app.results.options_menu.package_mode"));
-        opts.push(i18n::t(app, "app.results.options_menu.news_management"));
-    } else {
-        opts.push(mode_toggle_label);
-    }
+    let opts = options_menu_labels(app);
     let widest = opts
         .iter()
         .map(|s| u16::try_from(s.width()).map_or(u16::MAX, |x| x))
@@ -780,5 +800,40 @@ mod calculate_menu_rect_tests {
         let results_area = Rect::new(0, 5, 80, 10);
         let (rect, _) = calculate_menu_rect(None, 20, 5, results_area);
         assert_eq!(rect.y, 6);
+    }
+}
+
+#[cfg(test)]
+mod options_menu_tests {
+    use super::options_menu_labels;
+    use crate::state::{AppState, types::AppMode};
+
+    /// What: Verify Package and News menus expose the localized Pi Scan workspace entry.
+    ///
+    /// Inputs:
+    /// - English locale with Package and News app modes.
+    ///
+    /// Output:
+    /// - The entry appears at the numbered positions handled by keyboard and mouse dispatch.
+    ///
+    /// Details:
+    /// - Package uses item 5 and News uses item 4 because Package has an installed-only entry.
+    #[test]
+    fn package_and_news_options_list_pi_scan_workspace() {
+        let locales = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("config/locales");
+        let translations =
+            crate::i18n::load_locale_file("en-US", &locales).expect("English locale should load");
+        for (mode, index) in [(AppMode::Package, 4), (AppMode::News, 3)] {
+            let mut app = AppState {
+                app_mode: mode,
+                ..AppState::default()
+            };
+            app.translations = translations.clone();
+            app.translations_fallback = translations.clone();
+
+            let options = options_menu_labels(&app);
+
+            assert_eq!(options[index], "Open Pi Scan Workspace");
+        }
     }
 }

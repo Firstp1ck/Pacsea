@@ -782,26 +782,26 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
     /// # Errors
     /// - Returns a persistence error for malformed, newer, or unreadable durable state.
     pub fn new(config: OrchestrationConfig, adapter: A) -> Result<Self, OrchestrationError> {
-        Self::new_with_legacy_consent_binding(config, adapter, None)
+        Self::new_with_legacy_consent_bindings(config, adapter, &[])
     }
 
-    /// What: Load an orchestrator with one exact legacy consent binding eligible for migration.
+    /// What: Load an orchestrator with a bounded set of exact legacy consent bindings.
     ///
     /// Inputs:
     /// - `config`: Effective current gates, limits, binding, and private paths.
     /// - `adapter`: Production external seams.
-    /// - `legacy_consent_binding`: Exactly recomputed prior budget-inclusive binding, if supported.
+    /// - `legacy_consent_bindings`: Exact historical bindings eligible for one-time migration.
     ///
     /// Output:
-    /// - Ready orchestrator with valid legacy consent rewritten under the current binding.
+    /// - Ready orchestrator with exact matching legacy consent rewritten to the current binding.
     ///
     /// Details:
-    /// - Both persisted binding fields must equal the supplied legacy value. Any partial or
-    ///   unrelated mismatch follows the normal fail-closed consent reset path.
-    pub(crate) fn new_with_legacy_consent_binding(
+    /// - Both persisted binding fields must equal the same listed value. Partial or unrelated
+    ///   mismatches follow the normal fail-closed reset path.
+    pub(crate) fn new_with_legacy_consent_bindings(
         config: OrchestrationConfig,
         adapter: A,
-        legacy_consent_binding: Option<&str>,
+        legacy_consent_bindings: &[&str],
     ) -> Result<Self, OrchestrationError> {
         if config.observation_interval_seconds < 900 {
             return Err(OrchestrationError::Disabled(
@@ -858,7 +858,7 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
             {
                 state.runtime.set_consent(document.runtime);
                 state.setup_consent = document.setup;
-            } else if legacy_consent_binding.is_some_and(|legacy| {
+            } else if legacy_consent_bindings.iter().copied().any(|legacy| {
                 document.configuration_binding == legacy
                     && document.setup.configuration_binding == legacy
             }) {
@@ -1533,6 +1533,9 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
             .queue
             .iter()
             .any(|request| request.priority == PiScanPriority::Foreground);
+        if has_foreground {
+            self.revalidate_foreground_service_pause()?;
+        }
         let unattended_guard = if has_foreground {
             None
         } else if let Some(authorization) = unattended_authorization {
@@ -1546,7 +1549,11 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
         } else {
             None
         };
-        if !self.config.background_execution && !has_foreground {
+        if !unattended_config_allows_start(
+            has_foreground,
+            self.config.background_execution,
+            unattended_authorization.is_some(),
+        ) {
             return Err(OrchestrationError::Paused(
                 "unattended Pi execution is disabled; enable it explicitly or queue manual foreground work"
                     .to_string(),
@@ -1599,6 +1606,57 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
                 Err(OrchestrationError::Execution(reason))
             }
         }
+    }
+
+    /// What: Revalidate and clear a sticky service pause before a foreground start.
+    ///
+    /// Inputs:
+    /// - Uses the oldest queued foreground request and its exact retained frozen identity.
+    ///
+    /// Output:
+    /// - Leaves no service pause after successful setup/acquisition revalidation.
+    ///
+    /// Details:
+    /// - This recovers foreground work restored after an interrupted attempt without allowing
+    ///   unattended background work to clear a fail-closed service pause automatically.
+    ///
+    /// # Errors
+    /// - Returns when the frozen target is missing, revalidation fails, or clearing cannot persist.
+    fn revalidate_foreground_service_pause(&mut self) -> Result<(), OrchestrationError> {
+        if !self
+            .state
+            .runtime
+            .pause_reasons
+            .contains(&crate::state::pi_scan::PiScanPauseReason::Service)
+        {
+            return Ok(());
+        }
+        let request = self
+            .state
+            .runtime
+            .queue
+            .iter()
+            .find(|request| request.priority == PiScanPriority::Foreground)
+            .ok_or_else(|| {
+                OrchestrationError::InvalidTarget(
+                    "the foreground service-pause request is no longer queued".to_string(),
+                )
+            })?;
+        let target = self
+            .state
+            .targets
+            .get(&request.request_id)
+            .cloned()
+            .ok_or_else(|| {
+                OrchestrationError::InvalidTarget(
+                    "the foreground service-pause request has no frozen identity".to_string(),
+                )
+            })?;
+        self.adapter
+            .revalidate_service(&target)
+            .map_err(OrchestrationError::Readiness)?;
+        self.state.runtime.clear_service_pause(true);
+        self.persist()
     }
 
     /// Abort/recover any active item and persist the durability boundary for shutdown.
@@ -1966,6 +2024,15 @@ fn persist_pending_user_pauses<A: OrchestrationAdapter>(
         }
     }
     *active_slot = None;
+}
+
+/// Return whether immutable configuration must permit this start.
+const fn unattended_config_allows_start(
+    has_foreground: bool,
+    configured: bool,
+    has_dynamic_authorization: bool,
+) -> bool {
+    has_foreground || configured || has_dynamic_authorization
 }
 
 /// Completion receiver for one pause mutation queued behind active execution.
@@ -3119,9 +3186,18 @@ fn write_private(path: &Path, bytes: &[u8]) -> Result<(), OrchestrationError> {
 
 #[cfg(test)]
 mod tests {
-    use super::PiScanExecutionPhaseReporter;
+    use super::{PiScanExecutionPhaseReporter, unattended_config_allows_start};
     use crate::state::{PiScanExecutionPhase, PiScanExecutionProgress};
     use std::cell::RefCell;
+
+    /// Dynamic authorization supersedes immutable unattended config without affecting foreground.
+    #[test]
+    fn dynamic_authorization_supersedes_only_the_unattended_config_gate() {
+        assert!(unattended_config_allows_start(false, false, true));
+        assert!(!unattended_config_allows_start(false, false, false));
+        assert!(unattended_config_allows_start(false, true, false));
+        assert!(unattended_config_allows_start(true, false, false));
+    }
 
     /// The reporter preserves exact correlation and synchronous phase order.
     #[test]

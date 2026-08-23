@@ -266,7 +266,7 @@ fn pi_scan_runtime_options(
 /// Details:
 /// - Central setup integration uses this after an in-process Apply and when restoring
 ///   the previous owner after activation failure.
-fn pi_scan_runtime_options_for_settings(
+pub fn pi_scan_runtime_options_for_settings(
     settings: &crate::theme::PiScanSettings,
     dry_run: bool,
 ) -> crate::app::runtime::workers::pi_scan::PiScanRuntimeOptions {

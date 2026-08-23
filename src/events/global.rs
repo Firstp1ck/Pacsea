@@ -695,8 +695,8 @@ fn handle_change_sort(app: &mut AppState, details_tx: &mpsc::UnboundedSender<Pac
 /// - `Some(false)` if selection was handled, `None` otherwise
 ///
 /// Details:
-/// - Package mode display order: List installed (1), Update system (2), TUI Optional Deps (3), Repositories (4), News management (5)
-/// - News mode display order: Update system (1), TUI Optional Deps (2), Repositories (3), Package mode (4)
+/// - Package mode display order: List installed (1), Update system (2), TUI Optional Deps (3), Repositories (4), Open Pi Scan Workspace (5), News management (6).
+/// - News mode display order: Update system (1), TUI Optional Deps (2), Repositories (3), Open Pi Scan Workspace (4), Package mode (5).
 /// - Closes the options menu when a selection is handled.
 /// - Note: News age toggle (idx 5 in News mode) is not displayed in menu but handler remains for compatibility.
 fn handle_options_menu_numeric(
@@ -707,7 +707,6 @@ fn handle_options_menu_numeric(
     let news_mode = matches!(app.app_mode, crate::state::types::AppMode::News);
     let config_editor_mode = matches!(app.app_mode, crate::state::types::AppMode::ConfigEditor);
     let handled = if news_mode {
-        // News mode display order: Update system (1), TUI Optional Deps (2), Repositories (3), Package mode (4)
         match idx {
             0 => {
                 handle_options_system_update(app);
@@ -722,10 +721,14 @@ fn handle_options_menu_numeric(
                 true
             }
             3 => {
-                handle_mode_toggle(app, details_tx);
+                crate::events::pi_scan::open_workspace(app);
                 true
             }
             4 => {
+                handle_mode_toggle(app, details_tx);
+                true
+            }
+            5 => {
                 handle_news_age_toggle(app);
                 true
             }
@@ -765,7 +768,6 @@ fn handle_options_menu_numeric(
             _ => false,
         }
     } else {
-        // Package mode display order: List installed (1), Update system (2), TUI Optional Deps (3), Repositories (4), News management (5)
         match idx {
             0 => {
                 handle_options_installed_only_toggle(app, details_tx);
@@ -784,6 +786,10 @@ fn handle_options_menu_numeric(
                 true
             }
             4 => {
+                crate::events::pi_scan::open_workspace(app);
+                true
+            }
+            5 => {
                 handle_mode_toggle(app, details_tx);
                 true
             }
@@ -1354,6 +1360,35 @@ mod tests {
         );
         assert_eq!(handled, Some(false));
         assert!(app.config_menu_open);
+    }
+
+    /// What: Verify the Options menu opens the Pi Scan workspace from Package and News modes.
+    ///
+    /// Inputs:
+    /// - Package-mode item index 4 and News-mode item index 3.
+    ///
+    /// Output:
+    /// - Both selections switch to `AppMode::PiScan` and close the Options menu.
+    ///
+    /// Details:
+    /// - Guards the numbered-key path for the new mode-independent workspace entry.
+    #[test]
+    fn options_menu_numeric_opens_pi_scan_from_package_and_news() {
+        let (details_tx, _details_rx) = mpsc::unbounded_channel::<PackageItem>();
+        for (mode, index) in [
+            (crate::state::types::AppMode::Package, 4),
+            (crate::state::types::AppMode::News, 3),
+        ] {
+            let mut app = new_app();
+            app.app_mode = mode;
+            app.options_menu_open = true;
+
+            let handled = handle_options_menu_numeric(index, &mut app, &details_tx);
+
+            assert_eq!(handled, Some(false));
+            assert!(matches!(app.app_mode, crate::state::types::AppMode::PiScan));
+            assert!(!app.options_menu_open);
+        }
     }
 
     #[test]

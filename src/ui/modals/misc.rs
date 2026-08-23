@@ -12,8 +12,8 @@ use super::common::render_simple_list_modal;
 use crate::state::{
     AppState,
     modal::{
-        DoasPersistSetupModalState, DoasPersistSetupPhase, StartupSetupTask,
-        SudoTimestampSetupModalState, SudoTimestampSetupPhase,
+        DoasPersistSetupModalState, DoasPersistSetupPhase, PiScanContinuationConfirmation,
+        StartupSetupTask, SudoTimestampSetupModalState, SudoTimestampSetupPhase,
     },
     types::{OptionalDepRow, RepositoryKeyTrust, RepositoryModalRow, RepositoryPacmanStatus},
 };
@@ -1504,6 +1504,195 @@ pub fn render_loading(f: &mut Frame, area: Rect, message: &str) {
                 .style(Style::default().bg(th.mantle)),
         );
     f.render_widget(boxw, rect);
+}
+
+/// What: Render the exact Pi Scan continuation confirmation.
+///
+/// Inputs:
+/// - `f`: Target terminal frame.
+/// - `app`: Application localization state.
+/// - `area`: Full terminal area used to center the popup.
+/// - `confirmation`: Exact result binding and disclosed acknowledgement requirements.
+/// - `scroll`: Vertical content offset used when wrapped copy exceeds the popup height.
+///
+/// Output:
+/// - Draws a responsive confirmation with package identity, acknowledgements, process steps, and keys.
+///
+/// Details:
+/// - Copy explicitly preserves the authoritative identity recheck and ordinary install preflight.
+pub fn render_pi_scan_continuation(
+    f: &mut Frame,
+    app: &AppState,
+    area: Rect,
+    confirmation: &PiScanContinuationConfirmation,
+    scroll: u16,
+) {
+    let th = theme();
+    let width = 88_u16.min(area.width.saturating_sub(2));
+    let height = 18_u16.min(area.height.saturating_sub(2));
+    let rect = Rect::new(
+        area.x + area.width.saturating_sub(width) / 2,
+        area.y + area.height.saturating_sub(height) / 2,
+        width,
+        height,
+    );
+    let mut lines = vec![
+        Line::from(vec![
+            Span::styled(
+                format!(
+                    "{}: ",
+                    crate::i18n::t(app, "app.pi_scan.continuation.package")
+                ),
+                Style::default().fg(th.overlay1),
+            ),
+            Span::styled(
+                confirmation.package_base.clone(),
+                Style::default()
+                    .fg(th.sapphire)
+                    .add_modifier(Modifier::BOLD),
+            ),
+        ]),
+        Line::from(""),
+        Line::from(Span::styled(
+            crate::i18n::t(app, "app.pi_scan.continuation.acknowledgements"),
+            Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+        )),
+    ];
+    push_continuation_acknowledgements(&mut lines, app, confirmation);
+    lines.extend([
+        Line::from(""),
+        Line::from(Span::styled(
+            crate::i18n::t(app, "app.pi_scan.continuation.next_steps"),
+            Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+        )),
+        Line::from(crate::i18n::t(app, "app.pi_scan.continuation.step_recheck")),
+        Line::from(crate::i18n::t(app, "app.pi_scan.continuation.step_stop")),
+        Line::from(crate::i18n::t(app, "app.pi_scan.continuation.step_return")),
+        Line::from(crate::i18n::t(
+            app,
+            "app.pi_scan.continuation.step_preflight",
+        )),
+        Line::from(""),
+        Line::from(Span::styled(
+            crate::i18n::t(app, "app.pi_scan.continuation.keys"),
+            Style::default()
+                .fg(th.sapphire)
+                .add_modifier(Modifier::BOLD),
+        )),
+    ]);
+    let popup = Paragraph::new(lines)
+        .style(Style::default().fg(th.text).bg(th.mantle))
+        .wrap(Wrap { trim: false })
+        .scroll((scroll, 0))
+        .block(
+            Block::default()
+                .title(Span::styled(
+                    format!(
+                        " {} ",
+                        crate::i18n::t(app, "app.pi_scan.continuation.title")
+                    ),
+                    Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
+                ))
+                .borders(Borders::ALL)
+                .border_type(BorderType::Rounded)
+                .border_style(Style::default().fg(th.mauve))
+                .style(Style::default().bg(th.mantle)),
+        );
+    f.render_widget(Clear, rect);
+    f.render_widget(popup, rect);
+}
+
+/// What: Append only the acknowledgement consequences disclosed by one confirmation payload.
+///
+/// Inputs:
+/// - `lines`: Popup content under construction.
+/// - `app`: Application localization state.
+/// - `confirmation`: Exact finding/stale acknowledgement requirements.
+///
+/// Output:
+/// - Adds conditional warning lines or an explicit no-additional-acknowledgement line.
+///
+/// Details:
+/// - Rendering is derived solely from the immutable modal payload confirmed by WS1.
+fn push_continuation_acknowledgements(
+    lines: &mut Vec<Line<'static>>,
+    app: &AppState,
+    confirmation: &PiScanContinuationConfirmation,
+) {
+    let th = theme();
+    if confirmation.finding_acknowledgement_required {
+        lines.push(Line::from(Span::styled(
+            format!(
+                "  ⚠ {}",
+                crate::i18n::t(app, "app.pi_scan.continuation.ack_findings")
+            ),
+            Style::default().fg(th.red),
+        )));
+    }
+    if confirmation.stale_acknowledgement_required {
+        lines.push(Line::from(Span::styled(
+            format!(
+                "  ⚠ {}",
+                crate::i18n::t(app, "app.pi_scan.continuation.ack_stale")
+            ),
+            Style::default().fg(th.yellow),
+        )));
+    }
+    if !confirmation.finding_acknowledgement_required
+        && !confirmation.stale_acknowledgement_required
+    {
+        lines.push(Line::from(Span::styled(
+            format!(
+                "  ✓ {}",
+                crate::i18n::t(app, "app.pi_scan.continuation.ack_none")
+            ),
+            Style::default().fg(th.green),
+        )));
+    }
+}
+
+/// What: Render the final status shown while shutdown aborts an active Pi AUR scan.
+///
+/// Inputs:
+/// - `f`: Frame to render into.
+/// - `area`: Full terminal area used to center the popup.
+///
+/// Output:
+/// - Draws a non-interactive popup with the requested closing and aborting text.
+///
+/// Details:
+/// - The frame remains visible while bounded Pi worker cleanup terminates and reaps the scan.
+pub fn render_closing_pi_scan(f: &mut Frame, area: Rect) {
+    let th = theme();
+    let width = 52_u16.min(area.width.saturating_sub(2));
+    let height = 5_u16.min(area.height.saturating_sub(2));
+    let rect = Rect::new(
+        area.x + area.width.saturating_sub(width) / 2,
+        area.y + area.height.saturating_sub(height) / 2,
+        width,
+        height,
+    );
+    let content = Paragraph::new(vec![
+        Line::from(""),
+        Line::from(Span::styled(
+            "Aborting currently running AUR Scan...",
+            Style::default().fg(th.text),
+        )),
+    ])
+    .alignment(Alignment::Center)
+    .block(
+        Block::default()
+            .title(Span::styled(
+                " Closing... ",
+                Style::default().fg(th.yellow).add_modifier(Modifier::BOLD),
+            ))
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .border_style(Style::default().fg(th.yellow))
+            .style(Style::default().bg(th.mantle)),
+    );
+    f.render_widget(Clear, rect);
+    f.render_widget(content, rect);
 }
 
 #[cfg(test)]

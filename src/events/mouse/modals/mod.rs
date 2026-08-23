@@ -70,6 +70,7 @@ pub(super) fn handle_modal_mouse(
         crate::state::Modal::SshAurSetup { .. } => {
             simple::handle_ssh_aur_setup_modal(m, mx, my, is_left_down, app)
         }
+        crate::state::Modal::ConfirmPiScanContinuation { .. } => Some(false),
         _ => None,
     }
 }

@@ -38,6 +38,9 @@ pub(super) fn handle_key(key: KeyEvent, app: &mut AppState) -> bool {
         app.app_mode = AppMode::Package;
         return true;
     }
+    if handle_background_toggle_key(key, app) {
+        return true;
+    }
     if handle_page_key(key, app) || handle_navigation(key, app) || handle_scroll_key(key, app) {
         return true;
     }
@@ -52,6 +55,16 @@ pub(super) fn handle_key(key: KeyEvent, app: &mut AppState) -> bool {
         PiScanView::Details => handle_details(key, app),
         PiScanView::Overview => handle_budget_key(key, app),
     }
+}
+
+/// Route Shift+B from the two approved views without replacing lowercase shortcuts.
+fn handle_background_toggle_key(key: KeyEvent, app: &mut AppState) -> bool {
+    matches!(app.pi_scan.view, PiScanView::Overview | PiScanView::Setup)
+        && matches!(
+            (key.code, key.modifiers),
+            (KeyCode::Char('B'), KeyModifiers::SHIFT)
+        )
+        && app.pi_scan.request_background_toggle()
 }
 
 /// What: Handle one key while the focused budget choice owns keyboard input.
@@ -629,6 +642,45 @@ fn handle_results(key: KeyEvent, app: &mut AppState) -> bool {
     false
 }
 
+/// What: Open the continuation confirmation for the exact selected result.
+///
+/// Inputs:
+/// - `app`: Pi Scan workspace and application modal state.
+///
+/// Output:
+/// - Always consumes the Review & continue action, opening a typed modal when a result exists.
+///
+/// Details:
+/// - Keyboard and mouse call this same transition, and no acknowledgement or continuation is queued here.
+pub(super) fn open_continuation_confirmation(app: &mut AppState) -> bool {
+    let Some(result) = app.pi_scan.selected_result() else {
+        app.pi_scan.set_foreground_notice(
+            crate::i18n::t(app, "app.pi_scan.continuation.open_requires_result"),
+            PiScanNoticeSeverity::Warning,
+        );
+        return true;
+    };
+    let result_binding = result.binding();
+    let package_base = result.validated.identity.package_base.clone();
+    let finding_required = result.needs_finding_acknowledgement()
+        && !app
+            .pi_scan
+            .finding_acknowledgements
+            .contains(&result_binding);
+    let stale_required =
+        result.stale && !app.pi_scan.stale_acknowledgements.contains(&result_binding);
+    app.modal = crate::state::Modal::ConfirmPiScanContinuation {
+        confirmation: crate::state::modal::PiScanContinuationConfirmation {
+            result_binding,
+            package_base,
+            finding_acknowledgement_required: finding_required,
+            stale_acknowledgement_required: stale_required,
+        },
+        scroll: 0,
+    };
+    true
+}
+
 /// Apply separate result-bound finding and stale acknowledgements.
 fn handle_details(key: KeyEvent, app: &mut AppState) -> bool {
     match key.code {
@@ -638,14 +690,12 @@ fn handle_details(key: KeyEvent, app: &mut AppState) -> bool {
         }
         KeyCode::Char('a') => app.pi_scan.acknowledge_selected_findings(),
         KeyCode::Char('s') => app.pi_scan.acknowledge_selected_stale(),
-        KeyCode::Char('c') if app.pi_scan.selected_result_acknowledged() => {
-            app.pi_scan.pending_action = Some(PiScanUiAction::ContinueSelected);
-        }
+        KeyCode::Char('c') => return open_continuation_confirmation(app),
         KeyCode::Char('b') if app.pi_scan.selected_result_acknowledged() => {
             app.pi_scan.pending_action = Some(PiScanUiAction::AcceptBaseline);
         }
         KeyCode::Char('t') => app.pi_scan.toggle_raw_output(),
-        KeyCode::Char('c' | 'b') => {
+        KeyCode::Char('b') => {
             let notice = crate::i18n::t(app, "app.pi_scan.notices.confirm_required");
             app.pi_scan
                 .set_foreground_notice(notice, PiScanNoticeSeverity::Warning);
@@ -729,6 +779,51 @@ mod tests {
             &mut app,
         ));
         assert_eq!(app.pi_scan.pending_action, Some(PiScanUiAction::Cancel(77)));
+    }
+
+    /// Shift+B toggles from Overview and Setup while lowercase b keeps its setup consent action.
+    #[test]
+    fn background_toggle_uses_shift_b_without_replacing_lowercase_b() {
+        for view in [PiScanView::Overview, PiScanView::Setup] {
+            let mut app = AppState {
+                app_mode: AppMode::PiScan,
+                ..AppState::default()
+            };
+            app.pi_scan.settings.enabled = true;
+            app.pi_scan.availability = PiScanAvailability::RuntimeConnected;
+            app.pi_scan.setup_facts_verified = true;
+            app.pi_scan.disclosure_confirmed = true;
+            app.pi_scan.runtime.consent.background_observation = true;
+            app.pi_scan.runtime.consent.paid_execution = true;
+            app.pi_scan.background_paid_execution_confirmed = true;
+            app.pi_scan.readiness = PiScanReadiness::Confirmed;
+            app.pi_scan.set_view(view);
+
+            assert!(handle_key(
+                KeyEvent::new(KeyCode::Char('B'), KeyModifiers::SHIFT),
+                &mut app,
+            ));
+            assert_eq!(
+                app.pi_scan.pending_action,
+                Some(PiScanUiAction::SetBackgroundExecution(true))
+            );
+        }
+
+        let mut setup = AppState {
+            app_mode: AppMode::PiScan,
+            ..AppState::default()
+        };
+        setup.pi_scan.setup_facts_verified = true;
+        setup.pi_scan.set_view(PiScanView::Setup);
+        assert!(handle_key(
+            KeyEvent::new(KeyCode::Char('b'), KeyModifiers::NONE),
+            &mut setup,
+        ));
+        assert!(setup.pi_scan.background_paid_execution_confirmed);
+        assert_eq!(
+            setup.pi_scan.pending_action,
+            Some(PiScanUiAction::UpdateConsent)
+        );
     }
 
     /// Escape must cancel only the isolated draft and preserve Pi Scan mode.
@@ -1023,5 +1118,93 @@ mod tests {
             &mut app,
         ));
         assert!(!app.pi_scan.is_result_expanded(1));
+    }
+
+    /// Details c opens exact confirmation even while stale acknowledgement remains pending.
+    #[test]
+    fn details_c_opens_confirmation_without_direct_continuation() {
+        let mut app = AppState {
+            app_mode: AppMode::PiScan,
+            ..AppState::default()
+        };
+        let mut result = display_result("alpha");
+        result.stale = true;
+        let binding = result.binding();
+        app.pi_scan.results.push(result);
+        app.pi_scan.set_view(PiScanView::Details);
+
+        assert!(handle_key(
+            KeyEvent::new(KeyCode::Char('c'), KeyModifiers::NONE),
+            &mut app,
+        ));
+
+        assert!(app.pi_scan.pending_action.is_none());
+        assert!(app.pi_scan.stale_acknowledgements.is_empty());
+        assert!(matches!(
+            &app.modal,
+            crate::state::Modal::ConfirmPiScanContinuation { confirmation, .. }
+                if confirmation.result_binding == binding
+                    && confirmation.package_base == "alpha"
+                    && !confirmation.finding_acknowledgement_required
+                    && confirmation.stale_acknowledgement_required
+        ));
+    }
+
+    /// Details c discloses only stale acknowledgement that is still pending for the exact binding.
+    #[test]
+    fn details_c_omits_already_recorded_acknowledgement() {
+        let mut app = AppState {
+            app_mode: AppMode::PiScan,
+            ..AppState::default()
+        };
+        let mut result = display_result("alpha");
+        result.stale = true;
+        let binding = result.binding();
+        app.pi_scan.results.push(result);
+        app.pi_scan.stale_acknowledgements.insert(binding);
+        app.pi_scan.set_view(PiScanView::Details);
+
+        assert!(handle_key(
+            KeyEvent::new(KeyCode::Char('c'), KeyModifiers::NONE),
+            &mut app,
+        ));
+        assert!(matches!(
+            &app.modal,
+            crate::state::Modal::ConfirmPiScanContinuation { confirmation, .. }
+                if !confirmation.stale_acknowledgement_required
+        ));
+    }
+
+    /// Existing Details acknowledgement, baseline, and raw-output keys retain their behavior.
+    #[test]
+    fn details_existing_action_keys_remain_available() {
+        let mut app = AppState {
+            app_mode: AppMode::PiScan,
+            ..AppState::default()
+        };
+        app.pi_scan.results.push(display_result("alpha"));
+        app.pi_scan.set_view(PiScanView::Details);
+
+        assert!(handle_key(
+            KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE),
+            &mut app,
+        ));
+        assert!(handle_key(
+            KeyEvent::new(KeyCode::Char('s'), KeyModifiers::NONE),
+            &mut app,
+        ));
+        assert!(handle_key(
+            KeyEvent::new(KeyCode::Char('b'), KeyModifiers::NONE),
+            &mut app,
+        ));
+        assert_eq!(
+            app.pi_scan.pending_action,
+            Some(PiScanUiAction::AcceptBaseline)
+        );
+        assert!(handle_key(
+            KeyEvent::new(KeyCode::Char('t'), KeyModifiers::NONE),
+            &mut app,
+        ));
+        assert!(app.pi_scan.show_raw_output);
     }
 }

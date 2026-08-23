@@ -170,4 +170,33 @@ mod tests {
         assert!(app.news_rect.is_some());
         assert!(app.news_list_rect.is_some());
     }
+
+    /// Pi Scan shutdown renders the exact closing and aborting messages.
+    #[test]
+    fn closing_pi_scan_modal_renders_requested_copy() {
+        use ratatui::{Terminal, backend::TestBackend};
+
+        let backend = TestBackend::new(80, 20);
+        let mut terminal = Terminal::new(backend).expect("test terminal");
+        let mut app = crate::state::AppState {
+            modal: crate::state::Modal::ClosingPiScan,
+            ..Default::default()
+        };
+        terminal
+            .draw(|frame| {
+                let area = frame.area();
+                super::render_modals(frame, &mut app, area);
+            })
+            .expect("closing modal render");
+
+        let rendered = terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .map(ratatui::buffer::Cell::symbol)
+            .collect::<String>();
+        assert!(rendered.contains("Closing..."));
+        assert!(rendered.contains("Aborting currently running AUR Scan..."));
+    }
 }

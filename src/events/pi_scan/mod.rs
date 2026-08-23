@@ -3,7 +3,7 @@
 mod keys;
 
 use crate::state::pi_scan_ui::PiScanNoticeSeverity;
-use crate::state::{AppState, PiScanView, Source};
+use crate::state::{AppState, PiScanView, Source, types::AppMode};
 use crossterm::event::{KeyEvent, MouseButton, MouseEvent, MouseEventKind};
 
 /// Handle one workspace key and localize legacy state-owned notice text at the event boundary.
@@ -53,6 +53,24 @@ pub fn open_from_search(app: &mut AppState) {
     }
 }
 
+/// What: Open the Pi Scan workspace without attaching stale package context.
+///
+/// Inputs:
+/// - `app`: Mutable application state.
+///
+/// Output:
+/// - Switches to Pi Scan Overview or guided Setup when prerequisites are incomplete.
+///
+/// Details:
+/// - Used by mode-independent navigation such as the Package and News Options menus.
+pub fn open_workspace(app: &mut AppState) {
+    app.pi_scan.open_context(None, false);
+    if !app.pi_scan.setup_complete() {
+        app.pi_scan.begin_setup_wizard(true);
+    }
+    app.app_mode = AppMode::PiScan;
+}
+
 /// Handle workspace tabs, list rows, and wheel scrolling.
 pub fn handle_mouse(event: MouseEvent, app: &mut AppState) -> bool {
     if let Some(wizard) = app.pi_scan.wizard.as_mut() {
@@ -81,7 +99,10 @@ pub fn handle_mouse(event: MouseEvent, app: &mut AppState) -> bool {
         MouseEventKind::Down(MouseButton::Left) => {}
         _ => return false,
     }
-    if activate_tab(event.column, event.row, app) || activate_row(event.column, event.row, app) {
+    if activate_tab(event.column, event.row, app)
+        || activate_details_continue_action(event.column, event.row, app)
+        || activate_row(event.column, event.row, app)
+    {
         return true;
     }
     false
@@ -102,6 +123,13 @@ fn activate_tab(column: u16, row: u16, app: &mut AppState) -> bool {
     };
     app.pi_scan.set_view(PiScanView::all()[index]);
     true
+}
+
+/// Activate the rendered Details continuation action through the shared keyboard transition.
+fn activate_details_continue_action(column: u16, row: u16, app: &mut AppState) -> bool {
+    app.pi_scan.view == PiScanView::Details
+        && app.pi_scan.details_continue_action_hit_test(column, row)
+        && keys::open_continuation_confirmation(app)
 }
 
 /// Select a rendered target/result row and open Details on a repeated result click.
@@ -130,5 +158,65 @@ fn activate_row(column: u16, row: u16, app: &mut AppState) -> bool {
         PiScanView::Setup | PiScanView::Overview | PiScanView::Progress | PiScanView::Details => {
             false
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::logic::pi_scan::result::{Coverage, ExpectedIdentity, MergedScanResult};
+    use crate::state::pi_scan_ui::{PiScanActionHitRect, PiScanDisplayResult};
+    use crossterm::event::KeyModifiers;
+
+    /// Build one stale result requiring confirmation for mouse routing coverage.
+    fn stale_display_result() -> PiScanDisplayResult {
+        PiScanDisplayResult {
+            validated: MergedScanResult {
+                identity: ExpectedIdentity {
+                    scan_id: "scan-alpha".to_string(),
+                    package_base: "alpha".to_string(),
+                    commit_oid: "commit".to_string(),
+                },
+                coverage: Coverage::Complete,
+                limitations: Vec::new(),
+                findings: Vec::new(),
+            },
+            observed_head_oid: "head".to_string(),
+            stale: true,
+            mutable_sources: Vec::new(),
+        }
+    }
+
+    /// Clicking the state-owned Details action uses the same exact confirmation transition as c.
+    #[test]
+    fn details_continue_action_click_opens_typed_confirmation() {
+        let mut app = AppState::default();
+        let result = stale_display_result();
+        let binding = result.binding();
+        app.pi_scan.results.push(result);
+        app.pi_scan.set_view(PiScanView::Details);
+        app.pi_scan
+            .set_details_continue_action_rect(Some(PiScanActionHitRect {
+                x: 10,
+                y: 20,
+                width: 18,
+                height: 1,
+            }));
+        let event = MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: 12,
+            row: 20,
+            modifiers: KeyModifiers::NONE,
+        };
+
+        assert!(handle_mouse(event, &mut app));
+        assert!(app.pi_scan.pending_action.is_none());
+        assert!(matches!(
+            &app.modal,
+            crate::state::Modal::ConfirmPiScanContinuation { confirmation, .. }
+                if confirmation.result_binding == binding
+                    && confirmation.package_base == "alpha"
+                    && confirmation.stale_acknowledgement_required
+        ));
     }
 }

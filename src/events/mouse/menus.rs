@@ -349,7 +349,7 @@ fn handle_sort_menu_click(
 
 /// Handle click inside options menu.
 ///
-/// What: Handles clicks on options menu items (installed-only, update, optional deps, repositories, mode toggle).
+/// What: Handles clicks on Options items, including mode-independent Pi Scan navigation.
 ///
 /// Inputs:
 /// - `mx`: Mouse X coordinate
@@ -374,7 +374,8 @@ fn handle_options_menu_click(
                 0 => handle_system_update_option(app),
                 1 => handle_optional_deps_option(app),
                 2 => handle_repositories_option(app),
-                3 => handle_mode_toggle(app, details_tx),
+                3 => crate::events::pi_scan::open_workspace(app),
+                4 => handle_mode_toggle(app, details_tx),
                 _ => return None,
             }
         } else if config_editor_mode {
@@ -401,7 +402,8 @@ fn handle_options_menu_click(
                 1 => handle_system_update_option(app),
                 2 => handle_optional_deps_option(app),
                 3 => handle_repositories_option(app),
-                4 => handle_mode_toggle(app, details_tx),
+                4 => crate::events::pi_scan::open_workspace(app),
+                5 => handle_mode_toggle(app, details_tx),
                 _ => return None,
             }
         }
@@ -1048,6 +1050,35 @@ mod tests {
             assert_eq!(name, expected_name, "Wrong name for: {input}");
             assert_eq!(old_version, expected_old, "Wrong old_version for: {input}");
             assert_eq!(new_version, expected_new, "Wrong new_version for: {input}");
+        }
+    }
+
+    /// What: Verify mouse activation opens Pi Scan from Package and News Options menus.
+    ///
+    /// Inputs:
+    /// - Clicks on Package row 4 and News row 3 inside a synthetic Options menu rectangle.
+    ///
+    /// Output:
+    /// - Both clicks switch to `AppMode::PiScan` and close the menu.
+    ///
+    /// Details:
+    /// - Keeps mouse row dispatch aligned with numbered menu dispatch and rendered order.
+    #[test]
+    fn options_menu_click_opens_pi_scan_from_package_and_news() {
+        let (details_tx, _details_rx) = mpsc::unbounded_channel();
+        for (mode, row) in [(AppMode::Package, 4_u16), (AppMode::News, 3_u16)] {
+            let mut app = crate::state::AppState {
+                app_mode: mode,
+                options_menu_open: true,
+                options_menu_rect: Some((5, 10, 40, 6)),
+                ..crate::state::AppState::default()
+            };
+
+            let handled = handle_options_menu_click(6, 10 + row, &mut app, &details_tx);
+
+            assert_eq!(handled, Some(false));
+            assert!(matches!(app.app_mode, AppMode::PiScan));
+            assert!(!app.options_menu_open);
         }
     }
 

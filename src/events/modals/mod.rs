@@ -67,6 +67,9 @@ pub(super) fn handle_modal_key(
             handlers::handle_confirm_aur_update_modal(ke, app, &modal)
         }
         Modal::ConfirmAurVote { .. } => handlers::handle_confirm_aur_vote_modal(ke, app, &modal),
+        Modal::ConfirmPiScanContinuation { .. } => {
+            handlers::handle_confirm_pi_scan_continuation_modal(ke, app, &modal)
+        }
         Modal::WarnAurRepoDuplicate { .. } => {
             handlers::handle_warn_aur_repo_duplicate_modal(ke, app, &modal)
         }
@@ -94,10 +97,10 @@ pub(super) fn handle_modal_key(
         Modal::GnomeTerminalPrompt => handlers::handle_gnome_terminal_prompt_modal(ke, app, modal),
         Modal::ImportHelp => handlers::handle_import_help_modal(ke, app, add_tx, modal),
         Modal::None => false,
-        Modal::Loading { .. } => {
-            // Loading modal - ignore key input while waiting for background task
+        Modal::Loading { .. } | Modal::ClosingPiScan => {
+            // Non-interactive status modals ignore key input while work settles.
             app.modal = modal;
-            true // Consume key to prevent propagation
+            true
         }
         Modal::Preflight { .. } => {
             // Preflight is handled separately in preflight.rs

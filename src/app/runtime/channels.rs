@@ -12,6 +12,7 @@ use crate::app::runtime::workers::aur_vote::{
 use crate::app::runtime::workers::pi_scan::{
     PiScanCancelMessage, PiScanProgressMessage, PiScanRequestMessage, PiScanResultMessage,
     PiScanRuntimeNotice, PiScanRuntimeOptions, PiScanSessionRegistration, PiScanShutdownMessage,
+    PiScanUserPauseMessage,
 };
 use crate::app::runtime::workers::pi_scan_setup::{
     PiScanRollbackReport, PiScanRuntimeTransfer, PiScanSetupEvent, PiScanSetupRequest,
@@ -198,6 +199,8 @@ pub struct Channels {
     pub query_tx: mpsc::UnboundedSender<QueryInput>,
     /// Sender for typed Pi scan queue and policy requests.
     pub(crate) pi_scan_request_tx: mpsc::UnboundedSender<PiScanRequestMessage>,
+    /// Sender for user pause controls isolated from potentially blocking requests.
+    pub(crate) pi_scan_user_pause_tx: mpsc::UnboundedSender<PiScanUserPauseMessage>,
     /// Sender for exact correlated Pi scan cancellation.
     pub(crate) pi_scan_cancel_tx: mpsc::UnboundedSender<PiScanCancelMessage>,
     /// Sender used by deferred execution to register a correlated WS2 process target.
@@ -834,6 +837,7 @@ impl Channels {
             post_summary_res_rx: utility_channels.post_summary_res_rx,
             query_tx: search_channels.query_tx,
             pi_scan_request_tx: pi_scan_channels.request_tx,
+            pi_scan_user_pause_tx: pi_scan_channels.user_pause_tx,
             pi_scan_cancel_tx: pi_scan_channels.cancel_tx,
             pi_scan_session_tx: pi_scan_channels.session_tx,
             pi_scan_shutdown_tx: pi_scan_channels.shutdown_tx,

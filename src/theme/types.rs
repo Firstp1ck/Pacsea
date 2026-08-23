@@ -124,6 +124,31 @@ impl Default for PiScanSettings {
 }
 
 impl PiScanSettings {
+    /// What: Persist the unattended Pi execution preference through one atomic settings replacement.
+    ///
+    /// Inputs:
+    /// - `enabled`: Exact durable operational preference.
+    ///
+    /// Output:
+    /// - Success after atomic replacement, or actionable config-write text.
+    ///
+    /// Details:
+    /// - Unrelated settings and comments are preserved by the shared private-file patcher.
+    pub(crate) fn persist_background_enabled_atomic(enabled: bool) -> Result<(), String> {
+        let value = enabled.to_string();
+        crate::theme::config::patch::patch_settings_keys_atomic(
+            &[crate::theme::config::patch::SettingsPatch {
+                key: "pi_scan_background_enabled",
+                value: &value,
+            }],
+            false,
+        )
+        .map(|_| ())
+        .map_err(|error| {
+            format!("could not persist the Pi background scan preference atomically: {error}")
+        })
+    }
+
     /// What: Persist all three Pi Scan budget values in one settings-file transaction.
     ///
     /// Inputs:

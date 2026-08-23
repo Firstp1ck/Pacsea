@@ -507,6 +507,18 @@ impl PiScanSetupWizardState {
         let (provider, model) = &facts.routes[index];
         self.candidate.provider.clone_from(provider);
         self.candidate.model.clone_from(model);
+        let primary = format!("{provider}/{model}");
+        self.candidate.fallback_models = self
+            .candidate
+            .fallback_models
+            .split(',')
+            .map(str::trim)
+            .filter(|fallback| !fallback.is_empty() && *fallback != primary)
+            .collect::<Vec<_>>()
+            .join(",");
+        if self.candidate.fallback_models.is_empty() {
+            self.confirmations.fallback_confirmed = false;
+        }
         self.invalidate_review();
     }
 
@@ -549,7 +561,7 @@ impl PiScanSetupWizardState {
                 self.candidate.background_enabled = enabled;
                 self.candidate_consent.paid_execution = enabled;
             }
-            (PiScanSetupStep::OptionalBehavior, 2) => self.toggle_fallback(),
+            (PiScanSetupStep::OptionalBehavior, 2) => self.cycle_fallback(true),
             _ => return,
         }
         self.invalidate_review();
@@ -560,6 +572,7 @@ impl PiScanSetupWizardState {
         match (self.step, self.focus) {
             (PiScanSetupStep::Route, 0) => self.cycle_route(increase),
             (PiScanSetupStep::Route, 1) => self.cycle_thinking(increase),
+            (PiScanSetupStep::OptionalBehavior, 2) => self.cycle_fallback(increase),
             (PiScanSetupStep::OptionalBehavior, 3) => {
                 self.candidate.background_starts_per_hour = adjust_u32(
                     self.candidate.background_starts_per_hour,
@@ -760,22 +773,53 @@ impl PiScanSetupWizardState {
             .map(|rect| rect.target)
     }
 
-    /// Toggle a conservative single exact fallback route.
-    fn toggle_fallback(&mut self) {
-        if !self.candidate.fallback_models.trim().is_empty() {
+    /// What: Cycle Off and every verified route other than the active primary.
+    ///
+    /// Inputs:
+    /// - `forward`: Select the next choice when true, otherwise the previous choice.
+    ///
+    /// Output:
+    /// - Replaces the single wizard-managed fallback and its confirmation state.
+    ///
+    /// Details:
+    /// - Manually configured multi-route fallbacks remain untouched until the user operates this
+    ///   selector. The first operation then enters the verified single-route choice cycle.
+    fn cycle_fallback(&mut self, forward: bool) {
+        let Some(facts) = &self.verified else {
+            return;
+        };
+        let choices = facts
+            .routes
+            .iter()
+            .filter(|(provider, model)| {
+                provider != &self.candidate.provider || model != &self.candidate.model
+            })
+            .map(|(provider, model)| format!("{provider}/{model}"))
+            .collect::<Vec<_>>();
+        if choices.is_empty() {
             self.candidate.fallback_models.clear();
             self.confirmations.fallback_confirmed = false;
             return;
         }
-        let Some(route) = self.verified.as_ref().and_then(|facts| {
-            facts.routes.iter().find(|(provider, model)| {
-                provider != &self.candidate.provider || model != &self.candidate.model
-            })
-        }) else {
-            return;
+        let current = choices
+            .iter()
+            .position(|route| route == self.candidate.fallback_models.trim())
+            .map_or(0, |index| index + 1);
+        let count = choices.len() + 1;
+        let selected = if forward {
+            (current + 1) % count
+        } else {
+            current.checked_sub(1).unwrap_or(count - 1)
         };
-        self.candidate.fallback_models = format!("{}/{}", route.0, route.1);
-        self.confirmations.fallback_confirmed = true;
+        if selected == 0 {
+            self.candidate.fallback_models.clear();
+            self.confirmations.fallback_confirmed = false;
+        } else {
+            self.candidate
+                .fallback_models
+                .clone_from(&choices[selected - 1]);
+            self.confirmations.fallback_confirmed = true;
+        }
     }
 
     /// Queue inert candidate validation before exposing Review.
@@ -1053,6 +1097,47 @@ mod tests {
         wizard.candidate.model = "model-a".to_string();
         wizard.candidate.fallback_models = "provider-b/model-b".to_string();
         assert_eq!(wizard.reviewed_reservation().cost_microusd, 500);
+    }
+
+    /// The fallback selector must expose every verified route except the active primary.
+    #[test]
+    fn fallback_selector_cycles_every_non_primary_route_and_off() {
+        let mut wizard = PiScanSetupWizardState::open(
+            PiScanSettings::default(),
+            PiScanConsentState::default(),
+            true,
+        );
+        let mut verified = facts();
+        verified.routes.extend([
+            ("provider-c".to_string(), "model-c".to_string()),
+            ("provider-d".to_string(), "model-d".to_string()),
+        ]);
+        wizard.verified = Some(verified);
+        wizard.candidate.provider = "provider-a".to_string();
+        wizard.candidate.model = "model-a".to_string();
+        wizard.step = PiScanSetupStep::OptionalBehavior;
+        wizard.focus = 2;
+
+        for expected in [
+            "provider-b/model-b",
+            "provider-c/model-c",
+            "provider-d/model-d",
+            "",
+        ] {
+            wizard.toggle_focused();
+            assert_eq!(wizard.candidate.fallback_models, expected);
+            assert_eq!(
+                wizard.confirmations.fallback_confirmed,
+                !expected.is_empty()
+            );
+        }
+
+        wizard.adjust_focused(false);
+        assert_eq!(wizard.candidate.fallback_models, "provider-d/model-d");
+        wizard.cycle_route(false);
+        assert_eq!(wizard.candidate.model, "model-d");
+        assert!(wizard.candidate.fallback_models.is_empty());
+        assert!(!wizard.confirmations.fallback_confirmed);
     }
 
     /// Dry-run must never queue a probe, validation, or Apply action.

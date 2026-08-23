@@ -51,7 +51,11 @@ use std::fmt;
 use std::io::Read;
 use std::net::IpAddr;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+/// Counter used to keep same-process acquisition workspace names distinct.
+static ACQUISITION_WORKSPACE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 /// Maximum compressed bytes accepted for one declared source.
 pub const MAX_SOURCE_BYTES: u64 = 100 * 1024 * 1024;
@@ -1716,10 +1720,8 @@ fn acquire_package_inner(
     }
     let limits = request.limits.clamped();
     let package_base = resolve_package_base(&request.package_name, &request.rpc)?;
-    let workspace = EphemeralWorkspace::create(
-        parent,
-        &format!("pacsea-scan-{}", sanitized_run_name(&request.scan_id)),
-    )?;
+    let workspace =
+        EphemeralWorkspace::create(parent, &acquisition_workspace_name(&request.scan_id))?;
     let mut seams = Seams {
         git_executable: executable,
         https_proxy,
@@ -1758,7 +1760,30 @@ fn acquire_package_inner(
     })
 }
 
-/// Derive a filesystem-safe unique run directory name from the scan id.
+/// What: Build a fresh fail-closed workspace name for one acquisition attempt.
+///
+/// Inputs:
+/// - `scan_id`: Stable logical scan identity used only as a recognizable safe prefix.
+///
+/// Output:
+/// - A collision-resistant leaf name scoped to this process and attempt.
+///
+/// Details:
+/// - A process id, wall-clock nonce, and monotonic sequence prevent retries from reusing a
+///   workspace left by an aborted attempt. Atomic directory creation still rejects a collision.
+fn acquisition_workspace_name(scan_id: &str) -> String {
+    let sequence = ACQUISITION_WORKSPACE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |duration| duration.as_nanos());
+    format!(
+        "pacsea-scan-{}-{}-{nonce}-{sequence}",
+        sanitized_run_name(scan_id),
+        std::process::id()
+    )
+}
+
+/// Derive a filesystem-safe run-name component from the scan id.
 fn sanitized_run_name(scan_id: &str) -> String {
     let filtered: String = scan_id
         .chars()

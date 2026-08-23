@@ -532,7 +532,7 @@ fn optional_lines(app: &AppState, wizard: &PiScanSetupWizardState) -> Vec<Line<'
             wizard,
             2,
             format!(
-                "[Space] {}: {fallback}",
+                "← {}: {fallback} →",
                 crate::i18n::t(app, "app.pi_scan.wizard.optional.fallback")
             ),
         ),

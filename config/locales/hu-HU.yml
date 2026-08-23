@@ -82,6 +82,11 @@ hu-HU:
         queued: "{} queued" # TODO: translate to Hungarian
         running: "Pi Scan: running" # TODO: translate to Hungarian
         new_results: "Pi Scan: {} new results" # TODO: translate to Hungarian
+        background_on: "Pi BG: ON" # TODO: translate to Hungarian
+        background_off: "Pi BG: OFF" # TODO: translate to Hungarian
+        background_finishing: "Pi BG: OFF · finishing" # TODO: translate to Hungarian
+        background_setup: "Pi BG: SETUP" # TODO: translate to Hungarian
+        background_pending: "Pi BG: …" # TODO: translate to Hungarian
       common:
         confirmed: "confirmed" # TODO: translate to Hungarian
         not_confirmed: "not confirmed" # TODO: translate to Hungarian
@@ -93,6 +98,10 @@ hu-HU:
         unlimited: "Korlátlan"
         package_base: "package base" # TODO: translate to Hungarian
         commit: "commit" # TODO: translate to Hungarian
+      background_toggle:
+        label: "Background scans" # TODO: translate to Hungarian
+        on: "On" # TODO: translate to Hungarian
+        off: "Off" # TODO: translate to Hungarian
       coverage:
         complete: "complete" # TODO: translate to Hungarian
         incomplete: "incomplete" # TODO: translate to Hungarian
@@ -333,6 +342,7 @@ hu-HU:
         paused: "Paused" # TODO: translate to Hungarian
         current_step: "Current step" # TODO: translate to Hungarian
         working: "Scan in progress" # TODO: translate to Hungarian
+        cancelling: "Cancelling active scan" # TODO: translate to Hungarian
         phase:
           preparing: "Preparing the frozen scan target" # TODO: translate to Hungarian
           resolving_metadata: "Resolving current AUR metadata" # TODO: translate to Hungarian
@@ -412,27 +422,54 @@ hu-HU:
         stale: "Stale identity" # TODO: translate to Hungarian
         acknowledged: "Continuation acknowledgement satisfied" # TODO: translate to Hungarian
         selected_guidance: "Acknowledgement and continuation actions apply to this selected package." # TODO: translate to Hungarian
-        ack_keys: "a acknowledges high/critical findings · s acknowledges stale identity · c continues · b accepts baseline · t toggles canonical raw data. All are bound to this exact result." # TODO: translate to Hungarian
+        ack_keys: "a acknowledges high/critical findings · s acknowledges stale identity · c opens Review & continue · b accepts baseline · t toggles canonical raw data. All are bound to this exact result." # TODO: translate to Hungarian
         raw: "Canonical validated-data view:" # TODO: translate to Hungarian
+      continuation:
+        action: "Review & continue" # TODO: translate to Hungarian
+        title: "Review & continue" # TODO: translate to Hungarian
+        package: "Package" # TODO: translate to Hungarian
+        acknowledgements: "Confirming will record:" # TODO: translate to Hungarian
+        ack_findings: "I reviewed the high/critical findings for this exact scan result." # TODO: translate to Hungarian
+        ack_stale: "I accept that this scan result uses an older package identity." # TODO: translate to Hungarian
+        ack_none: "No additional risk acknowledgement is required." # TODO: translate to Hungarian
+        next_steps: "Next process steps" # TODO: translate to Hungarian
+        step_recheck: "1. Pacsea rechecks the current AUR HEAD and all mutable-source identities." # TODO: translate to Hungarian
+        step_stop: "2. If any identity changed, continuation stops so you can review or rescan." # TODO: translate to Hungarian
+        step_return: "3. If identities match, the package returns to the normal install/update list." # TODO: translate to Hungarian
+        step_preflight: "4. Normal preflight and user confirmation still apply; this action installs nothing." # TODO: translate to Hungarian
+        keys: "j/k or PgUp/PgDn Scroll · Enter/y Confirm · Esc/q/n Cancel" # TODO: translate to Hungarian
+        open_requires_result: "Select a Pi Scan result before opening Review & continue." # TODO: translate to Hungarian
+        result_missing: "The Pi Scan result is no longer available. Select the current result and open Review & continue again." # TODO: translate to Hungarian
+        result_changed: "The Pi Scan result changed while confirmation was open. Review the current result and open Review & continue again." # TODO: translate to Hungarian
       footer:
         title: "Status / Help" # TODO: translate to Hungarian
         notice: "Pi Scan is advisory; configured runtime actions may use the network, call the selected model, and persist scanner state." # TODO: translate to Hungarian
         background: "background" # TODO: translate to Hungarian
         keys:
-          setup: "r Guided setup · v Verify · c/o/p/b/f/w consent · PgUp/PgDn · g/G · Esc Package · ? Help" # TODO: translate to Hungarian
-          overview: "b Keret · PgUp/PgDn görgetés · g/G eleje/vége · Esc csomag · ? súgó"
+          setup: "Shift+B Background scans · r Guided setup · v Verify · c/o/p/b/f/w consent · PgUp/PgDn · g/G · Esc Package · ? Help" # TODO: translate to Hungarian
+          overview: "Shift+B Background scans · b Budget · PgUp/PgDn scroll · g/G top/bottom · Esc Package · ? Help" # TODO: translate to Hungarian
           targets: "j/k move · PgUp/PgDn · g/G · Space select · Enter queue · Esc Package · ? Help" # TODO: translate to Hungarian
           progress: "p Szünet · u Folytatás · x Megszakítás · r Újra · b Keret · PgUp/PgDn · g/G · Esc csomag · ? súgó"
           results: "j/k move · PgUp/PgDn · g/G · Enter Details · Esc Package · ? Help" # TODO: translate to Hungarian
-          details: "j/k csomagválasztás · PgUp/PgDn görgetés · Enter/szóköz kibontás · g/G eleje/vége · a/s jóváhagyás · c folytatás · b alapérték · t nyers adat · Esc csomag · ? súgó" # TODO: translate to Hungarian
+          details: "j/k csomagválasztás · PgUp/PgDn görgetés · Enter/szóköz kibontás · g/G eleje/vége · a/s jóváhagyás · c Review & continue · b alapérték · t nyers adat · Esc csomag · ? súgó" # TODO: translate to Hungarian
       notices:
         session_only: "Consent preference updated; the runtime applies persisted consent before eligible work starts." # TODO: translate to Hungarian
+        background_setup_required: "Complete guided setup and each required consent before enabling background scans." # TODO: translate to Hungarian
+        background_enabled: "Background scans are enabled." # TODO: translate to Hungarian
+        background_disabled: "Background scans are disabled; an active background scan may finish." # TODO: translate to Hungarian
+        background_enable_preview: "Dry-run preview: background scans would be enabled; no setting or runtime policy changed." # TODO: translate to Hungarian
+        background_disable_preview: "Dry-run preview: background scans would be disabled; no setting or runtime policy changed." # TODO: translate to Hungarian
+        background_needs_setup: "Background scans need guided setup: {}" # TODO: translate to Hungarian
+        background_channel_closed: "The Pi Scan runtime closed the background-setting acknowledgement channel; retry the toggle." # TODO: translate to Hungarian
+        background_disable_failed: "Background scans are off for this session, but saving failed and restart may restore the previous setting: {}" # TODO: translate to Hungarian
+        background_toggle_failed: "The background scan setting could not be changed: {}" # TODO: translate to Hungarian
         non_aur_entry: "Pi Scan analyzes AUR packages; select an AUR result in Search and press Shift+A to add a target." # TODO: translate to Hungarian
         settings_changed_reload: "A Pi Scan beállításai megváltoztak az újratöltés során; az irányított beállítás bezárult, hogy áttekinthesse az új értékeket."
         budget_reload_requires_restart: "A Pi Scan költségkeret-beállításai az élő futtatókörnyezeten kívül változtak. A csatlakoztatott futtatókörnyezet megtartja a jelenlegi korlátokat; indítsa újra a Pacsea alkalmazást a szerkesztett értékek alkalmazásához, vagy használja a b billentyűt egy költségkeret miatt szüneteltetett Áttekintés/Folyamat oldalon a közvetlen élő módosításhoz."
         select_result_continue: "Folytatás előtt válasszon ki egy ellenőrzött Pi Scan-eredményt."
         select_result_baseline: "Az alapérték elfogadása előtt válasszon ki egy ellenőrzött Pi Scan-eredményt."
         no_active_cancel: "No active Pi scan to cancel." # TODO: translate to Hungarian
+        cancel_requested: "Cancelling active scan…" # TODO: translate to Hungarian
         verifying_setup: "Verifying exact Pi version, route pricing, and provenance before consent…" # TODO: translate to Hungarian
         review_setup_facts: "Review the verified Pi version and exact pricing facts, then press the consent key again." # TODO: translate to Hungarian
         setup_still_resolving: "A previous Pi Scan setup Apply is still resolving; wait for rollback or completion." # TODO: translate to Hungarian
@@ -769,6 +806,7 @@ hu-HU:
         news_age_all: "Az elmúlt összes nap hírei"
         tui_optional_deps: "A PacSea nem kötelező függőségei"
         repositories: "Tárolók"
+        open_pi_scan_workspace: "Open Pi Scan Workspace" # TODO: translate to Hungarian
     news:
       filters:
         arch: "Arch"
@@ -956,7 +994,7 @@ hu-HU:
           - "  • Áttekintés/Folyamat: b módosítja a jelenleg túllépett kereteket Duplázás vagy Korlátlan értékkel"
           - "  • Progress: p pause · u resume · x cancel · r retry" # TODO: translate to Hungarian
           - "  • Results: Enter opens Details" # TODO: translate to Hungarian
-          - "  • Details: a/s acknowledge · c continue · b baseline · t raw-data toggle" # TODO: translate to Hungarian
+          - "  • Details: a/s acknowledge · c opens Review & continue · b baseline · t raw-data toggle" # TODO: translate to Hungarian
           - "  • Wizard: Tab/BackTab focus · Enter/Space activate · ←/→ adjust · PgUp/PgDn scroll" # TODO: translate to Hungarian
           - "  • Wizard: n Next · b Back · a Apply · r Retry · Esc Cancel/leave" # TODO: translate to Hungarian
         mouse_lines:

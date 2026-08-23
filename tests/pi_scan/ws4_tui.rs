@@ -617,7 +617,7 @@ fn details_raw_output_starts_collapsed_and_toggle_is_session_only() {
 
     assert!(app.pi_scan.show_raw_output);
     assert!(app.pi_scan.settings.show_raw_output);
-    let shown = render_text(&mut app, 120, 40);
+    let shown = render_text(&mut app, 120, 42);
     assert!(shown.contains("visible · t to hide"), "{shown:?}");
     assert!(shown.contains("\"scan_id\""), "{shown:?}");
 }
@@ -652,6 +652,125 @@ fn details_render_package_headers_and_collapsed_content() {
     assert!(second_expanded.contains("▾ second"));
     assert!(!second_expanded.contains("evidence first line 0"));
     assert!(second_expanded.contains("evidence second line 0"));
+}
+
+/// Details keep the primary continuation action visible and mouse-accessible at narrow widths.
+#[test]
+fn details_continue_action_is_fixed_clickable_and_narrow() {
+    let mut app = AppState {
+        app_mode: AppMode::PiScan,
+        ..AppState::default()
+    };
+    load_english(&mut app);
+    app.pi_scan.results.push(display_result("clickable", 0));
+    app.pi_scan.set_view(PiScanView::Details);
+    assert!(app.pi_scan.toggle_result_expansion(0));
+
+    let buffer = render_buffer(&mut app, 26, 12);
+    let rendered = buffer
+        .content
+        .iter()
+        .map(ratatui::buffer::Cell::symbol)
+        .collect::<String>();
+    assert!(rendered.contains("[c] Review & continue"), "{rendered:?}");
+    let rect = app
+        .pi_scan
+        .details_continue_action_rect
+        .expect("rendered continuation action rectangle");
+    assert!(rect.width > 0);
+    assert!(rect.x.saturating_add(rect.width) <= buffer.area.right());
+    assert!(rect.y < buffer.area.bottom());
+
+    assert!(pacsea::events::pi_scan::handle_mouse(
+        MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: rect.x,
+            row: rect.y,
+            modifiers: KeyModifiers::NONE,
+        },
+        &mut app,
+    ));
+    assert!(matches!(
+        &app.modal,
+        pacsea::state::Modal::ConfirmPiScanContinuation { confirmation, .. }
+            if confirmation.package_base == "clickable"
+    ));
+    assert!(app.pi_scan.pending_action.is_none());
+}
+
+/// The continuation popup discloses exact acknowledgements and every guarded next step.
+#[test]
+fn continuation_popup_renders_steps_and_conditional_acknowledgements() {
+    let mut app = AppState {
+        app_mode: AppMode::PiScan,
+        ..AppState::default()
+    };
+    load_english(&mut app);
+    app.modal = pacsea::state::Modal::ConfirmPiScanContinuation {
+        confirmation: pacsea::state::modal::PiScanContinuationConfirmation {
+            result_binding: "binding".to_string(),
+            package_base: "aur-demo".to_string(),
+            finding_acknowledgement_required: true,
+            stale_acknowledgement_required: true,
+        },
+        scroll: 0,
+    };
+
+    let rendered = render_text(&mut app, 100, 28);
+    for expected in [
+        "Review & continue",
+        "Package: aur-demo",
+        "I reviewed the high/critical findings for this exact scan result.",
+        "I accept that this scan result uses an older package identity.",
+        "Pacsea rechecks the current AUR HEAD and all mutable-source identities.",
+        "If any identity changed, continuation stops so you can review or rescan.",
+        "the package returns to the normal install/update list.",
+        "Normal preflight and user confirmation still apply; this action installs nothing.",
+        "j/k or PgUp/PgDn Scroll · Enter/y Confirm · Esc/q/n Cancel",
+    ] {
+        assert!(
+            rendered.contains(expected),
+            "missing {expected:?}: {rendered:?}"
+        );
+    }
+
+    app.modal = pacsea::state::Modal::ConfirmPiScanContinuation {
+        confirmation: pacsea::state::modal::PiScanContinuationConfirmation {
+            result_binding: "binding".to_string(),
+            package_base: "aur-demo".to_string(),
+            finding_acknowledgement_required: false,
+            stale_acknowledgement_required: false,
+        },
+        scroll: 0,
+    };
+    let no_acknowledgements = render_text(&mut app, 100, 28);
+    assert!(
+        no_acknowledgements.contains("No additional risk acknowledgement is required."),
+        "{no_acknowledgements:?}"
+    );
+    assert!(
+        !no_acknowledgements.contains("I reviewed the high/critical findings"),
+        "{no_acknowledgements:?}"
+    );
+    let mut narrow_reachable = String::new();
+    for offset in [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48] {
+        if let pacsea::state::Modal::ConfirmPiScanContinuation { scroll, .. } = &mut app.modal {
+            *scroll = offset;
+        }
+        narrow_reachable.push_str(&render_text(&mut app, 20, 10));
+    }
+    for expected in [
+        "Package:",
+        "Pacsea",
+        "continuation",
+        "install/update",
+        "Enter/y",
+    ] {
+        assert!(
+            narrow_reachable.contains(expected),
+            "narrow popup never exposed {expected:?}: {narrow_reachable:?}"
+        );
+    }
 }
 
 /// Expanded Details use readable sections and keep exact scanner messages hidden by default.
@@ -913,11 +1032,6 @@ fn acknowledgements_are_separate_and_bound_to_validated_result() {
     app.pi_scan.view = PiScanView::Details;
     assert!(!app.pi_scan.selected_result_acknowledged());
     pacsea::events::pi_scan::handle_key(
-        KeyEvent::new(KeyCode::Char('c'), KeyModifiers::NONE),
-        &mut app,
-    );
-    assert!(app.pi_scan.pending_action.is_none());
-    pacsea::events::pi_scan::handle_key(
         KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE),
         &mut app,
     );
@@ -931,6 +1045,24 @@ fn acknowledgements_are_separate_and_bound_to_validated_result() {
         KeyEvent::new(KeyCode::Char('c'), KeyModifiers::NONE),
         &mut app,
     );
+    assert!(app.pi_scan.pending_action.is_none());
+    assert!(matches!(
+        app.modal,
+        pacsea::state::Modal::ConfirmPiScanContinuation { .. }
+    ));
+
+    let channels = event_channels();
+    assert!(!pacsea::events::handle_event(
+        &Event::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+        &mut app,
+        &channels.0,
+        &channels.1,
+        &channels.2,
+        &channels.3,
+        &channels.4,
+        &channels.5,
+        &channels.6,
+    ));
     assert_eq!(
         app.pi_scan.pending_action,
         Some(PiScanUiAction::ContinueSelected)
@@ -986,6 +1118,22 @@ fn all_locales_include_pi_scan_workspace_translations() {
             "app.pi_scan.results.completion.one_finding",
             "app.pi_scan.results.completion.many_findings",
             "app.pi_scan.details.ack_keys",
+            "app.pi_scan.continuation.action",
+            "app.pi_scan.continuation.title",
+            "app.pi_scan.continuation.package",
+            "app.pi_scan.continuation.acknowledgements",
+            "app.pi_scan.continuation.ack_findings",
+            "app.pi_scan.continuation.ack_stale",
+            "app.pi_scan.continuation.ack_none",
+            "app.pi_scan.continuation.next_steps",
+            "app.pi_scan.continuation.step_recheck",
+            "app.pi_scan.continuation.step_stop",
+            "app.pi_scan.continuation.step_return",
+            "app.pi_scan.continuation.step_preflight",
+            "app.pi_scan.continuation.keys",
+            "app.pi_scan.continuation.open_requires_result",
+            "app.pi_scan.continuation.result_missing",
+            "app.pi_scan.continuation.result_changed",
             "app.pi_scan.budget_dialog.title",
             "app.pi_scan.budget_dialog.unlimited_warning",
             "app.pi_scan.notices.budget_applied_residual",
@@ -997,6 +1145,7 @@ fn all_locales_include_pi_scan_workspace_translations() {
             "app.pi_scan.top_bar.new_results",
             "app.pi_scan.notices.runtime_disconnected",
             "app.pi_scan.notices.non_aur_entry",
+            "app.results.options_menu.open_pi_scan_workspace",
             "app.pi_scan.notices.settings_changed_reload",
             "app.pi_scan.notices.select_result_continue",
             "app.pi_scan.notices.select_result_baseline",
@@ -1048,6 +1197,10 @@ fn pi_scan_help_renders_workspace_wizard_and_configured_chord() {
     let rendered = render_text(&mut app, 120, 60);
 
     assert!(rendered.contains("Pi Scan workspace"), "{rendered:?}");
+    assert!(
+        rendered.contains("c opens Review & continue"),
+        "{rendered:?}"
+    );
     assert!(rendered.contains("Overview/Progress: b adjusts currently exceeded budgets"));
     assert!(rendered.contains("Progress: p pause · u resume · x cancel · r retry"));
     assert!(rendered.contains("Wizard:"));
