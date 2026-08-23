@@ -1474,13 +1474,22 @@ fn dispatch_pi_scan_ui_action(app: &mut AppState, channels: &Channels) {
             .pi_scan_request_tx
             .send(crate::app::runtime::workers::pi_scan::PiScanRequestMessage::SetUserPaused(false))
             .map_err(|error| error.to_string()),
-        PiScanUiAction::Cancel(correlation_id) => channels
-            .pi_scan_cancel_tx
-            .send(crate::app::runtime::workers::pi_scan::PiScanCancelMessage {
-                correlation_id,
-                requested_at_unix: pi_scan_unix_now(),
-            })
-            .map_err(|error| error.to_string()),
+        PiScanUiAction::Cancel(correlation_id) => {
+            let sent = channels
+                .pi_scan_cancel_tx
+                .send(crate::app::runtime::workers::pi_scan::PiScanCancelMessage {
+                    correlation_id,
+                    requested_at_unix: pi_scan_unix_now(),
+                })
+                .map_err(|error| error.to_string());
+            if sent.is_ok()
+                && let Some(active) = app.pi_scan.runtime.active.as_mut()
+                && active.correlation_id == correlation_id
+            {
+                active.cancellation_suppressed = true;
+            }
+            sent
+        }
         PiScanUiAction::AdjustBudgets(adjustment) => {
             dispatch_pi_scan_budget_adjustment(app, channels, adjustment)
         }
@@ -2283,7 +2292,8 @@ fn apply_pi_scan_result(
                 crate::state::pi_scan_ui::PiScanNoticeSeverity::Success,
             );
         }
-        PiScanResultMessage::Validated(receipt) => {
+        PiScanResultMessage::Validated { receipt, record } => {
+            apply_pi_scan_completed_record(app, record);
             let receipt = *receipt;
             let package_base = receipt.result.identity.package_base.clone();
             set_pi_scan_target_identity_status(
@@ -2292,8 +2302,6 @@ fn apply_pi_scan_result(
                 receipt.result.identity.commit_oid.as_str(),
                 crate::state::PiScanTargetStatus::Completed,
             );
-            app.pi_scan.runtime.active = None;
-            app.pi_scan.active_progress = None;
             let display = crate::state::PiScanDisplayResult {
                 validated: receipt.result,
                 observed_head_oid: receipt.observed_head_oid.as_str().to_string(),
@@ -2355,14 +2363,7 @@ fn apply_pi_scan_result(
             }
         }
         PiScanResultMessage::Completed(record) => {
-            set_pi_scan_target_key_status(
-                app,
-                &record.request.key,
-                crate::state::PiScanTargetStatus::Completed,
-            );
-            app.pi_scan.runtime.active = None;
-            app.pi_scan.active_progress = None;
-            app.pi_scan.runtime.terminal.push(record);
+            apply_pi_scan_completed_record(app, record);
         }
         PiScanResultMessage::Cancelled { record, warning } => {
             apply_pi_scan_cancelled(app, record, warning);
@@ -2391,6 +2392,59 @@ fn apply_pi_scan_result(
         }
     }
     app.pi_scan.clamp_selection();
+}
+
+/// What: Project one exact successful terminal record into live progress.
+///
+/// Inputs:
+/// - `app`: Mutable application state.
+/// - `record`: Exact persisted completion record.
+///
+/// Output:
+/// - Records one completed outcome and clears only its matching active projection.
+///
+/// Details:
+/// - Correlation, request, and queue identity guards prevent a late result from clearing the next
+///   package after cross-channel scheduling. Duplicate delivery cannot increment progress twice.
+fn apply_pi_scan_completed_record(
+    app: &mut AppState,
+    record: crate::state::pi_scan::PiScanTerminalRecord,
+) {
+    if record.status != crate::state::pi_scan::PiScanTerminalStatus::Completed {
+        tracing::warn!(
+            correlation_id = record.correlation_id,
+            "Pi scan completion message carried a non-completed terminal status"
+        );
+        return;
+    }
+    set_pi_scan_target_key_status(
+        app,
+        &record.request.key,
+        crate::state::PiScanTargetStatus::Completed,
+    );
+    let matches_active = app.pi_scan.runtime.active.as_ref().is_some_and(|active| {
+        active.correlation_id == record.correlation_id
+            && active.request.request_id == record.request.request_id
+            && active.request.key == record.request.key
+    });
+    if matches_active {
+        app.pi_scan.runtime.active = None;
+        if app
+            .pi_scan
+            .active_progress
+            .is_some_and(|progress| progress.correlation_id == record.correlation_id)
+        {
+            app.pi_scan.active_progress = None;
+        }
+    }
+    let already_recorded = app.pi_scan.runtime.terminal.iter().any(|existing| {
+        existing.correlation_id == record.correlation_id
+            && existing.request.request_id == record.request.request_id
+            && existing.request.key == record.request.key
+    });
+    if !already_recorded {
+        app.pi_scan.runtime.terminal.push(record);
+    }
 }
 
 /// What: Project an exact cancellation or shutdown interruption into live UI state.
@@ -3203,6 +3257,7 @@ mod tests {
     use super::handle_updates_list;
     use super::install_pi_scan_owner;
     use super::poll_pi_scan_budget_acknowledgement;
+    use super::process_channel_messages;
     use super::project_pi_scan_rollback_report;
     use crate::app::runtime::background::Channels;
     use crate::app::runtime::workers::UpdateCheckPayload;
@@ -3912,20 +3967,96 @@ mod tests {
     }
 
     #[tokio::test]
-    /// A unique validated result must announce completion and increment unseen state once.
-    async fn pi_scan_validated_inserts_announces_and_increments_unseen_once() {
+    /// A successful production result must advance progress and increment unseen state once.
+    async fn pi_scan_success_advances_progress_and_inserts_validated_result_once() {
         let mut app = AppState::default();
         app.pi_scan.view = crate::state::PiScanView::Progress;
+        let request = pi_scan_request("validated-demo", 'a');
+        app.pi_scan.runtime.active = Some(crate::state::pi_scan::PiScanActiveItem {
+            correlation_id: 19,
+            request: request.clone(),
+            started_at_unix: 1,
+            cancellation_suppressed: false,
+        });
         let channels =
             Channels::new(std::path::PathBuf::from("/tmp")).expect("channels should construct");
-        let message = crate::app::runtime::workers::pi_scan::PiScanResultMessage::Validated(
-            Box::new(pi_scan_receipt("validated-demo")),
-        );
+        let message = crate::app::runtime::workers::pi_scan::PiScanResultMessage::Validated {
+            receipt: Box::new(pi_scan_receipt("validated-demo")),
+            record: crate::state::pi_scan::PiScanTerminalRecord {
+                request,
+                correlation_id: 19,
+                status: crate::state::pi_scan::PiScanTerminalStatus::Completed,
+                finished_at_unix: 2,
+            },
+        };
 
         apply_pi_scan_result(&mut app, &channels, message.clone());
         apply_pi_scan_result(&mut app, &channels, message);
 
         assert_eq!(app.pi_scan.results.len(), 1);
+        assert_eq!(app.pi_scan.runtime.terminal.len(), 1);
+        assert_eq!(app.pi_scan.unseen_result_count, 1);
+        assert!(app.pi_scan.notices.foreground.is_some());
+    }
+
+    #[tokio::test]
+    /// A late successful result must not clear the next package's active projection.
+    async fn pi_scan_late_success_preserves_next_active_package() {
+        let mut app = AppState::default();
+        let next_request = pi_scan_request("next-demo", 'b');
+        app.pi_scan.runtime.active = Some(crate::state::pi_scan::PiScanActiveItem {
+            correlation_id: 20,
+            request: next_request.clone(),
+            started_at_unix: 3,
+            cancellation_suppressed: false,
+        });
+        app.pi_scan.active_progress = Some(crate::state::PiScanExecutionProgress {
+            correlation_id: 20,
+            phase: crate::state::PiScanExecutionPhase::RunningModel,
+        });
+        let channels =
+            Channels::new(std::path::PathBuf::from("/tmp")).expect("channels should construct");
+
+        apply_pi_scan_result(
+            &mut app,
+            &channels,
+            crate::app::runtime::workers::pi_scan::PiScanResultMessage::Validated {
+                receipt: Box::new(pi_scan_receipt("validated-demo")),
+                record: crate::state::pi_scan::PiScanTerminalRecord {
+                    request: pi_scan_request("validated-demo", 'a'),
+                    correlation_id: 19,
+                    status: crate::state::pi_scan::PiScanTerminalStatus::Completed,
+                    finished_at_unix: 2,
+                },
+            },
+        );
+
+        assert_eq!(
+            app.pi_scan
+                .runtime
+                .active
+                .as_ref()
+                .map(|active| active.correlation_id),
+            Some(20)
+        );
+        assert_eq!(
+            app.pi_scan
+                .active_progress
+                .map(|progress| progress.correlation_id),
+            Some(20)
+        );
+        assert_eq!(app.pi_scan.runtime.terminal.len(), 1);
+        assert_eq!(
+            app.pi_scan
+                .runtime
+                .active
+                .as_ref()
+                .map(|active| &active.request),
+            Some(&next_request)
+        );
+
+        assert_eq!(app.pi_scan.results.len(), 1);
+        assert_eq!(app.pi_scan.runtime.terminal.len(), 1);
         assert_eq!(app.pi_scan.unseen_result_count, 1);
         assert!(app.pi_scan.notices.foreground.is_some());
     }
@@ -4685,5 +4816,67 @@ mod tests {
         );
         assert!(app.pi_scan.active_progress.is_none());
         assert!(app.pi_scan.runtime.active.is_none());
+    }
+
+    /// What: Route Progress-page pause and cancel keys through the live event-loop dispatch path.
+    ///
+    /// Inputs:
+    /// - Plain `p` and `x` key events with one correlated active scan.
+    ///
+    /// Output:
+    /// - Pause reaches the request channel and cancel reaches the exact cancellation channel.
+    ///
+    /// Details:
+    /// - This covers the boundary between terminal input, Pi Scan key handling, and central
+    ///   dispatch. Testing only `events::pi_scan::handle_key` would miss a dropped pending action.
+    #[tokio::test]
+    async fn pi_scan_progress_controls_reach_runtime_channels() {
+        let mut app = AppState {
+            app_mode: crate::state::types::AppMode::PiScan,
+            ..AppState::default()
+        };
+        app.pi_scan.set_view(crate::state::PiScanView::Progress);
+        app.pi_scan.runtime.active = Some(crate::state::pi_scan::PiScanActiveItem {
+            correlation_id: 77,
+            request: pi_scan_request("controls-demo", 'a'),
+            started_at_unix: 1,
+            cancellation_suppressed: false,
+        });
+        let mut channels =
+            Channels::new(std::path::PathBuf::from("/tmp")).expect("channels should construct");
+        let (request_tx, mut request_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (cancel_tx, mut cancel_rx) = tokio::sync::mpsc::unbounded_channel();
+        channels.pi_scan_request_tx = request_tx;
+        channels.pi_scan_cancel_tx = cancel_tx;
+
+        channels
+            .event_tx
+            .send(crossterm::event::Event::Key(
+                crossterm::event::KeyEvent::new(
+                    crossterm::event::KeyCode::Char('p'),
+                    crossterm::event::KeyModifiers::NONE,
+                ),
+            ))
+            .expect("pause event");
+        assert!(!process_channel_messages(&mut app, &mut channels).await);
+        assert!(matches!(
+            request_rx.try_recv().expect("pause request"),
+            crate::app::runtime::workers::pi_scan::PiScanRequestMessage::SetUserPaused(true)
+        ));
+
+        channels
+            .event_tx
+            .send(crossterm::event::Event::Key(
+                crossterm::event::KeyEvent::new(
+                    crossterm::event::KeyCode::Char('x'),
+                    crossterm::event::KeyModifiers::NONE,
+                ),
+            ))
+            .expect("cancel event");
+        assert!(!process_channel_messages(&mut app, &mut channels).await);
+        assert_eq!(
+            cancel_rx.try_recv().expect("cancel request").correlation_id,
+            77
+        );
     }
 }

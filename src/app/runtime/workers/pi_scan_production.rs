@@ -2307,7 +2307,8 @@ async fn execute_one(
     let _ = phase_forwarder.await;
     match outcome {
         Ok(Ok(Some(receipt))) => {
-            drop(result_tx.send(PiScanResultMessage::Validated(Box::new(receipt))));
+            let record = terminal_record_for_active(runner, active.as_ref()).await;
+            publish_validated_completion(receipt, record, result_tx);
             true
         }
         Ok(Ok(None)) => false,
@@ -2355,6 +2356,37 @@ async fn terminal_record_for_active(
             && record.request.request_id == active.request.request_id
             && record.request.key == active.request.key
     })
+}
+
+/// What: Publish a validated result together with its exact persisted completion.
+///
+/// Inputs:
+/// - `receipt`: Canonical validated result accepted by the orchestrator.
+/// - `record`: Exact terminal record resolved from the completed active item.
+/// - `result_tx`: UI result projection channel.
+///
+/// Output:
+/// - Sends one atomic result carrying both display data and terminal progress.
+///
+/// Details:
+/// - A missing or mismatched record emits no partial projection and logs that live progress
+///   requires restoration from durable runtime state.
+fn publish_validated_completion(
+    receipt: crate::pi_scan_orchestrator::ExecutionReceipt,
+    record: Option<PiScanTerminalRecord>,
+    result_tx: &tokio::sync::mpsc::UnboundedSender<PiScanResultMessage>,
+) {
+    let Some(record) = record.filter(|record| record.status == PiScanTerminalStatus::Completed)
+    else {
+        tracing::warn!(
+            "validated Pi scan lacks its exact persisted completion record; live progress will recover from durable state"
+        );
+        return;
+    };
+    drop(result_tx.send(PiScanResultMessage::Validated {
+        receipt: Box::new(receipt),
+        record,
+    }));
 }
 
 /// What: Publish an exact persisted cancellation or interruption.
@@ -2515,7 +2547,7 @@ mod tests {
         handle_production_budget_adjustment, handle_production_budget_revalidation,
         legacy_budget_inclusive_consent_binding, missing_selected_foreign_packages,
         production_background_wake_eligible, production_consent_binding, publish_cancelled,
-        publish_failed, publish_observation, publish_policy_notice,
+        publish_failed, publish_observation, publish_policy_notice, publish_validated_completion,
         request_background_execution_if_eligible, reservation_from_probed_models,
         resolve_production_adapter_config,
     };
@@ -2671,6 +2703,63 @@ mod tests {
             status,
             finished_at_unix: 20,
         }
+    }
+
+    /// Build one deterministic validated receipt for progress-publication tests.
+    fn execution_receipt() -> crate::pi_scan_orchestrator::ExecutionReceipt {
+        let record = terminal_record(PiScanTerminalStatus::Completed);
+        crate::pi_scan_orchestrator::ExecutionReceipt {
+            result: crate::logic::pi_scan::result::MergedScanResult {
+                identity: crate::logic::pi_scan::result::ExpectedIdentity {
+                    scan_id: "scan-progress-demo".to_string(),
+                    package_base: record.request.key.package_base.as_str().to_string(),
+                    commit_oid: record.request.key.commit_oid.as_str().to_string(),
+                },
+                coverage: crate::logic::pi_scan::result::Coverage::Complete,
+                limitations: Vec::new(),
+                findings: Vec::new(),
+            },
+            observed_head_oid: record.request.key.commit_oid,
+            provenance: crate::logic::pi_scan::result::ScanProvenance {
+                pi_version: "0.84.0".to_string(),
+                extension_sha256: "b".repeat(64),
+                prompt_version: "pacsea-scan-prompt-1".to_string(),
+                schema_version: "pacsea-scan-result-1".to_string(),
+                tool_contract_version: "pacsea-scan-tools-1".to_string(),
+                attempts: Vec::new(),
+            },
+            manifests: vec![crate::logic::pi_scan::manifest::CanonicalManifest::new(
+                Vec::new(),
+            )],
+            usage: crate::state::pi_scan::PiScanActualUsage {
+                tokens: 10,
+                cost_microusd: 2,
+            },
+            stale: false,
+            mutable_sources: Vec::new(),
+        }
+    }
+
+    /// Successful publication must carry terminal progress atomically with the result.
+    #[test]
+    fn validated_completion_publishes_atomic_terminal_progress() {
+        let (result_tx, mut result_rx) = tokio::sync::mpsc::unbounded_channel();
+
+        publish_validated_completion(
+            execution_receipt(),
+            Some(terminal_record(PiScanTerminalStatus::Completed)),
+            &result_tx,
+        );
+
+        assert!(matches!(
+            result_rx.try_recv(),
+            Ok(PiScanResultMessage::Validated { record, .. })
+                if record.status == PiScanTerminalStatus::Completed
+        ));
+        assert!(matches!(
+            result_rx.try_recv(),
+            Err(tokio::sync::mpsc::error::TryRecvError::Empty)
+        ));
     }
 
     /// Failed and interrupted publishers must preserve their exact terminal dispositions.

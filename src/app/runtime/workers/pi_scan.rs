@@ -402,8 +402,13 @@ pub enum PiScanResultMessage {
         /// Explicit coverage limitations.
         coverage_notes: Vec<String>,
     },
-    /// Canonical validated production result accepted and persisted by the orchestrator.
-    Validated(Box<crate::pi_scan_orchestrator::ExecutionReceipt>),
+    /// Canonical validated production result and its exact persisted completion.
+    Validated {
+        /// Semantically validated result accepted and persisted by the orchestrator.
+        receipt: Box<crate::pi_scan_orchestrator::ExecutionReceipt>,
+        /// Exact terminal record committed by the same successful execution.
+        record: PiScanTerminalRecord,
+    },
     /// Explicit complete current-HEAD baseline was accepted and persisted.
     BaselineAccepted {
         /// Exact result binding accepted as baseline evidence.

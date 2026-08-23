@@ -41,6 +41,9 @@ pub(super) fn handle_key(key: KeyEvent, app: &mut AppState) -> bool {
     if handle_page_key(key, app) || handle_navigation(key, app) || handle_scroll_key(key, app) {
         return true;
     }
+    if app.pi_scan.view == PiScanView::Overview && handle_runtime_pause_cancel_key(key, app) {
+        return true;
+    }
     match app.pi_scan.view {
         PiScanView::Setup => handle_setup(key, app),
         PiScanView::Targets => handle_targets(key, app),
@@ -554,10 +557,46 @@ fn handle_progress(key: KeyEvent, app: &mut AppState) -> bool {
     if handle_budget_key(key, app) {
         return true;
     }
-    let action = match key.code {
-        KeyCode::Char('p') => PiScanUiAction::Pause,
-        KeyCode::Char('u') => PiScanUiAction::Resume,
-        KeyCode::Char('x') => {
+    if handle_runtime_pause_cancel_key(key, app) {
+        return true;
+    }
+    if matches!(key.code, KeyCode::Char('r' | 'R'))
+        && (key.modifiers.is_empty() || key.modifiers == KeyModifiers::SHIFT)
+    {
+        app.pi_scan.pending_action = Some(PiScanUiAction::Retry);
+        return true;
+    }
+    false
+}
+
+/// Handle pause, resume, and cancellation controls shared by active-scan views.
+///
+/// What: Queue one runtime control action from a keyboard event.
+///
+/// Inputs:
+/// - `key`: Plain or shifted control key.
+/// - `app`: Pi Scan projection containing the active correlation, when any.
+///
+/// Output:
+/// - `true` when the key was consumed and an action or notice was queued.
+///
+/// Details:
+/// - Overview and Progress share these controls so changing pages does not make an active scan
+///   unreachable. Shifted characters are normalized because some terminals report `P`/`X` with
+///   the Shift modifier instead of preserving the lowercase character.
+fn handle_runtime_pause_cancel_key(key: KeyEvent, app: &mut AppState) -> bool {
+    let character = match key.code {
+        KeyCode::Char(character)
+            if key.modifiers.is_empty() || key.modifiers == KeyModifiers::SHIFT =>
+        {
+            character.to_ascii_lowercase()
+        }
+        _ => return false,
+    };
+    let action = match character {
+        'p' => PiScanUiAction::Pause,
+        'u' => PiScanUiAction::Resume,
+        'x' => {
             let Some(id) = app
                 .pi_scan
                 .runtime
@@ -573,7 +612,6 @@ fn handle_progress(key: KeyEvent, app: &mut AppState) -> bool {
             };
             PiScanUiAction::Cancel(id)
         }
-        KeyCode::Char('r') => PiScanUiAction::Retry,
         _ => return false,
     };
     app.pi_scan.pending_action = Some(action);
@@ -663,6 +701,34 @@ mod tests {
             stale: false,
             mutable_sources: Vec::new(),
         }
+    }
+
+    /// Active runtime controls remain reachable from Overview and normalize shifted characters.
+    #[test]
+    fn active_controls_work_from_overview_with_shifted_keys() {
+        let mut app = AppState {
+            app_mode: AppMode::PiScan,
+            ..AppState::default()
+        };
+        app.pi_scan.set_view(PiScanView::Overview);
+        app.pi_scan.runtime.active = Some(crate::state::pi_scan::PiScanActiveItem {
+            correlation_id: 77,
+            request: budget_blocked_request(),
+            started_at_unix: 1,
+            cancellation_suppressed: false,
+        });
+
+        assert!(handle_key(
+            KeyEvent::new(KeyCode::Char('P'), KeyModifiers::SHIFT),
+            &mut app,
+        ));
+        assert_eq!(app.pi_scan.pending_action, Some(PiScanUiAction::Pause));
+
+        assert!(handle_key(
+            KeyEvent::new(KeyCode::Char('X'), KeyModifiers::SHIFT),
+            &mut app,
+        ));
+        assert_eq!(app.pi_scan.pending_action, Some(PiScanUiAction::Cancel(77)));
     }
 
     /// Escape must cancel only the isolated draft and preserve Pi Scan mode.
@@ -756,6 +822,27 @@ mod tests {
         ));
         assert!(app.pi_scan.wizard.is_none());
         assert!(app.pi_scan.pending_action.is_none());
+    }
+
+    /// An exceeded next reservation opens Budget before the pause projection catches up.
+    #[test]
+    fn budget_key_opens_before_budget_pause_projection() {
+        let mut app = AppState {
+            app_mode: AppMode::PiScan,
+            ..AppState::default()
+        };
+        app.pi_scan.set_view(PiScanView::Progress);
+        app.pi_scan
+            .runtime
+            .queue
+            .push_back(budget_blocked_request());
+        app.pi_scan.runtime.budget_limits.tokens_per_24h = 500;
+
+        assert!(handle_key(
+            KeyEvent::new(KeyCode::Char('b'), KeyModifiers::NONE),
+            &mut app,
+        ));
+        assert!(app.pi_scan.budget_dialog.is_some());
     }
 
     /// Budget choice focus, cancellation, submission, and pending keys are deterministic.

@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 use crate::logic::pi_scan::result::{Coverage, MergedScanResult, Severity};
 use crate::state::pi_scan::{
     PiScanBudgetAdjustment, PiScanBudgetDimension, PiScanBudgetLimits, PiScanConsentState,
-    PiScanPauseReason, PiScanPriority, PiScanRuntimeState,
+    PiScanPriority, PiScanRuntimeState,
 };
 use crate::theme::PiScanSettings;
 
@@ -1018,18 +1018,14 @@ impl PiScanWorkspaceState {
     /// - `now_unix`: Deterministic Unix timestamp used by scheduler classification.
     ///
     /// Output:
-    /// - True only on Overview/Progress with queued background work currently blocked by Budget.
+    /// - True on Overview/Progress when the next queued background reservation exceeds a budget.
     ///
     /// Details:
-    /// - User and service pauses neither create nor suppress eligibility; only the Budget pause
-    ///   and scheduler-owned exceeded set control this focused action.
+    /// - The scheduler's exceeded set is authoritative. Eligibility does not wait for the separate
+    ///   Budget pause projection, which can lag while an active scan is finishing.
     #[must_use]
     pub fn budget_adjustment_eligible_at(&self, now_unix: u64) -> bool {
         matches!(self.view, PiScanView::Overview | PiScanView::Progress)
-            && self
-                .runtime
-                .pause_reasons
-                .contains(&PiScanPauseReason::Budget)
             && self
                 .runtime
                 .queue
