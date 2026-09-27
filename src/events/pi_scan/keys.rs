@@ -1,7 +1,7 @@
 //! Keyboard state transitions for the Pi Scan workspace.
 
 use crate::state::pi_scan_setup::{PiScanSetupHitTarget, PiScanSetupStep};
-use crate::state::pi_scan_ui::PiScanNoticeSeverity;
+use crate::state::pi_scan_ui::{PiScanNoticeSeverity, PiScanSetupRow, SETUP_ROW_COUNT};
 use crate::state::types::AppMode;
 use crate::state::{
     AppState, PiScanAvailability, PiScanDryRunPreview, PiScanReadiness, PiScanUiAction, PiScanView,
@@ -19,6 +19,7 @@ pub(super) fn open_from_search(app: &mut AppState) {
     let (name, is_aur) = context.as_ref().map_or((None, false), |(name, is_aur)| {
         (Some(name.as_str()), *is_aur)
     });
+    app.pi_scan.origin = app.app_mode;
     app.pi_scan.open_context(name, is_aur);
     if !app.pi_scan.setup_complete() {
         app.pi_scan.begin_setup_wizard(true);
@@ -35,7 +36,10 @@ pub(super) fn handle_key(key: KeyEvent, app: &mut AppState) -> bool {
         return handle_budget_dialog(key, app);
     }
     if key.code == KeyCode::Esc {
-        app.app_mode = AppMode::Package;
+        app.app_mode = match app.pi_scan.origin {
+            AppMode::News => AppMode::News,
+            AppMode::Package | AppMode::ConfigEditor | AppMode::PiScan => AppMode::Package,
+        };
         return true;
     }
     if handle_background_toggle_key(key, app) {
@@ -86,9 +90,7 @@ fn handle_budget_dialog(key: KeyEvent, app: &mut AppState) -> bool {
         | KeyCode::BackTab
         | KeyCode::Left
         | KeyCode::Right
-        | KeyCode::Up
-        | KeyCode::Down
-        | KeyCode::Char('h' | 'j' | 'k' | 'l') => {
+        | KeyCode::Char('h' | 'l') => {
             if let Some(dialog) = app.pi_scan.budget_dialog.as_mut() {
                 dialog.toggle_selection();
             }
@@ -148,19 +150,49 @@ fn handle_wizard(key: KeyEvent, app: &mut AppState) -> bool {
         KeyCode::PageUp => wizard.scroll_body(false),
         KeyCode::PageDown => wizard.scroll_body(true),
         KeyCode::Backspace if wizard.edit_text(None, true) => {}
-        KeyCode::Char('n') => wizard.next(dry_run),
+        KeyCode::Enter if wizard.focuses_text_field() => wizard.move_focus(true),
+        KeyCode::Enter if wizard.focus >= wizard.focus_count() => {
+            let target = wizard
+                .footer_targets()
+                .get(wizard.focus - wizard.focus_count())
+                .copied();
+            if let Some(target) = target {
+                activate_wizard_target(target, app);
+            }
+            return true;
+        }
         KeyCode::Char(character)
-            if (key.modifiers.is_empty() || key.modifiers == KeyModifiers::SHIFT)
+            if wizard.focuses_text_field()
+                && (key.modifiers.is_empty() || key.modifiers == KeyModifiers::SHIFT)
                 && wizard.edit_text(Some(character), false) => {}
+        KeyCode::Char('n')
+            if wizard
+                .footer_targets()
+                .contains(&PiScanSetupHitTarget::Next) =>
+        {
+            wizard.next(dry_run);
+        }
         KeyCode::Left | KeyCode::Char('h') => wizard.adjust_focused(false),
         KeyCode::Right | KeyCode::Char('l') => wizard.adjust_focused(true),
         KeyCode::Char(' ') => wizard.toggle_focused(),
         KeyCode::Enter => return activate_focused(app, dry_run),
-        KeyCode::Char('b') => wizard.back(),
+        KeyCode::Char('b')
+            if wizard
+                .footer_targets()
+                .contains(&PiScanSetupHitTarget::Back) =>
+        {
+            wizard.back();
+        }
         KeyCode::Char('a') if wizard.step == PiScanSetupStep::Review => {
             return request_wizard_apply(app, dry_run);
         }
-        KeyCode::Char('r') => wizard.retry(dry_run),
+        KeyCode::Char('r')
+            if wizard
+                .footer_targets()
+                .contains(&PiScanSetupHitTarget::Retry) =>
+        {
+            wizard.retry(dry_run);
+        }
         _ => return false,
     }
     true
@@ -250,6 +282,26 @@ fn handle_navigation(key: KeyEvent, app: &mut AppState) -> bool {
         _ => return false,
     };
     match app.pi_scan.view {
+        PiScanView::Setup => {
+            app.pi_scan.selected_setup = app
+                .pi_scan
+                .selected_setup
+                .saturating_add_signed(delta)
+                .min(SETUP_ROW_COUNT - 1);
+            let offset = usize::from(app.pi_scan.view_scroll.setup);
+            let selected = app.pi_scan.selected_setup;
+            if selected < offset {
+                app.pi_scan.view_scroll.setup = u16::try_from(selected).unwrap_or(u16::MAX);
+            } else if selected >= offset.saturating_add(app.pi_scan.setup_visible_rows) {
+                app.pi_scan.view_scroll.setup = u16::try_from(
+                    selected
+                        .saturating_add(1)
+                        .saturating_sub(app.pi_scan.setup_visible_rows),
+                )
+                .unwrap_or(u16::MAX);
+            }
+            true
+        }
         PiScanView::Targets if !app.pi_scan.targets.is_empty() => {
             app.pi_scan.selected_target = app
                 .pi_scan
@@ -297,11 +349,9 @@ fn handle_navigation(key: KeyEvent, app: &mut AppState) -> bool {
             app.pi_scan.detail_scroll = app.pi_scan.view_scroll.details;
             true
         }
-        PiScanView::Setup
-        | PiScanView::Overview
-        | PiScanView::Progress
-        | PiScanView::Targets
-        | PiScanView::Results => false,
+        PiScanView::Overview | PiScanView::Progress | PiScanView::Targets | PiScanView::Results => {
+            false
+        }
     }
 }
 
@@ -422,69 +472,84 @@ const fn scroll_lines(command: ScrollCommand, offset: &mut u16) {
     };
 }
 
-/// Apply disclosure and independent consent toggles.
-fn handle_setup(key: KeyEvent, app: &mut AppState) -> bool {
-    if matches!(
-        (key.code, key.modifiers),
-        (KeyCode::Char('r'), KeyModifiers::NONE)
-    ) {
-        app.pi_scan.begin_setup_wizard(false);
-        return true;
-    }
-    if matches!(
-        (key.code, key.modifiers),
-        (KeyCode::Char('v'), KeyModifiers::NONE)
-    ) {
-        app.pi_scan.pending_action = Some(PiScanUiAction::ProbeSetup);
-        app.pi_scan.set_foreground_notice(
-            "Verifying exact Pi version, route pricing, and provenance before consent…",
-            PiScanNoticeSeverity::Info,
-        );
-        return true;
-    }
-    let is_consent_key = matches!(
-        (key.code, key.modifiers),
-        (
-            KeyCode::Char('c' | 'o' | 'p' | 'b' | 'f' | 'w'),
-            KeyModifiers::NONE
-        )
-    );
-    if is_consent_key && !app.pi_scan.setup_facts_verified {
-        app.pi_scan.pending_action = Some(PiScanUiAction::ProbeSetup);
-        app.pi_scan.set_foreground_notice(
-            "Review the verified Pi version and exact pricing facts, then press the consent key again",
-            PiScanNoticeSeverity::Info,
-        );
-        return true;
-    }
-    match (key.code, key.modifiers) {
-        (KeyCode::Char('c'), KeyModifiers::NONE) => {
+/// What: Activate the selected Setup row without letter shortcuts on consents.
+///
+/// Inputs: Mutable workspace state and the focused row index.
+///
+/// Output: Wizard, verification, background toggle, or consent action.
+///
+/// Details: Unverified consent requests an async probe and visibly remains pending; no consent is granted.
+pub(super) fn activate_setup_row(app: &mut AppState) {
+    let row = PiScanSetupRow::ALL.get(app.pi_scan.selected_setup).copied();
+    match row {
+        Some(PiScanSetupRow::Wizard) => app.pi_scan.begin_setup_wizard(false),
+        Some(PiScanSetupRow::Verify) => {
+            app.pi_scan.pending_action = Some(PiScanUiAction::ProbeSetup);
+            app.pi_scan.set_foreground_notice(
+                "app.pi_scan.notices.verifying_setup",
+                PiScanNoticeSeverity::Info,
+            );
+        }
+        Some(PiScanSetupRow::Background) => {
+            app.pi_scan.request_background_toggle();
+        }
+        Some(row) if row.is_consent() && !app.pi_scan.setup_facts_verified => {
+            app.pi_scan.pending_setup_consent = Some(app.pi_scan.selected_setup);
+            app.pi_scan.pending_action = Some(PiScanUiAction::ProbeSetup);
+            app.pi_scan.set_foreground_notice(
+                "app.pi_scan.notices.verify_then_toggle",
+                PiScanNoticeSeverity::Info,
+            );
+        }
+        Some(PiScanSetupRow::Disclosure) => {
             app.pi_scan.disclosure_confirmed = !app.pi_scan.disclosure_confirmed;
         }
-        (KeyCode::Char('o'), KeyModifiers::NONE) => {
+        Some(PiScanSetupRow::Observation) => {
             app.pi_scan.runtime.consent.background_observation =
                 !app.pi_scan.runtime.consent.background_observation;
         }
-        (KeyCode::Char('p'), KeyModifiers::NONE) => {
+        Some(PiScanSetupRow::Paid) => {
             app.pi_scan.runtime.consent.paid_execution =
                 !app.pi_scan.runtime.consent.paid_execution;
         }
-        (KeyCode::Char('b'), KeyModifiers::NONE) => {
+        Some(PiScanSetupRow::BackgroundPaid) => {
             app.pi_scan.background_paid_execution_confirmed =
                 !app.pi_scan.background_paid_execution_confirmed;
         }
-        (KeyCode::Char('f'), KeyModifiers::NONE) => {
+        Some(PiScanSetupRow::Fallback) => {
             app.pi_scan.fallback_confirmed = !app.pi_scan.fallback_confirmed;
         }
-        (KeyCode::Char('w'), KeyModifiers::NONE) => {
+        Some(PiScanSetupRow::Warning) => {
             app.pi_scan.readiness_warning_confirmed = !app.pi_scan.readiness_warning_confirmed;
         }
+        _ => return,
+    }
+    if row.is_some_and(PiScanSetupRow::is_consent) && app.pi_scan.setup_facts_verified {
+        app.pi_scan.pending_setup_consent = None;
+        app.pi_scan.pending_action = Some(PiScanUiAction::UpdateConsent);
+        let notice = crate::i18n::t(app, "app.pi_scan.notices.session_only");
+        app.pi_scan
+            .set_foreground_notice(notice, PiScanNoticeSeverity::Info);
+    }
+}
+
+/// What: Handle Setup activation and explicit wizard/verification shortcuts.
+///
+/// Inputs: Key event and current Setup selection.
+///
+/// Output: True only when a row or one of the two shortcuts was activated.
+///
+/// Details: Individual consent letters are deliberately not bound.
+fn handle_setup(key: KeyEvent, app: &mut AppState) -> bool {
+    match (key.code, key.modifiers) {
+        (KeyCode::Char('w'), KeyModifiers::NONE) => app.pi_scan.begin_setup_wizard(false),
+        (KeyCode::Char('v'), KeyModifiers::NONE) => {
+            app.pi_scan.selected_setup = PiScanSetupRow::Verify as usize;
+            activate_setup_row(app);
+        }
+        (KeyCode::Enter | KeyCode::Char(' '), _) => activate_setup_row(app),
         _ => return false,
     }
-    app.pi_scan.pending_action = Some(PiScanUiAction::UpdateConsent);
-    let notice = crate::i18n::t(app, "app.pi_scan.notices.session_only");
-    app.pi_scan
-        .set_foreground_notice(notice, PiScanNoticeSeverity::Info);
     true
 }
 
@@ -504,6 +569,31 @@ fn handle_targets(key: KeyEvent, app: &mut AppState) -> bool {
 
 /// Validate setup gates before queueing or previewing.
 fn request_queue(app: &mut AppState) {
+    let has_selection = app.pi_scan.targets.iter().any(|target| target.selected);
+    if let Some(focused) = app.pi_scan.targets.get(app.pi_scan.selected_target)
+        && (focused.status == crate::state::PiScanTargetStatus::Queued
+            || focused.newer_version_of.is_some())
+    {
+        let focused_base = focused.package_base.clone();
+        let older_selected = focused.newer_version_of.is_some()
+            && app.pi_scan.targets.iter().any(|target| {
+                target.selected
+                    && target.package_base == focused_base
+                    && target.commit_oid != focused.commit_oid
+            });
+        if !has_selection || older_selected {
+            if older_selected {
+                for target in &mut app.pi_scan.targets {
+                    if target.package_base == focused_base {
+                        target.selected = false;
+                    }
+                }
+            }
+            if let Some(target) = app.pi_scan.targets.get_mut(app.pi_scan.selected_target) {
+                target.selected = true;
+            }
+        }
+    }
     let targets: Vec<String> = app
         .pi_scan
         .targets
@@ -575,6 +665,7 @@ fn handle_progress(key: KeyEvent, app: &mut AppState) -> bool {
     }
     if matches!(key.code, KeyCode::Char('r' | 'R'))
         && (key.modifiers.is_empty() || key.modifiers == KeyModifiers::SHIFT)
+        && !app.pi_scan.retry_target_names().is_empty()
     {
         app.pi_scan.pending_action = Some(PiScanUiAction::Retry);
         return true;
@@ -606,9 +697,23 @@ fn handle_runtime_pause_cancel_key(key: KeyEvent, app: &mut AppState) -> bool {
         }
         _ => return false,
     };
+    let running_or_queued =
+        app.pi_scan.runtime.active.is_some() || !app.pi_scan.runtime.queue.is_empty();
+    let user_paused = app
+        .pi_scan
+        .runtime
+        .pause_reasons
+        .contains(&crate::state::pi_scan::PiScanPauseReason::User);
     let action = match character {
-        'p' => PiScanUiAction::Pause,
-        'u' => PiScanUiAction::Resume,
+        'x' if !matches!(
+            (key.code, key.modifiers),
+            (KeyCode::Char('x'), KeyModifiers::NONE) | (KeyCode::Char('X'), KeyModifiers::SHIFT)
+        ) =>
+        {
+            return false;
+        }
+        'p' | 'u' if user_paused => PiScanUiAction::Resume,
+        'p' if running_or_queued => PiScanUiAction::Pause,
         'x' => {
             let Some(id) = app
                 .pi_scan
@@ -617,12 +722,17 @@ fn handle_runtime_pause_cancel_key(key: KeyEvent, app: &mut AppState) -> bool {
                 .as_ref()
                 .map(|active| active.correlation_id)
             else {
+                return false;
+            };
+            if app.pi_scan.cancel_armed != Some(id) {
+                app.pi_scan.cancel_armed = Some(id);
                 app.pi_scan.set_foreground_notice(
-                    "No active Pi scan to cancel",
-                    PiScanNoticeSeverity::Info,
+                    "app.pi_scan.notices.confirm_cancel",
+                    PiScanNoticeSeverity::Warning,
                 );
                 return true;
-            };
+            }
+            app.pi_scan.cancel_armed = None;
             PiScanUiAction::Cancel(id)
         }
         _ => return false,
@@ -753,6 +863,94 @@ mod tests {
         }
     }
 
+    /// Escape returns to the originating mode, except editor popups which cannot be reconstructed.
+    #[test]
+    fn escape_returns_to_workspace_origin() {
+        for (origin, expected) in [
+            (AppMode::News, AppMode::News),
+            (AppMode::ConfigEditor, AppMode::Package),
+            (AppMode::Package, AppMode::Package),
+        ] {
+            let mut app = AppState {
+                app_mode: AppMode::PiScan,
+                ..AppState::default()
+            };
+            app.pi_scan.origin = origin;
+            assert!(handle_key(
+                KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE),
+                &mut app
+            ));
+            assert_eq!(app.app_mode, expected);
+        }
+    }
+
+    /// Setup navigation and consent toggles require an explicit focused action.
+    #[test]
+    fn setup_list_navigation_and_safe_activation() {
+        let mut app = AppState::default();
+        app.pi_scan.set_view(PiScanView::Setup);
+        app.pi_scan.setup_facts_verified = true;
+        assert!(!handle_key(
+            KeyEvent::new(KeyCode::Char('c'), KeyModifiers::NONE),
+            &mut app
+        ));
+        for _ in 0..3 {
+            assert!(handle_key(
+                KeyEvent::new(KeyCode::Char('j'), KeyModifiers::NONE),
+                &mut app
+            ));
+        }
+        assert_eq!(app.pi_scan.selected_setup, 3);
+        assert!(handle_key(
+            KeyEvent::new(KeyCode::Char(' '), KeyModifiers::NONE),
+            &mut app
+        ));
+        assert!(app.pi_scan.disclosure_confirmed);
+        assert!(handle_key(
+            KeyEvent::new(KeyCode::Up, KeyModifiers::NONE),
+            &mut app
+        ));
+        assert_eq!(app.pi_scan.selected_setup, 2);
+    }
+
+    /// Any other key disarms a pending cancellation and p resumes when user-paused.
+    #[test]
+    fn pause_toggle_and_double_cancel_require_same_state() {
+        let mut app = AppState {
+            app_mode: AppMode::PiScan,
+            ..AppState::default()
+        };
+        app.pi_scan.set_view(PiScanView::Progress);
+        app.pi_scan.runtime.active = Some(crate::state::pi_scan::PiScanActiveItem {
+            correlation_id: 77,
+            request: budget_blocked_request(),
+            started_at_unix: 1,
+            cancellation_suppressed: false,
+        });
+        let press = |key: char, app: &mut AppState| {
+            let event = KeyEvent::new(KeyCode::Char(key), KeyModifiers::NONE);
+            crate::events::disarm_pi_scan_cancel_on_other_key(&event, app);
+            handle_key(event, app)
+        };
+        assert!(press('p', &mut app));
+        assert_eq!(app.pi_scan.pending_action, Some(PiScanUiAction::Pause));
+        app.pi_scan
+            .runtime
+            .pause_reasons
+            .insert(PiScanPauseReason::User);
+        assert!(press('p', &mut app));
+        assert_eq!(app.pi_scan.pending_action, Some(PiScanUiAction::Resume));
+        app.pi_scan.pending_action = None;
+        assert!(press('x', &mut app));
+        assert!(app.pi_scan.pending_action.is_none());
+        assert!(press('p', &mut app));
+        app.pi_scan.pending_action = None;
+        assert!(press('x', &mut app));
+        assert!(app.pi_scan.pending_action.is_none());
+        assert!(press('x', &mut app));
+        assert_eq!(app.pi_scan.pending_action, Some(PiScanUiAction::Cancel(77)));
+    }
+
     /// Active runtime controls remain reachable from Overview and normalize shifted characters.
     #[test]
     fn active_controls_work_from_overview_with_shifted_keys() {
@@ -778,10 +976,48 @@ mod tests {
             KeyEvent::new(KeyCode::Char('X'), KeyModifiers::SHIFT),
             &mut app,
         ));
+        assert_eq!(app.pi_scan.cancel_armed, Some(77));
+        assert!(handle_key(
+            KeyEvent::new(KeyCode::Char('x'), KeyModifiers::NONE),
+            &mut app
+        ));
         assert_eq!(app.pi_scan.pending_action, Some(PiScanUiAction::Cancel(77)));
     }
 
-    /// Shift+B toggles from Overview and Setup while lowercase b keeps its setup consent action.
+    /// View transitions and mouse clicks disarm a pending double-x confirmation.
+    #[test]
+    fn cancel_confirmation_does_not_survive_view_or_mouse_change() {
+        let mut app = AppState::default();
+        app.pi_scan.set_view(PiScanView::Progress);
+        app.pi_scan.runtime.active = Some(crate::state::pi_scan::PiScanActiveItem {
+            correlation_id: 77,
+            request: budget_blocked_request(),
+            started_at_unix: 1,
+            cancellation_suppressed: false,
+        });
+        let x = KeyEvent::new(KeyCode::Char('x'), KeyModifiers::NONE);
+        assert!(handle_key(x, &mut app));
+        app.pi_scan.set_view(PiScanView::Overview);
+        app.pi_scan.set_view(PiScanView::Progress);
+        assert!(handle_key(x, &mut app));
+        assert!(app.pi_scan.pending_action.is_none());
+        app.pi_scan.tab_rects[1] = Some((1, 1, 4, 1));
+        assert!(crate::events::pi_scan::handle_mouse(
+            crossterm::event::MouseEvent {
+                kind: crossterm::event::MouseEventKind::Down(crossterm::event::MouseButton::Left),
+                column: 1,
+                row: 1,
+                modifiers: KeyModifiers::NONE,
+            },
+            &mut app
+        ));
+        assert!(app.pi_scan.cancel_armed.is_none());
+        app.pi_scan.set_view(PiScanView::Progress);
+        assert!(handle_key(x, &mut app));
+        assert!(app.pi_scan.pending_action.is_none());
+    }
+
+    /// Shift+B toggles from Overview and Setup; lowercase b never toggles consent.
     #[test]
     fn background_toggle_uses_shift_b_without_replacing_lowercase_b() {
         for view in [PiScanView::Overview, PiScanView::Setup] {
@@ -815,14 +1051,128 @@ mod tests {
         };
         setup.pi_scan.setup_facts_verified = true;
         setup.pi_scan.set_view(PiScanView::Setup);
-        assert!(handle_key(
+        assert!(!handle_key(
             KeyEvent::new(KeyCode::Char('b'), KeyModifiers::NONE),
             &mut setup,
         ));
-        assert!(setup.pi_scan.background_paid_execution_confirmed);
+        assert!(!setup.pi_scan.background_paid_execution_confirmed);
+    }
+
+    /// In-flight Apply cannot lose correlation through Enter, b, or a stale mouse Back target.
+    #[test]
+    fn in_flight_apply_rejects_back_from_every_input() {
+        let mut app = AppState::default();
+        app.pi_scan.begin_setup_wizard(false);
+        let wizard = app.pi_scan.wizard.as_mut().expect("wizard");
+        wizard.step = PiScanSetupStep::Review;
+        wizard.validation_binding = "binding".to_string();
+        wizard.focus = wizard.focus_count()
+            + wizard
+                .footer_targets()
+                .iter()
+                .position(|target| *target == PiScanSetupHitTarget::Apply)
+                .expect("apply button");
+        assert!(handle_wizard(
+            KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE),
+            &mut app
+        ));
+        let correlation = app
+            .pi_scan
+            .wizard
+            .as_ref()
+            .expect("wizard")
+            .in_flight_correlation;
+        assert!(correlation.is_some());
         assert_eq!(
-            setup.pi_scan.pending_action,
-            Some(PiScanUiAction::UpdateConsent)
+            app.pi_scan.wizard.as_ref().expect("wizard").step,
+            PiScanSetupStep::Activate
+        );
+        assert!(handle_wizard(
+            KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE),
+            &mut app
+        ));
+        assert!(!handle_wizard(
+            KeyEvent::new(KeyCode::Char('b'), KeyModifiers::NONE),
+            &mut app
+        ));
+        activate_wizard_target(PiScanSetupHitTarget::Back, &mut app);
+        let wizard = app.pi_scan.wizard.as_ref().expect("wizard");
+        assert_eq!(wizard.step, PiScanSetupStep::Activate);
+        assert_eq!(wizard.in_flight_correlation, correlation);
+        assert!(wizard.pending_action.is_some());
+        assert!(
+            !wizard
+                .footer_targets()
+                .contains(&PiScanSetupHitTarget::Back)
+        );
+        assert!(wizard.focus < wizard.focus_count() + wizard.footer_targets().len());
+    }
+
+    /// Entering readiness focuses Verify so repeated Next cannot edit the binary path.
+    #[test]
+    fn readiness_starts_outside_binary_text_field() {
+        let mut app = AppState::default();
+        app.pi_scan.begin_setup_wizard(true);
+        let binary = app
+            .pi_scan
+            .wizard
+            .as_ref()
+            .expect("wizard")
+            .candidate
+            .binary
+            .clone();
+        let n = KeyEvent::new(KeyCode::Char('n'), KeyModifiers::NONE);
+        assert!(handle_wizard(n, &mut app));
+        let wizard = app.pi_scan.wizard.as_ref().expect("wizard");
+        assert_eq!(wizard.step, PiScanSetupStep::PiReadiness);
+        assert_eq!(wizard.focus, 1);
+        assert!(!wizard.focuses_text_field());
+        let _ = handle_wizard(n, &mut app);
+        assert_eq!(
+            app.pi_scan
+                .wizard
+                .as_ref()
+                .expect("wizard")
+                .candidate
+                .binary,
+            binary
+        );
+        assert!(handle_wizard(
+            KeyEvent::new(KeyCode::BackTab, KeyModifiers::SHIFT),
+            &mut app
+        ));
+        assert!(
+            app.pi_scan
+                .wizard
+                .as_ref()
+                .expect("wizard")
+                .focuses_text_field()
+        );
+    }
+
+    /// Printable command letters belong to the focused executable field.
+    #[test]
+    fn wizard_text_field_accepts_navigation_letters() {
+        let mut app = AppState::default();
+        app.pi_scan.begin_setup_wizard(true);
+        let wizard = app.pi_scan.wizard.as_mut().expect("wizard");
+        wizard.step = PiScanSetupStep::PiReadiness;
+        wizard.focus = 0;
+        wizard.candidate.binary.clear();
+        for ch in "nbr".chars() {
+            assert!(handle_wizard(
+                KeyEvent::new(KeyCode::Char(ch), KeyModifiers::NONE),
+                &mut app
+            ));
+        }
+        assert_eq!(
+            app.pi_scan
+                .wizard
+                .as_ref()
+                .expect("wizard")
+                .candidate
+                .binary,
+            "nbr"
         );
     }
 
@@ -1032,6 +1382,18 @@ mod tests {
         assert!(app.pi_scan.budget_dialog.is_none());
 
         app.pi_scan.set_view(PiScanView::Progress);
+        assert!(!handle_key(
+            KeyEvent::new(KeyCode::Char('r'), KeyModifiers::NONE),
+            &mut app
+        ));
+        app.pi_scan.targets.push(crate::state::PiScanTarget {
+            package_name: "retry-demo".to_string(),
+            package_base: "retry-demo".to_string(),
+            commit_oid: None,
+            newer_version_of: None,
+            selected: true,
+            status: crate::state::PiScanTargetStatus::Failed,
+        });
         assert!(handle_key(
             KeyEvent::new(KeyCode::Char('r'), KeyModifiers::NONE),
             &mut app,

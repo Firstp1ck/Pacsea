@@ -100,6 +100,12 @@ pub fn handle_mouse_event_with_pkgbuild_checks(
     let in_config_editor = matches!(app.app_mode, crate::state::types::AppMode::ConfigEditor);
     if in_config_editor
         && is_left_down
+        && crate::events::modals::handle_config_editor_popup_click(mx, my, app)
+    {
+        return false;
+    }
+    if in_config_editor
+        && is_left_down
         && let Some(handled) = menus::handle_menus_mouse(mx, my, app, details_tx)
     {
         return handled;

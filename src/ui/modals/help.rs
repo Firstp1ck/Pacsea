@@ -260,6 +260,13 @@ fn build_pi_scan_help(
         lines,
         app,
         th,
+        km.search_normal_pi_scan.first().copied(),
+        "app.modals.help.key_labels.open_pi_scan",
+    );
+    add_binding_if_some(
+        lines,
+        app,
+        th,
         km.config_editor_pi_scan_setup.first().copied(),
         "app.modals.help.key_labels.pi_scan_setup",
     );

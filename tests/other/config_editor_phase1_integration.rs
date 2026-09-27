@@ -201,6 +201,154 @@ fn config_editor_phase1_saves_enum_setting_to_disk() {
 }
 
 #[test]
+/// What: Save a shipped locale through the enum popup to settings.conf.
+///
+/// Inputs:
+/// - Isolated settings.conf with locale = en-US and keyboard events selecting de-DE.
+///
+/// Output:
+/// - The saved settings.conf contains locale = de-DE.
+///
+/// Details:
+/// - The popup must be an enum, not a text input, and Down selects the next choice.
+fn config_editor_phase1_saves_locale_enum_to_disk() {
+    let home = unique_test_home("locale_save");
+    let _guard = EnvGuard::new(home.clone());
+    let settings_path = home.join(".config").join("pacsea").join("settings.conf");
+    fs::write(&settings_path, "locale = en-US\n").expect("must seed settings.conf");
+
+    let mut app = AppState {
+        app_mode: AppMode::ConfigEditor,
+        ..AppState::default()
+    };
+    let channels = build_event_channels();
+    send_key(&mut app, KeyCode::Enter, KeyModifiers::NONE, &channels);
+    for c in "locale".chars() {
+        send_key(&mut app, KeyCode::Char(c), KeyModifiers::NONE, &channels);
+    }
+    send_key(&mut app, KeyCode::Enter, KeyModifiers::NONE, &channels);
+    assert!(matches!(
+        app.config_editor_state
+            .popup
+            .as_ref()
+            .map(|popup| &popup.kind),
+        Some(pacsea::state::config_editor::EditPopupKind::Enum { index: 1, .. })
+    ));
+    send_key(&mut app, KeyCode::Down, KeyModifiers::NONE, &channels);
+    send_key(
+        &mut app,
+        KeyCode::Char('s'),
+        KeyModifiers::CONTROL,
+        &channels,
+    );
+
+    let after = fs::read_to_string(&settings_path).expect("must read updated settings.conf");
+    assert!(
+        after.contains("locale = de-DE"),
+        "unexpected settings.conf: {after}"
+    );
+}
+
+#[test]
+/// What: Save the locale auto-detect option through keyboard navigation.
+///
+/// Inputs:
+/// - Isolated settings.conf with locale = de-DE.
+/// - Two Up events from the stored choice and Ctrl+S.
+///
+/// Output:
+/// - The saved locale line has an empty value.
+///
+/// Details:
+/// - The empty option round-trips as the runtime's system-locale auto-detect value.
+fn config_editor_phase1_saves_auto_detect_locale_to_disk() {
+    let home = unique_test_home("locale_auto_save");
+    let _guard = EnvGuard::new(home.clone());
+    let settings_path = home.join(".config").join("pacsea").join("settings.conf");
+    fs::write(&settings_path, "locale = de-DE\n").expect("must seed settings.conf");
+
+    let mut app = AppState {
+        app_mode: AppMode::ConfigEditor,
+        ..AppState::default()
+    };
+    let channels = build_event_channels();
+    send_key(&mut app, KeyCode::Enter, KeyModifiers::NONE, &channels);
+    for c in "locale".chars() {
+        send_key(&mut app, KeyCode::Char(c), KeyModifiers::NONE, &channels);
+    }
+    send_key(&mut app, KeyCode::Enter, KeyModifiers::NONE, &channels);
+    send_key(&mut app, KeyCode::Up, KeyModifiers::NONE, &channels);
+    send_key(&mut app, KeyCode::Up, KeyModifiers::NONE, &channels);
+    send_key(
+        &mut app,
+        KeyCode::Char('s'),
+        KeyModifiers::CONTROL,
+        &channels,
+    );
+
+    let after = fs::read_to_string(&settings_path).expect("must read updated settings.conf");
+    assert!(
+        after.lines().any(|line| line
+            .strip_prefix("locale =")
+            .is_some_and(|value| value.trim().is_empty())),
+        "unexpected settings.conf: {after}"
+    );
+    assert!(!after.contains("de-DE"));
+}
+
+#[test]
+/// What: Save a noncanonical locale spelling as its preselected canonical choice.
+///
+/// Inputs:
+/// - Isolated settings.conf with `locale = de_DE`; Ctrl+S without cycling.
+///
+/// Output:
+/// - The saved locale is de-DE.
+///
+/// Details:
+/// - Popup selection normalizes the candidate, while retaining the raw original.
+fn config_editor_phase1_normalizes_locale_on_save() {
+    let home = unique_test_home("locale_normalized_save");
+    let _guard = EnvGuard::new(home.clone());
+    let settings_path = home.join(".config").join("pacsea").join("settings.conf");
+    fs::write(&settings_path, "locale = de_DE\n").expect("must seed settings.conf");
+
+    let mut app = AppState {
+        app_mode: AppMode::ConfigEditor,
+        ..AppState::default()
+    };
+    let channels = build_event_channels();
+    send_key(&mut app, KeyCode::Enter, KeyModifiers::NONE, &channels);
+    for c in "locale".chars() {
+        send_key(&mut app, KeyCode::Char(c), KeyModifiers::NONE, &channels);
+    }
+    send_key(&mut app, KeyCode::Enter, KeyModifiers::NONE, &channels);
+    let popup = app
+        .config_editor_state
+        .popup
+        .as_ref()
+        .expect("locale popup");
+    assert!(matches!(
+        popup.kind,
+        pacsea::state::config_editor::EditPopupKind::Enum { index: 2, .. }
+    ));
+    assert_eq!(popup.original, "de_DE");
+    send_key(
+        &mut app,
+        KeyCode::Char('s'),
+        KeyModifiers::CONTROL,
+        &channels,
+    );
+
+    let after = fs::read_to_string(&settings_path).expect("must read updated settings.conf");
+    assert!(
+        after.contains("locale = de-DE"),
+        "unexpected settings.conf: {after}"
+    );
+    assert!(!after.contains("de_DE"));
+}
+
+#[test]
 /// What: Dry-run config-editor save reports action but leaves settings file untouched.
 ///
 /// Inputs:

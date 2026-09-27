@@ -162,6 +162,25 @@ pub fn handle_event(
     )
 }
 
+/// What: Disarm double-x on every key except a plain x or shifted X.
+///
+/// Inputs: Key event and active workspace state.
+///
+/// Output: Clears the pending cancellation for other keys.
+///
+/// Details: Runs before global and modal routing, so keys consumed by Help still disarm it.
+fn disarm_pi_scan_cancel_on_other_key(ke: &crossterm::event::KeyEvent, app: &mut AppState) {
+    if app.app_mode == AppMode::PiScan
+        && !matches!(
+            (ke.code, ke.modifiers),
+            (KeyCode::Char('x'), crossterm::event::KeyModifiers::NONE)
+                | (KeyCode::Char('X'), crossterm::event::KeyModifiers::SHIFT)
+        )
+    {
+        app.pi_scan.cancel_armed = None;
+    }
+}
+
 /// What: Report whether a focused Pi Scan text field owns one printable key.
 ///
 /// Inputs:
@@ -176,6 +195,7 @@ pub fn handle_event(
 ///   non-printable global exit or reload shortcuts.
 fn pi_scan_text_field_owns_printable_key(ke: &crossterm::event::KeyEvent, app: &AppState) -> bool {
     matches!(app.app_mode, AppMode::PiScan)
+        && matches!(app.modal, crate::state::Modal::None)
         && app
             .pi_scan
             .wizard
@@ -228,6 +248,8 @@ pub fn handle_event_with_pkgbuild_checks(
             modals::handle_config_editor_mode_key(*ke, app);
             return false;
         }
+
+        disarm_pi_scan_cancel_on_other_key(ke, app);
 
         // A focused Pi Scan text field owns printable input before the global
         // help chord so `?` remains ordinary field content.
@@ -346,6 +368,75 @@ pub fn handle_event_with_pkgbuild_checks(
 #[cfg(all(test, not(target_os = "windows")))]
 mod tests {
     use super::*;
+
+    /// A `ClosingPiScan` modal captures printable keys even when a wizard field has focus.
+    #[test]
+    fn closing_pi_scan_prevents_wizard_text_editing() {
+        let mut app = AppState {
+            app_mode: AppMode::PiScan,
+            ..AppState::default()
+        };
+        app.pi_scan.begin_setup_wizard(true);
+        let wizard = app.pi_scan.wizard.as_mut().expect("wizard");
+        wizard.step = crate::state::PiScanSetupStep::PiReadiness;
+        wizard.focus = 0;
+        wizard.candidate.binary.clear();
+        app.modal = crate::state::Modal::ClosingPiScan;
+        let (qtx, _qrx) = mpsc::unbounded_channel();
+        let (dtx, _drx) = mpsc::unbounded_channel();
+        let (ptx, _prx) = mpsc::unbounded_channel();
+        let (atx, _arx) = mpsc::unbounded_channel();
+        let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel();
+        let (comments_tx, _comments_rx) = mpsc::unbounded_channel();
+        let (pkgb_check_tx, _pkgb_check_rx) = mpsc::unbounded_channel();
+        assert!(!handle_event_with_pkgbuild_checks(
+            &CEvent::Key(KeyEvent::new(KeyCode::Char('n'), KeyModifiers::NONE)),
+            &mut app,
+            &qtx,
+            &dtx,
+            &ptx,
+            &atx,
+            &pkgb_tx,
+            &comments_tx,
+            &pkgb_check_tx,
+        ));
+        assert!(
+            app.pi_scan
+                .wizard
+                .as_ref()
+                .expect("wizard")
+                .candidate
+                .binary
+                .is_empty()
+        );
+        assert!(matches!(app.modal, crate::state::Modal::ClosingPiScan));
+    }
+
+    /// Only plain x and shifted X retain a pending scan cancellation through global routing.
+    #[test]
+    fn modified_cancel_key_and_other_key_disarm() {
+        let mut app = AppState {
+            app_mode: AppMode::PiScan,
+            ..AppState::default()
+        };
+        app.pi_scan.cancel_armed = Some(77);
+        disarm_pi_scan_cancel_on_other_key(
+            &KeyEvent::new(KeyCode::Char('x'), KeyModifiers::ALT),
+            &mut app,
+        );
+        assert!(app.pi_scan.cancel_armed.is_none());
+        app.pi_scan.cancel_armed = Some(77);
+        disarm_pi_scan_cancel_on_other_key(
+            &KeyEvent::new(KeyCode::Char('X'), KeyModifiers::SHIFT),
+            &mut app,
+        );
+        assert_eq!(app.pi_scan.cancel_armed, Some(77));
+        disarm_pi_scan_cancel_on_other_key(
+            &KeyEvent::new(KeyCode::Char('?'), KeyModifiers::NONE),
+            &mut app,
+        );
+        assert!(app.pi_scan.cancel_armed.is_none());
+    }
     use crossterm::event::{
         Event as CEvent, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent,
         MouseEventKind,

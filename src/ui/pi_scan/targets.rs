@@ -28,7 +28,12 @@ pub(super) fn render(f: &mut Frame, app: &mut AppState, area: Rect) {
     app.pi_scan.view_scroll.targets = offset;
     let mut lines = target_prefix(app, prefix_lines);
     if app.pi_scan.targets.is_empty() {
-        lines.push(Line::from(crate::i18n::t(app, "app.pi_scan.targets.empty")));
+        let chord = crate::events::pi_scan::search_entry_label(app);
+        lines.push(Line::from(crate::i18n::t_fmt(
+            app,
+            "app.pi_scan.targets.empty",
+            &[&chord],
+        )));
     }
     let mut rects = Vec::new();
     for (visible_index, (index, target)) in app
@@ -61,6 +66,17 @@ pub(super) fn render(f: &mut Frame, app: &mut AppState, area: Rect) {
                     .add_modifier(Modifier::BOLD),
             ),
         ];
+        if target.newer_version_of.is_some() {
+            let key = if target.status == PiScanTargetStatus::Queued {
+                "app.pi_scan.targets.new_version_queued"
+            } else {
+                "app.pi_scan.targets.new_version"
+            };
+            spans.push(Span::styled(
+                format!(" · {}", crate::i18n::t(app, key)),
+                super::semantic_style(SemanticTone::Warning),
+            ));
+        }
         if target.package_base != target.package_name {
             spans.push(Span::styled(
                 format!(
@@ -139,7 +155,7 @@ fn target_prefix(app: &AppState, prefix_lines: u16) -> Vec<Line<'static>> {
 }
 
 /// Truncate one styled target row to the viewport so it retains exactly one visual line.
-fn truncate_line(line: Line<'static>, width: usize) -> Line<'static> {
+pub(super) fn truncate_line(line: Line<'static>, width: usize) -> Line<'static> {
     let mut remaining = width;
     let mut spans = Vec::new();
     for span in line.spans {

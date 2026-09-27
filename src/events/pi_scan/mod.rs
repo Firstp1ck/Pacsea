@@ -8,35 +8,7 @@ use crossterm::event::{KeyEvent, MouseButton, MouseEvent, MouseEventKind};
 
 /// Handle one workspace key and localize legacy state-owned notice text at the event boundary.
 pub fn handle_key(key: KeyEvent, app: &mut AppState) -> bool {
-    let handled = keys::handle_key(key, app);
-    localize_foreground_notice(app);
-    handled
-}
-
-/// Localize legacy notice text without moving state mutation into rendering.
-fn localize_foreground_notice(app: &mut AppState) {
-    let key = match app
-        .pi_scan
-        .notices
-        .foreground
-        .as_ref()
-        .map(|notice| notice.text.as_str())
-    {
-        Some("Verifying exact Pi version, route pricing, and provenance before consent…") => {
-            Some("app.pi_scan.notices.verifying_setup")
-        }
-        Some(
-            "Review the verified Pi version and exact pricing facts, then press the consent key again",
-        ) => Some("app.pi_scan.notices.review_setup_facts"),
-        Some("No active Pi scan to cancel") => Some("app.pi_scan.notices.no_active_cancel"),
-        _ => None,
-    };
-    if let Some(key) = key {
-        let text = crate::i18n::t(app, key);
-        if let Some(notice) = app.pi_scan.notices.foreground.as_mut() {
-            notice.text = text;
-        }
-    }
+    keys::handle_key(key, app)
 }
 
 /// Open Pi Scan from Search and explain when the current context is not an AUR package.
@@ -47,10 +19,25 @@ pub fn open_from_search(app: &mut AppState) {
         .is_some_and(|item| matches!(item.source, Source::Aur));
     keys::open_from_search(app);
     if !has_aur_context {
-        let notice = crate::i18n::t(app, "app.pi_scan.notices.non_aur_entry");
+        let chord = search_entry_label(app);
+        let notice = crate::i18n::t_fmt(app, "app.pi_scan.notices.non_aur_entry", &[&chord]);
         app.pi_scan
             .set_foreground_notice(notice, PiScanNoticeSeverity::Info);
     }
+}
+
+/// What: Format the configured Search-mode entry key for context guidance.
+///
+/// Inputs: Effective Search keymap and locale.
+///
+/// Output: The configured first chord or a localized fallback when unbound.
+///
+/// Details: Avoids claiming Shift+A when the user customized the entry key.
+pub fn search_entry_label(app: &AppState) -> String {
+    app.keymap.search_normal_pi_scan.first().map_or_else(
+        || crate::i18n::t(app, "app.pi_scan.common.search_shortcut"),
+        crate::theme::KeyChord::label,
+    )
 }
 
 /// What: Open the Pi Scan workspace without attaching stale package context.
@@ -64,6 +51,7 @@ pub fn open_from_search(app: &mut AppState) {
 /// Details:
 /// - Used by mode-independent navigation such as the Package and News Options menus.
 pub fn open_workspace(app: &mut AppState) {
+    app.pi_scan.origin = app.app_mode;
     app.pi_scan.open_context(None, false);
     if !app.pi_scan.setup_complete() {
         app.pi_scan.begin_setup_wizard(true);
@@ -73,6 +61,9 @@ pub fn open_workspace(app: &mut AppState) {
 
 /// Handle workspace tabs, list rows, and wheel scrolling.
 pub fn handle_mouse(event: MouseEvent, app: &mut AppState) -> bool {
+    if matches!(event.kind, MouseEventKind::Down(_)) {
+        app.pi_scan.cancel_armed = None;
+    }
     if let Some(wizard) = app.pi_scan.wizard.as_mut() {
         match event.kind {
             MouseEventKind::ScrollUp => wizard.scroll_body(false),
@@ -85,6 +76,41 @@ pub fn handle_mouse(event: MouseEvent, app: &mut AppState) -> bool {
             _ => {}
         }
         // The modal-like wizard owns all mouse input so workspace controls cannot bypass it.
+        return true;
+    }
+    if app.pi_scan.budget_dialog.is_some() {
+        if app.pi_scan.budget_body_overflows {
+            match event.kind {
+                MouseEventKind::ScrollUp => {
+                    app.pi_scan.budget_body_scroll =
+                        app.pi_scan.budget_body_scroll.saturating_sub(1);
+                }
+                MouseEventKind::ScrollDown => {
+                    app.pi_scan.budget_body_scroll =
+                        app.pi_scan.budget_body_scroll.saturating_add(1);
+                }
+                _ => {}
+            }
+        }
+        if event.kind == MouseEventKind::Down(MouseButton::Left)
+            && let Some((x, y, width, height)) = app.pi_scan.budget_dialog_rect
+        {
+            let choice_row = y.saturating_add(height.saturating_sub(5));
+            if event.column > x
+                && event.column < x.saturating_add(width.saturating_sub(1))
+                && (event.row == choice_row || event.row == choice_row.saturating_add(1))
+            {
+                let selected = app.pi_scan.budget_dialog.as_ref().is_some_and(|dialog| {
+                    (dialog.selection == crate::state::pi_scan::PiScanBudgetAdjustment::Double)
+                        == (event.row == choice_row)
+                });
+                if selected {
+                    app.pi_scan.submit_budget_dialog();
+                } else if let Some(dialog) = app.pi_scan.budget_dialog.as_mut() {
+                    dialog.toggle_selection();
+                }
+            }
+        }
         return true;
     }
     match event.kind {
@@ -135,10 +161,39 @@ fn activate_details_continue_action(column: u16, row: u16, app: &mut AppState) -
 /// Select a rendered target/result row and open Details on a repeated result click.
 fn activate_row(column: u16, row: u16, app: &mut AppState) -> bool {
     match app.pi_scan.view {
+        PiScanView::Setup => {
+            let Some(index) = app.pi_scan.setup_row_rects.iter().position(|rect| {
+                rect.is_some_and(|(x, y, width, height)| {
+                    column >= x
+                        && column < x.saturating_add(width)
+                        && row >= y
+                        && row < y.saturating_add(height)
+                })
+            }) else {
+                return false;
+            };
+            if index == app.pi_scan.selected_setup {
+                keys::activate_setup_row(app);
+            } else {
+                app.pi_scan.selected_setup = index;
+            }
+            true
+        }
         PiScanView::Targets => {
             let Some(index) = app.pi_scan.target_hit_test(column, row) else {
                 return false;
             };
+            let checkbox = app
+                .pi_scan
+                .target_row_rects
+                .iter()
+                .find(|rect| rect.index == index)
+                .is_some_and(|rect| column < rect.x.saturating_add(3));
+            if (checkbox || app.pi_scan.selected_target == index)
+                && let Some(target) = app.pi_scan.targets.get_mut(index)
+            {
+                target.selected = !target.selected;
+            }
             app.pi_scan.selected_target = index;
             app.pi_scan.selected = index;
             true
@@ -155,9 +210,22 @@ fn activate_row(column: u16, row: u16, app: &mut AppState) -> bool {
             }
             true
         }
-        PiScanView::Setup | PiScanView::Overview | PiScanView::Progress | PiScanView::Details => {
-            false
+        PiScanView::Details => {
+            let Some(index) = app
+                .pi_scan
+                .details_header_rects
+                .iter()
+                .find(|rect| rect.contains(column, row))
+                .map(|rect| rect.index)
+            else {
+                return false;
+            };
+            app.pi_scan.selected_result = index;
+            app.pi_scan.selected = index;
+            app.pi_scan.toggle_result_expansion(index);
+            true
         }
+        PiScanView::Overview | PiScanView::Progress => false,
     }
 }
 

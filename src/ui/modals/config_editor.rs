@@ -57,8 +57,9 @@ pub(in crate::ui) fn render_config_editor_window(
     f: &mut Frame,
     app: &mut AppState,
     area: Rect,
-    state: &ConfigEditorState,
+    state: &mut ConfigEditorState,
 ) {
+    state.popup_choice_rects.clear();
     // Clear hit-test rects for widgets that are NOT drawn by this view
     // (sort button, filter chips, results-rect status label, install
     // pane import/export buttons, etc.) so stale screen coordinates
@@ -70,7 +71,10 @@ pub(in crate::ui) fn render_config_editor_window(
     f.render_widget(Clear, area);
     render_editor_into(f, app, area, state, &th);
     if let Some(popup) = state.popup.as_ref() {
-        render_popup(f, app, area, popup, &th);
+        let inner = render_popup(f, app, area, popup, &th);
+        if let EditPopupKind::Enum { choices, .. } = &popup.kind {
+            state.popup_choice_rects = enum_choice_rects(inner, choices.len());
+        }
     }
 }
 
@@ -715,6 +719,10 @@ fn build_details_lines(
     let value = crate::state::config_editor::current_value_string(entry);
     let displayed = if matches!(entry.kind, ValueKind::Secret) {
         mask_secret(&value)
+    } else if value.is_empty()
+        && matches!(entry.kind, ValueKind::Enum { choices } if choices.contains(&""))
+    {
+        localized_empty_choice_label(app)
     } else {
         value
     };
@@ -800,8 +808,28 @@ fn render_footer(f: &mut Frame, area: Rect, app: &AppState, state: &ConfigEditor
     f.render_widget(para, area);
 }
 
-/// Render the centered popup overlay.
-fn render_popup(f: &mut Frame, app: &AppState, area: Rect, popup: &EditPopupState, th: &Theme) {
+/// What: Draw the centered popup overlay.
+///
+/// Inputs:
+/// - `f`: Frame receiving the popup.
+/// - `app`: Translations for the setting and empty-choice labels.
+/// - `area`: Space in which the popup is centered.
+/// - `popup`: Popup state to render.
+/// - `th`: Theme colors.
+///
+/// Output:
+/// - Body rectangle used by the popup's choice rows.
+///
+/// Details:
+/// - Enum lines must not wrap: one choice occupies exactly one screen row,
+///   matching the hit rectangles returned by [`enum_choice_rects`].
+fn render_popup(
+    f: &mut Frame,
+    app: &AppState,
+    area: Rect,
+    popup: &EditPopupState,
+    th: &Theme,
+) -> Rect {
     let width = area.width.saturating_sub(8).min(60);
     let height = 9u16;
     let pos_x = area.x + (area.width.saturating_sub(width)) / 2;
@@ -825,15 +853,52 @@ fn render_popup(f: &mut Frame, app: &AppState, area: Rect, popup: &EditPopupStat
     let inner = block.inner(rect);
     f.render_widget(block, rect);
 
-    let lines = build_popup_lines(popup, th);
-    let para = Paragraph::new(lines)
-        .style(Style::default().bg(th.base))
-        .wrap(Wrap { trim: false });
+    let empty_choice_label = localized_empty_choice_label(app);
+    let lines = build_popup_lines(popup, th, &empty_choice_label);
+    let mut para = Paragraph::new(lines).style(Style::default().bg(th.base));
+    if !matches!(popup.kind, EditPopupKind::Enum { .. }) {
+        para = para.wrap(Wrap { trim: false });
+    }
     f.render_widget(para, inner);
+    inner
 }
 
-/// Build the popup body content based on the popup variant.
-fn build_popup_lines(popup: &EditPopupState, th: &Theme) -> Vec<Line<'static>> {
+/// What: Locate each visible enum choice row in the popup body.
+///
+/// Inputs:
+/// - `inner`: Popup body rect containing the rendered paragraph.
+/// - `choice_count`: Number of enum choices after the key row.
+///
+/// Output:
+/// - One screen rectangle per visible choice, in choice order.
+///
+/// Details:
+/// - Enum popup lines do not wrap, so row zero displays the setting key and
+///   choices start on row one; choices beyond the inner rect are not clickable.
+fn enum_choice_rects(inner: Rect, choice_count: usize) -> Vec<(u16, u16, u16, u16)> {
+    (inner.y.saturating_add(1)..inner.y.saturating_add(inner.height))
+        .take(choice_count)
+        .map(|y| (inner.x, y, inner.width, 1))
+        .collect()
+}
+
+/// What: Build the popup body content based on the popup variant.
+///
+/// Inputs:
+/// - `popup`: Active edit popup.
+/// - `th`: Colors for highlighted choices and hints.
+/// - `empty_choice_label`: Translated label for an empty enum choice.
+///
+/// Output:
+/// - Popup lines with the key on row zero and enum choices starting on row one.
+///
+/// Details:
+/// - The empty choice is displayed with a label but remains empty for saving.
+fn build_popup_lines(
+    popup: &EditPopupState,
+    th: &Theme,
+    empty_choice_label: &str,
+) -> Vec<Line<'static>> {
     let mut lines: Vec<Line<'static>> = Vec::new();
     lines.push(Line::from(Span::styled(
         format!("key: {}", popup.setting.key),
@@ -870,10 +935,11 @@ fn build_popup_lines(popup: &EditPopupState, th: &Theme) -> Vec<Line<'static>> {
                     Style::default().fg(th.text)
                 };
                 let marker = if i == *index { "▶ " } else { "  " };
-                lines.push(Line::from(Span::styled(format!("{marker}{c}"), style)));
+                let label = if c.is_empty() { empty_choice_label } else { c };
+                lines.push(Line::from(Span::styled(format!("{marker}{label}"), style)));
             }
             lines.push(Line::from(Span::styled(
-                "↑/↓ select  ·  Ctrl+S save  ·  Esc cancel",
+                "↑/↓/click select  ·  Ctrl+S save  ·  Esc cancel",
                 Style::default().fg(th.subtext0),
             )));
         }
@@ -955,6 +1021,17 @@ const fn reload_label(r: ReloadBehavior) -> &'static str {
     }
 }
 
+/// Resolve the display label for an empty enum choice with English fallback.
+fn localized_empty_choice_label(app: &AppState) -> String {
+    let key = "app.modals.config_editor.popup_empty_choice";
+    let translated = crate::i18n::t(app, key);
+    if translated == key {
+        "Auto-detect".to_string()
+    } else {
+        translated
+    }
+}
+
 /// Resolve a translated label for a setting key with schema fallback.
 fn localized_setting_label(app: &AppState, entry: &crate::theme::EditableSetting) -> String {
     let key = entry.label_i18n_key();
@@ -978,8 +1055,62 @@ fn localized_setting_summary(app: &AppState, entry: &crate::theme::EditableSetti
 }
 
 #[cfg(test)]
-mod footer_rows_tests {
-    use crate::state::{AppState, ConfigEditorState};
+mod tests {
+    use super::{build_popup_lines, enum_choice_rects, render_popup};
+    use crate::state::{AppState, ConfigEditorState, EditPopupState};
+    use crate::theme::{find_setting, theme};
+    use ratatui::{Terminal, backend::TestBackend, layout::Rect};
+
+    /// The empty locale choice is labeled in the popup rather than rendered blank.
+    #[test]
+    fn empty_enum_choice_uses_display_label() {
+        let setting = find_setting("locale").expect("locale schema");
+        let popup = EditPopupState::from_current(setting, "");
+        let lines = build_popup_lines(&popup, &theme(), "Auto-detect");
+        assert_eq!(lines[1].spans[0].content, "▶ Auto-detect");
+        assert_eq!(popup.canonical_value(), "");
+    }
+
+    /// Narrow enum popups clip long choices without shifting later click rows.
+    #[test]
+    fn narrow_enum_popup_choice_rows_match_hit_rects() {
+        let setting = find_setting("auth_mode").expect("auth mode schema");
+        let popup = EditPopupState::from_current(setting, "prompt");
+        let app = AppState::default();
+        let mut terminal = Terminal::new(TestBackend::new(26, 12)).expect("test terminal");
+        let mut inner = Rect::default();
+        terminal
+            .draw(|frame| {
+                inner = render_popup(frame, &app, frame.area(), &popup, &theme());
+            })
+            .expect("popup render");
+        assert!(usize::from(inner.width) < "  passwordless_only".len());
+        let buffer = terminal.backend().buffer();
+        for ((x, y, width, _), choice) in
+            enum_choice_rects(inner, 3)
+                .into_iter()
+                .zip(["prompt", "passwordless", "interactive"])
+        {
+            let row: String = (x..x + width)
+                .map(|col| buffer[(col, y)].symbol())
+                .collect();
+            assert!(
+                row.contains(choice),
+                "row {y} should contain {choice}, got: {row}"
+            );
+        }
+    }
+
+    /// Choice rows start after the key and never extend past the popup body.
+    #[test]
+    fn enum_choice_rects_start_after_key_and_clip_to_inner_height() {
+        let inner = Rect::new(10, 20, 30, 4);
+        assert_eq!(
+            enum_choice_rects(inner, 5),
+            vec![(10, 21, 30, 1), (10, 22, 30, 1), (10, 23, 30, 1)]
+        );
+        assert!(enum_choice_rects(Rect::new(10, 20, 30, 1), 3).is_empty());
+    }
 
     use crate::ui::details::config_editor_footer_reserved_rows;
 

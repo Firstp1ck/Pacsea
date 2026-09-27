@@ -1633,12 +1633,16 @@ async fn run_production_requests(
         let observed = runner.startup_observation(unix_now()).await;
         consent.observation_started = observed.is_ok();
         senders.policy.publish(consent, &settings, dry_run);
-        publish_observation(
+        publish_observation_with_queue(
+            &runner,
             observed,
             "background startup observation",
             &progress_tx,
             &result_tx,
-        );
+            dry_run,
+            false,
+        )
+        .await;
         request_background_execution_if_eligible(&execution_tx, &settings, consent, dry_run);
     }
     let mut interval =
@@ -1661,22 +1665,13 @@ async fn run_production_requests(
                 ).await;
             }
             _ = interval.tick(), if background_observation_due(consent) => {
-                let observed = runner.periodic_observation(unix_now()).await;
-                let observation_succeeded = observed.is_ok();
-                consent.observation_started |= observation_succeeded;
-                senders.policy.publish(consent, &settings, dry_run);
-                publish_observation(
-                    observed,
-                    "background periodic observation",
-                    &progress_tx,
-                    &result_tx,
-                );
-                request_background_execution_if_eligible(
-                    &execution_tx,
+                handle_production_periodic_observation(
+                    &runner,
+                    &senders,
                     &settings,
-                    consent,
+                    &mut consent,
                     dry_run,
-                );
+                ).await;
             }
             _ = budget_interval.tick() => {
                 handle_production_budget_revalidation(
@@ -1707,6 +1702,46 @@ struct ProductionSetupConsentUpdate {
     background_paid_execution_confirmed: bool,
     /// Readiness-warning confirmation.
     readiness_warning_confirmed: bool,
+}
+
+/// What: Observe due packages and wake only consented unattended execution.
+///
+/// Inputs:
+/// - `runner`: Serialized scanner owner.
+/// - `senders`: Policy, UI, and execution channels.
+/// - `settings`: Current runtime policy.
+/// - `consent`: Mutable observation-success projection.
+/// - `dry_run`: Never wakes execution in dry-run.
+///
+/// Output:
+/// - Projects new work and updates observation success before any execution wake.
+///
+/// Details:
+/// - The periodic timer remains independent of paid-execution consent.
+async fn handle_production_periodic_observation(
+    runner: &PiScanSequentialRunner<ProductionOrchestrationAdapter>,
+    senders: &ProductionRequestSenders,
+    settings: &ProductionRuntimeSettings,
+    consent: &mut RuntimeConsentProjection,
+    dry_run: bool,
+) {
+    let observed = runner.periodic_observation(unix_now()).await;
+    *consent = RuntimeConsentProjection {
+        observation_started: consent.observation_started || observed.is_ok(),
+        ..*consent
+    };
+    senders.policy.publish(*consent, settings, dry_run);
+    publish_observation_with_queue(
+        runner,
+        observed,
+        "background periodic observation",
+        &senders.progress,
+        &senders.result,
+        dry_run,
+        false,
+    )
+    .await;
+    request_background_execution_if_eligible(&senders.execution, settings, *consent, dry_run);
 }
 
 /// Runtime consent plus optional setup confirmations from one explicit caller action.
@@ -1758,14 +1793,18 @@ async fn handle_production_request(
             Err(error) => reject(result_tx, error.to_string()),
         },
         PiScanRequestMessage::ManualObservation { package_names } => {
-            publish_observation(
+            publish_observation_with_queue(
+                runner,
                 runner
                     .manual_observation_selected(unix_now(), package_names)
                     .await,
                 "selected-target observation",
                 progress_tx,
                 result_tx,
-            );
+                dry_run,
+                true,
+            )
+            .await;
         }
         PiScanRequestMessage::Enqueue(request) => {
             handle_production_enqueue(
@@ -1851,12 +1890,26 @@ async fn handle_production_request(
                 Ok(())
                     if consent_state.observation_enabled && consent_state.observation_started =>
                 {
-                    publish_observation(
-                        runner.update_candidate_observation(unix_now()).await,
+                    let observed = runner.update_candidate_observation(unix_now()).await;
+                    let observation_succeeded = observed.is_ok();
+                    publish_observation_with_queue(
+                        runner,
+                        observed,
                         "background update-candidate observation",
                         progress_tx,
                         result_tx,
-                    );
+                        dry_run,
+                        false,
+                    )
+                    .await;
+                    if observation_succeeded {
+                        request_background_execution_if_eligible(
+                            execution_tx,
+                            settings,
+                            *consent_state,
+                            dry_run,
+                        );
+                    }
                 }
                 Ok(()) => {}
                 Err(error) => reject(result_tx, error.to_string()),
@@ -2288,15 +2341,87 @@ async fn apply_production_consent(
     {
         let observed = runner.startup_observation(unix_now()).await;
         consent_state.observation_started = observed.is_ok();
-        publish_observation(
+        publish_observation_with_queue(
+            runner,
             observed,
             "background startup observation",
             progress_tx,
             result_tx,
-        );
+            dry_run,
+            false,
+        )
+        .await;
     }
     senders.policy.publish(*consent_state, settings, dry_run);
     request_background_execution_if_eligible(execution_tx, settings, *consent_state, dry_run);
+}
+
+/// What: Publish discoveries followed by the exact persisted queue requests they created.
+///
+/// Inputs:
+/// - `runner`: Serialized owner of durable queue state.
+/// - `observed`: Completed observation result.
+/// - `context`: Error context for the caller.
+/// - `progress_tx` and `result_tx`: UI projection channels.
+/// - `dry_run`: Prevents projecting simulated work as queued.
+/// - `manual_response`: Distinguishes a completed selected-target observation even when empty.
+///
+/// Output:
+/// - Sends observation and matching queued progress messages.
+///
+/// Details:
+/// - Reusing Queued keeps live projection identical to manual queueing and restore.
+async fn publish_observation_with_queue(
+    runner: &PiScanSequentialRunner<ProductionOrchestrationAdapter>,
+    observed: Result<Vec<FrozenScanIdentity>, OrchestrationError>,
+    context: &str,
+    progress_tx: &tokio::sync::mpsc::UnboundedSender<PiScanProgressMessage>,
+    result_tx: &tokio::sync::mpsc::UnboundedSender<PiScanResultMessage>,
+    dry_run: bool,
+    manual_response: bool,
+) {
+    let discovered = observed.as_ref().map_or_else(
+        |_| Vec::new(),
+        |targets| {
+            targets
+                .iter()
+                .map(|target| (target.package_base.clone(), target.commit_oid.clone()))
+                .collect::<Vec<_>>()
+        },
+    );
+    if manual_response {
+        match observed {
+            Ok(targets) => {
+                drop(progress_tx.send(PiScanProgressMessage::ManualObserved { targets }));
+            }
+            Err(error) => reject(result_tx, format!("{context} failed: {error}")),
+        }
+    } else {
+        publish_observation(observed, context, progress_tx, result_tx);
+    }
+    if dry_run || discovered.is_empty() {
+        return;
+    }
+    let (requests, queue_len) = match runner.state_snapshot().await {
+        Ok(state) => {
+            let queue_len = state.runtime.queue.len();
+            (state.runtime.queue, queue_len)
+        }
+        Err(error) => {
+            reject(
+                result_tx,
+                format!("{context} queue projection failed: {error}"),
+            );
+            return;
+        }
+    };
+    for request in requests.into_iter().filter(|request| {
+        discovered
+            .iter()
+            .any(|(base, oid)| request.key.package_base == *base && request.key.commit_oid == *oid)
+    }) {
+        drop(progress_tx.send(PiScanProgressMessage::Queued { request, queue_len }));
+    }
 }
 
 /// Publish a completed observation or reduce its failure to an optional-feature rejection.
@@ -2794,9 +2919,9 @@ mod tests {
         handle_production_request, legacy_background_consent_binding,
         legacy_budget_inclusive_consent_binding, missing_selected_foreign_packages,
         production_background_wake_eligible, production_consent_binding, publish_cancelled,
-        publish_failed, publish_observation, publish_policy_notice, publish_validated_completion,
-        request_background_execution_if_eligible, reservation_from_probed_models,
-        resolve_production_adapter_config,
+        publish_failed, publish_observation, publish_observation_with_queue, publish_policy_notice,
+        publish_validated_completion, request_background_execution_if_eligible,
+        reservation_from_probed_models, resolve_production_adapter_config,
     };
     use crate::app::runtime::workers::pi_scan::{
         PiScanBackgroundExecutionAcknowledgement, PiScanBudgetAdjustmentAcknowledgement,
@@ -3420,6 +3545,97 @@ mod tests {
             Ok(PiScanResultMessage::Failed { record, reason })
                 if record.status == PiScanTerminalStatus::Failed && reason == "typed failure"
         ));
+    }
+
+    /// Empty manual observations still publish a typed response for pending UI intent.
+    #[tokio::test]
+    async fn empty_manual_observation_publishes_completion() {
+        let temp = tempfile::tempdir().expect("temp");
+        let settings = consent_test_settings();
+        let owner = PiScanOrchestrator::new(
+            consent_test_config(temp.path(), production_consent_binding(&settings)),
+            consent_test_adapter(temp.path()),
+        )
+        .expect("owner");
+        let runner = crate::pi_scan_orchestrator::PiScanSequentialRunner::new(owner);
+        let (progress_tx, mut progress_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (result_tx, _result_rx) = tokio::sync::mpsc::unbounded_channel();
+        publish_observation_with_queue(
+            &runner,
+            Ok(Vec::new()),
+            "selected-target observation",
+            &progress_tx,
+            &result_tx,
+            false,
+            true,
+        )
+        .await;
+        assert!(
+            matches!(progress_rx.try_recv(), Ok(PiScanProgressMessage::ManualObserved { targets }) if targets.is_empty())
+        );
+        assert!(progress_rx.try_recv().is_err());
+    }
+
+    /// What: Reject a candidate request without waking when setup is unconfirmed.
+    ///
+    /// Inputs:
+    /// - A production owner with no setup consent and otherwise eligible session policy.
+    ///
+    /// Output:
+    /// - No execution wake after `ensure_enabled` rejects observation.
+    ///
+    /// Details:
+    /// - A successful production observation requires installed foreign packages, AUR RPC, and
+    ///   a Pi setup probe; the inert test adapter cannot simulate that path without machine state.
+    ///   The successful wake predicate is tested separately with typed consent and dry-run gates.
+    #[tokio::test]
+    async fn update_candidates_request_does_not_wake_without_setup() {
+        let temp = tempfile::tempdir().expect("temp");
+        let mut settings = consent_test_settings();
+        let owner = PiScanOrchestrator::new(
+            consent_test_config(temp.path(), production_consent_binding(&settings)),
+            consent_test_adapter(temp.path()),
+        )
+        .expect("owner");
+        let runner = crate::pi_scan_orchestrator::PiScanSequentialRunner::new(owner);
+        let (senders, mut execution_rx) =
+            production_test_senders(Arc::new(ProductionPolicyProjection::default()));
+        let mut consent = RuntimeConsentProjection {
+            observation_enabled: true,
+            observation_started: true,
+            paid_execution: true,
+            background_paid_execution: true,
+        };
+        handle_production_request(
+            &runner,
+            PiScanRequestMessage::UpdateCandidates(Vec::new()),
+            &senders,
+            &mut settings,
+            &mut consent,
+            false,
+        )
+        .await;
+        assert!(execution_rx.try_recv().is_err());
+    }
+
+    /// Update-candidate wakes use the same paid-background and dry-run gate as periodic work.
+    #[test]
+    fn candidate_wake_requires_paid_background_consent_and_real_execution() {
+        let settings = consent_test_settings();
+        let mut consent = RuntimeConsentProjection {
+            observation_enabled: true,
+            observation_started: true,
+            paid_execution: true,
+            background_paid_execution: false,
+        };
+        let (execution_tx, mut execution_rx) = tokio::sync::mpsc::unbounded_channel();
+        request_background_execution_if_eligible(&execution_tx, &settings, consent, false);
+        assert!(execution_rx.try_recv().is_err());
+        consent.background_paid_execution = true;
+        request_background_execution_if_eligible(&execution_tx, &settings, consent, true);
+        assert!(execution_rx.try_recv().is_err());
+        request_background_execution_if_eligible(&execution_tx, &settings, consent, false);
+        assert!(execution_rx.try_recv().is_ok());
     }
 
     /// A transient startup failure must not permanently disable consented periodic observation.

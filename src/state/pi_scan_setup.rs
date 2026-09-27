@@ -288,7 +288,7 @@ impl PiScanSetupWizardState {
     pub fn open(settings: PiScanSettings, consent: PiScanConsentState, first_run: bool) -> Self {
         Self {
             step: PiScanSetupStep::Welcome,
-            focus: 0,
+            focus: 1,
             body_scroll: 0,
             candidate: settings.clone(),
             candidate_consent: consent,
@@ -350,12 +350,62 @@ impl PiScanSetupWizardState {
         };
     }
 
-    /// Move focus by one control, wrapping within the current page.
+    /// What: Identify an Apply transaction that still owns the wizard draft.
+    ///
+    /// Inputs: Current transactional Apply status.
+    ///
+    /// Output: True until Apply succeeds or fails.
+    ///
+    /// Details: Back must not clear this transaction's correlation or pending action.
+    #[must_use]
+    pub const fn apply_in_flight(&self) -> bool {
+        matches!(
+            self.apply_status,
+            PiScanSetupApplyStatus::Validating
+                | PiScanSetupApplyStatus::Activating
+                | PiScanSetupApplyStatus::Persisting
+        )
+    }
+
+    /// What: Return the footer actions offered on this step.
+    ///
+    /// Inputs: Current wizard step and Apply status.
+    ///
+    /// Output: Actions in visible button order.
+    ///
+    /// Details: The same list drives keyboard focus and renderer button layout.
+    #[must_use]
+    pub fn footer_targets(&self) -> Vec<PiScanSetupHitTarget> {
+        let mut targets = vec![PiScanSetupHitTarget::Cancel];
+        if self.step.previous().is_some()
+            && !self.apply_in_flight()
+            && !matches!(self.apply_status, PiScanSetupApplyStatus::Complete)
+        {
+            targets.push(PiScanSetupHitTarget::Back);
+        }
+        match self.step {
+            PiScanSetupStep::Review => targets.push(PiScanSetupHitTarget::Apply),
+            PiScanSetupStep::Activate
+                if matches!(self.apply_status, PiScanSetupApplyStatus::Failed(_)) =>
+            {
+                targets.push(PiScanSetupHitTarget::Retry);
+            }
+            PiScanSetupStep::Activate => {}
+            _ => targets.push(PiScanSetupHitTarget::Next),
+        }
+        targets
+    }
+
+    /// What: Move wizard focus through body and footer controls.
+    ///
+    /// Inputs: `forward` determines Tab or Shift+Tab direction.
+    ///
+    /// Output: Updated wrapped focus index.
+    ///
+    /// Details: Footer buttons stay reachable even while editing a text field.
     pub fn move_focus(&mut self, forward: bool) {
-        let count = self.focus_count();
-        if count == 0 {
-            self.focus = 0;
-        } else if forward {
+        let count = self.focus_count() + self.footer_targets().len();
+        if forward {
             self.focus = (self.focus + 1) % count;
         } else {
             self.focus = self.focus.checked_sub(1).unwrap_or(count - 1);
@@ -643,6 +693,9 @@ impl PiScanSetupWizardState {
 
     /// Navigate backward without changing the original settings/runtime/consent projection.
     pub fn back(&mut self) {
+        if self.apply_in_flight() {
+            return;
+        }
         let Some(previous) = self.step.previous() else {
             return;
         };
@@ -705,6 +758,11 @@ impl PiScanSetupWizardState {
             PiScanSetupApplyStatus::Complete | PiScanSetupApplyStatus::Failed(_)
         );
         self.apply_status = status;
+        self.focus = self.focus.min(
+            self.focus_count()
+                .saturating_add(self.footer_targets().len())
+                .saturating_sub(1),
+        );
         if terminal {
             self.in_flight_correlation = None;
             self.pending_action = None;
@@ -890,7 +948,13 @@ impl PiScanSetupWizardState {
     /// Change page and reset page-local focus.
     fn set_step(&mut self, step: PiScanSetupStep) {
         self.step = step;
-        self.focus = 0;
+        self.focus = if step == PiScanSetupStep::PiReadiness {
+            1
+        } else if self.focus_count() == 0 {
+            self.footer_targets().len().saturating_sub(1)
+        } else {
+            0
+        };
         self.body_scroll = 0;
         self.hit_rects.clear();
     }

@@ -203,13 +203,15 @@ fn render_controls(
     let controls = footer_controls(wizard);
     let mut spans = Vec::new();
     let hit_rects = control_hit_rects(app, area, &controls);
-    for (target, key) in controls {
+    for (index, (target, key)) in controls.into_iter().enumerate() {
         let label = control_label(app, target, key);
         spans.push(Span::styled(
             label,
             Style::default()
                 .fg(th.base)
-                .bg(if matches!(target, PiScanSetupHitTarget::Apply) {
+                .bg(if wizard.focus == wizard.focus_count() + index {
+                    th.mauve
+                } else if matches!(target, PiScanSetupHitTarget::Apply) {
                     th.green
                 } else {
                     th.sapphire
@@ -229,23 +231,21 @@ fn render_controls(
 
 /// Build semantic footer controls for the current step and apply outcome.
 fn footer_controls(wizard: &PiScanSetupWizardState) -> Vec<(PiScanSetupHitTarget, &'static str)> {
-    let mut controls = vec![(PiScanSetupHitTarget::Cancel, "Esc")];
-    if wizard.step.previous().is_some()
-        && !matches!(wizard.apply_status, PiScanSetupApplyStatus::Complete)
-    {
-        controls.push((PiScanSetupHitTarget::Back, "b"));
-    }
-    match wizard.step {
-        PiScanSetupStep::Review => controls.push((PiScanSetupHitTarget::Apply, "a")),
-        PiScanSetupStep::Activate
-            if matches!(wizard.apply_status, PiScanSetupApplyStatus::Failed(_)) =>
-        {
-            controls.push((PiScanSetupHitTarget::Retry, "r"));
-        }
-        PiScanSetupStep::Activate => {}
-        _ => controls.push((PiScanSetupHitTarget::Next, "n")),
-    }
-    controls
+    wizard
+        .footer_targets()
+        .into_iter()
+        .map(|target| {
+            let key = match target {
+                PiScanSetupHitTarget::Cancel => "Esc",
+                PiScanSetupHitTarget::Back => "b",
+                PiScanSetupHitTarget::Next => "n",
+                PiScanSetupHitTarget::Apply => "a",
+                PiScanSetupHitTarget::Retry => "r",
+                PiScanSetupHitTarget::Control(_) => "",
+            };
+            (target, key)
+        })
+        .collect()
 }
 
 /// Convert footer controls into half-open terminal rectangles.

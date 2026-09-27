@@ -1432,6 +1432,7 @@ fn dispatch_pi_scan_ui_action(app: &mut AppState, channels: &Channels) {
     let Some(action) = app.pi_scan.pending_action.take() else {
         return;
     };
+    let probing_setup = action == PiScanUiAction::ProbeSetup;
     if matches!(action, PiScanUiAction::Pause | PiScanUiAction::Resume) {
         let action_key = if action == PiScanUiAction::Pause {
             "pause"
@@ -1473,8 +1474,17 @@ fn dispatch_pi_scan_ui_action(app: &mut AppState, channels: &Channels) {
         PiScanUiAction::SetBackgroundExecution(enabled) => {
             dispatch_pi_scan_background_toggle(app, channels, enabled)
         }
-        PiScanUiAction::QueueSelected | PiScanUiAction::Retry => {
-            send_selected_pi_scan_targets(app, channels)
+        PiScanUiAction::QueueSelected => send_selected_pi_scan_targets(app, channels, None),
+        PiScanUiAction::Retry => {
+            let names = app.pi_scan.retry_target_names();
+            if names.is_empty() {
+                Err(crate::i18n::t(
+                    app,
+                    "app.pi_scan.notices.select_failed_target",
+                ))
+            } else {
+                send_selected_pi_scan_targets(app, channels, Some(names))
+            }
         }
         PiScanUiAction::Pause => channels
             .pi_scan_user_pause_tx
@@ -1512,6 +1522,9 @@ fn dispatch_pi_scan_ui_action(app: &mut AppState, channels: &Channels) {
         PiScanUiAction::AcceptBaseline => accept_selected_pi_scan_baseline(app, channels),
     };
     if let Err(reason) = sent {
+        if probing_setup {
+            app.pi_scan.pending_setup_consent = None;
+        }
         app.pi_scan.set_foreground_notice(
             reason,
             crate::state::pi_scan_ui::PiScanNoticeSeverity::Error,
@@ -1871,21 +1884,47 @@ const fn budget_dimension_key(
     }
 }
 
-/// Send selected, immutable Pi Scan targets with conservative reservations.
-fn send_selected_pi_scan_targets(app: &mut AppState, channels: &Channels) -> Result<(), String> {
+/// What: Send selected immutable targets, or the filtered Retry subset.
+///
+/// Inputs: Workspace state, runtime channels, and optional retry-only package names.
+///
+/// Output: Queued request or an actionable dispatch error.
+///
+/// Details: Retry snapshots only the selected failed subset before identity resolution.
+fn send_selected_pi_scan_targets(
+    app: &mut AppState,
+    channels: &Channels,
+    retry_names: Option<Vec<String>>,
+) -> Result<(), String> {
     if !channels.pi_scan_runtime_enabled {
         return Err(crate::i18n::t(
             app,
             "app.pi_scan.notices.runtime_disconnected",
         ));
     }
-    if app.pi_scan.pending_queue_intent.is_none() {
+    if let Some(names) = retry_names {
+        app.pi_scan.snapshot_queue_intent_for_names(names);
+        if let Some(intent) = app.pi_scan.pending_queue_intent.as_mut() {
+            intent.exact_targets.retain(|(_, base, oid)| {
+                app.pi_scan.targets.iter().any(|target| {
+                    target.package_base == *base
+                        && target.commit_oid.as_deref() == Some(oid.as_str())
+                        && matches!(
+                            target.status,
+                            crate::state::PiScanTargetStatus::Failed
+                                | crate::state::PiScanTargetStatus::Interrupted
+                                | crate::state::PiScanTargetStatus::Cancelled
+                        )
+                })
+            });
+        }
+    } else if app.pi_scan.pending_queue_intent.is_none() {
         app.pi_scan.snapshot_queue_intent();
     }
     let Some(intent) = app.pi_scan.pending_queue_intent.as_ref() else {
         return Err(crate::i18n::t(app, "app.pi_scan.notices.select_target"));
     };
-    let unresolved = unresolved_queue_intent_members(app, &intent.package_names);
+    let unresolved = unresolved_queue_intent_members(intent);
     if !unresolved.is_empty() {
         channels
             .pi_scan_request_tx
@@ -1908,17 +1947,11 @@ fn send_selected_pi_scan_targets(app: &mut AppState, channels: &Channels) -> Res
     enqueue_resolved_queue_intent(app, &channels.pi_scan_request_tx)
 }
 
-/// Return exact intended package names whose immutable identities remain unresolved.
-fn unresolved_queue_intent_members(app: &AppState, package_names: &[String]) -> Vec<String> {
-    package_names
-        .iter()
-        .filter(|package_name| {
-            !app.pi_scan.targets.iter().any(|target| {
-                target.package_name == package_name.as_str() && target.commit_oid.is_some()
-            })
-        })
-        .cloned()
-        .collect()
+/// Return selected commit-less names not yet fulfilled by manual observation.
+fn unresolved_queue_intent_members(
+    intent: &crate::state::pi_scan_ui::PiScanQueueIntentSnapshot,
+) -> Vec<String> {
+    intent.unresolved_names.clone()
 }
 
 /// Consume and enqueue one fully resolved exact queue-intent snapshot.
@@ -1935,13 +1968,29 @@ fn enqueue_resolved_queue_intent(
         tokens: intent.reservation_tokens,
         cost_microusd: decimal_dollars_to_microusd(&intent.reservation_cost_cap)?,
     };
-    let mut identities = Vec::with_capacity(intent.package_names.len());
+    let mut identities: Vec<_> = intent
+        .exact_targets
+        .iter()
+        .map(|(_, base, oid)| (base.clone(), oid.clone()))
+        .collect();
     for package_name in &intent.package_names {
+        if intent
+            .exact_targets
+            .iter()
+            .any(|(name, _, _)| name == package_name)
+        {
+            continue;
+        }
         let target = app
             .pi_scan
             .targets
             .iter()
-            .find(|target| target.package_name == *package_name && target.commit_oid.is_some())
+            .rev()
+            .find(|target| {
+                target.selected
+                    && target.package_name == *package_name
+                    && target.commit_oid.is_some()
+            })
             .ok_or_else(|| {
                 format!(
                     "{}: {package_name}",
@@ -2121,6 +2170,7 @@ fn apply_pi_scan_progress(
     use crate::app::runtime::workers::pi_scan::PiScanProgressMessage;
     match progress {
         PiScanProgressMessage::SetupVerified(snapshot) => {
+            app.pi_scan.pending_setup_consent = None;
             app.pi_scan.verified_pi_version = snapshot.pi_version;
             app.pi_scan.verified_provider = snapshot.selected_provider;
             app.pi_scan.verified_model = snapshot.selected_model;
@@ -2178,25 +2228,16 @@ fn apply_pi_scan_progress(
                     app.pi_scan.record_result_inserted();
                 }
             }
+            refresh_pi_scan_new_version_markers(app);
         }
         PiScanProgressMessage::Observed { targets } => {
-            apply_pi_scan_observation(app, request_tx, targets);
+            apply_pi_scan_observation(app, request_tx, targets, false);
+        }
+        PiScanProgressMessage::ManualObserved { targets } => {
+            apply_pi_scan_observation(app, request_tx, targets, true);
         }
         PiScanProgressMessage::Queued { request, .. } => {
-            set_pi_scan_target_key_status(
-                app,
-                &request.key,
-                crate::state::PiScanTargetStatus::Queued,
-            );
-            if !app
-                .pi_scan
-                .runtime
-                .queue
-                .iter()
-                .any(|queued| queued.request_id == request.request_id)
-            {
-                app.pi_scan.runtime.queue.push_back(request);
-            }
+            apply_pi_scan_queued(app, request);
         }
         PiScanProgressMessage::Started(active) => {
             set_pi_scan_target_key_status(
@@ -2249,6 +2290,49 @@ fn apply_pi_scan_progress(
     app.pi_scan.clamp_selection();
 }
 
+/// What: Apply a queue projection only if a later Started or terminal event has not won.
+///
+/// Inputs:
+/// - `app`: Live scanner workspace.
+/// - `request`: Exact durable queue request.
+///
+/// Output:
+/// - Updates the matching row and runtime queue only for pending work.
+///
+/// Details:
+/// - Execution and observation run on separate tasks; Queued can arrive after Started.
+fn apply_pi_scan_queued(app: &mut AppState, request: crate::state::pi_scan::PiScanJobRequest) {
+    let active = app
+        .pi_scan
+        .runtime
+        .active
+        .as_ref()
+        .is_some_and(|active| active.request.request_id == request.request_id);
+    let terminal = app
+        .pi_scan
+        .runtime
+        .terminal
+        .iter()
+        .any(|record| record.request.request_id == request.request_id);
+    let completed = app.pi_scan.targets.iter().any(|target| {
+        target.package_base == request.key.package_base.as_str()
+            && target.commit_oid.as_deref() == Some(request.key.commit_oid.as_str())
+            && target.status == crate::state::PiScanTargetStatus::Completed
+    });
+    if !active && !terminal && !completed {
+        set_pi_scan_target_key_status(app, &request.key, crate::state::PiScanTargetStatus::Queued);
+        if !app
+            .pi_scan
+            .runtime
+            .queue
+            .iter()
+            .any(|queued| queued.request_id == request.request_id)
+        {
+            app.pi_scan.runtime.queue.push_back(request);
+        }
+    }
+}
+
 /// Project exact observed identities and complete only their matching queue intent.
 fn apply_pi_scan_observation(
     app: &mut AppState,
@@ -2258,6 +2342,7 @@ fn apply_pi_scan_observation(
         >,
     >,
     targets: Vec<crate::pi_scan_orchestrator::FrozenScanIdentity>,
+    manual_response: bool,
 ) {
     let observation_matches_intent =
         app.pi_scan
@@ -2271,59 +2356,353 @@ fn apply_pi_scan_observation(
                         .any(|name| name == &observed.package_name)
                 })
             });
+    let mut newly_pushed = Vec::new();
     for observed in targets {
-        let package_base = observed.package_base.as_str().to_string();
-        let commit_oid = observed.commit_oid.as_str().to_string();
-        if let Some(target) = app.pi_scan.targets.iter_mut().find(|target| {
-            target.package_name == observed.package_name && target.commit_oid.is_none()
-        }) {
-            target.package_base = package_base;
-            target.commit_oid = Some(commit_oid);
-            continue;
+        if let Some(new_target) = project_pi_scan_observed_target(app, observed) {
+            newly_pushed.push(new_target);
         }
-        let exact_exists = app.pi_scan.targets.iter().any(|target| {
-            target.package_base == package_base
-                && target.commit_oid.as_deref() == Some(commit_oid.as_str())
-        });
-        if exact_exists {
-            continue;
+    }
+    refresh_pi_scan_new_version_markers(app);
+    let mut new_packages = Vec::new();
+    for (base, oid, name) in newly_pushed {
+        if !new_packages
+            .iter()
+            .any(|(seen, _): &(String, String)| seen == &base)
+            && app.pi_scan.targets.iter().any(|target| {
+                target.package_base == base
+                    && target.commit_oid.as_deref() == Some(oid.as_str())
+                    && target.newer_version_of.is_some()
+            })
+        {
+            new_packages.push((base, name));
         }
-        app.pi_scan.targets.push(crate::state::PiScanTarget {
-            package_name: observed.package_name,
-            package_base,
-            commit_oid: Some(commit_oid),
-            selected: false,
-            status: crate::state::PiScanTargetStatus::Unbaselined,
-        });
+    }
+    if !new_packages.is_empty() {
+        let background_ready = app.pi_scan.settings.background_enabled
+            && app.pi_scan.background_toggle_ready()
+            && app.pi_scan.availability == crate::state::PiScanAvailability::RuntimeConnected
+            && app.pi_scan.runtime.pause_reasons.is_empty();
+        let key = match (new_packages.len(), app.dry_run, background_ready) {
+            (1, true, _) => "app.pi_scan.notices.new_version_preview",
+            (_, true, _) => "app.pi_scan.notices.new_versions_preview",
+            (1, false, true) => "app.pi_scan.notices.new_version_queued",
+            (1, false, false) => "app.pi_scan.notices.new_version_manual",
+            (_, false, true) => "app.pi_scan.notices.new_versions_queued",
+            (_, false, false) => "app.pi_scan.notices.new_versions_manual",
+        };
+        let argument = if new_packages.len() == 1 {
+            new_packages[0].1.clone()
+        } else {
+            new_packages.len().to_string()
+        };
+        let message = crate::i18n::t_fmt1(app, key, argument);
+        app.pi_scan.set_background_notice(
+            message.clone(),
+            crate::state::pi_scan_ui::PiScanNoticeSeverity::Info,
+        );
+        if app.app_mode != crate::state::types::AppMode::PiScan {
+            app.toast_message = Some(message);
+            app.toast_expires_at =
+                Some(std::time::Instant::now() + std::time::Duration::from_secs(6));
+        }
     }
     app.pi_scan.readiness = crate::state::PiScanReadiness::Confirmed;
-    if !observation_matches_intent {
+    let (unresolved, already_scanned) = if manual_response {
+        resolve_pending_pi_scan_intent_from_history(app)
+    } else {
+        (Vec::new(), Vec::new())
+    };
+    if !unresolved.is_empty() {
+        app.pi_scan.pending_queue_intent = None;
+        app.pi_scan.set_foreground_notice(
+            format!(
+                "{}: {}",
+                crate::i18n::t(app, "app.pi_scan.notices.queue_intent_unresolved"),
+                unresolved.join(", ")
+            ),
+            crate::state::pi_scan_ui::PiScanNoticeSeverity::Info,
+        );
         return;
     }
-    let Some(request_tx) = request_tx else {
+    if !observation_matches_intent && !manual_response {
         return;
-    };
-    let Some(intent) = app.pi_scan.pending_queue_intent.as_ref() else {
-        return;
-    };
-    let unresolved = unresolved_queue_intent_members(app, &intent.package_names);
-    if unresolved.is_empty() {
-        if let Err(reason) = enqueue_resolved_queue_intent(app, request_tx) {
+    }
+    if app
+        .pi_scan
+        .pending_queue_intent
+        .as_ref()
+        .is_some_and(|intent| intent.package_names.is_empty())
+    {
+        app.pi_scan.pending_queue_intent = None;
+    } else if let (Some(request_tx), Some(intent)) =
+        (request_tx, app.pi_scan.pending_queue_intent.as_ref())
+    {
+        let unresolved = unresolved_queue_intent_members(intent);
+        if unresolved.is_empty() {
+            if let Err(reason) = enqueue_resolved_queue_intent(app, request_tx) {
+                app.pi_scan.set_foreground_notice(
+                    reason,
+                    crate::state::pi_scan_ui::PiScanNoticeSeverity::Error,
+                );
+                return;
+            }
+        } else {
             app.pi_scan.set_foreground_notice(
-                reason,
-                crate::state::pi_scan_ui::PiScanNoticeSeverity::Error,
+                format!(
+                    "{}: {}",
+                    crate::i18n::t(app, "app.pi_scan.notices.queue_intent_unresolved"),
+                    unresolved.join(", ")
+                ),
+                crate::state::pi_scan_ui::PiScanNoticeSeverity::Info,
             );
+            return;
         }
-        return;
     }
-    app.pi_scan.set_foreground_notice(
-        format!(
-            "{}: {}",
-            crate::i18n::t(app, "app.pi_scan.notices.queue_intent_unresolved"),
-            unresolved.join(", ")
-        ),
-        crate::state::pi_scan_ui::PiScanNoticeSeverity::Info,
-    );
+    if !already_scanned.is_empty() {
+        app.pi_scan.set_foreground_notice(
+            crate::i18n::t_fmt1(
+                app,
+                "app.pi_scan.notices.already_scanned_current",
+                already_scanned.join(", "),
+            ),
+            crate::state::pi_scan_ui::PiScanNoticeSeverity::Info,
+        );
+    }
+}
+
+/// What: Resolve selected placeholders from retained history after a manual observation.
+///
+/// Inputs:
+/// - `app`: Ordered targets and pending exact queue intent.
+///
+/// Output:
+/// - Names still unresolved and names whose latest retained identity is already completed.
+///
+/// Details:
+/// - An empty manual observation can mean HEAD was already ledgered, not that the selection
+///   should fall back to an older row with the same package name.
+fn resolve_pending_pi_scan_intent_from_history(app: &mut AppState) -> (Vec<String>, Vec<String>) {
+    let Some(intent) = app.pi_scan.pending_queue_intent.as_ref() else {
+        return (Vec::new(), Vec::new());
+    };
+    let mut unresolved = Vec::new();
+    let mut already_scanned = Vec::new();
+    for name in intent.unresolved_names.clone() {
+        let latest = app.pi_scan.targets.iter().rev().find_map(|target| {
+            (target.package_name == name)
+                .then(|| {
+                    target
+                        .commit_oid
+                        .as_ref()
+                        .map(|oid| (target.package_base.clone(), oid.clone(), target.status))
+                })
+                .flatten()
+        });
+        let Some((base, oid, status)) = latest else {
+            unresolved.push(name);
+            continue;
+        };
+        if let Some(index) = app.pi_scan.targets.iter().position(|target| {
+            target.package_name == name && target.selected && target.commit_oid.is_none()
+        }) {
+            let placeholder = app.pi_scan.targets.remove(index);
+            if let Some(target) = app.pi_scan.targets.iter_mut().rev().find(|target| {
+                target.package_base == base && target.commit_oid.as_deref() == Some(oid.as_str())
+            }) {
+                target.selected |= placeholder.selected;
+            }
+        }
+        if let Some(intent) = app.pi_scan.pending_queue_intent.as_mut() {
+            intent
+                .unresolved_names
+                .retain(|unresolved_name| unresolved_name != &name);
+            if status == crate::state::PiScanTargetStatus::Completed {
+                intent.package_names.retain(|selected| selected != &name);
+                intent
+                    .exact_targets
+                    .retain(|(selected, _, _)| selected != &name);
+                already_scanned.push(name);
+            } else if !intent
+                .exact_targets
+                .iter()
+                .any(|(selected, stored_base, stored_oid)| {
+                    selected == &name && stored_base == &base && stored_oid == &oid
+                })
+            {
+                intent.exact_targets.push((name, base, oid));
+            }
+        }
+    }
+    (unresolved, already_scanned)
+}
+
+/// What: Project one observed identity in observation order, preserving selected placeholders.
+///
+/// Inputs:
+/// - `app`: Live targets, runtime queue, and pending intent.
+/// - `observed`: Immutable observed scanner identity.
+///
+/// Output:
+/// - Background identity newly appended for notice aggregation, if any.
+///
+/// Details:
+/// - Runtime status may already be Running when Started beats Observed across tasks.
+fn project_pi_scan_observed_target(
+    app: &mut AppState,
+    observed: crate::pi_scan_orchestrator::FrozenScanIdentity,
+) -> Option<(String, String, String)> {
+    let package_base = observed.package_base.as_str().to_string();
+    let commit_oid = observed.commit_oid.as_str().to_string();
+    let key_matches = |key: &crate::state::pi_scan::PiScanQueueKey| {
+        key.package_base == observed.package_base && key.commit_oid == observed.commit_oid
+    };
+    let status = if app
+        .pi_scan
+        .runtime
+        .active
+        .as_ref()
+        .is_some_and(|active| key_matches(&active.request.key))
+    {
+        crate::state::PiScanTargetStatus::Running
+    } else if app
+        .pi_scan
+        .runtime
+        .queue
+        .iter()
+        .any(|request| key_matches(&request.key))
+    {
+        crate::state::PiScanTargetStatus::Queued
+    } else if let Some(record) = app
+        .pi_scan
+        .runtime
+        .terminal
+        .iter()
+        .rev()
+        .find(|record| key_matches(&record.request.key))
+    {
+        match record.status {
+            crate::state::pi_scan::PiScanTerminalStatus::Completed => {
+                crate::state::PiScanTargetStatus::Completed
+            }
+            crate::state::pi_scan::PiScanTerminalStatus::Failed => {
+                crate::state::PiScanTargetStatus::Failed
+            }
+            crate::state::pi_scan::PiScanTerminalStatus::Cancelled => {
+                crate::state::PiScanTargetStatus::Cancelled
+            }
+            crate::state::pi_scan::PiScanTerminalStatus::Interrupted => {
+                crate::state::PiScanTargetStatus::Interrupted
+            }
+        }
+    } else {
+        crate::state::PiScanTargetStatus::Unbaselined
+    };
+    if let Some(index) = app.pi_scan.targets.iter().position(|target| {
+        target.package_name == observed.package_name && target.commit_oid.is_none()
+    }) {
+        let mut target = app.pi_scan.targets.remove(index);
+        target.package_base.clone_from(&package_base);
+        target.commit_oid = Some(commit_oid.clone());
+        target.status = status;
+        if let Some(intent) = app.pi_scan.pending_queue_intent.as_mut()
+            && intent.unresolved_names.contains(&observed.package_name)
+        {
+            if target.selected {
+                intent.exact_targets.push((
+                    observed.package_name.clone(),
+                    package_base.clone(),
+                    commit_oid.clone(),
+                ));
+            }
+            intent
+                .unresolved_names
+                .retain(|name| name != &observed.package_name);
+        }
+        app.pi_scan.targets.push(target);
+    } else if !app.pi_scan.targets.iter().any(|target| {
+        target.package_base == package_base
+            && target.commit_oid.as_deref() == Some(commit_oid.as_str())
+    }) {
+        app.pi_scan.targets.push(crate::state::PiScanTarget {
+            package_name: observed.package_name.clone(),
+            package_base: package_base.clone(),
+            commit_oid: Some(commit_oid.clone()),
+            newer_version_of: None,
+            selected: false,
+            status,
+        });
+    } else {
+        return None;
+    }
+    (observed.priority == crate::state::pi_scan::PiScanPriority::Background).then_some((
+        package_base,
+        commit_oid,
+        observed.package_name,
+    ))
+}
+
+/// What: Mark newer frozen commits against completed targets and persisted results.
+///
+/// Inputs:
+/// - `app`: Workspace containing target history and restored results.
+///
+/// Output:
+/// - Updates display-only newer-version markers.
+///
+/// Details:
+/// - Does not change result staleness or acknowledgement state.
+fn refresh_pi_scan_new_version_markers(app: &mut AppState) {
+    let results: Vec<_> = app
+        .pi_scan
+        .results
+        .iter()
+        .map(|result| {
+            (
+                result.validated.identity.package_base.as_str(),
+                result.validated.identity.commit_oid.as_str(),
+            )
+        })
+        .collect();
+    for index in 0..app.pi_scan.targets.len() {
+        let target = &app.pi_scan.targets[index];
+        let prior = if target.status == crate::state::PiScanTargetStatus::Completed {
+            None
+        } else {
+            target.commit_oid.as_deref().and_then(|oid| {
+                app.pi_scan.targets[..index]
+                    .iter()
+                    .rev()
+                    .find(|prior| {
+                        prior.package_base == target.package_base
+                            && prior
+                                .commit_oid
+                                .as_deref()
+                                .is_some_and(|previous| previous != oid)
+                            && (prior.status == crate::state::PiScanTargetStatus::Completed
+                                || results.iter().any(|(base, previous)| {
+                                    *base == prior.package_base
+                                        && Some(*previous) == prior.commit_oid.as_deref()
+                                }))
+                    })
+                    .and_then(|prior| prior.commit_oid.clone())
+                    .or_else(|| {
+                        results
+                            .iter()
+                            .rev()
+                            .find(|(base, previous)| {
+                                *base == target.package_base
+                                    && *previous != oid
+                                    && !app.pi_scan.targets.iter().any(|row| {
+                                        row.package_base == *base
+                                            && row.commit_oid.as_deref() == Some(*previous)
+                                    })
+                            })
+                            .map(|(_, previous)| (*previous).to_string())
+                    })
+            })
+        };
+        app.pi_scan.targets[index].newer_version_of = prior;
+    }
 }
 
 /// Restore full target identities and queue/terminal state after a production restart.
@@ -2381,12 +2760,14 @@ fn apply_restored_pi_scan_runtime(
                 package_name: target.package_name.clone(),
                 package_base,
                 commit_oid: Some(commit_oid),
+                newer_version_of: None,
                 selected: false,
                 status,
             });
         }
     }
     app.pi_scan.runtime = state.runtime;
+    refresh_pi_scan_new_version_markers(app);
     if !app.pi_scan.targets.is_empty() {
         app.pi_scan.readiness = crate::state::PiScanReadiness::Confirmed;
     }
@@ -2497,6 +2878,7 @@ fn apply_pi_scan_result(
         }
         PiScanResultMessage::Rejected { reason } => {
             tracing::warn!(reason, "Pi scan runtime request rejected");
+            app.pi_scan.pending_setup_consent = None;
             app.pi_scan.pending_queue_intent = None;
             app.pi_scan.active_progress = None;
             if let Some(active) = app.pi_scan.runtime.active.take() {
@@ -2515,6 +2897,7 @@ fn apply_pi_scan_result(
             );
         }
     }
+    refresh_pi_scan_new_version_markers(app);
     app.pi_scan.clamp_selection();
 }
 
@@ -2751,6 +3134,7 @@ fn set_pi_scan_target_identity_status(
             target.status = status;
         }
     }
+    refresh_pi_scan_new_version_markers(app);
 }
 
 /// Return current Unix seconds for typed runtime messages.
@@ -3761,6 +4145,7 @@ mod tests {
             package_name: "budget-projection".to_string(),
             package_base: "budget-projection".to_string(),
             commit_oid: None,
+            newer_version_of: None,
             selected: true,
             status: crate::state::PiScanTargetStatus::Unbaselined,
         });
@@ -4184,6 +4569,7 @@ mod tests {
             package_name: "failed-demo".to_string(),
             package_base: "failed-demo".to_string(),
             commit_oid: Some(request.key.commit_oid.as_str().to_string()),
+            newer_version_of: None,
             selected: false,
             status: crate::state::PiScanTargetStatus::Running,
         });
@@ -4237,6 +4623,7 @@ mod tests {
             package_name: "interrupted-demo".to_string(),
             package_base: "interrupted-demo".to_string(),
             commit_oid: Some(request.key.commit_oid.as_str().to_string()),
+            newer_version_of: None,
             selected: false,
             status: crate::state::PiScanTargetStatus::Running,
         });
@@ -4392,6 +4779,7 @@ mod tests {
             package_name: "missing-bin".to_string(),
             package_base: "missing-bin".to_string(),
             commit_oid: None,
+            newer_version_of: None,
             selected: true,
             status: crate::state::PiScanTargetStatus::Unbaselined,
         });
@@ -4410,6 +4798,872 @@ mod tests {
         assert!(app.pi_scan.pending_queue_intent.is_none());
     }
 
+    /// Enter on a newer queued row promotes its exact commit, never an older terminal one.
+    #[tokio::test]
+    async fn enter_on_newer_target_dispatches_exact_commit_after_completed_or_failed_old_scan() {
+        for old_status in [
+            crate::state::PiScanTargetStatus::Completed,
+            crate::state::PiScanTargetStatus::Failed,
+        ] {
+            let mut app = AppState {
+                app_mode: crate::state::types::AppMode::PiScan,
+                ..AppState::default()
+            };
+            app.pi_scan.settings.enabled = true;
+            app.pi_scan.disclosure_confirmed = true;
+            app.pi_scan.runtime.consent.paid_execution = true;
+            app.pi_scan.readiness = crate::state::PiScanReadiness::Confirmed;
+            app.pi_scan.availability = crate::state::PiScanAvailability::RuntimeConnected;
+            app.pi_scan.targets.extend([
+                crate::state::PiScanTarget {
+                    package_name: "demo".into(),
+                    package_base: "demo".into(),
+                    commit_oid: Some("a".repeat(40)),
+                    newer_version_of: None,
+                    selected: old_status == crate::state::PiScanTargetStatus::Failed,
+                    status: old_status,
+                },
+                crate::state::PiScanTarget {
+                    package_name: "demo".into(),
+                    package_base: "demo".into(),
+                    commit_oid: Some("b".repeat(40)),
+                    newer_version_of: Some("a".repeat(40)),
+                    selected: false,
+                    status: crate::state::PiScanTargetStatus::Queued,
+                },
+            ]);
+            app.pi_scan.set_view(crate::state::PiScanView::Targets);
+            app.pi_scan.selected_target = 1;
+            assert!(crate::events::pi_scan::handle_key(
+                crossterm::event::KeyEvent::new(
+                    crossterm::event::KeyCode::Enter,
+                    crossterm::event::KeyModifiers::NONE
+                ),
+                &mut app,
+            ));
+            let mut channels = Channels::new(std::path::PathBuf::from("/tmp")).expect("channels");
+            let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+            channels.pi_scan_request_tx = tx;
+            channels.pi_scan_runtime_enabled = true;
+            dispatch_pi_scan_ui_action(&mut app, &channels);
+            assert!(
+                matches!(rx.try_recv(), Ok(crate::app::runtime::workers::pi_scan::PiScanRequestMessage::Enqueue(request))
+                if request.key.commit_oid.as_str() == "b".repeat(40))
+            );
+            assert!(rx.try_recv().is_err());
+        }
+    }
+
+    /// Earlier completed history marks only pending later rows, never older failures.
+    #[test]
+    fn new_version_markers_follow_target_order_and_completion() {
+        let mut app = AppState::default();
+        for (oid, status) in [
+            ('a', crate::state::PiScanTargetStatus::Failed),
+            ('b', crate::state::PiScanTargetStatus::Completed),
+        ] {
+            app.pi_scan.targets.push(crate::state::PiScanTarget {
+                package_name: "demo".into(),
+                package_base: "demo".into(),
+                commit_oid: Some(oid.to_string().repeat(40)),
+                newer_version_of: None,
+                selected: false,
+                status,
+            });
+        }
+        super::refresh_pi_scan_new_version_markers(&mut app);
+        assert!(
+            app.pi_scan
+                .targets
+                .iter()
+                .all(|target| target.newer_version_of.is_none())
+        );
+        app.pi_scan.targets.push(crate::state::PiScanTarget {
+            package_name: "demo".into(),
+            package_base: "demo".into(),
+            commit_oid: Some("c".repeat(40)),
+            newer_version_of: None,
+            selected: false,
+            status: crate::state::PiScanTargetStatus::Queued,
+        });
+        super::refresh_pi_scan_new_version_markers(&mut app);
+        assert_eq!(
+            app.pi_scan.targets[2].newer_version_of.as_deref(),
+            Some("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+        );
+        app.pi_scan.targets[2].status = crate::state::PiScanTargetStatus::Completed;
+        super::refresh_pi_scan_new_version_markers(&mut app);
+        assert!(
+            app.pi_scan
+                .targets
+                .iter()
+                .all(|target| target.newer_version_of.is_none())
+        );
+    }
+
+    /// A new retry id must replace terminal presentation even while execution is paused.
+    #[test]
+    fn retry_queue_projection_uses_request_id_not_old_terminal_row() {
+        for status in [
+            crate::state::PiScanTargetStatus::Failed,
+            crate::state::PiScanTargetStatus::Interrupted,
+            crate::state::PiScanTargetStatus::Cancelled,
+        ] {
+            for paused in [false, true] {
+                let mut app = AppState::default();
+                let mut old = pi_scan_request("demo", 'b');
+                old.request_id = 41;
+                app.pi_scan
+                    .runtime
+                    .terminal
+                    .push(crate::state::pi_scan::PiScanTerminalRecord {
+                        request: old,
+                        correlation_id: 10,
+                        status: crate::state::pi_scan::PiScanTerminalStatus::Failed,
+                        finished_at_unix: 11,
+                    });
+                app.pi_scan.targets.push(crate::state::PiScanTarget {
+                    package_name: "demo".into(),
+                    package_base: "demo".into(),
+                    commit_oid: Some("b".repeat(40)),
+                    newer_version_of: None,
+                    selected: true,
+                    status,
+                });
+                if paused {
+                    app.pi_scan
+                        .runtime
+                        .pause_reasons
+                        .insert(crate::state::pi_scan::PiScanPauseReason::User);
+                }
+                let mut retry = pi_scan_request("demo", 'b');
+                retry.request_id = 42;
+                apply_pi_scan_progress(
+                    &mut app,
+                    None,
+                    crate::app::runtime::workers::pi_scan::PiScanProgressMessage::Queued {
+                        request: retry.clone(),
+                        queue_len: 1,
+                    },
+                );
+                assert_eq!(
+                    app.pi_scan.targets[0].status,
+                    crate::state::PiScanTargetStatus::Queued
+                );
+                assert_eq!(app.pi_scan.runtime.queue.front(), Some(&retry));
+                assert_eq!(
+                    app.pi_scan
+                        .runtime
+                        .pause_reasons
+                        .contains(&crate::state::pi_scan::PiScanPauseReason::User),
+                    paused
+                );
+            }
+        }
+    }
+
+    /// Started before both discovery projections must stay Running after they arrive.
+    #[test]
+    fn started_before_observed_and_queued_retains_running_target() {
+        let (mut app, frozen) = new_version_projection_fixture();
+        let mut request = pi_scan_request("demo", 'b');
+        request.request_id = 42;
+        apply_pi_scan_progress(
+            &mut app,
+            None,
+            crate::app::runtime::workers::pi_scan::PiScanProgressMessage::Started(
+                crate::state::pi_scan::PiScanActiveItem {
+                    correlation_id: 7,
+                    request: request.clone(),
+                    started_at_unix: 1,
+                    cancellation_suppressed: false,
+                },
+            ),
+        );
+        apply_pi_scan_progress(
+            &mut app,
+            None,
+            crate::app::runtime::workers::pi_scan::PiScanProgressMessage::Observed {
+                targets: vec![frozen],
+            },
+        );
+        apply_pi_scan_progress(
+            &mut app,
+            None,
+            crate::app::runtime::workers::pi_scan::PiScanProgressMessage::Queued {
+                request,
+                queue_len: 1,
+            },
+        );
+        assert_eq!(
+            app.pi_scan.targets[1].status,
+            crate::state::PiScanTargetStatus::Running
+        );
+        assert!(app.pi_scan.runtime.queue.is_empty());
+    }
+
+    /// Terminal progress can precede discovery, and must win over late Queued projection.
+    #[tokio::test]
+    async fn completed_before_observed_and_queued_retains_completed_target() {
+        let (mut app, frozen) = new_version_projection_fixture();
+        let mut request = pi_scan_request("demo", 'b');
+        request.request_id = 42;
+        apply_pi_scan_progress(
+            &mut app,
+            None,
+            crate::app::runtime::workers::pi_scan::PiScanProgressMessage::Started(
+                crate::state::pi_scan::PiScanActiveItem {
+                    correlation_id: 7,
+                    request: request.clone(),
+                    started_at_unix: 1,
+                    cancellation_suppressed: false,
+                },
+            ),
+        );
+        let channels = Channels::new(std::path::PathBuf::from("/tmp")).expect("channels");
+        apply_pi_scan_result(
+            &mut app,
+            &channels,
+            crate::app::runtime::workers::pi_scan::PiScanResultMessage::Completed(
+                crate::state::pi_scan::PiScanTerminalRecord {
+                    request: request.clone(),
+                    correlation_id: 7,
+                    status: crate::state::pi_scan::PiScanTerminalStatus::Completed,
+                    finished_at_unix: 2,
+                },
+            ),
+        );
+        apply_pi_scan_progress(
+            &mut app,
+            None,
+            crate::app::runtime::workers::pi_scan::PiScanProgressMessage::Observed {
+                targets: vec![frozen],
+            },
+        );
+        apply_pi_scan_progress(
+            &mut app,
+            None,
+            crate::app::runtime::workers::pi_scan::PiScanProgressMessage::Queued {
+                request,
+                queue_len: 1,
+            },
+        );
+        assert_eq!(
+            app.pi_scan.targets[1].status,
+            crate::state::PiScanTargetStatus::Completed
+        );
+        assert!(app.pi_scan.runtime.queue.is_empty());
+    }
+
+    /// Late Queued progress cannot undo Started or terminal projection for the same request.
+    #[test]
+    fn late_queued_progress_does_not_downgrade_running_or_completed() {
+        let mut app = AppState::default();
+        let request = crate::state::pi_scan::PiScanJobRequest {
+            request_id: 42,
+            key: crate::state::pi_scan::PiScanQueueKey {
+                package_base: crate::logic::pi_scan::identity::PackageBase::new("demo")
+                    .expect("base"),
+                commit_oid: crate::logic::pi_scan::identity::CommitOid::new("b".repeat(40))
+                    .expect("oid"),
+            },
+            priority: crate::state::pi_scan::PiScanPriority::Background,
+            reservation: crate::state::pi_scan::PiScanReservation {
+                tokens: 100,
+                cost_microusd: 10,
+            },
+            manual_budget_override_confirmed: false,
+        };
+        app.pi_scan.targets.push(crate::state::PiScanTarget {
+            package_name: "demo".into(),
+            package_base: "demo".into(),
+            commit_oid: Some("b".repeat(40)),
+            newer_version_of: None,
+            selected: false,
+            status: crate::state::PiScanTargetStatus::Unbaselined,
+        });
+        apply_pi_scan_progress(
+            &mut app,
+            None,
+            crate::app::runtime::workers::pi_scan::PiScanProgressMessage::Started(
+                crate::state::pi_scan::PiScanActiveItem {
+                    correlation_id: 7,
+                    request: request.clone(),
+                    started_at_unix: 1,
+                    cancellation_suppressed: false,
+                },
+            ),
+        );
+        apply_pi_scan_progress(
+            &mut app,
+            None,
+            crate::app::runtime::workers::pi_scan::PiScanProgressMessage::Queued {
+                request: request.clone(),
+                queue_len: 1,
+            },
+        );
+        assert_eq!(
+            app.pi_scan.targets[0].status,
+            crate::state::PiScanTargetStatus::Running
+        );
+        assert!(app.pi_scan.runtime.queue.is_empty());
+        app.pi_scan.runtime.active = None;
+        super::set_pi_scan_target_key_status(
+            &mut app,
+            &request.key,
+            crate::state::PiScanTargetStatus::Completed,
+        );
+        apply_pi_scan_progress(
+            &mut app,
+            None,
+            crate::app::runtime::workers::pi_scan::PiScanProgressMessage::Queued {
+                request,
+                queue_len: 1,
+            },
+        );
+        assert_eq!(
+            app.pi_scan.targets[0].status,
+            crate::state::PiScanTargetStatus::Completed
+        );
+        assert!(app.pi_scan.runtime.queue.is_empty());
+    }
+
+    /// Build an observed newer commit with an older completed row for projection tests.
+    fn new_version_projection_fixture()
+    -> (AppState, crate::pi_scan_orchestrator::FrozenScanIdentity) {
+        use crate::logic::pi_scan::identity::{CommitOid, PackageBase};
+        let mut app = AppState::default();
+        let locales = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("config/locales");
+        app.translations = crate::i18n::load_locale_file("en-US", &locales).expect("locale");
+        app.pi_scan.settings.enabled = true;
+        app.pi_scan.targets.push(crate::state::PiScanTarget {
+            package_name: "demo".to_string(),
+            package_base: "demo".to_string(),
+            commit_oid: Some("a".repeat(40)),
+            newer_version_of: None,
+            selected: false,
+            status: crate::state::PiScanTargetStatus::Completed,
+        });
+        let frozen = crate::pi_scan_orchestrator::FrozenScanIdentity {
+            scan_id: "scan-new".to_string(),
+            package_name: "demo".to_string(),
+            package_base: PackageBase::new("demo").expect("base"),
+            installed_names: vec!["demo".to_string()],
+            installed_version: "1".to_string(),
+            candidate_version: Some("2".to_string()),
+            commit_oid: CommitOid::new("b".repeat(40)).expect("oid"),
+            observed_head_oid: CommitOid::new("b".repeat(40)).expect("oid"),
+            cycle_id: "cycle".to_string(),
+            provider: "provider".to_string(),
+            model: "model".to_string(),
+            priority: crate::state::pi_scan::PiScanPriority::Background,
+            reservation: crate::state::pi_scan::PiScanReservation {
+                tokens: 100,
+                cost_microusd: 10,
+            },
+        };
+        (app, frozen)
+    }
+
+    /// Resolving an early placeholder preserves selection and appends after completed history.
+    #[test]
+    fn resolved_placeholder_keeps_newer_observation_order_and_notice() {
+        let (mut app, frozen) = new_version_projection_fixture();
+        app.pi_scan.targets.insert(
+            0,
+            crate::state::PiScanTarget {
+                package_name: "demo".into(),
+                package_base: "demo".into(),
+                commit_oid: None,
+                newer_version_of: None,
+                selected: true,
+                status: crate::state::PiScanTargetStatus::Unbaselined,
+            },
+        );
+        apply_pi_scan_progress(
+            &mut app,
+            None,
+            crate::app::runtime::workers::pi_scan::PiScanProgressMessage::Observed {
+                targets: vec![frozen],
+            },
+        );
+        assert_eq!(
+            app.pi_scan.targets[0].commit_oid.as_deref(),
+            Some("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+        );
+        assert_eq!(
+            app.pi_scan.targets[1].commit_oid.as_deref(),
+            Some("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+        );
+        assert!(app.pi_scan.targets[1].selected);
+        assert_eq!(
+            app.pi_scan.targets[1].newer_version_of.as_deref(),
+            Some("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+        );
+        assert!(
+            app.toast_message
+                .as_deref()
+                .is_some_and(|text| text.contains("New AUR version of demo"))
+        );
+    }
+
+    /// Selected unresolved intent must observe HEAD rather than reuse historical same-name scans.
+    #[tokio::test]
+    async fn placeholder_with_old_resolved_same_name_observes_before_dispatch() {
+        let (mut app, mut frozen) = new_version_projection_fixture();
+        frozen.priority = crate::state::pi_scan::PiScanPriority::Foreground;
+        app.pi_scan.targets.insert(
+            0,
+            crate::state::PiScanTarget {
+                package_name: "demo".into(),
+                package_base: "demo".into(),
+                commit_oid: None,
+                newer_version_of: None,
+                selected: true,
+                status: crate::state::PiScanTargetStatus::Unbaselined,
+            },
+        );
+        app.pi_scan.snapshot_queue_intent();
+        let mut channels = Channels::new(std::path::PathBuf::from("/tmp")).expect("channels");
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        channels.pi_scan_request_tx = tx;
+        channels.pi_scan_runtime_enabled = true;
+        super::send_selected_pi_scan_targets(&mut app, &channels, None)
+            .expect("manual observation");
+        assert!(
+            matches!(rx.try_recv(), Ok(crate::app::runtime::workers::pi_scan::PiScanRequestMessage::ManualObservation { package_names }) if package_names == ["demo"])
+        );
+        assert!(rx.try_recv().is_err());
+        apply_pi_scan_progress(
+            &mut app,
+            Some(&channels.pi_scan_request_tx),
+            crate::app::runtime::workers::pi_scan::PiScanProgressMessage::ManualObserved {
+                targets: vec![frozen],
+            },
+        );
+        assert!(
+            matches!(rx.try_recv(), Ok(crate::app::runtime::workers::pi_scan::PiScanRequestMessage::Enqueue(request))
+            if request.key.commit_oid.as_str() == "b".repeat(40))
+        );
+        assert!(app.pi_scan.pending_queue_intent.is_none());
+    }
+
+    /// Empty manual observation resolves a ledgered HEAD from the newest restored queue row.
+    #[tokio::test]
+    async fn empty_manual_observation_resolves_restored_queued_head() {
+        let (mut app, frozen) = new_version_projection_fixture();
+        app.pi_scan.targets.clear();
+        app.pi_scan.targets.push(crate::state::PiScanTarget {
+            package_name: "demo".into(),
+            package_base: "demo".into(),
+            commit_oid: None,
+            newer_version_of: None,
+            selected: true,
+            status: crate::state::PiScanTargetStatus::Unbaselined,
+        });
+        let mut request = pi_scan_request("demo", 'b');
+        request.request_id = 2;
+        let mut restored = crate::pi_scan_orchestrator::OrchestrationState::default();
+        restored.targets.insert(2, frozen);
+        restored.runtime.queue.push_back(request);
+        apply_pi_scan_progress(
+            &mut app,
+            None,
+            crate::app::runtime::workers::pi_scan::PiScanProgressMessage::RestoredRuntime(
+                Box::new(restored),
+            ),
+        );
+        let mut channels = Channels::new(std::path::PathBuf::from("/tmp")).expect("channels");
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        channels.pi_scan_request_tx = tx;
+        channels.pi_scan_runtime_enabled = true;
+        app.pi_scan.snapshot_queue_intent();
+        super::send_selected_pi_scan_targets(&mut app, &channels, None)
+            .expect("observe selected placeholder");
+        assert!(
+            matches!(rx.try_recv(), Ok(crate::app::runtime::workers::pi_scan::PiScanRequestMessage::ManualObservation { package_names }) if package_names == ["demo"])
+        );
+        apply_pi_scan_progress(
+            &mut app,
+            Some(&channels.pi_scan_request_tx),
+            crate::app::runtime::workers::pi_scan::PiScanProgressMessage::ManualObserved {
+                targets: Vec::new(),
+            },
+        );
+        assert!(
+            matches!(rx.try_recv(), Ok(crate::app::runtime::workers::pi_scan::PiScanRequestMessage::Enqueue(request))
+            if request.key.commit_oid.as_str() == "b".repeat(40))
+        );
+        assert!(rx.try_recv().is_err());
+        assert!(app.pi_scan.pending_queue_intent.is_none());
+        assert_eq!(app.pi_scan.targets.len(), 1);
+        assert!(app.pi_scan.targets[0].selected);
+        assert_eq!(
+            app.pi_scan.targets[0].status,
+            crate::state::PiScanTargetStatus::Queued
+        );
+    }
+
+    /// A ledgered current HEAD with a completed result needs no duplicate paid retry.
+    #[tokio::test]
+    async fn empty_manual_observation_of_completed_head_shows_results_notice() {
+        let (mut app, _) = new_version_projection_fixture();
+        app.pi_scan.targets.insert(
+            0,
+            crate::state::PiScanTarget {
+                package_name: "demo".into(),
+                package_base: "demo".into(),
+                commit_oid: None,
+                newer_version_of: None,
+                selected: true,
+                status: crate::state::PiScanTargetStatus::Unbaselined,
+            },
+        );
+        let mut channels = Channels::new(std::path::PathBuf::from("/tmp")).expect("channels");
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        channels.pi_scan_request_tx = tx;
+        channels.pi_scan_runtime_enabled = true;
+        app.pi_scan.snapshot_queue_intent();
+        super::send_selected_pi_scan_targets(&mut app, &channels, None)
+            .expect("manual observation");
+        assert!(
+            matches!(rx.try_recv(), Ok(crate::app::runtime::workers::pi_scan::PiScanRequestMessage::ManualObservation { package_names }) if package_names == ["demo"])
+        );
+        apply_pi_scan_progress(
+            &mut app,
+            Some(&channels.pi_scan_request_tx),
+            crate::app::runtime::workers::pi_scan::PiScanProgressMessage::ManualObserved {
+                targets: Vec::new(),
+            },
+        );
+        assert!(rx.try_recv().is_err());
+        assert!(app.pi_scan.pending_queue_intent.is_none());
+        assert_eq!(app.pi_scan.targets.len(), 1);
+        assert!(app.pi_scan.targets[0].selected);
+        assert_eq!(
+            app.pi_scan.targets[0].status,
+            crate::state::PiScanTargetStatus::Completed
+        );
+        assert_eq!(
+            app.pi_scan.notices.foreground_text(),
+            Some(
+                "demo is already scanned at its current AUR version; results are in the Results tab"
+            )
+        );
+    }
+
+    /// Completed names are skipped while other selected identities still dispatch.
+    #[tokio::test]
+    async fn completed_head_does_not_block_other_pending_targets() {
+        let (mut app, _) = new_version_projection_fixture();
+        for name in ["demo", "other"] {
+            app.pi_scan.targets.insert(
+                0,
+                crate::state::PiScanTarget {
+                    package_name: name.into(),
+                    package_base: name.into(),
+                    commit_oid: None,
+                    newer_version_of: None,
+                    selected: true,
+                    status: crate::state::PiScanTargetStatus::Unbaselined,
+                },
+            );
+        }
+        app.pi_scan.targets.push(crate::state::PiScanTarget {
+            package_name: "other".into(),
+            package_base: "other".into(),
+            commit_oid: Some("b".repeat(40)),
+            newer_version_of: None,
+            selected: false,
+            status: crate::state::PiScanTargetStatus::Queued,
+        });
+        let mut channels = Channels::new(std::path::PathBuf::from("/tmp")).expect("channels");
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        channels.pi_scan_request_tx = tx;
+        channels.pi_scan_runtime_enabled = true;
+        app.pi_scan.snapshot_queue_intent();
+        super::send_selected_pi_scan_targets(&mut app, &channels, None)
+            .expect("manual observation");
+        assert!(matches!(
+            rx.try_recv(),
+            Ok(
+                crate::app::runtime::workers::pi_scan::PiScanRequestMessage::ManualObservation { .. }
+            )
+        ));
+        apply_pi_scan_progress(
+            &mut app,
+            Some(&channels.pi_scan_request_tx),
+            crate::app::runtime::workers::pi_scan::PiScanProgressMessage::ManualObserved {
+                targets: Vec::new(),
+            },
+        );
+        assert!(
+            matches!(rx.try_recv(), Ok(crate::app::runtime::workers::pi_scan::PiScanRequestMessage::Enqueue(request))
+            if request.key.package_base.as_str() == "other" && request.key.commit_oid.as_str() == "b".repeat(40))
+        );
+        assert!(rx.try_recv().is_err());
+        assert!(app.pi_scan.pending_queue_intent.is_none());
+        assert_eq!(
+            app.pi_scan.notices.foreground_text(),
+            Some(
+                "demo is already scanned at its current AUR version; results are in the Results tab"
+            )
+        );
+    }
+
+    /// An empty manual response without any retained identity terminates the unresolved intent.
+    #[tokio::test]
+    async fn empty_manual_observation_without_history_ends_intent() {
+        let mut app = AppState::default();
+        app.pi_scan.targets.push(crate::state::PiScanTarget {
+            package_name: "missing".into(),
+            package_base: "missing".into(),
+            commit_oid: None,
+            newer_version_of: None,
+            selected: true,
+            status: crate::state::PiScanTargetStatus::Unbaselined,
+        });
+        app.pi_scan.snapshot_queue_intent();
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        apply_pi_scan_progress(
+            &mut app,
+            Some(&tx),
+            crate::app::runtime::workers::pi_scan::PiScanProgressMessage::ManualObserved {
+                targets: Vec::new(),
+            },
+        );
+        assert!(app.pi_scan.pending_queue_intent.is_none());
+        assert!(rx.try_recv().is_err());
+        assert!(app.pi_scan.notices.foreground.is_some());
+    }
+
+    /// A stored result without a retained target is still earlier than newly observed work.
+    #[test]
+    fn restored_result_without_target_marks_new_commit_and_notifies() {
+        let (mut app, frozen) = new_version_projection_fixture();
+        app.pi_scan.targets.clear();
+        app.pi_scan.results.push(crate::state::PiScanDisplayResult {
+            validated: crate::logic::pi_scan::result::MergedScanResult {
+                identity: crate::logic::pi_scan::result::ExpectedIdentity {
+                    scan_id: "scan-old".into(),
+                    package_base: "demo".into(),
+                    commit_oid: "a".repeat(40),
+                },
+                coverage: crate::logic::pi_scan::result::Coverage::Complete,
+                limitations: Vec::new(),
+                findings: Vec::new(),
+            },
+            observed_head_oid: "a".repeat(40),
+            stale: false,
+            mutable_sources: Vec::new(),
+        });
+        apply_pi_scan_progress(
+            &mut app,
+            None,
+            crate::app::runtime::workers::pi_scan::PiScanProgressMessage::Observed {
+                targets: vec![frozen],
+            },
+        );
+        assert_eq!(
+            app.pi_scan.targets[0].newer_version_of.as_deref(),
+            Some("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+        );
+        assert!(
+            app.toast_message
+                .as_deref()
+                .is_some_and(|text| text.contains("New AUR version of demo"))
+        );
+    }
+
+    /// New committed work projects queue state and separate version notices under both policies.
+    #[test]
+    fn observed_new_version_projects_queue_notice_and_restore_marker() {
+        use crate::app::runtime::workers::pi_scan::PiScanProgressMessage;
+        let (mut app, frozen) = new_version_projection_fixture();
+        apply_pi_scan_progress(
+            &mut app,
+            None,
+            PiScanProgressMessage::Observed {
+                targets: vec![frozen.clone()],
+            },
+        );
+        assert_eq!(
+            app.pi_scan.targets[1].newer_version_of.as_deref(),
+            Some("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+        );
+        assert!(
+            app.toast_message
+                .as_deref()
+                .is_some_and(|text| text.contains("background scanning is off"))
+        );
+        let request = crate::state::pi_scan::PiScanJobRequest {
+            request_id: 2,
+            key: crate::state::pi_scan::PiScanQueueKey {
+                package_base: frozen.package_base.clone(),
+                commit_oid: frozen.commit_oid.clone(),
+            },
+            priority: crate::state::pi_scan::PiScanPriority::Background,
+            reservation: frozen.reservation,
+            manual_budget_override_confirmed: false,
+        };
+        apply_pi_scan_progress(
+            &mut app,
+            None,
+            PiScanProgressMessage::Queued {
+                request: request.clone(),
+                queue_len: 1,
+            },
+        );
+        assert_eq!(
+            app.pi_scan.targets[1].status,
+            crate::state::PiScanTargetStatus::Queued
+        );
+        assert_eq!(app.pi_scan.runtime.queue.len(), 1);
+        let mut restored = crate::pi_scan_orchestrator::OrchestrationState::default();
+        restored.targets.insert(2, frozen);
+        restored.runtime.queue.push_back(request);
+        app.pi_scan.targets.pop();
+        apply_pi_scan_progress(
+            &mut app,
+            None,
+            PiScanProgressMessage::RestoredRuntime(Box::new(restored)),
+        );
+        assert_eq!(
+            app.pi_scan.targets[1].newer_version_of.as_deref(),
+            Some("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+        );
+    }
+
+    /// Notices describe distinct package bases and do not repeat in dry-run observations.
+    #[test]
+    fn new_version_notices_aggregate_and_only_fire_for_new_rows() {
+        use crate::app::runtime::workers::pi_scan::PiScanProgressMessage;
+        use crate::logic::pi_scan::identity::CommitOid;
+        let (mut app, frozen) = new_version_projection_fixture();
+        app.pi_scan.targets.push(crate::state::PiScanTarget {
+            package_name: "demo".into(),
+            package_base: "demo".into(),
+            commit_oid: Some("b".repeat(40)),
+            newer_version_of: None,
+            selected: false,
+            status: crate::state::PiScanTargetStatus::Queued,
+        });
+        app.pi_scan.settings.background_enabled = true;
+        app.pi_scan.availability = crate::state::PiScanAvailability::RuntimeConnected;
+        app.pi_scan.setup_facts_verified = true;
+        app.pi_scan.disclosure_confirmed = true;
+        app.pi_scan.runtime.consent.background_observation = true;
+        app.pi_scan.runtime.consent.paid_execution = true;
+        app.pi_scan.background_paid_execution_confirmed = true;
+        app.pi_scan.readiness = crate::state::PiScanReadiness::Confirmed;
+        app.pi_scan.targets.pop();
+        apply_pi_scan_progress(
+            &mut app,
+            None,
+            PiScanProgressMessage::Observed {
+                targets: vec![frozen.clone()],
+            },
+        );
+        assert!(
+            app.toast_message
+                .as_deref()
+                .is_some_and(|text| text.contains("rescan queued in the background"))
+        );
+        super::set_pi_scan_target_key_status(
+            &mut app,
+            &crate::state::pi_scan::PiScanQueueKey {
+                package_base: frozen.package_base.clone(),
+                commit_oid: frozen.commit_oid.clone(),
+            },
+            crate::state::PiScanTargetStatus::Completed,
+        );
+        assert!(app.pi_scan.targets[1].newer_version_of.is_none());
+        let mut c = frozen.clone();
+        c.commit_oid = CommitOid::new("c".repeat(40)).expect("oid");
+        let mut d = frozen.clone();
+        d.commit_oid = CommitOid::new("d".repeat(40)).expect("oid");
+        apply_pi_scan_progress(
+            &mut app,
+            None,
+            PiScanProgressMessage::Observed {
+                targets: vec![c, d],
+            },
+        );
+        assert!(
+            app.toast_message
+                .as_deref()
+                .is_some_and(|text| text.contains("New AUR version of demo:"))
+        );
+        assert!(
+            !app.toast_message
+                .as_deref()
+                .is_some_and(|text| text.contains("2 packages"))
+        );
+        app.pi_scan
+            .runtime
+            .pause_reasons
+            .insert(crate::state::pi_scan::PiScanPauseReason::User);
+        app.toast_message = None;
+        app.pi_scan.notices.background = None;
+        let mut paused = frozen.clone();
+        paused.commit_oid = CommitOid::new("e".repeat(40)).expect("oid");
+        apply_pi_scan_progress(
+            &mut app,
+            None,
+            PiScanProgressMessage::Observed {
+                targets: vec![paused],
+            },
+        );
+        assert!(
+            app.toast_message
+                .as_deref()
+                .is_some_and(|text| text.contains("background scanning is off"))
+        );
+        app.dry_run = true;
+        let mut preview = frozen;
+        preview.commit_oid = CommitOid::new("f".repeat(40)).expect("oid");
+        apply_pi_scan_progress(
+            &mut app,
+            None,
+            PiScanProgressMessage::Observed {
+                targets: vec![preview.clone()],
+            },
+        );
+        assert!(
+            app.toast_message
+                .as_deref()
+                .is_some_and(|text| text.contains("Dry-run"))
+        );
+        app.toast_message = None;
+        app.pi_scan.notices.background = None;
+        apply_pi_scan_progress(
+            &mut app,
+            None,
+            PiScanProgressMessage::Observed {
+                targets: vec![preview],
+            },
+        );
+        assert!(app.toast_message.is_none());
+        assert!(app.pi_scan.notices.background.is_none());
+        app.app_mode = crate::state::types::AppMode::PiScan;
+        app.pi_scan.set_view(crate::state::PiScanView::Targets);
+        app.pi_scan.selected_target = app.pi_scan.targets.len() - 1;
+        assert!(crate::events::pi_scan::handle_key(
+            crossterm::event::KeyEvent::new(
+                crossterm::event::KeyCode::Enter,
+                crossterm::event::KeyModifiers::NONE,
+            ),
+            &mut app,
+        ));
+        assert!(
+            app.pi_scan
+                .targets
+                .last()
+                .is_some_and(|target| target.selected)
+        );
+        assert!(app.pi_scan.dry_run_preview.is_some());
+    }
+
     #[test]
     /// Exact queue intent waits for every intended identity and ignores unrelated observations.
     fn pi_scan_exact_queue_intent_waits_for_all_intended_identities() {
@@ -4419,6 +5673,7 @@ mod tests {
                 package_name: "alpha-bin".to_string(),
                 package_base: "alpha-bin".to_string(),
                 commit_oid: None,
+                newer_version_of: None,
                 selected: true,
                 status: crate::state::PiScanTargetStatus::Unbaselined,
             },
@@ -4426,6 +5681,7 @@ mod tests {
                 package_name: "beta-bin".to_string(),
                 package_base: "beta-bin".to_string(),
                 commit_oid: None,
+                newer_version_of: None,
                 selected: true,
                 status: crate::state::PiScanTargetStatus::Unbaselined,
             },
@@ -5119,6 +6375,144 @@ mod tests {
         assert!(app.pi_scan.runtime.active.is_none());
     }
 
+    /// A failed Setup probe send clears the pending consent marker and exposes its send failure.
+    #[tokio::test]
+    async fn failed_setup_probe_dispatch_clears_pending_consent() {
+        let mut app = AppState {
+            app_mode: crate::state::types::AppMode::PiScan,
+            ..AppState::default()
+        };
+        app.pi_scan.pending_setup_consent = Some(5);
+        app.pi_scan.pending_action = Some(crate::state::PiScanUiAction::ProbeSetup);
+        let mut channels = Channels::new(std::path::PathBuf::from("/tmp")).expect("channels");
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        drop(rx);
+        channels.pi_scan_request_tx = tx;
+        dispatch_pi_scan_ui_action(&mut app, &channels);
+        assert!(app.pi_scan.pending_setup_consent.is_none());
+        let notice = app
+            .pi_scan
+            .notices
+            .foreground
+            .as_ref()
+            .expect("send failure notice");
+        assert_eq!(
+            notice.severity,
+            crate::state::pi_scan_ui::PiScanNoticeSeverity::Error
+        );
+        assert!(!notice.text.contains("press Space again"));
+    }
+
+    /// A runtime rejection clears a pending Setup consent without masking the actual reason.
+    #[tokio::test]
+    async fn rejected_setup_probe_clears_pending_consent() {
+        let mut app = AppState {
+            app_mode: crate::state::types::AppMode::PiScan,
+            ..AppState::default()
+        };
+        app.pi_scan.pending_setup_consent = Some(5);
+        let channels = Channels::new(std::path::PathBuf::from("/tmp")).expect("channels");
+        apply_pi_scan_result(
+            &mut app,
+            &channels,
+            crate::app::runtime::workers::pi_scan::PiScanResultMessage::Rejected {
+                reason: "dry-run setup is inert".to_string(),
+            },
+        );
+        assert!(app.pi_scan.pending_setup_consent.is_none());
+        let notice = app
+            .pi_scan
+            .notices
+            .foreground
+            .as_ref()
+            .expect("rejection notice");
+        assert_eq!(
+            notice.severity,
+            crate::state::pi_scan_ui::PiScanNoticeSeverity::Error
+        );
+        assert!(notice.text.contains("dry-run setup is inert"));
+    }
+
+    /// Retry dispatch never queues successful selected targets, even if selection changes after the key press.
+    #[tokio::test]
+    async fn retry_dispatch_uses_only_selected_retryable_targets() {
+        let mut app = AppState {
+            app_mode: crate::state::types::AppMode::PiScan,
+            ..AppState::default()
+        };
+        for (name, status, selected) in [
+            ("failed", crate::state::PiScanTargetStatus::Failed, false),
+            (
+                "succeeded",
+                crate::state::PiScanTargetStatus::Completed,
+                true,
+            ),
+        ] {
+            app.pi_scan.targets.push(crate::state::PiScanTarget {
+                package_name: name.to_string(),
+                package_base: name.to_string(),
+                commit_oid: None,
+                newer_version_of: None,
+                selected,
+                status,
+            });
+        }
+        let mut channels = Channels::new(std::path::PathBuf::from("/tmp")).expect("channels");
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        channels.pi_scan_request_tx = tx;
+        channels.pi_scan_runtime_enabled = true;
+        app.pi_scan.pending_action = Some(crate::state::PiScanUiAction::Retry);
+        dispatch_pi_scan_ui_action(&mut app, &channels);
+        assert!(rx.try_recv().is_err());
+        assert!(app.pi_scan.pending_queue_intent.is_none());
+        app.pi_scan.targets[0].selected = true;
+        app.pi_scan.targets[1].selected = false;
+        app.pi_scan.pending_action = Some(crate::state::PiScanUiAction::Retry);
+        dispatch_pi_scan_ui_action(&mut app, &channels);
+        let request = rx.try_recv();
+        assert!(
+            matches!(request, Ok(crate::app::runtime::workers::pi_scan::PiScanRequestMessage::ManualObservation { ref package_names }) if package_names.len() == 1 && package_names[0] == "failed"),
+            "{request:?} {:?} {:?}",
+            app.pi_scan.notices.foreground,
+            app.pi_scan.pending_queue_intent
+        );
+    }
+
+    /// Mixed selected results retry only failed packages, never the successful ones.
+    #[tokio::test]
+    async fn mixed_selection_retry_dispatches_only_failed_target() {
+        let mut app = AppState {
+            app_mode: crate::state::types::AppMode::PiScan,
+            ..AppState::default()
+        };
+        for (name, status) in [
+            ("failed", crate::state::PiScanTargetStatus::Failed),
+            ("succeeded", crate::state::PiScanTargetStatus::Completed),
+        ] {
+            app.pi_scan.targets.push(crate::state::PiScanTarget {
+                package_name: name.to_string(),
+                package_base: name.to_string(),
+                commit_oid: None,
+                newer_version_of: None,
+                selected: true,
+                status,
+            });
+        }
+        let mut channels = Channels::new(std::path::PathBuf::from("/tmp")).expect("channels");
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        channels.pi_scan_request_tx = tx;
+        channels.pi_scan_runtime_enabled = true;
+        app.pi_scan.pending_action = Some(crate::state::PiScanUiAction::Retry);
+        dispatch_pi_scan_ui_action(&mut app, &channels);
+        let request = rx.try_recv();
+        assert!(
+            matches!(request, Ok(crate::app::runtime::workers::pi_scan::PiScanRequestMessage::ManualObservation { ref package_names })
+            if package_names.len() == 1 && package_names[0] == "failed"),
+            "{request:?}"
+        );
+        assert!(app.pi_scan.targets[1].selected);
+    }
+
     /// Active Pi work prepares the final closing overlay before cleanup begins.
     #[test]
     fn active_pi_scan_prepares_exit_popup() {
@@ -5206,6 +6600,17 @@ mod tests {
             "Pause queued until the active scan finishes."
         );
 
+        channels
+            .event_tx
+            .send(crossterm::event::Event::Key(
+                crossterm::event::KeyEvent::new(
+                    crossterm::event::KeyCode::Char('x'),
+                    crossterm::event::KeyModifiers::NONE,
+                ),
+            ))
+            .expect("first cancel event");
+        assert!(!process_channel_messages(&mut app, &mut channels).await);
+        assert!(cancel_rx.try_recv().is_err());
         channels
             .event_tx
             .send(crossterm::event::Event::Key(

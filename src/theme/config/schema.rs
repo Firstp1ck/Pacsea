@@ -607,11 +607,14 @@ pub const EDITABLE_SETTINGS: &[EditableSetting] = &[
         reload: ReloadBehavior::AutoReload,
         sensitivity: Sensitivity::Normal,
     },
+    // The empty choice preserves the runtime's system-locale auto-detection.
     EditableSetting {
         key: "locale",
         aliases: &[],
         file: ConfigFile::Settings,
-        kind: ValueKind::String,
+        kind: ValueKind::Enum {
+            choices: &["", "en-US", "de-DE", "hu-HU"],
+        },
         reload: ReloadBehavior::RequiresRestart,
         sensitivity: Sensitivity::Normal,
     },
@@ -990,6 +993,16 @@ mod tests {
 
         let s = find_setting("Results.Sort").expect("alias is normalized");
         assert_eq!(s.key, "sort_mode");
+    }
+
+    /// The locale editor offers auto-detect followed by the three shipped locales.
+    #[test]
+    fn locale_uses_shipped_enum_choices() {
+        let setting = find_setting("locale").expect("locale schema entry");
+        assert!(
+            matches!(setting.kind, ValueKind::Enum { choices } if choices == ["", "en-US", "de-DE", "hu-HU"])
+        );
+        assert_eq!(setting.reload, ReloadBehavior::RequiresRestart);
     }
 
     #[test]

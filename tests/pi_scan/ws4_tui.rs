@@ -516,6 +516,7 @@ fn workspace_state_foundations_preserve_independent_intent_and_navigation() {
             package_name: "zeta-bin".to_string(),
             package_base: "zeta".to_string(),
             commit_oid: None,
+            newer_version_of: None,
             selected: true,
             status: pacsea::state::PiScanTargetStatus::Unbaselined,
         },
@@ -523,6 +524,7 @@ fn workspace_state_foundations_preserve_independent_intent_and_navigation() {
             package_name: "alpha-bin".to_string(),
             package_base: "alpha".to_string(),
             commit_oid: None,
+            newer_version_of: None,
             selected: true,
             status: pacsea::state::PiScanTargetStatus::Unbaselined,
         },
@@ -567,24 +569,19 @@ fn workspace_state_foundations_preserve_independent_intent_and_navigation() {
     assert_eq!(app.pi_scan.target_hit_test(14, 8), None);
 }
 
-/// Cancelling with no active scan must still produce visible typed feedback.
+/// Cancel cannot be armed without an active correlation.
 #[test]
-fn cancel_without_active_scan_sets_notice() {
+fn cancel_without_active_scan_is_inert() {
     let mut app = AppState::default();
     load_english(&mut app);
     app.pi_scan.view = PiScanView::Progress;
 
-    assert!(pacsea::events::pi_scan::handle_key(
+    assert!(!pacsea::events::pi_scan::handle_key(
         KeyEvent::new(KeyCode::Char('x'), KeyModifiers::NONE),
         &mut app,
     ));
-
-    assert!(
-        app.pi_scan
-            .notices
-            .foreground_text()
-            .is_some_and(|notice| notice.contains("No active"))
-    );
+    assert!(app.pi_scan.cancel_armed.is_none());
+    assert!(app.pi_scan.pending_action.is_none());
 }
 
 /// Raw details start collapsed and `t` changes only session state, not persisted settings.
@@ -698,6 +695,28 @@ fn details_continue_action_is_fixed_clickable_and_narrow() {
     assert!(app.pi_scan.pending_action.is_none());
 }
 
+/// Compact continuation controls use the active locale rather than English literals.
+#[test]
+fn german_continuation_compact_hints_are_localized() {
+    let mut app = AppState {
+        app_mode: AppMode::PiScan,
+        modal: pacsea::state::Modal::ConfirmPiScanContinuation {
+            confirmation: pacsea::state::modal::PiScanContinuationConfirmation {
+                result_binding: "binding".to_string(),
+                package_base: "demo".to_string(),
+                finding_acknowledgement_required: false,
+                stale_acknowledgement_required: false,
+            },
+            scroll: 0,
+        },
+        ..AppState::default()
+    };
+    load_locale(&mut app, "de-DE");
+    let compact = render_text(&mut app, 40, 12);
+    assert!(compact.contains("j/k Bild↑/Bild↓"), "{compact:?}");
+    assert!(compact.contains("Enter/y · Esc/q/n"), "{compact:?}");
+}
+
 /// The continuation popup discloses exact acknowledgements and every guarded next step.
 #[test]
 fn continuation_popup_renders_steps_and_conditional_acknowledgements() {
@@ -752,6 +771,12 @@ fn continuation_popup_renders_steps_and_conditional_acknowledgements() {
         !no_acknowledgements.contains("I reviewed the high/critical findings"),
         "{no_acknowledgements:?}"
     );
+    let compact = render_text(&mut app, 40, 12);
+    assert!(
+        compact.contains("[ Enter Confirm ]  [ Esc Cancel ]"),
+        "{compact:?}"
+    );
+    assert!(compact.contains("Enter/y Esc/q/n"), "{compact:?}");
     let mut narrow_reachable = String::new();
     for offset in [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48] {
         if let pacsea::state::Modal::ConfirmPiScanContinuation { scroll, .. } = &mut app.modal {
@@ -765,6 +790,7 @@ fn continuation_popup_renders_steps_and_conditional_acknowledgements() {
         "continuation",
         "install/update",
         "Enter/y",
+        "[Enter] [Esc]",
     ] {
         assert!(
             narrow_reachable.contains(expected),
@@ -979,22 +1005,41 @@ fn setup_consent_requires_verified_pi_and_pricing_facts() {
         app_mode: AppMode::PiScan,
         ..AppState::default()
     };
+    load_english(&mut app);
     app.pi_scan.view = PiScanView::Setup;
+    app.pi_scan.selected_setup = 5;
 
     assert!(pacsea::events::pi_scan::handle_key(
-        KeyEvent::new(KeyCode::Char('p'), KeyModifiers::NONE),
+        KeyEvent::new(KeyCode::Char(' '), KeyModifiers::NONE),
         &mut app,
     ));
     assert!(!app.pi_scan.runtime.consent.paid_execution);
     assert_eq!(app.pi_scan.pending_action, Some(PiScanUiAction::ProbeSetup));
+    assert_eq!(app.pi_scan.pending_setup_consent, Some(5));
+    let pending = render_text(&mut app, 90, 24);
+    assert!(
+        pending.contains("Foreground paid execution consent"),
+        "{pending:?}"
+    );
+    assert!(render_text(&mut app, 90, 24).contains("…"));
+    let narrow = render_buffer(&mut app, 40, 24);
+    let row = app.pi_scan.setup_row_rects[5].expect("pending consent row");
+    let visible = (0..40)
+        .map(|x| narrow[(x, row.1)].symbol())
+        .collect::<String>();
+    assert!(
+        visible.contains("[…]"),
+        "pending indicator must precede the truncated label: {visible:?}"
+    );
 
     app.pi_scan.setup_facts_verified = true;
     app.pi_scan.pending_action = None;
     assert!(pacsea::events::pi_scan::handle_key(
-        KeyEvent::new(KeyCode::Char('p'), KeyModifiers::NONE),
+        KeyEvent::new(KeyCode::Char(' '), KeyModifiers::NONE),
         &mut app,
     ));
     assert!(app.pi_scan.runtime.consent.paid_execution);
+    assert!(app.pi_scan.pending_setup_consent.is_none());
     assert_eq!(
         app.pi_scan.pending_action,
         Some(PiScanUiAction::UpdateConsent)
@@ -1117,7 +1162,6 @@ fn all_locales_include_pi_scan_workspace_translations() {
             "app.pi_scan.results.completion.incomplete_no_findings",
             "app.pi_scan.results.completion.one_finding",
             "app.pi_scan.results.completion.many_findings",
-            "app.pi_scan.details.ack_keys",
             "app.pi_scan.continuation.action",
             "app.pi_scan.continuation.title",
             "app.pi_scan.continuation.package",
@@ -1137,10 +1181,45 @@ fn all_locales_include_pi_scan_workspace_translations() {
             "app.pi_scan.budget_dialog.title",
             "app.pi_scan.budget_dialog.unlimited_warning",
             "app.pi_scan.notices.budget_applied_residual",
-            "app.pi_scan.footer.keys.targets",
-            "app.pi_scan.footer.keys.progress",
-            "app.pi_scan.footer.keys.results",
-            "app.pi_scan.footer.keys.details",
+            "app.pi_scan.setup.verify_action",
+            "app.pi_scan.footer.labels.next_field",
+            "app.pi_scan.footer.labels.confirm_field",
+            "app.pi_scan.footer.labels.activate",
+            "app.pi_scan.footer.labels.adjust",
+            "app.pi_scan.footer.labels.choose",
+            "app.pi_scan.footer.labels.focus",
+            "app.pi_scan.footer.labels.next",
+            "app.pi_scan.footer.labels.back",
+            "app.pi_scan.footer.labels.apply",
+            "app.pi_scan.footer.labels.retry",
+            "app.pi_scan.footer.labels.retry_failed",
+            "app.pi_scan.footer.labels.previous_field",
+            "app.pi_scan.footer.labels.wizard",
+            "app.pi_scan.footer.labels.verify",
+            "app.pi_scan.footer.labels.background",
+            "app.pi_scan.footer.labels.pause",
+            "app.pi_scan.footer.labels.resume",
+            "app.pi_scan.footer.labels.cancel",
+            "app.pi_scan.footer.labels.budget",
+            "app.pi_scan.footer.labels.select",
+            "app.pi_scan.footer.labels.queue",
+            "app.pi_scan.footer.labels.details",
+            "app.pi_scan.footer.labels.acknowledge",
+            "app.pi_scan.footer.labels.stale",
+            "app.pi_scan.footer.labels.continue",
+            "app.pi_scan.footer.labels.baseline",
+            "app.pi_scan.footer.labels.raw",
+            "app.pi_scan.footer.labels.expand",
+            "app.pi_scan.footer.labels.move",
+            "app.pi_scan.footer.labels.pages",
+            "app.pi_scan.footer.labels.scroll",
+            "app.pi_scan.footer.labels.cancel_dialog",
+            "app.pi_scan.footer.labels.back_workspace",
+            "app.pi_scan.footer.labels.help",
+            "app.pi_scan.budget_dialog.hint_navigation",
+            "app.pi_scan.budget_dialog.hint_actions",
+            "app.pi_scan.notices.verify_then_toggle",
+            "app.pi_scan.notices.confirm_cancel",
             "app.pi_scan.top_bar.running",
             "app.pi_scan.top_bar.new_results",
             "app.pi_scan.notices.runtime_disconnected",
@@ -1181,6 +1260,52 @@ fn all_locales_include_pi_scan_workspace_translations() {
     }
 }
 
+/// German and Hungarian Pi Scan keys must not exist only outside the English source locale.
+#[test]
+fn pi_scan_locale_keys_are_present_in_english_source() {
+    let locales = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("config/locales");
+    let english = pacsea::i18n::load_locale_file("en-US", &locales).expect("English locale");
+    for locale in ["de-DE", "hu-HU"] {
+        let translations = pacsea::i18n::load_locale_file(locale, &locales).expect("locale");
+        for key in translations
+            .keys()
+            .filter(|key| key.starts_with("app.pi_scan."))
+        {
+            assert!(
+                english.contains_key(key),
+                "{locale} has Pi Scan key absent from en-US: {key}"
+            );
+        }
+    }
+}
+
+/// Newly introduced Pi Scan locale keys exist in all three shipped languages.
+#[test]
+fn pi_scan_review_locale_keys_are_shipped() {
+    let locales = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("config/locales");
+    for locale in ["en-US", "de-DE", "hu-HU"] {
+        let translations = pacsea::i18n::load_locale_file(locale, &locales).expect("locale");
+        for key in [
+            "app.pi_scan.continuation.button_confirm",
+            "app.pi_scan.continuation.button_cancel",
+            "app.pi_scan.continuation.button_confirm_compact",
+            "app.pi_scan.continuation.button_cancel_compact",
+            "app.pi_scan.continuation.hint_compact_scroll",
+            "app.pi_scan.continuation.hint_compact_actions",
+            "app.pi_scan.notices.select_failed_target",
+            "app.pi_scan.tabs_short.setup",
+            "app.pi_scan.tabs_short.overview",
+            "app.pi_scan.tabs_short.targets",
+            "app.pi_scan.tabs_short.progress",
+            "app.pi_scan.tabs_short.results",
+            "app.pi_scan.tabs_short.details",
+            "app.pi_scan.common.search_shortcut",
+        ] {
+            assert!(translations.contains_key(key), "{locale} missing {key}");
+        }
+    }
+}
+
 /// Help must document the complete Pi Scan workspace, wizard, and configured setup chord.
 #[test]
 fn pi_scan_help_renders_workspace_wizard_and_configured_chord() {
@@ -1193,18 +1318,21 @@ fn pi_scan_help_renders_workspace_wizard_and_configured_chord() {
         code: KeyCode::Char('g'),
         mods: KeyModifiers::CONTROL,
     }];
+    app.keymap.search_normal_pi_scan = vec![pacsea::theme::KeyChord {
+        code: KeyCode::Char('p'),
+        mods: KeyModifiers::CONTROL,
+    }];
 
     let rendered = render_text(&mut app, 120, 60);
 
     assert!(rendered.contains("Pi Scan workspace"), "{rendered:?}");
-    assert!(
-        rendered.contains("c opens Review & continue"),
-        "{rendered:?}"
-    );
-    assert!(rendered.contains("Overview/Progress: b adjusts currently exceeded budgets"));
-    assert!(rendered.contains("Progress: p pause · u resume · x cancel · r retry"));
+    assert!(rendered.contains("c review & continue"), "{rendered:?}");
+    assert!(rendered.contains("adjusts eligible budgets"));
+    assert!(rendered.contains("p toggles pause · u resumes · x x cancels"));
     assert!(rendered.contains("Wizard:"));
     assert!(rendered.contains("Ctrl+G"));
+    assert!(rendered.contains("Open Pi Scan workspace  [Ctrl+P]"));
+    assert!(!rendered.contains("Entry: Shift+A"));
     assert!(!rendered.contains("Detach"));
     assert!(!rendered.contains("Reopen"));
 }
@@ -1221,7 +1349,9 @@ fn progress_footer_advertises_retry_and_budget_actions() {
 
     let rendered = render_text(&mut app, 120, 24);
 
-    assert!(rendered.contains("p Pause · u Resume · x Cancel · r Retry · b Budget"));
+    assert!(!rendered.contains("p Pause"));
+    assert!(!rendered.contains("x x Cancel scan"));
+    assert!(rendered.contains("Esc Back · ? Help"));
     assert!(!rendered.contains("detach"));
     assert!(!rendered.contains("reopen"));
     assert!(app.updates_button_rect.is_none());
@@ -1492,6 +1622,7 @@ fn long_targets_navigation_keeps_selection_visible() {
             package_name: format!("package-{index}"),
             package_base: format!("base-{index}"),
             commit_oid: Some(format!("{index:040}")),
+            newer_version_of: None,
             selected: true,
             status: pacsea::state::PiScanTargetStatus::Queued,
         }));
@@ -1713,6 +1844,7 @@ fn readability_tabs_render_hierarchy_short_identities_and_semantic_styles() {
             package_name: name.to_string(),
             package_base: name.trim_end_matches("-package").to_string(),
             commit_oid: Some(exact_target_oid.to_string()),
+            newer_version_of: None,
             selected: true,
             status,
         });
@@ -1933,6 +2065,7 @@ fn readability_tabs_render_at_twenty_by_ten() {
         package_name: "narrow-target".to_string(),
         package_base: "narrow".to_string(),
         commit_oid: Some("a".repeat(40)),
+        newer_version_of: None,
         selected: true,
         status: pacsea::state::PiScanTargetStatus::Paused,
     });
@@ -1982,6 +2115,7 @@ fn target_and_result_hit_rectangles_match_visual_rows() {
             package_name: format!("target-{index}"),
             package_base: format!("base-{index}"),
             commit_oid: Some(format!("{index:040}")),
+            newer_version_of: None,
             selected: index != 1,
             status: pacsea::state::PiScanTargetStatus::Queued,
         }));
@@ -2078,4 +2212,658 @@ fn exact_completion_wording_and_narrow_rendering() {
         assert_eq!(terminal.backend().buffer().area.width, width);
         assert_eq!(terminal.backend().buffer().area.height, height);
     }
+}
+
+/// Tab status placement is measured in display cells, not UTF-8 bytes.
+#[test]
+fn tab_status_fits_multibyte_display_width() {
+    let mut app = AppState {
+        app_mode: AppMode::PiScan,
+        ..AppState::default()
+    };
+    load_english(&mut app);
+    app.translations
+        .insert("app.pi_scan.status.disabled".to_string(), "界".to_string());
+    render_buffer(&mut app, 140, 20);
+    let last = app.pi_scan.tab_rects[5].expect("last tab");
+    let width = last.0 + last.2 + 2 + 2;
+    let buffer = render_buffer(&mut app, width, 20);
+    let tabs = (0..width)
+        .map(|x| buffer[(x, 1)].symbol())
+        .collect::<String>();
+    assert!(tabs.contains("界"), "{tabs:?}");
+}
+
+/// Unseen Results counts survive full, short, and digit-only tab layouts.
+#[test]
+fn results_badge_survives_all_tab_widths() {
+    let mut app = AppState {
+        app_mode: AppMode::PiScan,
+        ..AppState::default()
+    };
+    load_english(&mut app);
+    app.pi_scan.set_view(PiScanView::Overview);
+    app.pi_scan.unseen_result_count = 3;
+    for (width, expected) in [(140, "5 Results (3)"), (55, "5 Res (3)"), (20, "5•")] {
+        let buffer = render_buffer(&mut app, width, 20);
+        let tabs = (0..width)
+            .map(|x| buffer[(x, 1)].symbol())
+            .collect::<String>();
+        assert!(tabs.contains(expected), "missing {expected:?}: {tabs:?}");
+        assert!(app.pi_scan.tab_rects[4].is_some());
+    }
+}
+
+/// Localized short tab names remain legible rather than using truncated full labels.
+#[test]
+fn german_short_tabs_use_localized_names() {
+    let mut app = AppState {
+        app_mode: AppMode::PiScan,
+        ..AppState::default()
+    };
+    load_locale(&mut app, "de-DE");
+    app.pi_scan.set_view(PiScanView::Overview);
+    let buffer = render_buffer(&mut app, 48, 20);
+    let tabs = (0..48).map(|x| buffer[(x, 1)].symbol()).collect::<String>();
+    assert!(tabs.contains("2 Übers"), "{tabs:?}");
+    assert!(!tabs.contains("Übe "), "{tabs:?}");
+}
+
+/// Mandatory German footer keys fit without clipping even at 20 columns.
+#[test]
+fn german_mandatory_footer_fits_20_columns() {
+    let mut app = AppState {
+        app_mode: AppMode::PiScan,
+        ..AppState::default()
+    };
+    load_locale(&mut app, "de-DE");
+    app.pi_scan.set_view(PiScanView::Overview);
+    let buffer = render_buffer(&mut app, 20, 12);
+    let footer = (0..20)
+        .map(|x| buffer[(x, 11)].symbol())
+        .collect::<String>();
+    assert!(footer.contains("Esc · ?"), "{footer:?}");
+}
+
+/// Empty Targets and non-AUR entry guidance use the configured Search chord.
+#[test]
+fn search_entry_guidance_tracks_configured_chord() {
+    let mut app = AppState {
+        app_mode: AppMode::PiScan,
+        ..AppState::default()
+    };
+    load_english(&mut app);
+    app.keymap.search_normal_pi_scan = vec![pacsea::theme::KeyChord {
+        code: KeyCode::Char('p'),
+        mods: KeyModifiers::CONTROL,
+    }];
+    app.pi_scan.set_view(PiScanView::Targets);
+    let empty = render_text(&mut app, 120, 24);
+    assert!(empty.contains("press Ctrl+P"), "{empty:?}");
+    assert!(!empty.contains("Shift+A"));
+    app.app_mode = AppMode::Package;
+    pacsea::events::pi_scan::open_from_search(&mut app);
+    let notice = app
+        .pi_scan
+        .notices
+        .foreground_text()
+        .expect("non-AUR notice");
+    assert!(notice.contains("Ctrl+P"), "{notice:?}");
+}
+
+/// The narrow tab strip retains six digit targets and the full active label on its second row.
+#[test]
+fn compact_tabs_keep_all_page_shortcuts_visible() {
+    let mut app = AppState {
+        app_mode: AppMode::PiScan,
+        ..AppState::default()
+    };
+    load_english(&mut app);
+    for view in PiScanView::all() {
+        app.pi_scan.set_view(view);
+        let buffer = render_buffer(&mut app, 20, 12);
+        let top = (0..20).map(|x| buffer[(x, 1)].symbol()).collect::<String>();
+        for digit in '1'..='6' {
+            assert!(top.contains(digit), "missing {digit} on {view:?}: {top:?}");
+        }
+        for rect in app.pi_scan.tab_rects {
+            assert!(rect.is_some(), "tab clipped on {view:?}");
+        }
+        let active_label = pacsea::i18n::t(
+            &app,
+            &format!(
+                "app.pi_scan.tabs.{}",
+                [
+                    "setup", "overview", "targets", "progress", "results", "details"
+                ][view.index()]
+            ),
+        );
+        assert!(render_text(&mut app, 20, 12).contains(&active_label));
+    }
+}
+
+/// Setup consent rows remain one visual line per hit target at narrow widths.
+#[test]
+fn narrow_setup_mouse_rows_match_rendered_lines() {
+    let mut app = AppState {
+        app_mode: AppMode::PiScan,
+        ..AppState::default()
+    };
+    load_english(&mut app);
+    app.pi_scan.set_view(PiScanView::Setup);
+    app.pi_scan.setup_facts_verified = true;
+    let buffer = render_buffer(&mut app, 24, 20);
+    let row = app.pi_scan.setup_row_rects[3].expect("disclosure row");
+    let text = (0..24)
+        .map(|x| buffer[(x, row.1)].symbol())
+        .collect::<String>();
+    assert!(
+        text.contains("Provider"),
+        "row hit box points at wrong text: {text:?}"
+    );
+    assert!(pacsea::events::pi_scan::handle_mouse(
+        MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: row.0,
+            row: row.1,
+            modifiers: KeyModifiers::NONE,
+        },
+        &mut app
+    ));
+    assert_eq!(app.pi_scan.selected_setup, 3);
+    assert!(pacsea::events::pi_scan::handle_mouse(
+        MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: row.0,
+            row: row.1,
+            modifiers: KeyModifiers::NONE,
+        },
+        &mut app
+    ));
+    assert!(app.pi_scan.disclosure_confirmed);
+    app.pi_scan.selected_setup = 0;
+    app.pi_scan.view_scroll.setup = 0;
+    render_buffer(&mut app, 20, 12);
+    for _ in 0..8 {
+        assert!(pacsea::events::pi_scan::handle_key(
+            KeyEvent::new(KeyCode::Char('j'), KeyModifiers::NONE),
+            &mut app
+        ));
+    }
+    let narrow = render_buffer(&mut app, 20, 12);
+    let row = app.pi_scan.setup_row_rects[8].expect("focused row remains visible");
+    assert_eq!(narrow[(row.0, row.1)].symbol(), "▶");
+}
+
+/// Footer key segments reflect current scan state and do not split at narrow widths.
+#[test]
+fn footer_hints_are_stateful_and_drop_whole_segments() {
+    let mut app = AppState {
+        app_mode: AppMode::PiScan,
+        ..AppState::default()
+    };
+    load_english(&mut app);
+    app.pi_scan.set_view(PiScanView::Overview);
+    let idle = render_text(&mut app, 120, 24);
+    assert!(!idle.contains("p Pause"));
+    assert!(!idle.contains("x x Cancel scan"));
+    app.pi_scan.runtime.active = Some(pacsea::state::pi_scan::PiScanActiveItem {
+        correlation_id: 7,
+        request: budget_blocked_request(),
+        started_at_unix: 1,
+        cancellation_suppressed: false,
+    });
+    let running = render_text(&mut app, 120, 24);
+    assert!(running.contains("p Pause"));
+    assert!(running.contains("x x Cancel scan"));
+    app.pi_scan
+        .runtime
+        .pause_reasons
+        .insert(pacsea::state::pi_scan::PiScanPauseReason::User);
+    let paused = render_text(&mut app, 120, 24);
+    assert!(paused.contains("p Resume"));
+    assert!(paused.contains("u Resume"));
+    assert!(!paused.contains("p Pause"));
+    let narrow = render_text(&mut app, 20, 12);
+    assert!(narrow.contains("Esc Back · ? Help"), "{narrow:?}");
+    assert!(!narrow.contains("x x"));
+}
+
+/// Targets hints only advertise actions when a target row exists.
+#[test]
+fn empty_targets_footer_omits_inert_select_and_queue_hints() {
+    let mut app = AppState {
+        app_mode: AppMode::PiScan,
+        ..AppState::default()
+    };
+    load_english(&mut app);
+    app.pi_scan.set_view(PiScanView::Targets);
+    let footer = |app: &mut AppState| {
+        let buffer = render_buffer(app, 120, 24);
+        (0..120)
+            .map(|x| buffer[(x, 23)].symbol())
+            .collect::<String>()
+    };
+    let empty = footer(&mut app);
+    assert!(!empty.contains("Space Select"), "{empty:?}");
+    assert!(!empty.contains("Enter Queue"), "{empty:?}");
+    app.pi_scan.targets.push(pacsea::state::PiScanTarget {
+        package_name: "demo".to_string(),
+        package_base: "demo".to_string(),
+        commit_oid: None,
+        newer_version_of: None,
+        selected: true,
+        status: pacsea::state::PiScanTargetStatus::Unbaselined,
+    });
+    let populated = footer(&mut app);
+    assert!(populated.contains("Space Select"), "{populated:?}");
+    assert!(populated.contains("Enter Queue"), "{populated:?}");
+}
+
+/// Retry is offered when any selected target failed, without re-queueing successes.
+#[test]
+fn retry_hint_and_key_match_selected_dispatch_targets() {
+    let mut app = AppState {
+        app_mode: AppMode::PiScan,
+        ..AppState::default()
+    };
+    load_english(&mut app);
+    app.pi_scan.set_view(PiScanView::Progress);
+    for (name, status, selected) in [
+        ("failed", pacsea::state::PiScanTargetStatus::Failed, false),
+        (
+            "succeeded",
+            pacsea::state::PiScanTargetStatus::Completed,
+            true,
+        ),
+    ] {
+        app.pi_scan.targets.push(pacsea::state::PiScanTarget {
+            package_name: name.to_string(),
+            package_base: name.to_string(),
+            commit_oid: None,
+            newer_version_of: None,
+            selected,
+            status,
+        });
+    }
+    assert!(!render_text(&mut app, 120, 24).contains("r Retry"));
+    assert!(!pacsea::events::pi_scan::handle_key(
+        KeyEvent::new(KeyCode::Char('r'), KeyModifiers::NONE),
+        &mut app
+    ));
+    assert!(app.pi_scan.pending_action.is_none());
+    app.pi_scan.targets[0].selected = true;
+    app.pi_scan.targets[1].selected = false;
+    assert!(render_text(&mut app, 120, 24).contains("r Retry failed"));
+    assert!(pacsea::events::pi_scan::handle_key(
+        KeyEvent::new(KeyCode::Char('r'), KeyModifiers::NONE),
+        &mut app
+    ));
+    assert_eq!(app.pi_scan.pending_action, Some(PiScanUiAction::Retry));
+    app.pi_scan.targets[1].selected = true;
+    app.pi_scan.pending_action = None;
+    assert!(render_text(&mut app, 120, 24).contains("r Retry failed"));
+    assert!(pacsea::events::pi_scan::handle_key(
+        KeyEvent::new(KeyCode::Char('r'), KeyModifiers::NONE),
+        &mut app,
+    ));
+    assert_eq!(app.pi_scan.pending_action, Some(PiScanUiAction::Retry));
+    load_locale(&mut app, "de-DE");
+    assert!(render_text(&mut app, 160, 24).contains("r Fehlgeschlagene erneut"));
+}
+
+/// Wizard text fields advertise editing rather than stealing command letters.
+#[test]
+fn wizard_footer_tracks_focus_and_keeps_escape_and_help() {
+    let mut app = AppState {
+        app_mode: AppMode::PiScan,
+        ..AppState::default()
+    };
+    load_english(&mut app);
+    app.pi_scan.begin_setup_wizard(true);
+    let wizard = app.pi_scan.wizard.as_mut().expect("wizard");
+    wizard.step = pacsea::state::PiScanSetupStep::PiReadiness;
+    wizard.focus = 0;
+    let text_buffer = render_buffer(&mut app, 120, 24);
+    let text_focus = (0..120)
+        .map(|x| text_buffer[(x, 23)].symbol())
+        .collect::<String>();
+    assert!(text_focus.contains("Tab next field · Enter confirm field"));
+    assert!(text_focus.contains("Esc Cancel"));
+    assert!(!text_focus.contains("? Help"));
+    assert!(!text_focus.contains("n Next"));
+    assert!(
+        text_focus.contains("Shift+Tab Previous field"),
+        "{text_focus:?}"
+    );
+    let narrow = render_text(&mut app, 20, 12);
+    assert!(narrow.contains("Esc Cancel"), "{narrow:?}");
+    assert!(!narrow.contains('?'), "{narrow:?}");
+    app.pi_scan.wizard.as_mut().expect("wizard").focus = 1;
+    let control_buffer = render_buffer(&mut app, 120, 24);
+    let control_focus = (0..120)
+        .map(|x| control_buffer[(x, 23)].symbol())
+        .collect::<String>();
+    assert!(control_focus.contains("n Next"));
+    assert!(control_focus.contains("b Back"));
+    assert!(control_focus.contains("Enter Verify"));
+    assert!(control_focus.contains("? Help"));
+}
+
+/// Budget dialog footer advertises only dialog-owned keys, not workspace actions.
+#[test]
+fn budget_dialog_footer_uses_only_modal_actions() {
+    let mut app = AppState {
+        app_mode: AppMode::PiScan,
+        ..AppState::default()
+    };
+    load_english(&mut app);
+    app.pi_scan.set_view(PiScanView::Overview);
+    app.pi_scan
+        .runtime
+        .queue
+        .push_back(budget_blocked_request());
+    app.pi_scan.runtime.budget_limits.tokens_per_24h = 500;
+    assert!(app.pi_scan.open_budget_dialog_at(1));
+    let buffer = render_buffer(&mut app, 120, 24);
+    let footer = (0..120)
+        .map(|x| buffer[(x, 23)].symbol())
+        .collect::<String>();
+    for expected in [
+        "←/→/h/l Choose",
+        "Tab/Shift+Tab Focus",
+        "Enter Apply",
+        "Esc Cancel",
+        "? Help",
+    ] {
+        assert!(
+            footer.contains(expected),
+            "missing {expected:?}: {footer:?}"
+        );
+    }
+    for unexpected in ["Shift+B Background scans", "b Budget", "1–6/Tab", "p Pause"] {
+        assert!(
+            !footer.contains(unexpected),
+            "inert {unexpected:?}: {footer:?}"
+        );
+    }
+}
+
+/// Budget captures all mouse input, while its pinned controls survive 40x12.
+#[test]
+fn budget_dialog_captures_mouse_and_keeps_choices_visible_at_40x12() {
+    let mut app = AppState {
+        app_mode: AppMode::PiScan,
+        ..AppState::default()
+    };
+    load_english(&mut app);
+    app.pi_scan.set_view(PiScanView::Overview);
+    app.pi_scan
+        .runtime
+        .queue
+        .push_back(budget_blocked_request());
+    app.pi_scan.runtime.budget_limits.tokens_per_24h = 500;
+    assert!(app.pi_scan.open_budget_dialog_at(1));
+    let rendered = render_text(&mut app, 40, 12);
+    for expected in [
+        "Double affected",
+        "Set affected limits",
+        "Enter Apply · Esc Cancel",
+    ] {
+        assert!(
+            rendered.contains(expected),
+            "missing {expected:?}: {rendered:?}"
+        );
+    }
+    let view = app.pi_scan.view;
+    let tab = app.pi_scan.tab_rects[2].expect("target tab");
+    let click = |column, row| MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column,
+        row,
+        modifiers: KeyModifiers::NONE,
+    };
+    assert!(pacsea::events::pi_scan::handle_mouse(
+        click(tab.0, tab.1),
+        &mut app
+    ));
+    assert_eq!(app.pi_scan.view, view);
+    assert!(pacsea::events::pi_scan::handle_mouse(
+        MouseEvent {
+            kind: MouseEventKind::ScrollDown,
+            column: tab.0,
+            row: tab.1,
+            modifiers: KeyModifiers::NONE
+        },
+        &mut app
+    ));
+    assert!(app.pi_scan.budget_body_overflows);
+    assert!(app.pi_scan.budget_body_scroll > 0);
+    let rect = app.pi_scan.budget_dialog_rect.expect("budget rect");
+    let second = rect.1 + rect.3 - 4;
+    assert!(pacsea::events::pi_scan::handle_mouse(
+        click(rect.0 + 2, second),
+        &mut app
+    ));
+    assert_eq!(
+        app.pi_scan
+            .budget_dialog
+            .as_ref()
+            .expect("dialog")
+            .selection,
+        pacsea::state::pi_scan::PiScanBudgetAdjustment::Unlimited
+    );
+    assert!(pacsea::events::pi_scan::handle_mouse(
+        click(rect.0 + 2, second),
+        &mut app
+    ));
+    assert_eq!(
+        app.pi_scan.pending_action,
+        Some(PiScanUiAction::AdjustBudgets(
+            pacsea::state::pi_scan::PiScanBudgetAdjustment::Unlimited
+        ))
+    );
+}
+
+/// Wrapped Details headers retain their own click regions even after a preceding wrapped header.
+#[test]
+fn narrow_wrapped_report_header_clicks_correct_package() {
+    let mut app = AppState {
+        app_mode: AppMode::PiScan,
+        ..AppState::default()
+    };
+    load_english(&mut app);
+    app.pi_scan
+        .results
+        .push(display_result("long-first-package", 0));
+    app.pi_scan
+        .results
+        .push(display_result("second-package", 1));
+    app.pi_scan.set_view(PiScanView::Details);
+    render_buffer(&mut app, 20, 24);
+    let header = app
+        .pi_scan
+        .details_header_rects
+        .iter()
+        .find(|rect| rect.index == 1)
+        .expect("second header");
+    let (x, y) = (header.x, header.y);
+    assert!(pacsea::events::pi_scan::handle_mouse(
+        MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: x,
+            row: y,
+            modifiers: KeyModifiers::NONE,
+        },
+        &mut app
+    ));
+    assert_eq!(app.pi_scan.selected_result, 1);
+    assert!(app.pi_scan.is_result_expanded(1));
+    assert!(!app.pi_scan.is_result_expanded(0));
+}
+
+/// Clicking targets and Details headers repeats the keyboard toggle transitions.
+#[test]
+fn mouse_target_and_report_header_toggles() {
+    let mut app = AppState {
+        app_mode: AppMode::PiScan,
+        ..AppState::default()
+    };
+    load_english(&mut app);
+    for name in ["alpha", "beta"] {
+        app.pi_scan.targets.push(pacsea::state::PiScanTarget {
+            package_name: name.to_string(),
+            package_base: name.to_string(),
+            commit_oid: None,
+            newer_version_of: None,
+            selected: false,
+            status: pacsea::state::PiScanTargetStatus::Unbaselined,
+        });
+    }
+    app.pi_scan.set_view(PiScanView::Targets);
+    render_buffer(&mut app, 90, 25);
+    let row = app
+        .pi_scan
+        .target_row_rects
+        .iter()
+        .find(|r| r.index == 1)
+        .expect("row");
+    let (x, y) = (row.x, row.y);
+    let click = |column, row| MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column,
+        row,
+        modifiers: KeyModifiers::NONE,
+    };
+    assert!(pacsea::events::pi_scan::handle_mouse(
+        click(x + 6, y),
+        &mut app
+    ));
+    assert_eq!(app.pi_scan.selected_target, 1);
+    assert!(!app.pi_scan.targets[1].selected);
+    assert!(pacsea::events::pi_scan::handle_mouse(
+        click(x + 6, y),
+        &mut app
+    ));
+    assert!(app.pi_scan.targets[1].selected);
+    assert!(pacsea::events::pi_scan::handle_mouse(click(x, y), &mut app));
+    assert!(!app.pi_scan.targets[1].selected);
+    app.pi_scan.results.push(display_result("alpha", 0));
+    app.pi_scan.set_view(PiScanView::Details);
+    render_buffer(&mut app, 90, 25);
+    let header = app.pi_scan.details_header_rects.first().expect("header");
+    let (x, y) = (header.x, header.y);
+    assert!(pacsea::events::pi_scan::handle_mouse(click(x, y), &mut app));
+    assert!(app.pi_scan.is_result_expanded(0));
+    assert!(pacsea::events::pi_scan::handle_mouse(click(x, y), &mut app));
+    assert!(!app.pi_scan.is_result_expanded(0));
+}
+
+/// A pending newer AUR commit is visible in Targets, old Results/Details, and package mode.
+#[test]
+fn newer_aur_version_is_visible_across_workspace_and_top_bar() {
+    let mut app = AppState {
+        app_mode: AppMode::PiScan,
+        ..AppState::default()
+    };
+    load_english(&mut app);
+    app.pi_scan.settings.enabled = true;
+    app.pi_scan.results.push(display_result("demo", 0));
+    app.pi_scan.targets.push(pacsea::state::PiScanTarget {
+        package_name: "demo".to_string(),
+        package_base: "demo".to_string(),
+        commit_oid: Some("b".repeat(40)),
+        newer_version_of: Some("a".repeat(40)),
+        selected: false,
+        status: pacsea::state::PiScanTargetStatus::Queued,
+    });
+    app.pi_scan.set_view(PiScanView::Targets);
+    assert!(render_text(&mut app, 120, 24).contains("new version · rescan queued"));
+    app.pi_scan.set_view(PiScanView::Results);
+    assert!(render_text(&mut app, 120, 24).contains("NEWER VERSION AVAILABLE"));
+    app.pi_scan.set_view(PiScanView::Details);
+    assert!(app.pi_scan.toggle_result_expansion(0));
+    assert!(render_text(&mut app, 120, 30).contains("Newer version available"));
+    app.app_mode = AppMode::Package;
+    assert!(render_text(&mut app, 120, 24).contains("Pi: 1 rescans pending"));
+}
+
+/// Completed history does not mark old failed targets or the newest result as newer.
+#[test]
+fn result_freshness_uses_later_targets_not_prior_or_completed_badges() {
+    let mut app = AppState {
+        app_mode: AppMode::PiScan,
+        ..AppState::default()
+    };
+    load_english(&mut app);
+    app.pi_scan.settings.enabled = true;
+    for (index, oid) in ['a', 'b', 'c'].into_iter().enumerate() {
+        let mut result = display_result("demo", 0);
+        result.validated.identity.scan_id = format!("scan-{index}");
+        result.validated.identity.commit_oid = oid.to_string().repeat(40);
+        result.observed_head_oid = oid.to_string().repeat(40);
+        app.pi_scan.results.push(result);
+        app.pi_scan.targets.push(pacsea::state::PiScanTarget {
+            package_name: "demo".into(),
+            package_base: "demo".into(),
+            commit_oid: Some(oid.to_string().repeat(40)),
+            newer_version_of: None,
+            selected: false,
+            status: pacsea::state::PiScanTargetStatus::Completed,
+        });
+    }
+    app.pi_scan.set_view(PiScanView::Results);
+    let rendered = render_text(&mut app, 120, 28);
+    assert_eq!(rendered.matches("NEWER VERSION AVAILABLE").count(), 2);
+    assert_eq!(rendered.matches("CURRENT IDENTITY").count(), 1);
+    assert!(
+        app.pi_scan
+            .targets
+            .iter()
+            .all(|target| target.newer_version_of.is_none())
+    );
+    app.pi_scan.targets[0].status = pacsea::state::PiScanTargetStatus::Failed;
+    app.pi_scan.results.remove(0);
+    app.pi_scan.results.remove(1);
+    app.pi_scan.targets.remove(2);
+    let rendered = render_text(&mut app, 120, 28);
+    assert!(!rendered.contains("NEWER VERSION AVAILABLE"));
+    assert!(rendered.contains("CURRENT IDENTITY"));
+    assert!(
+        app.pi_scan
+            .targets
+            .iter()
+            .all(|target| target.newer_version_of.is_none())
+    );
+}
+
+/// A retained result shows the newer-commit cue even when its historical target was pruned.
+#[test]
+fn stored_result_without_target_displays_newer_available() {
+    let mut app = AppState {
+        app_mode: AppMode::PiScan,
+        ..AppState::default()
+    };
+    load_english(&mut app);
+    app.pi_scan.results.push(display_result("demo", 0));
+    app.pi_scan.targets.push(pacsea::state::PiScanTarget {
+        package_name: "demo".into(),
+        package_base: "demo".into(),
+        commit_oid: Some("b".repeat(40)),
+        newer_version_of: Some("a".repeat(40)),
+        selected: false,
+        status: pacsea::state::PiScanTargetStatus::Queued,
+    });
+    app.pi_scan.set_view(PiScanView::Results);
+    assert!(render_text(&mut app, 120, 24).contains("NEWER VERSION AVAILABLE"));
+    app.pi_scan.targets[0].status = pacsea::state::PiScanTargetStatus::Completed;
+    app.pi_scan.targets[0].newer_version_of = None;
+    let mut newer_result = display_result("demo", 0);
+    newer_result.validated.identity.scan_id = "scan-newer".to_string();
+    newer_result.validated.identity.commit_oid = "b".repeat(40);
+    newer_result.observed_head_oid = "b".repeat(40);
+    app.pi_scan.results.push(newer_result);
+    let rendered = render_text(&mut app, 120, 24);
+    assert_eq!(rendered.matches("NEWER VERSION AVAILABLE").count(), 1);
+    assert_eq!(rendered.matches("CURRENT IDENTITY").count(), 1);
 }

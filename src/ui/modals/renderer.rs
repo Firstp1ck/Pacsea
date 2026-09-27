@@ -577,6 +577,9 @@ impl ModalRenderer for Modal {
                 confirmation,
                 scroll,
             } => {
+                let rect = misc::pi_scan_continuation_area(area);
+                app.pi_scan.continuation_buttons =
+                    misc::pi_scan_continuation_button_rects(app, rect);
                 misc::render_pi_scan_continuation(f, app, area, &confirmation, scroll);
                 Self::ConfirmPiScanContinuation {
                     confirmation,

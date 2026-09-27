@@ -1,9 +1,11 @@
 //! Setup, disclosure, and consent page.
 
+use crate::state::pi_scan_ui::PiScanSetupRow;
 use crate::state::{AppState, PiScanAvailability, PiScanReadiness};
 use ratatui::{
     Frame,
     layout::Rect,
+    style::Modifier,
     text::{Line, Span},
 };
 
@@ -20,19 +22,88 @@ pub(super) fn render(f: &mut Frame, app: &mut AppState, area: Rect) {
 
 /// Preserve advanced setup controls while presenting them in balanced sections.
 fn render_advanced(f: &mut Frame, app: &mut AppState, area: Rect) {
-    let mut lines = vec![Line::from(Span::styled(
-        format!(
-            "▶ [r] {}",
-            crate::i18n::t(app, "app.pi_scan.setup.rerun_wizard")
-        ),
-        super::semantic_style(SemanticTone::Active),
-    ))];
+    let mut lines = Vec::new();
+    for (index, row) in PiScanSetupRow::ALL.iter().enumerate() {
+        let key = match row {
+            PiScanSetupRow::Wizard => "app.pi_scan.setup.rerun_wizard",
+            PiScanSetupRow::Verify => "app.pi_scan.setup.verify_action",
+            PiScanSetupRow::Background => "app.pi_scan.background_toggle.label",
+            PiScanSetupRow::Disclosure => "app.pi_scan.setup.disclosure_consent",
+            PiScanSetupRow::Observation => "app.pi_scan.setup.observation_consent",
+            PiScanSetupRow::Paid => "app.pi_scan.setup.paid_consent",
+            PiScanSetupRow::BackgroundPaid => "app.pi_scan.setup.background_paid_consent",
+            PiScanSetupRow::Fallback => "app.pi_scan.setup.fallback_consent",
+            PiScanSetupRow::Warning => "app.pi_scan.setup.warning_consent",
+        };
+        let marker = if app.pi_scan.selected_setup == index {
+            "▶"
+        } else {
+            " "
+        };
+        let pending =
+            app.pi_scan.pending_setup_consent == Some(index) && !app.pi_scan.setup_facts_verified;
+        let value = if matches!(row, PiScanSetupRow::Wizard | PiScanSetupRow::Verify) {
+            String::new()
+        } else if pending {
+            "[…] ".to_string()
+        } else {
+            let checked = match row {
+                PiScanSetupRow::Background => app.pi_scan.settings.background_enabled,
+                PiScanSetupRow::Disclosure => app.pi_scan.disclosure_confirmed,
+                PiScanSetupRow::Observation => app.pi_scan.runtime.consent.background_observation,
+                PiScanSetupRow::Paid => app.pi_scan.runtime.consent.paid_execution,
+                PiScanSetupRow::BackgroundPaid => app.pi_scan.background_paid_execution_confirmed,
+                PiScanSetupRow::Fallback => app.pi_scan.fallback_confirmed,
+                PiScanSetupRow::Warning => app.pi_scan.readiness_warning_confirmed,
+                PiScanSetupRow::Wizard | PiScanSetupRow::Verify => false,
+            };
+            if checked {
+                "[x] ".to_string()
+            } else {
+                "[ ] ".to_string()
+            }
+        };
+        let style = super::semantic_style(if pending {
+            SemanticTone::Warning
+        } else if index == app.pi_scan.selected_setup {
+            SemanticTone::Active
+        } else {
+            SemanticTone::Normal
+        });
+        let style = if index == app.pi_scan.selected_setup {
+            style.add_modifier(Modifier::BOLD)
+        } else {
+            style
+        };
+        lines.push(super::targets::truncate_line(
+            Line::from(Span::styled(
+                format!("{marker} {value}{}", crate::i18n::t(app, key)),
+                style,
+            )),
+            usize::from(area.width.saturating_sub(2)),
+        ));
+    }
     push_runtime_lines(&mut lines, app);
     push_route_cost_lines(&mut lines, app);
     push_safety_lines(&mut lines, app);
     push_permission_lines(&mut lines, app);
+    app.pi_scan.setup_visible_rows = usize::from(area.height.saturating_sub(2)).max(1);
     let scroll = super::clamp_line_scroll(app.pi_scan.view_scroll.setup, &lines, area);
     app.pi_scan.view_scroll.setup = scroll;
+    app.pi_scan.setup_row_rects = std::array::from_fn(|index| {
+        let row = area
+            .y
+            .saturating_add(1)
+            .saturating_add(u16::try_from(index).unwrap_or(u16::MAX))
+            .saturating_sub(scroll);
+        (index >= usize::from(scroll) && row < area.y.saturating_add(area.height.saturating_sub(1)))
+            .then_some((
+                area.x.saturating_add(1),
+                row,
+                area.width.saturating_sub(2),
+                1,
+            ))
+    });
     super::body_scrolled(f, app, area, "app.pi_scan.tabs.setup", lines, scroll);
 }
 
@@ -222,32 +293,32 @@ fn push_permission_lines(lines: &mut Vec<Line<'static>>, app: &AppState) {
     push_section_gap(lines, app, "app.pi_scan.setup.sections.permissions");
     let permissions = [
         (
-            "c",
+            "",
             "app.pi_scan.setup.disclosure_consent",
             pi.disclosure_confirmed,
         ),
         (
-            "o",
+            "",
             "app.pi_scan.setup.observation_consent",
             pi.runtime.consent.background_observation,
         ),
         (
-            "p",
+            "",
             "app.pi_scan.setup.paid_consent",
             pi.runtime.consent.paid_execution,
         ),
         (
-            "b",
+            "",
             "app.pi_scan.setup.background_paid_consent",
             pi.background_paid_execution_confirmed,
         ),
         (
-            "f",
+            "",
             "app.pi_scan.setup.fallback_consent",
             pi.fallback_confirmed,
         ),
         (
-            "w",
+            "",
             "app.pi_scan.setup.warning_consent",
             pi.readiness_warning_confirmed,
         ),
@@ -255,7 +326,7 @@ fn push_permission_lines(lines: &mut Vec<Line<'static>>, app: &AppState) {
     for (key, label_key, confirmed) in permissions {
         let (value, tone) = confirmation_state(app, confirmed);
         lines.push(super::labeled_line(
-            format!("[{key}] {}", crate::i18n::t(app, label_key)),
+            format!("{key}{}", crate::i18n::t(app, label_key)),
             value,
             tone,
         ));

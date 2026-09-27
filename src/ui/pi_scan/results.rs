@@ -105,11 +105,15 @@ fn result_line(
     };
     let identity_key = if result.stale {
         "app.pi_scan.results.stale"
+    } else if super::result_has_newer_version(app, result) {
+        "app.pi_scan.results.newer_version"
     } else {
         "app.pi_scan.results.current"
     };
     let identity_tone = if result.stale {
         SemanticTone::Error
+    } else if super::result_has_newer_version(app, result) {
+        SemanticTone::Warning
     } else {
         SemanticTone::Success
     };

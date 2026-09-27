@@ -24,6 +24,29 @@ use std::{fs, path::Path, path::PathBuf, time::Instant};
 /// Max number of stored config-editor recent search queries.
 const MAX_CONFIG_EDITOR_RECENT: usize = 50;
 
+/// What: Find the best choice for a stored enum value.
+///
+/// Inputs:
+/// - `choices`: Canonical choices in display order.
+/// - `current`: Trimmed stored value to preselect.
+///
+/// Output:
+/// - Matching choice index, or zero when no choice matches.
+///
+/// Details:
+/// - Exact spelling takes precedence; fallback ignores ASCII case and treats
+///   underscores as hyphens, without changing the stored original value.
+fn enum_choice_index(choices: &[String], current: &str) -> usize {
+    if let Some(index) = choices.iter().position(|choice| choice == current) {
+        return index;
+    }
+    let normalized = current.to_ascii_lowercase().replace('_', "-");
+    choices
+        .iter()
+        .position(|choice| choice.to_ascii_lowercase().replace('_', "-") == normalized)
+        .unwrap_or(0)
+}
+
 /// Which top-pane view is active in the config editor.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConfigEditorView {
@@ -135,7 +158,8 @@ impl EditPopupState {
     /// Details:
     /// - For `Bool`, parses `true`/`yes`/`on`/`1` as `true` (everything
     ///   else as `false`).
-    /// - For `Enum`, snaps to `choices[0]` if `current` is not in the list.
+    /// - For `Enum`, tries exact, then ASCII-case/underscore-tolerant matching;
+    ///   snaps to `choices[0]` when no match is found.
     /// - For `IntRange`, clamps the parsed integer into the schema range.
     /// - For `Secret`, starts unrevealed; `current` is loaded into the
     ///   buffer so saving without typing keeps the existing value, but
@@ -153,7 +177,7 @@ impl EditPopupState {
             }
             ValueKind::Enum { choices } => {
                 let owned: Vec<String> = choices.iter().map(|s| (*s).to_string()).collect();
-                let index = owned.iter().position(|c| c == trimmed).unwrap_or(0);
+                let index = enum_choice_index(&owned, trimmed);
                 let buffer = owned.get(index).cloned().unwrap_or_default();
                 (
                     EditPopupKind::Enum {
@@ -195,6 +219,34 @@ impl EditPopupState {
             opened_mtime: None,
             stale_overwrite_armed: false,
         }
+    }
+
+    /// What: Select an enum choice and synchronize its canonical buffer.
+    ///
+    /// Inputs:
+    /// - `index`: Index of the desired choice.
+    ///
+    /// Output:
+    /// - `true` when the popup is an enum and the index is in range; otherwise
+    ///   `false` without changing the popup.
+    ///
+    /// Details:
+    /// - Both keyboard and mouse selection use this method so saves use the
+    ///   same canonical string as the highlighted choice.
+    pub fn select_enum_index(&mut self, index: usize) -> bool {
+        let EditPopupKind::Enum {
+            choices,
+            index: selected,
+        } = &mut self.kind
+        else {
+            return false;
+        };
+        let Some(choice) = choices.get(index) else {
+            return false;
+        };
+        *selected = index;
+        self.buffer.clone_from(choice);
+        true
     }
 
     /// What: Compute the canonical string the editor should write for this
@@ -271,6 +323,9 @@ pub struct ConfigEditorState {
     pub bookmark_cursor: usize,
     /// Active edit popup, if any.
     pub popup: Option<EditPopupState>,
+    /// Screen rows of enum choices in the open popup, indexed by choice;
+    /// rebuilt every frame and empty when no enum popup is open.
+    pub popup_choice_rects: Vec<(u16, u16, u16, u16)>,
     /// Last save outcome / hint, shown in the footer.
     pub status: Option<String>,
 }
@@ -305,6 +360,7 @@ impl Default for ConfigEditorState {
             bookmarked_keys_dirty: false,
             bookmark_cursor: 0,
             popup: None,
+            popup_choice_rects: Vec::new(),
             status: None,
         }
     }
@@ -947,6 +1003,56 @@ mod tests {
             }
             _ => panic!("expected Enum"),
         }
+    }
+
+    /// Opening a locale enum selects the stored value or auto-detect when empty.
+    #[test]
+    fn locale_popup_selects_current_or_first_choice() {
+        let setting = setting("locale");
+        let german = EditPopupState::from_current(setting, "de-DE");
+        assert!(matches!(german.kind, EditPopupKind::Enum { index: 2, .. }));
+        assert_eq!(german.canonical_value(), "de-DE");
+
+        let automatic = EditPopupState::from_current(setting, "");
+        assert!(matches!(
+            automatic.kind,
+            EditPopupKind::Enum { index: 0, .. }
+        ));
+        assert_eq!(automatic.canonical_value(), "");
+    }
+
+    /// ASCII case and underscore variants preselect their canonical enum choice.
+    #[test]
+    fn enum_popup_preselects_normalized_values() {
+        for current in ["de_DE", "de-de", "DE_de"] {
+            let popup = EditPopupState::from_current(setting("locale"), current);
+            assert!(matches!(popup.kind, EditPopupKind::Enum { index: 2, .. }));
+            assert_eq!(popup.original, current);
+            assert_eq!(popup.canonical_value(), "de-DE");
+        }
+        let unknown = EditPopupState::from_current(setting("locale"), "fr-FR");
+        assert!(matches!(unknown.kind, EditPopupKind::Enum { index: 0, .. }));
+        assert_eq!(unknown.canonical_value(), "");
+
+        let marker = EditPopupState::from_current(setting("package_marker"), "FULL_LINE");
+        assert!(matches!(marker.kind, EditPopupKind::Enum { index: 0, .. }));
+        assert_eq!(marker.canonical_value(), "full_line");
+    }
+
+    /// Selecting an enum updates the buffer; invalid indices and other kinds do nothing.
+    #[test]
+    fn select_enum_index_changes_only_valid_enum_choices() {
+        let mut popup = EditPopupState::from_current(setting("locale"), "en-US");
+        assert!(popup.select_enum_index(2));
+        assert!(matches!(popup.kind, EditPopupKind::Enum { index: 2, .. }));
+        assert_eq!(popup.buffer, "de-DE");
+        assert!(!popup.select_enum_index(4));
+        assert_eq!(popup.canonical_value(), "de-DE");
+        assert_eq!(popup.buffer, "de-DE");
+
+        let mut text = EditPopupState::from_current(setting("preferred_terminal"), "kitty");
+        assert!(!text.select_enum_index(0));
+        assert_eq!(text.buffer, "kitty");
     }
 
     #[test]

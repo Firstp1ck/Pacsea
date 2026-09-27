@@ -55,6 +55,62 @@ impl PiScanView {
     }
 }
 
+/// Named Setup actions in keyboard and visible row order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(usize)]
+pub enum PiScanSetupRow {
+    /// Open the guided setup wizard.
+    Wizard,
+    /// Verify provider and pricing facts.
+    Verify,
+    /// Toggle background scanning.
+    Background,
+    /// Accept provider/privacy/cost disclosure.
+    Disclosure,
+    /// Consent to background observation.
+    Observation,
+    /// Consent to foreground paid execution.
+    Paid,
+    /// Consent to background paid execution.
+    BackgroundPaid,
+    /// Accept configured fallback routes.
+    Fallback,
+    /// Accept the readiness warning.
+    Warning,
+}
+
+impl PiScanSetupRow {
+    /// Setup row order shared by keyboard handling and rendering.
+    pub const ALL: [Self; 9] = [
+        Self::Wizard,
+        Self::Verify,
+        Self::Background,
+        Self::Disclosure,
+        Self::Observation,
+        Self::Paid,
+        Self::BackgroundPaid,
+        Self::Fallback,
+        Self::Warning,
+    ];
+
+    /// Return whether this row grants a material consent after verified facts are shown.
+    #[must_use]
+    pub const fn is_consent(self) -> bool {
+        matches!(
+            self,
+            Self::Disclosure
+                | Self::Observation
+                | Self::Paid
+                | Self::BackgroundPaid
+                | Self::Fallback
+                | Self::Warning
+        )
+    }
+}
+
+/// Number of Setup rows, shared by hit boxes and selection bounds.
+pub const SETUP_ROW_COUNT: usize = PiScanSetupRow::ALL.len();
+
 /// Availability shown without launching Pi or making a model call.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PiScanAvailability {
@@ -123,6 +179,8 @@ pub struct PiScanTarget {
     pub package_base: String,
     /// Frozen recipe commit when resolved.
     pub commit_oid: Option<String>,
+    /// Previously scanned commit when this target represents a newer AUR version.
+    pub newer_version_of: Option<String>,
     /// Whether this target is selected for a request.
     pub selected: bool,
     /// Short inert status label.
@@ -453,6 +511,10 @@ impl PiScanNoticeSlots {
 pub struct PiScanQueueIntentSnapshot {
     /// Originally selected package names, sorted and deduplicated.
     pub package_names: Vec<String>,
+    /// Frozen (package name, base, commit) for each selected resolved row.
+    pub exact_targets: Vec<(String, String, String)>,
+    /// Selected commit-less names still awaiting an explicit manual observation.
+    pub unresolved_names: Vec<String>,
     /// Token reservation context shown when the action was requested.
     pub reservation_tokens: u64,
     /// Exact decimal cost-cap text shown when the action was requested.
@@ -569,6 +631,18 @@ pub struct PiScanWorkspaceState {
     pub settings: PiScanSettings,
     /// Current page.
     pub view: PiScanView,
+    /// Mode that opened this workspace; Config Editor returns to Package to avoid restoring an editor popup.
+    pub origin: crate::state::types::AppMode,
+    /// Correlation of the active scan awaiting a second cancellation key press.
+    pub cancel_armed: Option<u64>,
+    /// Focused Setup action row (wizard, verification, background, then six consents).
+    pub selected_setup: usize,
+    /// Last rendered number of visible Setup rows, for focus-aware auto-scroll.
+    pub setup_visible_rows: usize,
+    /// Consent row awaiting asynchronous fact verification before it may be toggled.
+    pub pending_setup_consent: Option<usize>,
+    /// Rendered Setup action hit rectangles, indexed by action order.
+    pub setup_row_rects: [Option<(u16, u16, u16, u16)>; SETUP_ROW_COUNT],
     /// Legacy renderer projection synchronized from the active independent selection.
     pub selected: usize,
     /// Independently selected target row.
@@ -629,6 +703,14 @@ pub struct PiScanWorkspaceState {
     >,
     /// Focused budget adjustment choice, submission, or actionable rejection.
     pub budget_dialog: Option<PiScanBudgetDialogState>,
+    /// Last rendered overlay bounds used to capture mouse events without querying terminal size.
+    pub budget_dialog_rect: Option<(u16, u16, u16, u16)>,
+    /// Independent scroll offset for overflowing budget explanation text.
+    pub budget_body_scroll: u16,
+    /// Whether the last rendered budget explanation exceeded its viewport.
+    pub budget_body_overflows: bool,
+    /// Last rendered continuation button hit boxes (confirm, cancel).
+    pub continuation_buttons: [Option<(u16, u16, u16, u16)>; 2],
     /// Request-owned typed acknowledgement receiver retained until one terminal response.
     pub budget_acknowledgement_rx: Option<
         tokio::sync::mpsc::UnboundedReceiver<
@@ -655,6 +737,8 @@ pub struct PiScanWorkspaceState {
     pub result_row_rects: Vec<PiScanListHitRect>,
     /// Rendered Details Review & continue action rectangle.
     pub details_continue_action_rect: Option<PiScanActionHitRect>,
+    /// Visible report header rows used for mouse expansion.
+    pub details_header_rects: Vec<PiScanListHitRect>,
     /// Last setup-controller correlation retained across wizard sessions.
     pub last_setup_correlation: u64,
     /// Active guided setup wizard session; `None` outside the wizard.
@@ -668,6 +752,12 @@ impl Default for PiScanWorkspaceState {
             active_progress: None,
             settings: PiScanSettings::default(),
             view: PiScanView::Setup,
+            origin: crate::state::types::AppMode::Package,
+            cancel_armed: None,
+            selected_setup: 0,
+            setup_visible_rows: 1,
+            pending_setup_consent: None,
+            setup_row_rects: [None; SETUP_ROW_COUNT],
             selected: 0,
             selected_target: 0,
             selected_result: 0,
@@ -699,6 +789,10 @@ impl Default for PiScanWorkspaceState {
             background_toggle_pending: None,
             background_acknowledgement_rx: None,
             budget_dialog: None,
+            budget_dialog_rect: None,
+            budget_body_scroll: 0,
+            budget_body_overflows: false,
+            continuation_buttons: [None; 2],
             budget_acknowledgement_rx: None,
             dry_run_preview: None,
             pending_queue_intent: None,
@@ -710,6 +804,7 @@ impl Default for PiScanWorkspaceState {
             target_row_rects: Vec::new(),
             result_row_rects: Vec::new(),
             details_continue_action_rect: None,
+            details_header_rects: Vec::new(),
             last_setup_correlation: 0,
             wizard: None,
         }
@@ -789,6 +884,7 @@ impl PiScanWorkspaceState {
             );
             return;
         }
+        self.pending_setup_consent = None;
         let mut wizard = crate::state::pi_scan_setup::PiScanSetupWizardState::open(
             self.settings.clone(),
             PiScanConsentState {
@@ -810,7 +906,7 @@ impl PiScanWorkspaceState {
         self.pending_action = None;
         if first_run {
             self.notices.set_foreground(
-                "Guided setup cancelled — press r to restart it, Esc to leave",
+                "Guided setup cancelled — press w to restart it, Esc to leave",
                 PiScanNoticeSeverity::Info,
             );
         }
@@ -996,6 +1092,7 @@ impl PiScanWorkspaceState {
             self.readiness_warning_confirmed = false;
             self.runtime.consent = PiScanConsentState::default();
             self.readiness = PiScanReadiness::Unchecked;
+            self.pending_setup_consent = None;
         }
         self.availability = if runtime_connected {
             PiScanAvailability::RuntimeConnected
@@ -1021,7 +1118,7 @@ impl PiScanWorkspaceState {
             .is_some_and(|limits| limits == self.runtime.budget_limits)
     }
 
-    /// Add or select package context when Shift+A opens the workspace.
+    /// Add or select package context when the configured Search shortcut opens the workspace.
     pub fn open_context(&mut self, package_name: Option<&str>, is_aur: bool) {
         if let Some(name) = package_name.filter(|_| is_aur) {
             if !self
@@ -1033,6 +1130,7 @@ impl PiScanWorkspaceState {
                     package_name: name.to_string(),
                     package_base: name.to_string(),
                     commit_oid: None,
+                    newer_version_of: None,
                     selected: true,
                     status: PiScanTargetStatus::Unbaselined,
                 });
@@ -1065,6 +1163,9 @@ impl PiScanWorkspaceState {
     /// Details:
     /// - Entering Results clears the unseen count; entering Details resets only details line scroll.
     pub fn set_view(&mut self, view: PiScanView) {
+        if self.view != view {
+            self.cancel_armed = None;
+        }
         let entering_details = self.view != PiScanView::Details && view == PiScanView::Details;
         if view != PiScanView::Details {
             self.details_continue_action_rect = None;
@@ -1147,6 +1248,7 @@ impl PiScanWorkspaceState {
         if !self.budget_adjustment_eligible_at(now_unix) || self.budget_dialog.is_some() {
             return false;
         }
+        self.budget_body_scroll = 0;
         self.budget_dialog = Some(PiScanBudgetDialogState {
             selection: PiScanBudgetAdjustment::Double,
             affected: self.runtime.exceeded_budget_limits(now_unix),
@@ -1204,17 +1306,53 @@ impl PiScanWorkspaceState {
 
     /// Snapshot exact package-name and reservation intent for later identity resolution.
     pub fn snapshot_queue_intent(&mut self) {
-        let mut package_names: Vec<String> = self
+        let package_names = self
             .targets
             .iter()
             .filter(|target| target.selected)
             .map(|target| target.package_name.clone())
             .collect();
+        self.snapshot_queue_intent_for_names(package_names);
+    }
+
+    /// What: Snapshot a vetted set of package names for one queue request.
+    ///
+    /// Inputs: Names selected for a normal request or filtered to retryable targets.
+    ///
+    /// Output: A sorted, deduplicated intent using current conservative reservation settings.
+    ///
+    /// Details: Retry callers supply only the failed subset, never a successful selected target.
+    pub(crate) fn snapshot_queue_intent_for_names(&mut self, mut package_names: Vec<String>) {
         package_names.sort();
         package_names.dedup();
+        let mut exact_targets: Vec<_> = self
+            .targets
+            .iter()
+            .filter(|target| target.selected && package_names.contains(&target.package_name))
+            .filter_map(|target| {
+                Some((
+                    target.package_name.clone(),
+                    target.package_base.clone(),
+                    target.commit_oid.clone()?,
+                ))
+            })
+            .collect();
+        exact_targets.sort();
+        exact_targets.dedup();
+        let mut unresolved_names: Vec<_> = self
+            .targets
+            .iter()
+            .filter(|target| target.selected && target.commit_oid.is_none())
+            .filter(|target| package_names.contains(&target.package_name))
+            .map(|target| target.package_name.clone())
+            .collect();
+        unresolved_names.sort();
+        unresolved_names.dedup();
         self.pending_queue_intent =
             (!package_names.is_empty()).then(|| PiScanQueueIntentSnapshot {
                 package_names,
+                exact_targets,
+                unresolved_names,
                 reservation_tokens: self.settings.background_token_cap_24h,
                 reservation_cost_cap: self.settings.background_cost_cap_24h.clone(),
             });
@@ -1375,6 +1513,34 @@ impl PiScanWorkspaceState {
         }
         self.pending_action = Some(PiScanUiAction::ContinueSelected);
         Ok(())
+    }
+
+    /// What: Select the failed/interrupted/cancelled names eligible for Retry.
+    ///
+    /// Inputs: Current target selection and statuses.
+    ///
+    /// Output: Package names to retry; empty while another queue intent is unresolved.
+    ///
+    /// Details: The key, footer, and dispatch use this identical subset so successful
+    /// selected targets cannot be sent to the scanner again.
+    #[must_use]
+    pub fn retry_target_names(&self) -> Vec<String> {
+        if self.pending_queue_intent.is_some() {
+            return Vec::new();
+        }
+        self.targets
+            .iter()
+            .filter(|target| {
+                target.selected
+                    && matches!(
+                        target.status,
+                        PiScanTargetStatus::Failed
+                            | PiScanTargetStatus::Interrupted
+                            | PiScanTargetStatus::Cancelled
+                    )
+            })
+            .map(|target| target.package_name.clone())
+            .collect()
     }
 
     /// Return whether selected-result continuation is currently allowed.

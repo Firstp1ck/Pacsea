@@ -1517,6 +1517,20 @@ fn typed_update_candidate_is_frozen_into_current_head_target() {
                 truncated: false,
                 paused_for_rebaseline: false,
             },
+            ObservationPackage {
+                package_base: PackageBase::new("demo").expect("base"),
+                head_oid: oid(5),
+                commits: Vec::new(),
+                truncated: false,
+                paused_for_rebaseline: false,
+            },
+            ObservationPackage {
+                package_base: PackageBase::new("demo").expect("base"),
+                head_oid: oid(5),
+                commits: Vec::new(),
+                truncated: false,
+                paused_for_rebaseline: false,
+            },
         ]),
         ..FakeAdapter::default()
     };
@@ -1535,6 +1549,19 @@ fn typed_update_candidate_is_frozen_into_current_head_target() {
     assert_eq!(targets[0].commit_oid, oid(5));
     assert_eq!(targets[0].candidate_version.as_deref(), Some("2.0-1"));
     assert_eq!(targets[0].cycle_id, "cycle-10");
+    assert_eq!(
+        targets[0].priority,
+        pacsea::state::pi_scan::PiScanPriority::Background
+    );
+    assert_eq!(orchestrator.state().ledger.len(), 1);
+    assert_eq!(orchestrator.state().cursors.get("demo"), Some(&oid(5)));
+    assert_eq!(orchestrator.state().runtime.queue.len(), 1);
+    let periodic = orchestrator
+        .periodic_observation(910)
+        .expect("periodic after candidate");
+    assert!(periodic.is_empty());
+    assert_eq!(orchestrator.state().runtime.queue.len(), 1);
+
     orchestrator
         .adapter_mut()
         .executions
@@ -1550,6 +1577,167 @@ fn typed_update_candidate_is_frozen_into_current_head_target() {
         .expect("repeat update observation");
     assert!(repeated.is_empty());
     assert!(orchestrator.state().runtime.queue.is_empty());
+    let periodic_after_completion = orchestrator
+        .periodic_observation(1810)
+        .expect("periodic after completion");
+    assert!(periodic_after_completion.is_empty());
+    assert_eq!(orchestrator.state().ledger.len(), 1);
+}
+
+/// Dry-run update discovery does not persist or queue paid background work.
+#[test]
+fn update_candidate_dry_run_keeps_ledger_and_queue_empty() {
+    let temp = tempfile::tempdir().expect("temp");
+    let adapter = FakeAdapter {
+        setup: Some(setup()),
+        packages: vec![package("demo", "demo")],
+        observations: VecDeque::from(vec![ObservationPackage {
+            package_base: PackageBase::new("demo").expect("base"),
+            head_oid: oid(8),
+            commits: Vec::new(),
+            truncated: false,
+            paused_for_rebaseline: false,
+        }]),
+        ..FakeAdapter::default()
+    };
+    let mut scanner = PiScanOrchestrator::new(config(temp.path(), true), adapter).expect("scanner");
+    scanner.set_update_candidates(vec![UpdateCandidate {
+        package_name: "demo".to_string(),
+        current_version: "1".to_string(),
+        candidate_version: "2".to_string(),
+    }]);
+    assert_eq!(
+        scanner
+            .update_candidate_observation(1)
+            .expect("observe")
+            .len(),
+        1
+    );
+    assert!(scanner.state().ledger.is_empty());
+    assert!(scanner.state().cursors.is_empty());
+    assert!(scanner.state().runtime.queue.is_empty());
+}
+
+/// A preexisting queued identity without a ledger entry cannot abort later observation.
+#[test]
+fn observation_duplicate_queue_identity_still_advances_ledger_and_cursor() {
+    let temp = tempfile::tempdir().expect("temp");
+    let observation = ObservationPackage {
+        package_base: PackageBase::new("demo").expect("base"),
+        head_oid: oid(8),
+        commits: Vec::new(),
+        truncated: false,
+        paused_for_rebaseline: false,
+    };
+    let dry_adapter = FakeAdapter {
+        setup: Some(setup()),
+        packages: vec![package("demo", "demo")],
+        observations: VecDeque::from(vec![observation.clone()]),
+        ..FakeAdapter::default()
+    };
+    let mut preview =
+        PiScanOrchestrator::new(config(&temp.path().join("preview"), true), dry_adapter)
+            .expect("preview");
+    preview.set_update_candidates(vec![UpdateCandidate {
+        package_name: "demo".to_string(),
+        current_version: "1".to_string(),
+        candidate_version: "2".to_string(),
+    }]);
+    let frozen = preview
+        .update_candidate_observation(1)
+        .expect("preview identity")
+        .remove(0);
+    let adapter = FakeAdapter {
+        setup: Some(setup()),
+        packages: vec![package("demo", "demo")],
+        observations: VecDeque::from(vec![observation]),
+        ..FakeAdapter::default()
+    };
+    let mut scanner =
+        PiScanOrchestrator::new(config(temp.path(), false), adapter).expect("scanner");
+    scanner
+        .enqueue_frozen(frozen, 1)
+        .expect("preexisting queue");
+    scanner.set_update_candidates(vec![UpdateCandidate {
+        package_name: "demo".to_string(),
+        current_version: "1".to_string(),
+        candidate_version: "2".to_string(),
+    }]);
+    assert!(
+        scanner
+            .update_candidate_observation(2)
+            .expect("duplicate does not abort")
+            .is_empty()
+    );
+    assert_eq!(scanner.state().ledger.len(), 1);
+    assert_eq!(scanner.state().cursors.get("demo"), Some(&oid(8)));
+    assert_eq!(scanner.state().runtime.queue.len(), 1);
+}
+
+/// A completed commit cannot be requeued even when old state lacks its ledger entry.
+#[test]
+fn completed_identity_without_ledger_is_not_requeued() {
+    let temp = tempfile::tempdir().expect("temp");
+    let observation = ObservationPackage {
+        package_base: PackageBase::new("demo").expect("base"),
+        head_oid: oid(8),
+        commits: Vec::new(),
+        truncated: false,
+        paused_for_rebaseline: false,
+    };
+    let dry_adapter = FakeAdapter {
+        setup: Some(setup()),
+        packages: vec![package("demo", "demo")],
+        observations: VecDeque::from(vec![observation.clone()]),
+        ..FakeAdapter::default()
+    };
+    let mut preview =
+        PiScanOrchestrator::new(config(&temp.path().join("preview"), true), dry_adapter)
+            .expect("preview");
+    preview.set_update_candidates(vec![UpdateCandidate {
+        package_name: "demo".to_string(),
+        current_version: "1".to_string(),
+        candidate_version: "2".to_string(),
+    }]);
+    let frozen = preview
+        .update_candidate_observation(1)
+        .expect("preview identity")
+        .remove(0);
+    let adapter = FakeAdapter {
+        setup: Some(setup()),
+        packages: vec![package("demo", "demo")],
+        observations: VecDeque::from(vec![observation]),
+        ..FakeAdapter::default()
+    };
+    let mut scanner =
+        PiScanOrchestrator::new(config(temp.path(), false), adapter).expect("scanner");
+    scanner
+        .adapter_mut()
+        .executions
+        .push_back(Ok(success(&frozen, false)));
+    scanner
+        .enqueue_frozen(frozen, 1)
+        .expect("preexisting queue");
+    assert!(
+        scanner
+            .run_next(1, &AtomicBool::new(false))
+            .expect("complete")
+            .is_some()
+    );
+    scanner.set_update_candidates(vec![UpdateCandidate {
+        package_name: "demo".to_string(),
+        current_version: "1".to_string(),
+        candidate_version: "2".to_string(),
+    }]);
+    assert!(
+        scanner
+            .update_candidate_observation(2)
+            .expect("duplicate does not abort")
+            .is_empty()
+    );
+    assert_eq!(scanner.state().ledger.len(), 1);
+    assert_eq!(scanner.state().cursors.get("demo"), Some(&oid(8)));
+    assert!(scanner.state().runtime.queue.is_empty());
 }
 
 #[test]

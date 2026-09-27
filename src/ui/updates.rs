@@ -68,7 +68,16 @@ fn package_updates_top_bar_label(app: &AppState) -> String {
             app.pi_scan.unseen_result_count,
         ))
     } else {
-        None
+        let pending = app
+            .pi_scan
+            .targets
+            .iter()
+            .filter(|target| {
+                target.newer_version_of.is_some()
+                    && target.status == crate::state::PiScanTargetStatus::Queued
+            })
+            .count();
+        (pending > 0).then(|| i18n::t_fmt1(app, "app.pi_scan.top_bar.rescans_pending", pending))
     };
     pi_status.map_or_else(|| updates.clone(), |status| format!("{updates} · {status}"))
 }

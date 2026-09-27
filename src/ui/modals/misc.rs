@@ -1528,14 +1528,7 @@ pub fn render_pi_scan_continuation(
     scroll: u16,
 ) {
     let th = theme();
-    let width = 88_u16.min(area.width.saturating_sub(2));
-    let height = 18_u16.min(area.height.saturating_sub(2));
-    let rect = Rect::new(
-        area.x + area.width.saturating_sub(width) / 2,
-        area.y + area.height.saturating_sub(height) / 2,
-        width,
-        height,
-    );
+    let rect = pi_scan_continuation_area(area);
     let mut lines = vec![
         Line::from(vec![
             Span::styled(
@@ -1572,13 +1565,6 @@ pub fn render_pi_scan_continuation(
             app,
             "app.pi_scan.continuation.step_preflight",
         )),
-        Line::from(""),
-        Line::from(Span::styled(
-            crate::i18n::t(app, "app.pi_scan.continuation.keys"),
-            Style::default()
-                .fg(th.sapphire)
-                .add_modifier(Modifier::BOLD),
-        )),
     ]);
     let popup = Paragraph::new(lines)
         .style(Style::default().fg(th.text).bg(th.mantle))
@@ -1599,7 +1585,134 @@ pub fn render_pi_scan_continuation(
                 .style(Style::default().bg(th.mantle)),
         );
     f.render_widget(Clear, rect);
-    f.render_widget(popup, rect);
+    let body = Rect::new(rect.x, rect.y, rect.width, rect.height.saturating_sub(4));
+    f.render_widget(popup, body);
+    let th = theme();
+    let hints = if rect.width < 50 {
+        vec![
+            Line::from(crate::i18n::t(
+                app,
+                "app.pi_scan.continuation.hint_compact_scroll",
+            )),
+            Line::from(crate::i18n::t(
+                app,
+                "app.pi_scan.continuation.hint_compact_actions",
+            )),
+        ]
+    } else {
+        vec![
+            Line::from(crate::i18n::t(app, "app.pi_scan.continuation.keys")),
+            Line::from(""),
+        ]
+    };
+    let (confirm, cancel, separator) = continuation_button_labels(app, rect.width);
+    f.render_widget(
+        Paragraph::new(vec![
+            hints[0].clone(),
+            hints[1].clone(),
+            Line::from(vec![
+                Span::styled(
+                    confirm,
+                    Style::default()
+                        .fg(th.sapphire)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(separator),
+                Span::styled(
+                    cancel,
+                    Style::default()
+                        .fg(th.sapphire)
+                        .add_modifier(Modifier::BOLD),
+                ),
+            ]),
+        ])
+        .style(Style::default().bg(th.mantle)),
+        Rect::new(
+            rect.x.saturating_add(1),
+            rect.y.saturating_add(rect.height.saturating_sub(4)),
+            rect.width.saturating_sub(2),
+            3,
+        ),
+    );
+}
+
+/// What: Select the exact localized button labels and separator rendered in the modal.
+///
+/// Inputs: Application locale and bounded dialog width.
+///
+/// Output: Confirm label, Cancel label, and intervening spaces.
+///
+/// Details: Compact labels remain distinguishable when full words cannot fit.
+fn continuation_button_labels(app: &AppState, width: u16) -> (String, String, &'static str) {
+    use unicode_width::UnicodeWidthStr;
+    let full_confirm = crate::i18n::t(app, "app.pi_scan.continuation.button_confirm");
+    let full_cancel = crate::i18n::t(app, "app.pi_scan.continuation.button_cancel");
+    if full_confirm.width() + full_cancel.width() + 2 <= usize::from(width.saturating_sub(2)) {
+        return (full_confirm, full_cancel, "  ");
+    }
+    (
+        crate::i18n::t(app, "app.pi_scan.continuation.button_confirm_compact"),
+        crate::i18n::t(app, "app.pi_scan.continuation.button_cancel_compact"),
+        " ",
+    )
+}
+
+/// What: Record each button hit box from the same labels and positions used by rendering.
+///
+/// Inputs: Application locale and the modal rectangle.
+///
+/// Output: Confirm and Cancel half-open terminal hit boxes, clipped to the button row.
+///
+/// Details: The Cancel box starts after the visible confirm label, not halfway through the dialog.
+pub(super) fn pi_scan_continuation_button_rects(
+    app: &AppState,
+    rect: Rect,
+) -> [Option<(u16, u16, u16, u16)>; 2] {
+    use unicode_width::UnicodeWidthStr;
+    let (confirm, cancel, separator) = continuation_button_labels(app, rect.width);
+    let x = rect.x.saturating_add(1);
+    let right = rect.x.saturating_add(rect.width.saturating_sub(1));
+    let y = rect.y.saturating_add(rect.height.saturating_sub(2));
+    let confirm_width = u16::try_from(confirm.width())
+        .unwrap_or(u16::MAX)
+        .min(right.saturating_sub(x));
+    let cancel_x = x
+        .saturating_add(confirm_width)
+        .saturating_add(u16::try_from(separator.len()).unwrap_or(u16::MAX));
+    let cancel_width = u16::try_from(cancel.width())
+        .unwrap_or(u16::MAX)
+        .min(right.saturating_sub(cancel_x));
+    [
+        Some((x, y, confirm_width, 1)),
+        Some((cancel_x, y, cancel_width, 1)),
+    ]
+}
+
+/// What: Compute continuation modal bounds within the available screen.
+///
+/// Inputs: Full terminal rectangle.
+///
+/// Output: Centered modal rectangle of at most 88 by 18 cells.
+///
+/// Details: Shared by rendering and recorded mouse button hit rectangles.
+pub const fn pi_scan_continuation_area(area: Rect) -> Rect {
+    let width = if area.width.saturating_sub(2) < 88 {
+        area.width.saturating_sub(2)
+    } else {
+        88
+    };
+    let height = if area.height.saturating_sub(2) < 18 {
+        area.height.saturating_sub(2)
+    } else {
+        18
+    };
+    Rect::new(
+        area.x.saturating_add(area.width.saturating_sub(width) / 2),
+        area.y
+            .saturating_add(area.height.saturating_sub(height) / 2),
+        width,
+        height,
+    )
 }
 
 /// What: Append only the acknowledgement consequences disclosed by one confirmation payload.

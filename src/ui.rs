@@ -433,11 +433,16 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
     // Config editor is a dedicated app mode that occupies the same main
     // content area as package/news views.
     if matches!(app.app_mode, AppMode::ConfigEditor) {
-        let editor_state = std::mem::take(&mut app.config_editor_state);
+        let mut editor_state = std::mem::take(&mut app.config_editor_state);
         let toast_bottom =
             modals::config_editor::keybind_footer_top(app, main_chunks[1], &editor_state)
                 .unwrap_or_else(|| area.y.saturating_add(area.height));
-        modals::config_editor::render_config_editor_window(f, app, main_chunks[1], &editor_state);
+        modals::config_editor::render_config_editor_window(
+            f,
+            app,
+            main_chunks[1],
+            &mut editor_state,
+        );
         app.config_editor_state = editor_state;
 
         // Same stacking as package/news: modals (e.g. Updates after refresh) must paint here;

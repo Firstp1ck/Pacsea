@@ -1030,7 +1030,7 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
             .map_err(OrchestrationError::Execution)
     }
 
-    /// Observe current HEAD for typed update candidates and queue explicit foreground scans.
+    /// Observe typed update candidates through the same durable background path as periodic discovery.
     ///
     /// # Errors
     /// - Returns setup, discovery, observation, target, queue, or persistence failures.
@@ -1039,59 +1039,22 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
         now_unix: u64,
     ) -> Result<Vec<FrozenScanIdentity>, OrchestrationError> {
         self.ensure_enabled()?;
-        let setup = self.ensure_setup()?.clone();
+        let setup = self.observation_setup()?;
         let packages = deduplicate_packages(
             self.adapter
                 .enumerate_foreign()
                 .map_err(OrchestrationError::Observation)?,
         );
-        let mut discovered = Vec::new();
-        for package in packages
-            .into_iter()
-            .filter(|package| package.candidate_version.is_some())
-        {
-            let cursor = self.state.cursors.get(package.package_base.as_str());
-            let observation = self
-                .adapter
-                .observe_package(&package, cursor)
-                .map_err(OrchestrationError::Observation)?;
-            let commit = ObservationCommit {
-                oid: observation.head_oid.clone(),
-                relevance: CommitBuildRelevance::BuildRelevant,
-            };
-            let Some(target) = self.target_for_commit(
-                &package,
-                &observation.head_oid,
-                &commit,
-                &setup,
-                now_unix,
-                true,
-            )?
-            else {
-                continue;
-            };
-            let already_completed = self.state.runtime.terminal.iter().any(|record| {
-                record.status == PiScanTerminalStatus::Completed
-                    && record.request.key.package_base == target.package_base
-                    && record.request.key.commit_oid == target.commit_oid
-            });
-            if already_completed {
-                continue;
-            }
-            let request_id = self.state.next_request_id;
-            match self.state.runtime.enqueue(target.queue_request(request_id)) {
-                Ok(_) => {
-                    self.state.targets.insert(request_id, target.clone());
-                    discovered.push(target);
-                }
-                Err(crate::state::pi_scan::PiScanStateError::DuplicateIdentity(_)) => {}
-                Err(error) => {
-                    return Err(OrchestrationError::InvalidTarget(error.to_string()));
-                }
-            }
-        }
-        self.persist()?;
-        Ok(discovered)
+        self.observe_packages(
+            now_unix,
+            false,
+            packages
+                .into_iter()
+                .filter(|package| package.candidate_version.is_some())
+                .collect(),
+            true,
+            &setup,
+        )
     }
 
     /// Run a due periodic observation at the configured 15-minute-or-longer interval.
@@ -1682,16 +1645,7 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
         selected_package_names: Option<&BTreeSet<String>>,
     ) -> Result<Vec<FrozenScanIdentity>, OrchestrationError> {
         self.ensure_enabled()?;
-        let setup = if self.config.dry_run {
-            let setup = self
-                .adapter
-                .dry_run_setup()
-                .map_err(OrchestrationError::Readiness)?;
-            setup.validate()?;
-            setup
-        } else {
-            self.ensure_setup()?.clone()
-        };
+        let setup = self.observation_setup()?;
         let enumerated = if let Some(package_names) = selected_package_names {
             self.adapter.enumerate_selected(package_names)
         } else {
@@ -1699,6 +1653,54 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
         }
         .map_err(OrchestrationError::Observation)?;
         let packages = deduplicate_packages(enumerated);
+        self.observe_packages(now_unix, manual, packages, false, &setup)
+    }
+
+    /// What: Obtain validated scan setup before discovering packages.
+    ///
+    /// Inputs:
+    /// - The configured dry-run policy selects probe versus inert preview facts.
+    ///
+    /// Output:
+    /// - Validated setup snapshot or an actionable readiness error.
+    ///
+    /// Details:
+    /// - Setup always precedes enumeration to preserve fail-closed observation order.
+    fn observation_setup(&mut self) -> Result<SetupSnapshot, OrchestrationError> {
+        if self.config.dry_run {
+            let setup = self
+                .adapter
+                .dry_run_setup()
+                .map_err(OrchestrationError::Readiness)?;
+            setup.validate()?;
+            Ok(setup)
+        } else {
+            Ok(self.ensure_setup()?.clone())
+        }
+    }
+
+    /// What: Ledger and queue observed commits using shared periodic and update-candidate rules.
+    ///
+    /// Inputs:
+    /// - `now_unix`: Observation time.
+    /// - `manual`: Whether this is an explicitly requested foreground scan.
+    /// - `packages`: Already enumerated and deduplicated packages.
+    /// - `include_head`: Include current HEAD when the observer reports no new commits.
+    /// - `setup`: Validated setup obtained before discovery.
+    ///
+    /// Output:
+    /// - Newly discovered scan identities.
+    ///
+    /// Details:
+    /// - Update candidates can report a new HEAD without a traversed commit list.
+    fn observe_packages(
+        &mut self,
+        now_unix: u64,
+        manual: bool,
+        packages: Vec<DiscoveredPackage>,
+        include_head: bool,
+        setup: &SetupSnapshot,
+    ) -> Result<Vec<FrozenScanIdentity>, OrchestrationError> {
         let mut discovered = Vec::new();
         for package in packages {
             let cursor = self.state.cursors.get(package.package_base.as_str());
@@ -1721,7 +1723,18 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
                 .baselines
                 .entries
                 .contains_key(package.package_base.as_str());
-            for commit in observation.commits {
+            let mut commits = observation.commits;
+            if include_head
+                && !commits
+                    .iter()
+                    .any(|commit| commit.oid == observation.head_oid)
+            {
+                commits.push(ObservationCommit {
+                    oid: observation.head_oid.clone(),
+                    relevance: CommitBuildRelevance::BuildRelevant,
+                });
+            }
+            for commit in commits {
                 if self.ledger_contains(&package.package_base, &commit.oid) {
                     continue;
                 }
@@ -1730,7 +1743,12 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
                     oid: commit.oid.clone(),
                     relevance: CommitBuildRelevance::BuildRelevant,
                 };
-                let target = if has_baseline || is_current_head {
+                let already_completed = self.state.runtime.terminal.iter().any(|record| {
+                    record.status == PiScanTerminalStatus::Completed
+                        && record.request.key.package_base == package.package_base
+                        && record.request.key.commit_oid == commit.oid
+                });
+                let target = if !already_completed && (has_baseline || is_current_head) {
                     self.target_for_commit(
                         &package,
                         &observation.head_oid,
@@ -1739,28 +1757,27 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
                         } else {
                             &baseline_commit
                         },
-                        &setup,
+                        setup,
                         now_unix,
                         manual,
                     )?
                 } else {
                     None
                 };
-                if !self.config.dry_run {
-                    self.insert_observed(
-                        &package.package_base,
-                        &commit,
-                        target.as_ref(),
-                        now_unix,
-                    )?;
-                }
+                let enqueued = if self.config.dry_run {
+                    false
+                } else {
+                    self.insert_observed(&package.package_base, &commit, target.as_ref(), now_unix)?
+                };
                 if let Some(target) = target {
                     if self.config.dry_run {
                         self.state
                             .targets
                             .insert(self.state.next_request_id, target.clone());
                     }
-                    discovered.push(target);
+                    if enqueued || self.config.dry_run {
+                        discovered.push(target);
+                    }
                 }
             }
         }
@@ -1853,7 +1870,7 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
         commit: &ObservationCommit,
         target: Option<&FrozenScanIdentity>,
         now_unix: u64,
-    ) -> Result<(), OrchestrationError> {
+    ) -> Result<bool, OrchestrationError> {
         self.state.ledger.push(OrchestrationLedgerEntry {
             key: PiScanQueueKey {
                 package_base: package_base.clone(),
@@ -1865,15 +1882,20 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
         self.state
             .cursors
             .insert(package_base.as_str().to_string(), commit.oid.clone());
+        let mut enqueued = false;
         if let Some(target) = target {
             let request_id = self.state.next_request_id;
-            self.state
-                .runtime
-                .enqueue(target.queue_request(request_id))
-                .map_err(|error| OrchestrationError::InvalidTarget(error.to_string()))?;
-            self.state.targets.insert(request_id, target.clone());
+            match self.state.runtime.enqueue(target.queue_request(request_id)) {
+                Ok(_) => {
+                    self.state.targets.insert(request_id, target.clone());
+                    enqueued = true;
+                }
+                Err(crate::state::pi_scan::PiScanStateError::DuplicateIdentity(_)) => {}
+                Err(error) => return Err(OrchestrationError::InvalidTarget(error.to_string())),
+            }
         }
-        self.persist()
+        self.persist()?;
+        Ok(enqueued)
     }
 
     /// Accept only exact canonical result identity, persist it, then reconcile the queue reservation.

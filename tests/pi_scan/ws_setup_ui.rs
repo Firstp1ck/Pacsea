@@ -81,6 +81,7 @@ fn keyboard_flow_reaches_apply_with_independent_defaults() {
     let probe = wizard.last_correlation;
     assert!(wizard.accept_verified_facts(probe, verified_facts()));
 
+    pacsea::events::pi_scan::handle_key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE), &mut app);
     pacsea::events::pi_scan::handle_key(
         KeyEvent::new(KeyCode::Char('n'), KeyModifiers::NONE),
         &mut app,
@@ -117,22 +118,14 @@ fn keyboard_flow_reaches_apply_with_independent_defaults() {
     ));
 }
 
-/// Enter activates only focused controls while `n` alone advances wizard pages.
+/// Enter activates focused footer Next as well as body controls.
 #[test]
 fn enter_activates_focused_control_and_n_alone_advances() {
     let mut app = AppState::default();
     app.pi_scan.begin_setup_wizard(true);
 
-    assert!(!pacsea::events::pi_scan::handle_key(
-        KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE),
-        &mut app,
-    ));
-    assert_eq!(
-        app.pi_scan.wizard.as_ref().expect("wizard").step,
-        PiScanSetupStep::Welcome
-    );
     assert!(pacsea::events::pi_scan::handle_key(
-        KeyEvent::new(KeyCode::Char('n'), KeyModifiers::NONE),
+        KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE),
         &mut app,
     ));
     assert_eq!(
@@ -172,7 +165,7 @@ fn wizard_backtab_reverses_focus() {
         &mut app,
     ));
 
-    assert_eq!(app.pi_scan.wizard.as_ref().expect("wizard").focus, 2);
+    assert_eq!(app.pi_scan.wizard.as_ref().expect("wizard").focus, 5);
 }
 
 /// Apply abandonment must use first-Escape warning and second-Escape ownership retention.
@@ -241,7 +234,7 @@ fn first_run_cancel_sets_restart_and_leave_guidance() {
         .foreground
         .as_ref()
         .expect("cancel guidance");
-    assert!(notice.text.contains("press r"));
+    assert!(notice.text.contains("press w"));
     assert!(notice.text.contains("Esc to leave"));
 }
 
@@ -472,7 +465,7 @@ fn advanced_page_rerun_key_opens_wizard() {
     app.pi_scan.view = pacsea::state::PiScanView::Setup;
 
     assert!(pacsea::events::pi_scan::handle_key(
-        KeyEvent::new(KeyCode::Char('r'), KeyModifiers::NONE),
+        KeyEvent::new(KeyCode::Char('w'), KeyModifiers::NONE),
         &mut app,
     ));
     assert!(app.pi_scan.wizard.is_some());
@@ -581,22 +574,26 @@ fn advanced_setup_payment_keys_are_independent() {
     app.pi_scan.view = pacsea::state::PiScanView::Setup;
     app.pi_scan.setup_facts_verified = true;
 
+    app.pi_scan.selected_setup = 5;
     pacsea::events::pi_scan::handle_key(
-        KeyEvent::new(KeyCode::Char('p'), KeyModifiers::NONE),
+        KeyEvent::new(KeyCode::Char(' '), KeyModifiers::NONE),
         &mut app,
     );
     assert!(app.pi_scan.runtime.consent.paid_execution);
     assert!(!app.pi_scan.background_paid_execution_confirmed);
 
+    app.pi_scan.selected_setup = 6;
     pacsea::events::pi_scan::handle_key(
-        KeyEvent::new(KeyCode::Char('b'), KeyModifiers::NONE),
+        KeyEvent::new(KeyCode::Char(' '), KeyModifiers::NONE),
         &mut app,
     );
     assert!(app.pi_scan.runtime.consent.paid_execution);
     assert!(app.pi_scan.background_paid_execution_confirmed);
 
+    app.pi_scan.selected_setup = 5;
+    app.pi_scan.selected_setup = 5;
     pacsea::events::pi_scan::handle_key(
-        KeyEvent::new(KeyCode::Char('p'), KeyModifiers::NONE),
+        KeyEvent::new(KeyCode::Char(' '), KeyModifiers::NONE),
         &mut app,
     );
     assert!(!app.pi_scan.runtime.consent.paid_execution);

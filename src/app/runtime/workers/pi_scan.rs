@@ -330,6 +330,11 @@ pub enum PiScanProgressMessage {
         /// Full identities returned by the central orchestrator.
         targets: Vec<crate::pi_scan_orchestrator::FrozenScanIdentity>,
     },
+    /// Explicit selected-target observation completed, including an empty deduplicated result.
+    ManualObserved {
+        /// Full identities returned by the central orchestrator.
+        targets: Vec<crate::pi_scan_orchestrator::FrozenScanIdentity>,
+    },
     /// One request was appended without coalescing.
     Queued {
         /// Exact immutable request now present in the durable queue.

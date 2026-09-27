@@ -19,6 +19,7 @@ const CONTINUE_ACTION_HEIGHT: u16 = 1;
 /// Render every validated result as a package-labeled expandable report.
 pub(super) fn render(f: &mut Frame, app: &mut AppState, area: Rect) {
     app.pi_scan.set_details_continue_action_rect(None);
+    app.pi_scan.details_header_rects.clear();
     if app.pi_scan.results.is_empty() {
         app.pi_scan.view_scroll.details = 0;
         super::body(
@@ -46,8 +47,10 @@ pub(super) fn render(f: &mut Frame, app: &mut AppState, area: Rect) {
         app,
         "app.pi_scan.details.package_list_hint",
     ))];
+    let mut header_positions = Vec::new();
     for (index, result) in results.iter().enumerate() {
         lines.push(Line::from(""));
+        header_positions.push((index, lines.len()));
         let expanded = app.pi_scan.is_result_expanded(index);
         push_header(&mut lines, app, result, index == selected, expanded);
         if expanded {
@@ -65,8 +68,58 @@ pub(super) fn render(f: &mut Frame, app: &mut AppState, area: Rect) {
     let scroll = super::clamp_line_scroll(app.pi_scan.view_scroll.details, &lines, chunks[0]);
     app.pi_scan.view_scroll.details = scroll;
     app.pi_scan.detail_scroll = scroll;
+    app.pi_scan.details_header_rects =
+        visible_header_rects(&header_positions, &lines, scroll, chunks[0]);
     super::body_scrolled(f, app, chunks[0], "app.pi_scan.tabs.details", lines, scroll);
     render_continue_action(f, app, chunks[1]);
+}
+
+/// What: Record visible wrapped report-header cells for click expansion.
+///
+/// Inputs: Header indices/line offsets, rendered lines, visual scroll, and report area.
+///
+/// Output: Hit rectangles clipped to the visible report body.
+///
+/// Details: Uses the same word-wrap row count as Details scrolling, including multi-row headers.
+fn visible_header_rects(
+    headers: &[(usize, usize)],
+    lines: &[Line<'static>],
+    scroll: u16,
+    area: Rect,
+) -> Vec<crate::state::pi_scan_ui::PiScanListHitRect> {
+    let width = usize::from(area.width.saturating_sub(2).max(1));
+    let bottom = area.y.saturating_add(area.height.saturating_sub(1));
+    headers
+        .iter()
+        .filter_map(|&(index, line)| {
+            let visual_top: usize = lines
+                .iter()
+                .take(line)
+                .map(|row| super::wrapped_line_count(row, width))
+                .sum();
+            let height = super::wrapped_line_count(&lines[line], width);
+            let scroll = usize::from(scroll);
+            if visual_top.saturating_add(height) <= scroll {
+                return None;
+            }
+            let y = area.y.saturating_add(1).saturating_add(
+                u16::try_from(visual_top.saturating_sub(scroll)).unwrap_or(u16::MAX),
+            );
+            if y >= bottom {
+                return None;
+            }
+            let visible_height = height.saturating_sub(scroll.saturating_sub(visual_top));
+            Some(crate::state::pi_scan_ui::PiScanListHitRect {
+                index,
+                x: area.x.saturating_add(1),
+                y,
+                width: area.width.saturating_sub(2),
+                height: u16::try_from(visible_height)
+                    .unwrap_or(u16::MAX)
+                    .min(bottom.saturating_sub(y)),
+            })
+        })
+        .collect()
 }
 
 /// What: Render and record the fixed Details continuation action.
@@ -270,10 +323,12 @@ fn push_summary(
     );
     let identity_key = if result.stale {
         "app.pi_scan.details.identity_changed"
+    } else if super::result_has_newer_version(app, result) {
+        "app.pi_scan.details.identity_newer_version"
     } else {
         "app.pi_scan.details.identity_current"
     };
-    let identity_style = if result.stale {
+    let identity_style = if result.stale || super::result_has_newer_version(app, result) {
         Style::default().fg(theme().yellow)
     } else {
         Style::default().fg(theme().green)

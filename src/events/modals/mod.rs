@@ -4,11 +4,36 @@ mod common;
 /// Key handling for the integrated TUI config editor modal.
 mod config_editor;
 pub(super) use config_editor::build_initial_state as build_config_editor_state;
-pub(in crate::events) use config_editor::handle_config_editor_mode_key;
+pub(in crate::events) use config_editor::{
+    handle_config_editor_mode_key, handle_config_editor_popup_click,
+};
 /// Key handling for the optional doas persist setup wizard modal.
 mod doas_persist_setup;
 mod foreign_overlap;
 mod handlers;
+
+/// What: Route a continuation mouse button through the guarded keyboard path.
+///
+/// Inputs: Current application/modal and whether the clicked button confirms.
+///
+/// Output: Dispatches confirmation or cancels without changing authority checks.
+///
+/// Details: Reuses the exact-result binding validation used by Enter.
+pub(in crate::events) fn activate_pi_scan_continuation_button(app: &mut AppState, confirm: bool) {
+    let modal = app.modal.clone();
+    handlers::handle_confirm_pi_scan_continuation_modal(
+        crossterm::event::KeyEvent::new(
+            if confirm {
+                crossterm::event::KeyCode::Enter
+            } else {
+                crossterm::event::KeyCode::Esc
+            },
+            crossterm::event::KeyModifiers::NONE,
+        ),
+        app,
+        &modal,
+    );
+}
 mod import;
 mod install;
 mod optional_deps;

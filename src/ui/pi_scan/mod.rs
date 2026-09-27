@@ -19,7 +19,7 @@ use ratatui::{
 use crate::state::pi_scan_ui::{PiScanNotice, PiScanNoticeSeverity};
 use crate::state::{AppState, PiScanAvailability, PiScanView};
 use crate::theme::theme;
-use unicode_width::UnicodeWidthChar;
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 /// Number of commit-identity characters shown outside Technical Details.
 const SHORT_IDENTITY_LENGTH: usize = 12;
@@ -155,6 +155,10 @@ pub fn render(f: &mut Frame, app: &mut AppState, area: Rect) {
         PiScanView::Details => details::render(f, app, chunks[1]),
     }
     render_footer(f, app, chunks[2]);
+    app.pi_scan.budget_dialog_rect = app.pi_scan.budget_dialog.as_ref().map(|_| {
+        let rect = budget_dialog_area(area);
+        (rect.x, rect.y, rect.width, rect.height)
+    });
     if app.pi_scan.budget_dialog.is_some() {
         render_budget_dialog(f, app, area);
     }
@@ -172,7 +176,7 @@ pub fn render(f: &mut Frame, app: &mut AppState, area: Rect) {
 ///
 /// Details:
 /// - The overlay remains bounded at narrow dimensions and never mutates scheduler projection.
-fn render_budget_dialog(f: &mut Frame, app: &AppState, area: Rect) {
+fn render_budget_dialog(f: &mut Frame, app: &mut AppState, area: Rect) {
     let Some(dialog) = app.pi_scan.budget_dialog.as_ref() else {
         return;
     };
@@ -185,18 +189,6 @@ fn render_budget_dialog(f: &mut Frame, app: &AppState, area: Rect) {
         lines.push(budget_change_line(app, dialog, *dimension));
     }
     lines.push(Line::from(""));
-    lines.push(budget_choice_line(
-        app,
-        dialog,
-        crate::state::pi_scan::PiScanBudgetAdjustment::Double,
-        "app.pi_scan.budget_dialog.double",
-    ));
-    lines.push(budget_choice_line(
-        app,
-        dialog,
-        crate::state::pi_scan::PiScanBudgetAdjustment::Unlimited,
-        "app.pi_scan.budget_dialog.unlimited",
-    ));
     lines.push(Line::from(Span::styled(
         format!(
             "⚠ {}",
@@ -205,19 +197,62 @@ fn render_budget_dialog(f: &mut Frame, app: &AppState, area: Rect) {
         semantic_style(SemanticTone::Warning),
     )));
     push_budget_dialog_status(&mut lines, app, dialog);
-    lines.push(Line::from(crate::i18n::t(
-        app,
-        "app.pi_scan.budget_dialog.keys",
-    )));
+    let body = Rect::new(
+        overlay.x.saturating_add(1),
+        overlay.y.saturating_add(1),
+        overlay.width.saturating_sub(2),
+        overlay.height.saturating_sub(6),
+    );
     f.render_widget(Clear, overlay);
     f.render_widget(
-        Paragraph::new(lines).wrap(Wrap { trim: false }).block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(crate::i18n::t(app, "app.pi_scan.budget_dialog.title")),
-        ),
+        Block::default()
+            .borders(Borders::ALL)
+            .title(crate::i18n::t(app, "app.pi_scan.budget_dialog.title")),
         overlay,
     );
+    let choices = vec![
+        budget_choice_line(
+            app,
+            dialog,
+            crate::state::pi_scan::PiScanBudgetAdjustment::Double,
+            "app.pi_scan.budget_dialog.double",
+        ),
+        budget_choice_line(
+            app,
+            dialog,
+            crate::state::pi_scan::PiScanBudgetAdjustment::Unlimited,
+            "app.pi_scan.budget_dialog.unlimited",
+        ),
+        Line::from(crate::i18n::t(
+            app,
+            "app.pi_scan.budget_dialog.hint_navigation",
+        )),
+        Line::from(crate::i18n::t(
+            app,
+            "app.pi_scan.budget_dialog.hint_actions",
+        )),
+    ];
+    let pinned = Rect::new(
+        body.x,
+        overlay.y.saturating_add(overlay.height.saturating_sub(5)),
+        body.width,
+        4,
+    );
+    let body_width = usize::from(body.width.max(1));
+    let line_count: usize = lines
+        .iter()
+        .map(|line| wrapped_line_count(line, body_width))
+        .sum();
+    let body_widget = Paragraph::new(lines).wrap(Wrap { trim: false });
+    let max_scroll =
+        u16::try_from(line_count.saturating_sub(usize::from(body.height))).unwrap_or(u16::MAX);
+    app.pi_scan.budget_body_scroll = app.pi_scan.budget_body_scroll.min(max_scroll);
+    app.pi_scan.budget_body_overflows = max_scroll > 0;
+    f.render_widget(
+        body_widget.scroll((app.pi_scan.budget_body_scroll, 0)),
+        body,
+    );
+    f.render_widget(Paragraph::new(choices), pinned);
 }
 
 /// What: Compute a centered budget-dialog rectangle bounded by the current terminal.
@@ -427,26 +462,51 @@ pub(super) fn budget_limit_value(
 /// Draw tabs and record mouse hit rectangles.
 fn render_tabs(f: &mut Frame, app: &mut AppState, area: Rect) {
     let th = theme();
-    let mut spans = vec![Span::styled(
-        format!(" {}  ", crate::i18n::t(app, "app.pi_scan.title")),
-        Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
-    )];
     let labels = [
         "setup", "overview", "targets", "progress", "results", "details",
     ];
-    let mut x = area
-        .x
-        .saturating_add(u16::try_from(spans[0].content.chars().count()).unwrap_or(0));
+    let mut full: Vec<String> = labels
+        .iter()
+        .map(|label| crate::i18n::t(app, &format!("app.pi_scan.tabs.{label}")))
+        .collect();
+    let mut short: Vec<String> = labels
+        .iter()
+        .map(|label| crate::i18n::t(app, &format!("app.pi_scan.tabs_short.{label}")))
+        .collect();
+    if app.pi_scan.unseen_result_count > 0 {
+        let badge = format!(" ({})", app.pi_scan.unseen_result_count);
+        full[PiScanView::Results.index()].push_str(&badge);
+        short[PiScanView::Results.index()].push_str(&badge);
+    }
+    let active = app.pi_scan.view.index();
+    let full_width: usize = full.iter().map(|label| label.width() + 4).sum();
+    let short_width: usize = short.iter().map(|label| label.width() + 4).sum();
+    let compact = full_width > usize::from(area.width) && short_width > usize::from(area.width);
+    let active_label = full[active].clone();
+    let labels = if full_width <= usize::from(area.width) {
+        full
+    } else if short_width <= usize::from(area.width) {
+        short
+    } else {
+        vec![String::new(); 6]
+    };
+    let mut spans = Vec::new();
+    let mut x = area.x;
     for (index, label) in labels.iter().enumerate() {
-        let mut tab_label = crate::i18n::t(app, &format!("app.pi_scan.tabs.{label}"));
-        if *label == "results" && app.pi_scan.unseen_result_count > 0 {
-            tab_label = format!("{tab_label} ({})", app.pi_scan.unseen_result_count);
-        }
-        let text = format!(" {tab_label} ");
-        let width = u16::try_from(text.chars().count()).unwrap_or(0);
-        app.pi_scan.tab_rects[index] =
-            (x < area.x.saturating_add(area.width)).then_some((x, area.y, width, 1));
-        let style = if app.pi_scan.view.index() == index {
+        let text = if label.is_empty() {
+            if index == PiScanView::Results.index() && app.pi_scan.unseen_result_count > 0 {
+                format!(" {}• ", index + 1)
+            } else {
+                format!(" {} ", index + 1)
+            }
+        } else {
+            format!(" {} {label} ", index + 1)
+        };
+        let width = u16::try_from(text.width()).unwrap_or(u16::MAX);
+        app.pi_scan.tab_rects[index] = (x.saturating_add(width)
+            <= area.x.saturating_add(area.width))
+        .then_some((x, area.y, width, 1));
+        let style = if active == index {
             Style::default()
                 .fg(th.base)
                 .bg(th.sapphire)
@@ -466,14 +526,33 @@ fn render_tabs(f: &mut Frame, app: &mut AppState, area: Rect) {
         }
         PiScanAvailability::RuntimeConnected => crate::i18n::t(app, "app.pi_scan.status.connected"),
     };
-    spans.push(Span::styled(
-        format!("  {status}"),
-        Style::default().fg(availability_color(&app.pi_scan.availability, &th)),
-    ));
-    f.render_widget(
-        Paragraph::new(Line::from(spans)).block(Block::default().borders(Borders::BOTTOM)),
-        area,
-    );
+    if x.saturating_add(u16::try_from(status.width() + 2).unwrap_or(u16::MAX))
+        <= area.x.saturating_add(area.width)
+    {
+        spans.push(Span::styled(
+            format!("  {status}"),
+            Style::default().fg(availability_color(&app.pi_scan.availability, &th)),
+        ));
+    }
+    if compact {
+        f.render_widget(
+            Paragraph::new(vec![
+                Line::from(spans),
+                Line::from(Span::styled(
+                    active_label,
+                    Style::default()
+                        .fg(th.sapphire)
+                        .add_modifier(Modifier::BOLD),
+                )),
+            ]),
+            area,
+        );
+    } else {
+        f.render_widget(
+            Paragraph::new(Line::from(spans)).block(Block::default().borders(Borders::BOTTOM)),
+            area,
+        );
+    }
 }
 
 /// Draw severity-styled foreground feedback, background suffix, and contextual keys.
@@ -501,30 +580,327 @@ fn render_footer(f: &mut Frame, app: &AppState, area: Rect) {
             Style::default().fg(th.overlay1).add_modifier(Modifier::DIM),
         ));
     }
-    let key = if wizard_active {
-        "app.pi_scan.wizard.footer.keys"
-    } else {
-        match app.pi_scan.view {
-            PiScanView::Setup => "app.pi_scan.footer.keys.setup",
-            PiScanView::Overview => "app.pi_scan.footer.keys.overview",
-            PiScanView::Targets => "app.pi_scan.footer.keys.targets",
-            PiScanView::Progress => "app.pi_scan.footer.keys.progress",
-            PiScanView::Results => "app.pi_scan.footer.keys.results",
-            PiScanView::Details => "app.pi_scan.footer.keys.details",
-        }
-    };
+    let hints = footer_hints(app, usize::from(area.width.saturating_sub(2)));
     f.render_widget(
-        Paragraph::new(vec![
-            Line::from(notice_spans),
-            Line::from(crate::i18n::t(app, key)),
-        ])
-        .block(
+        Paragraph::new(vec![Line::from(notice_spans), hints]).block(
             Block::default()
                 .borders(Borders::TOP)
                 .title(crate::i18n::t(app, "app.pi_scan.footer.title")),
         ),
         area,
     );
+}
+
+/// What: Describe one localized, indivisible key hint.
+///
+/// Inputs: Accepted key, localized label suffix, and priority.
+///
+/// Output: A segment for the shared footer line.
+///
+/// Details: Priority zero survives width-based dropping.
+#[derive(Clone, Copy)]
+struct FooterSegment {
+    /// Literal accepted key or key group.
+    key: &'static str,
+    /// Suffix of the localized footer label key.
+    label: &'static str,
+    /// Lower number means more important; zero is mandatory.
+    priority: u8,
+}
+
+/// What: Build state-aware key hints for the active view or wizard focus.
+///
+/// Inputs: Workspace state and terminal footer width.
+///
+/// Output: Styled line of whole hints that fit the available width.
+///
+/// Details: Esc and Help are mandatory and appear last.
+fn footer_hints(app: &AppState, width: usize) -> Line<'static> {
+    if app.pi_scan.budget_dialog.is_some() {
+        let segments = [
+            FooterSegment {
+                key: "←/→/h/l",
+                label: "choose",
+                priority: 1,
+            },
+            FooterSegment {
+                key: "Tab/Shift+Tab",
+                label: "focus",
+                priority: 1,
+            },
+            FooterSegment {
+                key: "Enter",
+                label: "apply",
+                priority: 1,
+            },
+            FooterSegment {
+                key: "Esc",
+                label: "cancel_dialog",
+                priority: 0,
+            },
+            FooterSegment {
+                key: "?",
+                label: "help",
+                priority: 0,
+            },
+        ];
+        return fit_footer_segments(app, &segments, width);
+    }
+    if let Some(wizard) = &app.pi_scan.wizard {
+        let mut segments = wizard_footer_segments(wizard);
+        segments.push(FooterSegment {
+            key: "Esc",
+            label: "cancel_dialog",
+            priority: 0,
+        });
+        if !wizard.focuses_text_field() {
+            segments.push(FooterSegment {
+                key: "?",
+                label: "help",
+                priority: 0,
+            });
+        }
+        return fit_footer_segments(app, &segments, width);
+    }
+    let mut segments = Vec::new();
+    let mut add = |key, label, priority| {
+        segments.push(FooterSegment {
+            key,
+            label,
+            priority,
+        });
+    };
+    match app.pi_scan.view {
+        PiScanView::Setup => {
+            add("Space/Enter", "activate", 1);
+            add("w", "wizard", 1);
+            add("v", "verify", 2);
+            add("Shift+B", "background", 2);
+        }
+        PiScanView::Overview | PiScanView::Progress => {
+            use crate::state::pi_scan::PiScanPauseReason;
+            let runtime = &app.pi_scan.runtime;
+            if runtime.active.is_some()
+                || !runtime.queue.is_empty()
+                || runtime.pause_reasons.contains(&PiScanPauseReason::User)
+            {
+                add(
+                    "p",
+                    if runtime.pause_reasons.contains(&PiScanPauseReason::User) {
+                        "resume"
+                    } else {
+                        "pause"
+                    },
+                    1,
+                );
+            }
+            if runtime.pause_reasons.contains(&PiScanPauseReason::User) {
+                add("u", "resume", 2);
+            }
+            if runtime.active.is_some() {
+                add("x x", "cancel", 1);
+            }
+            if app.pi_scan.view == PiScanView::Progress
+                && !app.pi_scan.retry_target_names().is_empty()
+            {
+                add("r", "retry_failed", 2);
+            }
+            if app.pi_scan.budget_adjustment_eligible_at(
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map_or(0, |duration| duration.as_secs()),
+            ) {
+                add("b", "budget", 1);
+            }
+            if app.pi_scan.view == PiScanView::Overview {
+                add("Shift+B", "background", 2);
+            }
+        }
+        PiScanView::Targets => {
+            if !app.pi_scan.targets.is_empty() {
+                add("Space", "select", 1);
+                add("Enter", "queue", 1);
+            }
+        }
+        PiScanView::Results => {
+            if !app.pi_scan.results.is_empty() {
+                add("Enter", "details", 1);
+            }
+        }
+        PiScanView::Details => {
+            if let Some(result) = app.pi_scan.selected_result() {
+                let binding = result.binding();
+                if result.needs_finding_acknowledgement()
+                    && !app.pi_scan.finding_acknowledgements.contains(&binding)
+                {
+                    add("a", "acknowledge", 1);
+                }
+                if result.stale && !app.pi_scan.stale_acknowledgements.contains(&binding) {
+                    add("s", "stale", 1);
+                }
+                add("c", "continue", 1);
+                if app.pi_scan.selected_result_acknowledged() {
+                    add("b", "baseline", 2);
+                }
+                add("t", "raw", 2);
+                add("Enter/Space", "expand", 1);
+            }
+        }
+    }
+    if matches!(app.pi_scan.view, PiScanView::Setup | PiScanView::Details)
+        || app.pi_scan.view == PiScanView::Targets && !app.pi_scan.targets.is_empty()
+        || app.pi_scan.view == PiScanView::Results && !app.pi_scan.results.is_empty()
+    {
+        add("j/k/↑/↓", "move", 2);
+    }
+    add("1–6/Tab/Shift+Tab", "pages", 2);
+    add("PgUp/PgDn/g/G", "scroll", 3);
+    add("Esc", "back_workspace", 0);
+    add("?", "help", 0);
+    fit_footer_segments(app, &segments, width)
+}
+
+/// What: Build hints for the currently focused wizard control.
+///
+/// Inputs: Wizard step, focus, and visible footer targets.
+///
+/// Output: Action and navigation segments for the current focus.
+///
+/// Details: Text fields advertise editing instead of letter shortcuts.
+fn wizard_footer_segments(
+    wizard: &crate::state::pi_scan_setup::PiScanSetupWizardState,
+) -> Vec<FooterSegment> {
+    use crate::state::pi_scan_setup::PiScanSetupHitTarget;
+    let mut segments = Vec::new();
+    let mut add = |key, label, priority| {
+        segments.push(FooterSegment {
+            key,
+            label,
+            priority,
+        });
+    };
+
+    if wizard.focuses_text_field() {
+        add("Tab", "next_field", 1);
+        add("Enter", "confirm_field", 1);
+    } else {
+        if wizard.focus >= wizard.focus_count() {
+            add("Enter", "activate", 1);
+        } else if matches!(
+            wizard.step,
+            crate::state::pi_scan_setup::PiScanSetupStep::PiReadiness
+        ) && wizard.focus == 1
+        {
+            add("Enter", "verify", 1);
+        } else if matches!(
+            wizard.step,
+            crate::state::pi_scan_setup::PiScanSetupStep::Route
+        ) || matches!(
+            wizard.step,
+            crate::state::pi_scan_setup::PiScanSetupStep::OptionalBehavior
+        ) && (3..=6).contains(&wizard.focus)
+        {
+            add("Enter/←/→/h/l", "adjust", 1);
+        } else if matches!(
+            wizard.step,
+            crate::state::pi_scan_setup::PiScanSetupStep::PricingPrivacy
+                | crate::state::pi_scan_setup::PiScanSetupStep::OptionalBehavior
+        ) {
+            add("Enter/Space", "activate", 1);
+        } else {
+            add("Enter", "activate", 1);
+        }
+        let targets = wizard.footer_targets();
+        if targets.contains(&PiScanSetupHitTarget::Next) {
+            add("n", "next", 1);
+        }
+        if targets.contains(&PiScanSetupHitTarget::Back) {
+            add("b", "back", 1);
+        }
+        if targets.contains(&PiScanSetupHitTarget::Apply) {
+            add("a", "apply", 1);
+        }
+        if targets.contains(&PiScanSetupHitTarget::Retry) {
+            add("r", "retry", 1);
+        }
+    }
+    add("Shift+Tab", "previous_field", 1);
+    add("PgUp/PgDn", "scroll", 3);
+    segments
+}
+
+/// What: Render complete localized key segments within a footer width.
+///
+/// Inputs: Localization state, ordered segments, and available columns.
+///
+/// Output: Styled key/label spans with no split or truncated segment.
+///
+/// Details: Drops optional segments by priority and keeps Esc/Help last.
+fn fit_footer_segments(app: &AppState, segments: &[FooterSegment], width: usize) -> Line<'static> {
+    let label = |segment: &FooterSegment| {
+        crate::i18n::t(app, &format!("app.pi_scan.footer.labels.{}", segment.label))
+    };
+    let size = |segment: &FooterSegment| segment.key.width() + 1 + label(segment).width();
+    let mandatory: usize = segments
+        .iter()
+        .filter(|segment| segment.priority == 0)
+        .map(|segment| size(segment) + 3)
+        .sum();
+    if mandatory.saturating_sub(3) > width {
+        let th = theme();
+        if !segments.iter().any(|segment| segment.key == "?") {
+            return Line::from(Span::styled(
+                "Esc",
+                Style::default()
+                    .fg(th.sapphire)
+                    .add_modifier(Modifier::BOLD),
+            ));
+        }
+        return Line::from(vec![
+            Span::styled(
+                "Esc",
+                Style::default()
+                    .fg(th.sapphire)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(" · ", Style::default().fg(th.overlay1)),
+            Span::styled(
+                "?",
+                Style::default()
+                    .fg(th.sapphire)
+                    .add_modifier(Modifier::BOLD),
+            ),
+        ]);
+    }
+    let mut remaining = width.saturating_sub(mandatory.saturating_sub(3));
+    let mut included = vec![false; segments.len()];
+    for priority in 1..=3 {
+        for (index, segment) in segments.iter().enumerate() {
+            let length = size(segment) + 3;
+            if segment.priority == priority && length <= remaining {
+                included[index] = true;
+                remaining -= length;
+            }
+        }
+    }
+    let th = theme();
+    let mut spans = Vec::new();
+    for (index, segment) in segments.iter().enumerate() {
+        if segment.priority != 0 && !included[index] {
+            continue;
+        }
+        if !spans.is_empty() {
+            spans.push(Span::styled(" · ", Style::default().fg(th.overlay1)));
+        }
+        spans.push(Span::styled(
+            segment.key,
+            Style::default()
+                .fg(th.sapphire)
+                .add_modifier(Modifier::BOLD),
+        ));
+        spans.push(Span::raw(format!(" {}", label(segment))));
+    }
+    Line::from(spans)
 }
 
 /// Localize a state-owned notice key while preserving bounded runtime detail strings.
@@ -536,7 +912,7 @@ pub(super) fn localized_notice(app: &AppState, notice: &PiScanNotice) -> String 
         "A previous Pi Scan setup Apply is still resolving; wait for its rollback or completion" => {
             Some("app.pi_scan.notices.setup_still_resolving")
         }
-        "Guided setup cancelled — press r to restart it, Esc to leave" => {
+        "Guided setup cancelled — press w to restart it, Esc to leave" => {
             Some("app.pi_scan.notices.guided_setup_cancelled")
         }
         "Apply in progress — press Esc again to abandon and roll back" => {
@@ -708,6 +1084,36 @@ const fn pack_word(
     if *used == 0 && total > 0 {
         *used = width;
     }
+}
+
+/// What: Detect later observed commits without changing persisted result staleness.
+///
+/// Inputs:
+/// - `app`: Ordered target history.
+/// - `result`: Exact commit of the displayed validated result.
+///
+/// Output:
+/// - Whether a different, later target supersedes the result for display.
+///
+/// Details:
+/// - Results without a retained target use any different observed commit as a fallback.
+pub(super) fn result_has_newer_version(
+    app: &crate::state::AppState,
+    result: &crate::state::PiScanDisplayResult,
+) -> bool {
+    let base = result.validated.identity.package_base.as_str();
+    let oid = result.validated.identity.commit_oid.as_str();
+    if let Some(index) = app.pi_scan.targets.iter().rposition(|target| {
+        target.package_base == base && target.commit_oid.as_deref() == Some(oid)
+    }) {
+        return app.pi_scan.targets[index + 1..].iter().any(|target| {
+            target.package_base == base
+                && target.commit_oid.as_deref().is_some_and(|next| next != oid)
+        });
+    }
+    app.pi_scan.targets.iter().any(|target| {
+        target.package_base == base && target.commit_oid.as_deref().is_some_and(|next| next != oid)
+    })
 }
 
 #[cfg(test)]

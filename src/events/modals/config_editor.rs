@@ -54,6 +54,7 @@ pub(in crate::events) fn handle_config_editor_mode_key(ke: KeyEvent, app: &mut A
             .is_some_and(|setting| setting.key.starts_with("pi_scan_"));
     if opens_pi_scan_setup {
         let first_run = !app.pi_scan.setup_complete();
+        app.pi_scan.origin = crate::state::types::AppMode::ConfigEditor;
         app.pi_scan.begin_setup_wizard(first_run);
         app.app_mode = crate::state::types::AppMode::PiScan;
         return true;
@@ -600,27 +601,47 @@ fn handle_popup_bool(ke: KeyEvent, popup: &mut EditPopupState) {
 
 /// Enum popup: arrows cycle through choices.
 fn handle_popup_enum(ke: KeyEvent, popup: &mut EditPopupState) {
-    let EditPopupKind::Enum {
-        ref choices,
-        ref mut index,
-    } = popup.kind
-    else {
+    let EditPopupKind::Enum { choices, index } = &popup.kind else {
         return;
     };
     if choices.is_empty() {
         return;
     }
-    let len = choices.len();
-    match ke.code {
-        KeyCode::Up | KeyCode::Left => {
-            *index = (*index + len - 1) % len;
-        }
-        KeyCode::Down | KeyCode::Right | KeyCode::Tab => {
-            *index = (*index + 1) % len;
-        }
+    let next = match ke.code {
+        KeyCode::Up | KeyCode::Left => (index + choices.len() - 1) % choices.len(),
+        KeyCode::Down | KeyCode::Right | KeyCode::Tab => (index + 1) % choices.len(),
         _ => return,
+    };
+    popup.select_enum_index(next);
+}
+
+/// What: Select the enum choice under a config-editor popup mouse click.
+///
+/// Inputs:
+/// - `mx`, `my`: Screen coordinates of the click.
+/// - `app`: App state holding popup and frame hit rectangles.
+///
+/// Output:
+/// - `true` when a choice row was clicked; `false` outside those rows.
+///
+/// Details:
+/// - Selection only changes the popup value; saving still requires `Ctrl+S`.
+///   The mouse event router must not interpret this result as an exit request.
+pub(in crate::events) fn handle_config_editor_popup_click(
+    mx: u16,
+    my: u16,
+    app: &mut AppState,
+) -> bool {
+    let state = &mut app.config_editor_state;
+    let Some(popup) = state.popup.as_mut() else {
+        return false;
+    };
+    for (index, &(x, y, width, height)) in state.popup_choice_rects.iter().enumerate() {
+        if mx >= x && mx < x.saturating_add(width) && my >= y && my < y.saturating_add(height) {
+            return popup.select_enum_index(index);
+        }
     }
-    popup.buffer = choices.get(*index).cloned().unwrap_or_default();
+    false
 }
 
 /// Int popup: digits/Backspace edit, arrows ±1.
@@ -827,8 +848,8 @@ fn save_theme_popup(
 /// - `Ok(())` when the value is acceptable; `Err(reason)` otherwise.
 ///
 /// Details:
-/// - Phase 1 only validates Int range here. Other kinds are accepted
-///   as-is and rely on parsers in `theme::settings::parse_settings`.
+/// - Enum values must match a schema choice; other constraints are checked
+///   here or by the settings parser as appropriate.
 fn validate_value(popup: &EditPopupState, value: &str) -> Result<(), String> {
     match popup.setting.kind {
         ValueKind::IntRange { min, max } => {
@@ -866,7 +887,14 @@ fn validate_value(popup: &EditPopupState, value: &str) -> Result<(), String> {
         ValueKind::Color => validate_color_value(value),
         ValueKind::KeyChord => validate_key_chord(value),
         ValueKind::String => validate_semantic_string_key(popup.setting.key, value),
-        ValueKind::Secret | ValueKind::Bool | ValueKind::Enum { .. } => Ok(()),
+        ValueKind::Enum { choices } => {
+            if choices.contains(&value) {
+                Ok(())
+            } else {
+                Err("value must be one of the available choices".to_string())
+            }
+        }
+        ValueKind::Secret | ValueKind::Bool => Ok(()),
     }
 }
 
@@ -885,7 +913,6 @@ fn validate_value(popup: &EditPopupState, value: &str) -> Result<(), String> {
 /// - Unknown keys remain accepted to preserve existing behavior until dedicated validators are added.
 fn validate_semantic_string_key(key: &str, value: &str) -> Result<(), String> {
     match key {
-        "locale" => validate_locale_value(value),
         "preferred_terminal" => validate_preferred_terminal_value(value),
         "selected_countries" => validate_selected_countries_value(value),
         "pi_scan_background_token_cap_24h" => validate_u64_decimal(value),
@@ -906,52 +933,6 @@ fn validate_u64_decimal(value: &str) -> Result<(), String> {
         .parse::<u64>()
         .map(|_| ())
         .map_err(|_| "value exceeds the maximum unsigned 64-bit integer".to_string())
-}
-
-/// What: Validate locale value using the app's locale format and shipped locale set.
-///
-/// Inputs:
-/// - `value`: Locale candidate (`en-US`, `de-DE`, etc.), or empty for auto-detect.
-///
-/// Output:
-/// - `Ok(())` when locale is empty (auto-detect) or a valid available locale code.
-fn validate_locale_value(value: &str) -> Result<(), String> {
-    let trimmed = value.trim();
-    if trimmed.is_empty() {
-        return Ok(());
-    }
-    if !is_valid_locale_format(trimmed) {
-        return Err(
-            "invalid locale format; expected language[-region] like en-US or de-DE".to_string(),
-        );
-    }
-    if let Some(locales_dir) = crate::i18n::find_locales_dir() {
-        let locale_path = locales_dir.join(format!("{trimmed}.yml"));
-        if !locale_path.is_file() {
-            return Err(format!(
-                "unknown locale '{trimmed}' (no locale file found in {})",
-                locales_dir.display()
-            ));
-        }
-    }
-    Ok(())
-}
-
-/// What: Basic locale format validator used by config-editor semantic checks.
-///
-/// Inputs:
-/// - `locale`: Candidate locale code.
-///
-/// Output:
-/// - `true` when the code matches allowed shape and separators.
-fn is_valid_locale_format(locale: &str) -> bool {
-    if locale.is_empty() || locale.len() > 20 {
-        return false;
-    }
-    locale.chars().all(|c| c.is_alphanumeric() || c == '-')
-        && !locale.starts_with('-')
-        && !locale.ends_with('-')
-        && !locale.contains("--")
 }
 
 /// What: Validate terminal command preference.
@@ -1311,6 +1292,45 @@ mod tests {
         assert_ne!(popup.canonical_value(), "best_matches");
     }
 
+    /// Cycling forward from the final locale wraps to the first shipped choice.
+    #[test]
+    fn locale_popup_cycles_forward_from_last_to_first() {
+        let mut popup = EditPopupState::from_current(setting("locale"), "hu-HU");
+        handle_popup_enum(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE), &mut popup);
+        assert!(matches!(popup.kind, EditPopupKind::Enum { index: 0, .. }));
+        assert_eq!(popup.canonical_value(), "");
+    }
+
+    /// Enum validation rejects any value outside the schema choices.
+    #[test]
+    fn locale_popup_rejects_non_choice_values() {
+        let popup = EditPopupState::from_current(setting("locale"), "en-US");
+        assert!(validate_value(&popup, "de-DE").is_ok());
+        assert!(validate_value(&popup, "fr-FR").is_err());
+        assert!(validate_value(&popup, "").is_ok());
+    }
+
+    /// A click on a choice row selects without saving; other coordinates are ignored.
+    #[test]
+    fn config_editor_popup_click_selects_only_choice_rows() {
+        let mut app = AppState::default();
+        app.config_editor_state.popup =
+            Some(EditPopupState::from_current(setting("locale"), "en-US"));
+        app.config_editor_state.popup_choice_rects =
+            vec![(10, 20, 25, 1), (10, 21, 25, 1), (10, 22, 25, 1)];
+        assert!(handle_config_editor_popup_click(12, 22, &mut app));
+        let popup = app
+            .config_editor_state
+            .popup
+            .as_ref()
+            .expect("popup remains open");
+        assert_eq!(popup.canonical_value(), "de-DE");
+        assert!(!handle_config_editor_popup_click(9, 22, &mut app));
+        assert!(!handle_config_editor_popup_click(12, 23, &mut app));
+        app.config_editor_state.popup = None;
+        assert!(!handle_config_editor_popup_click(12, 22, &mut app));
+    }
+
     #[test]
     fn popup_int_bumps_within_range() {
         let s = setting("mirror_count");
@@ -1528,13 +1548,6 @@ mod tests {
         // be flagged as a conflict because scopes differ.
         let s = crate::theme::find_setting("keybind_search_focus_left").expect("schema entry");
         assert!(validate_keybind_conflict(s, "Left").is_ok());
-    }
-
-    #[test]
-    fn validate_locale_accepts_empty_and_known_format() {
-        assert!(validate_locale_value("").is_ok());
-        assert!(validate_locale_value("en-US").is_ok());
-        assert!(validate_locale_value("bad locale").is_err());
     }
 
     #[test]
