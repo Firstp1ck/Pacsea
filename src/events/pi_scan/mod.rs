@@ -147,7 +147,7 @@ fn activate_tab(column: u16, row: u16, app: &mut AppState) -> bool {
     let Some(index) = index else {
         return false;
     };
-    app.pi_scan.set_view(PiScanView::all()[index]);
+    app.pi_scan.set_view(PiScanView::tabs()[index]);
     true
 }
 

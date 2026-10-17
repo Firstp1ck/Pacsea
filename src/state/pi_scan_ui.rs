@@ -28,7 +28,10 @@ pub enum PiScanView {
 }
 
 impl PiScanView {
-    /// Return all workspace pages in keyboard order.
+    /// Number of pages shown in the workspace tab bar.
+    pub const TAB_COUNT: usize = 5;
+
+    /// Return all workspace views, including the Details drill-in view (used for exhaustive tests).
     #[must_use]
     pub const fn all() -> [Self; 6] {
         [
@@ -41,16 +44,69 @@ impl PiScanView {
         ]
     }
 
-    /// Return the zero-based page index.
+    /// What: Return the tab-bar pages in workflow order.
+    ///
+    /// Inputs:
+    /// - None.
+    ///
+    /// Output:
+    /// - Scan, Progress, Results, Status, and Settings pages.
+    ///
+    /// Details:
+    /// - Order follows what a user does: pick packages, watch the scan, read results.
+    ///   Settings comes last because it is rarely needed after the first run.
+    /// - Details is not a tab; it is opened from Results and returns there on Esc.
     #[must_use]
-    pub const fn index(self) -> usize {
+    pub const fn tabs() -> [Self; Self::TAB_COUNT] {
+        [
+            Self::Targets,
+            Self::Progress,
+            Self::Results,
+            Self::Overview,
+            Self::Setup,
+        ]
+    }
+
+    /// What: Return the zero-based tab-bar position that represents this view.
+    ///
+    /// Inputs:
+    /// - `self`: Any workspace view.
+    ///
+    /// Output:
+    /// - Position in [`Self::tabs`].
+    ///
+    /// Details:
+    /// - Details maps to the Results tab because it is a drill-in of that page.
+    #[must_use]
+    pub const fn tab_position(self) -> usize {
         match self {
-            Self::Setup => 0,
-            Self::Overview => 1,
-            Self::Targets => 2,
-            Self::Progress => 3,
-            Self::Results => 4,
-            Self::Details => 5,
+            Self::Targets => 0,
+            Self::Progress => 1,
+            Self::Results | Self::Details => 2,
+            Self::Overview => 3,
+            Self::Setup => 4,
+        }
+    }
+
+    /// What: Return the translation-key suffix naming this view's tab.
+    ///
+    /// Inputs:
+    /// - `self`: Any workspace view.
+    ///
+    /// Output:
+    /// - Suffix under `app.pi_scan.tabs` / `app.pi_scan.tabs_short`.
+    ///
+    /// Details:
+    /// - Suffixes keep their historical names so locale keys stay stable.
+    #[must_use]
+    pub const fn tab_key(self) -> &'static str {
+        match self {
+            Self::Setup => "setup",
+            Self::Overview => "overview",
+            Self::Targets => "targets",
+            Self::Progress => "progress",
+            Self::Results => "results",
+            Self::Details => "details",
         }
     }
 }
@@ -730,7 +786,7 @@ pub struct PiScanWorkspaceState {
     /// Correlation-owned setup transaction retained after wizard abandonment.
     pub setup_transaction: Option<PiScanSetupTransaction>,
     /// Workspace tab hit rectangles.
-    pub tab_rects: [Option<(u16, u16, u16, u16)>; 6],
+    pub tab_rects: [Option<(u16, u16, u16, u16)>; PiScanView::TAB_COUNT],
     /// Rendered target row hit rectangles.
     pub target_row_rects: Vec<PiScanListHitRect>,
     /// Rendered result row hit rectangles.
@@ -800,7 +856,7 @@ impl Default for PiScanWorkspaceState {
             show_raw_output: false,
             notices: PiScanNoticeSlots::default(),
             setup_transaction: None,
-            tab_rects: [None; 6],
+            tab_rects: [None; PiScanView::TAB_COUNT],
             target_row_rects: Vec::new(),
             result_row_rects: Vec::new(),
             details_continue_action_rect: None,

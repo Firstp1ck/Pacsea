@@ -394,11 +394,13 @@ fn push_queue_lines(lines: &mut Vec<Line<'static>>, app: &AppState) {
         push_queue_request_line(lines, app, request, Some(index + 1));
     }
     if app.pi_scan.runtime.active.is_none() && app.pi_scan.runtime.queue.is_empty() {
-        lines.push(super::labeled_line(
-            crate::i18n::t(app, "app.pi_scan.progress.sections.queue"),
-            crate::i18n::t(app, "app.pi_scan.progress.queue_empty"),
-            SemanticTone::Muted,
-        ));
+        lines.push(Line::from(Span::styled(
+            format!(
+                "  {}",
+                crate::i18n::t(app, "app.pi_scan.progress.queue_empty")
+            ),
+            super::semantic_style(SemanticTone::Muted),
+        )));
     }
 }
 

@@ -35,6 +35,9 @@ pub(super) fn handle_key(key: KeyEvent, app: &mut AppState) -> bool {
     if app.pi_scan.budget_dialog.is_some() {
         return handle_budget_dialog(key, app);
     }
+    if handle_back_key(key, app) {
+        return true;
+    }
     if key.code == KeyCode::Esc {
         app.app_mode = match app.pi_scan.origin {
             AppMode::News => AppMode::News,
@@ -258,19 +261,54 @@ pub(super) fn activate_wizard_target(target: PiScanSetupHitTarget, app: &mut App
     }
 }
 
-/// Select pages by number or cycle them with Tab/BackTab.
+/// What: Return from the report drill-in to the Results list.
+///
+/// Inputs:
+/// - `key`: Pressed key.
+/// - `app`: Workspace state.
+///
+/// Output:
+/// - `true` when Esc or Backspace closed the report view.
+///
+/// Details:
+/// - Esc means "go back one level": the report returns to Results, and only a
+///   top-level page leaves the workspace.
+fn handle_back_key(key: KeyEvent, app: &mut AppState) -> bool {
+    if app.pi_scan.view != PiScanView::Details
+        || !matches!(key.code, KeyCode::Esc | KeyCode::Backspace)
+    {
+        return false;
+    }
+    app.pi_scan.set_view(PiScanView::Results);
+    true
+}
+
+/// What: Select tab-bar pages by number or cycle through them.
+///
+/// Inputs:
+/// - `key`: Pressed key.
+/// - `app`: Workspace state.
+///
+/// Output:
+/// - `true` when the key switched pages.
+///
+/// Details:
+/// - `1`–`5` jump directly; Tab/→/`]` move forward and Shift+Tab/←/`[` move back,
+///   wrapping at both ends. From the report drill-in, cycling starts at Results.
 fn handle_page_key(key: KeyEvent, app: &mut AppState) -> bool {
-    let current = app.pi_scan.view.index();
+    let tabs = PiScanView::tabs();
+    let current = app.pi_scan.view.tab_position();
     let next = match key.code {
-        KeyCode::Char('1'..='6') if key.modifiers.is_empty() => usize::from(match key.code {
-            KeyCode::Char(ch) => ch as u8 - b'1',
-            _ => 0,
-        }),
-        KeyCode::Tab => (current + 1) % 6,
-        KeyCode::BackTab => current.checked_sub(1).unwrap_or(5),
+        KeyCode::Char(digit @ '1'..='5') if key.modifiers.is_empty() => {
+            usize::from(digit as u8 - b'1')
+        }
+        KeyCode::Tab | KeyCode::Right | KeyCode::Char(']') => (current + 1) % tabs.len(),
+        KeyCode::BackTab | KeyCode::Left | KeyCode::Char('[') => {
+            current.checked_sub(1).unwrap_or(tabs.len() - 1)
+        }
         _ => return false,
     };
-    app.pi_scan.set_view(PiScanView::all()[next]);
+    app.pi_scan.set_view(tabs[next]);
     true
 }
 
@@ -370,6 +408,8 @@ fn handle_scroll_key(key: KeyEvent, app: &mut AppState) -> bool {
     let command = match key.code {
         KeyCode::PageUp => ScrollCommand::PageUp,
         KeyCode::PageDown => ScrollCommand::PageDown,
+        KeyCode::Home => ScrollCommand::Top,
+        KeyCode::End => ScrollCommand::Bottom,
         KeyCode::Char('g') if key.modifiers.is_empty() => ScrollCommand::Top,
         KeyCode::Char('G') if key.modifiers.contains(KeyModifiers::SHIFT) => ScrollCommand::Bottom,
         _ => return false,
@@ -1568,5 +1608,121 @@ mod tests {
             &mut app,
         ));
         assert!(app.pi_scan.show_raw_output);
+    }
+
+    /// Esc and Backspace step back from the report to Results instead of leaving Pi Scan.
+    #[test]
+    fn report_back_keys_return_to_results_list() {
+        for code in [KeyCode::Esc, KeyCode::Backspace] {
+            let mut app = AppState {
+                app_mode: AppMode::PiScan,
+                ..AppState::default()
+            };
+            app.pi_scan.results = vec![display_result("alpha"), display_result("beta")];
+            app.pi_scan.set_view(PiScanView::Results);
+            app.pi_scan.selected_result = 1;
+            assert!(handle_key(
+                KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE),
+                &mut app,
+            ));
+            assert_eq!(app.pi_scan.view, PiScanView::Details);
+
+            assert!(handle_key(
+                KeyEvent::new(code, KeyModifiers::NONE),
+                &mut app
+            ));
+            assert_eq!(app.pi_scan.view, PiScanView::Results, "{code:?}");
+            assert_eq!(app.app_mode, AppMode::PiScan, "{code:?}");
+            assert_eq!(app.pi_scan.selected_result, 1, "{code:?}");
+
+            assert!(handle_key(
+                KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE),
+                &mut app
+            ));
+            assert_eq!(app.app_mode, AppMode::Package);
+        }
+    }
+
+    /// Number keys follow the workflow tab order and arrows/brackets cycle with wrapping.
+    #[test]
+    fn page_keys_follow_workflow_order_and_wrap() {
+        let mut app = AppState {
+            app_mode: AppMode::PiScan,
+            ..AppState::default()
+        };
+        for (digit, expected) in ['1', '2', '3', '4', '5']
+            .into_iter()
+            .zip(PiScanView::tabs())
+        {
+            assert!(handle_key(
+                KeyEvent::new(KeyCode::Char(digit), KeyModifiers::NONE),
+                &mut app
+            ));
+            assert_eq!(app.pi_scan.view, expected, "digit {digit}");
+        }
+        assert_eq!(app.pi_scan.view, PiScanView::Setup);
+        assert!(!handle_key(
+            KeyEvent::new(KeyCode::Char('6'), KeyModifiers::NONE),
+            &mut app
+        ));
+        assert_eq!(app.pi_scan.view, PiScanView::Setup);
+
+        for (code, expected) in [
+            (KeyCode::Right, PiScanView::Targets),
+            (KeyCode::Char(']'), PiScanView::Progress),
+            (KeyCode::Left, PiScanView::Targets),
+            (KeyCode::Char('['), PiScanView::Setup),
+        ] {
+            assert!(handle_key(
+                KeyEvent::new(code, KeyModifiers::NONE),
+                &mut app
+            ));
+            assert_eq!(app.pi_scan.view, expected, "{code:?}");
+        }
+    }
+
+    /// Cycling from the report drill-in continues from the Results tab position.
+    #[test]
+    fn page_cycling_from_report_uses_results_position() {
+        let mut app = AppState {
+            app_mode: AppMode::PiScan,
+            ..AppState::default()
+        };
+        app.pi_scan.results = vec![display_result("alpha")];
+        app.pi_scan.set_view(PiScanView::Details);
+        assert!(handle_key(
+            KeyEvent::new(KeyCode::Right, KeyModifiers::NONE),
+            &mut app
+        ));
+        assert_eq!(app.pi_scan.view, PiScanView::Overview);
+        app.pi_scan.set_view(PiScanView::Details);
+        assert!(handle_key(
+            KeyEvent::new(KeyCode::Left, KeyModifiers::NONE),
+            &mut app
+        ));
+        assert_eq!(app.pi_scan.view, PiScanView::Progress);
+    }
+
+    /// Home and End jump to the first and last list entry like g and G.
+    #[test]
+    fn home_and_end_jump_to_list_edges() {
+        let mut app = AppState {
+            app_mode: AppMode::PiScan,
+            ..AppState::default()
+        };
+        app.pi_scan.results = (0..10)
+            .map(|index| display_result(&format!("package-{index}")))
+            .collect();
+        app.pi_scan.set_view(PiScanView::Results);
+        assert!(handle_key(
+            KeyEvent::new(KeyCode::End, KeyModifiers::NONE),
+            &mut app
+        ));
+        assert_eq!(app.pi_scan.selected_result, 9);
+        assert!(handle_key(
+            KeyEvent::new(KeyCode::Home, KeyModifiers::NONE),
+            &mut app
+        ));
+        assert_eq!(app.pi_scan.selected_result, 0);
     }
 }

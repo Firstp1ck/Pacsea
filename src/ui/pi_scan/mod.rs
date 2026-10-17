@@ -459,48 +459,67 @@ pub(super) fn budget_limit_value(
     }
 }
 
-/// Draw tabs and record mouse hit rectangles.
+/// What: Draw the numbered workflow tab bar and the workspace status pill.
+///
+/// Inputs:
+/// - `f`: Target frame.
+/// - `app`: Workspace state; tab hit rectangles are recorded here.
+/// - `area`: Two-row tab-bar rectangle.
+///
+/// Output:
+/// - Renders tabs and records mouse hit rectangles in tab-bar order.
+///
+/// Details:
+/// - Full labels are preferred, then short labels, then numbers only with the active
+///   page name on a second row. The active tab carries a `▸` marker so the selection
+///   does not depend on color alone.
 fn render_tabs(f: &mut Frame, app: &mut AppState, area: Rect) {
     let th = theme();
-    let labels = [
-        "setup", "overview", "targets", "progress", "results", "details",
-    ];
-    let mut full: Vec<String> = labels
+    let tabs = PiScanView::tabs();
+    let mut full: Vec<String> = tabs
         .iter()
-        .map(|label| crate::i18n::t(app, &format!("app.pi_scan.tabs.{label}")))
+        .map(|view| crate::i18n::t(app, &format!("app.pi_scan.tabs.{}", view.tab_key())))
         .collect();
-    let mut short: Vec<String> = labels
+    let mut short: Vec<String> = tabs
         .iter()
-        .map(|label| crate::i18n::t(app, &format!("app.pi_scan.tabs_short.{label}")))
+        .map(|view| crate::i18n::t(app, &format!("app.pi_scan.tabs_short.{}", view.tab_key())))
         .collect();
+    let results_tab = PiScanView::Results.tab_position();
     if app.pi_scan.unseen_result_count > 0 {
         let badge = format!(" ({})", app.pi_scan.unseen_result_count);
-        full[PiScanView::Results.index()].push_str(&badge);
-        short[PiScanView::Results.index()].push_str(&badge);
+        full[results_tab].push_str(&badge);
+        short[results_tab].push_str(&badge);
     }
-    let active = app.pi_scan.view.index();
-    let full_width: usize = full.iter().map(|label| label.width() + 4).sum();
-    let short_width: usize = short.iter().map(|label| label.width() + 4).sum();
-    let compact = full_width > usize::from(area.width) && short_width > usize::from(area.width);
+    let active = app.pi_scan.view.tab_position();
+    let status = workspace_status(app);
+    let (pills, status_tone) = (status.variants, status.tone);
+    let available = usize::from(area.width);
+    let row_width =
+        |labels: &[String]| -> usize { labels.iter().map(|label| label.width() + 5).sum() };
+    let numbers_width = tabs.len() * 4;
+    let pill_widths: Vec<usize> = pills.iter().map(|pill| pill.width()).collect();
+    let (tier, pill) = choose_tab_layout(
+        [row_width(&full), row_width(&short), numbers_width],
+        &pill_widths,
+        status.reports_work,
+        available,
+    );
+    let compact = tier == TabLabelTier::Numbers;
     let active_label = full[active].clone();
-    let labels = if full_width <= usize::from(area.width) {
-        full
-    } else if short_width <= usize::from(area.width) {
-        short
-    } else {
-        vec![String::new(); 6]
+    let labels = match tier {
+        TabLabelTier::Full => full,
+        TabLabelTier::Short => short,
+        TabLabelTier::Numbers => vec![String::new(); tabs.len()],
     };
     let mut spans = Vec::new();
     let mut x = area.x;
     for (index, label) in labels.iter().enumerate() {
+        let marker = if active == index { "▸" } else { " " };
+        let unseen = index == results_tab && app.pi_scan.unseen_result_count > 0;
         let text = if label.is_empty() {
-            if index == PiScanView::Results.index() && app.pi_scan.unseen_result_count > 0 {
-                format!(" {}• ", index + 1)
-            } else {
-                format!(" {} ", index + 1)
-            }
+            format!("{marker}{}{} ", index + 1, if unseen { "•" } else { "" })
         } else {
-            format!(" {} {label} ", index + 1)
+            format!("{marker}{} {label} ", index + 1)
         };
         let width = u16::try_from(text.width()).unwrap_or(u16::MAX);
         app.pi_scan.tab_rects[index] = (x.saturating_add(width)
@@ -515,23 +534,17 @@ fn render_tabs(f: &mut Frame, app: &mut AppState, area: Rect) {
             Style::default().fg(th.subtext1)
         };
         spans.push(Span::styled(text, style));
-        x = x.saturating_add(width);
+        spans.push(Span::raw(" "));
+        x = x.saturating_add(width).saturating_add(1);
     }
-    let status = match app.pi_scan.availability {
-        PiScanAvailability::Disabled => crate::i18n::t(app, "app.pi_scan.status.disabled"),
-        PiScanAvailability::Unsupported => crate::i18n::t(app, "app.pi_scan.status.unsupported"),
-        PiScanAvailability::MissingBinary => crate::i18n::t(app, "app.pi_scan.status.missing_pi"),
-        PiScanAvailability::RuntimeDisconnected => {
-            crate::i18n::t(app, "app.pi_scan.status.disconnected")
-        }
-        PiScanAvailability::RuntimeConnected => crate::i18n::t(app, "app.pi_scan.status.connected"),
-    };
-    if x.saturating_add(u16::try_from(status.width() + 2).unwrap_or(u16::MAX))
-        <= area.x.saturating_add(area.width)
-    {
+    let used = usize::from(x.saturating_sub(area.x));
+    if let Some(status) = pill.and_then(|index| pills.get(index)) {
+        spans.push(Span::raw(
+            " ".repeat(available.saturating_sub(used + status.width())),
+        ));
         spans.push(Span::styled(
-            format!("  {status}"),
-            Style::default().fg(availability_color(&app.pi_scan.availability, &th)),
+            status.clone(),
+            semantic_style(status_tone).add_modifier(Modifier::BOLD),
         ));
     }
     if compact {
@@ -555,7 +568,167 @@ fn render_tabs(f: &mut Frame, app: &mut AppState, area: Rect) {
     }
 }
 
-/// Draw severity-styled foreground feedback, background suffix, and contextual keys.
+/// Label length used for the workspace tab bar.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum TabLabelTier {
+    /// Full localized page names.
+    Full,
+    /// Short localized page names.
+    Short,
+    /// Page numbers only, with the active name on a second row.
+    Numbers,
+}
+
+/// What: Pick the tab label length and status-pill variant that fit one row.
+///
+/// Inputs:
+/// - `rows`: Tab-row widths for full, short, and numbers-only labels, including gaps.
+/// - `pills`: Status-pill widths, most detailed first.
+/// - `pill_essential`: Whether the pill reports running, waiting, or paused work.
+/// - `available`: Tab-bar width.
+///
+/// Output:
+/// - Chosen label tier and index of the pill that fits, if any.
+///
+/// Details:
+/// - A work pill is the only always-visible scan progress, so tabs shorten and the pill
+///   drops its detail suffix before the pill itself is dropped. Readable tab names win
+///   over pill detail at the same tier.
+/// - An idle readiness pill never costs tab readability; it is shown only if it fits.
+fn choose_tab_layout(
+    rows: [usize; 3],
+    pills: &[usize],
+    pill_essential: bool,
+    available: usize,
+) -> (TabLabelTier, Option<usize>) {
+    let tiers = [
+        TabLabelTier::Full,
+        TabLabelTier::Short,
+        TabLabelTier::Numbers,
+    ];
+    let pill_fitting = |row: usize| pills.iter().position(|pill| row + 1 + pill <= available);
+    if pill_essential {
+        for (tier, row) in tiers.into_iter().zip(rows) {
+            if let Some(index) = pill_fitting(row).filter(|_| row <= available) {
+                return (tier, Some(index));
+            }
+        }
+    }
+    let (tier, row) = tiers
+        .into_iter()
+        .zip(rows)
+        .find(|(_, row)| *row <= available)
+        .unwrap_or((TabLabelTier::Numbers, rows[2]));
+    (tier, pill_fitting(row))
+}
+
+/// What: Summarize what Pi Scan is doing right now in a few plain words.
+///
+/// Inputs:
+/// - `app`: Workspace runtime projection and availability.
+///
+/// Output:
+/// - Symbol-prefixed status variants, most detailed first, with tone and work flag.
+///
+/// Details:
+/// - Running, paused, and waiting work wins over readiness so scan progress stays
+///   visible from every page. Each state pairs a symbol and a word with color.
+fn workspace_status(app: &AppState) -> WorkspaceStatus {
+    let runtime = &app.pi_scan.runtime;
+    let waiting = runtime.queue.len();
+    let has_work = runtime.active.is_some() || waiting > 0;
+    if has_work && !runtime.pause_reasons.is_empty() {
+        return WorkspaceStatus::work(
+            vec![format!(
+                "⏸ {}",
+                crate::i18n::t(app, "app.pi_scan.status.paused")
+            )],
+            SemanticTone::Warning,
+        );
+    }
+    if let Some(active) = runtime.active.as_ref() {
+        let scanning = format!(
+            "⟳ {}",
+            crate::i18n::t_fmt1(
+                app,
+                "app.pi_scan.status.scanning",
+                &active.request.key.package_base
+            )
+        );
+        if waiting == 0 {
+            return WorkspaceStatus::work(vec![scanning], SemanticTone::Active);
+        }
+        let detailed = format!(
+            "{scanning} · {}",
+            crate::i18n::t_fmt1(app, "app.pi_scan.status.waiting", waiting)
+        );
+        return WorkspaceStatus::work(vec![detailed, scanning], SemanticTone::Active);
+    }
+    if waiting > 0 {
+        return WorkspaceStatus::work(
+            vec![format!(
+                "… {}",
+                crate::i18n::t_fmt1(app, "app.pi_scan.status.waiting", waiting)
+            )],
+            SemanticTone::Active,
+        );
+    }
+    let (symbol, key, tone) = match app.pi_scan.availability {
+        PiScanAvailability::RuntimeConnected => {
+            ("✔", "app.pi_scan.status.connected", SemanticTone::Success)
+        }
+        PiScanAvailability::Disabled => ("○", "app.pi_scan.status.disabled", SemanticTone::Warning),
+        PiScanAvailability::Unsupported => {
+            ("✖", "app.pi_scan.status.unsupported", SemanticTone::Error)
+        }
+        PiScanAvailability::MissingBinary => {
+            ("✖", "app.pi_scan.status.missing_pi", SemanticTone::Error)
+        }
+        PiScanAvailability::RuntimeDisconnected => {
+            ("✖", "app.pi_scan.status.disconnected", SemanticTone::Error)
+        }
+    };
+    WorkspaceStatus {
+        variants: vec![format!("{symbol} {}", crate::i18n::t(app, key))],
+        tone,
+        reports_work: false,
+    }
+}
+
+/// Status-pill text variants for the tab bar.
+struct WorkspaceStatus {
+    /// Pill texts, most detailed first; later entries are shorter fallbacks.
+    variants: Vec<String>,
+    /// Semantic tone shared by every variant.
+    tone: SemanticTone,
+    /// Whether the pill reports running, waiting, or paused work rather than readiness.
+    reports_work: bool,
+}
+
+impl WorkspaceStatus {
+    /// Build a pill that reports active, waiting, or paused scan work.
+    const fn work(variants: Vec<String>, tone: SemanticTone) -> Self {
+        Self {
+            variants,
+            tone,
+            reports_work: true,
+        }
+    }
+}
+
+/// What: Draw the footer: current feedback or a next-step tip, then contextual keys.
+///
+/// Inputs:
+/// - `f`: Target frame.
+/// - `app`: Workspace state.
+/// - `area`: Footer rectangle of [`FOOTER_HEIGHT`] rows.
+///
+/// Output:
+/// - Renders one feedback row and one key-hint row below a separator.
+///
+/// Details:
+/// - A foreground notice wins; otherwise a page-specific tip tells the user what to do
+///   next, so the footer never repeats static disclaimers.
 fn render_footer(f: &mut Frame, app: &AppState, area: Rect) {
     let th = theme();
     let wizard_active = app.pi_scan.wizard.is_some();
@@ -567,7 +740,10 @@ fn render_footer(f: &mut Frame, app: &AppState, area: Rect) {
     } else if let Some(notice) = app.pi_scan.notices.foreground.as_ref() {
         (localized_notice(app, notice), notice_color(notice, &th))
     } else {
-        (crate::i18n::t(app, "app.pi_scan.footer.notice"), th.yellow)
+        (
+            format!("» {}", crate::i18n::t(app, footer_tip_key(app))),
+            th.subtext1,
+        )
     };
     let mut notice_spans = vec![Span::styled(notice, Style::default().fg(notice_color))];
     if let Some(background) = app.pi_scan.notices.background.as_ref() {
@@ -582,13 +758,37 @@ fn render_footer(f: &mut Frame, app: &AppState, area: Rect) {
     }
     let hints = footer_hints(app, usize::from(area.width.saturating_sub(2)));
     f.render_widget(
-        Paragraph::new(vec![Line::from(notice_spans), hints]).block(
-            Block::default()
-                .borders(Borders::TOP)
-                .title(crate::i18n::t(app, "app.pi_scan.footer.title")),
-        ),
+        Paragraph::new(vec![Line::from(notice_spans), hints])
+            .block(Block::default().borders(Borders::TOP)),
         area,
     );
+}
+
+/// What: Choose the next-step tip for the current page and state.
+///
+/// Inputs:
+/// - `app`: Workspace state.
+///
+/// Output:
+/// - Translation key under `app.pi_scan.footer.tips`.
+///
+/// Details:
+/// - Empty pages point to the page or action that fills them.
+fn footer_tip_key(app: &AppState) -> &'static str {
+    let pi = &app.pi_scan;
+    match pi.view {
+        PiScanView::Targets if pi.targets.is_empty() => "app.pi_scan.footer.tips.scan_empty",
+        PiScanView::Targets => "app.pi_scan.footer.tips.scan",
+        PiScanView::Progress if pi.runtime.active.is_some() || !pi.runtime.queue.is_empty() => {
+            "app.pi_scan.footer.tips.progress_running"
+        }
+        PiScanView::Progress => "app.pi_scan.footer.tips.progress_idle",
+        PiScanView::Results if pi.results.is_empty() => "app.pi_scan.footer.tips.results_empty",
+        PiScanView::Results => "app.pi_scan.footer.tips.results",
+        PiScanView::Details => "app.pi_scan.footer.tips.details",
+        PiScanView::Overview => "app.pi_scan.footer.tips.status",
+        PiScanView::Setup => "app.pi_scan.footer.tips.settings",
+    }
 }
 
 /// What: Describe one localized, indivisible key hint.
@@ -619,13 +819,8 @@ fn footer_hints(app: &AppState, width: usize) -> Line<'static> {
     if app.pi_scan.budget_dialog.is_some() {
         let segments = [
             FooterSegment {
-                key: "←/→/h/l",
+                key: "←→",
                 label: "choose",
-                priority: 1,
-            },
-            FooterSegment {
-                key: "Tab/Shift+Tab",
-                label: "focus",
                 priority: 1,
             },
             FooterSegment {
@@ -672,10 +867,10 @@ fn footer_hints(app: &AppState, width: usize) -> Line<'static> {
     };
     match app.pi_scan.view {
         PiScanView::Setup => {
-            add("Space/Enter", "activate", 1);
+            add("Enter", "activate", 1);
             add("w", "wizard", 1);
             add("v", "verify", 2);
-            add("Shift+B", "background", 2);
+            add("B", "background", 2);
         }
         PiScanView::Overview | PiScanView::Progress => {
             use crate::state::pi_scan::PiScanPauseReason;
@@ -694,9 +889,6 @@ fn footer_hints(app: &AppState, width: usize) -> Line<'static> {
                     1,
                 );
             }
-            if runtime.pause_reasons.contains(&PiScanPauseReason::User) {
-                add("u", "resume", 2);
-            }
             if runtime.active.is_some() {
                 add("x x", "cancel", 1);
             }
@@ -713,13 +905,13 @@ fn footer_hints(app: &AppState, width: usize) -> Line<'static> {
                 add("b", "budget", 1);
             }
             if app.pi_scan.view == PiScanView::Overview {
-                add("Shift+B", "background", 2);
+                add("B", "background", 2);
             }
         }
         PiScanView::Targets => {
             if !app.pi_scan.targets.is_empty() {
-                add("Space", "select", 1);
                 add("Enter", "queue", 1);
+                add("Space", "select", 1);
             }
         }
         PiScanView::Results => {
@@ -729,6 +921,7 @@ fn footer_hints(app: &AppState, width: usize) -> Line<'static> {
         }
         PiScanView::Details => {
             if let Some(result) = app.pi_scan.selected_result() {
+                add("Enter", "expand", 1);
                 let binding = result.binding();
                 if result.needs_finding_acknowledgement()
                     && !app.pi_scan.finding_acknowledgements.contains(&binding)
@@ -743,7 +936,6 @@ fn footer_hints(app: &AppState, width: usize) -> Line<'static> {
                     add("b", "baseline", 2);
                 }
                 add("t", "raw", 2);
-                add("Enter/Space", "expand", 1);
             }
         }
     }
@@ -751,11 +943,15 @@ fn footer_hints(app: &AppState, width: usize) -> Line<'static> {
         || app.pi_scan.view == PiScanView::Targets && !app.pi_scan.targets.is_empty()
         || app.pi_scan.view == PiScanView::Results && !app.pi_scan.results.is_empty()
     {
-        add("j/k/↑/↓", "move", 2);
+        add("↑↓", "move", 2);
     }
-    add("1–6/Tab/Shift+Tab", "pages", 2);
-    add("PgUp/PgDn/g/G", "scroll", 3);
-    add("Esc", "back_workspace", 0);
+    add("←→", "pages", 2);
+    add("PgUp/PgDn", "scroll", 3);
+    if app.pi_scan.view == PiScanView::Details {
+        add("Esc", "back_results", 0);
+    } else {
+        add("Esc", "back_workspace", 0);
+    }
     add("?", "help", 0);
     fit_footer_segments(app, &segments, width)
 }
@@ -926,17 +1122,6 @@ pub(super) fn localized_notice(app: &AppState, notice: &PiScanNotice) -> String 
     key.map_or_else(|| notice.text.clone(), |key| crate::i18n::t(app, key))
 }
 
-/// Select the semantic foreground color for one workspace availability state.
-const fn availability_color(availability: &PiScanAvailability, th: &crate::theme::Theme) -> Color {
-    match availability {
-        PiScanAvailability::RuntimeConnected => th.green,
-        PiScanAvailability::Disabled => th.yellow,
-        PiScanAvailability::Unsupported
-        | PiScanAvailability::MissingBinary
-        | PiScanAvailability::RuntimeDisconnected => th.red,
-    }
-}
-
 /// Select a semantic foreground color for one notice severity.
 pub(super) const fn notice_color(notice: &PiScanNotice, th: &crate::theme::Theme) -> Color {
     match notice.severity {
@@ -1008,6 +1193,30 @@ pub(super) fn body_scrolled(
     lines: Vec<Line<'static>>,
     scroll: u16,
 ) {
+    body_with_title(f, area, &crate::i18n::t(app, title_key), lines, scroll);
+}
+
+/// What: Render a bordered body paragraph with an already-localized title.
+///
+/// Inputs:
+/// - `f`: Target frame.
+/// - `area`: Body rectangle.
+/// - `title`: Localized title, for example a `Results › package` breadcrumb.
+/// - `lines`: Body content.
+/// - `scroll`: Clamped line offset.
+///
+/// Output:
+/// - Renders the wrapped, scrolled paragraph.
+///
+/// Details:
+/// - Shared by every workspace page so titles and wrapping look the same.
+pub(super) fn body_with_title(
+    f: &mut Frame,
+    area: Rect,
+    title: &str,
+    lines: Vec<Line<'static>>,
+    scroll: u16,
+) {
     let th = theme();
     f.render_widget(
         Paragraph::new(lines)
@@ -1015,7 +1224,7 @@ pub(super) fn body_scrolled(
             .wrap(ratatui::widgets::Wrap { trim: false })
             .scroll((scroll, 0))
             .block(Block::default().borders(Borders::ALL).title(Span::styled(
-                crate::i18n::t(app, title_key),
+                format!(" {title} "),
                 Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
             ))),
         area,
@@ -1118,7 +1327,9 @@ pub(super) fn result_has_newer_version(
 
 #[cfg(test)]
 mod tests {
-    use super::{format_microusd, format_token_count, short_identity};
+    use super::{
+        TabLabelTier, choose_tab_layout, format_microusd, format_token_count, short_identity,
+    };
 
     /// Human-facing identities use twelve characters without splitting Unicode values.
     #[test]
@@ -1145,5 +1356,32 @@ mod tests {
         assert_eq!(format_microusd(125), "$0.000125 USD");
         assert_eq!(format_microusd(600_000), "$0.60 USD");
         assert_eq!(format_microusd(25_000_000), "$25.00 USD");
+    }
+
+    #[test]
+    fn tab_layout_keeps_work_pills_but_not_idle_readiness() {
+        let rows = [58, 43, 20];
+        assert_eq!(
+            choose_tab_layout(rows, &[40, 28], true, 80),
+            (TabLabelTier::Short, Some(1)),
+            "work pill drops its suffix and tabs shorten before the pill disappears"
+        );
+        assert_eq!(
+            choose_tab_layout(rows, &[40, 28], true, 64),
+            (TabLabelTier::Numbers, Some(0))
+        );
+        assert_eq!(
+            choose_tab_layout(rows, &[12], false, 55),
+            (TabLabelTier::Short, None),
+            "idle readiness never costs readable tab names"
+        );
+        assert_eq!(
+            choose_tab_layout(rows, &[12], false, 120),
+            (TabLabelTier::Full, Some(0))
+        );
+        assert_eq!(
+            choose_tab_layout(rows, &[40], true, 10),
+            (TabLabelTier::Numbers, None)
+        );
     }
 }
