@@ -393,7 +393,7 @@ async fn validation_is_write_free_and_unadvertised_routes_fail_closed() {
     std::fs::write(root.join("settings.conf"), prior).expect("seed settings");
     let (mut channels, _) = spawn_fake(&root, false, DriverFailure::None);
     let validation_binding = probe_and_validate(&mut channels, candidate()).await;
-    assert!(!validation_binding.is_empty());
+    assert_ne!(validation_binding.len(), 0);
     assert_eq!(
         std::fs::read_to_string(root.join("settings.conf")).expect("settings"),
         prior
@@ -753,7 +753,7 @@ async fn successful_transfer_commits_runtime_and_compatible_consent() {
     assert_eq!(setup_consent.configuration_binding, binding);
     assert!(!setup_consent.background_paid_execution);
     assert_eq!(setup_consent.confirmed_pi_version, "0.84.0");
-    assert!(!setup_consent.confirmed_pricing_binding.is_empty());
+    assert_ne!(setup_consent.confirmed_pricing_binding.len(), 0);
 
     let (ack_tx, ack_rx) = std::sync::mpsc::sync_channel(1);
     runtime_channels

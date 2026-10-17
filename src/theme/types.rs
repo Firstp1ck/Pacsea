@@ -278,7 +278,7 @@ pub fn parse_pi_scan_cost_microusd(value: &str) -> Result<u64, String> {
     let overflow =
         || "pi_scan_background_cost_cap_24h exceeds the maximum exact micro-USD value".to_string();
     let trimmed = value.trim();
-    let (whole, fraction) = trimmed.split_once('.').map_or((trimmed, ""), |parts| parts);
+    let (whole, fraction) = trimmed.split_once('.').unwrap_or((trimmed, ""));
     if whole.is_empty()
         || !whole.chars().all(|character| character.is_ascii_digit())
         || fraction.len() > 6
@@ -637,7 +637,7 @@ mod tests {
             ..PiScanSettings::default()
         };
 
-        assert!(settings.validation_issues().is_empty());
+        assert_eq!(settings.validation_issues().len(), 0);
         assert_eq!(
             format_pi_scan_budget_microusd(u64::MAX),
             "18446744073709.551615"

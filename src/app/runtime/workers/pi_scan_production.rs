@@ -3788,7 +3788,7 @@ mod tests {
                 .pause_reasons
                 .contains(&PiScanPauseReason::Budget)
         );
-        assert!(persisted.runtime.budget.records.is_empty());
+        assert_eq!(persisted.runtime.budget.records.len(), 0);
         assert!(matches!(
             progress_rx.try_recv(),
             Ok(PiScanProgressMessage::BudgetRevalidated(runtime))

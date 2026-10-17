@@ -194,7 +194,7 @@ fn row_rects_align_with_rendered_rows_and_page_rows() {
     let values = default_values();
     let (buffer, _) = draw(&app, &mut state, &values, 160, 30);
     let keys = state.filtered_keys();
-    assert!(!state.row_rects.is_empty());
+    assert_ne!(state.row_rects.len(), 0);
     assert!(state.row_rects.len() < keys.len(), "list should be clipped");
     for (index, rect) in &state.row_rects {
         let label = super::format::setting_label(
@@ -329,7 +329,7 @@ fn empty_states_explain_next_steps() {
     state.clamp_key_cursor();
     let (buffer, _) = draw(&app, &mut state, &default_values(), 120, 40);
     assert!(screen(&buffer).contains("No keys match \"zzzz_no_such_key\""));
-    assert!(state.row_rects.is_empty());
+    assert_eq!(state.row_rects.len(), 0);
 
     state.query.clear();
     state.set_tab(ConfigEditorTab::Starred);
@@ -408,7 +408,7 @@ fn popup_renders_dropdown_tags_validation_and_saves_line() {
     }
     let popup_rect = state.popup_rect.expect("popup rect");
     let popup = state.popup.as_ref().expect("popup");
-    assert!(!state.popup_choice_rects.is_empty());
+    assert_ne!(state.popup_choice_rects.len(), 0);
     for (row_index, rect) in state.popup_choice_rects.iter().enumerate() {
         assert!(inside(*rect, popup_rect));
         let suggestion = &popup.suggestions[popup.visible[popup.scroll + row_index]];
@@ -585,7 +585,7 @@ fn recent_dropdown_lists_queries_and_empty_state() {
     state.recent_dropdown = Some(0);
     let (buffer, _) = draw(&app, &mut state, &default_values(), 120, 40);
     assert!(screen(&buffer).contains("No recent searches yet"));
-    assert!(state.recent_rects.is_empty());
+    assert_eq!(state.recent_rects.len(), 0);
 }
 
 /// Stale rects from a previous frame are cleared when their widgets disappear.
@@ -601,8 +601,8 @@ fn hit_rects_are_cleared_each_frame() {
     draw(&app, &mut state, &values, 120, 40);
     assert!(state.record_button_rect.is_none());
     assert!(state.popup_rect.is_none());
-    assert!(state.popup_choice_rects.is_empty());
-    assert!(!state.row_rects.is_empty());
+    assert_eq!(state.popup_choice_rects.len(), 0);
+    assert_ne!(state.row_rects.len(), 0);
 }
 
 /// Translation keys the renderer and footer resolve under `app.modals.config_editor.`.
@@ -807,7 +807,7 @@ fn regression_narrow_tab_strip_keeps_active_visible() {
             let text = rect_text(&buffer, *rect);
             assert!(text.starts_with('[') && text.ends_with(']'), "{text}");
             for (_, rect) in &state.tab_rects {
-                assert!(!rect_text(&buffer, *rect).trim().is_empty());
+                assert_ne!(rect_text(&buffer, *rect).trim().len(), 0);
                 assert!(rect.0 + rect.2 <= width);
             }
         }

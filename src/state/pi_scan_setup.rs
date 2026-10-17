@@ -1050,7 +1050,7 @@ mod tests {
         assert_eq!(wizard.original_consent, consent);
         assert!(!wizard.candidate.background_enabled);
         assert!(!wizard.candidate_consent.background_observation);
-        assert!(wizard.candidate.fallback_models.is_empty());
+        assert_eq!(wizard.candidate.fallback_models.len(), 0);
         assert_eq!(wizard.candidate.thinking, "medium");
         assert_eq!(wizard.candidate.background_cost_cap_24h, "0.00");
     }
@@ -1099,7 +1099,7 @@ mod tests {
         assert_eq!(wizard.step, PiScanSetupStep::OptionalBehavior);
         assert!(!wizard.candidate_consent.background_observation);
         assert!(!wizard.candidate_consent.paid_execution);
-        assert!(wizard.candidate.fallback_models.is_empty());
+        assert_eq!(wizard.candidate.fallback_models.len(), 0);
         wizard.next(false);
         assert!(matches!(
             wizard.pending_action,
@@ -1200,7 +1200,7 @@ mod tests {
         assert_eq!(wizard.candidate.fallback_models, "provider-d/model-d");
         wizard.cycle_route(false);
         assert_eq!(wizard.candidate.model, "model-d");
-        assert!(wizard.candidate.fallback_models.is_empty());
+        assert_eq!(wizard.candidate.fallback_models.len(), 0);
         assert!(!wizard.confirmations.fallback_confirmed);
     }
 

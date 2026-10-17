@@ -77,6 +77,9 @@ mod tests {
     fn empty_when_no_official_sibling() {
         let catalog = vec![aur("foo")];
         let install = vec![aur("foo")];
-        assert!(aur_pkgnames_also_in_official_catalog(&install, &catalog).is_empty());
+        assert_eq!(
+            aur_pkgnames_also_in_official_catalog(&install, &catalog).len(),
+            0
+        );
     }
 }

@@ -27,7 +27,7 @@ fn test_render_header_chips_minimal() {
         risk_score: 0,
     };
     let line = render_header_chips(&app, &chips);
-    assert!(!line.spans.is_empty());
+    assert_ne!(line.spans.len(), 0);
 }
 
 /// What: Test `render_header_chips` with AUR packages.
@@ -53,7 +53,7 @@ fn test_render_header_chips_with_aur() {
         risk_score: 5,
     };
     let line = render_header_chips(&app, &chips);
-    assert!(!line.spans.is_empty());
+    assert_ne!(line.spans.len(), 0);
     // Verify AUR count is mentioned in the output
     let line_text: String = line
         .spans
@@ -87,7 +87,7 @@ fn test_render_header_chips_positive_delta() {
         risk_score: 1,
     };
     let line = render_header_chips(&app, &chips);
-    assert!(!line.spans.is_empty());
+    assert_ne!(line.spans.len(), 0);
 }
 
 /// What: Test `render_header_chips` with negative install delta.
@@ -113,7 +113,7 @@ fn test_render_header_chips_negative_delta() {
         risk_score: 1,
     };
     let line = render_header_chips(&app, &chips);
-    assert!(!line.spans.is_empty());
+    assert_ne!(line.spans.len(), 0);
 }
 
 /// What: Test `render_header_chips` with zero install delta.
@@ -139,7 +139,7 @@ fn test_render_header_chips_zero_delta() {
         risk_score: 1,
     };
     let line = render_header_chips(&app, &chips);
-    assert!(!line.spans.is_empty());
+    assert_ne!(line.spans.len(), 0);
 }
 
 /// What: Test `render_header_chips` with different risk levels.
@@ -167,7 +167,7 @@ fn test_render_header_chips_risk_levels() {
         risk_score: 1,
     };
     let line_low = render_header_chips(&app, &chips_low);
-    assert!(!line_low.spans.is_empty());
+    assert_ne!(line_low.spans.len(), 0);
 
     // Test Medium risk
     let chips_medium = PreflightHeaderChips {
@@ -179,7 +179,7 @@ fn test_render_header_chips_risk_levels() {
         risk_score: 5,
     };
     let line_medium = render_header_chips(&app, &chips_medium);
-    assert!(!line_medium.spans.is_empty());
+    assert_ne!(line_medium.spans.len(), 0);
 
     // Test High risk
     let chips_high = PreflightHeaderChips {
@@ -191,5 +191,5 @@ fn test_render_header_chips_risk_levels() {
         risk_score: 10,
     };
     let line_high = render_header_chips(&app, &chips_high);
-    assert!(!line_high.spans.is_empty());
+    assert_ne!(line_high.spans.len(), 0);
 }

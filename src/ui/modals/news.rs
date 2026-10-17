@@ -600,10 +600,10 @@ mod tests {
         };
 
         let line = format_news_item(&item, false, false, false);
-        assert!(!line.spans.is_empty());
+        assert_ne!(line.spans.len(), 0);
 
         let line_critical = format_news_item(&item, false, false, true);
-        assert!(!line_critical.spans.is_empty());
+        assert_ne!(line_critical.spans.len(), 0);
     }
 
     #[test]

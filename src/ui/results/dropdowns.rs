@@ -30,7 +30,7 @@ fn calculate_menu_dimensions(
 ) -> (u16, u16, u16) {
     let widest = opts
         .iter()
-        .map(|s| u16::try_from(s.width()).map_or(u16::MAX, |x| x))
+        .map(|s| u16::try_from(s.width()).unwrap_or(u16::MAX))
         .max()
         .unwrap_or(0);
     let max_num_width = u16::try_from(format!("{}", opts.len()).len()).unwrap_or(u16::MAX);
@@ -288,7 +288,7 @@ fn render_config_menu(
 
     let widest = opts
         .iter()
-        .map(|s| u16::try_from(s.width()).map_or(u16::MAX, |x| x))
+        .map(|s| u16::try_from(s.width()).unwrap_or(u16::MAX))
         .max()
         .unwrap_or(0);
     let (w, h, max_num_width) = calculate_menu_dimensions(&opts, results_area, 0);
@@ -368,7 +368,7 @@ fn render_panels_menu(
 
     let widest = opts
         .iter()
-        .map(|s| u16::try_from(s.width()).map_or(u16::MAX, |x| x))
+        .map(|s| u16::try_from(s.width()).unwrap_or(u16::MAX))
         .max()
         .unwrap_or(0);
     let (w, h, max_num_width) = calculate_menu_dimensions(&opts, results_area, 0);
@@ -456,7 +456,7 @@ fn render_options_menu(
     let opts = options_menu_labels(app);
     let widest = opts
         .iter()
-        .map(|s| u16::try_from(s.width()).map_or(u16::MAX, |x| x))
+        .map(|s| u16::try_from(s.width()).unwrap_or(u16::MAX))
         .max()
         .unwrap_or(0);
     let (w, h, max_num_width) = calculate_menu_dimensions(&opts, results_area, 0);
@@ -545,7 +545,7 @@ fn render_artix_filter_menu(
 
     let widest = opts
         .iter()
-        .map(|(s, _)| u16::try_from(s.width()).map_or(u16::MAX, |x| x))
+        .map(|(s, _)| u16::try_from(s.width()).unwrap_or(u16::MAX))
         .max()
         .unwrap_or(0);
     let w = widest
@@ -610,7 +610,7 @@ fn render_collapsed_menu(
 
     let widest = opts
         .iter()
-        .map(|s| u16::try_from(s.width()).map_or(u16::MAX, |x| x))
+        .map(|s| u16::try_from(s.width()).unwrap_or(u16::MAX))
         .max()
         .unwrap_or(0);
     let (w, h, max_num_width) = calculate_menu_dimensions(&opts, results_area, 0);
@@ -725,7 +725,7 @@ fn render_custom_repos_filter_menu(
 
     let widest = opts
         .iter()
-        .map(|(s, _)| u16::try_from(s.width()).map_or(u16::MAX, |x| x))
+        .map(|(s, _)| u16::try_from(s.width()).unwrap_or(u16::MAX))
         .max()
         .unwrap_or(0);
     let w = widest

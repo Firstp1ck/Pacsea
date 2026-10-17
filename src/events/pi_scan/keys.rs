@@ -1218,7 +1218,7 @@ mod tests {
         ));
         let wizard = app.pi_scan.wizard.as_ref().expect("wizard");
         assert!(wizard.pending_action.is_none());
-        assert!(!wizard.validation_issues.is_empty());
+        assert_ne!(wizard.validation_issues.len(), 0);
     }
 
     /// Readiness Enter must queue only the correlated inert probe action.

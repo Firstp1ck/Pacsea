@@ -347,7 +347,7 @@ fn integration_custom_command_empty() {
 
     match request {
         ExecutorRequest::CustomCommand { command, .. } => {
-            assert!(command.is_empty());
+            assert_eq!(command.len(), 0);
         }
         _ => panic!("Expected ExecutorRequest::CustomCommand"),
     }

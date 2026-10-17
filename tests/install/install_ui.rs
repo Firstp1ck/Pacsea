@@ -211,7 +211,7 @@ fn ui_preflight_exec_empty_logs() {
             log_lines: ref logs,
             ..
         } => {
-            assert!(logs.is_empty());
+            assert_eq!(logs.len(), 0);
         }
         _ => panic!("Expected PreflightExec modal"),
     }

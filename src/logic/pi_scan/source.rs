@@ -803,7 +803,7 @@ fn inspect_zip(context: &mut InspectionContext, bytes: &[u8]) -> Result<(), Insp
         ) {
             return Err(incomplete(format!(
                 "unsupported ZIP compression for `{}`",
-                entry.name()
+                String::from_utf8_lossy(entry.name_raw())
             )));
         }
         let raw_name = std::str::from_utf8(entry.name_raw())

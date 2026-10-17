@@ -4348,7 +4348,7 @@ mod tests {
         );
 
         assert!(!app.pi_scan.runtime.consent.background_observation);
-        assert!(app.pi_scan.runtime.budget.records.is_empty());
+        assert_eq!(app.pi_scan.runtime.budget.records.len(), 0);
         assert!(
             !app.pi_scan
                 .runtime

@@ -222,7 +222,7 @@ fn integration_network_error_recovery() {
             success, log_lines, ..
         } => {
             assert_eq!(success, Some(false));
-            assert!(!log_lines.is_empty());
+            assert_ne!(log_lines.len(), 0);
             assert!(log_lines[0].contains("ERROR:"));
         }
         _ => panic!("Expected PreflightExec modal"),

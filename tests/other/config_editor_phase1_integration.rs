@@ -467,9 +467,9 @@ fn config_editor_tabs_starred_recents_and_escape() {
     );
     assert_eq!(app.config_editor_state.recent_dropdown, Some(0));
     send_key(&mut app, KeyCode::Esc, KeyModifiers::NONE, &channels);
-    assert!(!app.config_editor_state.query.is_empty());
+    assert_ne!(app.config_editor_state.query.len(), 0);
     send_key(&mut app, KeyCode::Esc, KeyModifiers::NONE, &channels);
-    assert!(app.config_editor_state.query.is_empty());
+    assert_eq!(app.config_editor_state.query.len(), 0);
     send_key(&mut app, KeyCode::Esc, KeyModifiers::NONE, &channels);
     assert_eq!(app.app_mode, AppMode::Package);
 }
@@ -597,8 +597,8 @@ fn config_editor_explicit_persistence_loading() {
     )
     .expect("bookmarks");
     let transient = pacsea::state::ConfigEditorState::default();
-    assert!(transient.recent_queries.is_empty());
-    assert!(transient.bookmarked_keys.is_empty());
+    assert_eq!(transient.recent_queries.len(), 0);
+    assert_eq!(transient.bookmarked_keys.len(), 0);
     let mut app = AppState::default();
     assert_eq!(app.config_editor_state.recent_queries, ["mirror", "news"]);
     assert_eq!(app.config_editor_state.bookmarked_keys, ["sort_mode"]);

@@ -377,7 +377,7 @@ mod pi_scan_budget_validation_tests {
             let options = pi_scan_runtime_options_for_settings(&settings, false);
             assert!(!options.enabled);
             assert!(options.production.is_none());
-            assert!(!settings.validation_issues().is_empty());
+            assert_ne!(settings.validation_issues().len(), 0);
         }
     }
 }

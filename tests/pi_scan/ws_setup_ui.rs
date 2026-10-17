@@ -103,7 +103,7 @@ fn keyboard_flow_reaches_apply_with_independent_defaults() {
     assert_eq!(wizard.step, PiScanSetupStep::OptionalBehavior);
     assert!(!wizard.candidate_consent.background_observation);
     assert!(!wizard.candidate_consent.paid_execution);
-    assert!(wizard.candidate.fallback_models.is_empty());
+    assert_eq!(wizard.candidate.fallback_models.len(), 0);
     wizard.next(false);
     assert!(matches!(
         wizard.pending_action,

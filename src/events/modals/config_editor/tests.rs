@@ -411,7 +411,7 @@ fn list_keys_tabs_recents_and_escape_ladder() {
     handle_config_editor_mode_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE), &mut app);
     assert_eq!(app.config_editor_state.query, "news");
     handle_config_editor_mode_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE), &mut app);
-    assert!(app.config_editor_state.query.is_empty());
+    assert_eq!(app.config_editor_state.query.len(), 0);
     assert_eq!(app.app_mode, crate::state::types::AppMode::ConfigEditor);
     handle_config_editor_mode_key(
         KeyEvent::new(KeyCode::Char('b'), KeyModifiers::CONTROL),

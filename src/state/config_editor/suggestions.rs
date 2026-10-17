@@ -496,7 +496,7 @@ mod tests {
                 .iter()
                 .any(|value| value.tags.contains(&SuggestionTag::AutoDetect))
         );
-        assert!(candidates("virustotal_api_key", &ctx).is_empty());
+        assert_eq!(candidates("virustotal_api_key", &ctx).len(), 0);
     }
 
     /// Known strings, durations, optional days, palette, and bindings receive useful presets.

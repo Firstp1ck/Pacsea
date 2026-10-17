@@ -509,7 +509,7 @@ fallbacks:
         // Test with invalid locale format
         let result = resolve_locale("invalid-format-", &config_path);
         // Should fallback to system/default (may vary based on environment)
-        assert!(!result.is_empty());
+        assert_ne!(result.len(), 0);
     }
 
     #[test]
@@ -527,10 +527,10 @@ fallbacks:
         // Test with empty settings (should auto-detect or use default)
         let result = resolve_locale("", &config_path);
         // Result depends on system locale, but should not be empty
-        assert!(!result.is_empty());
+        assert_ne!(result.len(), 0);
 
         // Test with whitespace-only settings
         let result = resolve_locale("   ", &config_path);
-        assert!(!result.is_empty());
+        assert_ne!(result.len(), 0);
     }
 }

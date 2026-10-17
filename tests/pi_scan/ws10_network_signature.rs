@@ -187,7 +187,7 @@ fn ws10_mixed_public_private_dns_is_rejected_before_contact() {
     )
     .expect_err("mixed answer must fail");
     assert!(matches!(error, AcquisitionError::Network { .. }));
-    assert!(http.requests.is_empty());
+    assert_eq!(http.requests.len(), 0);
 }
 
 #[test]
@@ -212,7 +212,7 @@ fn ws10_nat64_embedded_private_destination_is_rejected_before_contact() {
     )
     .expect_err("NAT64 private embedding must fail");
     assert!(matches!(error, AcquisitionError::Network { .. }));
-    assert!(http.requests.is_empty());
+    assert_eq!(http.requests.len(), 0);
 }
 
 #[test]

@@ -226,8 +226,8 @@ fn regression_default_state_is_in_memory_only() {
     let state = ConfigEditorState::default();
     assert!(state.recent_queries_path.as_os_str().is_empty());
     assert!(state.bookmarked_keys_path.as_os_str().is_empty());
-    assert!(state.recent_queries.is_empty());
-    assert!(state.bookmarked_keys.is_empty());
+    assert_eq!(state.recent_queries.len(), 0);
+    assert_eq!(state.bookmarked_keys.len(), 0);
 }
 
 /// Proxy validation matches the runtime's HTTPS and userinfo restrictions.

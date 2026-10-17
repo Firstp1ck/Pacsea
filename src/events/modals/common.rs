@@ -2297,7 +2297,7 @@ mod tests {
         let now = Instant::now();
         let expired = now
             .checked_sub(UPDATES_GG_TIMEOUT + Duration::from_millis(50))
-            .map_or(now, |instant| instant);
+            .unwrap_or(now);
         app.updates_modal_pending_g_at = Some(expired);
 
         let _ = handle_updates(
@@ -2671,7 +2671,7 @@ mod tests {
             &mut selected_pkg_names,
         );
         assert!(!filter_active);
-        assert!(filter_query.is_empty());
+        assert_eq!(filter_query.len(), 0);
         assert_eq!(filter_caret, 0);
         assert_eq!(filtered_indices, vec![0]);
     }
@@ -2720,7 +2720,7 @@ mod tests {
 
         assert_eq!(selected, 1);
         assert_eq!(last_selected_pkg_name, Some("beta".to_string()));
-        assert!(!filtered_indices.is_empty());
+        assert_ne!(filtered_indices.len(), 0);
     }
 
     #[test]
@@ -2749,7 +2749,7 @@ mod tests {
         let mut filtered_indices =
             crate::events::utils::compute_updates_filtered_indices(&entries, &filter_query);
         let mut selected_pkg_names = std::collections::HashSet::new();
-        assert!(filtered_indices.is_empty());
+        assert_eq!(filtered_indices.len(), 0);
 
         let _ = handle_updates(
             test_key_event(KeyCode::Down),
@@ -2767,7 +2767,7 @@ mod tests {
 
         assert!(filter_active);
         assert_eq!(filter_query, "zzz");
-        assert!(filtered_indices.is_empty());
+        assert_eq!(filtered_indices.len(), 0);
     }
 
     #[test]

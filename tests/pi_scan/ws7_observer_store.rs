@@ -868,10 +868,11 @@ fn retention_keeps_newest_and_baseline_and_prunes_only_expired_results() {
     assert!(!expired.exists(), "the expired result must be removed");
 
     // Repeating cleanup is idempotent and never fails on an already-removed document.
-    assert!(
+    assert_eq!(
         cleanup_expired_results(&results_root, "yay", &plan, &receipt)
             .expect("idempotent cleanup")
-            .is_empty()
+            .len(),
+        0
     );
 
     let _ = std::fs::remove_dir_all(&root);

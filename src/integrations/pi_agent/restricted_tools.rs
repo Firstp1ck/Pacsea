@@ -1377,7 +1377,7 @@ mod tests {
         );
         let catastrophic =
             grep_literal(&registry, "recipe", "(a+)+$", true, None).expect("grep runs");
-        assert!(catastrophic.matches.is_empty());
+        assert_eq!(catastrophic.matches.len(), 0);
 
         assert!(matches!(
             grep_literal(&registry, "recipe", "", true, None),

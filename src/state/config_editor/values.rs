@@ -434,7 +434,7 @@ mod tests {
         assert!(snapshot.is_modified(count));
         assert_eq!(snapshot.default_for(count), default);
         let key = crate::theme::find_setting("keybind_recent_remove").expect("binding");
-        assert!(!snapshot.extra_chords(key).is_empty());
+        assert_ne!(snapshot.extra_chords(key).len(), 0);
         assert_eq!(
             snapshot.value_for(crate::theme::find_setting("semantic_error").expect("color")),
             color_from_theme("semantic_error", &crate::theme::default_theme())

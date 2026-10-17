@@ -380,7 +380,7 @@ depends=('bash')
 ";
 
         let lines = highlight_pkgbuild(pkgbuild, &th);
-        assert!(!lines.is_empty());
+        assert_ne!(lines.len(), 0);
     }
 
     fn reset_cache() {

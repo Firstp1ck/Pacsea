@@ -420,14 +420,15 @@ mod tests {
             &comments_tx,
             &pkgb_check_tx,
         ));
-        assert!(
+        assert_eq!(
             app.pi_scan
                 .wizard
                 .as_ref()
                 .expect("wizard")
                 .candidate
                 .binary
-                .is_empty()
+                .len(),
+            0
         );
         assert!(matches!(app.modal, crate::state::Modal::ClosingPiScan));
     }

@@ -259,9 +259,9 @@ fn updates_navigation_keys_are_safe_when_empty() {
             filtered_indices,
             ..
         } => {
-            assert!(entries.is_empty());
+            assert_eq!(entries.len(), 0);
             assert_eq!(*selected, 0);
-            assert!(filtered_indices.is_empty());
+            assert_eq!(filtered_indices.len(), 0);
         }
         _ => panic!("Expected Updates modal to remain active"),
     }

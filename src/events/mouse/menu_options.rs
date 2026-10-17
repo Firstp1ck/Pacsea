@@ -233,7 +233,7 @@ fn build_terminal_rows(app: &AppState, rows: &mut Vec<crate::state::types::Optio
 /// - Checks `KDE_FULL_SESSION`, `XDG_CURRENT_DESKTOP`, and `klipper` command
 fn is_kde_session() -> bool {
     std::env::var("KDE_FULL_SESSION").is_ok()
-        || std::env::var("XDG_CURRENT_DESKTOP").ok().is_some_and(|v| {
+        || std::env::var("XDG_CURRENT_DESKTOP").is_ok_and(|v| {
             let u = v.to_uppercase();
             u.contains("KDE") || u.contains("PLASMA")
         })
