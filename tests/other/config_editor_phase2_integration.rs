@@ -91,10 +91,7 @@ fn send_key(app: &mut AppState, code: KeyCode, mods: KeyModifiers, channels: &Ev
 
 /// What: Navigate to the keybind file row and open its key list.
 fn enter_keybinds_file(app: &mut AppState, channels: &EventChannels) {
-    // File list cursor starts at 0 (settings); press Down once to reach
-    // keybinds.conf, then Enter on empty query opens its key list.
-    send_key(app, KeyCode::Down, KeyModifiers::NONE, channels);
-    send_key(app, KeyCode::Enter, KeyModifiers::NONE, channels);
+    send_key(app, KeyCode::Tab, KeyModifiers::NONE, channels);
 }
 
 /// What: Type a query string into the editor's middle pane.
@@ -310,4 +307,56 @@ fn config_editor_phase2_conflict_blocks_save_and_leaves_file_unchanged() {
         status.contains("Conflict") && status.contains("keybind_search_normal_select_left"),
         "expected conflict status naming keybind_search_normal_select_left, got: {status}"
     );
+}
+
+/// Clicking Record captures a chord and Enter saves it through the public event loop.
+#[test]
+fn config_editor_record_button_capture_and_enter_save() {
+    use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+    let home = unique_test_home("record_button");
+    let _guard = EnvGuard::new(home.clone());
+    let kb_path = home.join(".config/pacsea/keybinds.conf");
+    fs::write(&kb_path, "keybind_reload_config = CTRL+R\n").expect("seed");
+    let mut app = AppState {
+        app_mode: AppMode::ConfigEditor,
+        ..AppState::default()
+    };
+    let channels = build_event_channels();
+    enter_keybinds_file(&mut app, &channels);
+    type_query(&mut app, &channels, "keybind_reload_config");
+    send_key(&mut app, KeyCode::Enter, KeyModifiers::NONE, &channels);
+    assert!(matches!(
+        app.config_editor_state.popup.as_ref().expect("popup").kind,
+        pacsea::state::EditPopupKind::KeyChord { capturing: false }
+    ));
+    app.config_editor_state.record_button_rect = Some((4, 10, 10, 1));
+    let click = CEvent::Mouse(MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: 5,
+        row: 10,
+        modifiers: KeyModifiers::NONE,
+    });
+    handle_event(
+        &click,
+        &mut app,
+        &channels.query_tx,
+        &channels.details_tx,
+        &channels.preview_tx,
+        &channels.add_tx,
+        &channels.pkgb_tx,
+        &channels.comments_tx,
+        &channels.pkgb_check_tx,
+    );
+    assert!(matches!(
+        app.config_editor_state.popup.as_ref().expect("popup").kind,
+        pacsea::state::EditPopupKind::KeyChord { capturing: true }
+    ));
+    send_key(&mut app, KeyCode::F(9), KeyModifiers::NONE, &channels);
+    send_key(&mut app, KeyCode::Enter, KeyModifiers::NONE, &channels);
+    assert!(
+        fs::read_to_string(kb_path)
+            .expect("saved")
+            .contains("keybind_reload_config = F9")
+    );
+    assert_eq!(app.app_mode, AppMode::ConfigEditor);
 }

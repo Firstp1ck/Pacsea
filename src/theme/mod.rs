@@ -43,6 +43,7 @@ pub use config::{
 pub use paths::{
     config_dir, lists_dir, logs_dir, resolve_repos_config_path, set_config_dir_override,
 };
+pub use resolve::default_theme;
 pub use settings::settings;
 pub use store::{reload_theme, theme};
 pub(crate) use types::format_pi_scan_budget_microusd;

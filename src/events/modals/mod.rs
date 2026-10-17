@@ -5,7 +5,7 @@ mod common;
 mod config_editor;
 pub(super) use config_editor::build_initial_state as build_config_editor_state;
 pub(in crate::events) use config_editor::{
-    handle_config_editor_mode_key, handle_config_editor_popup_click,
+    handle_config_editor_mode_key, handle_config_editor_mouse,
 };
 /// Key handling for the optional doas persist setup wizard modal.
 mod doas_persist_setup;

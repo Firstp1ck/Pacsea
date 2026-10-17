@@ -194,17 +194,7 @@ fn build_editor_rows(app: &AppState, rows: &mut Vec<crate::state::types::Optiona
 /// Details:
 /// - Shows first installed terminal, or all candidates if none installed
 fn build_terminal_rows(app: &AppState, rows: &mut Vec<crate::state::types::OptionalDepRow>) {
-    let term_candidates: &[(&str, &str)] = &[
-        ("alacritty", "alacritty"),
-        ("ghostty", "ghostty"),
-        ("kitty", "kitty"),
-        ("xterm", "xterm"),
-        ("gnome-terminal", "gnome-terminal"),
-        ("konsole", "konsole"),
-        ("xfce4-terminal", "xfce4-terminal"),
-        ("tilix", "tilix"),
-        ("mate-terminal", "mate-terminal"),
-    ];
+    let term_candidates = crate::state::config_editor::suggestions::TERMINAL_CANDIDATES;
 
     if let Some((bin, pkg)) = find_first_installed_candidate(term_candidates) {
         let installed = is_tool_installed(pkg, bin);

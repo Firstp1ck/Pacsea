@@ -1,0 +1,1040 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>Config editor UX — feature report</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b1220;
+      --panel: #121c2d;
+      --panel-2: #18253a;
+      --text: #e8eef8;
+      --muted: #a9b7cb;
+      --line: #2b3b55;
+      --green: #50d890;
+      --yellow: #f7c65c;
+      --red: #ff7373;
+      --blue: #65b5ff;
+      --code: #07101c;
+      --radius-lg: 16px;
+      --radius-md: 12px;
+      --shadow: 0 14px 36px rgb(0 0 0 / 22%);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: radial-gradient(circle at 15% 0%, #142848 0, transparent 35rem), var(--bg);
+      color: var(--text);
+      font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    a { color: var(--blue); }
+    a:focus-visible, button:focus-visible, summary:focus-visible {
+      outline: 3px solid color-mix(in srgb, var(--blue) 72%, white);
+      outline-offset: 3px;
+    }
+    .skip-link {
+      position: fixed;
+      z-index: 20;
+      top: 8px;
+      left: 8px;
+      transform: translateY(-160%);
+      background: var(--blue);
+      color: #06111f;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-weight: 800;
+    }
+    .skip-link:focus { transform: none; }
+    main { width: min(1120px, calc(100% - 32px)); margin: 36px auto 64px; }
+    header, .report-section {
+      background: color-mix(in srgb, var(--panel) 94%, transparent);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+    }
+    header { padding: 30px; margin-bottom: 20px; }
+    .report-section { padding: 24px; margin: 18px 0; }
+    h1, h2, h3 { line-height: 1.25; margin-top: 0; }
+    h1 { font-size: clamp(1.9rem, 5vw, 3rem); margin-bottom: 8px; letter-spacing: -.025em; }
+    h2 { font-size: 1.45rem; border-bottom: 1px solid var(--line); padding-bottom: 10px; }
+    h3 { font-size: 1.08rem; margin-bottom: 6px; }
+    p { margin: 8px 0 14px; }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    code { background: var(--code); padding: .12em .38em; border-radius: 5px; }
+    pre {
+      background: var(--code);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 14px;
+      overflow-x: auto;
+      color: #d9e6f7;
+      white-space: pre-wrap;
+    }
+    .muted { color: var(--muted); }
+    .lead { font-size: 1.1rem; max-width: 80ch; }
+    .report-tools, .detail-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-top: 14px;
+    }
+    [data-enhanced-control] { display: none; }
+    .interactions-ready [data-enhanced-control] { display: flex; }
+    .action-button {
+      appearance: none;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: var(--panel-2);
+      color: var(--text);
+      padding: 8px 12px;
+      min-height: 42px;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .action-button:hover:not(:disabled) { border-color: var(--blue); background: rgb(101 181 255 / 12%); }
+    .action-button:disabled { cursor: not-allowed; opacity: .55; }
+    pre.copyable { position: relative; padding-top: 52px; }
+    .copy-button { position: absolute; top: 8px; right: 8px; min-height: 34px; padding: 5px 10px; font-size: .86rem; }
+    .status-region {
+      position: fixed;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    .reading-progress {
+      position: fixed;
+      z-index: 30;
+      inset: 0 0 auto;
+      height: 4px;
+      background: rgb(101 181 255 / 12%);
+      pointer-events: none;
+    }
+    .reading-progress > span {
+      display: block;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, var(--blue), var(--green));
+      transform: scaleX(0);
+      transform-origin: left center;
+    }
+    .search-tools {
+      display: flex;
+      flex: 1 1 100%;
+      flex-wrap: wrap;
+      gap: 7px;
+      align-items: center;
+      padding-top: 4px;
+    }
+    .search-label { color: var(--muted); font-weight: 700; }
+    .report-search {
+      flex: 1 1 220px;
+      min-width: 150px;
+      min-height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: var(--code);
+      color: var(--text);
+      padding: 8px 11px;
+      font: inherit;
+    }
+    .report-search:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+    .search-count { min-width: 78px; color: var(--muted); font-size: .86rem; font-variant-numeric: tabular-nums; }
+    mark.report-match { background: rgb(247 198 92 / 48%); color: inherit; border-radius: 3px; padding: 0 .08em; }
+    mark.report-match.current { background: var(--yellow); color: #111; outline: 2px solid var(--yellow); outline-offset: 2px; }
+    .reader-nav {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin: 18px 0 6px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+    .reader-nav-group { display: flex; flex-wrap: wrap; gap: 8px; }
+    .reader-nav-status { color: var(--muted); font-weight: 700; font-variant-numeric: tabular-nums; }
+    [role="tab"].is-complete::after { content: " ✓"; color: var(--green); }
+    .back-to-top {
+      position: fixed;
+      z-index: 15;
+      right: 18px;
+      bottom: 18px;
+      min-width: 44px;
+      opacity: 0;
+      transform: translateY(12px);
+      pointer-events: none;
+      transition: opacity .18s ease, transform .18s ease;
+    }
+    .back-to-top.is-visible { opacity: 1; transform: none; pointer-events: auto; }
+    .focus-reading main { width: min(780px, calc(100% - 28px)); max-width: 780px; margin-inline: auto; }
+    .focus-reading [role="tablist"] { position: static; width: auto; height: auto; flex-direction: row; }
+    .focus-reading .report-section, .focus-reading header { box-shadow: none; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+    .metric, .finding, .step, .visual-card {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      padding: 16px;
+    }
+    .metric strong { display: block; font-size: 1.35rem; }
+    .badge {
+      display: inline-block;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: .78rem;
+      font-weight: 750;
+      letter-spacing: .035em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .good { color: var(--green); }
+    .warn { color: var(--yellow); }
+    .bad { color: var(--red); }
+    .info { color: var(--blue); }
+    .badge.good { background: rgb(80 216 144 / 14%); border: 1px solid rgb(80 216 144 / 38%); }
+    .badge.warn { background: rgb(247 198 92 / 14%); border: 1px solid rgb(247 198 92 / 38%); }
+    .badge.bad { background: rgb(255 115 115 / 14%); border: 1px solid rgb(255 115 115 / 38%); }
+    .badge.info { background: rgb(101 181 255 / 14%); border: 1px solid rgb(101 181 255 / 38%); }
+    .callout {
+      border-left: 5px solid var(--yellow);
+      background: rgb(247 198 92 / 8%);
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin: 14px 0;
+    }
+    .callout.info-callout { border-left-color: var(--blue); background: rgb(101 181 255 / 8%); }
+    .table-wrap { overflow-x: auto; border-radius: 10px; }
+    table { width: 100%; border-collapse: collapse; min-width: 620px; }
+    th, td { text-align: left; vertical-align: top; padding: 11px 9px; border-bottom: 1px solid var(--line); }
+    th { color: var(--muted); font-size: .86rem; text-transform: uppercase; letter-spacing: .04em; }
+    tbody tr:hover { background: rgb(101 181 255 / 5%); }
+    .tabs-shell { margin-top: 18px; }
+    [role="tablist"] {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 8px;
+      margin: 0 0 18px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgb(7 16 28 / 72%);
+      scrollbar-width: thin;
+    }
+    [role="tab"] {
+      appearance: none;
+      border: 1px solid transparent;
+      border-radius: 9px;
+      background: transparent;
+      color: var(--muted);
+      padding: 9px 13px;
+      white-space: nowrap;
+      font: inherit;
+      font-weight: 750;
+      cursor: pointer;
+    }
+    [role="tab"][aria-selected="true"] {
+      color: var(--text);
+      border-color: rgb(101 181 255 / 45%);
+      background: rgb(101 181 255 / 14%);
+    }
+    [role="tabpanel"] { scroll-margin-top: 16px; }
+    .tabs-ready [role="tabpanel"][hidden] { display: none; }
+    ol.steps { list-style: none; padding: 0; counter-reset: steps; }
+    ol.steps > li { counter-increment: steps; margin: 14px 0; }
+    ol.steps > li::before {
+      content: counter(steps);
+      float: left;
+      display: grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      margin: 1px 12px 0 0;
+      border-radius: 50%;
+      background: var(--blue);
+      color: #06111f;
+      font-weight: 800;
+    }
+    .step { overflow: hidden; }
+    figure { margin: 18px 0; }
+    figure svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      background: var(--code);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+    }
+    figcaption { color: var(--muted); margin-top: 8px; font-size: .92rem; }
+    .chart-grid { stroke: #26374f; stroke-width: 1; }
+    .chart-axis { fill: var(--muted); font: 13px system-ui, sans-serif; }
+    .chart-label { fill: var(--text); font: 600 14px system-ui, sans-serif; }
+    .bar-blue { fill: var(--blue); }
+    .bar-yellow { fill: var(--yellow); }
+    .node { fill: #182b43; stroke: var(--blue); stroke-width: 2; }
+    .node-text { fill: var(--text); font: 650 14px system-ui, sans-serif; text-anchor: middle; }
+    .edge { fill: none; stroke: var(--muted); stroke-width: 2.5; marker-end: url(#arrow); }
+    details { border-top: 1px solid var(--line); padding-top: 10px; margin-top: 10px; }
+    summary { cursor: pointer; color: var(--blue); font-weight: 700; }
+    .confidence { font-variant-numeric: tabular-nums; }
+    footer { color: var(--muted); margin-top: 24px; font-size: .9rem; }
+    @media (max-width: 620px) {
+      main { width: min(100% - 18px, 1120px); margin-top: 10px; }
+      header, .report-section { padding: 18px; }
+      .report-tools > .action-button { flex: 1 1 145px; }
+      .search-tools .action-button { flex: 1 1 100px; }
+      .reader-nav { align-items: stretch; }
+      .reader-nav-status { flex: 1 1 100%; text-align: center; }
+      .reader-nav-group { flex: 1 1 auto; }
+      .reader-nav-group .action-button { flex: 1 1 110px; }
+      [role="tablist"] { position: sticky; top: 0; z-index: 5; }
+      .chart-axis { font-size: 11px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
+    }
+    @media print {
+      :root { color-scheme: light; }
+      body { background: white; color: #111; }
+      main { width: 100%; margin: 0; }
+      header, .report-section, .metric, .finding, .step, .visual-card {
+        box-shadow: none;
+        background: white;
+        color: #111;
+        border-color: #bbb;
+        break-inside: avoid;
+      }
+      [role="tablist"], .skip-link, .report-tools, .detail-controls, .copy-button, .status-region, .reading-progress, .reader-nav, .back-to-top { display: none !important; }
+      [role="tabpanel"], [role="tabpanel"][hidden] { display: block !important; }
+      [role="tabpanel"] { break-before: auto; }
+      pre, code, figure svg { color: #111; background: #f1f3f5; border-color: #bbb; }
+      .muted, figcaption, footer { color: #444; }
+      a { color: #111; text-decoration: underline; }
+      figure { break-inside: avoid; }
+    }
+  
+    pre.frame { white-space: pre; overflow-x: auto; font-size: 12px; line-height: 1.25; padding: 12px; }
+    .frame-note { color: var(--muted); font-size: .9rem; }
+    .kbd { display:inline-block; border:1px solid var(--line); border-bottom-width:2px; border-radius:6px; padding:0 .4em; background:var(--code); font: .86rem ui-monospace, monospace; }
+    td code { white-space: nowrap; }
+    .finding code { overflow-wrap: anywhere; word-break: break-all; }
+    .legend { display:flex; gap:16px; flex-wrap:wrap; color:var(--muted); font-size:.9rem; margin-top:6px; }
+    .legend span::before { content:""; display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:6px; vertical-align:-1px; }
+    .legend .l-acc::before { background: var(--green); }
+    .legend .l-rej::before { background: var(--muted); }
+    .bar-green { fill: var(--green); }
+    .bar-gray { fill: #6b7a90; }
+    .node-alt { fill: #1d2a1f; stroke: var(--green); stroke-width: 2; }
+    .node-rev { fill: #2a2416; stroke: var(--yellow); stroke-width: 2; }
+    .node-small { fill: var(--text); font: 500 12px system-ui, sans-serif; text-anchor: middle; }
+  </style>
+</head>
+
+<body>
+<div class="reading-progress" aria-hidden="true"><span></span></div>
+<a class="skip-link" href="#report-content">Skip to report content</a>
+<main id="report-content">
+  <header>
+    <span class="badge info">Feature report · complex workflow</span>
+    <h1>Integrated config editor: suggestions, keybind recording, denser layout</h1>
+    <p class="lead">Pacsea's in-TUI config editor (<code>AppMode::ConfigEditor</code>) was redesigned for usability on branch <code>feat/config-editor-ux</code> (worktree, based on local <code>feat/aur-scan-integrated</code> @ <code>29351805</code>). Evidence comes from the canonical plan, worker handoffs, two independent reviews, the integration owner's own check runs, and frames rendered through <code>pacsea::ui::ui</code> on a ratatui <code>TestBackend</code>.</p>
+    <div class="callout">
+      <strong>Conclusion:</strong> Every editable setting now opens a dropdown of suggestions with optional manual input, live validation and an explicit "Enter saves" preview. Keybinds can be recorded from a visible Record button. The editor uses file tabs, a grouped list with current values and modified markers, and a details pane. All 17 accepted review findings were fixed and revalidated. Final checks: <code>cargo fmt</code>, <code>clippy -D warnings</code> and <code>cargo check</code> clean, and <strong>2,040 tests passed, 0 failed</strong>. The work is staged, not committed.
+    </div>
+    <p class="muted confidence"><strong>Confidence:</strong> High for behavior covered by unit, render and integration tests. Not yet exercised in a live terminal with real mouse input. German strings have not had a native-speaker review; Hungarian uses English placeholders by project convention.</p>
+    <div class="report-tools" aria-label="Report actions" data-enhanced-control>
+      <button class="action-button" type="button" data-report-action="print">Print report</button>
+      <button class="action-button" type="button" data-report-action="copy-link">Copy current link</button>
+      <button class="action-button" type="button" data-report-action="focus-mode" aria-pressed="false">Focus reading</button>
+      <div class="search-tools" role="search" aria-label="Find in report">
+        <label class="search-label" for="report-search">Find</label>
+        <input class="report-search" id="report-search" type="search" placeholder="Search report (Alt+/)" autocomplete="off">
+        <button class="action-button" type="button" data-search-action="previous-match">Previous</button>
+        <button class="action-button" type="button" data-search-action="next-match">Next</button>
+        <button class="action-button" type="button" data-search-action="clear-search">Clear</button>
+        <span class="search-count" aria-live="polite">0 matches</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="tabs-shell">
+    <nav role="tablist" aria-label="Report sections">
+      <button id="tab-overview" role="tab" aria-selected="true" aria-controls="panel-overview" tabindex="0">Overview</button>
+      <button id="tab-design" role="tab" aria-selected="false" aria-controls="panel-design" tabindex="-1">Design &amp; usage</button>
+      <button id="tab-impl" role="tab" aria-selected="false" aria-controls="panel-impl" tabindex="-1">Implementation</button>
+      <button id="tab-verify" role="tab" aria-selected="false" aria-controls="panel-verify" tabindex="-1">Verification</button>
+      <button id="tab-review" role="tab" aria-selected="false" aria-controls="panel-review" tabindex="-1">Review findings</button>
+      <button id="tab-risks" role="tab" aria-selected="false" aria-controls="panel-risks" tabindex="-1">Risks &amp; next steps</button>
+    </nav>
+
+    <section class="report-section" id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
+      <h2>Overview</h2>
+      <div class="grid" aria-label="Headline metrics">
+        <div class="metric"><span class="badge good">Verified</span><strong>2,040 passed · 0 failed</strong><span class="muted">Full <code>cargo test -- --test-threads=1</code>, 17 ignored (pre-existing), run by the integration owner after the last edit.</span></div>
+        <div class="metric"><span class="badge info">Reviewed</span><strong>19 findings · 17 fixed</strong><span class="muted">Two independent reviews (Fable 5.1, Codex gpt-6.1-sol) plus parent notes; 2 rejected with rationale.</span></div>
+        <div class="metric"><span class="badge info">Scope</span><strong>48 files · +11,335 / −4,588</strong><span class="muted">Staged diff vs <code>HEAD</code>, including module splits (old single files deleted and re-created as directories) and ~1,500 locale lines.</span></div>
+        <div class="metric"><span class="badge warn">Not done</span><strong>No commit · no live run</strong><span class="muted">Changes are staged in the worktree. A manual terminal and mouse check is the next step.</span></div>
+      </div>
+      <h3 style="margin-top:22px">Report map</h3>
+      <div class="table-wrap">
+        <table data-overview>
+          <thead><tr><th>Area</th><th>What changed</th><th>Status</th><th>Evidence / next action</th></tr></thead>
+          <tbody>
+            <tr><td><a href="#panel-design">Layout</a></td><td>File tabs (settings · keybinds · theme · ★ Starred) replace the file-list screen; grouped list with values, ● modified and ↻ restart markers; details pane; stacked below 100 columns.</td><td><span class="good">Done</span></td><td>Rendered frames in Design &amp; usage; render tests.</td></tr>
+            <tr><td><a href="#panel-design">Suggestions</a></td><td>Every popup shows a dropdown: on/off, enum choices with descriptions, int presets with min/max/durations, colors with swatches and source names, terminals, countries, Pi routes/caps/proxy; free input where applicable; comma-list completion.</td><td><span class="good">Done</span></td><td>Suggestion unit tests; integration flows.</td></tr>
+            <tr><td><a href="#panel-design">Keybind recording</a></td><td>Manual text entry by default plus a clickable <code>● Record (Ctrl+K)</code> button; live conflict check per scope.</td><td><span class="good">Done</span></td><td>Capture and Record-button integration tests.</td></tr>
+            <tr><td><a href="#panel-impl">Architecture</a></td><td>State, events and renderer split into module directories; one value snapshot per frame; validation cached on edit.</td><td><span class="good">Done</span></td><td>Implementation map and diagram.</td></tr>
+            <tr><td><a href="#panel-verify">Verification</a></td><td>Two integrations with independent reruns; three regression-first defect fixes by the parent; 16 regression tests by the fix worker.</td><td><span class="good">Green</span></td><td>Check tables and workflow diagram.</td></tr>
+            <tr><td><a href="#panel-review">Review</a></td><td>High: proxy credentials shown as a suggestion (fixed). Medium: modal click pass-through, int nudge base, per-event disk I/O (fixed).</td><td><span class="good">Dispositioned</span></td><td>Findings chart and table.</td></tr>
+            <tr><td><a href="#panel-risks">Residual risk</a></td><td>No live terminal/mouse run; German not native-reviewed; multi-chord keybind writes still single-line; locale files touched by another branch.</td><td><span class="warn">Open</span></td><td>Manual check, then commit on request.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="muted">Canonical plan: <a href="../plans/archive/config-editor-ux.md">plans/archive/config-editor-ux.md</a> (local record; moved from <code>plans/planned/</code> on completion). Handoffs and reviews: <a href="handoffs/config-editor-ux-ws1.md">WS1</a>, <a href="handoffs/config-editor-ux-ws2.md">WS2</a>, <a href="handoffs/config-editor-ux-fixes-r1.md">fix round</a>, <a href="handoffs/config-editor-ux-review-fable.md">review A</a>, <a href="handoffs/config-editor-ux-review-codex.md">review B</a>.</p>
+    </section>
+
+    <section class="report-section" id="panel-design" role="tabpanel" aria-labelledby="tab-design">
+      <h2>Design &amp; usage</h2>
+      <h3>Decisions</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Decision</th><th>Choice</th><th>Source</th><th>Why</th></tr></thead>
+        <tbody>
+          <tr><td>Layout</td><td>Tabs + two columns; stacked on narrow terminals; bookmarks become ★ Starred; recent searches via <span class="kbd">Ctrl+R</span> dropdown</td><td>User</td><td>Values visible without opening each key; no separate file-list screen.</td></tr>
+          <tr><td>Keybind recording</td><td>Manual first, visible Record button (<span class="kbd">Ctrl+K</span> or click), live conflict check</td><td>User</td><td>Keys like <code>Esc</code> must stay typeable; recording is discoverable.</td></tr>
+          <tr><td>Bool settings</td><td>Enter opens a small on/off picker; Enter saves</td><td>User</td><td>No surprising instant writes.</td></tr>
+          <tr><td>Isolation</td><td>Separate worktree/branch</td><td>User</td><td>Another agent was editing Pi Scan files and locales in the main checkout.</td></tr>
+          <tr><td>Esc ladder</td><td>Close recents → clear search → leave editor</td><td>Parent</td><td>Matches Pi Scan "Esc leaves the workspace"; nothing unsaved is lost.</td></tr>
+          <tr><td>Star toggle</td><td><span class="kbd">b</span> → <span class="kbd">Ctrl+B</span></td><td>Parent</td><td>Plain <code>b</code> blocked searches starting with b (e.g. <code>background_base</code>).</td></tr>
+          <tr><td>Popup save</td><td><span class="kbd">Enter</span>/<span class="kbd">Ctrl+S</span> save the effective value; <span class="kbd">Tab</span> completes (strict pickers: next choice)</td><td>Parent</td><td>"Enter saves: …" makes the result explicit; free input never auto-highlights.</td></tr>
+          <tr><td>Printable keys in popups</td><td>Reach the popup before global shortcuts</td><td>Parent</td><td>Typing <code>?</code> or <code>P</code> in a field used to open Help or the Panels menu.</td></tr>
+          <tr><td>Schema</td><td><code>pi_scan_thinking</code> becomes an enum; <code>main_pane_order</code> uses a strict picker of its 6 permutations</td><td>Parent</td><td>Only these values are valid at runtime.</td></tr>
+        </tbody>
+      </table></div>
+
+      <h3 style="margin-top:22px">What it looks like</h3>
+      <p class="frame-note">Frames rendered through the real application renderer (<code>pacsea::ui::ui</code>) on a 130×30 ratatui <code>TestBackend</code> with an isolated, empty config directory. Colors are not shown in text form; swatches render as colored blocks in a terminal.</p>
+      <figure data-visual-kind="illustration" data-purpose="Show the redesigned settings tab in German: tabs, search line, grouped rows with values and markers, details pane, footer">
+        <pre class="frame" aria-label="Rendered settings tab, German locale">╭ Konfigurations-Editor ─────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ [ settings.conf ]   keybinds.conf     theme.conf     ★ Favoriten                                                               │
+│ Suche: tippen, um nach Schlüssel, Bezeichnung oder Beschreibung zu filtern                          76 von 76 · Strg+R Verlauf │
+│╭ Schlüssel ─────────────────────────────────────────────────────────────╮╭ Details ───────────────────────────────────────────╮│
+││ Allgemein                                                              ││Zusatz für die Zwischenablage                       ││
+││▶   Zusatz für die Zwischenablage               Check PKGBUILD and s…   ││Schlüssel    clipboard_suffix                       ││
+││    Bevorzugtes Terminal                                  Automatisch   ││Aktuell      Check PKGBUILD and source for suspiciou││
+││    Testlauf standardmäßig aktivieren                             aus  ↻││             s and malicious activities             ││
+││    Sprache                                      Automatisch erkennen  ↻││Standard     Check PKGBUILD and source for suspiciou││
+││    Terminalfarben verwenden                                      aus  ↻││             s and malicious activities             ││
+││ Layout                                                                 ││Typ          Text                                   ││
+││    Installationsbereich anzeigen                                  an   ││Wirkung      automatisch                            ││
+││    Suchverlauf anzeigen                                           an   ││Datei        /tmp/ce-home/.config/pacsea/settings.co││
+││    Reihenfolge der Hauptbereiche               results, search, pac…   ││             nf                                     ││
+││    Layout: Breite des linken Bereichs (%)                         20   ││                                                    ││
+││    Layout: Breite des mittleren Bereichs (%)                      60   ││Text, der an kopierte Paketbefehle angehängt wird.  ││
+││    Layout: Breite des rechten Bereichs (%)                        20   ││                                                    ││
+││    Vertikal: Mindestzeilen für Ergebnisse                          3   ││                                                    ││
+││    Vertikal: Höchstzeilen für Ergebnisse                          17   ││                                                    ││
+││    Vertikal: Mindestzeilen für den Suchbereich                     3   ││                                                    ││
+││    Vertikal: Höchstzeilen für den Suchbereich                      5   ││                                                    ││
+││    Vertikal: Mindestzeilen für Paketdetails                        3   ││                                                    ││
+││    Tastenhinweise anzeigen                                        an   ││                                                    ││
+││    Markierung ausgewählter Pakete                              front   ││                                                    ││
+│╰────────────────────────────────────────────────────────────────────────╯╰────────────────────────────────────────────────────╯│
+│GLOBAL:  [Ctrl+C] Beenden  |  [?] Hilfe  Menüs  [Shift+C] Konfiguration / Listen  |  [Shift+O] Optionen  |  [Shift+P] Panels    │
+│Editor  [↑↓ PgUp/PgDn] Auswahl bewegen  |  [Enter] Wert bearbeiten  |  [Tab ← →] Tab wechseln  |  [Ctrl+B] Favorit an/aus       │
+│[Ctrl+R] Letzte Suchen  |  [Ctrl+E] Effektive Werte exportieren  |  [Esc] Editor verlassen                                      │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯</pre>
+        <figcaption>Settings tab (de-DE): grouped rows show localized labels and current values; ↻ marks restart-required settings; the details pane uses hanging indents for long values.</figcaption>
+      </figure>
+      <figure data-visual-kind="illustration" data-purpose="Show the keybind edit popup with the Record button, suggestions, validation and save preview">
+        <pre class="frame" aria-label="Rendered keybind popup">╭ Config editor ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│   settings.conf   [ keybinds.conf ]   theme.conf     ★ Starred                                                                 │
+│ Search: type to filter by key, label or description                                                   58 of 58 · Ctrl+R recent │
+│╭ Keys ──────────────────────────────────────────────────────────────────╮╭ Details ───────────────────────────────────────────╮│
+││ Global shortcuts                                                       ││Open help                                           ││
+││▶   Open help                                                       ?   ││Key         keybind_help                            ││
+││    Toggle Config/Lists menu                                  Shift+c   ││Current     ?                                       ││
+││    Toggle Options menu                                       Shift+o   ││Default     ?                                       ││
+││    Toggle Panels menu                                        Shift+p   ││Type        key chord · conflict scope: Global      ││
+││    Reload configuration ╭ Edit · Open help ────────────────────────────────────────────────────────╮                         ││
+││    Exit Pacsea          │keybind_help · key chord · on save                                        │                         ││
+││    Show PKGBUILD        │╭────────────────────────────────────────────────────────────────────────╮│onfig/pacsea/keybinds.con││
+││    Toggle AUR comments  ││?                                                                       ││                         ││
+││    Run PKGBUILD checks  │╰────────────────────────────────────────────────────────────────────────╯│                         ││
+││    Cycle PKGBUILD sectio│ ● Record (Ctrl+K)   or type a chord such as Ctrl+R                       │                         ││
+││    Change sort mode     │  ? [Current] [Default]                                                   │                         ││
+││    Next pane            │✓ Valid                                                                   │                         ││
+││    Pane to the left     │Enter saves: ?                                                            │                         ││
+││    Pane to the right    │Type a chord or press Ctrl+K to record one · ↑↓ pick · Enter save         │                         ││
+││    Toggle fuzzy search  ╰──────────────────────────────────────────────────────────────────────────╯                         ││
+││ Search pane                                                            ││                                                    ││
+││    Search: move up                                                Up   ││                                                    ││
+││    Search: move down                                            Down   ││                                                    ││
+││    Search: page up                                              PgUp   ││                                                    ││
+│╰────────────────────────────────────────────────────────────────────────╯╰────────────────────────────────────────────────────╯│
+│GLOBALS:  [Ctrl+C] Exit  |  [?] Help  Menus  [Shift+C] Config / lists  |  [Shift+O] Options  |  [Shift+P] Panels                │
+│Edit  [Enter/Ctrl+S] Save  |  [Esc] Cancel  |  [Tab] Complete suggestion  |  [↑↓] Pick suggestion                               │
+│[Ctrl+Z] Reset to opening value  |  [Ctrl+K] Record chord                                                                       │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯</pre>
+        <figcaption>Keybind popup: manual entry with a visible <code>● Record (Ctrl+K)</code> button, current/default suggestion, live validation (including conflicts) and the "Enter saves" line.</figcaption>
+      </figure>
+      <figure data-visual-kind="illustration" data-purpose="Show the color popup with palette suggestions labeled by source theme key">
+        <pre class="frame" aria-label="Rendered color popup">╭ Config editor ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│   settings.conf     keybinds.conf   [ theme.conf ]   ★ Starred                                                                 │
+│ Search: accent                                                                                         3 of 16 · Ctrl+R recent │
+│╭ Keys ──────────────────────────────────────────────────────────────────╮╭ Details ───────────────────────────────────────────╮│
+││ Accents                                                                ││Accent: interactive                                 ││
+││▶   Accent: interactive  ╭ Edit · Accent: interactive ──────────────────────────────────────────────╮ive                      ││
+││    Accent: headings     │accent_interactive · color (#rrggbb or R,G,B) · on save                   │                         ││
+││    Accent: emphasis     │╭────────────────────────────────────────────────────────────────────────╮│                         ││
+││                         ││#74c7ec                                                               ██││or R,G,B)                ││
+││                         │╰────────────────────────────────────────────────────────────────────────╯│                         ││
+││                         │                                                                          │onfig/pacsea/theme.conf  ││
+││                         │  ██ #74c7ec [Current] [Default]                                          │                         ││
+││                         │  ██ #1e1e2e — Background: base                                           │ and group headings.     ││
+││                         │  ██ #181825 — Background: mantle                                         │                         ││
+││                         │  ██ #11111b — Background: crust                                          │                         ││
+││                         │  ██ #45475a — Surface: level 1                                           │                         ││
+││                         │  ██ #585b70 — Surface: level 2                                           │                         ││
+││                         │  ██ #7f849c — Overlay: primary                                           │                         ││
+││                         │  ██ #9399b2 — Overlay: secondary                                         │                         ││
+││                         │  ↓ 8 more                                                                │                         ││
+││                         │✓ Valid                                                                   │                         ││
+││                         │Enter saves: ██ #74c7ec                                                   │                         ││
+││                         │Type a value · ↑↓ pick a suggestion · Tab complete · Enter save           │                         ││
+││                         ╰──────────────────────────────────────────────────────────────────────────╯                         ││
+│╰────────────────────────────────────────────────────────────────────────╯╰────────────────────────────────────────────────────╯│
+│GLOBALS:  [Ctrl+C] Exit  |  [?] Help  Menus  [Shift+C] Config / lists  |  [Shift+O] Options  |  [Shift+P] Panels                │
+│Edit  [Enter/Ctrl+S] Save  |  [Esc] Cancel  |  [Tab] Complete suggestion  |  [↑↓] Pick suggestion                               │
+│[Ctrl+Z] Reset to opening value                                                                                                 │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯</pre>
+        <figcaption>Color popup: swatch preview in the input, palette suggestions named after their source theme key, scroll indicator.</figcaption>
+      </figure>
+
+      <h3 style="margin-top:22px">Keys</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Context</th><th>Keys</th></tr></thead>
+        <tbody>
+          <tr><td>List</td><td>type to filter · <span class="kbd">↑↓</span> <span class="kbd">PgUp/PgDn</span> <span class="kbd">Home/End</span> move · <span class="kbd">Enter</span> edit · <span class="kbd">Tab</span>/<span class="kbd">←→</span> switch tab · <span class="kbd">Ctrl+B</span> star · <span class="kbd">Ctrl+R</span> recent searches · <span class="kbd">Ctrl+E</span> export · <span class="kbd">Esc</span> clear/leave · configured Pi Scan setup chord on <code>pi_scan_*</code> rows</td></tr>
+          <tr><td>Popup</td><td>type (caret-aware, <span class="kbd">←→</span> <span class="kbd">Home/End</span> <span class="kbd">Del</span>) · <span class="kbd">↑↓</span> pick · <span class="kbd">Tab</span> complete · <span class="kbd">Enter</span>/<span class="kbd">Ctrl+S</span> save · <span class="kbd">Esc</span> cancel · <span class="kbd">Ctrl+Z</span> reset · <span class="kbd">+/-</span> integers · <span class="kbd">Space</span> on/off · <span class="kbd">Ctrl+R</span> reveal secret · <span class="kbd">Ctrl+K</span> record chord</td></tr>
+          <tr><td>Recording</td><td>every key is recorded, including global chords · <span class="kbd">Esc</span> stops recording</td></tr>
+          <tr><td>Mouse</td><td>click tab · click row (click again to edit) · wheel scrolls list/dropdown · click suggestion to highlight · click Record · click a recent search</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="report-section" id="panel-impl" role="tabpanel" aria-labelledby="tab-impl">
+      <h2>Implementation</h2>
+      <figure class="visual-card" data-visual-kind="diagram" data-purpose="Show how state, events and renderer modules exchange data each frame and on input">
+        <svg role="img" aria-labelledby="arch-title arch-desc" viewBox="0 0 760 330">
+          <title id="arch-title">Config editor module architecture</title>
+          <desc id="arch-desc">The renderer reads a value snapshot, filtered keys and cached popup validation from state and writes hit rectangles back. The key and mouse handlers read those rectangles, mutate state, and on save call the unchanged patch path, which writes config files and reloads settings.</desc>
+          <defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#a9b7cb" /></marker></defs>
+          <rect class="node" x="290" y="30" width="180" height="96" rx="12" />
+          <text class="node-text" x="380" y="60">state::config_editor</text>
+          <text class="node-small" x="380" y="82">tabs · groups · search</text>
+          <text class="node-small" x="380" y="100">ValueSnapshot · suggestions</text>
+          <text class="node-small" x="380" y="118">popup model · validate</text>
+          <rect class="node" x="30" y="200" width="200" height="86" rx="12" />
+          <text class="node-text" x="130" y="230">ui::modals::config_editor</text>
+          <text class="node-small" x="130" y="252">list · details · popup</text>
+          <text class="node-small" x="130" y="270">format · text · footer</text>
+          <rect class="node" x="530" y="200" width="200" height="86" rx="12" />
+          <text class="node-text" x="630" y="230">events::…::config_editor</text>
+          <text class="node-small" x="630" y="252">keys · popup · mouse</text>
+          <text class="node-small" x="630" y="270">save (unchanged path)</text>
+          <rect class="node-alt" x="530" y="40" width="200" height="66" rx="12" />
+          <text class="node-text" x="630" y="68">patch_key / theme check</text>
+          <text class="node-small" x="630" y="88">settings · keybinds · theme.conf</text>
+          <path class="edge" d="M290 100 C200 110 150 150 140 196" />
+          <text class="node-small" x="265" y="165">snapshot, keys, cache</text>
+          <path class="edge" d="M232 270 H526" />
+          <text class="node-small" x="380" y="262">hit rects, list_page_rows</text>
+          <path class="edge" d="M620 196 C610 160 520 130 474 110" />
+          <text class="node-small" x="535" y="185">mutate</text>
+          <path class="edge" d="M690 196 V110" />
+          <text class="node-small" x="716" y="160">save</text>
+        </svg>
+        <figcaption>Renderer and handlers share state; only the save module touches config files, through the pre-existing patch path.</figcaption>
+      </figure>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Module</th><th>Responsibility</th><th>Owner</th></tr></thead>
+        <tbody>
+          <tr><td><code>src/state/config_editor/mod.rs</code></td><td>Tabs/Starred, grouped multi-term search over key, aliases and localized label/summary; popup model (suggestions, visible, highlight, scroll, caret, cached validation, effective value); cheap <code>Default</code> plus <code>load_persisted()</code></td><td>WS1, fixes</td></tr>
+          <tr><td><code>…/values.rs</code></td><td><code>ValueSnapshot</code>: effective vs default values (codebase defaults cached), modified detection incl. full chord lists, extra chords</td><td>WS1, fixes</td></tr>
+          <tr><td><code>…/suggestions.rs</code></td><td>Per-kind and per-key candidates with provenance tags, durations, swatches, descriptions; credential-free proxy filter; comma-list rules</td><td>WS1, fixes</td></tr>
+          <tr><td><code>…/groups.rs</code>, <code>…/validate.rs</code></td><td>23 setting groups; validators moved from events (incl. proxy, keybind conflicts)</td><td>WS1</td></tr>
+          <tr><td><code>src/events/modals/config_editor/</code></td><td>List keys and Esc ladder, popup keys, chord capture, save/export, mouse hit-testing (yields to menus and modals; ignores motion)</td><td>WS1, parent, fixes</td></tr>
+          <tr><td><code>src/events/mod.rs</code>, <code>mouse/mod.rs</code></td><td>Printable-key precedence for open popups; editor mouse routing</td><td>WS1</td></tr>
+          <tr><td><code>src/ui/modals/config_editor/</code></td><td>Layout, tabs (compact/scrolling), grouped list, details, popup, recents dropdown; repopulates all hit rects each frame</td><td>WS2, fixes</td></tr>
+          <tr><td><code>src/ui/details/footer.rs</code></td><td>Width-packed, context-specific footer (list, recents, popup, recording)</td><td>WS2</td></tr>
+          <tr><td><code>config/locales/*.yml</code></td><td>New UI strings; labels for 58 keybind and 16 theme rows; settings labels/summaries in de-DE; enum choice descriptions; help lines</td><td>WS2, fixes</td></tr>
+        </tbody>
+      </table></div>
+      <h3 style="margin-top:22px">Suggestion catalog</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Kind / key</th><th>Dropdown</th><th>Manual input</th></tr></thead>
+        <tbody>
+          <tr><td>Bool</td><td>on / off</td><td>No</td></tr>
+          <tr><td>Enum (sort, privilege, auth, locale, thinking, pane order…)</td><td>Choices with translated descriptions; typing filters</td><td>No</td></tr>
+          <tr><td>Integer ranges</td><td>Min, max, current, default, key-specific presets; durations humanized</td><td>Yes, <span class="kbd">+/-</span> nudge</td></tr>
+          <tr><td>News max age</td><td><code>all</code>, 1, 3, 7, 14, 30, 90</td><td>Yes</td></tr>
+          <tr><td>Theme colors</td><td>Current, default, other palette colors named by theme key, swatches</td><td>Yes (hex or R,G,B)</td></tr>
+          <tr><td><code>preferred_terminal</code></td><td>Auto-detect, known terminals, installed ones tagged (PATH check at popup open, no process spawn)</td><td>Yes</td></tr>
+          <tr><td><code>selected_countries</code>, ShellCheck excludes, fallback models</td><td>Known values; completes the item after the last comma; skips items already listed</td><td>Yes</td></tr>
+          <tr><td>Pi provider / model</td><td>Routes verified by the Pi setup wizard, when available</td><td>Yes</td></tr>
+          <tr><td>Pi caps / starts per hour</td><td><code>0</code> tagged Unlimited plus presets</td><td>Yes</td></tr>
+          <tr><td><code>pi_scan_https_proxy</code></td><td>Empty (no proxy) and a credential-free <code>https://</code> env proxy only</td><td>Yes, validated</td></tr>
+          <tr><td>Keybinds</td><td>Current and default chord</td><td>Yes, or record</td></tr>
+          <tr><td>Secrets</td><td>None</td><td>Yes (masked, <span class="kbd">Ctrl+R</span> reveal)</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section class="report-section" id="panel-verify" role="tabpanel" aria-labelledby="tab-verify">
+      <h2>Verification</h2>
+      <figure class="visual-card" data-visual-kind="diagram" data-purpose="Show the execution order of the complex feature workflow with one writer at a time">
+        <svg role="img" aria-labelledby="flow-title flow-desc" viewBox="0 0 760 250">
+          <title id="flow-title">Workflow sequence</title>
+          <desc id="flow-desc">Plan, then WS1 on Codex, integration 1 with three parent fixes, WS2 on Claude Opus, integration 2, two parallel read-only reviews, a fix round on Codex, final revalidation and this report. Only one writer ran at a time.</desc>
+          <defs><marker id="arrow2" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#a9b7cb" /></marker></defs>
+          <g>
+            <rect class="node" x="10" y="40" width="110" height="60" rx="10" /><text class="node-text" x="65" y="66">Plan</text><text class="node-small" x="65" y="86">decisions</text>
+            <rect class="node" x="150" y="40" width="110" height="60" rx="10" /><text class="node-text" x="205" y="66">WS1</text><text class="node-small" x="205" y="86">Codex sol</text>
+            <rect class="node-alt" x="290" y="40" width="110" height="60" rx="10" /><text class="node-text" x="345" y="66">Integrate 1</text><text class="node-small" x="345" y="86">3 fixes</text>
+            <rect class="node" x="430" y="40" width="110" height="60" rx="10" /><text class="node-text" x="485" y="66">WS2</text><text class="node-small" x="485" y="86">Claude Opus</text>
+            <rect class="node-alt" x="570" y="40" width="110" height="60" rx="10" /><text class="node-text" x="625" y="66">Integrate 2</text><text class="node-small" x="625" y="86">render check</text>
+            <rect class="node-rev" x="570" y="150" width="110" height="60" rx="10" /><text class="node-text" x="625" y="176">Reviews</text><text class="node-small" x="625" y="196">Fable + Codex</text>
+            <rect class="node" x="430" y="150" width="110" height="60" rx="10" /><text class="node-text" x="485" y="176">Fix round</text><text class="node-small" x="485" y="196">17 accepted</text>
+            <rect class="node-alt" x="290" y="150" width="110" height="60" rx="10" /><text class="node-text" x="345" y="176">Revalidate</text><text class="node-small" x="345" y="196">2,040 pass</text>
+            <rect class="node" x="150" y="150" width="110" height="60" rx="10" /><text class="node-text" x="205" y="176">Report</text><text class="node-small" x="205" y="196">this file</text>
+          </g>
+          <path class="edge" style="marker-end:url(#arrow2)" d="M120 70 H146" /><path class="edge" style="marker-end:url(#arrow2)" d="M260 70 H286" /><path class="edge" style="marker-end:url(#arrow2)" d="M400 70 H426" /><path class="edge" style="marker-end:url(#arrow2)" d="M540 70 H566" />
+          <path class="edge" style="marker-end:url(#arrow2)" d="M625 100 V146" /><path class="edge" style="marker-end:url(#arrow2)" d="M570 180 H544" /><path class="edge" style="marker-end:url(#arrow2)" d="M430 180 H404" /><path class="edge" style="marker-end:url(#arrow2)" d="M290 180 H264" />
+        </svg>
+        <figcaption>Sequential waves; workers never staged or committed. Each accepted wave was checkpointed with <code>git add -A</code>.</figcaption>
+      </figure>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Checkpoint</th><th>fmt</th><th>clippy -D warnings</th><th>check</th><th>tests (--test-threads=1)</th><th>Run by</th></tr></thead>
+        <tbody>
+          <tr><td>After WS1</td><td>0</td><td>0</td><td>0</td><td>exit 0, all 15 result groups ok</td><td>Parent (independent)</td></tr>
+          <tr><td>After parent fixes (integration 1)</td><td>0</td><td>0</td><td>0</td><td>exit 0; <code>--test other</code> 122 passed</td><td>Parent</td></tr>
+          <tr><td>After WS2 (integration 2)</td><td>0</td><td>0</td><td>0</td><td>2,021 passed, 0 failed, 17 ignored</td><td>Parent (independent)</td></tr>
+          <tr><td>After fix round</td><td>0</td><td>0</td><td>0</td><td>2,040 passed, 0 failed, 17 ignored</td><td>Parent (independent)</td></tr>
+          <tr><td>Final (after last label edit)</td><td>0</td><td>0</td><td>0</td><td>2,040 passed, 0 failed, 17 ignored; <code>git diff --check</code> 0</td><td>Parent</td></tr>
+        </tbody>
+      </table></div>
+      <h3 style="margin-top:22px">Regression-first fixes</h3>
+      <div class="grid">
+        <article class="finding"><span class="badge info">Integration 1</span><h3>Menu clicks over editor rows</h3><p>Editor hit-testing consumed clicks meant for an open top-row dropdown. Test <code>open_dropdown_menu_owns_clicks_over_rows</code> failed, then passed.</p></article>
+        <article class="finding"><span class="badge info">Integration 1</span><h3>Strict picker filter</h3><p>Arrowing replaced the filter text with the choice name. Test <code>strict_highlight_keeps_filter_text</code> failed, then passed.</p></article>
+        <article class="finding"><span class="badge info">Integration 1</span><h3>Suggestion provenance</h3><p><code>0</code> starts/hour tagged Unlimited; empty proxy untagged (it means "no proxy"). Extended test failed, then passed.</p></article>
+        <article class="finding"><span class="badge info">Fix round</span><h3>16 regression tests</h3><p>All failed before production changes (exit 101), then passed; plus a locale parity test and an export redaction integration test.</p></article>
+      </div>
+      <details><summary>Integration coverage added or updated</summary>
+        <p>Typing <code>?COP</code> into a popup, tab switching and Starred editing, bool picker save, text suggestion pick and save, comma-list completion and save, Record-button capture and save, conflict blocking, restart-required status note, explicit persistence loading, plus the pre-existing save, dry-run, invalid-theme rejection, stale-file and export-redaction flows on the new navigation.</p>
+      </details>
+    </section>
+
+    <section class="report-section" id="panel-review" role="tabpanel" aria-labelledby="tab-review">
+      <h2>Review findings</h2>
+      <p>Two read-only, fresh-context reviews ran in parallel on the staged diff: <strong>A</strong> = Claude Fable 5.1, <strong>B</strong> = Codex gpt-6.1-sol (high reasoning). <strong>P</strong> = integration-owner notes from rendered frames. Every finding was verified against the code before disposition.</p>
+      <figure class="visual-card" data-visual-kind="graph" data-purpose="Compare finding counts by severity and disposition" data-source="Review findings and dispositions table in the canonical plan">
+        <svg role="img" aria-labelledby="sev-title sev-desc" viewBox="0 0 720 260">
+          <title id="sev-title">Findings by severity and disposition</title>
+          <desc id="sev-desc">High: 1 accepted. Medium: 3 accepted, 1 rejected. Low: 9 accepted. Cosmetic: 4 accepted, 1 rejected. Total 19, 17 accepted.</desc>
+          <line class="chart-grid" x1="150" y1="30" x2="150" y2="220" />
+          <text class="chart-label" x="20" y="62">High</text><rect class="bar-green" x="150" y="42" width="50" height="30" rx="5" /><text class="chart-axis" x="208" y="62">1</text>
+          <text class="chart-label" x="20" y="112">Medium</text><rect class="bar-green" x="150" y="92" width="150" height="30" rx="5" /><rect class="bar-gray" x="300" y="92" width="50" height="30" rx="5" /><text class="chart-axis" x="358" y="112">3 + 1 rejected</text>
+          <text class="chart-label" x="20" y="162">Low</text><rect class="bar-green" x="150" y="142" width="450" height="30" rx="5" /><text class="chart-axis" x="608" y="162">9</text>
+          <text class="chart-label" x="20" y="212">Cosmetic</text><rect class="bar-green" x="150" y="192" width="200" height="30" rx="5" /><rect class="bar-gray" x="350" y="192" width="50" height="30" rx="5" /><text class="chart-axis" x="408" y="212">4 + 1 rejected</text>
+        </svg>
+        <figcaption>One unit = one finding (B1 and A5 counted once). Source: dispositions table in the canonical plan.</figcaption>
+        <div class="legend"><span class="l-acc">Accepted and fixed</span><span class="l-rej">Rejected with rationale</span></div>
+      </figure>
+      <div class="table-wrap"><table>
+        <thead><tr><th>ID</th><th>Severity</th><th>Problem</th><th>Disposition</th></tr></thead>
+        <tbody>
+          <tr><td>B1 / A5</td><td class="bad">High</td><td><code>HTTPS_PROXY</code> with <code>user:pass@</code> shown verbatim as a suggestion, saveable and exported in clear</td><td class="good">Fixed: credential-free <code>https://</code> filter, validator, export redaction</td></tr>
+          <tr><td>B2</td><td class="warn">Medium</td><td>Editor clicks passed through an Alert modal</td><td class="good">Fixed</td></tr>
+          <tr><td>B3</td><td class="warn">Medium</td><td><span class="kbd">+/-</span> ignored the highlighted preset</td><td class="good">Fixed</td></tr>
+          <tr><td>A1</td><td class="warn">Medium</td><td>Directory create + two JSON reads on every key, mouse motion and frame (<code>mem::take</code> of a loading <code>Default</code>)</td><td class="good">Fixed: I/O-free <code>Default</code>, <code>load_persisted()</code>, motion ignored</td></tr>
+          <tr><td>B4</td><td class="warn">Medium</td><td>Strict-picker Tab cycles instead of completing</td><td class="muted">Rejected: intended, preserves prior enum/bool behavior; plan text clarified</td></tr>
+          <tr><td>B5</td><td>Low</td><td>Active tab could be hidden on narrow strips</td><td class="good">Fixed: compact labels + scrolling strip</td></tr>
+          <tr><td>B6</td><td>Low</td><td>Appended extra chords not flagged modified</td><td class="good">Fixed</td></tr>
+          <tr><td>A2</td><td>Low</td><td>Typing in the on/off picker filtered hidden values</td><td class="good">Fixed</td></tr>
+          <tr><td>A3</td><td>Low</td><td>Clicks fell through the recents dropdown</td><td class="good">Fixed</td></tr>
+          <tr><td>A4</td><td>Low</td><td>No de-DE/hu-HU labels or summaries for 72 settings rows (pre-existing)</td><td class="good">Fixed: German added, Hungarian placeholders, parity test extended</td></tr>
+          <tr><td>A6</td><td>Low</td><td>Dead legacy fields and types</td><td class="good">Removed</td></tr>
+          <tr><td>A7</td><td>Low</td><td>Doc overstated "filtered once per frame"</td><td class="good">Doc corrected; optimization deferred</td></tr>
+          <tr><td>A8</td><td>Low</td><td>Dropdown size assumed in two places</td><td class="good">Shared <code>DROPDOWN_PAGE_ROWS</code></td></tr>
+          <tr><td>A9</td><td>Low</td><td>Comma lists offered items already present</td><td class="good">Fixed</td></tr>
+          <tr><td>P1–P4</td><td>Cosmetic</td><td>Details hanging indent; "Applies: applies on save"; empty terminal shown as "(empty)"; palette swatches unnamed</td><td class="good">Fixed</td></tr>
+          <tr><td>P5</td><td>Cosmetic</td><td>"GLOBALS:" vs "Editor" heading casing</td><td class="muted">Rejected: shared pre-existing key used by package mode</td></tr>
+        </tbody>
+      </table></div>
+      <p class="muted">No second review round was run on the fix diff; fixes were revalidated by the integration owner's diff inspection, the regression tests, the full suite and fresh rendered frames.</p>
+    </section>
+
+    <section class="report-section" id="panel-risks" role="tabpanel" aria-labelledby="tab-risks">
+      <h2>Risks &amp; next steps</h2>
+      <div class="grid">
+        <article class="finding"><span class="badge warn">Open</span><h3>No live terminal run</h3><p>Rendering and input were verified with <code>TestBackend</code> and the public event dispatcher, not in a real terminal with mouse. Terminal-specific chord reporting (e.g. <code>Shift+letter</code>) is unexercised.</p></article>
+        <article class="finding"><span class="badge warn">Behavior change</span><h3>Changed muscle memory</h3><p><code>b</code> no longer stars (use <code>Ctrl+B</code>); <code>Esc</code> with an empty search leaves the editor; <code>↑↓</code> no longer nudge integers (use <code>+/-</code>). Footer and Help describe the new keys.</p></article>
+        <article class="finding"><span class="badge info">Known limit</span><h3>Multi-chord keybinds</h3><p>The editor writes one chord per action. For <code>recent_remove</code>/<code>install_remove</code>, config lines append to defaults, so the old chord keeps working; the row now shows ● and <code>+N</code>.</p></article>
+        <article class="finding"><span class="badge info">Merge</span><h3>Shared locale files</h3><p>The main checkout is editing Pi Scan sections of the same YAML files. This branch only touches <code>app.modals.config_editor.*</code> and the editor help lines, so conflicts should be limited to nearby lines.</p></article>
+        <article class="finding"><span class="badge info">Translation</span><h3>Language quality</h3><p>German strings were written by the implementation agent and not reviewed by a native speaker; Hungarian carries English placeholders flagged for translation.</p></article>
+        <article class="finding"><span class="badge info">Deferred</span><h3>Minor cosmetics</h3><p>Long values in the details pane wrap at character, not word, boundaries; the footer is built up to three times per frame (cheap).</p></article>
+      </div>
+      <h3 style="margin-top:22px">Recommended next steps</h3>
+      <ol class="steps">
+        <li><div class="step"><h3>Try it in a real terminal</h3><p>From the worktree, run the app, open <em>Config/Lists → Config editor (TUI)</em>, and walk through: search, tabs, a bool, an enum, a number with <code>+/-</code>, a color, a keybind (type and record), Starred, <code>Ctrl+R</code>, mouse clicks and wheel.</p><pre data-copyable><code>cd /home/firstpick/.t3/worktrees/pacsea/feat-config-editor-ux
+cargo run -- --dry-run</code></pre><p class="muted">Expected: saves report "Dry-run: would update …" and leave files unchanged.</p></div></li>
+        <li><div class="step"><h3>Commit when satisfied</h3><p>The work is staged on <code>feat/config-editor-ux</code>. Nothing was committed; commit or PR creation happens only on request.</p></div></li>
+        <li><div class="step"><h3>Merge back after the Pi Scan work lands</h3><p>Resolve any adjacent-line conflicts in <code>config/locales/*.yml</code>, then rerun the four required checks.</p></div></li>
+        <li><div class="step"><h3>Follow-ups</h3><p>Native German review; Hungarian translations; optional word-wrapping in details; optional multi-chord editing for append-style keybinds.</p></div></li>
+      </ol>
+      <h3>Sources</h3>
+      <ul>
+        <li>Canonical plan: <a href="../plans/archive/config-editor-ux.md">plans/archive/config-editor-ux.md</a></li>
+        <li>Worker handoffs: <a href="handoffs/config-editor-ux-ws1.md">WS1</a> (Codex gpt-6.1-sol), <a href="handoffs/config-editor-ux-ws2.md">WS2</a> (Claude Opus 5.5), <a href="handoffs/config-editor-ux-fixes-r1.md">fix round</a> (Codex gpt-6.1-sol)</li>
+        <li>Reviews: <a href="handoffs/config-editor-ux-review-fable.md">A — Claude Fable 5.1</a>, <a href="handoffs/config-editor-ux-review-codex.md">B — Codex gpt-6.1-sol</a></li>
+        <li>Integration owner check logs and rendered frames from this session (not stored in the repository).</li>
+      </ul>
+    </section>
+  </div>
+  <div id="interaction-status" class="status-region" role="status" aria-live="polite"></div>
+  <footer>Generated 2026-10-18 for branch <code>feat/config-editor-ux</code>. Source change only; nothing installed or committed.</footer>
+</main>
+
+<script>
+(() => {
+  document.documentElement.classList.add('interactions-ready');
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const status = document.getElementById('interaction-status');
+  const announce = (message) => {
+    if (!status) return;
+    status.textContent = '';
+    window.setTimeout(() => { status.textContent = message; }, 20);
+  };
+
+  async function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+    const helper = document.createElement('textarea');
+    helper.value = text;
+    helper.setAttribute('readonly', '');
+    helper.style.position = 'fixed';
+    helper.style.opacity = '0';
+    document.body.appendChild(helper);
+    helper.select();
+    const copied = document.execCommand('copy');
+    helper.remove();
+    if (!copied) throw new Error('Copy command was not accepted');
+  }
+
+  const progressFill = document.querySelector('.reading-progress > span');
+  const backToTop = document.createElement('button');
+  backToTop.type = 'button';
+  backToTop.className = 'action-button back-to-top';
+  backToTop.textContent = '↑ Top';
+  backToTop.setAttribute('aria-label', 'Back to top');
+  document.body.appendChild(backToTop);
+
+  const updateScrollTools = () => {
+    const available = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+    const progress = Math.min(1, Math.max(0, window.scrollY / available));
+    if (progressFill) progressFill.style.transform = `scaleX(${progress})`;
+    backToTop.classList.toggle('is-visible', window.scrollY > 560);
+  };
+  window.addEventListener('scroll', updateScrollTools, { passive: true });
+  window.addEventListener('resize', updateScrollTools);
+  backToTop.addEventListener('click', () => window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' }));
+  updateScrollTools();
+
+  const focusButton = document.querySelector('[data-report-action="focus-mode"]');
+  focusButton?.addEventListener('click', () => {
+    const enabled = document.documentElement.classList.toggle('focus-reading');
+    focusButton.setAttribute('aria-pressed', String(enabled));
+    focusButton.textContent = enabled ? 'Exit focus' : 'Focus reading';
+    announce(enabled ? 'Focus reading enabled.' : 'Focus reading disabled.');
+  });
+
+  document.querySelector('[data-report-action="print"]')?.addEventListener('click', () => window.print());
+  document.querySelector('[data-report-action="copy-link"]')?.addEventListener('click', async () => {
+    try {
+      await copyText(window.location.href);
+      announce('Current report link copied.');
+    } catch {
+      announce('The report link could not be copied. Select it from the address bar instead.');
+    }
+  });
+
+  document.querySelectorAll('pre[data-copyable]').forEach((pre, index) => {
+    pre.classList.add('copyable');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'action-button copy-button';
+    button.textContent = 'Copy';
+    button.setAttribute('aria-label', `Copy code block ${index + 1}`);
+    button.addEventListener('click', async () => {
+      try {
+        await copyText(pre.querySelector('code')?.textContent || pre.textContent || '');
+        button.textContent = 'Copied';
+        announce(`Code block ${index + 1} copied.`);
+        window.setTimeout(() => { button.textContent = 'Copy'; }, 1600);
+      } catch {
+        announce(`Code block ${index + 1} could not be copied. Select the text manually.`);
+      }
+    });
+    pre.appendChild(button);
+  });
+
+  document.querySelectorAll('[data-details-scope]').forEach((controls) => {
+    const scope = document.getElementById(controls.getAttribute('data-details-scope'));
+    if (!scope) {
+      controls.remove();
+      return;
+    }
+    const details = [...scope.querySelectorAll('details')];
+    if (details.length < 2) {
+      controls.remove();
+      return;
+    }
+    const expand = controls.querySelector('[data-details-action="expand"]');
+    const collapse = controls.querySelector('[data-details-action="collapse"]');
+    const sync = () => {
+      if (expand) expand.disabled = details.every((item) => item.open);
+      if (collapse) collapse.disabled = details.every((item) => !item.open);
+    };
+    expand?.addEventListener('click', () => {
+      details.forEach((item) => { item.open = true; });
+      sync();
+      announce('All evidence details expanded.');
+    });
+    collapse?.addEventListener('click', () => {
+      details.forEach((item) => { item.open = false; });
+      sync();
+      announce('All evidence details collapsed.');
+    });
+    details.forEach((item) => item.addEventListener('toggle', sync));
+    sync();
+  });
+
+  const tablist = document.querySelector('[role="tablist"]');
+  if (!tablist) return;
+
+  const tabs = [...tablist.querySelectorAll('[role="tab"]')];
+  const panels = tabs.map((tab) => document.getElementById(tab.getAttribute('aria-controls'))).filter(Boolean);
+  const completedPanels = new Set();
+  document.documentElement.classList.add('tabs-ready');
+
+  const readerNav = document.createElement('nav');
+  readerNav.className = 'reader-nav';
+  readerNav.setAttribute('aria-label', 'Sequential report navigation');
+  readerNav.innerHTML = `
+    <div class="reader-nav-group">
+      <button class="action-button" type="button" data-reading-action="previous-section">← Previous section</button>
+      <button class="action-button" type="button" data-reading-action="next-section">Next section →</button>
+    </div>
+    <span class="reader-nav-status" aria-live="polite"></span>
+    <div class="reader-nav-group">
+      <button class="action-button" type="button" data-reading-action="toggle-complete" aria-pressed="false">Mark section read</button>
+    </div>`;
+  tablist.closest('.tabs-shell')?.appendChild(readerNav);
+
+  const previousSection = readerNav.querySelector('[data-reading-action="previous-section"]');
+  const nextSection = readerNav.querySelector('[data-reading-action="next-section"]');
+  const completeSection = readerNav.querySelector('[data-reading-action="toggle-complete"]');
+  const readerStatus = readerNav.querySelector('.reader-nav-status');
+
+  const activeIndex = () => Math.max(0, tabs.findIndex((tab) => tab.getAttribute('aria-selected') === 'true'));
+  const updateReaderNav = () => {
+    const index = activeIndex();
+    const currentPanel = panels[index];
+    const isComplete = completedPanels.has(currentPanel?.id);
+    if (previousSection) previousSection.disabled = index === 0;
+    if (nextSection) nextSection.disabled = index === tabs.length - 1;
+    if (completeSection) {
+      completeSection.setAttribute('aria-pressed', String(isComplete));
+      completeSection.textContent = isComplete ? 'Mark section unread' : 'Mark section read';
+    }
+    if (readerStatus) readerStatus.textContent = `${index + 1} of ${tabs.length} · ${completedPanels.size} read`;
+    tabs.forEach((tab, tabIndex) => tab.classList.toggle('is-complete', completedPanels.has(panels[tabIndex]?.id)));
+    window.requestAnimationFrame(updateScrollTools);
+  };
+
+  function activate(tab, options = {}) {
+    const { focus = false, updateHash = true, scroll = false } = options;
+    tabs.forEach((candidate) => {
+      const selected = candidate === tab;
+      candidate.setAttribute('aria-selected', String(selected));
+      candidate.tabIndex = selected ? 0 : -1;
+      const panel = document.getElementById(candidate.getAttribute('aria-controls'));
+      if (panel) panel.hidden = !selected;
+    });
+    if (focus) tab.focus();
+    if (updateHash) history.replaceState(null, '', `#${tab.getAttribute('aria-controls')}`);
+    updateReaderNav();
+    if (scroll) {
+      const panel = document.getElementById(tab.getAttribute('aria-controls'));
+      panel?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+    }
+  }
+
+  tabs.forEach((tab, index) => {
+    tab.addEventListener('click', () => activate(tab));
+    tab.addEventListener('keydown', (event) => {
+      let targetIndex = null;
+      if (event.key === 'ArrowRight') targetIndex = (index + 1) % tabs.length;
+      if (event.key === 'ArrowLeft') targetIndex = (index - 1 + tabs.length) % tabs.length;
+      if (event.key === 'Home') targetIndex = 0;
+      if (event.key === 'End') targetIndex = tabs.length - 1;
+      if (targetIndex === null) return;
+      event.preventDefault();
+      activate(tabs[targetIndex], { focus: true });
+    });
+  });
+
+  previousSection?.addEventListener('click', () => {
+    const index = activeIndex();
+    if (index > 0) activate(tabs[index - 1], { scroll: true });
+  });
+  nextSection?.addEventListener('click', () => {
+    const index = activeIndex();
+    if (index < tabs.length - 1) activate(tabs[index + 1], { scroll: true });
+  });
+  completeSection?.addEventListener('click', () => {
+    const index = activeIndex();
+    const panelId = panels[index]?.id;
+    if (!panelId) return;
+    if (completedPanels.has(panelId)) completedPanels.delete(panelId);
+    else completedPanels.add(panelId);
+    updateReaderNav();
+    if (completedPanels.size === panels.length) announce('Report complete — nicely done.');
+    else announce(completedPanels.has(panelId) ? 'Section marked as read.' : 'Section marked as unread.');
+  });
+
+  const searchInput = document.getElementById('report-search');
+  const searchCount = document.querySelector('.search-count');
+  let matches = [];
+  let currentMatch = -1;
+
+  const clearMatches = () => {
+    document.querySelectorAll('mark.report-match').forEach((mark) => mark.replaceWith(document.createTextNode(mark.textContent || '')));
+    document.getElementById('report-content')?.normalize();
+    matches = [];
+    currentMatch = -1;
+    if (searchCount) searchCount.textContent = '0 matches';
+  };
+
+  const showMatch = (index) => {
+    if (!matches.length) return;
+    matches.forEach((match) => match.classList.remove('current'));
+    currentMatch = (index + matches.length) % matches.length;
+    const match = matches[currentMatch];
+    match.classList.add('current');
+    const panel = match.closest('[role="tabpanel"]');
+    const tab = panel ? tabs.find((candidate) => candidate.getAttribute('aria-controls') === panel.id) : null;
+    if (tab) activate(tab, { updateHash: true });
+    const details = match.closest('details');
+    if (details) details.open = true;
+    match.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
+    if (searchCount) searchCount.textContent = `${currentMatch + 1} of ${matches.length}`;
+  };
+
+  const runSearch = () => {
+    clearMatches();
+    const query = searchInput?.value.trim() || '';
+    if (query.length < 2) return;
+    const root = document.getElementById('report-content');
+    if (!root) return;
+    const nodes = [];
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        const parent = node.parentElement;
+        if (!parent || !node.nodeValue?.trim()) return NodeFilter.FILTER_REJECT;
+        if (parent.closest('script, style, button, input, textarea, svg, mark, .status-region, .search-tools')) return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    });
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const expression = new RegExp(escaped, 'gi');
+    nodes.forEach((node) => {
+      const text = node.nodeValue || '';
+      let match;
+      let last = 0;
+      let changed = false;
+      const fragment = document.createDocumentFragment();
+      while ((match = expression.exec(text)) !== null) {
+        changed = true;
+        fragment.append(text.slice(last, match.index));
+        const marker = document.createElement('mark');
+        marker.className = 'report-match';
+        marker.textContent = match[0];
+        fragment.append(marker);
+        last = match.index + match[0].length;
+      }
+      if (!changed) return;
+      fragment.append(text.slice(last));
+      node.replaceWith(fragment);
+    });
+    matches = [...document.querySelectorAll('mark.report-match')];
+    if (searchCount) searchCount.textContent = `${matches.length} ${matches.length === 1 ? 'match' : 'matches'}`;
+    if (matches.length) showMatch(0);
+    else announce(`No matches for ${query}.`);
+  };
+
+  searchInput?.addEventListener('input', runSearch);
+  document.querySelector('[data-search-action="previous-match"]')?.addEventListener('click', () => showMatch(currentMatch - 1));
+  document.querySelector('[data-search-action="next-match"]')?.addEventListener('click', () => showMatch(currentMatch + 1));
+  document.querySelector('[data-search-action="clear-search"]')?.addEventListener('click', () => {
+    if (searchInput) searchInput.value = '';
+    clearMatches();
+    searchInput?.focus();
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.altKey && event.key === '/') {
+      event.preventDefault();
+      searchInput?.focus();
+      searchInput?.select();
+      return;
+    }
+    if (event.key === 'Escape' && document.activeElement === searchInput) {
+      if (searchInput) searchInput.value = '';
+      clearMatches();
+      return;
+    }
+    if (!event.altKey || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+    if (document.activeElement?.matches('input, textarea, select')) return;
+    event.preventDefault();
+    const index = activeIndex();
+    const target = event.key === 'ArrowLeft' ? index - 1 : index + 1;
+    if (target >= 0 && target < tabs.length) activate(tabs[target], { scroll: true });
+  });
+
+  const hashPanel = panels.find((panel) => `#${panel.id}` === location.hash);
+  const initialTab = hashPanel
+    ? tabs.find((tab) => tab.getAttribute('aria-controls') === hashPanel.id)
+    : tabs.find((tab) => tab.getAttribute('aria-selected') === 'true') || tabs[0];
+  activate(initialTab, { updateHash: false });
+})();
+</script>
+</body>
+</html>

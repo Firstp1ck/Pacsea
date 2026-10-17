@@ -205,6 +205,21 @@ fn pi_scan_text_field_owns_printable_key(ke: &crossterm::event::KeyEvent, app: &
         && (ke.modifiers.is_empty() || ke.modifiers == KeyModifiers::SHIFT)
 }
 
+/// What: Give an open config popup precedence over printable global shortcuts.
+///
+/// Inputs: Key event and current application/editor state.
+///
+/// Output: Whether the popup owns this printable key.
+///
+/// Details: Recording remains intercepted earlier; list/search global shortcuts are unchanged.
+fn config_editor_popup_owns_printable_key(ke: &crossterm::event::KeyEvent, app: &AppState) -> bool {
+    matches!(app.app_mode, AppMode::ConfigEditor)
+        && matches!(app.modal, crate::state::Modal::None)
+        && app.config_editor_state.popup.is_some()
+        && matches!(ke.code, KeyCode::Char(ch) if !ch.is_control())
+        && (ke.modifiers.is_empty() || ke.modifiers == KeyModifiers::SHIFT)
+}
+
 #[allow(clippy::too_many_arguments)]
 /// What: Event dispatcher variant that includes PKGBUILD checks channel wiring.
 pub fn handle_event_with_pkgbuild_checks(
@@ -245,6 +260,11 @@ pub fn handle_event_with_pkgbuild_checks(
                 )
             })
         {
+            modals::handle_config_editor_mode_key(*ke, app);
+            return false;
+        }
+
+        if config_editor_popup_owns_printable_key(ke, app) {
             modals::handle_config_editor_mode_key(*ke, app);
             return false;
         }

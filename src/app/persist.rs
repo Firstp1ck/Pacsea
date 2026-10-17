@@ -88,7 +88,13 @@ pub fn maybe_flush_recent(app: &mut AppState) {
 /// Output:
 /// - Writes `config_editor_state.recent_queries` JSON to disk and clears dirty flag.
 pub fn maybe_flush_config_editor_recent(app: &mut AppState) {
-    if !app.config_editor_state.recent_queries_dirty {
+    if !app.config_editor_state.recent_queries_dirty
+        || app
+            .config_editor_state
+            .recent_queries_path
+            .as_os_str()
+            .is_empty()
+    {
         return;
     }
     if let Ok(s) = serde_json::to_string(&app.config_editor_state.recent_queries) {
@@ -124,7 +130,13 @@ pub fn maybe_flush_config_editor_recent(app: &mut AppState) {
 /// Output:
 /// - Writes `config_editor_state.bookmarked_keys` JSON to disk and clears dirty flag.
 pub fn maybe_flush_config_editor_bookmarks(app: &mut AppState) {
-    if !app.config_editor_state.bookmarked_keys_dirty {
+    if !app.config_editor_state.bookmarked_keys_dirty
+        || app
+            .config_editor_state
+            .bookmarked_keys_path
+            .as_os_str()
+            .is_empty()
+    {
         return;
     }
     if let Ok(s) = serde_json::to_string(&app.config_editor_state.bookmarked_keys) {
@@ -1390,5 +1402,28 @@ mod tests {
         assert!(parsed.contains("id-2"));
 
         let _ = std::fs::remove_file(&app.news_read_ids_path);
+    }
+}
+
+/// Persistence guards for transient configuration editor state.
+#[cfg(test)]
+mod config_editor_tests {
+    use super::*;
+
+    /// Transient state has no disk destination and must keep pending lists dirty.
+    #[test]
+    fn config_editor_flush_skips_empty_paths() {
+        let mut app = AppState {
+            config_editor_state: Box::new(crate::state::ConfigEditorState {
+                recent_queries_dirty: true,
+                bookmarked_keys_dirty: true,
+                ..crate::state::ConfigEditorState::default()
+            }),
+            ..AppState::default()
+        };
+        maybe_flush_config_editor_recent(&mut app);
+        maybe_flush_config_editor_bookmarks(&mut app);
+        assert!(app.config_editor_state.recent_queries_dirty);
+        assert!(app.config_editor_state.bookmarked_keys_dirty);
     }
 }

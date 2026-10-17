@@ -870,48 +870,351 @@ hu-HU:
         close_hint: "Nyomja meg az Entert vagy az Esc gombot a bezáráshoz"
       config_editor:
         title: "Konfigurációszerkesztő"
-        title_files: "Konfigurációszerkesztő — fájlok"
-        files_pane_title: " Fájlok "
-        files_heading: "Válasszon egy konfigurációs fájlt:"
-        keys_pane_title: "Kulcsok"
-        keys_heading: "Kulcsok"
-        keys_heading_filtered: "Szűrt"
-        no_matches: "Nincs találat. Nyomja meg a Backspace billentyűt a keresés bővítéséhez."
-        details_pane_title: " Részletek "
-        hint_pick_file: "Válasszon egy fájlt az Enterrel, majd a ↑/↓ és Enter gombokkal válasszon ki egy szerkesztendő kulcsot."
-        hint_no_key: "Nincs kiválasztva kulcs."
-        search_pane_title: " Keresés "
-        search_recent_title: "Legutóbbi"
-        search_recent_empty: "Nincsenek legutóbbi keresések."
-        search_input_title: "Bevitel"
-        search_input_placeholder: "/ a kulcsok kereséséhez"
-        search_hint: "Tab/←/→ panelváltás · Enter alkalmaz"
-        search_bookmarks_title: "Könyvjelzők"
-        search_bookmarks_empty: "Nincsenek könyvjelzőzött kulcsok."
+        tabs:
+          settings: "settings.conf" # TODO: translate to Hungarian
+          keybinds: "keybinds.conf" # TODO: translate to Hungarian
+          theme: "theme.conf" # TODO: translate to Hungarian
+          starred: "★ Starred" # TODO: translate to Hungarian
+        search:
+          label: "Search:" # TODO: translate to Hungarian
+          placeholder: "type to filter by key, label or description" # TODO: translate to Hungarian
+          count: "{} of {}" # TODO: translate to Hungarian
+          recent_hint: "Ctrl+R recent" # TODO: translate to Hungarian
+        recent:
+          title: "Recent searches" # TODO: translate to Hungarian
+          empty: "No recent searches yet. A search is remembered when you open a key with Enter." # TODO: translate to Hungarian
+        list:
+          title: "Keys" # TODO: translate to Hungarian
+          no_matches: "No keys match \"{}\". Backspace widens the search, Esc clears it." # TODO: translate to Hungarian
+          starred_empty: "No starred keys yet. Select a key on another tab and press Ctrl+B to star it." # TODO: translate to Hungarian
+        details:
+          title: "Details" # TODO: translate to Hungarian
+          no_key: "No key selected." # TODO: translate to Hungarian
+          key: "Key" # TODO: translate to Hungarian
+          current: "Current" # TODO: translate to Hungarian
+          default: "Default" # TODO: translate to Hungarian
+          modified: "modified" # TODO: translate to Hungarian
+          type: "Type" # TODO: translate to Hungarian
+          applies: "Applies" # TODO: translate to Hungarian
+          file: "File" # TODO: translate to Hungarian
+          extra_chords: "Also bound" # TODO: translate to Hungarian
+          extra_chords_note: "(extra chords are kept; only the first one is edited here)" # TODO: translate to Hungarian
+          pi_scan_setup: "Setup" # TODO: translate to Hungarian
+          pi_scan_setup_hint: "opens the guided Pi Scan setup" # TODO: translate to Hungarian
+          starred: "★ starred" # TODO: translate to Hungarian
+        types:
+          bool: "on/off" # TODO: translate to Hungarian
+          enum: "one of {} choices" # TODO: translate to Hungarian
+          int: "integer {}–{}" # TODO: translate to Hungarian
+          text: "text" # TODO: translate to Hungarian
+          list: "comma-separated list" # TODO: translate to Hungarian
+          path: "command name or path" # TODO: translate to Hungarian
+          secret: "secret (masked)" # TODO: translate to Hungarian
+          days: "number of days or all" # TODO: translate to Hungarian
+          color: "color (#rrggbb or R,G,B)" # TODO: translate to Hungarian
+          pane_order: "pane order (one of {} layouts)" # TODO: translate to Hungarian
+          chord: "key chord · conflict scope: {}" # TODO: translate to Hungarian
+        applies:
+          auto_reload: "automatically" # TODO: translate to Hungarian
+          on_save: "when saved" # TODO: translate to Hungarian
+          restart: "after restart" # TODO: translate to Hungarian
+        values:
+          "on": "on" # TODO: translate to Hungarian
+          "off": "off" # TODO: translate to Hungarian
+          empty: "(empty)" # TODO: translate to Hungarian
+          unbound: "(unbound)" # TODO: translate to Hungarian
+          secret_unset: "(not set)" # TODO: translate to Hungarian
+        tags:
+          current: "Current" # TODO: translate to Hungarian
+          default: "Default" # TODO: translate to Hungarian
+          auto_detect: "Auto-detect" # TODO: translate to Hungarian
+          unlimited: "Unlimited" # TODO: translate to Hungarian
+          installed: "Installed" # TODO: translate to Hungarian
+          detected: "Detected" # TODO: translate to Hungarian
+          minimum: "Min" # TODO: translate to Hungarian
+          maximum: "Max" # TODO: translate to Hungarian
+        duration:
+          seconds: "{} s" # TODO: translate to Hungarian
+          minutes: "{} min" # TODO: translate to Hungarian
+          hours: "{} h" # TODO: translate to Hungarian
+          day: "{} day" # TODO: translate to Hungarian
+          days: "{} days" # TODO: translate to Hungarian
+        popup:
+          type_chord: "key chord" # TODO: translate to Hungarian
+          applies_auto_reload: "auto-reload" # TODO: translate to Hungarian
+          applies_on_save: "on save" # TODO: translate to Hungarian
+          applies_restart: "restart needed" # TODO: translate to Hungarian
+          title: "Edit · {}" # TODO: translate to Hungarian
+          placeholder_filter: "type to filter" # TODO: translate to Hungarian
+          placeholder_text: "type a value" # TODO: translate to Hungarian
+          record: "● Record (Ctrl+K)" # TODO: translate to Hungarian
+          record_alt: "or type a chord such as Ctrl+R" # TODO: translate to Hungarian
+          recording: "● Recording…" # TODO: translate to Hungarian
+          recording_prompt: "Press the new key combination · Esc stops recording" # TODO: translate to Hungarian
+          valid: "✓ Valid" # TODO: translate to Hungarian
+          invalid: "✗ {}" # TODO: translate to Hungarian
+          saves: "Enter saves:" # TODO: translate to Hungarian
+          more_above: "↑ {} more" # TODO: translate to Hungarian
+          more_below: "↓ {} more" # TODO: translate to Hungarian
+          no_matches: "No matching suggestions — Enter saves the typed value." # TODO: translate to Hungarian
+          hint_bool: "↑↓/Space choose · Enter save · Esc cancel" # TODO: translate to Hungarian
+          hint_enum: "Type to filter · ↑↓/Tab choose · Enter save · Esc cancel" # TODO: translate to Hungarian
+          hint_int: "Type a number · +/- adjust · ↑↓ pick · Tab complete · Enter save" # TODO: translate to Hungarian
+          hint_text: "Type a value · ↑↓ pick a suggestion · Tab complete · Enter save" # TODO: translate to Hungarian
+          hint_list: "Comma-separated · Tab completes the last item · ↑↓ pick · Enter save" # TODO: translate to Hungarian
+          hint_secret: "Type the secret · Ctrl+R reveal · Enter save · Esc cancel" # TODO: translate to Hungarian
+          hint_chord: "Type a chord or press Ctrl+K to record one · ↑↓ pick · Enter save" # TODO: translate to Hungarian
+          hint_recording: "Every key is recorded · Esc stops recording" # TODO: translate to Hungarian
+        popup_empty_choice: "Auto-detect" # TODO: translate to Hungarian
         footer:
           heading_menus: "Menük"
           heading_editor: "Szerkesztő"
+          heading_popup: "Edit" # TODO: translate to Hungarian
+          heading_recording: "Recording" # TODO: translate to Hungarian
+          heading_recent: "Recent searches" # TODO: translate to Hungarian
           menu_config: "Konfig / listák"
           menu_options: "Beállítások"
           menu_panels: "Panelek"
-          move_file: "Kijelölés mozgatása"
-          open_file: "Fájl megnyitása"
           move_key: "Kijelölés mozgatása"
           edit_key: "Érték szerkesztése"
-          bookmark: "Könyvjelző be/ki"
-          switch_panel: "Panelváltás (bevitel / legutóbbi / könyvjelzők)"
-          esc_hint: "Vissza a fájlokhoz, ha a szűrő üres"
-          widen_search: "Szűrő rövidítése"
-          popup_cancel: "Megszakítás"
+          switch_tab: "Switch tab" # TODO: translate to Hungarian
+          star: "Star / unstar" # TODO: translate to Hungarian
+          recent: "Recent searches" # TODO: translate to Hungarian
+          export: "Érvényes értékek exportálása"
+          esc_leave: "Leave editor" # TODO: translate to Hungarian
+          esc_clear: "Clear search" # TODO: translate to Hungarian
+          pi_scan_setup: "Az irányított Pi Scan-beállítás megnyitása"
+          recent_choose: "Choose" # TODO: translate to Hungarian
+          recent_apply: "Apply search" # TODO: translate to Hungarian
+          recent_close: "Close" # TODO: translate to Hungarian
           popup_save: "Mentés"
+          popup_cancel: "Megszakítás"
+          popup_complete: "Complete suggestion" # TODO: translate to Hungarian
+          popup_next_choice: "Next choice" # TODO: translate to Hungarian
+          popup_pick: "Pick suggestion" # TODO: translate to Hungarian
+          popup_reset: "Érték visszaállítása"
           popup_reveal: "Titok felfedése"
           popup_record: "Kombináció rögzítése"
+          popup_adjust: "Adjust by one" # TODO: translate to Hungarian
+          popup_toggle: "Toggle" # TODO: translate to Hungarian
           popup_capture_cancel: "Rögzítés megszakítása"
-          popup_reset: "Érték visszaállítása"
-          export: "Érvényes értékek exportálása"
-          pi_scan_setup: "Az irányított Pi Scan-beállítás megnyitása"
-        popup_empty_choice: "Auto-detect" # TODO: translate to Hungarian
         settings:
+          pi_scan_enabled:
+            label: "Pi Scan: enabled" # TODO: translate to Hungarian
+            summary: "Runtime feature gate; remains off until explicitly enabled and restarted." # TODO: translate to Hungarian
+          pi_scan_background_enabled:
+            label: "Pi Scan: paid background execution" # TODO: translate to Hungarian
+            summary: "Allows unattended paid execution only with separate runtime consent and budgets." # TODO: translate to Hungarian
+          pi_scan_binary:
+            label: "Pi Scan: Pi binary" # TODO: translate to Hungarian
+            summary: "Pi executable name or absolute path; Pacsea never accepts provider secrets." # TODO: translate to Hungarian
+          pi_scan_provider:
+            label: "Pi Scan: provider" # TODO: translate to Hungarian
+            summary: "Explicit provider route disclosed before model execution." # TODO: translate to Hungarian
+          pi_scan_model:
+            label: "Pi Scan: primary model" # TODO: translate to Hungarian
+            summary: "Exact primary model identifier; empty means no selection." # TODO: translate to Hungarian
+          pi_scan_fallback_models:
+            label: "Pi Scan: fallback models" # TODO: translate to Hungarian
+            summary: "Ordered comma-separated fallback list requiring explicit confirmation." # TODO: translate to Hungarian
+          pi_scan_thinking:
+            label: "Pi Scan: thinking level" # TODO: translate to Hungarian
+            summary: "Requested thinking level; default medium and only adjusted downward when unsupported." # TODO: translate to Hungarian
+          pi_scan_observation_interval_seconds:
+            label: "Pi Scan: observation interval (s)" # TODO: translate to Hungarian
+            summary: "Read-only AUR observation interval; minimum 900 seconds." # TODO: translate to Hungarian
+          pi_scan_head_query_timeout_seconds:
+            label: "Pi Scan: head query timeout (s)" # TODO: translate to Hungarian
+            summary: "Per-query timeout; compiled maximum 15 seconds." # TODO: translate to Hungarian
+          pi_scan_observation_deadline_seconds:
+            label: "Pi Scan: observation deadline (s)" # TODO: translate to Hungarian
+            summary: "Whole sequential observation deadline; compiled maximum 90 seconds." # TODO: translate to Hungarian
+          pi_scan_model_attempt_timeout_seconds:
+            label: "Pi Scan: model attempt timeout (s)" # TODO: translate to Hungarian
+            summary: "Per-attempt wall time; compiled maximum 300 seconds." # TODO: translate to Hungarian
+          pi_scan_logical_timeout_seconds:
+            label: "Pi Scan: logical timeout (s)" # TODO: translate to Hungarian
+            summary: "Whole logical-scan wall time; compiled maximum 720 seconds." # TODO: translate to Hungarian
+          pi_scan_result_retention_days:
+            label: "Pi Scan: result retention days" # TODO: translate to Hungarian
+            summary: "Retention for superseded detailed validated results." # TODO: translate to Hungarian
+          pi_scan_show_raw_output:
+            label: "Pi Scan: show canonical raw view" # TODO: translate to Hungarian
+            summary: "Shows serialization of validated typed data, never original model output." # TODO: translate to Hungarian
+          pi_scan_https_proxy:
+            label: "Pi Scan: HTTPS proxy" # TODO: translate to Hungarian
+            summary: "Optional explicit credential-free HTTPS proxy; empty disables proxy use." # TODO: translate to Hungarian
+          sort_mode:
+            label: "Result sort mode" # TODO: translate to Hungarian
+            summary: "Order applied to the search results pane." # TODO: translate to Hungarian
+          show_install_pane:
+            label: "Show install pane" # TODO: translate to Hungarian
+            summary: "Toggle the install queue pane on the main view." # TODO: translate to Hungarian
+          show_search_history_pane:
+            label: "Show search history pane" # TODO: translate to Hungarian
+            summary: "Toggle the recent searches pane on the main view." # TODO: translate to Hungarian
+          mirror_count:
+            label: "Mirror count" # TODO: translate to Hungarian
+            summary: "Number of mirrors fetched when refreshing the mirror list." # TODO: translate to Hungarian
+          news_max_age_days:
+            label: "News max age (days)" # TODO: translate to Hungarian
+            summary: "Hide news older than N days, or `all` to disable the filter." # TODO: translate to Hungarian
+          clipboard_suffix:
+            label: "Clipboard suffix" # TODO: translate to Hungarian
+            summary: "Trailing text appended to copied package commands." # TODO: translate to Hungarian
+          preferred_terminal:
+            label: "Preferred terminal" # TODO: translate to Hungarian
+            summary: "Terminal binary used when launching external commands." # TODO: translate to Hungarian
+          privilege_mode:
+            label: "Privilege escalation mode" # TODO: translate to Hungarian
+            summary: "Helper used to obtain root for install/remove operations." # TODO: translate to Hungarian
+          main_pane_order:
+            label: "Main pane order" # TODO: translate to Hungarian
+            summary: "Vertical ordering of the search/results/details panes." # TODO: translate to Hungarian
+          virustotal_api_key:
+            label: "VirusTotal API key" # TODO: translate to Hungarian
+            summary: "Personal API key used for the optional VirusTotal scan." # TODO: translate to Hungarian
+          layout_left_pct:
+            label: "Layout: left pane width (%)" # TODO: translate to Hungarian
+            summary: "Middle row left column width (must sum to 100 with center/right)." # TODO: translate to Hungarian
+          layout_center_pct:
+            label: "Layout: center pane width (%)" # TODO: translate to Hungarian
+            summary: "Middle row center (search) column width." # TODO: translate to Hungarian
+          layout_right_pct:
+            label: "Layout: right pane width (%)" # TODO: translate to Hungarian
+            summary: "Middle row right (install) column width." # TODO: translate to Hungarian
+          vertical_min_results:
+            label: "Vertical: min results rows" # TODO: translate to Hungarian
+            summary: "Minimum rows reserved for the results pane." # TODO: translate to Hungarian
+          vertical_max_results:
+            label: "Vertical: max results rows" # TODO: translate to Hungarian
+            summary: "Maximum rows the results pane can grow to." # TODO: translate to Hungarian
+          vertical_min_middle:
+            label: "Vertical: min middle rows" # TODO: translate to Hungarian
+            summary: "Minimum rows reserved for the middle (search) pane." # TODO: translate to Hungarian
+          vertical_max_middle:
+            label: "Vertical: max middle rows" # TODO: translate to Hungarian
+            summary: "Maximum rows the middle (search) pane can grow to." # TODO: translate to Hungarian
+          vertical_min_package_info:
+            label: "Vertical: min package info rows" # TODO: translate to Hungarian
+            summary: "Minimum rows reserved for the package info / details pane." # TODO: translate to Hungarian
+          app_dry_run_default:
+            label: "Dry-run by default" # TODO: translate to Hungarian
+            summary: "Start with dry-run mode enabled (overridden by --dry-run)." # TODO: translate to Hungarian
+          show_keybinds_footer:
+            label: "Show keybinds footer" # TODO: translate to Hungarian
+            summary: "Display the contextual keybinds footer at the bottom of the UI." # TODO: translate to Hungarian
+          search_startup_mode:
+            label: "Search startup mode" # TODO: translate to Hungarian
+            summary: "Whether the search input starts in insert or normal mode." # TODO: translate to Hungarian
+          fuzzy_search:
+            label: "Fuzzy search" # TODO: translate to Hungarian
+            summary: "Use fzf-style fuzzy matching instead of plain substring search." # TODO: translate to Hungarian
+          installed_packages_mode:
+            label: "Installed packages filter" # TODO: translate to Hungarian
+            summary: "Show only leaf packages or all explicitly installed packages." # TODO: translate to Hungarian
+          skip_preflight:
+            label: "Skip preflight modal" # TODO: translate to Hungarian
+            summary: "Bypass the preflight confirmation modal before privileged actions." # TODO: translate to Hungarian
+          use_passwordless_sudo:
+            label: "Use passwordless sudo" # TODO: translate to Hungarian
+            summary: "Allow passwordless sudo when the system is configured for it." # TODO: translate to Hungarian
+          auth_mode:
+            label: "Authentication mode" # TODO: translate to Hungarian
+            summary: "How Pacsea handles privilege auth (prompt / passwordless / interactive)." # TODO: translate to Hungarian
+          selected_countries:
+            label: "Mirror countries" # TODO: translate to Hungarian
+            summary: "Comma-separated list of countries used for mirror selection." # TODO: translate to Hungarian
+          scan_do_clamav:
+            label: "Scan: ClamAV" # TODO: translate to Hungarian
+            summary: "Enable ClamAV by default in the Scan Configuration modal." # TODO: translate to Hungarian
+          scan_do_trivy:
+            label: "Scan: Trivy" # TODO: translate to Hungarian
+            summary: "Enable Trivy by default in the Scan Configuration modal." # TODO: translate to Hungarian
+          scan_do_semgrep:
+            label: "Scan: Semgrep" # TODO: translate to Hungarian
+            summary: "Enable Semgrep by default in the Scan Configuration modal." # TODO: translate to Hungarian
+          scan_do_shellcheck:
+            label: "Scan: ShellCheck" # TODO: translate to Hungarian
+            summary: "Enable ShellCheck by default in the Scan Configuration modal." # TODO: translate to Hungarian
+          scan_do_virustotal:
+            label: "Scan: VirusTotal" # TODO: translate to Hungarian
+            summary: "Enable VirusTotal by default in the Scan Configuration modal." # TODO: translate to Hungarian
+          scan_do_custom:
+            label: "Scan: Custom" # TODO: translate to Hungarian
+            summary: "Enable user-defined custom scan by default." # TODO: translate to Hungarian
+          scan_do_sleuth:
+            label: "Scan: Sleuth" # TODO: translate to Hungarian
+            summary: "Enable the Sleuth scan by default." # TODO: translate to Hungarian
+          pkgbuild_shellcheck_exclude:
+            label: "PKGBUILD ShellCheck excludes" # TODO: translate to Hungarian
+            summary: "Comma-separated ShellCheck rule IDs to exclude (e.g. SC2034,SC2148)." # TODO: translate to Hungarian
+          pkgbuild_checks_show_raw_output:
+            label: "PKGBUILD: show raw checker output" # TODO: translate to Hungarian
+            summary: "Display raw ShellCheck/Namcap output in the PKGBUILD viewer." # TODO: translate to Hungarian
+          news_read_symbol:
+            label: "News: read symbol" # TODO: translate to Hungarian
+            summary: "Glyph drawn next to news items that have been read." # TODO: translate to Hungarian
+          news_unread_symbol:
+            label: "News: unread symbol" # TODO: translate to Hungarian
+            summary: "Glyph drawn next to unread news items." # TODO: translate to Hungarian
+          news_filter_show_arch_news:
+            label: "News filter: Arch news" # TODO: translate to Hungarian
+            summary: "Include Arch Linux news posts in the news feed." # TODO: translate to Hungarian
+          news_filter_show_advisories:
+            label: "News filter: security advisories" # TODO: translate to Hungarian
+            summary: "Include Arch security advisories in the news feed." # TODO: translate to Hungarian
+          news_filter_show_pkg_updates:
+            label: "News filter: package updates" # TODO: translate to Hungarian
+            summary: "Include official-repository package update entries in the news feed." # TODO: translate to Hungarian
+          news_filter_show_aur_updates:
+            label: "News filter: AUR updates" # TODO: translate to Hungarian
+            summary: "Include AUR package update entries in the news feed." # TODO: translate to Hungarian
+          news_filter_show_aur_comments:
+            label: "News filter: AUR comments" # TODO: translate to Hungarian
+            summary: "Include AUR comment activity in the news feed." # TODO: translate to Hungarian
+          news_filter_installed_only:
+            label: "News: installed-only advisories" # TODO: translate to Hungarian
+            summary: "Restrict advisories to those affecting installed packages." # TODO: translate to Hungarian
+          startup_news_configured:
+            label: "Startup news: configured" # TODO: translate to Hungarian
+            summary: "Marks the startup news popup setup as completed." # TODO: translate to Hungarian
+          startup_news_show_arch_news:
+            label: "Startup news: Arch news" # TODO: translate to Hungarian
+            summary: "Show Arch news in the startup popup." # TODO: translate to Hungarian
+          startup_news_show_advisories:
+            label: "Startup news: advisories" # TODO: translate to Hungarian
+            summary: "Show security advisories in the startup popup." # TODO: translate to Hungarian
+          startup_news_show_aur_updates:
+            label: "Startup news: AUR updates" # TODO: translate to Hungarian
+            summary: "Show AUR updates in the startup popup." # TODO: translate to Hungarian
+          startup_news_show_aur_comments:
+            label: "Startup news: AUR comments" # TODO: translate to Hungarian
+            summary: "Show AUR comments in the startup popup." # TODO: translate to Hungarian
+          startup_news_show_pkg_updates:
+            label: "Startup news: package updates" # TODO: translate to Hungarian
+            summary: "Show official package updates in the startup popup." # TODO: translate to Hungarian
+          startup_news_max_age_days:
+            label: "Startup news max age (days)" # TODO: translate to Hungarian
+            summary: "Hide startup-popup news older than N days, or `all` to disable." # TODO: translate to Hungarian
+          package_marker:
+            label: "Package selection marker" # TODO: translate to Hungarian
+            summary: "Visual style for queued install/remove/downgrade rows." # TODO: translate to Hungarian
+          updates_refresh_interval:
+            label: "Updates refresh interval (s)" # TODO: translate to Hungarian
+            summary: "Seconds between background pacman/AUR update checks." # TODO: translate to Hungarian
+          use_terminal_theme:
+            label: "Use terminal theme" # TODO: translate to Hungarian
+            summary: "Derive colors from the terminal via OSC 10/11 instead of theme.conf." # TODO: translate to Hungarian
+          aur_vote_enabled:
+            label: "AUR voting enabled" # TODO: translate to Hungarian
+            summary: "Enable in-app AUR vote / unvote actions over SSH." # TODO: translate to Hungarian
+          aur_vote_ssh_timeout_seconds:
+            label: "AUR voting SSH timeout (s)" # TODO: translate to Hungarian
+            summary: "Connect timeout for AUR voting SSH calls." # TODO: translate to Hungarian
+          aur_vote_ssh_command:
+            label: "AUR voting SSH binary" # TODO: translate to Hungarian
+            summary: "SSH binary used for AUR voting (default: ssh)." # TODO: translate to Hungarian
           locale:
             label: "Locale" # TODO: translate to Hungarian
             summary: "Auto-detect from the system, or choose en-US, de-DE, or hu-HU. Requires restart." # TODO: translate to Hungarian
@@ -924,6 +1227,238 @@ hu-HU:
           pi_scan_background_cost_cap_24h:
             label: "Pi Scan: háttérköltség/24 óra"
             summary: "Nem negatív decimális dollárkeret; a 0 vagy 0.00 jelentése Korlátlan."
+          keybind_help:
+            label: "Open help" # TODO: translate to Hungarian
+          keybind_toggle_config:
+            label: "Toggle Config/Lists menu" # TODO: translate to Hungarian
+          keybind_toggle_options:
+            label: "Toggle Options menu" # TODO: translate to Hungarian
+          keybind_toggle_panels:
+            label: "Toggle Panels menu" # TODO: translate to Hungarian
+          keybind_reload_config:
+            label: "Reload configuration" # TODO: translate to Hungarian
+          keybind_exit:
+            label: "Exit Pacsea" # TODO: translate to Hungarian
+          keybind_show_pkgbuild:
+            label: "Show PKGBUILD" # TODO: translate to Hungarian
+          keybind_comments_toggle:
+            label: "Toggle AUR comments" # TODO: translate to Hungarian
+          keybind_run_pkgbuild_checks:
+            label: "Run PKGBUILD checks" # TODO: translate to Hungarian
+          keybind_cycle_pkgbuild_sections:
+            label: "Cycle PKGBUILD sections" # TODO: translate to Hungarian
+          keybind_change_sort:
+            label: "Change sort mode" # TODO: translate to Hungarian
+          keybind_pane_next:
+            label: "Next pane" # TODO: translate to Hungarian
+          keybind_pane_left:
+            label: "Pane to the left" # TODO: translate to Hungarian
+          keybind_pane_right:
+            label: "Pane to the right" # TODO: translate to Hungarian
+          keybind_toggle_fuzzy:
+            label: "Toggle fuzzy search" # TODO: translate to Hungarian
+          keybind_search_move_up:
+            label: "Search: move up" # TODO: translate to Hungarian
+          keybind_search_move_down:
+            label: "Search: move down" # TODO: translate to Hungarian
+          keybind_search_page_up:
+            label: "Search: page up" # TODO: translate to Hungarian
+          keybind_search_page_down:
+            label: "Search: page down" # TODO: translate to Hungarian
+          keybind_search_add:
+            label: "Search: add to install list" # TODO: translate to Hungarian
+          keybind_search_install:
+            label: "Search: install now" # TODO: translate to Hungarian
+          keybind_search_focus_left:
+            label: "Search: focus left pane" # TODO: translate to Hungarian
+          keybind_search_focus_right:
+            label: "Search: focus right pane" # TODO: translate to Hungarian
+          keybind_search_backspace:
+            label: "Search: delete character" # TODO: translate to Hungarian
+          keybind_search_insert_clear:
+            label: "Search: clear input" # TODO: translate to Hungarian
+          keybind_search_normal_toggle:
+            label: "Normal mode: toggle" # TODO: translate to Hungarian
+          keybind_search_normal_insert:
+            label: "Normal mode: back to insert mode" # TODO: translate to Hungarian
+          keybind_search_normal_select_left:
+            label: "Normal mode: extend selection left" # TODO: translate to Hungarian
+          keybind_search_normal_select_right:
+            label: "Normal mode: extend selection right" # TODO: translate to Hungarian
+          keybind_search_normal_delete:
+            label: "Normal mode: delete selection" # TODO: translate to Hungarian
+          keybind_search_normal_clear:
+            label: "Normal mode: clear input" # TODO: translate to Hungarian
+          keybind_search_normal_open_status:
+            label: "Open Arch status page" # TODO: translate to Hungarian
+          keybind_search_normal_import:
+            label: "Import package list" # TODO: translate to Hungarian
+          keybind_search_normal_export:
+            label: "Export install list" # TODO: translate to Hungarian
+          keybind_search_normal_updates:
+            label: "Open available updates" # TODO: translate to Hungarian
+          keybind_search_normal_pi_scan:
+            label: "Open Pi Scan" # TODO: translate to Hungarian
+          keybind_recent_move_up:
+            label: "History: move up" # TODO: translate to Hungarian
+          keybind_recent_move_down:
+            label: "History: move down" # TODO: translate to Hungarian
+          keybind_recent_find:
+            label: "History: find" # TODO: translate to Hungarian
+          keybind_recent_use:
+            label: "History: search again" # TODO: translate to Hungarian
+          keybind_recent_add:
+            label: "History: add to install list" # TODO: translate to Hungarian
+          keybind_recent_to_search:
+            label: "History: back to search" # TODO: translate to Hungarian
+          keybind_recent_focus_right:
+            label: "History: focus right pane" # TODO: translate to Hungarian
+          keybind_recent_remove:
+            label: "History: remove entry" # TODO: translate to Hungarian
+          keybind_recent_clear:
+            label: "History: clear all" # TODO: translate to Hungarian
+          keybind_install_move_up:
+            label: "Install list: move up" # TODO: translate to Hungarian
+          keybind_install_move_down:
+            label: "Install list: move down" # TODO: translate to Hungarian
+          keybind_install_confirm:
+            label: "Install list: confirm" # TODO: translate to Hungarian
+          keybind_install_remove:
+            label: "Install list: remove entry" # TODO: translate to Hungarian
+          keybind_install_clear:
+            label: "Install list: clear all" # TODO: translate to Hungarian
+          keybind_install_find:
+            label: "Install list: find" # TODO: translate to Hungarian
+          keybind_install_to_search:
+            label: "Install list: back to search" # TODO: translate to Hungarian
+          keybind_install_focus_left:
+            label: "Install list: focus left pane" # TODO: translate to Hungarian
+          keybind_news_mark_read:
+            label: "News: mark item read" # TODO: translate to Hungarian
+          keybind_news_mark_all_read:
+            label: "News: mark all read" # TODO: translate to Hungarian
+          keybind_news_feed_mark_read:
+            label: "News feed: mark read" # TODO: translate to Hungarian
+          keybind_news_feed_mark_unread:
+            label: "News feed: mark unread" # TODO: translate to Hungarian
+          keybind_news_feed_toggle_read:
+            label: "News feed: toggle read" # TODO: translate to Hungarian
+          background_base:
+            label: "Background: base" # TODO: translate to Hungarian
+            summary: "Main window background." # TODO: translate to Hungarian
+          background_mantle:
+            label: "Background: mantle" # TODO: translate to Hungarian
+            summary: "Background of popups, help and side panes." # TODO: translate to Hungarian
+          background_crust:
+            label: "Background: crust" # TODO: translate to Hungarian
+            summary: "Darkest background layer for deep contrast areas." # TODO: translate to Hungarian
+          surface_level1:
+            label: "Surface: level 1" # TODO: translate to Hungarian
+            summary: "Selection highlight and raised surfaces." # TODO: translate to Hungarian
+          surface_level2:
+            label: "Surface: level 2" # TODO: translate to Hungarian
+            summary: "Key caps and stronger raised surfaces." # TODO: translate to Hungarian
+          overlay_primary:
+            label: "Overlay: primary" # TODO: translate to Hungarian
+            summary: "Low-contrast borders and dim helper text." # TODO: translate to Hungarian
+          overlay_secondary:
+            label: "Overlay: secondary" # TODO: translate to Hungarian
+            summary: "Separators and secondary borders." # TODO: translate to Hungarian
+          text_primary:
+            label: "Text: primary" # TODO: translate to Hungarian
+            summary: "Main text color." # TODO: translate to Hungarian
+          text_secondary:
+            label: "Text: secondary" # TODO: translate to Hungarian
+            summary: "Descriptions and less prominent text." # TODO: translate to Hungarian
+          text_tertiary:
+            label: "Text: tertiary" # TODO: translate to Hungarian
+            summary: "Field labels and secondary headings." # TODO: translate to Hungarian
+          accent_interactive:
+            label: "Accent: interactive" # TODO: translate to Hungarian
+            summary: "Interactive elements, links and group headings." # TODO: translate to Hungarian
+          accent_heading:
+            label: "Accent: headings" # TODO: translate to Hungarian
+            summary: "Titles, focused borders and the active tab." # TODO: translate to Hungarian
+          semantic_success:
+            label: "Status: success" # TODO: translate to Hungarian
+            summary: "Success messages, enabled values and passed validation." # TODO: translate to Hungarian
+          semantic_warning:
+            label: "Status: warning" # TODO: translate to Hungarian
+            summary: "Warnings, the edit popup and modified markers." # TODO: translate to Hungarian
+          semantic_error:
+            label: "Status: error" # TODO: translate to Hungarian
+            summary: "Errors, invalid values and restart-required markers." # TODO: translate to Hungarian
+          accent_emphasis:
+            label: "Accent: emphasis" # TODO: translate to Hungarian
+            summary: "Emphasis borders and highlights." # TODO: translate to Hungarian
+        choices:
+          sort_mode:
+            best_matches: "Most relevant matches first" # TODO: translate to Hungarian
+            alphabetical: "A to Z by package name" # TODO: translate to Hungarian
+            official_first: "Official repository packages before AUR" # TODO: translate to Hungarian
+            aur_popularity: "Most popular AUR packages first" # TODO: translate to Hungarian
+          privilege_mode:
+            auto: "Prefer doas when installed, otherwise sudo" # TODO: translate to Hungarian
+            sudo: "Always use sudo" # TODO: translate to Hungarian
+            doas: "Always use doas (password entry happens in the terminal)" # TODO: translate to Hungarian
+          auth_mode:
+            prompt: "Pacsea asks for the password and passes it to the privilege tool" # TODO: translate to Hungarian
+            passwordless_only: "Skip the prompt only when the tool allows passwordless execution" # TODO: translate to Hungarian
+            interactive: "Let the privilege tool handle authentication (supports fingerprint via PAM)" # TODO: translate to Hungarian
+          installed_packages_mode:
+            leaf: "Only explicitly installed packages nothing depends on" # TODO: translate to Hungarian
+            all: "All explicitly installed packages" # TODO: translate to Hungarian
+          search_startup_mode:
+            insert_mode: "Start typing a search immediately" # TODO: translate to Hungarian
+            normal_mode: "Start in Vim-style normal mode" # TODO: translate to Hungarian
+          package_marker:
+            full_line: "Color the whole line" # TODO: translate to Hungarian
+            front: "Marker at the start of the line" # TODO: translate to Hungarian
+            end: "Marker at the end of the line" # TODO: translate to Hungarian
+          locale:
+            _empty: "Follow the system language (LANG/LC_ALL)" # TODO: translate to Hungarian
+            "en-US": "English (United States)" # TODO: translate to Hungarian
+            "de-DE": "German (Germany)" # TODO: translate to Hungarian
+            "hu-HU": "Hungarian (Hungary)" # TODO: translate to Hungarian
+          pi_scan_thinking:
+            "off": "No extended thinking; fastest and cheapest" # TODO: translate to Hungarian
+            minimal: "Minimal thinking" # TODO: translate to Hungarian
+            low: "Light thinking" # TODO: translate to Hungarian
+            medium: "Balanced thinking" # TODO: translate to Hungarian
+            high: "Deep thinking; slower and costlier" # TODO: translate to Hungarian
+            xhigh: "Very deep thinking" # TODO: translate to Hungarian
+            max: "Maximum thinking the model supports" # TODO: translate to Hungarian
+          main_pane_order:
+            "results, search, package_info": "Top to bottom: results, search, details" # TODO: translate to Hungarian
+            "results, package_info, search": "Top to bottom: results, details, search" # TODO: translate to Hungarian
+            "search, results, package_info": "Top to bottom: search, results, details" # TODO: translate to Hungarian
+            "search, package_info, results": "Top to bottom: search, details, results" # TODO: translate to Hungarian
+            "package_info, results, search": "Top to bottom: details, results, search" # TODO: translate to Hungarian
+            "package_info, search, results": "Top to bottom: details, search, results" # TODO: translate to Hungarian
+        groups:
+          general: "General" # TODO: translate to Hungarian
+          layout: "Layout" # TODO: translate to Hungarian
+          search: "Search" # TODO: translate to Hungarian
+          privileges: "Privileges" # TODO: translate to Hungarian
+          mirrors: "Mirrors" # TODO: translate to Hungarian
+          updates: "Updates" # TODO: translate to Hungarian
+          scans: "Security scans" # TODO: translate to Hungarian
+          pkgbuild: "PKGBUILD checks" # TODO: translate to Hungarian
+          news: "News" # TODO: translate to Hungarian
+          startup_news: "Startup news" # TODO: translate to Hungarian
+          aur_voting: "AUR voting" # TODO: translate to Hungarian
+          pi_scan: "Pi Scan" # TODO: translate to Hungarian
+          keybind_global: "Global shortcuts" # TODO: translate to Hungarian
+          keybind_search: "Search pane" # TODO: translate to Hungarian
+          keybind_search_normal: "Search normal mode" # TODO: translate to Hungarian
+          keybind_recent: "Search history pane" # TODO: translate to Hungarian
+          keybind_install: "Install pane" # TODO: translate to Hungarian
+          keybind_news: "News dialog" # TODO: translate to Hungarian
+          backgrounds: "Backgrounds" # TODO: translate to Hungarian
+          surfaces_overlays: "Surfaces & overlays" # TODO: translate to Hungarian
+          text: "Text" # TODO: translate to Hungarian
+          accents: "Accents" # TODO: translate to Hungarian
+          semantic: "Status colors" # TODO: translate to Hungarian
       alert:
         header_configuration_error: "Konfigurációs hiba"
         header_clipboard_copy: "Másolás a vágólapra"
@@ -1075,10 +1610,12 @@ hu-HU:
         news_lines:
           - "  • Megnyitás: Beállítások → Hírek • Fel/Le: hírek kiválasztása • Enter: megnyitás • Esc: bezárás"
         config_editor_lines:
-          - "  • Megnyitás a Konfig / listák → Konfigurációszerkesztő (TUI) menüponton keresztül; az Esc billentyűvel léphet vissza a kulcsokról a fájlokra"
-          - "  • Gépeljen a kulcsok kereséséhez • Fel/Le: mozgás • Enter: szerkesztés • b: könyvjelző"
-          - "  • Felugró ablak: Ctrl+S mentés • Esc megszakítás • Ctrl+Z visszaállítás a megnyitáskori értékre"
-          - "  • Billentyűparancsok sora: A Ctrl+K rögzíti a következő leütött kombinációt (az Esc megszakítja a rögzítést)"
+          - "  • Open via Config/Lists → Config editor (TUI); tabs: settings.conf · keybinds.conf · theme.conf · ★ Starred" # TODO: translate to Hungarian
+          - "  • Type to search keys, labels and descriptions (all words must match) • Ctrl+R: recent searches" # TODO: translate to Hungarian
+          - "  • ↑/↓ PgUp/PgDn Home/End: move • Tab/←/→: switch tab • Enter: edit • Ctrl+B: star • Esc: clear search, then leave" # TODO: translate to Hungarian
+          - "  • Popup: ↑/↓ pick a suggestion or type a value • Tab completes • Enter/Ctrl+S saves the value shown after \"Enter saves\" • Esc cancels • Ctrl+Z resets" # TODO: translate to Hungarian
+          - "  • Integers: +/- adjust by one • Secrets: Ctrl+R reveals • On/off settings open a small picker" # TODO: translate to Hungarian
+          - "  • Keybind rows: type a chord, or press Ctrl+K / click ● Record and press the new combination (Esc stops recording)" # TODO: translate to Hungarian
           - "  • A témaszínek mentés előtt érvényesítik a teljes fájlt; az érvénytelen módosítások soha nem kerülnek a lemezre"
           - "  • A Ctrl+E exportálja a kiválasztott fájl érvényes értékeit (a titkos adatok kitakarásával)"
         close_hint: "Nyomja meg az Entert vagy az Esc gombot a bezáráshoz"
