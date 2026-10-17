@@ -39,9 +39,188 @@ pub(super) fn render(f: &mut Frame, app: &mut AppState, area: Rect) {
     render_validation(f, app, &wizard, chunks[2]);
     let mut hit_rects = render_controls(f, app, &wizard, chunks[3]);
     append_control_rects(app, &wizard, chunks[1], &mut hit_rects);
+    let picker_scroll = wizard.fallback_picker.as_ref().map(|picker| {
+        let (picker_rects, scroll) = render_fallback_picker(f, app, &wizard, picker, chunks[1]);
+        // The dropdown sits on top, so its rows must win hit testing over the page behind it.
+        hit_rects.splice(0..0, picker_rects);
+        scroll
+    });
     if let Some(live) = app.pi_scan.wizard.as_mut() {
         live.set_hit_rects(hit_rects);
+        if let (Some(picker), Some(scroll)) = (live.fallback_picker.as_mut(), picker_scroll) {
+            picker.scroll = scroll;
+        }
     }
+}
+
+/// What: Draw the fallback-model dropdown centered over the wizard body.
+///
+/// Inputs:
+/// - `wizard`: Snapshot whose options and current choice are listed.
+/// - `picker`: Open dropdown state (search text, highlight, previous scroll).
+/// - `body`: Wizard body area the popup is centered in.
+///
+/// Output:
+/// - Hit rectangles for every visible option row and the scroll offset that keeps the
+///   highlighted row visible.
+///
+/// Details:
+/// - Layout inside the border: search line, option rows, then one key-hint line. The current
+///   choice is marked with ✔ and the highlighted row with ▸ plus reverse colors.
+fn render_fallback_picker(
+    f: &mut Frame,
+    app: &AppState,
+    wizard: &PiScanSetupWizardState,
+    picker: &crate::state::pi_scan_setup::PiScanFallbackPicker,
+    body: Rect,
+) -> (Vec<PiScanSetupHitRect>, usize) {
+    let th = theme();
+    let options = wizard.fallback_picker_options();
+    let current = wizard.candidate.fallback_models.trim();
+    let labels: Vec<String> = options
+        .iter()
+        .map(|option| {
+            option
+                .clone()
+                .unwrap_or_else(|| crate::i18n::t(app, "app.pi_scan.wizard.picker.off"))
+        })
+        .collect();
+    let longest = labels
+        .iter()
+        .map(|label| label.chars().count())
+        .max()
+        .unwrap_or(0);
+    let hint_key = if wizard.fallback_choices().is_empty() {
+        "app.pi_scan.wizard.picker.no_routes"
+    } else {
+        "app.pi_scan.wizard.picker.hint"
+    };
+    let hint = crate::i18n::t(app, hint_key);
+    // Keep the page's own border visible so the popup reads as a layer above it.
+    let inner = body.inner(ratatui::layout::Margin {
+        horizontal: 1,
+        vertical: 1,
+    });
+    if inner.width < 3 || inner.height < 3 {
+        return (Vec::new(), picker.scroll);
+    }
+    let width = u16::try_from(
+        longest
+            .saturating_add(8)
+            .max(hint.chars().count().saturating_add(2))
+            .max(44),
+    )
+    .unwrap_or(u16::MAX)
+    .min(inner.width)
+    .max(1);
+    let wanted_rows = u16::try_from(options.len().max(1)).unwrap_or(u16::MAX);
+    let height = wanted_rows
+        .saturating_add(4)
+        .min(inner.height)
+        .max(inner.height.min(5));
+    let area = Rect {
+        x: inner.x + inner.width.saturating_sub(width) / 2,
+        y: inner.y + inner.height.saturating_sub(height) / 2,
+        width,
+        height,
+    };
+    let list_rows = usize::from(height.saturating_sub(4)).max(1);
+    let mut scroll = picker.scroll.min(picker.selected);
+    if picker.selected >= scroll + list_rows {
+        scroll = picker.selected + 1 - list_rows;
+    }
+    let mut lines = vec![Line::from(vec![
+        Span::styled(
+            format!(
+                "{}: ",
+                crate::i18n::t(app, "app.pi_scan.wizard.picker.search")
+            ),
+            Style::default().fg(th.subtext0),
+        ),
+        Span::styled(
+            format!("{}_", picker.filter),
+            Style::default().fg(th.text).add_modifier(Modifier::BOLD),
+        ),
+    ])];
+    let mut rects = Vec::new();
+    if options.is_empty() {
+        lines.push(Line::from(Span::styled(
+            crate::i18n::t_fmt1(app, "app.pi_scan.wizard.picker.no_match", &picker.filter),
+            Style::default().fg(th.yellow),
+        )));
+    }
+    for (index, (option, label)) in options
+        .iter()
+        .zip(&labels)
+        .enumerate()
+        .skip(scroll)
+        .take(list_rows)
+    {
+        let chosen = option.as_deref().unwrap_or("") == current;
+        let marker = if index == picker.selected {
+            "▸ "
+        } else {
+            "  "
+        };
+        let check = if chosen { "✔ " } else { "  " };
+        let style = if index == picker.selected {
+            Style::default()
+                .fg(th.base)
+                .bg(th.sapphire)
+                .add_modifier(Modifier::BOLD)
+        } else if chosen {
+            Style::default().fg(th.green)
+        } else {
+            Style::default().fg(th.text)
+        };
+        rects.push(PiScanSetupHitRect {
+            target: PiScanSetupHitTarget::FallbackOption(index),
+            x: area.x.saturating_add(1),
+            y: area
+                .y
+                .saturating_add(2)
+                .saturating_add(u16::try_from(index - scroll).unwrap_or(u16::MAX)),
+            width: area.width.saturating_sub(2),
+            height: 1,
+        });
+        lines.push(Line::from(Span::styled(
+            format!("{marker}{check}{label}"),
+            style,
+        )));
+    }
+    let inner_rows = usize::from(height.saturating_sub(2));
+    while lines.len() + 1 < inner_rows {
+        lines.push(Line::from(""));
+    }
+    lines.push(Line::from(Span::styled(
+        hint,
+        Style::default().fg(th.overlay1),
+    )));
+    f.render_widget(ratatui::widgets::Clear, area);
+    f.render_widget(
+        Paragraph::new(lines).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(th.sapphire))
+                .title(Span::styled(
+                    format!(
+                        " {} · {}/{} ",
+                        crate::i18n::t(app, "app.pi_scan.wizard.picker.title"),
+                        if options.is_empty() {
+                            0
+                        } else {
+                            picker.selected + 1
+                        },
+                        options.len()
+                    ),
+                    Style::default()
+                        .fg(th.sapphire)
+                        .add_modifier(Modifier::BOLD),
+                )),
+        ),
+        area,
+    );
+    (rects, scroll)
 }
 
 /// Draw fixed seven-step progress with distinct complete/current/upcoming states.
@@ -241,7 +420,7 @@ fn footer_controls(wizard: &PiScanSetupWizardState) -> Vec<(PiScanSetupHitTarget
                 PiScanSetupHitTarget::Next => "n",
                 PiScanSetupHitTarget::Apply => "a",
                 PiScanSetupHitTarget::Retry => "r",
-                PiScanSetupHitTarget::Control(_) => "",
+                PiScanSetupHitTarget::Control(_) | PiScanSetupHitTarget::FallbackOption(_) => "",
             };
             (target, key)
         })
@@ -339,7 +518,7 @@ fn control_label(app: &AppState, target: PiScanSetupHitTarget, key: &str) -> Str
         }
         PiScanSetupHitTarget::Retry => "retry",
         PiScanSetupHitTarget::Apply => "apply",
-        PiScanSetupHitTarget::Control(_) => "select",
+        PiScanSetupHitTarget::Control(_) | PiScanSetupHitTarget::FallbackOption(_) => "select",
     };
     format!(
         " {key} {} ",
@@ -531,10 +710,18 @@ fn optional_lines(app: &AppState, wizard: &PiScanSetupWizardState) -> Vec<Line<'
             app,
             wizard,
             2,
-            format!(
-                "← {}: {fallback} →",
-                crate::i18n::t(app, "app.pi_scan.wizard.optional.fallback")
-            ),
+            if wizard.focus == 2 {
+                format!(
+                    "← {}: {fallback} ▾ → · {}",
+                    crate::i18n::t(app, "app.pi_scan.wizard.optional.fallback"),
+                    crate::i18n::t(app, "app.pi_scan.wizard.optional.fallback_list")
+                )
+            } else {
+                format!(
+                    "← {}: {fallback} ▾ →",
+                    crate::i18n::t(app, "app.pi_scan.wizard.optional.fallback")
+                )
+            },
         ),
         focused_line(
             app,
@@ -845,7 +1032,7 @@ mod tests {
     #[test]
     fn all_wizard_steps_render_at_narrow_dimensions() {
         for step in PiScanSetupStep::all() {
-            for (width, height) in [(36, 12), (20, 7)] {
+            for (width, height) in [(36, 12), (20, 7), (6, 4)] {
                 let backend = TestBackend::new(width, height);
                 let mut terminal = Terminal::new(backend).expect("test terminal");
                 let mut app = AppState::default();
@@ -855,6 +1042,10 @@ mod tests {
                     true,
                 );
                 wizard.step = step;
+                if step == PiScanSetupStep::OptionalBehavior {
+                    // The dropdown must also survive bodies too small to hold it.
+                    wizard.open_fallback_picker();
+                }
                 app.pi_scan.wizard = Some(wizard);
                 terminal
                     .draw(|frame| render(frame, &mut app, frame.area()))
@@ -939,6 +1130,70 @@ mod tests {
             hit_rects
                 .iter()
                 .any(|rect| { matches!(rect.target, PiScanSetupHitTarget::Next) })
+        );
+    }
+
+    /// The open fallback dropdown draws on top and its rows win hit testing.
+    #[test]
+    fn fallback_dropdown_renders_options_and_click_targets() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).expect("test terminal");
+        let mut app = AppState::default();
+        let locales = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("config/locales");
+        app.translations =
+            crate::i18n::load_locale_file("en-US", &locales).expect("English locale");
+        let mut wizard = PiScanSetupWizardState::open(
+            app.pi_scan.settings.clone(),
+            PiScanConsentState::default(),
+            true,
+        );
+        wizard.verified = Some(crate::state::pi_scan_setup::PiScanSetupVerifiedFacts {
+            routes: (0..30)
+                .map(|index| ("provider".to_string(), format!("model-{index:02}")))
+                .collect(),
+            ..crate::state::pi_scan_setup::PiScanSetupVerifiedFacts::default()
+        });
+        wizard.candidate.provider = "provider".to_string();
+        wizard.candidate.model = "model-00".to_string();
+        wizard.step = PiScanSetupStep::OptionalBehavior;
+        wizard.focus = 2;
+        wizard.open_fallback_picker();
+        wizard.move_fallback_picker(isize::MAX);
+        app.pi_scan.wizard = Some(wizard);
+        terminal
+            .draw(|frame| render(frame, &mut app, frame.area()))
+            .expect("wizard render");
+        let text = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(ratatui::buffer::Cell::symbol)
+            .collect::<String>();
+        assert!(text.contains("Choose a backup model"));
+        assert!(
+            text.contains("▸   provider/model-29"),
+            "last row scrolled into view"
+        );
+        assert!(
+            !text.contains("provider/model-00"),
+            "primary is not offered"
+        );
+        let live = app.pi_scan.wizard.as_ref().expect("wizard");
+        let first_hit = live.hit_rects.first().expect("hit rects");
+        assert!(matches!(
+            first_hit.target,
+            PiScanSetupHitTarget::FallbackOption(_)
+        ));
+        assert!(live.fallback_picker.as_ref().expect("picker").scroll > 0);
+        let last_row = live
+            .hit_rects
+            .iter()
+            .find(|rect| rect.target == PiScanSetupHitTarget::FallbackOption(29))
+            .expect("highlighted row is clickable");
+        assert_eq!(
+            live.hit_test(last_row.x, last_row.y),
+            Some(PiScanSetupHitTarget::FallbackOption(29))
         );
     }
 

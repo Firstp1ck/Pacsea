@@ -873,21 +873,10 @@ fn footer_hints(app: &AppState, width: usize) -> Line<'static> {
             add("B", "background", 2);
         }
         PiScanView::Overview | PiScanView::Progress => {
-            use crate::state::pi_scan::PiScanPauseReason;
             let runtime = &app.pi_scan.runtime;
-            if runtime.active.is_some()
-                || !runtime.queue.is_empty()
-                || runtime.pause_reasons.contains(&PiScanPauseReason::User)
-            {
-                add(
-                    "p",
-                    if runtime.pause_reasons.contains(&PiScanPauseReason::User) {
-                        "resume"
-                    } else {
-                        "pause"
-                    },
-                    1,
-                );
+            let resumable = runtime.resume_available();
+            if runtime.active.is_some() || !runtime.queue.is_empty() || resumable {
+                add("p", if resumable { "resume" } else { "pause" }, 1);
             }
             if runtime.active.is_some() {
                 add("x x", "cancel", 1);

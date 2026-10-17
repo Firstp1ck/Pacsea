@@ -274,6 +274,7 @@ hu-HU:
           retention: "Eredménymegőrzés napokban"
           proxy: "Hitelesítő adatok nélküli HTTPS-proxy"
           defaults: "Konzervatív alapértékek: megfigyelés ki · fizetős háttér ki · tartalék útvonal ki · költség Korlátlan (0.00-ként tárolva)."
+          fallback_list: "Enter: választás a listából"
         review:
           explanation: "Tekintsen át minden érvényes értéket. Az izolált ellenőrzés nem okozott tartós változást."
           route: "Program · pontos útvonal · gondolkodási szint"
@@ -302,6 +303,13 @@ hu-HU:
           advisory: "A kész állapot beállított és csatlakoztatott rendszert jelent, nem biztonságos csomagot."
         footer:
           notice: "A varázsló módosításai az Alkalmazásig izoláltak; a folyamatban lévő Alkalmazás két Esc-et igényel, és jelenti a kifejezett visszaállítást."
+        picker:
+          title: "Tartalék modell kiválasztása"
+          search: "Keresés"
+          off: "Ki — nincs tartalék modell"
+          no_match: "Egy modell sem illik erre: „{}”"
+          hint: "↑↓ mozgatás · gépeljen a kereséshez · Enter kiválasztás · Esc bezárás"
+          no_routes: "A modellek listázásához ellenőrizze a Pi-t a 2. lépésben · Esc bezárás"
       overview:
         sections:
           activity: "Right now" # TODO: translate to Hungarian
@@ -366,7 +374,7 @@ hu-HU:
           finalizing: "Persisting the validated result and accounting" # TODO: translate to Hungarian
         pause:
           user: "you paused it" # TODO: translate to Hungarian
-          service: "the scanner paused itself" # TODO: translate to Hungarian
+          service: "the scanner paused itself after errors; press p to check setup and continue"  # TODO: translate to Hungarian
           budget: "a spending limit was reached" # TODO: translate to Hungarian
         budget_limits: "Limit(s) currently exceeded" # TODO: translate to Hungarian
         budget_solution: "Várja meg a gördülő időablak lejártát, vagy nyomja meg itt a b billentyűt az érintett korlátok Duplázás vagy Korlátlan módosításához. A Duplázás után is maradhat túllépett korlát."
@@ -1065,6 +1073,7 @@ hu-HU:
           - "  • Settings: Enter selects · w guided setup · v check setup · B background scans" # TODO: translate to Hungarian
           - "  • Wizard: Tab/Shift+Tab focus · Enter confirms text field · printable keys edit text · PgUp/PgDn scroll" # TODO: translate to Hungarian
           - "  • Wizard: n Next · b Back · a Apply · r Retry only outside text fields · Esc Cancel" # TODO: translate to Hungarian
+          - "  • Wizard backup model: Enter or a click opens the list · type to search · ↑/↓ move · Enter choose · Esc closes the list" # TODO: translate to Hungarian
         mouse_lines:
           - "  • Listák (találatok/legutóbbi/telepítés) és PKGBUILD görgetése egérgörgővel"
           - "  • PKGBUILD be/ki: kattintson a „PKGBUILD megjelenítése” gombra a részleteknél"

@@ -271,6 +271,7 @@ de-DE:
           retention: "Ergebnisaufbewahrung in Tagen"
           proxy: "Zugangsdatenfreier HTTPS-Proxy"
           defaults: "Konservative Vorgaben: Beobachtung aus · bezahlt im Hintergrund aus · Fallback aus · Kosten Unbegrenzt (gespeichert als 0.00)."
+          fallback_list: "Enter: aus Liste wählen"
         review:
           explanation: "Alle effektiven Werte prüfen. Die isolierte Validierung hat nichts dauerhaft geändert."
           route: "Programm · exakte Route · Denkstufe"
@@ -299,6 +300,13 @@ de-DE:
           advisory: "Bereit bedeutet konfiguriert und verbunden, nicht dass ein Paket sicher ist."
         footer:
           notice: "Nichts wird gespeichert, bevor im letzten Schritt Anwenden gedrückt wird. Esc bricht die geführte Einrichtung ab."
+        picker:
+          title: "Ersatzmodell wählen"
+          search: "Suchen"
+          off: "Aus — kein Ersatzmodell"
+          no_match: "Kein Modell passt zu „{}“"
+          hint: "↑↓ bewegen · tippen zum Suchen · Enter wählen · Esc schließen"
+          no_routes: "Pi in Schritt 2 prüfen, um Modelle aufzulisten · Esc schließen"
       overview:
         sections:
           activity: "Gerade jetzt"
@@ -363,7 +371,7 @@ de-DE:
           finalizing: "Das validierte Ergebnis und die Abrechnung werden gespeichert"
         pause:
           user: "manuell pausiert"
-          service: "vom Scanner pausiert"
+          service: "vom Scanner nach Fehlern pausiert; p prüft die Einrichtung und setzt fort"
           budget: "ein Ausgabelimit wurde erreicht"
         budget_limits: "Überschrittene Grenze(n)"
         budget_solution: "Warten Sie auf das Zeitfenster oder drücken Sie hier b, um Verdoppeln oder Unbegrenzt für die betroffenen Grenzen zu wählen. Verdoppeln kann weiterhin eine Grenze überschreiten."
@@ -1062,6 +1070,7 @@ de-DE:
           - "  • Einstellungen: Enter auswählen · w geführte Einrichtung · v Einrichtung prüfen · B Hintergrundscans"
           - "  • Assistent: Tab/Shift+Tab Fokus · Enter bestätigt Textfeld · druckbare Tasten bearbeiten Text · Bild↑/Bild↓ scrollen"
           - "  • Assistent: n Weiter · b Zurück · a Anwenden · r Erneut nur außerhalb von Textfeldern · Esc Abbrechen"
+          - "  • Assistent, Ersatzmodell: Enter oder Klick öffnet die Liste · tippen zum Suchen · ↑/↓ bewegen · Enter wählen · Esc schließt die Liste"
         mouse_lines:
           - "  • Listen (Ergebnisse/Kürzlich/Installieren) und PKGBUILD mit Mausrad scrollen"
           - "  • PKGBUILD umschalten: 'PKGBUILD anzeigen' in Details klicken"

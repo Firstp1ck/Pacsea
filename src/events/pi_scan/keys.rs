@@ -1,6 +1,6 @@
 //! Keyboard state transitions for the Pi Scan workspace.
 
-use crate::state::pi_scan_setup::{PiScanSetupHitTarget, PiScanSetupStep};
+use crate::state::pi_scan_setup::{PiScanSetupHitTarget, PiScanSetupStep, PiScanSetupWizardState};
 use crate::state::pi_scan_ui::{PiScanNoticeSeverity, PiScanSetupRow, SETUP_ROW_COUNT};
 use crate::state::types::AppMode;
 use crate::state::{
@@ -137,8 +137,52 @@ fn pi_scan_unix_now() -> u64 {
         .map_or(0, |duration| duration.as_secs())
 }
 
+/// What: Handle one key while the fallback-model dropdown is open.
+///
+/// Inputs:
+/// - `key`: Pressed key.
+/// - `wizard`: Wizard owning the open dropdown.
+///
+/// Output:
+/// - Always `true`; the dropdown owns every key so nothing reaches the page behind it.
+///
+/// Details:
+/// - Printable characters search instead of acting as shortcuts, so `j`/`k`/`n`/`b` can be
+///   typed into the search. Esc closes only the dropdown, not the wizard.
+fn handle_fallback_picker(key: KeyEvent, wizard: &mut PiScanSetupWizardState) -> bool {
+    const PAGE: isize = 8;
+    match key.code {
+        KeyCode::Esc | KeyCode::Tab | KeyCode::BackTab => wizard.close_fallback_picker(),
+        KeyCode::Up => wizard.move_fallback_picker(-1),
+        KeyCode::Down => wizard.move_fallback_picker(1),
+        KeyCode::PageUp => wizard.move_fallback_picker(-PAGE),
+        KeyCode::PageDown => wizard.move_fallback_picker(PAGE),
+        KeyCode::Home => wizard.move_fallback_picker(isize::MIN),
+        KeyCode::End => wizard.move_fallback_picker(isize::MAX),
+        KeyCode::Enter => {
+            wizard.choose_fallback_option(None);
+        }
+        KeyCode::Backspace => wizard.edit_fallback_filter(None, true),
+        KeyCode::Char(character)
+            if key.modifiers.is_empty() || key.modifiers == KeyModifiers::SHIFT =>
+        {
+            wizard.edit_fallback_filter(Some(character), false);
+        }
+        _ => {}
+    }
+    true
+}
+
 /// Handle one key inside the isolated keyboard-first setup wizard.
 fn handle_wizard(key: KeyEvent, app: &mut AppState) -> bool {
+    if let Some(wizard) = app
+        .pi_scan
+        .wizard
+        .as_mut()
+        .filter(|wizard| wizard.fallback_picker.is_some())
+    {
+        return handle_fallback_picker(key, wizard);
+    }
     if key.code == KeyCode::Esc {
         app.pi_scan.cancel_or_abandon_setup_wizard();
         return true;
@@ -257,6 +301,11 @@ pub(super) fn activate_wizard_target(target: PiScanSetupHitTarget, app: &mut App
                 wizard.focus = index.min(wizard.focus_count().saturating_sub(1));
             }
             activate_focused(app, dry_run);
+        }
+        PiScanSetupHitTarget::FallbackOption(index) => {
+            if let Some(wizard) = app.pi_scan.wizard.as_mut() {
+                wizard.choose_fallback_option(Some(index));
+            }
         }
     }
 }
@@ -739,11 +788,7 @@ fn handle_runtime_pause_cancel_key(key: KeyEvent, app: &mut AppState) -> bool {
     };
     let running_or_queued =
         app.pi_scan.runtime.active.is_some() || !app.pi_scan.runtime.queue.is_empty();
-    let user_paused = app
-        .pi_scan
-        .runtime
-        .pause_reasons
-        .contains(&crate::state::pi_scan::PiScanPauseReason::User);
+    let resumable = app.pi_scan.runtime.resume_available();
     let action = match character {
         'x' if !matches!(
             (key.code, key.modifiers),
@@ -752,7 +797,7 @@ fn handle_runtime_pause_cancel_key(key: KeyEvent, app: &mut AppState) -> bool {
         {
             return false;
         }
-        'p' | 'u' if user_paused => PiScanUiAction::Resume,
+        'p' | 'u' if resumable => PiScanUiAction::Resume,
         'p' if running_or_queued => PiScanUiAction::Pause,
         'x' => {
             let Some(id) = app
@@ -951,6 +996,25 @@ mod tests {
             &mut app
         ));
         assert_eq!(app.pi_scan.selected_setup, 2);
+    }
+
+    /// A service pause alone (no user pause, nothing running) is resumable with `p`.
+    #[test]
+    fn service_pause_alone_offers_resume() {
+        let mut app = AppState {
+            app_mode: AppMode::PiScan,
+            ..AppState::default()
+        };
+        app.pi_scan.set_view(PiScanView::Progress);
+        app.pi_scan
+            .runtime
+            .pause_reasons
+            .insert(PiScanPauseReason::Service);
+        assert!(handle_key(
+            KeyEvent::new(KeyCode::Char('p'), KeyModifiers::NONE),
+            &mut app
+        ));
+        assert_eq!(app.pi_scan.pending_action, Some(PiScanUiAction::Resume));
     }
 
     /// Any other key disarms a pending cancellation and p resumes when user-paused.
@@ -1214,6 +1278,72 @@ mod tests {
                 .binary,
             "nbr"
         );
+    }
+
+    /// The open fallback dropdown owns keys: letters search, Esc closes only the dropdown.
+    #[test]
+    fn wizard_fallback_dropdown_owns_keys_and_escape_keeps_the_wizard() {
+        let mut app = AppState::default();
+        app.pi_scan.begin_setup_wizard(true);
+        let wizard = app.pi_scan.wizard.as_mut().expect("wizard");
+        wizard.verified = Some(crate::state::pi_scan_setup::PiScanSetupVerifiedFacts {
+            routes: vec![
+                ("provider-a".to_string(), "model-a".to_string()),
+                ("provider-b".to_string(), "nano".to_string()),
+                ("provider-c".to_string(), "big".to_string()),
+            ],
+            ..crate::state::pi_scan_setup::PiScanSetupVerifiedFacts::default()
+        });
+        wizard.candidate.provider = "provider-a".to_string();
+        wizard.candidate.model = "model-a".to_string();
+        wizard.step = PiScanSetupStep::OptionalBehavior;
+        wizard.focus = 2;
+        let press = |app: &mut AppState, code: KeyCode| {
+            assert!(handle_key(KeyEvent::new(code, KeyModifiers::NONE), app));
+        };
+
+        press(&mut app, KeyCode::Enter);
+        assert!(
+            app.pi_scan
+                .wizard
+                .as_ref()
+                .expect("wizard")
+                .fallback_picker
+                .is_some()
+        );
+        for character in "nb".chars() {
+            press(&mut app, KeyCode::Char(character));
+        }
+        let wizard = app.pi_scan.wizard.as_ref().expect("wizard");
+        assert_eq!(
+            wizard.step,
+            PiScanSetupStep::OptionalBehavior,
+            "n/b did not navigate"
+        );
+        assert_eq!(
+            wizard
+                .fallback_picker
+                .as_ref()
+                .map(|picker| picker.filter.as_str()),
+            Some("nb")
+        );
+        press(&mut app, KeyCode::Backspace);
+        press(&mut app, KeyCode::Esc);
+        let wizard = app
+            .pi_scan
+            .wizard
+            .as_ref()
+            .expect("Esc keeps the wizard open");
+        assert!(wizard.fallback_picker.is_none());
+        assert!(wizard.candidate.fallback_models.is_empty());
+
+        press(&mut app, KeyCode::Char(' '));
+        press(&mut app, KeyCode::Down);
+        press(&mut app, KeyCode::Down);
+        press(&mut app, KeyCode::Enter);
+        let wizard = app.pi_scan.wizard.as_ref().expect("wizard");
+        assert!(wizard.fallback_picker.is_none());
+        assert_eq!(wizard.candidate.fallback_models, "provider-c/big");
     }
 
     /// Escape must cancel only the isolated draft and preserve Pi Scan mode.

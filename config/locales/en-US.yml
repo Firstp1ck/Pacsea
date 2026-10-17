@@ -271,6 +271,7 @@ en-US:
           retention: "Result retention days"
           proxy: "Credential-free HTTPS proxy"
           defaults: "Conservative presets: observation off · background paid off · fallback off · cost Unlimited (stored as 0.00)."
+          fallback_list: "Enter: pick from list"
         review:
           explanation: "Review every effective value. Validation was isolated and made no durable change."
           route: "Binary · exact route · thinking"
@@ -299,6 +300,13 @@ en-US:
           advisory: "Ready means configured and connected, not that any package is safe."
         footer:
           notice: "Nothing is saved until you press Apply on the last step. Esc cancels the guided setup."
+        picker:
+          title: "Choose a backup model"
+          search: "Search"
+          off: "Off — no backup model"
+          no_match: "No model matches “{}”"
+          hint: "↑↓ move · type to search · Enter choose · Esc close"
+          no_routes: "Check Pi on step 2 to list models · Esc close"
       overview:
         sections:
           activity: "Right now"
@@ -363,7 +371,7 @@ en-US:
           finalizing: "Persisting the validated result and accounting"
         pause:
           user: "you paused it"
-          service: "the scanner paused itself"
+          service: "the scanner paused itself after errors; press p to check setup and continue"
           budget: "a spending limit was reached"
         budget_limits: "Limit(s) currently exceeded"
         budget_solution: "Wait for the rolling window to expire, or press b here to choose Double or Unlimited for the affected limits. Double may still leave a limit exceeded."
@@ -1278,6 +1286,7 @@ en-US:
           - "  • Settings: Enter selects · w guided setup · v check setup · B background scans"
           - "  • Wizard: Tab/Shift+Tab focus · Enter confirms text field · printable keys edit text · PgUp/PgDn scroll"
           - "  • Wizard: n Next · b Back · a Apply · r Retry only outside text fields · Esc Cancel"
+          - "  • Wizard backup model: Enter or a click opens the list · type to search · ↑/↓ move · Enter choose · Esc closes the list"
         mouse_lines:
           - "  • Scroll lists (Results/Recent/Install) and PKGBUILD with mouse wheel"
           - "  • Toggle PKGBUILD: click 'Show PKGBUILD' in details"

@@ -2,6 +2,7 @@
 
 mod keys;
 
+use crate::state::pi_scan_setup::PiScanSetupHitTarget;
 use crate::state::pi_scan_ui::PiScanNoticeSeverity;
 use crate::state::{AppState, PiScanView, Source, types::AppMode};
 use crossterm::event::{KeyEvent, MouseButton, MouseEvent, MouseEventKind};
@@ -63,6 +64,28 @@ pub fn open_workspace(app: &mut AppState) {
 pub fn handle_mouse(event: MouseEvent, app: &mut AppState) -> bool {
     if matches!(event.kind, MouseEventKind::Down(_)) {
         app.pi_scan.cancel_armed = None;
+    }
+    if let Some(wizard) = app
+        .pi_scan
+        .wizard
+        .as_mut()
+        .filter(|wizard| wizard.fallback_picker.is_some())
+    {
+        match event.kind {
+            MouseEventKind::ScrollUp => wizard.move_fallback_picker(-1),
+            MouseEventKind::ScrollDown => wizard.move_fallback_picker(1),
+            MouseEventKind::Down(MouseButton::Left) => {
+                match wizard.hit_test(event.column, event.row) {
+                    Some(PiScanSetupHitTarget::FallbackOption(index)) => {
+                        wizard.choose_fallback_option(Some(index));
+                    }
+                    // A click outside the dropdown dismisses it, like a native menu.
+                    _ => wizard.close_fallback_picker(),
+                }
+            }
+            _ => {}
+        }
+        return true;
     }
     if let Some(wizard) = app.pi_scan.wizard.as_mut() {
         match event.kind {
