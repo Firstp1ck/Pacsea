@@ -605,12 +605,7 @@ mod tests {
             .iter()
             .map(ratatui::buffer::Cell::symbol)
             .collect::<String>();
-        for heading in [
-            "Runtime",
-            "Route and cost",
-            "Safety and coverage",
-            "Permissions",
-        ] {
+        for heading in ["Connection", "AI model and cost", "Safety", "Permissions"] {
             assert!(
                 rendered.contains(heading),
                 "missing {heading:?}: {rendered:?}"

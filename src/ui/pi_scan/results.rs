@@ -91,7 +91,20 @@ fn result_prefix(app: &AppState, prefix_lines: u16) -> Vec<Line<'static>> {
     }
 }
 
-/// Build one scan-friendly result row with independent completion, identity, and severity cues.
+/// What: Build one result row that leads with a plain-language verdict.
+///
+/// Inputs:
+/// - `app`: Localization and target state.
+/// - `result`: Validated result shown on this row.
+/// - `selected`: Whether the row has keyboard focus.
+/// - `width`: Inner list width.
+///
+/// Output:
+/// - `› ✔ package  verdict [severity] · freshness · version` truncated to `width`.
+///
+/// Details:
+/// - Each cue pairs a symbol and a word with color so meaning survives without color.
+/// - The short version identity is dropped first when the row is too narrow.
 fn result_line(
     app: &AppState,
     result: &PiScanDisplayResult,
@@ -101,35 +114,32 @@ fn result_line(
     let package_style = if selected {
         super::semantic_style(SemanticTone::Active).add_modifier(Modifier::BOLD)
     } else {
-        super::semantic_style(SemanticTone::Normal)
+        super::semantic_style(SemanticTone::Normal).add_modifier(Modifier::BOLD)
     };
-    let identity_key = if result.stale {
-        "app.pi_scan.results.stale"
-    } else if super::result_has_newer_version(app, result) {
-        "app.pi_scan.results.newer_version"
+    let newer_version = super::result_has_newer_version(app, result);
+    let (identity_key, identity_tone) = if result.stale {
+        ("app.pi_scan.results.stale", SemanticTone::Error)
+    } else if newer_version {
+        ("app.pi_scan.results.newer_version", SemanticTone::Warning)
     } else {
-        "app.pi_scan.results.current"
+        ("app.pi_scan.results.current", SemanticTone::Success)
     };
-    let identity_tone = if result.stale {
-        SemanticTone::Error
-    } else if super::result_has_newer_version(app, result) {
-        SemanticTone::Warning
-    } else {
-        SemanticTone::Success
-    };
+    let (symbol, verdict_tone) = verdict_cue(&result.validated);
     let mut spans = vec![
         Span::styled(if selected { "› " } else { "  " }, package_style),
+        Span::styled(
+            format!("{symbol} "),
+            super::semantic_style(verdict_tone).add_modifier(Modifier::BOLD),
+        ),
         Span::styled(
             result.validated.identity.package_base.clone(),
             package_style,
         ),
-        Span::raw(" — ["),
+        Span::raw("  "),
         Span::styled(
-            localized_coverage(app, result.validated.coverage),
-            super::semantic_style(coverage_tone(result.validated.coverage))
-                .add_modifier(Modifier::BOLD),
+            localized_completion(app, result),
+            super::semantic_style(verdict_tone),
         ),
-        Span::raw("]"),
     ];
     if let Some(severity) = result.validated.highest_severity() {
         spans.extend([
@@ -142,15 +152,10 @@ fn result_line(
         ]);
     }
     spans.extend([
-        Span::raw(" "),
-        Span::styled(
-            crate::i18n::t(app, identity_key),
-            super::semantic_style(identity_tone).add_modifier(Modifier::BOLD),
-        ),
         Span::raw(" · "),
         Span::styled(
-            localized_completion(app, result),
-            super::semantic_style(coverage_tone(result.validated.coverage)),
+            crate::i18n::t(app, identity_key),
+            super::semantic_style(identity_tone),
         ),
     ]);
     let commit = format!(
@@ -165,6 +170,28 @@ fn result_line(
         ));
     }
     truncate_line(Line::from(spans), width)
+}
+
+/// What: Pick the leading verdict symbol and tone for one validated result.
+///
+/// Inputs:
+/// - `validated`: Merged validated result.
+///
+/// Output:
+/// - `✖` for high/critical findings, `⚠` for other findings, `✔` for a complete
+///   clean scan, and `◐` for a clean but incomplete scan, with matching tone.
+///
+/// Details:
+/// - Incomplete coverage is never shown as a plain success.
+fn verdict_cue(
+    validated: &crate::logic::pi_scan::result::MergedScanResult,
+) -> (&'static str, SemanticTone) {
+    match (validated.highest_severity(), validated.coverage) {
+        (Some(Severity::High | Severity::Critical), _) => ("✖", SemanticTone::Error),
+        (Some(_), _) => ("⚠", SemanticTone::Warning),
+        (None, Coverage::Complete) => ("✔", SemanticTone::Success),
+        (None, Coverage::Incomplete) => ("◐", SemanticTone::Warning),
+    }
 }
 
 /// Measure the display width of styled row fragments before optional metadata is appended.
@@ -209,23 +236,6 @@ fn localized_completion(app: &AppState, result: &PiScanDisplayResult) -> String 
         &format!("app.pi_scan.results.completion.{key}"),
         finding_count,
     )
-}
-
-/// Render typed coverage with an explicit complete or incomplete status word.
-fn localized_coverage(app: &AppState, coverage: Coverage) -> String {
-    let key = match coverage {
-        Coverage::Complete => "complete",
-        Coverage::Incomplete => "incomplete",
-    };
-    crate::i18n::t(app, &format!("app.pi_scan.coverage.{key}"))
-}
-
-/// Map validated coverage to complete or incomplete semantic emphasis.
-const fn coverage_tone(coverage: Coverage) -> SemanticTone {
-    match coverage {
-        Coverage::Complete => SemanticTone::Success,
-        Coverage::Incomplete => SemanticTone::Warning,
-    }
 }
 
 /// Map validated finding severity to its accessible semantic emphasis.

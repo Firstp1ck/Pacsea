@@ -376,12 +376,33 @@ pub struct DryRunAcquisitionReceipt {
     pub coverage_notes: Vec<String>,
 }
 
-/// Execution failure classification used by the central runner.
+/// Consecutive environment failures that turn into a sticky service pause.
+///
+/// One unreachable mirror or one crashed Pi run should only fail its own package. Several in a
+/// row point at the machine, network, or provider, where continuing would fail every package.
+pub const ENVIRONMENT_FAILURES_BEFORE_PAUSE: u32 = 3;
+
+/// What: Execution failure classification used by the central runner.
+///
+/// Inputs:
+/// - Produced by an [`OrchestrationAdapter`] when one frozen target cannot be scanned.
+///
+/// Output:
+/// - Decides whether only the item fails or the whole queue pauses.
+///
+/// Details:
+/// - `Package` never pauses. `Environment` pauses only after
+///   [`ENVIRONMENT_FAILURES_BEFORE_PAUSE`] consecutive occurrences. `Service` pauses at once.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExecutionFailure {
     /// Sticky cancellation suppressed correction, fallback, and result acceptance.
     Cancelled,
-    /// Acquisition, Pi, validation, persistence, or recheck service failure.
+    /// This package cannot be scanned (recipe, membership, integrity, or model result); later
+    /// queued packages continue.
+    Package(String),
+    /// Network, AUR, or Pi transport failed after retries; repeated failures pause the queue.
+    Environment(String),
+    /// Local setup, workspace, or persistence failure that affects every package.
     Service(String),
 }
 
@@ -720,6 +741,8 @@ pub enum OrchestrationError {
     Cancelled,
     /// Acquisition, execution, validation, stale check, or persistence failed.
     Execution(String),
+    /// Only the active package failed; the queue was not paused and later items may start.
+    PackageFailed(String),
     /// Durable state is corrupt, newer, or unavailable.
     Persistence(String),
 }
@@ -733,6 +756,7 @@ impl fmt::Display for OrchestrationError {
             | Self::Observation(reason)
             | Self::Paused(reason)
             | Self::Execution(reason)
+            | Self::PackageFailed(reason)
             | Self::Persistence(reason) => formatter.write_str(reason),
             Self::Cancelled => formatter.write_str("the active Pi scan was cancelled"),
         }
@@ -763,6 +787,9 @@ pub struct PiScanOrchestrator<A> {
     baselines: AcceptedBaselineState,
     /// Cached no-model setup facts for the current process.
     setup: Option<SetupSnapshot>,
+    /// Environment failures since the last success; process-local by design so a restart
+    /// starts with a clean slate.
+    consecutive_environment_failures: u32,
 }
 
 impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
@@ -905,6 +932,7 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
             adapter,
             baselines,
             setup: None,
+            consecutive_environment_failures: 0,
         })
     }
 
@@ -1548,7 +1576,17 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
         {
             Ok(receipt) => {
                 progress.report(PiScanExecutionPhase::ValidatingResult);
-                self.accept_execution(active.correlation_id, &target, receipt, now_unix, &progress)
+                let accepted = self.accept_execution(
+                    active.correlation_id,
+                    &target,
+                    receipt,
+                    now_unix,
+                    &progress,
+                );
+                if accepted.is_ok() {
+                    self.consecutive_environment_failures = 0;
+                }
+                accepted
             }
             Err(ExecutionFailure::Cancelled) => {
                 self.state
@@ -1564,11 +1602,63 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
                 self.persist()?;
                 Err(OrchestrationError::Cancelled)
             }
+            Err(ExecutionFailure::Package(reason)) => {
+                self.fail_active(active.correlation_id, now_unix, false)?;
+                Err(OrchestrationError::PackageFailed(reason))
+            }
+            Err(ExecutionFailure::Environment(reason)) => {
+                self.consecutive_environment_failures =
+                    self.consecutive_environment_failures.saturating_add(1);
+                if self.consecutive_environment_failures < ENVIRONMENT_FAILURES_BEFORE_PAUSE {
+                    self.fail_active(active.correlation_id, now_unix, false)?;
+                    return Err(OrchestrationError::PackageFailed(reason));
+                }
+                self.consecutive_environment_failures = 0;
+                self.fail_active(active.correlation_id, now_unix, true)?;
+                Err(OrchestrationError::Execution(format!(
+                    "{reason}. Scanning paused after {ENVIRONMENT_FAILURES_BEFORE_PAUSE} packages in a row failed this way; check the network and Pi, then resume"
+                )))
+            }
             Err(ExecutionFailure::Service(reason)) => {
                 self.fail_active(active.correlation_id, now_unix, true)?;
                 Err(OrchestrationError::Execution(reason))
             }
         }
+    }
+
+    /// What: Clear a sticky service pause after the local setup probe succeeds again.
+    ///
+    /// Inputs:
+    /// - None; uses the adapter's no-model setup probe.
+    ///
+    /// Output:
+    /// - `Ok(true)` when a service pause was cleared, `Ok(false)` when none was present.
+    ///
+    /// Details:
+    /// - Used by an explicit user Resume. It checks the environment (Pi, routes, pricing) rather
+    ///   than re-acquiring one package, so a single broken package cannot keep the queue paused.
+    ///
+    /// # Errors
+    /// - Returns readiness failures (the pause stays) or persistence failures.
+    pub fn revalidate_service_environment(&mut self) -> Result<bool, OrchestrationError> {
+        if !self
+            .state
+            .runtime
+            .pause_reasons
+            .contains(&crate::state::pi_scan::PiScanPauseReason::Service)
+        {
+            return Ok(false);
+        }
+        let snapshot = self
+            .adapter
+            .probe_setup()
+            .map_err(OrchestrationError::Readiness)?;
+        snapshot.validate()?;
+        self.setup = Some(snapshot);
+        self.consecutive_environment_failures = 0;
+        self.state.runtime.clear_service_pause(true);
+        self.persist()?;
+        Ok(true)
     }
 
     /// What: Revalidate and clear a sticky service pause before a foreground start.
@@ -2644,6 +2734,38 @@ impl<A: OrchestrationAdapter + Send + 'static> PiScanSequentialRunner<A> {
         .await
         .map_err(|error| {
             OrchestrationError::Persistence(format!("Pi policy update task failed: {error}"))
+        })?
+    }
+
+    /// What: Clear a sticky service pause after an off-thread environment revalidation.
+    ///
+    /// Inputs:
+    /// - None.
+    ///
+    /// Output:
+    /// - `Ok(true)` when a service pause was cleared, `Ok(false)` when none was present.
+    ///
+    /// Details:
+    /// - Delegates to [`PiScanOrchestrator::revalidate_service_environment`] under the owner lock.
+    ///
+    /// # Errors
+    /// - Returns readiness, persistence, lock, or blocking-task failures.
+    pub async fn revalidate_service_environment(&self) -> Result<bool, OrchestrationError> {
+        let owner = Arc::clone(&self.orchestrator);
+        tokio::task::spawn_blocking(move || {
+            owner
+                .lock()
+                .map_err(|_| {
+                    OrchestrationError::Persistence(
+                        "Pi orchestration owner lock is poisoned during service revalidation"
+                            .to_string(),
+                    )
+                })?
+                .revalidate_service_environment()
+        })
+        .await
+        .map_err(|error| {
+            OrchestrationError::Persistence(format!("Pi service revalidation task failed: {error}"))
         })?
     }
 

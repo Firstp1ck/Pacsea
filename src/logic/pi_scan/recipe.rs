@@ -19,7 +19,7 @@ pub const MAX_SRCINFO_LINES: usize = 20_000;
 /// - Immutable checksum metadata for integrity policy evaluation.
 ///
 /// Details:
-/// - Values are not interpreted while parsing, except that empty values are rejected.
+/// - Values are not interpreted while parsing, except that empty checksum values are rejected.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeclaredChecksum {
     /// Declared checksum algorithm.
@@ -188,8 +188,8 @@ fn parse_line(state: &mut ParserState, raw_line: &str, line: usize) -> Result<()
         .ok_or_else(|| line_error(line, "expected `key = value`"))?;
     let key = raw_key.trim();
     let value = raw_value.trim();
-    if key.is_empty() || value.is_empty() {
-        return Err(line_error(line, "key and value must both be non-empty"));
+    if key.is_empty() {
+        return Err(line_error(line, "key must be non-empty"));
     }
     if !key.chars().all(|character| {
         character.is_ascii_lowercase() || character.is_ascii_digit() || character == '_'
@@ -199,7 +199,20 @@ fn parse_line(state: &mut ParserState, raw_line: &str, line: usize) -> Result<()
     apply_field(state, key, value, line)
 }
 
-/// Bind one relevant field while leaving unrelated valid metadata inert.
+/// What: Bind one relevant field while leaving unrelated valid metadata inert.
+///
+/// Inputs:
+/// - `state`: Parser state receiving bound values.
+/// - `key`, `value`: Trimmed field name and possibly empty value.
+/// - `line`: One-based line number for errors.
+///
+/// Output:
+/// - `Ok(())` when the field is bound or ignored.
+///
+/// Details:
+/// - makepkg writes `key = ` when a split package resets an inherited field, so empty values are
+///   inert for unrelated keys. Identity, source, checksum, key, and `noextract` binders reject
+///   them through their own validation.
 fn apply_field(
     state: &mut ParserState,
     key: &str,
@@ -215,6 +228,9 @@ fn apply_field(
             if let ArrayKey::Matched(architecture) = array_architecture(key, "source")? {
                 bind_source(state, architecture, value, line)
             } else if let Some((algorithm, architecture)) = checksum_key(key)? {
+                if value.is_empty() {
+                    return Err(line_error(line, format!("`{key}` value must be non-empty")));
+                }
                 state
                     .checksums
                     .entry((algorithm, architecture))

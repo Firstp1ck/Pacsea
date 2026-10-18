@@ -143,6 +143,29 @@ pub enum PiScanSetupHitTarget {
     Retry,
     /// Apply the reviewed candidate transactionally.
     Apply,
+    /// One row of the open fallback-model dropdown, by index into its filtered options.
+    FallbackOption(usize),
+}
+
+/// What: Filterable dropdown state for choosing the fallback model.
+///
+/// Inputs:
+/// - Opened from the Optional behavior page's fallback row.
+///
+/// Output:
+/// - Search text and the highlighted row within the filtered options.
+///
+/// Details:
+/// - Options come from [`PiScanSetupWizardState::fallback_picker_options`]; nothing changes
+///   until a row is chosen.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PiScanFallbackPicker {
+    /// Case-insensitive search text; every whitespace-separated word must match.
+    pub filter: String,
+    /// Highlighted row index within the filtered options.
+    pub selected: usize,
+    /// First visible row, kept by the renderer so the highlight stays on screen.
+    pub scroll: usize,
 }
 
 /// One screen rectangle associated with a wizard mouse target.
@@ -268,6 +291,8 @@ pub struct PiScanSetupWizardState {
     pub pending_action: Option<PiScanSetupDraftAction>,
     /// Mouse hit rectangles refreshed on each render.
     pub hit_rects: Vec<PiScanSetupHitRect>,
+    /// Open fallback-model dropdown, when shown.
+    pub fallback_picker: Option<PiScanFallbackPicker>,
 }
 
 impl PiScanSetupWizardState {
@@ -305,6 +330,7 @@ impl PiScanSetupWizardState {
             notice: None,
             pending_action: None,
             hit_rects: Vec::new(),
+            fallback_picker: None,
         }
     }
 
@@ -611,7 +637,10 @@ impl PiScanSetupWizardState {
                 self.candidate.background_enabled = enabled;
                 self.candidate_consent.paid_execution = enabled;
             }
-            (PiScanSetupStep::OptionalBehavior, 2) => self.cycle_fallback(true),
+            (PiScanSetupStep::OptionalBehavior, 2) => {
+                self.open_fallback_picker();
+                return;
+            }
             _ => return,
         }
         self.invalidate_review();
@@ -843,17 +872,10 @@ impl PiScanSetupWizardState {
     /// - Manually configured multi-route fallbacks remain untouched until the user operates this
     ///   selector. The first operation then enters the verified single-route choice cycle.
     fn cycle_fallback(&mut self, forward: bool) {
-        let Some(facts) = &self.verified else {
+        if self.verified.is_none() {
             return;
-        };
-        let choices = facts
-            .routes
-            .iter()
-            .filter(|(provider, model)| {
-                provider != &self.candidate.provider || model != &self.candidate.model
-            })
-            .map(|(provider, model)| format!("{provider}/{model}"))
-            .collect::<Vec<_>>();
+        }
+        let choices = self.fallback_choices();
         if choices.is_empty() {
             self.candidate.fallback_models.clear();
             self.confirmations.fallback_confirmed = false;
@@ -869,15 +891,140 @@ impl PiScanSetupWizardState {
         } else {
             current.checked_sub(1).unwrap_or(count - 1)
         };
-        if selected == 0 {
+        let route = selected
+            .checked_sub(1)
+            .and_then(|index| choices.get(index))
+            .cloned();
+        self.set_fallback(route.as_deref());
+    }
+
+    /// Replace the wizard-managed fallback; `None` turns fallback off.
+    fn set_fallback(&mut self, route: Option<&str>) {
+        if let Some(route) = route {
+            self.candidate.fallback_models = route.to_string();
+            self.confirmations.fallback_confirmed = true;
+        } else {
             self.candidate.fallback_models.clear();
             self.confirmations.fallback_confirmed = false;
-        } else {
-            self.candidate
-                .fallback_models
-                .clone_from(&choices[selected - 1]);
-            self.confirmations.fallback_confirmed = true;
         }
+    }
+
+    /// Return every verified `provider/model` route except the active primary, in Pi's order.
+    #[must_use]
+    pub fn fallback_choices(&self) -> Vec<String> {
+        self.verified
+            .as_ref()
+            .map(|facts| {
+                facts
+                    .routes
+                    .iter()
+                    .filter(|(provider, model)| {
+                        provider != &self.candidate.provider || model != &self.candidate.model
+                    })
+                    .map(|(provider, model)| format!("{provider}/{model}"))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// What: List the rows of the fallback dropdown for its current search text.
+    ///
+    /// Inputs:
+    /// - Uses the open picker's filter; an absent picker behaves like an empty filter.
+    ///
+    /// Output:
+    /// - `None` stands for "Off"; `Some(route)` for one verified route.
+    ///
+    /// Details:
+    /// - "Off" is listed first only while the search is empty, so Enter after typing always
+    ///   picks a matching model rather than silently turning fallback off.
+    #[must_use]
+    pub fn fallback_picker_options(&self) -> Vec<Option<String>> {
+        let filter = self
+            .fallback_picker
+            .as_ref()
+            .map(|picker| picker.filter.to_lowercase())
+            .unwrap_or_default();
+        let words: Vec<&str> = filter.split_whitespace().collect();
+        let routes = self
+            .fallback_choices()
+            .into_iter()
+            .filter(|route| {
+                let route = route.to_lowercase();
+                words.iter().all(|word| route.contains(word))
+            })
+            .map(Some);
+        if words.is_empty() {
+            std::iter::once(None).chain(routes).collect()
+        } else {
+            routes.collect()
+        }
+    }
+
+    /// Open the fallback dropdown with the current choice highlighted.
+    pub fn open_fallback_picker(&mut self) {
+        self.fallback_picker = Some(PiScanFallbackPicker::default());
+        let current = self.candidate.fallback_models.trim().to_string();
+        let selected = self
+            .fallback_picker_options()
+            .iter()
+            .position(|option| option.as_deref().unwrap_or("") == current)
+            .unwrap_or(0);
+        if let Some(picker) = self.fallback_picker.as_mut() {
+            picker.selected = selected;
+        }
+    }
+
+    /// Close the fallback dropdown without changing the choice.
+    pub fn close_fallback_picker(&mut self) {
+        self.fallback_picker = None;
+    }
+
+    /// Move the dropdown highlight by `delta` rows, clamped to the list.
+    pub fn move_fallback_picker(&mut self, delta: isize) {
+        let count = self.fallback_picker_options().len();
+        if let Some(picker) = self.fallback_picker.as_mut() {
+            let last = count.saturating_sub(1);
+            picker.selected = picker.selected.saturating_add_signed(delta).min(last);
+        }
+    }
+
+    /// Edit the dropdown search text and highlight the first match.
+    pub fn edit_fallback_filter(&mut self, character: Option<char>, backspace: bool) {
+        if let Some(picker) = self.fallback_picker.as_mut() {
+            if backspace {
+                picker.filter.pop();
+            } else if let Some(character) = character.filter(|value| !value.is_control()) {
+                picker.filter.push(character);
+            }
+            picker.selected = 0;
+            picker.scroll = 0;
+        }
+    }
+
+    /// What: Choose one dropdown row and close the dropdown.
+    ///
+    /// Inputs:
+    /// - `index`: Row within the filtered options; `None` uses the highlighted row.
+    ///
+    /// Output:
+    /// - `true` when a row was chosen; `false` when the index matched no row (the dropdown
+    ///   stays open, for example while a search has no matches).
+    ///
+    /// Details:
+    /// - Choosing a route also records the separate fallback confirmation, matching ←/→.
+    pub fn choose_fallback_option(&mut self, index: Option<usize>) -> bool {
+        let Some(picker) = self.fallback_picker.as_ref() else {
+            return false;
+        };
+        let index = index.unwrap_or(picker.selected);
+        let Some(option) = self.fallback_picker_options().into_iter().nth(index) else {
+            return false;
+        };
+        self.set_fallback(option.as_deref());
+        self.fallback_picker = None;
+        self.invalidate_review();
+        true
     }
 
     /// Queue inert candidate validation before exposing Review.
@@ -957,6 +1104,7 @@ impl PiScanSetupWizardState {
         };
         self.body_scroll = 0;
         self.hit_rects.clear();
+        self.fallback_picker = None;
     }
 
     /// Clear reviewed bindings after any draft mutation.
@@ -1188,7 +1336,7 @@ mod tests {
             "provider-d/model-d",
             "",
         ] {
-            wizard.toggle_focused();
+            wizard.adjust_focused(true);
             assert_eq!(wizard.candidate.fallback_models, expected);
             assert_eq!(
                 wizard.confirmations.fallback_confirmed,
@@ -1202,6 +1350,86 @@ mod tests {
         assert_eq!(wizard.candidate.model, "model-d");
         assert_eq!(wizard.candidate.fallback_models.len(), 0);
         assert!(!wizard.confirmations.fallback_confirmed);
+    }
+
+    /// The fallback dropdown lists Off plus every non-primary route, searches, and chooses.
+    #[test]
+    fn fallback_picker_searches_and_chooses_a_route() {
+        let mut wizard = PiScanSetupWizardState::open(
+            PiScanSettings::default(),
+            PiScanConsentState::default(),
+            true,
+        );
+        let mut verified = facts();
+        verified.routes.extend([
+            ("openrouter".to_string(), "anthropic/claude-x".to_string()),
+            ("openrouter".to_string(), "openai/gpt-y".to_string()),
+        ]);
+        wizard.verified = Some(verified);
+        wizard.candidate.provider = "provider-a".to_string();
+        wizard.candidate.model = "model-a".to_string();
+        wizard.step = PiScanSetupStep::OptionalBehavior;
+        wizard.focus = 2;
+
+        wizard.toggle_focused();
+        assert!(wizard.fallback_picker.is_some(), "Space opens the dropdown");
+        assert_eq!(
+            wizard.fallback_picker_options(),
+            vec![
+                None,
+                Some("provider-b/model-b".to_string()),
+                Some("openrouter/anthropic/claude-x".to_string()),
+                Some("openrouter/openai/gpt-y".to_string()),
+            ]
+        );
+        wizard.move_fallback_picker(isize::MAX);
+        assert_eq!(
+            wizard
+                .fallback_picker
+                .as_ref()
+                .map(|picker| picker.selected),
+            Some(3)
+        );
+
+        for character in "OPEN gpt".chars() {
+            wizard.edit_fallback_filter(Some(character), false);
+        }
+        assert_eq!(
+            wizard.fallback_picker_options(),
+            vec![Some("openrouter/openai/gpt-y".to_string())],
+            "search is case-insensitive, every word must match, and Off is hidden"
+        );
+        assert!(wizard.choose_fallback_option(None));
+        assert!(wizard.fallback_picker.is_none());
+        assert_eq!(wizard.candidate.fallback_models, "openrouter/openai/gpt-y");
+        assert!(wizard.confirmations.fallback_confirmed);
+
+        wizard.open_fallback_picker();
+        assert_eq!(
+            wizard
+                .fallback_picker
+                .as_ref()
+                .map(|picker| picker.selected),
+            Some(3),
+            "reopening highlights the current choice"
+        );
+        wizard.edit_fallback_filter(Some('z'), false);
+        assert!(
+            !wizard.choose_fallback_option(None),
+            "no match keeps it open"
+        );
+        assert!(wizard.fallback_picker.is_some());
+        wizard.edit_fallback_filter(None, true);
+        assert!(wizard.choose_fallback_option(Some(0)));
+        assert!(wizard.candidate.fallback_models.is_empty());
+        assert!(!wizard.confirmations.fallback_confirmed);
+
+        wizard.open_fallback_picker();
+        wizard.back();
+        assert!(
+            wizard.fallback_picker.is_none(),
+            "leaving the page closes it"
+        );
     }
 
     /// Dry-run must never queue a probe, validation, or Apply action.

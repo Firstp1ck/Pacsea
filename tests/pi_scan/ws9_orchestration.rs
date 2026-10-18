@@ -870,6 +870,180 @@ fn failed_execution_terminalizes_and_the_next_item_continues() {
     );
 }
 
+/// What: Build an orchestrator that observed one build-relevant commit per named package.
+///
+/// Inputs:
+/// - `root`: Private temporary state root.
+/// - `names`: Package names; each is its own base with a distinct commit.
+///
+/// Output:
+/// - The orchestrator and its queued frozen targets in queue order.
+///
+/// Details:
+/// - Uses the fake adapter only; no network or Pi process is involved.
+fn observed_queue(
+    root: &Path,
+    names: &[&str],
+) -> (PiScanOrchestrator<FakeAdapter>, Vec<FrozenScanIdentity>) {
+    let observations = names
+        .iter()
+        .zip(1_u64..)
+        .map(|(name, index)| ObservationPackage {
+            package_base: PackageBase::new(*name).expect("base"),
+            head_oid: oid(index),
+            commits: vec![ObservationCommit {
+                oid: oid(index),
+                relevance: CommitBuildRelevance::BuildRelevant,
+            }],
+            truncated: false,
+            paused_for_rebaseline: false,
+        })
+        .collect();
+    let adapter = FakeAdapter {
+        setup: Some(setup()),
+        packages: names.iter().map(|name| package(name, name)).collect(),
+        observations,
+        ..FakeAdapter::default()
+    };
+    let mut orchestrator =
+        PiScanOrchestrator::new(config(root, false), adapter).expect("construct");
+    let targets = orchestrator.startup_observation(1).expect("observe");
+    (orchestrator, targets)
+}
+
+/// What: A failure that only concerns one package must not pause the queue.
+///
+/// Inputs:
+/// - Two queued packages; the first fails with a package-only failure (broken recipe).
+///
+/// Output:
+/// - The first item is terminal Failed, no pause reason is set, and the second item runs.
+///
+/// Details:
+/// - Regression for a single unparsable `.SRCINFO` stopping every later scan.
+#[test]
+fn package_failure_fails_only_that_item_and_the_queue_continues() {
+    let temp = tempfile::tempdir().expect("temp");
+    let (mut orchestrator, targets) = observed_queue(temp.path(), &["demo", "other"]);
+    orchestrator
+        .adapter_mut()
+        .executions
+        .push_back(Err(ExecutionFailure::Package(
+            "the immutable AUR recipe could not be parsed".to_string(),
+        )));
+    orchestrator
+        .adapter_mut()
+        .executions
+        .push_back(Ok(success(&targets[1], false)));
+    assert!(matches!(
+        orchestrator.run_next(2, &AtomicBool::new(false)),
+        Err(OrchestrationError::PackageFailed(reason)) if reason.contains("recipe")
+    ));
+    assert_eq!(
+        orchestrator.state().runtime.terminal[0].status,
+        pacsea::state::pi_scan::PiScanTerminalStatus::Failed
+    );
+    assert!(orchestrator.state().runtime.pause_reasons.is_empty());
+    assert!(
+        orchestrator
+            .run_next(3, &AtomicBool::new(false))
+            .expect("second package runs without a manual retry")
+            .is_some()
+    );
+}
+
+/// What: Environment failures pause only after several consecutive packages fail.
+///
+/// Inputs:
+/// - Four queued packages whose first three executions fail with environment failures.
+///
+/// Output:
+/// - The first two fail without pausing; the third sets the service pause; the fourth waits.
+///
+/// Details:
+/// - A success in between resets the streak, so isolated network hiccups never pause.
+#[test]
+fn consecutive_environment_failures_pause_after_the_threshold() {
+    let temp = tempfile::tempdir().expect("temp");
+    let (mut orchestrator, _targets) =
+        observed_queue(temp.path(), &["one", "two", "three", "four"]);
+    for _ in 0..pacsea::pi_scan_orchestrator::ENVIRONMENT_FAILURES_BEFORE_PAUSE {
+        orchestrator
+            .adapter_mut()
+            .executions
+            .push_back(Err(ExecutionFailure::Environment(
+                "Pi RPC transport failed".to_string(),
+            )));
+    }
+    for now in 2..4 {
+        assert!(matches!(
+            orchestrator.run_next(now, &AtomicBool::new(false)),
+            Err(OrchestrationError::PackageFailed(_))
+        ));
+        assert!(orchestrator.state().runtime.pause_reasons.is_empty());
+    }
+    assert!(matches!(
+        orchestrator.run_next(4, &AtomicBool::new(false)),
+        Err(OrchestrationError::Execution(reason)) if reason.contains("in a row")
+    ));
+    assert!(
+        orchestrator
+            .state()
+            .runtime
+            .pause_reasons
+            .contains(&pacsea::state::pi_scan::PiScanPauseReason::Service)
+    );
+    assert!(matches!(
+        orchestrator.run_next(5, &AtomicBool::new(false)),
+        Err(OrchestrationError::Paused(_))
+    ));
+
+    assert!(
+        orchestrator
+            .revalidate_service_environment()
+            .expect("setup probe succeeds")
+    );
+    assert!(orchestrator.state().runtime.pause_reasons.is_empty());
+    assert!(
+        !orchestrator
+            .revalidate_service_environment()
+            .expect("nothing left to clear")
+    );
+}
+
+/// What: Resume revalidation keeps the pause when the setup probe still fails.
+///
+/// Inputs:
+/// - A service-paused queue whose fake setup probe now reports Pi as missing.
+///
+/// Output:
+/// - A readiness error and an unchanged service pause.
+///
+/// Details:
+/// - Only the environment is checked; no package is re-acquired.
+#[test]
+fn service_revalidation_keeps_pause_when_setup_still_fails() {
+    let temp = tempfile::tempdir().expect("temp");
+    let (mut orchestrator, _targets) = observed_queue(temp.path(), &["demo"]);
+    orchestrator
+        .adapter_mut()
+        .executions
+        .push_back(Err(ExecutionFailure::Service("disk full".to_string())));
+    assert!(orchestrator.run_next(2, &AtomicBool::new(false)).is_err());
+    orchestrator.adapter_mut().setup = None;
+    assert!(matches!(
+        orchestrator.revalidate_service_environment(),
+        Err(OrchestrationError::Readiness(_))
+    ));
+    assert!(
+        orchestrator
+            .state()
+            .runtime
+            .pause_reasons
+            .contains(&pacsea::state::pi_scan::PiScanPauseReason::Service)
+    );
+}
+
 #[test]
 fn failed_or_cancelled_identity_can_be_retried_without_reobservation() {
     let temp = tempfile::tempdir().expect("temp");

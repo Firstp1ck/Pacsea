@@ -291,10 +291,10 @@ mod tests {
             .map(ratatui::buffer::Cell::symbol)
             .collect::<String>();
         for heading in [
-            "Current activity",
-            "Unattended budget",
+            "Right now",
+            "Background scan limits",
             "Permissions",
-            "Notices",
+            "Good to know",
         ] {
             assert!(
                 rendered.contains(heading),

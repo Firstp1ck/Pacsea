@@ -70,8 +70,41 @@ pub(super) fn render(f: &mut Frame, app: &mut AppState, area: Rect) {
     app.pi_scan.detail_scroll = scroll;
     app.pi_scan.details_header_rects =
         visible_header_rects(&header_positions, &lines, scroll, chunks[0]);
-    super::body_scrolled(f, app, chunks[0], "app.pi_scan.tabs.details", lines, scroll);
+    let title = details_breadcrumb(app);
+    super::body_with_title(f, chunks[0], &title, lines, scroll);
     render_continue_action(f, app, chunks[1]);
+}
+
+/// What: Build the `Results › Report: package` breadcrumb for the report view.
+///
+/// Inputs:
+/// - `app`: Workspace state with the selected result.
+///
+/// Output:
+/// - Localized breadcrumb naming the parent page and selected package.
+///
+/// Details:
+/// - Tells the user where they are and where Esc returns to.
+fn details_breadcrumb(app: &AppState) -> String {
+    let parent = crate::i18n::t(app, "app.pi_scan.tabs.results");
+    app.pi_scan.selected_result().map_or_else(
+        || {
+            format!(
+                "{parent} › {}",
+                crate::i18n::t(app, "app.pi_scan.tabs.details")
+            )
+        },
+        |result| {
+            format!(
+                "{parent} › {}",
+                crate::i18n::t_fmt1(
+                    app,
+                    "app.pi_scan.details.breadcrumb",
+                    &result.validated.identity.package_base
+                )
+            )
+        },
+    )
 }
 
 /// What: Record visible wrapped report-header cells for click expansion.

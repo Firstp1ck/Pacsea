@@ -5346,9 +5346,7 @@ mod tests {
         );
         assert_eq!(
             app.pi_scan.notices.foreground_text(),
-            Some(
-                "demo is already scanned at its current AUR version; results are in the Results tab"
-            )
+            Some("demo is already scanned at its current AUR version; see Results (3)")
         );
     }
 
@@ -5405,9 +5403,7 @@ mod tests {
         assert!(app.pi_scan.pending_queue_intent.is_none());
         assert_eq!(
             app.pi_scan.notices.foreground_text(),
-            Some(
-                "demo is already scanned at its current AUR version; results are in the Results tab"
-            )
+            Some("demo is already scanned at its current AUR version; see Results (3)")
         );
     }
 

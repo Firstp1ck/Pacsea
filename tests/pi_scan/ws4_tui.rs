@@ -299,7 +299,11 @@ fn pi_scan_backtab_navigates_without_hidden_package_mutation() {
     );
 
     assert!(!exited);
-    assert_eq!(app.pi_scan.view, PiScanView::Overview);
+    assert_eq!(
+        app.pi_scan.view,
+        PiScanView::Setup,
+        "BackTab wraps from the first tab"
+    );
     assert_eq!(app.sort_mode, original_sort);
 }
 
@@ -604,7 +608,7 @@ fn details_raw_output_starts_collapsed_and_toggle_is_session_only() {
     assert!(app.pi_scan.is_result_expanded(0));
     let hidden = render_text(&mut app, 120, 30);
     assert!(hidden.contains("Technical details"), "{hidden:?}");
-    assert!(hidden.contains("hidden · t to show"), "{hidden:?}");
+    assert!(hidden.contains("hidden · press t to show"), "{hidden:?}");
     assert!(!hidden.contains("\"scan_id\""), "{hidden:?}");
 
     assert!(pacsea::events::pi_scan::handle_key(
@@ -615,7 +619,7 @@ fn details_raw_output_starts_collapsed_and_toggle_is_session_only() {
     assert!(app.pi_scan.show_raw_output);
     assert!(app.pi_scan.settings.show_raw_output);
     let shown = render_text(&mut app, 120, 42);
-    assert!(shown.contains("visible · t to hide"), "{shown:?}");
+    assert!(shown.contains("shown · press t to hide"), "{shown:?}");
     assert!(shown.contains("\"scan_id\""), "{shown:?}");
 }
 
@@ -844,7 +848,7 @@ fn single_details_section_is_package_labeled_and_readable() {
         "Location: recipe / path/0",
         "Evidence: evidence single line 0",
         "Technical details",
-        "hidden · t to show",
+        "hidden · press t to show",
     ] {
         assert!(
             rendered.contains(expected),
@@ -939,7 +943,7 @@ fn budget_only_pi_scan_reload_preserves_connected_runtime_limits() {
     assert_eq!(
         app.pi_scan.notices.foreground_text(),
         Some(
-            "Pi Scan budget settings changed outside the live runtime. The connected runtime keeps its current limits; restart Pacsea to apply the edited values, or use b on a budget-paused Overview/Progress page for a direct live adjustment."
+            "Pi Scan budget settings changed outside the live runtime. The connected runtime keeps its current limits; restart Pacsea to apply the edited values, or press b on the Status or Progress page while a limit blocks a scan."
         )
     );
 }
@@ -1018,7 +1022,7 @@ fn setup_consent_requires_verified_pi_and_pricing_facts() {
     assert_eq!(app.pi_scan.pending_setup_consent, Some(5));
     let pending = render_text(&mut app, 90, 24);
     assert!(
-        pending.contains("Foreground paid execution consent"),
+        pending.contains("Allow scans I start to use the paid AI model"),
         "{pending:?}"
     );
     assert!(render_text(&mut app, 90, 24).contains("…"));
@@ -1327,8 +1331,9 @@ fn pi_scan_help_renders_workspace_wizard_and_configured_chord() {
 
     assert!(rendered.contains("Pi Scan workspace"), "{rendered:?}");
     assert!(rendered.contains("c review & continue"), "{rendered:?}");
-    assert!(rendered.contains("adjusts eligible budgets"));
-    assert!(rendered.contains("p toggles pause · u resumes · x x cancels"));
+    assert!(rendered.contains("b raise"), "{rendered:?}");
+    assert!(rendered.contains("p pause or resume · x x cancel scan"));
+    assert!(rendered.contains("1 Scan · 2 Progress · 3 Results · 4 Status · 5 Settings"));
     assert!(rendered.contains("Wizard:"));
     assert!(rendered.contains("Ctrl+G"));
     assert!(rendered.contains("Open Pi Scan workspace  [Ctrl+P]"));
@@ -1351,7 +1356,7 @@ fn progress_footer_advertises_retry_and_budget_actions() {
 
     assert!(!rendered.contains("p Pause"));
     assert!(!rendered.contains("x x Cancel scan"));
-    assert!(rendered.contains("Esc Back · ? Help"));
+    assert!(rendered.contains("Esc Close Pi Scan · ? Help"));
     assert!(!rendered.contains("detach"));
     assert!(!rendered.contains("reopen"));
     assert!(app.updates_button_rect.is_none());
@@ -1731,7 +1736,7 @@ fn active_progress_and_overview_render_elapsed_reservation_and_consumed_usage() 
     app.pi_scan.set_view(PiScanView::Overview);
     let overview = render_text(&mut app, 120, 24);
     assert!(
-        overview.contains("Tokens used / limit: 1,234"),
+        overview.contains("AI usage, last 24 h (tokens): 1,234"),
         "{overview:?}"
     );
     assert!(overview.contains("$0.05 USD"));
@@ -1762,9 +1767,9 @@ fn queued_progress_renders_static_pause_reasons_and_position() {
         progress.contains("Waiting for the next scan to start"),
         "{progress:?}"
     );
-    assert!(progress.contains("Paused: user pause, budget pause"));
-    assert!(progress.contains("1 queued"));
-    assert!(progress.contains("1. demo — foreground · commit: aaaaaaaaaaaa"));
+    assert!(progress.contains("Paused: you paused it, a spending limit was reached"));
+    assert!(progress.contains("1 waiting"));
+    assert!(progress.contains("1. demo — foreground · version: aaaaaaaaaaaa"));
     assert!(progress.contains('⏸'), "{progress:?}");
     for frame in ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] {
         assert!(
@@ -1807,7 +1812,7 @@ fn progress_summary_renders_mixed_counts_and_narrow_active_layout() {
     app.pi_scan.set_view(PiScanView::Progress);
 
     let progress = render_text(&mut app, 120, 24);
-    for expected in ["2/4", "1 running", "1 queued", "1 completed", "1 failed"] {
+    for expected in ["2/4", "1 scanning", "1 waiting", "1 done", "1 failed"] {
         assert!(
             progress.contains(expected),
             "missing {expected}: {progress:?}"
@@ -1857,21 +1862,18 @@ fn readability_tabs_render_hierarchy_short_identities_and_semantic_styles() {
         .map(ratatui::buffer::Cell::symbol)
         .collect::<String>();
     let th = pacsea::theme::theme();
-    assert!(target_text.contains("Scan targets"), "{target_text:?}");
-    assert!(target_text.contains("commit: 0123456789ab"));
+    assert!(target_text.contains("Packages"), "{target_text:?}");
+    assert!(target_text.contains("version: 0123456789ab"));
     assert!(!target_text.contains(exact_target_oid));
     assert_eq!(
         foreground_for_text(&target_buffer, "selected-package"),
         th.sapphire
     );
     assert_eq!(
-        foreground_for_text(&target_buffer, "queued · base"),
+        foreground_for_text(&target_buffer, "waiting · base"),
         th.yellow
     );
-    assert_eq!(
-        foreground_for_text(&target_buffer, "completed · base"),
-        th.green
-    );
+    assert_eq!(foreground_for_text(&target_buffer, "done · base"), th.green);
     assert_eq!(foreground_for_text(&target_buffer, "failed · base"), th.red);
 
     let request = scan_request();
@@ -1884,13 +1886,13 @@ fn readability_tabs_render_hierarchy_short_identities_and_semantic_styles() {
     app.pi_scan.runtime.queue.push_back(request);
     app.pi_scan.set_view(PiScanView::Progress);
     let progress = render_text(&mut app, 160, 30);
-    for heading in ["Session", "Current work", "Queue"] {
+    for heading in ["This session", "Now", "Waiting"] {
         assert!(
             progress.contains(heading),
             "missing {heading:?}: {progress:?}"
         );
     }
-    assert!(progress.contains("commit: aaaaaaaaaaaa"), "{progress:?}");
+    assert!(progress.contains("version: aaaaaaaaaaaa"), "{progress:?}");
     assert!(!progress.contains("aaaaaaaaaaaaa"), "{progress:?}");
 
     let mut current = display_result("current-result", 0);
@@ -1908,24 +1910,29 @@ fn readability_tabs_render_hierarchy_short_identities_and_semantic_styles() {
         .iter()
         .map(ratatui::buffer::Cell::symbol)
         .collect::<String>();
-    assert!(result_text.contains("Validated results"), "{result_text:?}");
+    assert!(result_text.contains("Scanned packages"), "{result_text:?}");
     assert!(
-        result_text.contains("commit: abcdefabcdef"),
+        result_text.contains("version: abcdefabcdef"),
         "{result_text:?}"
     );
+    assert!(result_text.contains("Up to date"), "{result_text:?}");
     assert!(
-        result_text.contains("[CURRENT IDENTITY]"),
+        result_text.contains("Package changed since scan"),
         "{result_text:?}"
     );
-    assert!(result_text.contains("[STALE IDENTITY]"), "{result_text:?}");
     assert!(result_text.contains("[high]"), "{result_text:?}");
+    assert!(result_text.contains("✔ current-result"), "{result_text:?}");
+    assert!(result_text.contains("✖ stale-result"), "{result_text:?}");
     assert_eq!(
-        foreground_for_text(&result_buffer, "Complete — no findings"),
+        foreground_for_text(&result_buffer, "No problems found"),
         th.green
     );
-    assert_eq!(foreground_for_text(&result_buffer, "incomplete"), th.yellow);
     assert_eq!(
-        foreground_for_text(&result_buffer, "[STALE IDENTITY]"),
+        foreground_for_text(&result_buffer, "1 finding to review"),
+        th.red
+    );
+    assert_eq!(
+        foreground_for_text(&result_buffer, "Package changed since scan"),
         th.red
     );
     assert_eq!(foreground_for_text(&result_buffer, "high"), th.red);
@@ -2041,9 +2048,9 @@ fn german_results_localize_completion_wording_by_finding_count() {
     let rendered = render_text(&mut app, 180, 30);
 
     for expected in [
-        "Vollständig — keine Funde im analysierten Umfang",
-        "1 Fund im analysierten Umfang",
-        "2 Funde im analysierten Umfang",
+        "Keine Probleme gefunden",
+        "1 Fund zu prüfen",
+        "2 Funde zu prüfen",
     ] {
         assert!(
             rendered.contains(expected),
@@ -2225,8 +2232,9 @@ fn tab_status_fits_multibyte_display_width() {
     app.translations
         .insert("app.pi_scan.status.disabled".to_string(), "界".to_string());
     render_buffer(&mut app, 140, 20);
-    let last = app.pi_scan.tab_rects[5].expect("last tab");
-    let width = last.0 + last.2 + 2 + 2;
+    let last = app.pi_scan.tab_rects[4].expect("last tab");
+    // Trailing tab gap, one separating space, then the "○ 界" pill (4 display cells).
+    let width = last.0 + last.2 + 1 + 1 + 4;
     let buffer = render_buffer(&mut app, width, 20);
     let tabs = (0..width)
         .map(|x| buffer[(x, 1)].symbol())
@@ -2244,13 +2252,13 @@ fn results_badge_survives_all_tab_widths() {
     load_english(&mut app);
     app.pi_scan.set_view(PiScanView::Overview);
     app.pi_scan.unseen_result_count = 3;
-    for (width, expected) in [(140, "5 Results (3)"), (55, "5 Res (3)"), (20, "5•")] {
+    for (width, expected) in [(140, "3 Results (3)"), (55, "3 Res (3)"), (20, "3•")] {
         let buffer = render_buffer(&mut app, width, 20);
         let tabs = (0..width)
             .map(|x| buffer[(x, 1)].symbol())
             .collect::<String>();
         assert!(tabs.contains(expected), "missing {expected:?}: {tabs:?}");
-        assert!(app.pi_scan.tab_rects[4].is_some());
+        assert!(app.pi_scan.tab_rects[2].is_some());
     }
 }
 
@@ -2265,8 +2273,9 @@ fn german_short_tabs_use_localized_names() {
     app.pi_scan.set_view(PiScanView::Overview);
     let buffer = render_buffer(&mut app, 48, 20);
     let tabs = (0..48).map(|x| buffer[(x, 1)].symbol()).collect::<String>();
-    assert!(tabs.contains("2 Übers"), "{tabs:?}");
-    assert!(!tabs.contains("Übe "), "{tabs:?}");
+    assert!(tabs.contains("4 Stat"), "{tabs:?}");
+    assert!(tabs.contains("5 Einst"), "{tabs:?}");
+    assert!(!tabs.contains("Einstellungen"), "{tabs:?}");
 }
 
 /// Mandatory German footer keys fit without clipping even at 20 columns.
@@ -2311,7 +2320,7 @@ fn search_entry_guidance_tracks_configured_chord() {
     assert!(notice.contains("Ctrl+P"), "{notice:?}");
 }
 
-/// The narrow tab strip retains six digit targets and the full active label on its second row.
+/// The narrow tab strip retains all five digit targets and the full active label on its second row.
 #[test]
 fn compact_tabs_keep_all_page_shortcuts_visible() {
     let mut app = AppState {
@@ -2323,7 +2332,7 @@ fn compact_tabs_keep_all_page_shortcuts_visible() {
         app.pi_scan.set_view(view);
         let buffer = render_buffer(&mut app, 20, 12);
         let top = (0..20).map(|x| buffer[(x, 1)].symbol()).collect::<String>();
-        for digit in '1'..='6' {
+        for digit in '1'..='5' {
             assert!(top.contains(digit), "missing {digit} on {view:?}: {top:?}");
         }
         for rect in app.pi_scan.tab_rects {
@@ -2333,9 +2342,7 @@ fn compact_tabs_keep_all_page_shortcuts_visible() {
             &app,
             &format!(
                 "app.pi_scan.tabs.{}",
-                [
-                    "setup", "overview", "targets", "progress", "results", "details"
-                ][view.index()]
+                PiScanView::tabs()[view.tab_position()].tab_key()
             ),
         );
         assert!(render_text(&mut app, 20, 12).contains(&active_label));
@@ -2358,7 +2365,7 @@ fn narrow_setup_mouse_rows_match_rendered_lines() {
         .map(|x| buffer[(x, row.1)].symbol())
         .collect::<String>();
     assert!(
-        text.contains("Provider"),
+        text.contains("I understand"),
         "row hit box points at wrong text: {text:?}"
     );
     assert!(pacsea::events::pi_scan::handle_mouse(
@@ -2422,10 +2429,10 @@ fn footer_hints_are_stateful_and_drop_whole_segments() {
         .insert(pacsea::state::pi_scan::PiScanPauseReason::User);
     let paused = render_text(&mut app, 120, 24);
     assert!(paused.contains("p Resume"));
-    assert!(paused.contains("u Resume"));
+    assert!(!paused.contains("u Resume"));
     assert!(!paused.contains("p Pause"));
     let narrow = render_text(&mut app, 20, 12);
-    assert!(narrow.contains("Esc Back · ? Help"), "{narrow:?}");
+    assert!(narrow.contains("Esc · ?"), "{narrow:?}");
     assert!(!narrow.contains("x x"));
 }
 
@@ -2445,8 +2452,8 @@ fn empty_targets_footer_omits_inert_select_and_queue_hints() {
             .collect::<String>()
     };
     let empty = footer(&mut app);
-    assert!(!empty.contains("Space Select"), "{empty:?}");
-    assert!(!empty.contains("Enter Queue"), "{empty:?}");
+    assert!(!empty.contains("Space Tick/untick"), "{empty:?}");
+    assert!(!empty.contains("Enter Start scan"), "{empty:?}");
     app.pi_scan.targets.push(pacsea::state::PiScanTarget {
         package_name: "demo".to_string(),
         package_base: "demo".to_string(),
@@ -2456,8 +2463,8 @@ fn empty_targets_footer_omits_inert_select_and_queue_hints() {
         status: pacsea::state::PiScanTargetStatus::Unbaselined,
     });
     let populated = footer(&mut app);
-    assert!(populated.contains("Space Select"), "{populated:?}");
-    assert!(populated.contains("Enter Queue"), "{populated:?}");
+    assert!(populated.contains("Space Tick/untick"), "{populated:?}");
+    assert!(populated.contains("Enter Start scan"), "{populated:?}");
 }
 
 /// Retry is offered when any selected target failed, without re-queueing successes.
@@ -2528,7 +2535,10 @@ fn wizard_footer_tracks_focus_and_keeps_escape_and_help() {
     let text_focus = (0..120)
         .map(|x| text_buffer[(x, 23)].symbol())
         .collect::<String>();
-    assert!(text_focus.contains("Tab next field · Enter confirm field"));
+    assert!(
+        text_focus.contains("Tab Next field · Enter Confirm"),
+        "{text_focus:?}"
+    );
     assert!(text_focus.contains("Esc Cancel"));
     assert!(!text_focus.contains("? Help"));
     assert!(!text_focus.contains("n Next"));
@@ -2546,7 +2556,10 @@ fn wizard_footer_tracks_focus_and_keeps_escape_and_help() {
         .collect::<String>();
     assert!(control_focus.contains("n Next"));
     assert!(control_focus.contains("b Back"));
-    assert!(control_focus.contains("Enter Verify"));
+    assert!(
+        control_focus.contains("Enter Check setup"),
+        "{control_focus:?}"
+    );
     assert!(control_focus.contains("? Help"));
 }
 
@@ -2569,13 +2582,7 @@ fn budget_dialog_footer_uses_only_modal_actions() {
     let footer = (0..120)
         .map(|x| buffer[(x, 23)].symbol())
         .collect::<String>();
-    for expected in [
-        "←/→/h/l Choose",
-        "Tab/Shift+Tab Focus",
-        "Enter Apply",
-        "Esc Cancel",
-        "? Help",
-    ] {
+    for expected in ["←→ Choose", "Enter Apply", "Esc Cancel", "? Help"] {
         assert!(
             footer.contains(expected),
             "missing {expected:?}: {footer:?}"
@@ -2616,7 +2623,7 @@ fn budget_dialog_captures_mouse_and_keeps_choices_visible_at_40x12() {
         );
     }
     let view = app.pi_scan.view;
-    let tab = app.pi_scan.tab_rects[2].expect("target tab");
+    let tab = app.pi_scan.tab_rects[2].expect("results tab");
     let click = |column, row| MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
         column,
@@ -2778,9 +2785,9 @@ fn newer_aur_version_is_visible_across_workspace_and_top_bar() {
         status: pacsea::state::PiScanTargetStatus::Queued,
     });
     app.pi_scan.set_view(PiScanView::Targets);
-    assert!(render_text(&mut app, 120, 24).contains("new version · rescan queued"));
+    assert!(render_text(&mut app, 120, 24).contains("new version · rescan waiting"));
     app.pi_scan.set_view(PiScanView::Results);
-    assert!(render_text(&mut app, 120, 24).contains("NEWER VERSION AVAILABLE"));
+    assert!(render_text(&mut app, 120, 24).contains("Newer version available"));
     app.pi_scan.set_view(PiScanView::Details);
     assert!(app.pi_scan.toggle_result_expansion(0));
     assert!(render_text(&mut app, 120, 30).contains("Newer version available"));
@@ -2814,8 +2821,8 @@ fn result_freshness_uses_later_targets_not_prior_or_completed_badges() {
     }
     app.pi_scan.set_view(PiScanView::Results);
     let rendered = render_text(&mut app, 120, 28);
-    assert_eq!(rendered.matches("NEWER VERSION AVAILABLE").count(), 2);
-    assert_eq!(rendered.matches("CURRENT IDENTITY").count(), 1);
+    assert_eq!(rendered.matches("Newer version available").count(), 2);
+    assert_eq!(rendered.matches("Up to date").count(), 1);
     assert!(
         app.pi_scan
             .targets
@@ -2827,8 +2834,8 @@ fn result_freshness_uses_later_targets_not_prior_or_completed_badges() {
     app.pi_scan.results.remove(1);
     app.pi_scan.targets.remove(2);
     let rendered = render_text(&mut app, 120, 28);
-    assert!(!rendered.contains("NEWER VERSION AVAILABLE"));
-    assert!(rendered.contains("CURRENT IDENTITY"));
+    assert!(!rendered.contains("Newer version available"));
+    assert!(rendered.contains("Up to date"));
     assert!(
         app.pi_scan
             .targets
@@ -2855,7 +2862,7 @@ fn stored_result_without_target_displays_newer_available() {
         status: pacsea::state::PiScanTargetStatus::Queued,
     });
     app.pi_scan.set_view(PiScanView::Results);
-    assert!(render_text(&mut app, 120, 24).contains("NEWER VERSION AVAILABLE"));
+    assert!(render_text(&mut app, 120, 24).contains("Newer version available"));
     app.pi_scan.targets[0].status = pacsea::state::PiScanTargetStatus::Completed;
     app.pi_scan.targets[0].newer_version_of = None;
     let mut newer_result = display_result("demo", 0);
@@ -2864,6 +2871,153 @@ fn stored_result_without_target_displays_newer_available() {
     newer_result.observed_head_oid = "b".repeat(40);
     app.pi_scan.results.push(newer_result);
     let rendered = render_text(&mut app, 120, 24);
-    assert_eq!(rendered.matches("NEWER VERSION AVAILABLE").count(), 1);
-    assert_eq!(rendered.matches("CURRENT IDENTITY").count(), 1);
+    assert_eq!(rendered.matches("Newer version available").count(), 1);
+    assert_eq!(rendered.matches("Up to date").count(), 1);
+}
+
+/// The report drill-in shows a breadcrumb back to Results and a matching Esc hint.
+#[test]
+fn report_breadcrumb_and_escape_hint_name_the_parent_page() {
+    let mut app = AppState {
+        app_mode: AppMode::PiScan,
+        ..AppState::default()
+    };
+    load_english(&mut app);
+    app.pi_scan.results.push(display_result("crumb-demo", 0));
+    app.pi_scan.set_view(PiScanView::Details);
+    let rendered = render_text(&mut app, 120, 24);
+    assert!(
+        rendered.contains("Results › Report: crumb-demo"),
+        "{rendered:?}"
+    );
+    assert!(rendered.contains("Esc Back to results"), "{rendered:?}");
+    assert!(rendered.contains("▸3 Results"), "{rendered:?}");
+
+    app.pi_scan.set_view(PiScanView::Results);
+    let results = render_text(&mut app, 120, 24);
+    assert!(results.contains("Esc Close Pi Scan"), "{results:?}");
+}
+
+/// The tab-bar status pill reports running and paused work from every page.
+#[test]
+fn tab_status_pill_reports_running_waiting_and_paused_work() {
+    let mut app = AppState {
+        app_mode: AppMode::PiScan,
+        ..AppState::default()
+    };
+    load_english(&mut app);
+    app.pi_scan.set_view(PiScanView::Results);
+    assert!(render_text(&mut app, 120, 24).contains("○ Not set up"));
+
+    app.pi_scan.runtime.queue.push_back(scan_request());
+    assert!(render_text(&mut app, 120, 24).contains("… 1 waiting"));
+
+    app.pi_scan.runtime.active = Some(pacsea::state::pi_scan::PiScanActiveItem {
+        correlation_id: 3,
+        request: scan_request(),
+        started_at_unix: 1,
+        cancellation_suppressed: false,
+    });
+    let running = render_text(&mut app, 120, 24);
+    assert!(
+        running.contains("⟳ Scanning demo · 1 waiting"),
+        "{running:?}"
+    );
+
+    app.pi_scan
+        .runtime
+        .pause_reasons
+        .insert(pacsea::state::pi_scan::PiScanPauseReason::User);
+    let paused = render_text(&mut app, 120, 24);
+    assert!(paused.contains("⏸ Paused"), "{paused:?}");
+}
+
+/// Empty pages tell the user which page or action fills them.
+#[test]
+fn footer_tips_point_empty_pages_to_the_next_step() {
+    let mut app = AppState {
+        app_mode: AppMode::PiScan,
+        ..AppState::default()
+    };
+    load_english(&mut app);
+    app.pi_scan.set_view(PiScanView::Results);
+    let empty = render_text(&mut app, 140, 24);
+    assert!(
+        empty.contains("No results yet. Pick packages on the Scan page (1)"),
+        "{empty:?}"
+    );
+    app.pi_scan.results.push(display_result("tip-demo", 0));
+    let populated = render_text(&mut app, 140, 24);
+    assert!(
+        populated.contains("Highlight a package and press Enter to read its report."),
+        "{populated:?}"
+    );
+    app.pi_scan.notices.foreground = None;
+    app.pi_scan.set_foreground_notice(
+        "app.pi_scan.notices.select_target",
+        pacsea::state::pi_scan_ui::PiScanNoticeSeverity::Warning,
+    );
+    let noticed = render_text(&mut app, 140, 24);
+    assert!(
+        noticed.contains("Tick at least one package first"),
+        "{noticed:?}"
+    );
+    assert!(!noticed.contains("Highlight a package and press Enter"));
+}
+
+/// Clean but incomplete scans use a distinct symbol rather than the success check mark.
+#[test]
+fn incomplete_clean_result_is_not_shown_as_plain_success() {
+    let mut app = AppState {
+        app_mode: AppMode::PiScan,
+        ..AppState::default()
+    };
+    load_english(&mut app);
+    let mut partial = display_result("partial-demo", 0);
+    partial.validated.coverage = Coverage::Incomplete;
+    app.pi_scan.results.push(partial);
+    app.pi_scan.set_view(PiScanView::Results);
+    let buffer = render_buffer(&mut app, 140, 24);
+    let text = buffer
+        .content
+        .iter()
+        .map(ratatui::buffer::Cell::symbol)
+        .collect::<String>();
+    assert!(text.contains("◐ partial-demo"), "{text:?}");
+    assert!(!text.contains("✔ partial-demo"), "{text:?}");
+    assert_eq!(
+        foreground_for_text(&buffer, "some files could not be checked"),
+        pacsea::theme::theme().yellow
+    );
+}
+
+/// The status pill survives common 80-column terminals by shortening tabs or its suffix.
+#[test]
+fn tab_status_pill_stays_visible_at_eighty_columns() {
+    let mut app = AppState {
+        app_mode: AppMode::PiScan,
+        ..AppState::default()
+    };
+    load_english(&mut app);
+    app.pi_scan.set_view(PiScanView::Progress);
+    let mut request = scan_request();
+    request.key.package_base = PackageBase::new("google-chrome-dev").expect("package base");
+    app.pi_scan.runtime.active = Some(pacsea::state::pi_scan::PiScanActiveItem {
+        correlation_id: 3,
+        request,
+        started_at_unix: 1,
+        cancellation_suppressed: false,
+    });
+    app.pi_scan.runtime.queue.push_back(scan_request());
+    app.pi_scan.runtime.queue.push_back(scan_request());
+    for width in [80, 64] {
+        let buffer = render_buffer(&mut app, width, 24);
+        let tabs = (0..width)
+            .map(|x| buffer[(x, 1)].symbol())
+            .collect::<String>();
+        assert!(
+            tabs.contains("⟳ Scanning google-chrome-dev"),
+            "{width}: {tabs:?}"
+        );
+    }
 }

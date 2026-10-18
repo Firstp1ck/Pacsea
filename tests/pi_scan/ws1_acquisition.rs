@@ -186,6 +186,52 @@ fn srcinfo_accepts_standard_tab_indentation() {
     assert_eq!(parsed.package_names[0].as_str(), "demo");
 }
 
+/// What: Verify makepkg's empty package-section overrides do not reject the recipe.
+///
+/// Inputs:
+/// - Split-package `.SRCINFO` where one package clears `depends`, `optdepends`, and `pkgdesc`.
+///
+/// Output:
+/// - The document parses; empty values for identity or source keys still fail.
+///
+/// Details:
+/// - `makepkg --printsrcinfo` writes `\tkey = ` when a `package_*()` function resets an
+///   inherited array or scalar to empty, so real AUR recipes contain such lines.
+#[test]
+fn srcinfo_accepts_empty_package_overrides() {
+    let document = "pkgbase = demo\n\
+                    \tpkgdesc = Demo package\n\
+                    \tdepends = glibc\n\
+                    \tsource = https://example.com/demo.tar.gz\n\
+                    \tsha256sums = SKIP\n\
+                    \n\
+                    pkgname = demo\n\
+                    \n\
+                    pkgname = demo-docs\n\
+                    \tpkgdesc = \n\
+                    \tdepends = \n\
+                    \toptdepends = \n";
+    let parsed = parse_srcinfo(document).expect("empty package overrides are valid .SRCINFO");
+    assert_eq!(parsed.package_names.len(), 2);
+    assert_eq!(parsed.sources.len(), 1);
+
+    for relevant_key in [
+        "pkgname",
+        "source",
+        "sha256sums",
+        "validpgpkeys",
+        "noextract",
+    ] {
+        let document = format!("pkgbase = demo\npkgname = demo\n\t{relevant_key} = \n");
+        assert!(
+            parse_srcinfo(&document).is_err(),
+            "empty `{relevant_key}` must still be rejected"
+        );
+    }
+    assert!(parse_srcinfo("pkgbase = \npkgname = demo\n").is_err());
+    assert!(parse_srcinfo("pkgbase = demo\npkgname = demo\n = value\n").is_err());
+}
+
 /// What: Verify immutable transport, redirect, userinfo, and explicit public-IP policy.
 ///
 /// Inputs:

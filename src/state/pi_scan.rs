@@ -445,6 +445,23 @@ impl PiScanRuntimeState {
         set_pause_reason(&mut self.pause_reasons, PiScanPauseReason::User, paused);
     }
 
+    /// What: Report whether Resume can lift the current pause.
+    ///
+    /// Inputs:
+    /// - None.
+    ///
+    /// Output:
+    /// - `true` for a user pause or a service pause.
+    ///
+    /// Details:
+    /// - Resume clears the user pause directly and re-checks setup for a service pause. Budget
+    ///   pauses have their own "raise limits" action and are excluded.
+    #[must_use]
+    pub fn resume_available(&self) -> bool {
+        self.pause_reasons.contains(&PiScanPauseReason::User)
+            || self.pause_reasons.contains(&PiScanPauseReason::Service)
+    }
+
     /// Apply a service/security/readiness pause.
     pub fn pause_for_service(&mut self) {
         self.pause_reasons.insert(PiScanPauseReason::Service);

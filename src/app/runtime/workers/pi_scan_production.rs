@@ -990,7 +990,7 @@ impl ProductionOrchestrationAdapter {
         progress: &PiScanExecutionPhaseReporter<'_>,
     ) -> Result<ExecutionReceipt, ExecutionFailure> {
         let package_name =
-            PackageName::new(target.package_name.clone()).map_err(service_failure)?;
+            PackageName::new(target.package_name.clone()).map_err(package_failure)?;
         let mut pre_model_retry_used = false;
         progress.report(PiScanExecutionPhase::ResolvingMetadata);
         let rpc = if let Some(rpc) = self.rpc_by_base.get(target.package_base.as_str()) {
@@ -1007,13 +1007,15 @@ impl ProductionOrchestrationAdapter {
                     let mut retry_network = self.network().map_err(service_failure)?;
                     fetch_aur_rpc_package_base(&mut retry_network, package_name.as_str()).map_err(
                         |second_error| {
-                            ExecutionFailure::Service(format!(
-                                "pre-model AUR startup failed twice after the one-minute retry: {first_error}; {second_error}"
-                            ))
+                            retried_acquisition_failure(
+                                "pre-model AUR startup",
+                                &first_error,
+                                &second_error,
+                            )
                         },
                     )?
                 }
-                Err(error) => return Err(service_failure(error)),
+                Err(error) => return Err(acquisition_failure(&error)),
             }
         };
         let request = AcquisitionRequest {
@@ -1034,15 +1036,17 @@ impl ProductionOrchestrationAdapter {
                 Self::wait_for_pre_model_retry(cancelled)?;
                 progress.report(PiScanExecutionPhase::AcquiringSources);
                 self.acquire_once(&request).map_err(|second_error| {
-                    ExecutionFailure::Service(format!(
-                        "pre-model acquisition failed twice after the one-minute retry: {first_error}; {second_error}"
-                    ))
+                    retried_acquisition_failure(
+                        "pre-model acquisition",
+                        &first_error,
+                        &second_error,
+                    )
                 })?
             }
-            Err(error) => return Err(service_failure(error)),
+            Err(error) => return Err(acquisition_failure(&error)),
         };
         if acquisition.status == AcquisitionStatus::Failed {
-            return Err(ExecutionFailure::Service(
+            return Err(ExecutionFailure::Package(
                 "immutable acquisition failed an integrity check; no Pi scan was accepted"
                     .to_string(),
             ));
@@ -1083,12 +1087,20 @@ impl ProductionOrchestrationAdapter {
             result.limitations.dedup();
         }
         progress.report(PiScanExecutionPhase::RecheckingIdentity);
-        let mutable_changed = self
-            .recheck_mutable_sources(&acquisition.mutable_sources)
-            .map_err(ExecutionFailure::Service)?;
-        let stale = self.recheck_head(target)?
-            || mutable_changed
-            || acquisition.status != AcquisitionStatus::Complete;
+        let mutable_changed = retry_recheck_once(|| {
+            self.recheck_mutable_sources(&acquisition.mutable_sources)
+        })
+        .unwrap_or_else(|error| {
+            tracing::warn!(%error, "Pi scan mutable-source recheck failed; result kept as stale");
+            true
+        });
+        let head_changed =
+            retry_recheck_once(|| self.recheck_head(target)).unwrap_or_else(|error| {
+                tracing::warn!(%error, "Pi scan AUR HEAD recheck failed; result kept as stale");
+                true
+            });
+        let stale =
+            head_changed || mutable_changed || acquisition.status != AcquisitionStatus::Complete;
         let tokens = output.provenance.total_tokens();
         Ok(ExecutionReceipt {
             result,
@@ -1104,18 +1116,52 @@ impl ProductionOrchestrationAdapter {
         })
     }
 
-    /// Requery official AUR HEAD and compare it to the frozen observed identity.
-    fn recheck_head(&mut self, target: &FrozenScanIdentity) -> Result<bool, ExecutionFailure> {
+    /// What: Requery official AUR HEAD and compare it to the frozen observed identity.
+    ///
+    /// Inputs:
+    /// - `target`: Frozen identity whose observed HEAD is compared.
+    ///
+    /// Output:
+    /// - `Ok(true)` when HEAD moved.
+    ///
+    /// Details:
+    /// - The caller treats an error as "possibly moved": the paid result is kept and marked stale
+    ///   instead of being discarded because of a post-scan network hiccup.
+    fn recheck_head(&mut self, target: &FrozenScanIdentity) -> Result<bool, String> {
         let repo_url = AurRepoUrl::for_package_base(&target.package_base);
         let invocation = head_query_invocation(
             self.config.git_executable.as_os_str(),
             &repo_url,
             self.config.head_query_timeout,
         );
-        let output = self.run_git(&invocation).map_err(service_failure)?;
-        let current = parse_head_oid(&output).map_err(service_failure)?;
+        let output = self
+            .run_git(&invocation)
+            .map_err(|error| error.to_string())?;
+        let current = parse_head_oid(&output).map_err(|error| error.to_string())?;
         Ok(current != target.observed_head_oid)
     }
+}
+
+/// Pause before repeating a failed post-scan recheck.
+const RECHECK_RETRY_DELAY: Duration = Duration::from_secs(5);
+
+/// What: Run one post-scan identity recheck, retrying a failure once after a short pause.
+///
+/// Inputs:
+/// - `recheck`: HEAD or mutable-source comparison returning whether the identity moved.
+///
+/// Output:
+/// - The first successful comparison, or the second error.
+///
+/// Details:
+/// - A failed recheck makes a paid result permanently stale, so one short retry absorbs a
+///   brief network hiccup without delaying the normal path.
+fn retry_recheck_once(mut recheck: impl FnMut() -> Result<bool, String>) -> Result<bool, String> {
+    recheck().or_else(|first_error| {
+        tracing::debug!(%first_error, "Pi scan recheck failed; retrying once");
+        std::thread::sleep(RECHECK_RETRY_DELAY);
+        recheck()
+    })
 }
 
 /// Convert a displayable production seam failure into an orchestration service failure.
@@ -1123,12 +1169,92 @@ fn service_failure(error: impl std::fmt::Display) -> ExecutionFailure {
     ExecutionFailure::Service(error.to_string())
 }
 
-/// Preserve sticky cancellation while reducing other engine failures to bounded guidance.
+/// Convert a failure that only concerns the active package into a non-pausing failure.
+fn package_failure(error: impl std::fmt::Display) -> ExecutionFailure {
+    ExecutionFailure::Package(error.to_string())
+}
+
+/// What: Classify an acquisition failure by how much of the queue it affects.
+///
+/// Inputs:
+/// - `error`: Typed acquisition failure for the active package.
+///
+/// Output:
+/// - `Package` for recipe, membership, identity, and AUR-base problems; `Environment` for Git and
+///   download failures; `Service` for the local workspace.
+///
+/// Details:
+/// - A broken `.SRCINFO` or a package missing from the AUR says nothing about the next package,
+///   so it must not stop the queue. A full disk or unusable temp directory affects every scan.
+fn acquisition_failure(error: &AcquisitionError) -> ExecutionFailure {
+    match error {
+        AcquisitionError::PackageBaseUnresolved { .. }
+        | AcquisitionError::MembershipUnproven { .. }
+        | AcquisitionError::RecipeInvalid { .. }
+        | AcquisitionError::Identity { .. } => package_failure(error),
+        AcquisitionError::Git { .. } | AcquisitionError::Network { .. } => {
+            ExecutionFailure::Environment(error.to_string())
+        }
+        AcquisitionError::Workspace { .. } => service_failure(error),
+    }
+}
+
+/// What: Classify a failure that survived the one-minute pre-model retry.
+///
+/// Inputs:
+/// - `stage`: Short name of the retried step.
+/// - `first_error`, `second_error`: The transient first failure and the final one.
+///
+/// Output:
+/// - The class of the final error, with a message naming both attempts.
+///
+/// Details:
+/// - The retry only runs for transient-looking errors, but the second attempt can fail for a
+///   different reason (for example a recipe that now parses as invalid), which must keep its
+///   own class instead of always counting as an environment failure.
+fn retried_acquisition_failure(
+    stage: &str,
+    first_error: &AcquisitionError,
+    second_error: &AcquisitionError,
+) -> ExecutionFailure {
+    let reason =
+        format!("{stage} failed twice after the one-minute retry: {first_error}; {second_error}");
+    match acquisition_failure(second_error) {
+        ExecutionFailure::Package(_) => ExecutionFailure::Package(reason),
+        ExecutionFailure::Service(_) => ExecutionFailure::Service(reason),
+        ExecutionFailure::Environment(_) | ExecutionFailure::Cancelled => {
+            ExecutionFailure::Environment(reason)
+        }
+    }
+}
+
+/// What: Classify a Pi engine failure while preserving sticky cancellation.
+///
+/// Inputs:
+/// - `error`: Logical scan engine failure.
+///
+/// Output:
+/// - `Package` when the model could not produce a valid result for this package within its
+///   bounds; `Environment` for Pi transport or RPC failures; `Service` for invalid input.
+///
+/// Details:
+/// - Timeouts and exhausted attempts depend on the package size and content. Transport and RPC
+///   failures may be a crashed Pi or an unreachable provider, so they count toward the
+///   consecutive-failure pause instead of pausing at once.
+/// - Invalid input almost always comes from configuration shared by every package (timeouts,
+///   Pi version, model list, thinking level, a model Pi no longer offers), so it pauses at once
+///   instead of failing the whole queue one package at a time.
 fn map_execution_failure(error: &ExecutionError) -> ExecutionFailure {
-    if matches!(error, ExecutionError::Cancelled) {
-        ExecutionFailure::Cancelled
-    } else {
-        ExecutionFailure::Service(error.to_string())
+    match error {
+        ExecutionError::Cancelled => ExecutionFailure::Cancelled,
+        ExecutionError::InvalidInput(_) => service_failure(error),
+        ExecutionError::AttemptBudgetExceeded(_)
+        | ExecutionError::AttemptTimeout
+        | ExecutionError::LogicalTimeout
+        | ExecutionError::AttemptsExhausted => package_failure(error),
+        ExecutionError::Transport(_) | ExecutionError::Rpc(_) => {
+            ExecutionFailure::Environment(error.to_string())
+        }
     }
 }
 
@@ -1390,13 +1516,13 @@ fn spawn_production_channels(
         progress: progress_tx.clone(),
         result: result_tx.clone(),
         execution: execution_tx,
-        notice: notice_tx.clone(),
+        notice: notice_tx,
         policy: Arc::clone(&policy),
     };
     tokio::spawn(run_production_requests(
         runner.clone(),
         request_rx,
-        request_senders,
+        request_senders.clone(),
         settings.clone(),
         dry_run,
     ));
@@ -1411,8 +1537,7 @@ fn spawn_production_channels(
     tokio::spawn(run_production_user_pauses(
         runner.clone(),
         user_pause_rx,
-        notice_tx,
-        result_tx.clone(),
+        request_senders,
     ));
     tokio::spawn(run_production_cancellations(
         runner.clone(),
@@ -1779,7 +1904,6 @@ async fn handle_production_request(
     let progress_tx = &senders.progress;
     let result_tx = &senders.result;
     let execution_tx = &senders.execution;
-    let notice_tx = &senders.notice;
     match request {
         PiScanRequestMessage::ProbeSetup if dry_run => reject(
             result_tx,
@@ -1872,7 +1996,7 @@ async fn handle_production_request(
             .await;
         }
         PiScanRequestMessage::SetUserPaused(paused) => {
-            handle_user_pause(runner, paused, notice_tx, result_tx).await;
+            handle_user_pause(runner, paused, senders).await;
         }
         PiScanRequestMessage::PauseForService => {
             publish_policy_result(
@@ -2473,18 +2597,17 @@ async fn run_production_execution(
 async fn run_production_user_pauses(
     runner: PiScanSequentialRunner<ProductionOrchestrationAdapter>,
     mut user_pause_rx: tokio::sync::mpsc::UnboundedReceiver<PiScanUserPauseMessage>,
-    notice_tx: tokio::sync::mpsc::UnboundedSender<PiScanRuntimeNotice>,
-    result_tx: tokio::sync::mpsc::UnboundedSender<PiScanResultMessage>,
+    senders: ProductionRequestSenders,
 ) {
     while let Some(request) = user_pause_rx.recv().await {
-        handle_user_pause(&runner, request.paused, &notice_tx, &result_tx).await;
+        handle_user_pause(&runner, request.paused, &senders).await;
     }
 }
 
 /// What: Publish a truthful pause acknowledgement and persist it at the correct boundary.
 ///
 /// Inputs:
-/// - Runner, requested pause value, typed notice sender, and legacy error sender.
+/// - Runner, requested pause value, and the runtime output channels.
 ///
 /// Output:
 /// - Immediate `Queued` while active, followed by `Persisted` or `Failed`.
@@ -2492,12 +2615,15 @@ async fn run_production_user_pauses(
 /// Details:
 /// - Idle changes use the ordinary owner lock. Active changes are completed by `run_next` before
 ///   releasing its active registration, which prevents another job from starting first.
-async fn handle_user_pause(
-    runner: &PiScanSequentialRunner<ProductionOrchestrationAdapter>,
+/// - An idle Resume also revalidates a service pause and wakes the queue, so Resume means the
+///   scanner actually continues instead of waiting for an unrelated later wake-up.
+async fn handle_user_pause<A: OrchestrationAdapter + Send + 'static>(
+    runner: &PiScanSequentialRunner<A>,
     paused: bool,
-    notice_tx: &tokio::sync::mpsc::UnboundedSender<PiScanRuntimeNotice>,
-    result_tx: &tokio::sync::mpsc::UnboundedSender<PiScanResultMessage>,
+    senders: &ProductionRequestSenders,
 ) {
+    let notice_tx = &senders.notice;
+    let result_tx = &senders.result;
     let queued = match runner.queue_user_pause_if_active(paused) {
         Ok(queued) => queued,
         Err(error) => {
@@ -2529,12 +2655,55 @@ async fn handle_user_pause(
         .update_runtime_policy(None, Some(paused), false, None)
         .await
         .map_err(|error| error.to_string());
+    let resumed = !paused && result.is_ok();
     publish_policy_notice(
         notice_tx,
         paused,
         None,
         result.map(|()| PiScanPolicyAcknowledgement::Persisted),
     );
+    if resumed {
+        resume_after_service_pause(runner, senders).await;
+    }
+}
+
+/// What: Clear a service pause after an explicit Resume, then wake the execution loop.
+///
+/// Inputs:
+/// - `runner`: Serialized orchestration owner.
+/// - `senders`: Progress, rejection, and execution wake-up channels.
+///
+/// Output:
+/// - Publishes the authoritative runtime state when a service pause was cleared, a rejection
+///   with the readiness reason when it stays, and always one execution wake-up.
+///
+/// Details:
+/// - The wake-up is harmless when nothing is eligible: execution re-checks every start gate.
+async fn resume_after_service_pause<A: OrchestrationAdapter + Send + 'static>(
+    runner: &PiScanSequentialRunner<A>,
+    senders: &ProductionRequestSenders,
+) {
+    match runner.revalidate_service_environment().await {
+        Ok(true) => {
+            // A job that started meanwhile publishes its own projection; a full snapshot would
+            // overwrite its newer Started/PhaseChanged state.
+            if let Ok(state) = runner.state_snapshot().await
+                && state.runtime.active.is_none()
+            {
+                drop(
+                    senders
+                        .progress
+                        .send(PiScanProgressMessage::RestoredRuntime(Box::new(state))),
+                );
+            }
+        }
+        Ok(false) => {}
+        Err(error) => reject(
+            &senders.result,
+            format!("Pi Scan is still paused because the setup check failed: {error}"),
+        ),
+    }
+    request_execution(&senders.execution);
 }
 
 /// Publish one provenance-bearing pause policy notice.
@@ -2687,10 +2856,16 @@ async fn execute_one<A: OrchestrationAdapter + Send + 'static>(
             publish_cancelled(record, result_tx);
             active_priority
         }
+        Ok(Err(OrchestrationError::PackageFailed(reason))) => {
+            let record = terminal_record_for_active(runner, active.as_ref()).await;
+            publish_failed(record, result_tx, reason);
+            active_priority
+        }
         Ok(Err(error)) => {
             let reason = error.to_string();
             let record = terminal_record_for_active(runner, active.as_ref()).await;
             publish_failed(record, result_tx, reason);
+            publish_service_pause(runner, progress_tx).await;
             None
         }
         Err(error) => {
@@ -2700,6 +2875,21 @@ async fn execute_one<A: OrchestrationAdapter + Send + 'static>(
             );
             None
         }
+    }
+}
+
+/// Project a sticky service pause so the workspace shows why the queue stopped.
+async fn publish_service_pause<A: OrchestrationAdapter + Send + 'static>(
+    runner: &PiScanSequentialRunner<A>,
+    progress_tx: &tokio::sync::mpsc::UnboundedSender<PiScanProgressMessage>,
+) {
+    let service = crate::state::pi_scan::PiScanPauseReason::Service;
+    if let Ok(state) = runner.state_snapshot().await
+        && state.runtime.pause_reasons.contains(&service)
+    {
+        drop(progress_tx.send(PiScanProgressMessage::Paused(
+            crate::state::pi_scan::PiScanStartBlock::Paused(service),
+        )));
     }
 }
 
@@ -3164,6 +3354,8 @@ mod tests {
         release: Arc<AtomicBool>,
         /// Number of model executions actually entered.
         execution_count: Arc<AtomicU64>,
+        /// Failure returned by the first execution instead of blocking, when scripted.
+        first_failure: Option<ExecutionFailure>,
     }
 
     impl OrchestrationAdapter for BlockingTestAdapter {
@@ -3191,6 +3383,11 @@ mod tests {
             cancelled: &AtomicBool,
         ) -> Result<crate::pi_scan_orchestrator::ExecutionReceipt, ExecutionFailure> {
             let execution_number = self.execution_count.fetch_add(1, Ordering::SeqCst) + 1;
+            if execution_number == 1
+                && let Some(failure) = self.first_failure.take()
+            {
+                return Err(failure);
+            }
             if execution_number == 1 {
                 self.started.store(true, Ordering::SeqCst);
                 for _ in 0..1_000 {
@@ -3253,6 +3450,7 @@ mod tests {
             started,
             release,
             execution_count,
+            first_failure: None,
         }
     }
 
@@ -3371,6 +3569,198 @@ mod tests {
         assert_eq!(state.runtime.terminal.len(), 1);
         assert_eq!(state.runtime.queue.len(), 1);
         assert_eq!(state.runtime.queue[0].priority, PiScanPriority::Background);
+    }
+
+    /// Drain both packages as one foreground batch after the first execution fails.
+    async fn drain_foreground_pair_after_failure(
+        failure: ExecutionFailure,
+    ) -> (u64, OrchestrationState) {
+        let temp = tempfile::tempdir().expect("temp");
+        let execution_count = Arc::new(AtomicU64::new(0));
+        let mut adapter = blocking_test_adapter(
+            Arc::new(AtomicBool::new(false)),
+            Arc::new(AtomicBool::new(true)),
+            Arc::clone(&execution_count),
+        );
+        adapter.first_failure = Some(failure);
+        let mut config = consent_test_config(temp.path(), "failure-drain-binding".to_string());
+        config.setup_confirmed = true;
+        config.initial_consent = PiScanConsentState {
+            background_observation: true,
+            paid_execution: true,
+        };
+        let mut owner = PiScanOrchestrator::new(config, adapter).expect("owner");
+        owner.startup_observation(1).expect("queue two packages");
+        let keys: Vec<_> = owner
+            .state()
+            .runtime
+            .queue
+            .iter()
+            .map(|request| request.key.clone())
+            .collect();
+        for key in &keys {
+            owner.promote_queued(key).expect("promote package");
+        }
+        let runner = crate::pi_scan_orchestrator::PiScanSequentialRunner::new(owner);
+        let settings = consent_test_settings();
+        let policy = ProductionPolicyProjection::default();
+        let (progress_tx, _progress_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (result_tx, _result_rx) = tokio::sync::mpsc::unbounded_channel();
+        drain_eligible_queue(&runner, &progress_tx, &result_tx, &settings, &policy).await;
+        let state = runner.state_snapshot().await.expect("state");
+        (execution_count.load(Ordering::SeqCst), state)
+    }
+
+    /// A package-only failure must not stop the remaining foreground batch.
+    #[tokio::test]
+    async fn foreground_drain_continues_after_a_package_failure() {
+        let (executions, state) = drain_foreground_pair_after_failure(ExecutionFailure::Package(
+            "the immutable AUR recipe could not be parsed".to_string(),
+        ))
+        .await;
+        assert_eq!(executions, 2);
+        assert!(state.runtime.queue.is_empty());
+        assert!(state.runtime.pause_reasons.is_empty());
+        let statuses: Vec<_> = state
+            .runtime
+            .terminal
+            .iter()
+            .map(|record| record.status)
+            .collect();
+        assert_eq!(
+            statuses,
+            [
+                PiScanTerminalStatus::Failed,
+                PiScanTerminalStatus::Completed
+            ]
+        );
+    }
+
+    /// A service failure still pauses and stops the batch fail-closed.
+    #[tokio::test]
+    async fn foreground_drain_stops_after_a_service_failure() {
+        let (executions, state) =
+            drain_foreground_pair_after_failure(ExecutionFailure::Service("disk full".to_string()))
+                .await;
+        assert_eq!(executions, 1);
+        assert_eq!(state.runtime.queue.len(), 1);
+        assert!(
+            state
+                .runtime
+                .pause_reasons
+                .contains(&crate::state::pi_scan::PiScanPauseReason::Service)
+        );
+    }
+
+    /// An idle Resume revalidates the environment, clears a service pause, and wakes the queue.
+    #[tokio::test]
+    async fn resume_clears_a_revalidated_service_pause_and_wakes_execution() {
+        let temp = tempfile::tempdir().expect("temp");
+        let adapter = blocking_test_adapter(
+            Arc::new(AtomicBool::new(false)),
+            Arc::new(AtomicBool::new(true)),
+            Arc::new(AtomicU64::new(0)),
+        );
+        let config = consent_test_config(temp.path(), "resume-binding".to_string());
+        let mut owner = PiScanOrchestrator::new(config, adapter).expect("owner");
+        owner
+            .update_runtime_policy(None, Some(true), true, None)
+            .expect("user and service pause");
+        let runner = crate::pi_scan_orchestrator::PiScanSequentialRunner::new(owner);
+        let (progress, mut progress_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (result, mut result_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (execution, mut execution_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (notice, _notice_rx) = tokio::sync::mpsc::unbounded_channel();
+        let senders = ProductionRequestSenders {
+            progress,
+            result,
+            execution,
+            notice,
+            policy: Arc::new(ProductionPolicyProjection::default()),
+        };
+
+        super::handle_user_pause(&runner, false, &senders).await;
+
+        let state = runner.state_snapshot().await.expect("state");
+        assert!(state.runtime.pause_reasons.is_empty());
+        assert!(execution_rx.try_recv().is_ok(), "resume wakes the queue");
+        assert!(matches!(
+            progress_rx.try_recv(),
+            Ok(PiScanProgressMessage::RestoredRuntime(restored))
+                if restored.runtime.pause_reasons.is_empty()
+        ));
+        assert!(result_rx.try_recv().is_err(), "no rejection on success");
+    }
+
+    /// Recipe, membership, and model-result failures concern one package; others do not.
+    #[test]
+    fn failures_are_classified_by_how_much_of_the_queue_they_affect() {
+        use super::ExecutionError;
+        use super::{acquisition_failure, map_execution_failure};
+        let recipe = AcquisitionError::RecipeInvalid {
+            source: crate::logic::pi_scan::recipe::SrcInfoError {
+                line: 55,
+                reason: "key must be non-empty".to_string(),
+            },
+        };
+        assert!(matches!(
+            acquisition_failure(&recipe),
+            ExecutionFailure::Package(_)
+        ));
+        let unresolved = AcquisitionError::PackageBaseUnresolved {
+            package_name: "gone".to_string(),
+            reason: "no result".to_string(),
+        };
+        assert!(matches!(
+            acquisition_failure(&unresolved),
+            ExecutionFailure::Package(_)
+        ));
+        let network = AcquisitionError::Network {
+            url: "https://example.com/a".to_string(),
+            reason: "connection refused".to_string(),
+        };
+        assert!(matches!(
+            acquisition_failure(&network),
+            ExecutionFailure::Environment(_)
+        ));
+        let workspace = AcquisitionError::Workspace {
+            path: std::path::PathBuf::from("/tmp/x"),
+            reason: "no space left".to_string(),
+        };
+        assert!(matches!(
+            acquisition_failure(&workspace),
+            ExecutionFailure::Service(_)
+        ));
+        assert!(matches!(
+            map_execution_failure(&ExecutionError::AttemptsExhausted),
+            ExecutionFailure::Package(_)
+        ));
+        assert!(matches!(
+            map_execution_failure(&ExecutionError::LogicalTimeout),
+            ExecutionFailure::Package(_)
+        ));
+        assert!(matches!(
+            map_execution_failure(&ExecutionError::Rpc("provider down".to_string())),
+            ExecutionFailure::Environment(_)
+        ));
+        assert!(matches!(
+            super::retried_acquisition_failure("stage", &network, &recipe),
+            ExecutionFailure::Package(reason) if reason.contains("twice")
+        ));
+        assert!(matches!(
+            super::retried_acquisition_failure("stage", &network, &network),
+            ExecutionFailure::Environment(_)
+        ));
+        assert!(matches!(
+            map_execution_failure(&ExecutionError::InvalidInput(
+                "confirmed model is not available".to_string()
+            )),
+            ExecutionFailure::Service(_)
+        ));
+        assert_eq!(
+            map_execution_failure(&ExecutionError::Cancelled),
+            ExecutionFailure::Cancelled
+        );
     }
 
     /// Persist one orchestration state envelope for production-owner recovery tests.
