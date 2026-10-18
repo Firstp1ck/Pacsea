@@ -386,9 +386,8 @@ fn check_gnome_terminal(app: &mut AppState, headless: bool) {
         return;
     }
 
-    let is_gnome = std::env::var("XDG_CURRENT_DESKTOP")
-        .ok()
-        .is_some_and(|v| v.to_uppercase().contains("GNOME"));
+    let is_gnome =
+        std::env::var("XDG_CURRENT_DESKTOP").is_ok_and(|v| v.to_uppercase().contains("GNOME"));
 
     if !is_gnome {
         return;
@@ -929,7 +928,7 @@ mod tests {
         initialize_locale_system(&mut app, "", &prefs);
 
         // Locale should be set (either resolved or default)
-        assert!(!app.locale.is_empty());
+        assert_ne!(app.locale, "");
         // Translations maps should be initialized
         assert!(app.translations.is_empty() || !app.translations.is_empty());
         assert!(app.translations_fallback.is_empty() || !app.translations_fallback.is_empty());
@@ -1081,28 +1080,28 @@ mod tests {
             .expect("Dependency cache file should exist");
         let deps_cache: crate::app::deps_cache::DependencyCache =
             serde_json::from_str(&deps_body).expect("Dependency cache should parse");
-        assert!(deps_cache.install_list_signature.is_empty());
+        assert_eq!(deps_cache.install_list_signature, [] as [String; 0]);
         assert!(deps_cache.dependencies.is_empty());
 
         let files_body =
             std::fs::read_to_string(&app.files_cache_path).expect("File cache file should exist");
         let files_cache: crate::app::files_cache::FileCache =
             serde_json::from_str(&files_body).expect("File cache should parse");
-        assert!(files_cache.install_list_signature.is_empty());
+        assert_eq!(files_cache.install_list_signature, [] as [String; 0]);
         assert!(files_cache.files.is_empty());
 
         let services_body = std::fs::read_to_string(&app.services_cache_path)
             .expect("Service cache file should exist");
         let services_cache: crate::app::services_cache::ServiceCache =
             serde_json::from_str(&services_body).expect("Service cache should parse");
-        assert!(services_cache.install_list_signature.is_empty());
+        assert_eq!(services_cache.install_list_signature, [] as [String; 0]);
         assert!(services_cache.services.is_empty());
 
         let sandbox_body = std::fs::read_to_string(&app.sandbox_cache_path)
             .expect("Sandbox cache file should exist");
         let sandbox_cache: crate::app::sandbox_cache::SandboxCache =
             serde_json::from_str(&sandbox_body).expect("Sandbox cache should parse");
-        assert!(sandbox_cache.install_list_signature.is_empty());
+        assert_eq!(sandbox_cache.install_list_signature, [] as [String; 0]);
         assert!(sandbox_cache.sandbox_info.is_empty());
 
         let _ = std::fs::remove_file(&app.deps_cache_path);

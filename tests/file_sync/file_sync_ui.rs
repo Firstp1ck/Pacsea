@@ -101,7 +101,7 @@ fn ui_file_sync_preflight_exec_structure() {
             assert_eq!(action, pacsea::state::PreflightAction::Install);
             assert_eq!(tab, PreflightTab::Summary);
             assert!(!verbose);
-            assert!(log_lines.is_empty());
+            assert_eq!(log_lines, [] as [std::string::String; 0]);
             assert!(!abortable);
         }
         _ => panic!("Expected PreflightExec modal"),

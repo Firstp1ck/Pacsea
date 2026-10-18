@@ -3278,6 +3278,9 @@ fn handle_downgrade_success(app: &mut AppState, items: &[crate::state::PackageIt
     tracing::info!("Downgrade operation completed: cleared downgrade list and triggered refresh");
 }
 
+/// Maximum executor output lines kept in the `PreflightExec` modal, bounding memory for long runs.
+const PREFLIGHT_EXEC_LOG_LINE_LIMIT: usize = 1000;
+
 /// What: Handle executor output and update UI state accordingly.
 ///
 /// Inputs:
@@ -3336,10 +3339,12 @@ fn handle_executor_output(app: &mut AppState, output: crate::install::ExecutorOu
         match output {
             crate::install::ExecutorOutput::Line(line) => {
                 log_lines.push(line);
-                // Keep only last 1000 lines to avoid memory issues
-                if log_lines.len() > 1000 {
-                    log_lines.remove(0);
-                }
+                // `drain` instead of `remove(0)`: CodeQL's generated `Vec::remove` model treats the
+                // receiver as a log sink and falsely reports this UI buffer as cleartext logging.
+                let excess = log_lines
+                    .len()
+                    .saturating_sub(PREFLIGHT_EXEC_LOG_LINE_LIMIT);
+                log_lines.drain(..excess);
                 tracing::debug!(
                     "[EventLoop] PreflightExec log_lines count: {}",
                     log_lines.len()
@@ -3786,6 +3791,7 @@ mod tests {
     use super::dispatch_pi_scan_ui_action;
     use super::handle_aur_vote_response;
     use super::handle_aur_vote_state_response;
+    use super::handle_executor_output;
     use super::handle_index_notification;
     use super::handle_news_content;
     use super::handle_updates_list;
@@ -4348,7 +4354,10 @@ mod tests {
         );
 
         assert!(!app.pi_scan.runtime.consent.background_observation);
-        assert!(app.pi_scan.runtime.budget.records.is_empty());
+        assert_eq!(
+            app.pi_scan.runtime.budget.records,
+            [] as [crate::state::pi_scan::PiScanBudgetRecord; 0]
+        );
         assert!(
             !app.pi_scan
                 .runtime
@@ -6630,5 +6639,46 @@ mod tests {
                 .text,
             "Cancelling active scan…"
         );
+    }
+
+    #[test]
+    /// What: Verify streamed executor lines keep only the newest bounded window.
+    ///
+    /// Inputs:
+    /// - A `PreflightExec` modal fed one more `Line` output than the retention limit.
+    ///
+    /// Output:
+    /// - The log holds exactly 1000 lines, oldest line dropped, newest line last.
+    ///
+    /// Details:
+    /// - Pins the `drain`-based trim that replaced `remove(0)` to silence a `CodeQL` false positive.
+    fn executor_lines_keep_newest_bounded_window() {
+        let mut app = AppState {
+            modal: crate::state::Modal::PreflightExec {
+                items: Vec::new(),
+                action: crate::state::PreflightAction::Install,
+                tab: crate::state::PreflightTab::Summary,
+                verbose: false,
+                log_lines: Vec::new(),
+                abortable: true,
+                header_chips: crate::state::modal::PreflightHeaderChips::default(),
+                success: None,
+            },
+            ..AppState::default()
+        };
+
+        for index in 0..=super::PREFLIGHT_EXEC_LOG_LINE_LIMIT {
+            handle_executor_output(
+                &mut app,
+                crate::install::ExecutorOutput::Line(format!("line {index}")),
+            );
+        }
+
+        let crate::state::Modal::PreflightExec { log_lines, .. } = &app.modal else {
+            panic!("PreflightExec modal should stay active while lines stream");
+        };
+        assert_eq!(log_lines.len(), super::PREFLIGHT_EXEC_LOG_LINE_LIMIT);
+        assert_eq!(log_lines.first().map(String::as_str), Some("line 1"));
+        assert_eq!(log_lines.last().map(String::as_str), Some("line 1000"));
     }
 }

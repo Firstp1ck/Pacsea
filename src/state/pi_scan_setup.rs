@@ -1198,7 +1198,7 @@ mod tests {
         assert_eq!(wizard.original_consent, consent);
         assert!(!wizard.candidate.background_enabled);
         assert!(!wizard.candidate_consent.background_observation);
-        assert!(wizard.candidate.fallback_models.is_empty());
+        assert_eq!(wizard.candidate.fallback_models, "");
         assert_eq!(wizard.candidate.thinking, "medium");
         assert_eq!(wizard.candidate.background_cost_cap_24h, "0.00");
     }
@@ -1247,7 +1247,7 @@ mod tests {
         assert_eq!(wizard.step, PiScanSetupStep::OptionalBehavior);
         assert!(!wizard.candidate_consent.background_observation);
         assert!(!wizard.candidate_consent.paid_execution);
-        assert!(wizard.candidate.fallback_models.is_empty());
+        assert_eq!(wizard.candidate.fallback_models, "");
         wizard.next(false);
         assert!(matches!(
             wizard.pending_action,
@@ -1348,7 +1348,7 @@ mod tests {
         assert_eq!(wizard.candidate.fallback_models, "provider-d/model-d");
         wizard.cycle_route(false);
         assert_eq!(wizard.candidate.model, "model-d");
-        assert!(wizard.candidate.fallback_models.is_empty());
+        assert_eq!(wizard.candidate.fallback_models, "");
         assert!(!wizard.confirmations.fallback_confirmed);
     }
 
@@ -1421,7 +1421,7 @@ mod tests {
         assert!(wizard.fallback_picker.is_some());
         wizard.edit_fallback_filter(None, true);
         assert!(wizard.choose_fallback_option(Some(0)));
-        assert!(wizard.candidate.fallback_models.is_empty());
+        assert_eq!(wizard.candidate.fallback_models, "");
         assert!(!wizard.confirmations.fallback_confirmed);
 
         wizard.open_fallback_picker();

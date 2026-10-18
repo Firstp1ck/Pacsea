@@ -1179,9 +1179,9 @@ mod tests {
     #[test]
     fn keybind_chords_for_key_resolves_known_actions() {
         let km = KeyMap::default();
-        assert!(!keybind_chords_for_key("keybind_help", &km).is_empty());
-        assert!(!keybind_chords_for_key("keybind_search_move_up", &km).is_empty());
-        assert!(keybind_chords_for_key("keybind_unknown_action", &km).is_empty());
+        assert_ne!(keybind_chords_for_key("keybind_help", &km), []);
+        assert_ne!(keybind_chords_for_key("keybind_search_move_up", &km), []);
+        assert_eq!(keybind_chords_for_key("keybind_unknown_action", &km), []);
     }
 
     /// What: Guard against schema/lookup drift for keybind rows.
@@ -1274,6 +1274,6 @@ mod tests {
         assert!(state.toggle_bookmark_key("sort_mode"));
         assert_eq!(state.bookmarked_keys, vec!["sort_mode".to_string()]);
         assert!(!state.toggle_bookmark_key("sort_mode"));
-        assert!(state.bookmarked_keys.is_empty());
+        assert_eq!(state.bookmarked_keys, [] as [String; 0]);
     }
 }

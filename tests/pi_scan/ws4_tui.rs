@@ -232,7 +232,7 @@ fn pi_scan_settings_are_conservative_and_report_raised_limits() {
     assert_eq!(settings.observation_interval_seconds, 900);
     assert_eq!(settings.background_cost_cap_24h, "0.00");
     assert!(!settings.show_raw_output);
-    assert!(settings.validation_issues().is_empty());
+    assert_eq!(settings.validation_issues(), [] as [std::string::String; 0]);
 
     settings.head_query_timeout_seconds = 16;
     settings.background_token_cap_24h = 500_001;
@@ -1414,7 +1414,7 @@ fn budget_dialog_renders_choices_warning_values_and_narrow_dimensions() {
     assert!(unlimited.contains("500 → Unlimited"), "{unlimited:?}");
 
     let narrow = render_text(&mut app, 20, 10);
-    assert!(!narrow.trim().is_empty());
+    assert_ne!(narrow.trim(), "");
 }
 
 /// Guided setup formats all zero budgets as Unlimited in optional and review projections.
@@ -1821,7 +1821,7 @@ fn progress_summary_renders_mixed_counts_and_narrow_active_layout() {
 
     app.pi_scan.view_scroll.progress = u16::MAX;
     let narrow = render_text(&mut app, 20, 10);
-    assert!(!narrow.trim().is_empty());
+    assert_ne!(narrow.trim(), "");
     assert!(app.pi_scan.view_scroll.progress < u16::MAX);
 }
 

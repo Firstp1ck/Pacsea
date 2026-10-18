@@ -1109,7 +1109,10 @@ mod tests {
             enum_choice_rects(inner, 5),
             vec![(10, 21, 30, 1), (10, 22, 30, 1), (10, 23, 30, 1)]
         );
-        assert!(enum_choice_rects(Rect::new(10, 20, 30, 1), 3).is_empty());
+        assert_eq!(
+            enum_choice_rects(Rect::new(10, 20, 30, 1), 3),
+            [] as [(u16, u16, u16, u16); 0]
+        );
     }
 
     use crate::ui::details::config_editor_footer_reserved_rows;

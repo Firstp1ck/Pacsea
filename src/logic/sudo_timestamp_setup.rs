@@ -173,8 +173,7 @@ pub fn sudoers_user_scoped_line(username: &str, choice: SudoTimestampChoice) -> 
 #[must_use]
 pub fn pacsea_sudo_timestamp_drop_in_present() -> bool {
     std::fs::read_to_string(SUDOERS_DROP_IN_PATH)
-        .ok()
-        .is_some_and(|s| s.contains(DROP_IN_MARKER) && s.contains("timestamp_timeout"))
+        .is_ok_and(|s| s.contains(DROP_IN_MARKER) && s.contains("timestamp_timeout"))
 }
 
 /// What: Build a POSIX shell script that validates and installs the drop-in with `sudo`.

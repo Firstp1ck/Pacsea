@@ -505,7 +505,10 @@ mod tests {
         let mut controller = ScanAttemptController::new(models()).expect("valid models");
         controller.begin().expect("begins");
         controller.validated().expect("validates");
-        assert!(controller.cancel().is_empty());
+        assert_eq!(
+            controller.cancel(),
+            [] as [crate::pi_agent::session::SessionAction; 0]
+        );
         assert!(controller.validation_failed().is_err());
         assert!(controller.provider_failed().is_err());
     }

@@ -219,9 +219,12 @@ async fn setup_probe_verifies_capabilities_without_model_call() {
             snapshot,
         } => {
             assert_eq!(correlation_id, 1);
-            assert!(!snapshot.pi_version.trim().is_empty());
-            assert!(!snapshot.available_models.is_empty());
-            assert!(!snapshot.pricing_binding.trim().is_empty());
+            assert_ne!(snapshot.pi_version.trim(), "");
+            assert_ne!(
+                snapshot.available_models,
+                [] as [(std::string::String, std::string::String); 0]
+            );
+            assert_ne!(snapshot.pricing_binding.trim(), "");
         }
         other => panic!("expected CapabilitiesVerified, got {other:?}"),
     }

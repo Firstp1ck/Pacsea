@@ -56,7 +56,6 @@ pub fn get_backup_files(name: &str, source: &Source) -> Result<Vec<String>, Stri
                     tracing::debug!("Failed to fetch PKGBUILD for {}: {}", name, e);
                 }
             }
-            Ok(Vec::new())
         }
         Source::Aur => {
             // Try to fetch .SRCINFO first (more reliable for AUR)
@@ -95,9 +94,9 @@ pub fn get_backup_files(name: &str, source: &Source) -> Result<Vec<String>, Stri
                     tracing::debug!("Failed to fetch PKGBUILD for {}: {}", name, e);
                 }
             }
-            Ok(Vec::new())
         }
     }
+    Ok(Vec::new())
 }
 
 /// What: Collect backup file entries for an installed package through `pacman -Qii`.

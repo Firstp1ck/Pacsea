@@ -114,7 +114,10 @@ mod tests {
         clear_stale_pkgbuild_checks_for_selection(&mut app, "pkg-b");
 
         assert_eq!(app.pkgb_check_status, PkgbuildCheckStatus::Idle);
-        assert!(app.pkgb_check_findings.is_empty());
+        assert_eq!(
+            app.pkgb_check_findings,
+            [] as [crate::state::app_state::PkgbuildCheckFinding; 0]
+        );
         assert!(app.pkgb_check_last_package_name.is_none());
     }
 

@@ -1335,7 +1335,7 @@ mod tests {
             .as_ref()
             .expect("Esc keeps the wizard open");
         assert!(wizard.fallback_picker.is_none());
-        assert!(wizard.candidate.fallback_models.is_empty());
+        assert_eq!(wizard.candidate.fallback_models, "");
 
         press(&mut app, KeyCode::Char(' '));
         press(&mut app, KeyCode::Down);
@@ -1388,7 +1388,7 @@ mod tests {
         ));
         let wizard = app.pi_scan.wizard.as_ref().expect("wizard");
         assert!(wizard.pending_action.is_none());
-        assert!(!wizard.validation_issues.is_empty());
+        assert_ne!(wizard.validation_issues, [] as [String; 0]);
     }
 
     /// Readiness Enter must queue only the correlated inert probe action.

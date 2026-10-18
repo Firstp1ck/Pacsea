@@ -62,7 +62,7 @@ fn integration_preflight_exec_empty_log_lines() {
 
     match app.modal {
         Modal::PreflightExec { log_lines, .. } => {
-            assert!(log_lines.is_empty());
+            assert_eq!(log_lines, [] as [std::string::String; 0]);
         }
         _ => panic!("Expected PreflightExec modal"),
     }
