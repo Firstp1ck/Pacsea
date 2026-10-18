@@ -309,7 +309,7 @@ fn adapter_exposes_exact_routes_pricing_reservations_without_prompt_or_model_cal
             .cost_microusd,
         40_000
     );
-    assert_ne!(snapshot.pricing_binding.len(), 0);
+    assert_ne!(snapshot.pricing_binding, "");
     assert_eq!(command_types(&log), SETUP_PROBE_RPC_COMMANDS);
     assert!(
         !command_types(&log)
@@ -487,7 +487,10 @@ fn live_setup_probe_enumerates_priced_routes_without_model_call() {
         maximum_pricing_age: Duration::from_mins(5),
     };
     let snapshot = probe_pi_setup(&request).expect("installed Pi setup metadata probe");
-    assert_ne!(snapshot.routes.len(), 0);
+    assert_ne!(
+        snapshot.routes,
+        [] as [crate::pi_agent::setup_probe::PiSetupAdvertisedRoute; 0]
+    );
     assert!(
         snapshot
             .routes

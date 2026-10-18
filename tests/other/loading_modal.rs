@@ -225,7 +225,7 @@ fn integration_loading_modal_empty_message() {
 
     match app.modal {
         Modal::Loading { message } => {
-            assert_eq!(message.len(), 0);
+            assert_eq!(message, "");
         }
         _ => panic!("Expected Loading modal"),
     }

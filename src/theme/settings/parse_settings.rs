@@ -696,14 +696,14 @@ mod tests {
             &mut settings,
         );
         assert_eq!(settings.pi_scan.background_token_cap_24h, u64::MAX);
-        assert_ne!(settings.pi_scan.validation_issues().len(), 0);
+        assert_ne!(settings.pi_scan.validation_issues(), [] as [String; 0]);
         parse_settings(
             "pi_scan_background_token_cap_24h = 0\n",
             path,
             &mut settings,
         );
         assert_eq!(settings.pi_scan.background_token_cap_24h, 0);
-        assert_eq!(settings.pi_scan.validation_issues().len(), 0);
+        assert_eq!(settings.pi_scan.validation_issues(), [] as [String; 0]);
     }
 
     #[test]
@@ -751,6 +751,6 @@ mod tests {
         assert_eq!(pi.background_cost_cap_24h, "1.25");
         assert_eq!(pi.result_retention_days, 14);
         assert_eq!(pi.https_proxy, "https://proxy.example");
-        assert_eq!(pi.validation_issues().len(), 0);
+        assert_eq!(pi.validation_issues(), [] as [String; 0]);
     }
 }

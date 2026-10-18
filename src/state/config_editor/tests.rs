@@ -231,15 +231,9 @@ fn chord_to_canonical_string_round_trips_through_parser() {
 #[test]
 fn keybind_chords_for_key_resolves_known_actions() {
     let km = KeyMap::default();
-    assert_ne!(keybind_chords_for_key("keybind_help", &km).len(), 0);
-    assert_ne!(
-        keybind_chords_for_key("keybind_search_move_up", &km).len(),
-        0
-    );
-    assert_eq!(
-        keybind_chords_for_key("keybind_unknown_action", &km).len(),
-        0
-    );
+    assert_ne!(keybind_chords_for_key("keybind_help", &km), []);
+    assert_ne!(keybind_chords_for_key("keybind_search_move_up", &km), []);
+    assert_eq!(keybind_chords_for_key("keybind_unknown_action", &km), []);
 }
 
 /// What: Guard against schema/lookup drift for keybind rows.
@@ -331,5 +325,5 @@ fn bookmark_toggle_adds_and_removes() {
     assert!(state.toggle_bookmark_key("sort_mode"));
     assert_eq!(state.bookmarked_keys, vec!["sort_mode".to_string()]);
     assert!(!state.toggle_bookmark_key("sort_mode"));
-    assert_eq!(state.bookmarked_keys.len(), 0);
+    assert_eq!(state.bookmarked_keys, [] as [String; 0]);
 }

@@ -348,7 +348,7 @@ mod tests {
         assert_eq!(rows[0].0, "foo");
         assert_eq!(rows[0].1, "1.0-1");
         assert_eq!(rows[1].0, "bar");
-        assert_eq!(rows[1].1.len(), 0);
+        assert_eq!(rows[1].1, "");
     }
 
     #[test]

@@ -232,8 +232,11 @@ mod tests {
             100
         );
         // Keybinds parsed
-        assert_ne!(s.keymap.exit.len(), 0);
-        assert_ne!(s.keymap.help_overlay.len(), 0);
+        assert_ne!(s.keymap.exit, [] as [crate::theme::types::KeyChord; 0]);
+        assert_ne!(
+            s.keymap.help_overlay,
+            [] as [crate::theme::types::KeyChord; 0]
+        );
 
         unsafe {
             if let Some(v) = orig_home {

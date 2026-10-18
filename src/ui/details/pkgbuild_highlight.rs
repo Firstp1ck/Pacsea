@@ -380,7 +380,7 @@ depends=('bash')
 ";
 
         let lines = highlight_pkgbuild(pkgbuild, &th);
-        assert_ne!(lines.len(), 0);
+        assert_ne!(lines, [] as [ratatui::prelude::Line<'_>; 0]);
     }
 
     fn reset_cache() {

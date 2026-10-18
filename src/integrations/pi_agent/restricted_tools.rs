@@ -1377,7 +1377,10 @@ mod tests {
         );
         let catastrophic =
             grep_literal(&registry, "recipe", "(a+)+$", true, None).expect("grep runs");
-        assert_eq!(catastrophic.matches.len(), 0);
+        assert_eq!(
+            catastrophic.matches,
+            [] as [crate::pi_agent::restricted_tools::GrepMatch; 0]
+        );
 
         assert!(matches!(
             grep_literal(&registry, "recipe", "", true, None),

@@ -869,10 +869,8 @@ fn retention_keeps_newest_and_baseline_and_prunes_only_expired_results() {
 
     // Repeating cleanup is idempotent and never fails on an already-removed document.
     assert_eq!(
-        cleanup_expired_results(&results_root, "yay", &plan, &receipt)
-            .expect("idempotent cleanup")
-            .len(),
-        0
+        cleanup_expired_results(&results_root, "yay", &plan, &receipt).expect("idempotent cleanup"),
+        [] as [std::path::PathBuf; 0]
     );
 
     let _ = std::fs::remove_dir_all(&root);

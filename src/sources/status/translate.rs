@@ -257,7 +257,7 @@ mod tests {
         let text = "Arch systems nominal";
         let translated = translate_status_text(&app, text);
         // Should return translation or fallback to English
-        assert_ne!(translated.len(), 0);
+        assert_ne!(translated, "");
     }
 
     #[test]
@@ -277,7 +277,7 @@ mod tests {
         let text = "Arch systems nominal — AUR today: 97%";
         let translated = translate_status_text(&app, text);
         // Should return translation or fallback to English
-        assert_ne!(translated.len(), 0);
+        assert_ne!(translated, "");
         // The translation should contain the percentage or be a valid translation
         assert!(translated.contains("97") || translated.contains("AUR") || translated.len() > 10);
     }
@@ -299,7 +299,7 @@ mod tests {
         let text = "Website degraded (see status) — Website today: 91.275%";
         let translated = translate_status_text(&app, text);
         // Should return translation or fallback to English
-        assert_ne!(translated.len(), 0);
+        assert_ne!(translated, "");
         // The main bug fix: should not contain the format specifier literal {:.1}
         // This was the bug where {:.1}% was showing up instead of the actual percentage
         // We need to check for the literal string "{:.1}" which clippy flags as a format specifier,

@@ -637,7 +637,7 @@ mod tests {
             ..PiScanSettings::default()
         };
 
-        assert_eq!(settings.validation_issues().len(), 0);
+        assert_eq!(settings.validation_issues(), [] as [String; 0]);
         assert_eq!(
             format_pi_scan_budget_microusd(u64::MAX),
             "18446744073709.551615"

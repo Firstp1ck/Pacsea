@@ -370,7 +370,7 @@ fn disabled_and_missing_setup_fail_closed_without_discovery() {
         orchestrator.startup_observation(1),
         Err(OrchestrationError::Disabled(_))
     ));
-    assert_eq!(orchestrator.adapter().log.len(), 0);
+    assert_eq!(orchestrator.adapter().log, [] as [std::string::String; 0]);
 
     let adapter = FakeAdapter::default();
     let mut orchestrator =
@@ -1525,11 +1525,8 @@ fn periodic_observation_respects_the_fifteen_minute_floor() {
         PiScanOrchestrator::new(config(temp.path(), false), adapter).expect("construct");
     orchestrator.startup_observation(100).expect("startup");
     assert_eq!(
-        orchestrator
-            .periodic_observation(999)
-            .expect("not due")
-            .len(),
-        0
+        orchestrator.periodic_observation(999).expect("not due"),
+        [] as [pacsea::pi_scan_orchestrator::FrozenScanIdentity; 0]
     );
     assert_eq!(
         orchestrator
@@ -1734,7 +1731,10 @@ fn typed_update_candidate_is_frozen_into_current_head_target() {
     let periodic = orchestrator
         .periodic_observation(910)
         .expect("periodic after candidate");
-    assert_eq!(periodic.len(), 0);
+    assert_eq!(
+        periodic,
+        [] as [pacsea::pi_scan_orchestrator::FrozenScanIdentity; 0]
+    );
     assert_eq!(orchestrator.state().runtime.queue.len(), 1);
 
     orchestrator
@@ -1750,12 +1750,18 @@ fn typed_update_candidate_is_frozen_into_current_head_target() {
     let repeated = orchestrator
         .update_candidate_observation(12)
         .expect("repeat update observation");
-    assert_eq!(repeated.len(), 0);
+    assert_eq!(
+        repeated,
+        [] as [pacsea::pi_scan_orchestrator::FrozenScanIdentity; 0]
+    );
     assert!(orchestrator.state().runtime.queue.is_empty());
     let periodic_after_completion = orchestrator
         .periodic_observation(1810)
         .expect("periodic after completion");
-    assert_eq!(periodic_after_completion.len(), 0);
+    assert_eq!(
+        periodic_after_completion,
+        [] as [pacsea::pi_scan_orchestrator::FrozenScanIdentity; 0]
+    );
     assert_eq!(orchestrator.state().ledger.len(), 1);
 }
 
@@ -1788,7 +1794,10 @@ fn update_candidate_dry_run_keeps_ledger_and_queue_empty() {
             .len(),
         1
     );
-    assert_eq!(scanner.state().ledger.len(), 0);
+    assert_eq!(
+        scanner.state().ledger,
+        [] as [pacsea::pi_scan_orchestrator::OrchestrationLedgerEntry; 0]
+    );
     assert!(scanner.state().cursors.is_empty());
     assert!(scanner.state().runtime.queue.is_empty());
 }
@@ -1841,9 +1850,8 @@ fn observation_duplicate_queue_identity_still_advances_ledger_and_cursor() {
     assert_eq!(
         scanner
             .update_candidate_observation(2)
-            .expect("duplicate does not abort")
-            .len(),
-        0
+            .expect("duplicate does not abort"),
+        [] as [pacsea::pi_scan_orchestrator::FrozenScanIdentity; 0]
     );
     assert_eq!(scanner.state().ledger.len(), 1);
     assert_eq!(scanner.state().cursors.get("demo"), Some(&oid(8)));
@@ -1908,9 +1916,8 @@ fn completed_identity_without_ledger_is_not_requeued() {
     assert_eq!(
         scanner
             .update_candidate_observation(2)
-            .expect("duplicate does not abort")
-            .len(),
-        0
+            .expect("duplicate does not abort"),
+        [] as [pacsea::pi_scan_orchestrator::FrozenScanIdentity; 0]
     );
     assert_eq!(scanner.state().ledger.len(), 1);
     assert_eq!(scanner.state().cursors.get("demo"), Some(&oid(8)));

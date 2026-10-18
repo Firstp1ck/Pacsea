@@ -600,10 +600,10 @@ mod tests {
         };
 
         let line = format_news_item(&item, false, false, false);
-        assert_ne!(line.spans.len(), 0);
+        assert_ne!(line.spans, [] as [ratatui::prelude::Span<'_>; 0]);
 
         let line_critical = format_news_item(&item, false, false, true);
-        assert_ne!(line_critical.spans.len(), 0);
+        assert_ne!(line_critical.spans, [] as [ratatui::prelude::Span<'_>; 0]);
     }
 
     #[test]

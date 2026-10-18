@@ -249,7 +249,7 @@ mod tests {
         app.config_editor_state.query = "mirror".into();
         app.config_editor_state.query_last_input_change = Instant::now();
         maybe_save_config_editor_recent(&mut app);
-        assert_eq!(app.config_editor_state.recent_queries.len(), 0);
+        assert_eq!(app.config_editor_state.recent_queries, [] as [String; 0]);
 
         app.config_editor_state.query_last_input_change = Instant::now()
             .checked_sub(Duration::from_secs(3))

@@ -149,6 +149,6 @@ mod tests {
         let t = super::PacseaTimer;
         let _ = t.format_time(&mut writer);
         // Ensure something was written
-        assert_ne!(buf.len(), 0);
+        assert_ne!(buf, "");
     }
 }

@@ -316,7 +316,7 @@ mod tests {
         let packages = read_packages_from_file(path.to_str().expect("temp path is valid UTF-8"));
         std::fs::remove_file(&path).ok();
 
-        assert_eq!(packages.len(), 0);
+        assert_eq!(packages, [] as [std::string::String; 0]);
     }
 
     /// What: Verify comma-separated and space-separated parsing of package lists.

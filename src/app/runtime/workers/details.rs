@@ -485,7 +485,7 @@ mod tests {
         assert!(result.available);
         assert_eq!(result.exit_code, Some(0));
         assert!(!result.timed_out);
-        assert_eq!(result.stderr.len(), 0);
+        assert_eq!(result.stderr, "");
     }
 
     #[test]

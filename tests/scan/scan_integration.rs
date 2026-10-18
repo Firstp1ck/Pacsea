@@ -78,7 +78,7 @@ fn integration_scan_command_structure() {
 
     // Test that scan commands would include package name
     // The actual command building is in install::scan module
-    assert_ne!(pkg.len(), 0);
+    assert_ne!(pkg, "");
 
     // Test scan environment variable structure
     let env_vars = vec![

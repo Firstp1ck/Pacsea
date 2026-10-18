@@ -155,7 +155,7 @@ fn ui_scan_preflight_exec_structure() {
             assert_eq!(action, PreflightAction::Install);
             assert_eq!(tab, PreflightTab::Summary);
             assert!(!verbose);
-            assert_eq!(log_lines.len(), 0);
+            assert_eq!(log_lines, [] as [std::string::String; 0]);
             assert!(!abortable);
         }
         _ => panic!("Expected PreflightExec modal"),

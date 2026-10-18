@@ -78,8 +78,8 @@ mod tests {
         let catalog = vec![aur("foo")];
         let install = vec![aur("foo")];
         assert_eq!(
-            aur_pkgnames_also_in_official_catalog(&install, &catalog).len(),
-            0
+            aur_pkgnames_also_in_official_catalog(&install, &catalog),
+            [] as [String; 0]
         );
     }
 }

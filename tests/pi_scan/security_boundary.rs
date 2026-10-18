@@ -183,8 +183,14 @@ fn wave0_red_pi_cannot_read_outside_root_sentinel() {
     let grep = grep_literal(&registry, "source", SENTINEL, true, None).expect("grep");
     let find = find_paths(&registry, "source", "**/*secret*", None).expect("find");
     assert!(!error.contains(SENTINEL));
-    assert_eq!(grep.matches.len(), 0);
-    assert_eq!(find.entries.len(), 0);
+    assert_eq!(
+        grep.matches,
+        [] as [pacsea::pi_agent::restricted_tools::GrepMatch; 0]
+    );
+    assert_eq!(
+        find.entries,
+        [] as [pacsea::pi_agent::restricted_tools::Entry; 0]
+    );
 }
 
 /// What: Require strict bounded LF-only RPC framing.

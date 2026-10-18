@@ -829,7 +829,7 @@ mod tests {
     fn test_detect_urls_empty() {
         let text = "";
         let urls = detect_urls(text);
-        assert_eq!(urls.len(), 0);
+        assert_eq!(urls, [] as [(usize, usize, String); 0]);
     }
 
     #[test]
@@ -846,7 +846,7 @@ mod tests {
     fn test_detect_urls_none() {
         let text = "This is just regular text without any URLs";
         let urls = detect_urls(text);
-        assert_eq!(urls.len(), 0);
+        assert_eq!(urls, [] as [(usize, usize, String); 0]);
     }
 
     #[test]

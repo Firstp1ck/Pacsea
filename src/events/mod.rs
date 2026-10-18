@@ -426,9 +426,8 @@ mod tests {
                 .as_ref()
                 .expect("wizard")
                 .candidate
-                .binary
-                .len(),
-            0
+                .binary,
+            ""
         );
         assert!(matches!(app.modal, crate::state::Modal::ClosingPiScan));
     }
