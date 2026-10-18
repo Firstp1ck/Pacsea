@@ -890,47 +890,134 @@ en-US:
         close_hint: "Press Enter or Esc to close"
       config_editor:
         title: "Config editor"
-        title_files: "Config editor — files"
-        files_pane_title: " Files "
-        files_heading: "Pick a config file:"
-        keys_pane_title: "Keys"
-        keys_heading: "Keys"
-        keys_heading_filtered: "Filtered"
-        no_matches: "No matches. Press Backspace to widen the search."
-        details_pane_title: " Details "
-        hint_pick_file: "Pick a file with Enter, then ↑/↓ and Enter on a key to edit."
-        hint_no_key: "No key selected."
-        search_pane_title: " Search "
-        search_recent_title: "Recent"
-        search_recent_empty: "No recent searches."
-        search_input_title: "Input"
-        search_input_placeholder: "/ to search keys"
-        search_hint: "Tab/←/→ switch panel · Enter apply"
-        search_bookmarks_title: "Bookmarks"
-        search_bookmarks_empty: "No bookmarked keys."
+        tabs:
+          settings: "settings.conf"
+          keybinds: "keybinds.conf"
+          theme: "theme.conf"
+          starred: "★ Starred"
+        search:
+          label: "Search:"
+          placeholder: "type to filter by key, label or description"
+          count: "{} of {}"
+          recent_hint: "Ctrl+R recent"
+        recent:
+          title: "Recent searches"
+          empty: "No recent searches yet. A search is remembered when you open a key with Enter."
+        list:
+          title: "Keys"
+          no_matches: "No keys match \"{}\". Backspace widens the search, Esc clears it."
+          starred_empty: "No starred keys yet. Select a key on another tab and press Ctrl+B to star it."
+        details:
+          title: "Details"
+          no_key: "No key selected."
+          key: "Key"
+          current: "Current"
+          default: "Default"
+          modified: "modified"
+          type: "Type"
+          applies: "Applies"
+          file: "File"
+          extra_chords: "Also bound"
+          extra_chords_note: "(extra chords are kept; only the first one is edited here)"
+          pi_scan_setup: "Setup"
+          pi_scan_setup_hint: "opens the guided Pi Scan setup"
+          starred: "★ starred"
+        types:
+          bool: "on/off"
+          enum: "one of {} choices"
+          int: "integer {}–{}"
+          text: "text"
+          list: "comma-separated list"
+          path: "command name or path"
+          secret: "secret (masked)"
+          days: "number of days or all"
+          color: "color (#rrggbb or R,G,B)"
+          pane_order: "pane order (one of {} layouts)"
+          chord: "key chord · conflict scope: {}"
+        applies:
+          auto_reload: "automatically"
+          on_save: "when saved"
+          restart: "after restart"
+        values:
+          "on": "on"
+          "off": "off"
+          empty: "(empty)"
+          unbound: "(unbound)"
+          secret_unset: "(not set)"
+        tags:
+          current: "Current"
+          default: "Default"
+          auto_detect: "Auto-detect"
+          unlimited: "Unlimited"
+          installed: "Installed"
+          detected: "Detected"
+          minimum: "Min"
+          maximum: "Max"
+        duration:
+          seconds: "{} s"
+          minutes: "{} min"
+          hours: "{} h"
+          day: "{} day"
+          days: "{} days"
+        popup:
+          type_chord: "key chord"
+          applies_auto_reload: "auto-reload"
+          applies_on_save: "on save"
+          applies_restart: "restart needed"
+          title: "Edit · {}"
+          placeholder_filter: "type to filter"
+          placeholder_text: "type a value"
+          record: "● Record (Ctrl+K)"
+          record_alt: "or type a chord such as Ctrl+R"
+          recording: "● Recording…"
+          recording_prompt: "Press the new key combination · Esc stops recording"
+          valid: "✓ Valid"
+          invalid: "✗ {}"
+          saves: "Enter saves:"
+          more_above: "↑ {} more"
+          more_below: "↓ {} more"
+          no_matches: "No matching suggestions — Enter saves the typed value."
+          hint_bool: "↑↓/Space choose · Enter save · Esc cancel"
+          hint_enum: "Type to filter · ↑↓/Tab choose · Enter save · Esc cancel"
+          hint_int: "Type a number · +/- adjust · ↑↓ pick · Tab complete · Enter save"
+          hint_text: "Type a value · ↑↓ pick a suggestion · Tab complete · Enter save"
+          hint_list: "Comma-separated · Tab completes the last item · ↑↓ pick · Enter save"
+          hint_secret: "Type the secret · Ctrl+R reveal · Enter save · Esc cancel"
+          hint_chord: "Type a chord or press Ctrl+K to record one · ↑↓ pick · Enter save"
+          hint_recording: "Every key is recorded · Esc stops recording"
+        popup_empty_choice: "Auto-detect"
         footer:
           heading_menus: "Menus"
           heading_editor: "Editor"
+          heading_popup: "Edit"
+          heading_recording: "Recording"
+          heading_recent: "Recent searches"
           menu_config: "Config / lists"
           menu_options: "Options"
           menu_panels: "Panels"
-          move_file: "Move selection"
-          open_file: "Open file"
           move_key: "Move selection"
           edit_key: "Edit value"
-          bookmark: "Toggle bookmark"
-          switch_panel: "Switch pane (input / recent / bookmarks)"
-          esc_hint: "Back to files when filter is empty"
-          widen_search: "Shrink filter"
-          popup_cancel: "Cancel overlay"
+          switch_tab: "Switch tab"
+          star: "Star / unstar"
+          recent: "Recent searches"
+          export: "Export effective values"
+          esc_leave: "Leave editor"
+          esc_clear: "Clear search"
+          pi_scan_setup: "Open guided Pi Scan setup"
+          recent_choose: "Choose"
+          recent_apply: "Apply search"
+          recent_close: "Close"
           popup_save: "Save"
+          popup_cancel: "Cancel"
+          popup_complete: "Complete suggestion"
+          popup_next_choice: "Next choice"
+          popup_pick: "Pick suggestion"
+          popup_reset: "Reset to opening value"
           popup_reveal: "Reveal secret"
           popup_record: "Record chord"
-          popup_capture_cancel: "Cancel recording"
-          popup_reset: "Reset value"
-          export: "Export effective values"
-          pi_scan_setup: "Open guided Pi Scan setup"
-        popup_empty_choice: "Auto-detect"
+          popup_adjust: "Adjust by one"
+          popup_toggle: "Toggle"
+          popup_capture_cancel: "Stop recording"
         settings:
           pi_scan_enabled:
             label: "Pi Scan: enabled"
@@ -1160,6 +1247,238 @@ en-US:
           aur_vote_ssh_command:
             label: "AUR voting SSH binary"
             summary: "SSH binary used for AUR voting (default: ssh)."
+          keybind_help:
+            label: "Open help"
+          keybind_toggle_config:
+            label: "Toggle Config/Lists menu"
+          keybind_toggle_options:
+            label: "Toggle Options menu"
+          keybind_toggle_panels:
+            label: "Toggle Panels menu"
+          keybind_reload_config:
+            label: "Reload configuration"
+          keybind_exit:
+            label: "Exit Pacsea"
+          keybind_show_pkgbuild:
+            label: "Show PKGBUILD"
+          keybind_comments_toggle:
+            label: "Toggle AUR comments"
+          keybind_run_pkgbuild_checks:
+            label: "Run PKGBUILD checks"
+          keybind_cycle_pkgbuild_sections:
+            label: "Cycle PKGBUILD sections"
+          keybind_change_sort:
+            label: "Change sort mode"
+          keybind_pane_next:
+            label: "Next pane"
+          keybind_pane_left:
+            label: "Pane to the left"
+          keybind_pane_right:
+            label: "Pane to the right"
+          keybind_toggle_fuzzy:
+            label: "Toggle fuzzy search"
+          keybind_search_move_up:
+            label: "Search: move up"
+          keybind_search_move_down:
+            label: "Search: move down"
+          keybind_search_page_up:
+            label: "Search: page up"
+          keybind_search_page_down:
+            label: "Search: page down"
+          keybind_search_add:
+            label: "Search: add to install list"
+          keybind_search_install:
+            label: "Search: install now"
+          keybind_search_focus_left:
+            label: "Search: focus left pane"
+          keybind_search_focus_right:
+            label: "Search: focus right pane"
+          keybind_search_backspace:
+            label: "Search: delete character"
+          keybind_search_insert_clear:
+            label: "Search: clear input"
+          keybind_search_normal_toggle:
+            label: "Normal mode: toggle"
+          keybind_search_normal_insert:
+            label: "Normal mode: back to insert mode"
+          keybind_search_normal_select_left:
+            label: "Normal mode: extend selection left"
+          keybind_search_normal_select_right:
+            label: "Normal mode: extend selection right"
+          keybind_search_normal_delete:
+            label: "Normal mode: delete selection"
+          keybind_search_normal_clear:
+            label: "Normal mode: clear input"
+          keybind_search_normal_open_status:
+            label: "Open Arch status page"
+          keybind_search_normal_import:
+            label: "Import package list"
+          keybind_search_normal_export:
+            label: "Export install list"
+          keybind_search_normal_updates:
+            label: "Open available updates"
+          keybind_search_normal_pi_scan:
+            label: "Open Pi Scan"
+          keybind_recent_move_up:
+            label: "History: move up"
+          keybind_recent_move_down:
+            label: "History: move down"
+          keybind_recent_find:
+            label: "History: find"
+          keybind_recent_use:
+            label: "History: search again"
+          keybind_recent_add:
+            label: "History: add to install list"
+          keybind_recent_to_search:
+            label: "History: back to search"
+          keybind_recent_focus_right:
+            label: "History: focus right pane"
+          keybind_recent_remove:
+            label: "History: remove entry"
+          keybind_recent_clear:
+            label: "History: clear all"
+          keybind_install_move_up:
+            label: "Install list: move up"
+          keybind_install_move_down:
+            label: "Install list: move down"
+          keybind_install_confirm:
+            label: "Install list: confirm"
+          keybind_install_remove:
+            label: "Install list: remove entry"
+          keybind_install_clear:
+            label: "Install list: clear all"
+          keybind_install_find:
+            label: "Install list: find"
+          keybind_install_to_search:
+            label: "Install list: back to search"
+          keybind_install_focus_left:
+            label: "Install list: focus left pane"
+          keybind_news_mark_read:
+            label: "News: mark item read"
+          keybind_news_mark_all_read:
+            label: "News: mark all read"
+          keybind_news_feed_mark_read:
+            label: "News feed: mark read"
+          keybind_news_feed_mark_unread:
+            label: "News feed: mark unread"
+          keybind_news_feed_toggle_read:
+            label: "News feed: toggle read"
+          background_base:
+            label: "Background: base"
+            summary: "Main window background."
+          background_mantle:
+            label: "Background: mantle"
+            summary: "Background of popups, help and side panes."
+          background_crust:
+            label: "Background: crust"
+            summary: "Darkest background layer for deep contrast areas."
+          surface_level1:
+            label: "Surface: level 1"
+            summary: "Selection highlight and raised surfaces."
+          surface_level2:
+            label: "Surface: level 2"
+            summary: "Key caps and stronger raised surfaces."
+          overlay_primary:
+            label: "Overlay: primary"
+            summary: "Low-contrast borders and dim helper text."
+          overlay_secondary:
+            label: "Overlay: secondary"
+            summary: "Separators and secondary borders."
+          text_primary:
+            label: "Text: primary"
+            summary: "Main text color."
+          text_secondary:
+            label: "Text: secondary"
+            summary: "Descriptions and less prominent text."
+          text_tertiary:
+            label: "Text: tertiary"
+            summary: "Field labels and secondary headings."
+          accent_interactive:
+            label: "Accent: interactive"
+            summary: "Interactive elements, links and group headings."
+          accent_heading:
+            label: "Accent: headings"
+            summary: "Titles, focused borders and the active tab."
+          semantic_success:
+            label: "Status: success"
+            summary: "Success messages, enabled values and passed validation."
+          semantic_warning:
+            label: "Status: warning"
+            summary: "Warnings, the edit popup and modified markers."
+          semantic_error:
+            label: "Status: error"
+            summary: "Errors, invalid values and restart-required markers."
+          accent_emphasis:
+            label: "Accent: emphasis"
+            summary: "Emphasis borders and highlights."
+        choices:
+          sort_mode:
+            best_matches: "Most relevant matches first"
+            alphabetical: "A to Z by package name"
+            official_first: "Official repository packages before AUR"
+            aur_popularity: "Most popular AUR packages first"
+          privilege_mode:
+            auto: "Prefer doas when installed, otherwise sudo"
+            sudo: "Always use sudo"
+            doas: "Always use doas (password entry happens in the terminal)"
+          auth_mode:
+            prompt: "Pacsea asks for the password and passes it to the privilege tool"
+            passwordless_only: "Skip the prompt only when the tool allows passwordless execution"
+            interactive: "Let the privilege tool handle authentication (supports fingerprint via PAM)"
+          installed_packages_mode:
+            leaf: "Only explicitly installed packages nothing depends on"
+            all: "All explicitly installed packages"
+          search_startup_mode:
+            insert_mode: "Start typing a search immediately"
+            normal_mode: "Start in Vim-style normal mode"
+          package_marker:
+            full_line: "Color the whole line"
+            front: "Marker at the start of the line"
+            end: "Marker at the end of the line"
+          locale:
+            _empty: "Follow the system language (LANG/LC_ALL)"
+            "en-US": "English (United States)"
+            "de-DE": "German (Germany)"
+            "hu-HU": "Hungarian (Hungary)"
+          pi_scan_thinking:
+            "off": "No extended thinking; fastest and cheapest"
+            minimal: "Minimal thinking"
+            low: "Light thinking"
+            medium: "Balanced thinking"
+            high: "Deep thinking; slower and costlier"
+            xhigh: "Very deep thinking"
+            max: "Maximum thinking the model supports"
+          main_pane_order:
+            "results, search, package_info": "Top to bottom: results, search, details"
+            "results, package_info, search": "Top to bottom: results, details, search"
+            "search, results, package_info": "Top to bottom: search, results, details"
+            "search, package_info, results": "Top to bottom: search, details, results"
+            "package_info, results, search": "Top to bottom: details, results, search"
+            "package_info, search, results": "Top to bottom: details, search, results"
+        groups:
+          general: "General"
+          layout: "Layout"
+          search: "Search"
+          privileges: "Privileges"
+          mirrors: "Mirrors"
+          updates: "Updates"
+          scans: "Security scans"
+          pkgbuild: "PKGBUILD checks"
+          news: "News"
+          startup_news: "Startup news"
+          aur_voting: "AUR voting"
+          pi_scan: "Pi Scan"
+          keybind_global: "Global shortcuts"
+          keybind_search: "Search pane"
+          keybind_search_normal: "Search normal mode"
+          keybind_recent: "Search history pane"
+          keybind_install: "Install pane"
+          keybind_news: "News dialog"
+          backgrounds: "Backgrounds"
+          surfaces_overlays: "Surfaces & overlays"
+          text: "Text"
+          accents: "Accents"
+          semantic: "Status colors"
       alert:
         header_configuration_error: "Configuration error"
         header_clipboard_copy: "Clipboard Copy"
@@ -1313,10 +1632,12 @@ en-US:
         news_lines:
           - "  • Open via Options → News • Up/Down: select • Enter: open • Esc: close"
         config_editor_lines:
-          - "  • Open via Config/Lists → Config editor (TUI); Esc steps back from keys to files"
-          - "  • Type to search keys • Up/Down: move • Enter: edit • b: bookmark"
-          - "  • Popup: Ctrl+S save • Esc cancel • Ctrl+Z reset to opening value"
-          - "  • Keybind rows: Ctrl+K records the next pressed chord (Esc cancels recording)"
+          - "  • Open via Config/Lists → Config editor (TUI); tabs: settings.conf · keybinds.conf · theme.conf · ★ Starred"
+          - "  • Type to search keys, labels and descriptions (all words must match) • Ctrl+R: recent searches"
+          - "  • ↑/↓ PgUp/PgDn Home/End: move • Tab/←/→: switch tab • Enter: edit • Ctrl+B: star • Esc: clear search, then leave"
+          - "  • Popup: ↑/↓ pick a suggestion or type a value • Tab completes • Enter/Ctrl+S saves the value shown after \"Enter saves\" • Esc cancels • Ctrl+Z resets"
+          - "  • Integers: +/- adjust by one • Secrets: Ctrl+R reveals • On/off settings open a small picker"
+          - "  • Keybind rows: type a chord, or press Ctrl+K / click ● Record and press the new combination (Esc stops recording)"
           - "  • Theme colors validate the whole file before saving; invalid edits never touch disk"
           - "  • Ctrl+E exports the selected file's effective values (secrets redacted)"
         close_hint: "Press Enter or Esc to close"

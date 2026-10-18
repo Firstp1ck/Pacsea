@@ -1020,7 +1020,7 @@ fn handle_config_menu_selection(
     let repos_path = crate::theme::config_dir().join("repos.conf");
     if idx == 4 && !matches!(app.app_mode, crate::state::types::AppMode::ConfigEditor) {
         app.app_mode = crate::state::types::AppMode::ConfigEditor;
-        app.config_editor_state = super::modals::build_config_editor_state();
+        app.config_editor_state = super::modals::build_config_editor_state(app);
         app.config_menu_open = false;
         app.artix_filter_menu_open = false;
         app.custom_repos_filter_menu_open = false;

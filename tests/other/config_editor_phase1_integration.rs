@@ -123,8 +123,6 @@ fn config_editor_phase1_saves_boolean_setting_to_disk() {
     };
     let channels = build_event_channels();
 
-    // Enter from file list with empty query opens settings key list.
-    send_key(&mut app, KeyCode::Enter, KeyModifiers::NONE, &channels);
     // Search directly for the target key so it becomes selected.
     for c in "show_install_pane".chars() {
         send_key(&mut app, KeyCode::Char(c), KeyModifiers::NONE, &channels);
@@ -180,7 +178,6 @@ fn config_editor_phase1_saves_enum_setting_to_disk() {
     };
     let channels = build_event_channels();
 
-    send_key(&mut app, KeyCode::Enter, KeyModifiers::NONE, &channels);
     for c in "sort_mode".chars() {
         send_key(&mut app, KeyCode::Char(c), KeyModifiers::NONE, &channels);
     }
@@ -222,7 +219,6 @@ fn config_editor_phase1_saves_locale_enum_to_disk() {
         ..AppState::default()
     };
     let channels = build_event_channels();
-    send_key(&mut app, KeyCode::Enter, KeyModifiers::NONE, &channels);
     for c in "locale".chars() {
         send_key(&mut app, KeyCode::Char(c), KeyModifiers::NONE, &channels);
     }
@@ -272,7 +268,6 @@ fn config_editor_phase1_saves_auto_detect_locale_to_disk() {
         ..AppState::default()
     };
     let channels = build_event_channels();
-    send_key(&mut app, KeyCode::Enter, KeyModifiers::NONE, &channels);
     for c in "locale".chars() {
         send_key(&mut app, KeyCode::Char(c), KeyModifiers::NONE, &channels);
     }
@@ -318,7 +313,6 @@ fn config_editor_phase1_normalizes_locale_on_save() {
         ..AppState::default()
     };
     let channels = build_event_channels();
-    send_key(&mut app, KeyCode::Enter, KeyModifiers::NONE, &channels);
     for c in "locale".chars() {
         send_key(&mut app, KeyCode::Char(c), KeyModifiers::NONE, &channels);
     }
@@ -372,7 +366,6 @@ fn config_editor_phase1_dry_run_save_does_not_write_disk() {
     };
     let channels = build_event_channels();
 
-    send_key(&mut app, KeyCode::Enter, KeyModifiers::NONE, &channels);
     for c in "show_install_pane".chars() {
         send_key(&mut app, KeyCode::Char(c), KeyModifiers::NONE, &channels);
     }
@@ -397,4 +390,227 @@ fn config_editor_phase1_dry_run_save_does_not_write_disk() {
         status.contains("Dry-run: would update"),
         "expected dry-run status, got: {status}"
     );
+}
+
+/// Popup fields own printable help and uppercase menu shortcuts.
+#[test]
+fn config_editor_popup_printable_precedence() {
+    let home = unique_test_home("printable");
+    let _guard = EnvGuard::new(home);
+    let mut app = AppState {
+        app_mode: AppMode::ConfigEditor,
+        ..AppState::default()
+    };
+    let entry = pacsea::theme::find_setting("clipboard_suffix").expect("setting");
+    app.config_editor_state.popup = Some(pacsea::state::EditPopupState::from_current(entry, ""));
+    let channels = build_event_channels();
+    for (ch, mods) in [
+        ('?', KeyModifiers::NONE),
+        ('C', KeyModifiers::SHIFT),
+        ('O', KeyModifiers::SHIFT),
+        ('P', KeyModifiers::SHIFT),
+    ] {
+        send_key(&mut app, KeyCode::Char(ch), mods, &channels);
+    }
+    assert_eq!(
+        app.config_editor_state
+            .popup
+            .as_ref()
+            .expect("popup")
+            .buffer,
+        "?COP"
+    );
+    assert!(matches!(app.modal, pacsea::state::Modal::None));
+    assert!(!app.config_menu_open && !app.options_menu_open && !app.panels_menu_open);
+}
+
+/// Tabs, Starred editing, recents, and the Esc ladder work through public routing.
+#[test]
+fn config_editor_tabs_starred_recents_and_escape() {
+    use pacsea::state::config_editor::ConfigEditorTab;
+    let home = unique_test_home("tabs_starred");
+    let _guard = EnvGuard::new(home);
+    let mut app = AppState {
+        app_mode: AppMode::ConfigEditor,
+        dry_run: true,
+        ..AppState::default()
+    };
+    app.config_editor_state.bookmarked_keys.clear();
+    app.config_editor_state.recent_queries.clear();
+    let channels = build_event_channels();
+    for ch in "show_install_pane".chars() {
+        send_key(&mut app, KeyCode::Char(ch), KeyModifiers::NONE, &channels);
+    }
+    send_key(
+        &mut app,
+        KeyCode::Char('b'),
+        KeyModifiers::CONTROL,
+        &channels,
+    );
+    assert!(app.config_editor_state.is_bookmarked("show_install_pane"));
+    send_key(&mut app, KeyCode::BackTab, KeyModifiers::SHIFT, &channels);
+    assert_eq!(
+        app.config_editor_state.active_tab(),
+        ConfigEditorTab::Starred
+    );
+    assert_eq!(app.config_editor_state.query, "show_install_pane");
+    send_key(&mut app, KeyCode::Enter, KeyModifiers::NONE, &channels);
+    assert!(app.config_editor_state.popup.is_some());
+    send_key(&mut app, KeyCode::Char(' '), KeyModifiers::NONE, &channels);
+    send_key(&mut app, KeyCode::Enter, KeyModifiers::NONE, &channels);
+    assert!(app.config_editor_state.popup.is_none());
+    send_key(
+        &mut app,
+        KeyCode::Char('r'),
+        KeyModifiers::CONTROL,
+        &channels,
+    );
+    assert_eq!(app.config_editor_state.recent_dropdown, Some(0));
+    send_key(&mut app, KeyCode::Esc, KeyModifiers::NONE, &channels);
+    assert_ne!(app.config_editor_state.query.len(), 0);
+    send_key(&mut app, KeyCode::Esc, KeyModifiers::NONE, &channels);
+    assert_eq!(app.config_editor_state.query.len(), 0);
+    send_key(&mut app, KeyCode::Esc, KeyModifiers::NONE, &channels);
+    assert_eq!(app.app_mode, AppMode::Package);
+}
+
+/// Text suggestion selection saves its effective value and CSV completion preserves earlier tokens.
+#[test]
+fn config_editor_text_suggestion_and_comma_completion_save() {
+    let home = unique_test_home("suggestion_save");
+    let _guard = EnvGuard::new(home.clone());
+    let settings_path = home.join(".config/pacsea/settings.conf");
+    fs::write(
+        &settings_path,
+        "preferred_terminal = kitty\nselected_countries = Germany\n",
+    )
+    .expect("seed");
+    let mut app = AppState {
+        app_mode: AppMode::ConfigEditor,
+        ..AppState::default()
+    };
+    let channels = build_event_channels();
+    for ch in "preferred_terminal".chars() {
+        send_key(&mut app, KeyCode::Char(ch), KeyModifiers::NONE, &channels);
+    }
+    send_key(&mut app, KeyCode::Enter, KeyModifiers::NONE, &channels);
+    for _ in 0..16 {
+        send_key(&mut app, KeyCode::Backspace, KeyModifiers::NONE, &channels);
+    }
+    for ch in "ala".chars() {
+        send_key(&mut app, KeyCode::Char(ch), KeyModifiers::NONE, &channels);
+    }
+    assert_eq!(
+        app.config_editor_state
+            .popup
+            .as_ref()
+            .expect("popup")
+            .highlight,
+        None
+    );
+    send_key(&mut app, KeyCode::Down, KeyModifiers::NONE, &channels);
+    send_key(&mut app, KeyCode::Enter, KeyModifiers::NONE, &channels);
+    assert!(
+        fs::read_to_string(&settings_path)
+            .expect("saved")
+            .contains("preferred_terminal = alacritty")
+    );
+    send_key(&mut app, KeyCode::Esc, KeyModifiers::NONE, &channels);
+    for ch in "selected_countries".chars() {
+        send_key(&mut app, KeyCode::Char(ch), KeyModifiers::NONE, &channels);
+    }
+    send_key(&mut app, KeyCode::Enter, KeyModifiers::NONE, &channels);
+    for ch in ", Fr".chars() {
+        send_key(&mut app, KeyCode::Char(ch), KeyModifiers::NONE, &channels);
+    }
+    send_key(&mut app, KeyCode::Tab, KeyModifiers::NONE, &channels);
+    assert_eq!(
+        app.config_editor_state
+            .popup
+            .as_ref()
+            .expect("popup")
+            .buffer,
+        "Germany, France"
+    );
+    send_key(&mut app, KeyCode::Enter, KeyModifiers::NONE, &channels);
+    assert!(
+        fs::read_to_string(settings_path)
+            .expect("saved")
+            .contains("selected_countries = Germany, France")
+    );
+}
+
+/// Restart-bound saves retain the existing status prefix and append the restart note.
+#[test]
+fn config_editor_restart_note_after_save() {
+    let home = unique_test_home("restart_note");
+    let _guard = EnvGuard::new(home.clone());
+    fs::write(
+        home.join(".config/pacsea/settings.conf"),
+        "pi_scan_thinking = low\n",
+    )
+    .expect("seed");
+    let mut app = AppState {
+        app_mode: AppMode::ConfigEditor,
+        ..AppState::default()
+    };
+    let channels = build_event_channels();
+    for ch in "pi_scan_thinking".chars() {
+        send_key(&mut app, KeyCode::Char(ch), KeyModifiers::NONE, &channels);
+    }
+    send_key(&mut app, KeyCode::Enter, KeyModifiers::NONE, &channels);
+    send_key(&mut app, KeyCode::Down, KeyModifiers::NONE, &channels);
+    send_key(&mut app, KeyCode::Enter, KeyModifiers::NONE, &channels);
+    let status = app
+        .config_editor_state
+        .status
+        .as_deref()
+        .expect("saved status");
+    assert!(status.starts_with("Saved pi_scan_thinking → "));
+    assert!(status.ends_with("(restart required)"));
+}
+
+/// What: Persistence loads explicitly at startup and when reopening the editor.
+///
+/// Inputs: Isolated JSON lists with whitespace, duplicates, and an empty entry.
+///
+/// Output: Normalized history and bookmarks at both initialization boundaries.
+///
+/// Details: Cheap default state neither creates the lists directory nor reads existing lists.
+#[test]
+fn config_editor_explicit_persistence_loading() {
+    let home = unique_test_home("persisted_lists");
+    let _guard = EnvGuard::new(home.clone());
+    let lists = home.join(".config/pacsea/lists");
+    let transient = pacsea::state::ConfigEditorState::default();
+    assert!(!lists.exists());
+    assert!(transient.recent_queries_path.as_os_str().is_empty());
+    fs::create_dir_all(&lists).expect("lists directory");
+    fs::write(
+        lists.join("config_editor_recent_searches.json"),
+        r#"[" mirror ", "", "mirror", "news"]"#,
+    )
+    .expect("recent list");
+    fs::write(
+        lists.join("config_editor_bookmarks.json"),
+        r#"[" sort_mode ", "sort_mode"]"#,
+    )
+    .expect("bookmarks");
+    let transient = pacsea::state::ConfigEditorState::default();
+    assert_eq!(transient.recent_queries.len(), 0);
+    assert_eq!(transient.bookmarked_keys.len(), 0);
+    let mut app = AppState::default();
+    assert_eq!(app.config_editor_state.recent_queries, ["mirror", "news"]);
+    assert_eq!(app.config_editor_state.bookmarked_keys, ["sort_mode"]);
+    assert_eq!(
+        app.config_editor_state.recent_queries_path,
+        lists.join("config_editor_recent_searches.json")
+    );
+    app.config_editor_state.recent_queries.clear();
+    app.config_menu_open = true;
+    let channels = build_event_channels();
+    send_key(&mut app, KeyCode::Char('5'), KeyModifiers::NONE, &channels);
+    assert_eq!(app.app_mode, AppMode::ConfigEditor);
+    assert_eq!(app.config_editor_state.recent_queries, ["mirror", "news"]);
+    assert_eq!(app.config_editor_state.bookmarked_keys, ["sort_mode"]);
 }

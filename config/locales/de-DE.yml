@@ -890,48 +890,351 @@ de-DE:
         close_hint: "Enter oder Esc zum Schließen drücken"
       config_editor:
         title: "Konfigurations-Editor"
-        title_files: "Konfigurations-Editor — Dateien"
-        files_pane_title: " Dateien "
-        files_heading: "Wähle eine Konfigurationsdatei:"
-        keys_pane_title: "Schlüssel"
-        keys_heading: "Schlüssel"
-        keys_heading_filtered: "Gefiltert"
-        no_matches: "Keine Treffer. Mit Backspace die Suche erweitern."
-        details_pane_title: " Details "
-        hint_pick_file: "Datei mit Enter wählen, dann ↑/↓ und Enter auf einem Schlüssel zum Bearbeiten."
-        hint_no_key: "Kein Schlüssel ausgewählt."
-        search_pane_title: " Suche "
-        search_recent_title: "Verlauf"
-        search_recent_empty: "Keine letzten Suchen."
-        search_input_title: "Eingabe"
-        search_input_placeholder: "/ Schlüssel suchen"
-        search_hint: "Tab/←/→ Panel wechseln · Enter anwenden"
-        search_bookmarks_title: "Lesezeichen"
-        search_bookmarks_empty: "Keine markierten Schlüssel."
+        tabs:
+          settings: "settings.conf"
+          keybinds: "keybinds.conf"
+          theme: "theme.conf"
+          starred: "★ Favoriten"
+        search:
+          label: "Suche:"
+          placeholder: "tippen, um nach Schlüssel, Bezeichnung oder Beschreibung zu filtern"
+          count: "{} von {}"
+          recent_hint: "Strg+R Verlauf"
+        recent:
+          title: "Letzte Suchen"
+          empty: "Noch keine letzten Suchen. Eine Suche wird gespeichert, sobald du einen Schlüssel mit Enter öffnest."
+        list:
+          title: "Schlüssel"
+          no_matches: "Kein Schlüssel passt zu \"{}\". Backspace erweitert die Suche, Esc leert sie."
+          starred_empty: "Noch keine Favoriten. Wähle auf einem anderen Tab einen Schlüssel und drücke Strg+B, um ihn zu markieren."
+        details:
+          title: "Details"
+          no_key: "Kein Schlüssel ausgewählt."
+          key: "Schlüssel"
+          current: "Aktuell"
+          default: "Standard"
+          modified: "geändert"
+          type: "Typ"
+          applies: "Wirkung"
+          file: "Datei"
+          extra_chords: "Auch belegt"
+          extra_chords_note: "(weitere Kürzel bleiben erhalten; hier wird nur das erste bearbeitet)"
+          pi_scan_setup: "Einrichtung"
+          pi_scan_setup_hint: "öffnet die geführte Pi-Scan-Einrichtung"
+          starred: "★ Favorit"
+        types:
+          bool: "an/aus"
+          enum: "eine von {} Optionen"
+          int: "Ganzzahl {}–{}"
+          text: "Text"
+          list: "kommagetrennte Liste"
+          path: "Befehlsname oder Pfad"
+          secret: "Geheimwert (maskiert)"
+          days: "Anzahl Tage oder all"
+          color: "Farbe (#rrggbb oder R,G,B)"
+          pane_order: "Bereichsreihenfolge (eine von {} Anordnungen)"
+          chord: "Tastenkürzel · Konfliktbereich: {}"
+        applies:
+          auto_reload: "automatisch"
+          on_save: "beim Speichern"
+          restart: "nach einem Neustart"
+        values:
+          "on": "an"
+          "off": "aus"
+          empty: "(leer)"
+          unbound: "(nicht belegt)"
+          secret_unset: "(nicht gesetzt)"
+        tags:
+          current: "Aktuell"
+          default: "Standard"
+          auto_detect: "Automatisch"
+          unlimited: "Unbegrenzt"
+          installed: "Installiert"
+          detected: "Erkannt"
+          minimum: "Min"
+          maximum: "Max"
+        duration:
+          seconds: "{} s"
+          minutes: "{} min"
+          hours: "{} h"
+          day: "{} Tag"
+          days: "{} Tage"
+        popup:
+          type_chord: "Tastenkürzel"
+          applies_auto_reload: "automatisch"
+          applies_on_save: "beim Speichern"
+          applies_restart: "Neustart nötig"
+          title: "Bearbeiten · {}"
+          placeholder_filter: "tippen zum Filtern"
+          placeholder_text: "Wert eingeben"
+          record: "● Aufnehmen (Strg+K)"
+          record_alt: "oder ein Kürzel wie Ctrl+R eintippen"
+          recording: "● Aufnahme…"
+          recording_prompt: "Neue Tastenkombination drücken · Esc beendet die Aufnahme"
+          valid: "✓ Gültig"
+          invalid: "✗ {}"
+          saves: "Enter speichert:"
+          more_above: "↑ {} weitere"
+          more_below: "↓ {} weitere"
+          no_matches: "Keine passenden Vorschläge — Enter speichert den eingegebenen Wert."
+          hint_bool: "↑↓/Leertaste wählen · Enter speichern · Esc abbrechen"
+          hint_enum: "Tippen filtert · ↑↓/Tab wählen · Enter speichern · Esc abbrechen"
+          hint_int: "Zahl eingeben · +/- anpassen · ↑↓ auswählen · Tab vervollständigen · Enter speichern"
+          hint_text: "Wert eingeben · ↑↓ Vorschlag wählen · Tab vervollständigen · Enter speichern"
+          hint_list: "Kommagetrennt · Tab vervollständigt den letzten Eintrag · ↑↓ auswählen · Enter speichern"
+          hint_secret: "Geheimwert eingeben · Strg+R anzeigen · Enter speichern · Esc abbrechen"
+          hint_chord: "Kürzel eintippen oder mit Strg+K aufnehmen · ↑↓ auswählen · Enter speichern"
+          hint_recording: "Jede Taste wird aufgenommen · Esc beendet die Aufnahme"
+        popup_empty_choice: "Automatisch erkennen"
         footer:
           heading_menus: "Menüs"
           heading_editor: "Editor"
+          heading_popup: "Bearbeiten"
+          heading_recording: "Aufnahme"
+          heading_recent: "Letzte Suchen"
           menu_config: "Konfiguration / Listen"
           menu_options: "Optionen"
           menu_panels: "Panels"
-          move_file: "Auswahl bewegen"
-          open_file: "Datei öffnen"
           move_key: "Auswahl bewegen"
           edit_key: "Wert bearbeiten"
-          bookmark: "Lesezeichen umschalten"
-          switch_panel: "Bereich wechseln (Eingabe / Verlauf / Lesezeichen)"
-          esc_hint: "Zurück zu den Dateien bei leerem Filter"
-          widen_search: "Filter verkleinern"
-          popup_cancel: "Overlay schließen"
-          popup_save: "Speichern"
-          popup_reveal: "Geheimwert anzeigen"
-          popup_record: "Tastenkürzel aufnehmen"
-          popup_capture_cancel: "Aufnahme abbrechen"
-          popup_reset: "Wert zurücksetzen"
+          switch_tab: "Tab wechseln"
+          star: "Favorit an/aus"
+          recent: "Letzte Suchen"
           export: "Effektive Werte exportieren"
+          esc_leave: "Editor verlassen"
+          esc_clear: "Suche leeren"
           pi_scan_setup: "Geführte Pi-Scan-Einrichtung öffnen"
-        popup_empty_choice: "Automatisch erkennen"
+          recent_choose: "Auswählen"
+          recent_apply: "Suche übernehmen"
+          recent_close: "Schließen"
+          popup_save: "Speichern"
+          popup_cancel: "Abbrechen"
+          popup_complete: "Vorschlag übernehmen"
+          popup_next_choice: "Nächste Option"
+          popup_pick: "Vorschlag wählen"
+          popup_reset: "Auf Ausgangswert zurücksetzen"
+          popup_reveal: "Geheimwert anzeigen"
+          popup_record: "Kürzel aufnehmen"
+          popup_adjust: "Um eins ändern"
+          popup_toggle: "Umschalten"
+          popup_capture_cancel: "Aufnahme beenden"
         settings:
+          pi_scan_enabled:
+            label: "Pi Scan: aktiviert"
+            summary: "Laufzeitfunktion; bleibt bis zur ausdrücklichen Aktivierung und einem Neustart ausgeschaltet."
+          pi_scan_background_enabled:
+            label: "Pi Scan: kostenpflichtige Hintergrundausführung"
+            summary: "Erlaubt unbeaufsichtigte kostenpflichtige Ausführung nur mit gesonderter Laufzeitzustimmung und festgelegten Budgets."
+          pi_scan_binary:
+            label: "Pi Scan: Pi-Programm"
+            summary: "Programmname oder absoluter Pfad zu Pi; Pacsea nimmt keine Zugangsdaten für Anbieter entgegen."
+          pi_scan_provider:
+            label: "Pi Scan: Anbieter"
+            summary: "Explizite Anbieterroute, die vor der Modellausführung angezeigt wird."
+          pi_scan_model:
+            label: "Pi Scan: primäres Modell"
+            summary: "Exakte Kennung des primären Modells; leer bedeutet keine Auswahl."
+          pi_scan_fallback_models:
+            label: "Pi Scan: Ersatzmodelle"
+            summary: "Geordnete, durch Kommas getrennte Ersatzmodelle; erfordern eine ausdrückliche Bestätigung."
+          pi_scan_thinking:
+            label: "Pi Scan: Denktiefe"
+            summary: "Gewünschte Denktiefe; standardmäßig medium und bei fehlender Unterstützung nur nach unten angepasst."
+          pi_scan_observation_interval_seconds:
+            label: "Pi Scan: Beobachtungsintervall (s)"
+            summary: "Intervall für rein lesende AUR-Beobachtungen; mindestens 900 Sekunden."
+          pi_scan_head_query_timeout_seconds:
+            label: "Pi Scan: Zeitlimit je HEAD-Abfrage (s)"
+            summary: "Zeitlimit je Abfrage; fest einkompiliertes Maximum von 15 Sekunden."
+          pi_scan_observation_deadline_seconds:
+            label: "Pi Scan: Gesamtzeitlimit der Beobachtung (s)"
+            summary: "Gesamtzeitlimit für die sequenzielle Beobachtung; festes Maximum von 90 Sekunden."
+          pi_scan_model_attempt_timeout_seconds:
+            label: "Pi Scan: Zeitlimit je Modellversuch (s)"
+            summary: "Verstrichene Zeit je Versuch; fest einkompiliertes Maximum von 300 Sekunden."
+          pi_scan_logical_timeout_seconds:
+            label: "Pi Scan: Gesamtzeitlimit je Scan (s)"
+            summary: "Zeitlimit für einen vollständigen logischen Scan; festes Maximum von 720 Sekunden."
+          pi_scan_result_retention_days:
+            label: "Pi Scan: Aufbewahrungsdauer der Ergebnisse (Tage)"
+            summary: "Aufbewahrungsdauer für abgelöste, detaillierte und validierte Ergebnisse."
+          pi_scan_show_raw_output:
+            label: "Pi Scan: kanonische Rohansicht anzeigen"
+            summary: "Zeigt serialisierte validierte Daten, niemals die ursprüngliche Modellausgabe."
+          pi_scan_https_proxy:
+            label: "Pi Scan: HTTPS-Proxy"
+            summary: "Optionaler expliziter HTTPS-Proxy ohne Zugangsdaten; leer deaktiviert die Proxy-Nutzung."
+          sort_mode:
+            label: "Sortierung der Ergebnisse"
+            summary: "Sortierreihenfolge im Bereich der Suchergebnisse."
+          show_install_pane:
+            label: "Installationsbereich anzeigen"
+            summary: "Zeigt oder verbirgt die Installationswarteschlange in der Hauptansicht."
+          show_search_history_pane:
+            label: "Suchverlauf anzeigen"
+            summary: "Zeigt oder verbirgt die zuletzt verwendeten Suchanfragen in der Hauptansicht."
+          mirror_count:
+            label: "Anzahl der Spiegelserver"
+            summary: "Anzahl der beim Aktualisieren der Spiegelliste abgerufenen Server."
+          news_max_age_days:
+            label: "Höchstalter für Nachrichten (Tage)"
+            summary: "Blendet Nachrichten aus, die älter als N Tage sind; `all` deaktiviert den Filter."
+          clipboard_suffix:
+            label: "Zusatz für die Zwischenablage"
+            summary: "Text, der an kopierte Paketbefehle angehängt wird."
+          preferred_terminal:
+            label: "Bevorzugtes Terminal"
+            summary: "Terminalprogramm zum Starten externer Befehle."
+          privilege_mode:
+            label: "Methode zur Rechteerhöhung"
+            summary: "Hilfsprogramm zum Erlangen von Root-Rechten beim Installieren und Entfernen."
+          main_pane_order:
+            label: "Reihenfolge der Hauptbereiche"
+            summary: "Vertikale Reihenfolge der Such-, Ergebnis- und Detailbereiche."
+          virustotal_api_key:
+            label: "VirusTotal-API-Schlüssel"
+            summary: "Persönlicher API-Schlüssel für den optionalen VirusTotal-Scan."
+          layout_left_pct:
+            label: "Layout: Breite des linken Bereichs (%)"
+            summary: "Breite der linken Spalte in der mittleren Zeile; zusammen mit Mitte und rechts insgesamt 100."
+          layout_center_pct:
+            label: "Layout: Breite des mittleren Bereichs (%)"
+            summary: "Breite der mittleren Suchspalte in der mittleren Zeile."
+          layout_right_pct:
+            label: "Layout: Breite des rechten Bereichs (%)"
+            summary: "Breite der rechten Installationsspalte in der mittleren Zeile."
+          vertical_min_results:
+            label: "Vertikal: Mindestzeilen für Ergebnisse"
+            summary: "Mindestens reservierte Zeilen für den Ergebnisbereich."
+          vertical_max_results:
+            label: "Vertikal: Höchstzeilen für Ergebnisse"
+            summary: "Maximale Zeilenanzahl, auf die der Ergebnisbereich anwachsen darf."
+          vertical_min_middle:
+            label: "Vertikal: Mindestzeilen für den Suchbereich"
+            summary: "Mindestens reservierte Zeilen für den mittleren Suchbereich."
+          vertical_max_middle:
+            label: "Vertikal: Höchstzeilen für den Suchbereich"
+            summary: "Maximale Zeilenanzahl, auf die der mittlere Suchbereich anwachsen darf."
+          vertical_min_package_info:
+            label: "Vertikal: Mindestzeilen für Paketdetails"
+            summary: "Mindestens reservierte Zeilen für Paketinformationen und Details."
+          app_dry_run_default:
+            label: "Testlauf standardmäßig aktivieren"
+            summary: "Startet im Testlaufmodus; kann durch --dry-run übersteuert werden."
+          show_keybinds_footer:
+            label: "Tastenhinweise anzeigen"
+            summary: "Zeigt die kontextabhängigen Tastenkürzel am unteren Rand der Oberfläche."
+          search_startup_mode:
+            label: "Startmodus der Suche"
+            summary: "Legt fest, ob die Suche im Einfüge- oder Normalmodus startet."
+          fuzzy_search:
+            label: "Unscharfe Suche"
+            summary: "Verwendet unscharfe Suche wie fzf statt einfacher Teilzeichenfolgensuche."
+          installed_packages_mode:
+            label: "Filter für installierte Pakete"
+            summary: "Zeigt nur Pakete ohne abhängige Pakete oder alle explizit installierten Pakete."
+          skip_preflight:
+            label: "Vorabprüfung überspringen"
+            summary: "Überspringt den Bestätigungsdialog vor Aktionen mit erhöhten Rechten."
+          use_passwordless_sudo:
+            label: "Sudo ohne Passwort verwenden"
+            summary: "Erlaubt sudo ohne Passwort, sofern das System dafür eingerichtet ist."
+          auth_mode:
+            label: "Authentifizierungsmodus"
+            summary: "Verfahren für die Rechteauthentifizierung: Abfrage, ohne Passwort oder interaktiv."
+          selected_countries:
+            label: "Länder für Spiegelserver"
+            summary: "Durch Kommas getrennte Länderliste zur Auswahl der Spiegelserver."
+          scan_do_clamav:
+            label: "Scan: ClamAV"
+            summary: "Aktiviert ClamAV standardmäßig im Dialog zur Scan-Konfiguration."
+          scan_do_trivy:
+            label: "Scan: Trivy"
+            summary: "Aktiviert Trivy standardmäßig im Dialog zur Scan-Konfiguration."
+          scan_do_semgrep:
+            label: "Scan: Semgrep"
+            summary: "Aktiviert Semgrep standardmäßig im Dialog zur Scan-Konfiguration."
+          scan_do_shellcheck:
+            label: "Scan: ShellCheck"
+            summary: "Aktiviert ShellCheck standardmäßig im Dialog zur Scan-Konfiguration."
+          scan_do_virustotal:
+            label: "Scan: VirusTotal"
+            summary: "Aktiviert VirusTotal standardmäßig im Dialog zur Scan-Konfiguration."
+          scan_do_custom:
+            label: "Scan: benutzerdefiniert"
+            summary: "Aktiviert den benutzerdefinierten Scan standardmäßig."
+          scan_do_sleuth:
+            label: "Scan: Sleuth"
+            summary: "Aktiviert den Sleuth-Scan standardmäßig."
+          pkgbuild_shellcheck_exclude:
+            label: "PKGBUILD: ShellCheck-Ausnahmen"
+            summary: "Durch Kommas getrennte Kennungen ausgeschlossener ShellCheck-Regeln, z. B. SC2034,SC2148."
+          pkgbuild_checks_show_raw_output:
+            label: "PKGBUILD: rohe Prüfausgabe anzeigen"
+            summary: "Zeigt die unverarbeitete Ausgabe von ShellCheck und Namcap im PKGBUILD-Betrachter."
+          news_read_symbol:
+            label: "Nachrichten: Symbol für gelesen"
+            summary: "Zeichen neben bereits gelesenen Nachrichten."
+          news_unread_symbol:
+            label: "Nachrichten: Symbol für ungelesen"
+            summary: "Zeichen neben ungelesenen Nachrichten."
+          news_filter_show_arch_news:
+            label: "Nachrichtenfilter: Arch-Nachrichten"
+            summary: "Nimmt Beiträge von Arch Linux in den Nachrichtenstrom auf."
+          news_filter_show_advisories:
+            label: "Nachrichtenfilter: Sicherheitsmeldungen"
+            summary: "Nimmt Arch-Sicherheitsmeldungen in den Nachrichtenstrom auf."
+          news_filter_show_pkg_updates:
+            label: "Nachrichtenfilter: Paketaktualisierungen"
+            summary: "Nimmt Paketaktualisierungen aus offiziellen Paketquellen in den Nachrichtenstrom auf."
+          news_filter_show_aur_updates:
+            label: "Nachrichtenfilter: AUR-Aktualisierungen"
+            summary: "Nimmt Aktualisierungen von AUR-Paketen in den Nachrichtenstrom auf."
+          news_filter_show_aur_comments:
+            label: "Nachrichtenfilter: AUR-Kommentare"
+            summary: "Nimmt neue AUR-Kommentare in den Nachrichtenstrom auf."
+          news_filter_installed_only:
+            label: "Nachrichten: nur installierte Pakete"
+            summary: "Beschränkt Sicherheitsmeldungen auf betroffene installierte Pakete."
+          startup_news_configured:
+            label: "Startnachrichten: eingerichtet"
+            summary: "Kennzeichnet die Einrichtung des Nachrichtenfensters beim Start als abgeschlossen."
+          startup_news_show_arch_news:
+            label: "Startnachrichten: Arch-Nachrichten"
+            summary: "Zeigt Arch-Nachrichten im Fenster beim Start."
+          startup_news_show_advisories:
+            label: "Startnachrichten: Sicherheitsmeldungen"
+            summary: "Zeigt Sicherheitsmeldungen im Fenster beim Start."
+          startup_news_show_aur_updates:
+            label: "Startnachrichten: AUR-Aktualisierungen"
+            summary: "Zeigt AUR-Aktualisierungen im Fenster beim Start."
+          startup_news_show_aur_comments:
+            label: "Startnachrichten: AUR-Kommentare"
+            summary: "Zeigt AUR-Kommentare im Fenster beim Start."
+          startup_news_show_pkg_updates:
+            label: "Startnachrichten: Paketaktualisierungen"
+            summary: "Zeigt offizielle Paketaktualisierungen im Fenster beim Start."
+          startup_news_max_age_days:
+            label: "Höchstalter für Startnachrichten (Tage)"
+            summary: "Blendet Startnachrichten aus, die älter als N Tage sind; `all` deaktiviert den Filter."
+          package_marker:
+            label: "Markierung ausgewählter Pakete"
+            summary: "Darstellung vorgemerkter Installations-, Entfernungs- und Downgrade-Zeilen."
+          updates_refresh_interval:
+            label: "Intervall für Aktualisierungsprüfungen (s)"
+            summary: "Sekunden zwischen Hintergrundprüfungen auf Pacman- und AUR-Aktualisierungen."
+          use_terminal_theme:
+            label: "Terminalfarben verwenden"
+            summary: "Ermittelt Farben über OSC 10/11 aus dem Terminal statt aus theme.conf."
+          aur_vote_enabled:
+            label: "AUR-Abstimmungen aktivieren"
+            summary: "Aktiviert das Abstimmen und Zurücknehmen von AUR-Stimmen über SSH innerhalb der App."
+          aur_vote_ssh_timeout_seconds:
+            label: "SSH-Zeitlimit für AUR-Abstimmungen (s)"
+            summary: "Zeitlimit zum Verbindungsaufbau bei SSH-Aufrufen für AUR-Abstimmungen."
+          aur_vote_ssh_command:
+            label: "SSH-Programm für AUR-Abstimmungen"
+            summary: "SSH-Programm für AUR-Abstimmungen; standardmäßig ssh."
           locale:
             label: "Sprache"
             summary: "Automatisch vom System erkennen oder en-US, de-DE bzw. hu-HU wählen. Neustart erforderlich."
@@ -944,6 +1247,238 @@ de-DE:
           pi_scan_background_cost_cap_24h:
             label: "Pi Scan: Hintergrundkosten/24 h"
             summary: "Nichtnegatives dezimales Dollarbudget; 0 oder 0.00 bedeutet Unbegrenzt."
+          keybind_help:
+            label: "Hilfe öffnen"
+          keybind_toggle_config:
+            label: "Menü Konfiguration/Listen umschalten"
+          keybind_toggle_options:
+            label: "Menü Optionen umschalten"
+          keybind_toggle_panels:
+            label: "Menü Panels umschalten"
+          keybind_reload_config:
+            label: "Konfiguration neu laden"
+          keybind_exit:
+            label: "Pacsea beenden"
+          keybind_show_pkgbuild:
+            label: "PKGBUILD anzeigen"
+          keybind_comments_toggle:
+            label: "AUR-Kommentare umschalten"
+          keybind_run_pkgbuild_checks:
+            label: "PKGBUILD-Prüfungen ausführen"
+          keybind_cycle_pkgbuild_sections:
+            label: "PKGBUILD-Abschnitte durchschalten"
+          keybind_change_sort:
+            label: "Sortierung ändern"
+          keybind_pane_next:
+            label: "Nächster Bereich"
+          keybind_pane_left:
+            label: "Bereich links"
+          keybind_pane_right:
+            label: "Bereich rechts"
+          keybind_toggle_fuzzy:
+            label: "Unscharfe Suche umschalten"
+          keybind_search_move_up:
+            label: "Suche: nach oben"
+          keybind_search_move_down:
+            label: "Suche: nach unten"
+          keybind_search_page_up:
+            label: "Suche: Seite nach oben"
+          keybind_search_page_down:
+            label: "Suche: Seite nach unten"
+          keybind_search_add:
+            label: "Suche: zur Installationsliste hinzufügen"
+          keybind_search_install:
+            label: "Suche: sofort installieren"
+          keybind_search_focus_left:
+            label: "Suche: Fokus nach links"
+          keybind_search_focus_right:
+            label: "Suche: Fokus nach rechts"
+          keybind_search_backspace:
+            label: "Suche: Zeichen löschen"
+          keybind_search_insert_clear:
+            label: "Suche: Eingabe leeren"
+          keybind_search_normal_toggle:
+            label: "Normalmodus: umschalten"
+          keybind_search_normal_insert:
+            label: "Normalmodus: zurück zum Einfügemodus"
+          keybind_search_normal_select_left:
+            label: "Normalmodus: Auswahl nach links erweitern"
+          keybind_search_normal_select_right:
+            label: "Normalmodus: Auswahl nach rechts erweitern"
+          keybind_search_normal_delete:
+            label: "Normalmodus: Auswahl löschen"
+          keybind_search_normal_clear:
+            label: "Normalmodus: Eingabe leeren"
+          keybind_search_normal_open_status:
+            label: "Arch-Statusseite öffnen"
+          keybind_search_normal_import:
+            label: "Paketliste importieren"
+          keybind_search_normal_export:
+            label: "Installationsliste exportieren"
+          keybind_search_normal_updates:
+            label: "Verfügbare Aktualisierungen öffnen"
+          keybind_search_normal_pi_scan:
+            label: "Pi Scan öffnen"
+          keybind_recent_move_up:
+            label: "Verlauf: nach oben"
+          keybind_recent_move_down:
+            label: "Verlauf: nach unten"
+          keybind_recent_find:
+            label: "Verlauf: suchen"
+          keybind_recent_use:
+            label: "Verlauf: erneut suchen"
+          keybind_recent_add:
+            label: "Verlauf: zur Installationsliste hinzufügen"
+          keybind_recent_to_search:
+            label: "Verlauf: zurück zur Suche"
+          keybind_recent_focus_right:
+            label: "Verlauf: Fokus nach rechts"
+          keybind_recent_remove:
+            label: "Verlauf: Eintrag entfernen"
+          keybind_recent_clear:
+            label: "Verlauf: alles löschen"
+          keybind_install_move_up:
+            label: "Installationsliste: nach oben"
+          keybind_install_move_down:
+            label: "Installationsliste: nach unten"
+          keybind_install_confirm:
+            label: "Installationsliste: bestätigen"
+          keybind_install_remove:
+            label: "Installationsliste: Eintrag entfernen"
+          keybind_install_clear:
+            label: "Installationsliste: alles löschen"
+          keybind_install_find:
+            label: "Installationsliste: suchen"
+          keybind_install_to_search:
+            label: "Installationsliste: zurück zur Suche"
+          keybind_install_focus_left:
+            label: "Installationsliste: Fokus nach links"
+          keybind_news_mark_read:
+            label: "Neuigkeiten: Eintrag als gelesen markieren"
+          keybind_news_mark_all_read:
+            label: "Neuigkeiten: alle als gelesen markieren"
+          keybind_news_feed_mark_read:
+            label: "Newsfeed: als gelesen markieren"
+          keybind_news_feed_mark_unread:
+            label: "Newsfeed: als ungelesen markieren"
+          keybind_news_feed_toggle_read:
+            label: "Newsfeed: gelesen umschalten"
+          background_base:
+            label: "Hintergrund: Basis"
+            summary: "Hintergrund des Hauptfensters."
+          background_mantle:
+            label: "Hintergrund: Mantel"
+            summary: "Hintergrund von Popups, Hilfe und Seitenbereichen."
+          background_crust:
+            label: "Hintergrund: Kruste"
+            summary: "Dunkelste Hintergrundebene für kontrastreiche Bereiche."
+          surface_level1:
+            label: "Fläche: Stufe 1"
+            summary: "Auswahlhervorhebung und erhöhte Flächen."
+          surface_level2:
+            label: "Fläche: Stufe 2"
+            summary: "Tastenkappen und stärker erhöhte Flächen."
+          overlay_primary:
+            label: "Überlagerung: primär"
+            summary: "Kontrastarme Rahmen und gedimmter Hilfetext."
+          overlay_secondary:
+            label: "Überlagerung: sekundär"
+            summary: "Trennlinien und sekundäre Rahmen."
+          text_primary:
+            label: "Text: primär"
+            summary: "Haupttextfarbe."
+          text_secondary:
+            label: "Text: sekundär"
+            summary: "Beschreibungen und weniger auffälliger Text."
+          text_tertiary:
+            label: "Text: tertiär"
+            summary: "Feldbezeichnungen und untergeordnete Überschriften."
+          accent_interactive:
+            label: "Akzent: interaktiv"
+            summary: "Interaktive Elemente, Links und Gruppenüberschriften."
+          accent_heading:
+            label: "Akzent: Überschriften"
+            summary: "Titel, fokussierte Rahmen und der aktive Tab."
+          semantic_success:
+            label: "Status: Erfolg"
+            summary: "Erfolgsmeldungen, aktivierte Werte und bestandene Prüfungen."
+          semantic_warning:
+            label: "Status: Warnung"
+            summary: "Warnungen, das Bearbeitungs-Popup und Änderungsmarkierungen."
+          semantic_error:
+            label: "Status: Fehler"
+            summary: "Fehler, ungültige Werte und Markierungen für nötigen Neustart."
+          accent_emphasis:
+            label: "Akzent: Hervorhebung"
+            summary: "Hervorgehobene Rahmen und Akzente."
+        choices:
+          sort_mode:
+            best_matches: "Relevanteste Treffer zuerst"
+            alphabetical: "Nach Paketname von A bis Z"
+            official_first: "Pakete aus offiziellen Repositorien vor dem AUR"
+            aur_popularity: "Beliebteste AUR-Pakete zuerst"
+          privilege_mode:
+            auto: "doas bevorzugen, wenn installiert, sonst sudo"
+            sudo: "Immer sudo verwenden"
+            doas: "Immer doas verwenden (Passworteingabe im Terminal)"
+          auth_mode:
+            prompt: "Pacsea fragt das Passwort ab und gibt es an das Rechte-Werkzeug weiter"
+            passwordless_only: "Abfrage nur überspringen, wenn das Werkzeug passwortlose Ausführung erlaubt"
+            interactive: "Authentifizierung dem Rechte-Werkzeug überlassen (unterstützt Fingerabdruck über PAM)"
+          installed_packages_mode:
+            leaf: "Nur explizit installierte Pakete, von denen nichts abhängt"
+            all: "Alle explizit installierten Pakete"
+          search_startup_mode:
+            insert_mode: "Sofort mit der Sucheingabe beginnen"
+            normal_mode: "Im Vim-artigen Normalmodus starten"
+          package_marker:
+            full_line: "Ganze Zeile einfärben"
+            front: "Markierung am Zeilenanfang"
+            end: "Markierung am Zeilenende"
+          locale:
+            _empty: "Systemsprache verwenden (LANG/LC_ALL)"
+            "en-US": "Englisch (USA)"
+            "de-DE": "Deutsch (Deutschland)"
+            "hu-HU": "Ungarisch (Ungarn)"
+          pi_scan_thinking:
+            "off": "Kein erweitertes Nachdenken; am schnellsten und günstigsten"
+            minimal: "Minimales Nachdenken"
+            low: "Leichtes Nachdenken"
+            medium: "Ausgewogenes Nachdenken"
+            high: "Gründliches Nachdenken; langsamer und teurer"
+            xhigh: "Sehr gründliches Nachdenken"
+            max: "Maximales Nachdenken, das das Modell unterstützt"
+          main_pane_order:
+            "results, search, package_info": "Von oben nach unten: Ergebnisse, Suche, Details"
+            "results, package_info, search": "Von oben nach unten: Ergebnisse, Details, Suche"
+            "search, results, package_info": "Von oben nach unten: Suche, Ergebnisse, Details"
+            "search, package_info, results": "Von oben nach unten: Suche, Details, Ergebnisse"
+            "package_info, results, search": "Von oben nach unten: Details, Ergebnisse, Suche"
+            "package_info, search, results": "Von oben nach unten: Details, Suche, Ergebnisse"
+        groups:
+          general: "Allgemein"
+          layout: "Layout"
+          search: "Suche"
+          privileges: "Berechtigungen"
+          mirrors: "Spiegelserver"
+          updates: "Aktualisierungen"
+          scans: "Sicherheitsscans"
+          pkgbuild: "PKGBUILD-Prüfungen"
+          news: "Neuigkeiten"
+          startup_news: "Start-Neuigkeiten"
+          aur_voting: "AUR-Abstimmung"
+          pi_scan: "Pi Scan"
+          keybind_global: "Globale Kürzel"
+          keybind_search: "Suchbereich"
+          keybind_search_normal: "Suche im Normalmodus"
+          keybind_recent: "Suchverlauf"
+          keybind_install: "Installationsliste"
+          keybind_news: "Neuigkeiten-Dialog"
+          backgrounds: "Hintergründe"
+          surfaces_overlays: "Flächen & Überlagerungen"
+          text: "Text"
+          accents: "Akzente"
+          semantic: "Statusfarben"
       alert:
         header_configuration_error: "Konfigurationsfehler"
         header_clipboard_copy: "Zwischenablage kopieren"
@@ -1097,10 +1632,12 @@ de-DE:
         news_lines:
           - "  • Öffnen über Optionen → Neuigkeiten • Hoch/Runter: auswählen • Enter: öffnen • Esc: schließen"
         config_editor_lines:
-          - "  • Öffnen über Config/Lists → Config editor (TUI); Esc wechselt von Schlüsseln zurück zur Dateiliste"
-          - "  • Tippen filtert Schlüssel • Hoch/Runter: bewegen • Enter: bearbeiten • b: Lesezeichen"
-          - "  • Popup: Strg+S speichern • Esc abbrechen • Strg+Z auf Ausgangswert zurücksetzen"
-          - "  • Tastenkürzel-Zeilen: Strg+K nimmt das nächste gedrückte Kürzel auf (Esc bricht ab)"
+          - "  • Öffnen über Config/Lists → Config editor (TUI); Tabs: settings.conf · keybinds.conf · theme.conf · ★ Favoriten"
+          - "  • Tippen durchsucht Schlüssel, Bezeichnungen und Beschreibungen (alle Wörter müssen passen) • Strg+R: letzte Suchen"
+          - "  • ↑/↓ Bild↑/Bild↓ Pos1/Ende: bewegen • Tab/←/→: Tab wechseln • Enter: bearbeiten • Strg+B: Favorit • Esc: Suche leeren, dann verlassen"
+          - "  • Popup: ↑/↓ Vorschlag wählen oder Wert eintippen • Tab vervollständigt • Enter/Strg+S speichert den hinter „Enter speichert“ gezeigten Wert • Esc bricht ab • Strg+Z setzt zurück"
+          - "  • Ganzzahlen: +/- ändern um eins • Geheimwerte: Strg+R zeigt an • An/Aus-Einstellungen öffnen eine kleine Auswahl"
+          - "  • Tastenkürzel-Zeilen: Kürzel eintippen oder Strg+K / Klick auf ● Aufnehmen und die neue Kombination drücken (Esc beendet die Aufnahme)"
           - "  • Themenfarben validieren die gesamte Datei vor dem Speichern; ungültige Änderungen erreichen die Festplatte nie"
           - "  • Strg+E exportiert die effektiven Werte der gewählten Datei (Geheimnisse geschwärzt)"
         close_hint: "Enter oder Esc zum Schließen drücken"

@@ -666,7 +666,12 @@ pub const EDITABLE_SETTINGS: &[EditableSetting] = &[
     pi_setting("pi_scan_provider", ValueKind::String),
     pi_setting("pi_scan_model", ValueKind::String),
     pi_setting("pi_scan_fallback_models", ValueKind::String),
-    pi_setting("pi_scan_thinking", ValueKind::String),
+    pi_setting(
+        "pi_scan_thinking",
+        ValueKind::Enum {
+            choices: &["off", "minimal", "low", "medium", "high", "xhigh", "max"],
+        },
+    ),
     pi_setting(
         "pi_scan_observation_interval_seconds",
         ValueKind::IntRange {

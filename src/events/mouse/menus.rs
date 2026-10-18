@@ -674,7 +674,7 @@ fn handle_config_menu_click(
             4 if !matches!(app.app_mode, crate::state::types::AppMode::ConfigEditor) => {
                 // "Config editor (TUI)" — open integrated editor mode.
                 app.app_mode = crate::state::types::AppMode::ConfigEditor;
-                app.config_editor_state = crate::events::modals::build_config_editor_state();
+                app.config_editor_state = crate::events::modals::build_config_editor_state(app);
                 app.config_menu_open = false;
                 app.artix_filter_menu_open = false;
                 app.custom_repos_filter_menu_open = false;

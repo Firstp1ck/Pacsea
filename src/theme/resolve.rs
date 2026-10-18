@@ -149,10 +149,14 @@ fn try_terminal_theme() -> Option<ResolvedTheme> {
     })
 }
 
-/// Get the codebase default theme (Catppuccin Mocha).
+/// What: Return the codebase default theme (Catppuccin Mocha).
 ///
-/// This parses the skeleton content to get the default theme colors.
-fn default_theme() -> Theme {
+/// Inputs: None.
+///
+/// Output: Default palette independent of user configuration and terminal colors.
+///
+/// Details: Parses the shipped skeleton, with a hardcoded fallback if parsing fails.
+pub fn default_theme() -> Theme {
     // Parse the skeleton content to extract default colors
     // This is the same as what would be written to a new theme.conf
     parse_skeleton_theme().unwrap_or_else(hardcoded_default_theme)

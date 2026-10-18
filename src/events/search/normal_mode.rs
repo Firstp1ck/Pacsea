@@ -33,7 +33,7 @@ fn handle_config_menu_numeric_selection(idx: usize, app: &mut AppState) -> bool 
 
     if idx == 4 && !matches!(app.app_mode, crate::state::types::AppMode::ConfigEditor) {
         app.app_mode = crate::state::types::AppMode::ConfigEditor;
-        app.config_editor_state = super::super::modals::build_config_editor_state();
+        app.config_editor_state = super::super::modals::build_config_editor_state(app);
         app.config_menu_open = false;
         return true;
     }
