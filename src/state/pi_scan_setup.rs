@@ -1421,7 +1421,7 @@ mod tests {
         assert!(wizard.fallback_picker.is_some());
         wizard.edit_fallback_filter(None, true);
         assert!(wizard.choose_fallback_option(Some(0)));
-        assert!(wizard.candidate.fallback_models.is_empty());
+        assert_eq!(wizard.candidate.fallback_models.len(), 0);
         assert!(!wizard.confirmations.fallback_confirmed);
 
         wizard.open_fallback_picker();

@@ -1335,7 +1335,7 @@ mod tests {
             .as_ref()
             .expect("Esc keeps the wizard open");
         assert!(wizard.fallback_picker.is_none());
-        assert!(wizard.candidate.fallback_models.is_empty());
+        assert_eq!(wizard.candidate.fallback_models.len(), 0);
 
         press(&mut app, KeyCode::Char(' '));
         press(&mut app, KeyCode::Down);
