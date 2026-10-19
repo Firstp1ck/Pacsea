@@ -1662,7 +1662,7 @@ mod tests {
         assert_eq!(wizard.candidate.background_cost_cap_24h, "0.25");
         type_number(&mut wizard, "\u{8}\u{8}");
         assert_eq!(wizard.candidate.background_cost_cap_24h, "0.");
-        assert!(wizard.current_step_issues().is_empty());
+        assert_eq!(wizard.current_step_issues(), [] as [String; 0]);
     }
 
     /// Cost entry keeps only parser-compatible text.

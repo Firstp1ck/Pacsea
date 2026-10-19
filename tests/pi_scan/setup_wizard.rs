@@ -228,7 +228,7 @@ fn wizard_numeric_settings_accept_typed_values() {
     assert_eq!(wizard.candidate.background_token_cap_24h, 0);
     assert_eq!(wizard.candidate.background_cost_cap_24h, "0");
     assert_eq!(wizard.candidate.result_retention_days, 14);
-    assert!(wizard.current_step_issues().is_empty());
+    assert_eq!(wizard.current_step_issues(), [] as [String; 0]);
 }
 
 /// Contract: the probe verifies Pi and enumerates routes without a model call.
