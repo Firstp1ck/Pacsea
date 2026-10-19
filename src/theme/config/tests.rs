@@ -535,6 +535,8 @@ mod tests {
         cfg_dir: std::path::PathBuf,
         orig_home: Option<std::ffi::OsString>,
         orig_xdg: Option<std::ffi::OsString>,
+        /// Home-resolution flag restored on drop.
+        orig_home_config: bool,
     }
 
     impl SettingsEnvGuard {
@@ -562,22 +564,26 @@ mod tests {
             ));
             let cfg_dir = base.join(".config").join("pacsea");
             let _ = fs::create_dir_all(&cfg_dir);
+            let orig_home_config = crate::theme::home_config_enabled();
             unsafe {
                 std::env::set_var("HOME", base.display().to_string());
                 std::env::remove_var("XDG_CONFIG_HOME");
             }
+            crate::theme::set_home_config_enabled(true);
 
             Self {
                 base,
                 cfg_dir,
                 orig_home,
                 orig_xdg,
+                orig_home_config,
             }
         }
     }
 
     impl Drop for SettingsEnvGuard {
         fn drop(&mut self) {
+            crate::theme::set_home_config_enabled(self.orig_home_config);
             unsafe {
                 if let Some(v) = self.orig_home.as_ref() {
                     std::env::set_var("HOME", v);

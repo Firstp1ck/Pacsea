@@ -3,7 +3,6 @@ use tokio::sync::mpsc;
 
 #[cfg(target_os = "windows")]
 use crate::app::runtime::workers::updates_helpers::UpdateCheckPayload;
-use crate::app::runtime::workers::updates_helpers::check_aur_helper;
 #[cfg(not(target_os = "windows"))]
 use crate::app::runtime::workers::updates_helpers::{
     REASON_CHECKUPDATES_FAILED, REASON_CHECKUPDATES_UNAVAILABLE, REASON_FAKEROOT_UNAVAILABLE,
@@ -11,6 +10,7 @@ use crate::app::runtime::workers::updates_helpers::{
     classify_pacman_stderr_for_update_check, has_checkupdates, has_fakeroot, setup_temp_db,
     sync_temp_db,
 };
+use crate::app::runtime::workers::updates_helpers::{UpdateCandidate, check_aur_helper};
 use crate::app::runtime::workers::updates_parsing::{
     get_installed_version, parse_checkupdates, parse_checkupdates_tool, parse_qua,
 };
@@ -536,9 +536,11 @@ fn run_update_check_blocking_unix() -> UpdateCheckPayload {
         tracing::debug!("Saved updates list to {:?}", updates_file);
     }
 
+    let candidates = typed_update_candidates(&packages);
     UpdateCheckPayload {
         count,
         package_names,
+        candidates,
         authoritative: authoritative_official,
         reason_codes,
         official_strategy,
@@ -605,13 +607,30 @@ fn run_update_check_blocking_windows() -> UpdateCheckPayload {
         tracing::warn!("Failed to save updates list to file: {}", e);
     }
 
+    let candidates = typed_update_candidates(&packages);
     UpdateCheckPayload {
         count,
         package_names,
+        candidates,
         authoritative,
         reason_codes: Vec::new(),
         official_strategy: "windows_pacman_qu",
     }
+}
+
+/// Parse the worker's canonical update lines into typed frozen version candidates.
+fn typed_update_candidates(lines: &[String]) -> Vec<UpdateCandidate> {
+    lines
+        .iter()
+        .filter_map(|line| crate::util::parse_update_entry(line))
+        .map(
+            |(package_name, current_version, candidate_version)| UpdateCandidate {
+                package_name,
+                current_version,
+                candidate_version,
+            },
+        )
+        .collect()
 }
 
 /// What: Spawn background worker to check for available package updates.

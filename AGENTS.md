@@ -17,12 +17,18 @@
 5. Run the test again — it must pass. If not, iterate on the fix.
 6. Add edge-case tests when they reduce future regressions.
 
+## Local Build Resource Safety
+- Limit Cargo compilation/linking to **at most 2 concurrent Cargo jobs** with `-j 2` or `CARGO_BUILD_JOBS=2`, including builds, checks, Clippy, tests, and benchmarks. `--test-threads=1` limits test execution only; it does **not** limit compilation/linking parallelism.
+- Run heavy Cargo commands **serially**, not in parallel terminals or background jobs. Coordinate delegated workers so their builds do not overlap on this workstation.
+- On Firstpick's workstation, keep Cargo build artifacts on the NVMe under `/mnt/SSD_NVME_4TB/`, not the system SSD under `/home` or `/tmp`. The repository's default `target/` is suitable when the checkout is on the NVMe. For worktrees under `~/.t3/worktrees/`, set `CARGO_TARGET_DIR` to a dedicated, worktree-specific directory on the NVMe before running Cargo.
+- Keep build/test jobs supervised. If a validation run must be abandoned, cancel its own process group and verify it has exited; do not leave detached compiler/linker jobs running or stop unrelated jobs.
+
 ## Always Run After Changes
-Run from the repository root, in this order:
+For Rust/code changes, run from the repository root, in this order, following **Local Build Resource Safety** above. For documentation-only changes, use focused diff/whitespace checks instead of recompiling or running the Rust test suite.
 1. `cargo fmt --all`
-2. `cargo clippy --all-targets --all-features -- -D warnings`
-3. `cargo check`
-4. `cargo test -- --test-threads=1`
+2. `cargo clippy -j 2 --all-targets --all-features -- -D warnings`
+3. `cargo check -j 2`
+4. `cargo test -j 2 -- --test-threads=1`
 
 **CI note:** `.github/workflows/rust.yml` runs `cargo build` and `cargo test` (with `--test-threads=1`). `.github/workflows/lint.yml` runs `cargo fmt --check` and `cargo clippy ... -D warnings` on pushes/PRs to `main`. `.github/workflows/security.yml` runs supply-chain and secret scans (no clippy). `cargo check` is still required locally before considering work done.
 
@@ -55,9 +61,9 @@ With `cargo clippy ... -- -D warnings`, **all warnings become errors**. That mea
 ### Pre-commit checklist
 Before completing any task, ensure all of the following pass:
 1. **Format:** `cargo fmt --all` produces no diff.
-2. **Clippy:** `cargo clippy --all-targets --all-features -- -D warnings` is clean.
-3. **Compile:** `cargo check` succeeds.
-4. **Tests:** `cargo test -- --test-threads=1` — all tests pass.
+2. **Clippy:** `cargo clippy -j 2 --all-targets --all-features -- -D warnings` is clean.
+3. **Compile:** `cargo check -j 2` succeeds.
+4. **Tests:** `cargo test -j 2 -- --test-threads=1` — all tests pass.
 5. **Complexity:** New functions stay under cognitive-complexity threshold (25).
 6. **Length:** New functions stay under too-many-lines threshold (150).
 7. **Exceptions:** If a threshold cannot be met, add a **documented** `#[allow(...)]` with a justification comment. Use sparingly.
@@ -103,7 +109,7 @@ Before completing any task, ensure all of the following pass:
 **Test guidelines:**
 - Tests must be deterministic and not rely on undeclared external machine state.
 - For code paths that would mutate the system, exercise **dry-run** behavior via the `dry_run` bool field (wired from the CLI `--dry-run` flag through the app), or use equivalent test doubles. Do **not** blindly pass `--dry-run` to every shell command.
-- Always run tests with `--test-threads=1` to avoid parallel interference.
+- Always run tests with `cargo test -j 2 -- --test-threads=1` to bound compilation parallelism and avoid parallel test interference.
 
 ## Code style conventions
 - **Edition:** Rust 2024 (see `Cargo.toml`).

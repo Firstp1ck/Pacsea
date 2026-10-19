@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>Pi Scan budget adjustment implementation report</title>
+  <style>
+    :root{color-scheme:dark;--bg:#0b1220;--panel:#121c2d;--panel2:#18253a;--text:#e8eef8;--muted:#a9b7cb;--line:#2b3b55;--green:#50d890;--yellow:#f7c65c;--red:#ff7373;--blue:#65b5ff;--code:#07101c;--radius-lg:16px;--radius-md:12px;--shadow:0 14px 36px rgb(0 0 0/.22)}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(circle at 15% 0%,#142848 0,transparent 35rem),var(--bg);color:var(--text);font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}a{color:var(--blue)}a:focus-visible,summary:focus-visible{outline:3px solid var(--blue);outline-offset:3px}.skip{position:fixed;top:8px;left:8px;transform:translateY(-160%);background:var(--blue);color:#06111f;padding:8px 12px;border-radius:8px;font-weight:800;z-index:10}.skip:focus{transform:none}main{width:min(1120px,calc(100% - 32px));margin:36px auto 64px}header,.section{background:color-mix(in srgb,var(--panel) 94%,transparent);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow)}header{padding:30px;margin-bottom:20px}.section{padding:24px;margin:18px 0}h1,h2,h3{line-height:1.25;margin-top:0}h1{font-size:clamp(1.9rem,5vw,3rem);margin-bottom:8px;letter-spacing:-.025em}h2{font-size:1.45rem;border-bottom:1px solid var(--line);padding-bottom:10px}h3{font-size:1.08rem;margin-bottom:6px}p{margin:8px 0 14px}.lead{font-size:1.1rem;max-width:82ch}.muted{color:var(--muted)}code,pre{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}code{background:var(--code);padding:.12em .38em;border-radius:5px}pre{background:var(--code);border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto;white-space:pre-wrap;color:#d9e6f7}.badge{display:inline-block;padding:3px 9px;border-radius:999px;font-size:.78rem;font-weight:750;letter-spacing:.035em;text-transform:uppercase;margin-bottom:8px}.good{color:var(--green)}.warn{color:var(--yellow)}.info{color:var(--blue)}.badge.good{background:rgb(80 216 144/.14);border:1px solid rgb(80 216 144/.38)}.badge.warn{background:rgb(247 198 92/.14);border:1px solid rgb(247 198 92/.38)}.badge.info{background:rgb(101 181 255/.14);border:1px solid rgb(101 181 255/.38)}.callout{border-left:5px solid var(--green);background:rgb(80 216 144/.08);border-radius:8px;padding:14px 16px;margin:14px 0}.callout.warn{border-left-color:var(--yellow);background:rgb(247 198 92/.08);color:var(--text)}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}.card,.metric{background:var(--panel2);border:1px solid var(--line);border-radius:var(--radius-md);padding:16px}.metric strong{display:block;font-size:1.35rem}.table-wrap{overflow-x:auto;border-radius:10px}table{width:100%;border-collapse:collapse;min-width:680px}th,td{text-align:left;vertical-align:top;padding:11px 9px;border-bottom:1px solid var(--line)}th{color:var(--muted);font-size:.86rem;text-transform:uppercase;letter-spacing:.04em}figure{margin:18px 0}figure svg{display:block;width:100%;height:auto;background:var(--code);border:1px solid var(--line);border-radius:12px}figcaption{color:var(--muted);margin-top:8px;font-size:.92rem}.node{fill:#182b43;stroke:var(--blue);stroke-width:2}.node.success{stroke:var(--green)}.node-text{fill:var(--text);font:650 14px system-ui,sans-serif;text-anchor:middle}.edge{fill:none;stroke:var(--muted);stroke-width:2.5;marker-end:url(#arrow)}.step{display:grid;grid-template-columns:36px 1fr;gap:12px;margin:14px 0}.num{display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:var(--blue);color:#06111f;font-weight:800}details{border-top:1px solid var(--line);padding-top:10px;margin-top:10px}summary{cursor:pointer;color:var(--blue);font-weight:700}footer{color:var(--muted);margin-top:24px;font-size:.9rem}
+    @media(max-width:620px){main{width:min(100% - 18px,1120px);margin-top:10px}header,.section{padding:18px}.node-text{font-size:12px}}
+    @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important}}
+    @media print{:root{color-scheme:light}body{background:white;color:#111}main{width:100%;margin:0}header,.section,.card,.metric{box-shadow:none;background:white;color:#111;border-color:#bbb;break-inside:avoid}pre,code,figure svg{color:#111;background:#f1f3f5;border-color:#bbb}.muted,figcaption,footer{color:#444}a{color:#111;text-decoration:underline}.skip{display:none}}
+  </style>
+</head>
+<body>
+<a class="skip" href="#content">Skip to report content</a>
+<main id="content">
+  <header>
+    <span class="badge good">Completed implementation</span>
+    <h1>Pi Scan budget adjustment</h1>
+    <p class="lead">Implementation report for the zero-as-Unlimited budget policy and the direct in-scan Double or Unlimited recovery flow. Evidence comes from the integrated Rust diff, deterministic tests, full repository checks, and fresh-context review.</p>
+    <div class="callout"><strong>Conclusion.</strong> Numeric zero now means Unlimited for starts, tokens, and cost. A budget-paused queue can be adjusted directly with <code>b</code> on Overview or Progress, without reopening guided setup. The runtime recomputes affected limits, persists the policy, revalidates all gates, and starts work only when authorization still permits it.</div>
+    <p class="muted"><strong>Confidence: 97/100.</strong> Static, unit, integration, persistence, concurrency, localization, and full serialized test evidence passed. Live paid-provider execution and hands-on terminal rendering were not exercised.</p>
+  </header>
+
+  <section class="section" id="overview">
+    <h2>Overview</h2>
+    <div class="grid" aria-label="Headline evidence">
+      <div class="metric"><span class="badge good">Verified</span><strong>1,339 library tests</strong><span class="muted">Zero failures; 7 existing ignored tests.</span></div>
+      <div class="metric"><span class="badge good">Pi Scan</span><strong>172 integration tests</strong><span class="muted">Zero failures; 4 existing environment-dependent ignores.</span></div>
+      <div class="metric"><span class="badge info">Implementation</span><strong>31 tracked files</strong><span class="muted">Domain, runtime, TUI, configuration, locales, and tests.</span></div>
+    </div>
+    <h3 style="margin-top:22px">Report map</h3>
+    <div class="table-wrap">
+      <table data-overview>
+        <thead><tr><th>Area</th><th>Outcome</th><th>Evidence</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>Budget semantics</td><td>Zero is Unlimited independently for starts, tokens, and micro-USD cost.</td><td>Scheduler-owned classification plus overflow-safe tests.</td><td><span class="good">Verified</span></td></tr>
+          <tr><td>Direct recovery</td><td><code>b</code> opens a focused Double or Unlimited dialog on Overview and Progress.</td><td>Keyboard, event-loop, narrow-render, and locale tests.</td><td><span class="good">Verified</span></td></tr>
+          <tr><td>Persistence and restart</td><td>Three settings commit together; owner state, consent compatibility, rollback, and directory sync remain fail-closed.</td><td>WS9 restart/rollback and injected post-rename failure tests.</td><td><span class="good">Verified</span></td></tr>
+          <tr><td>Authorization</td><td>Every unattended start rechecks observation and paid-background authorization under scheduler ownership.</td><td>Deterministic two-job revocation tests.</td><td><span class="good">Verified</span></td></tr>
+          <tr><td>Review</td><td>All BUD, PSB, and final code findings were fixed and revalidated.</td><td>Fresh-context final verification; second provider review explicitly waived.</td><td><span class="warn">Scoped waiver</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section" id="design">
+    <h2>Design and user flow</h2>
+    <div class="grid">
+      <article class="card"><span class="badge info">Semantics</span><h3>Zero is not a zero-dollar stop</h3><p>A stored <code>0</code> or <code>0.00</code> skips that one finite comparison. Other limits and all consent, service, user-pause, setup, and platform gates still apply.</p></article>
+      <article class="card"><span class="badge info">Double</span><h3>Exact, affected-only growth</h3><p>Double uses checked multiplication on only the dimensions currently exceeded. If one doubling is still too small, the Budget pause remains and the UI names the residual limit.</p></article>
+      <article class="card"><span class="badge warn">Unlimited</span><h3>Explicit spending warning</h3><p>Unlimited writes zero only to affected dimensions. The dialog warns that paid background calls may continue until separately paused.</p></article>
+    </div>
+    <figure data-visual-kind="diagram" data-purpose="Explain the direct budget adjustment sequence and authorization boundaries">
+      <svg role="img" aria-labelledby="flow-title flow-desc" viewBox="0 0 960 360">
+        <title id="flow-title">Direct Pi Scan budget adjustment sequence</title>
+        <desc id="flow-desc">The user presses b, chooses Double or Unlimited, the runtime recomputes exceeded dimensions under one owner, atomically persists settings and state, then acknowledges and starts only if all authorization gates remain valid.</desc>
+        <defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#a9b7cb"/></marker></defs>
+        <path class="edge" d="M190 95 H275"/><path class="edge" d="M435 95 H520"/><path class="edge" d="M680 95 H765"/><path class="edge" d="M845 135 C845 235 680 275 585 275"/><path class="edge" d="M505 275 H375"/>
+        <rect class="node" x="30" y="55" width="160" height="80" rx="12"/><text class="node-text" x="110" y="88">Press b</text><text class="node-text" x="110" y="112">Overview / Progress</text>
+        <rect class="node" x="275" y="55" width="160" height="80" rx="12"/><text class="node-text" x="355" y="88">Choose policy</text><text class="node-text" x="355" y="112">Double / Unlimited</text>
+        <rect class="node" x="520" y="55" width="160" height="80" rx="12"/><text class="node-text" x="600" y="88">Runtime owner</text><text class="node-text" x="600" y="112">Recompute affected set</text>
+        <rect class="node success" x="765" y="55" width="165" height="80" rx="12"/><text class="node-text" x="847" y="88">Durable commit</text><text class="node-text" x="847" y="112">Settings + state</text>
+        <rect class="node success" x="505" y="235" width="180" height="80" rx="12"/><text class="node-text" x="595" y="268">Revalidate gates</text><text class="node-text" x="595" y="292">Pause / authorization</text>
+        <rect class="node success" x="195" y="235" width="180" height="80" rx="12"/><text class="node-text" x="285" y="268">Acknowledge</text><text class="node-text" x="285" y="292">Start only if eligible</text>
+      </svg>
+      <figcaption>Only the runtime owner decides the affected dimensions. A durable success does not bypass observation, paid-background consent, user pause, or service pause.</figcaption>
+    </figure>
+  </section>
+
+  <section class="section" id="implementation">
+    <h2>Implementation map</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Component</th><th>Responsibility</th><th>Key behavior</th></tr></thead>
+        <tbody>
+          <tr><td><code>src/state/pi_scan.rs</code></td><td>Canonical budget policy</td><td>Rolling usage, exceeded dimensions, zero/Unlimited, checked Double, overflow evidence, pause revalidation.</td></tr>
+          <tr><td><code>pi_scan_orchestrator.rs</code></td><td>Single durable owner</td><td>Atomic policy coordination, owner-state rollback, restart consistency, start-time authorization.</td></tr>
+          <tr><td><code>pi_scan_production.rs</code></td><td>Production dispatch</td><td>Independent 30-second budget revalidation, progress publication, consent projection, gated execution wake.</td></tr>
+          <tr><td><code>theme/config/patch.rs</code></td><td>Settings durability</td><td>One three-key replacement, fingerprint drift check, mode 0600 temp, file and parent sync, post-rename rollback.</td></tr>
+          <tr><td><code>pi_scan_ui.rs</code>, keys, event loop</td><td>Interaction and projection</td><td>Focused dialog state, typed request/acknowledgement, dry-run preview, authoritative limit/pause projection.</td></tr>
+          <tr><td>Setup, wizard, locales</td><td>Consistent configuration UX</td><td>Unlimited labels, native numeric bounds, exact cost diagnostics, English/German/Hungarian copy.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout warn"><strong>Intentional behavior change.</strong> The prior default <code>0.00</code> cost cap blocked paid background work. It now means Unlimited, as requested. Pi Scan and paid background execution remain independently default-off and require explicit consent.</div>
+  </section>
+
+  <section class="section" id="verification">
+    <h2>Testing and review evidence</h2>
+    <div class="grid">
+      <article class="card"><span class="badge good">Rust gates</span><h3>All required commands passed</h3><pre><code>cargo fmt --all
+cargo clippy --all-targets --all-features -- -D warnings
+cargo check
+cargo test -- --test-threads=1
+git diff --check</code></pre></article>
+      <article class="card"><span class="badge good">Regression scope</span><h3>Failure classes covered</h3><p>Zero-cost blocking, exact Double, affected-only Unlimited, overflow, stale dialog, no-hit writes, rolling expiry, consent migration, config drift, sync rollback, malformed native bounds, dry-run, and authorization revocation.</p></article>
+      <article class="card"><span class="badge good">Final review</span><h3>No code blocker remains</h3><p>Fresh-context review iterated through BUD-001…006, PSB-001…005, and final setup/localization findings. The final reviewer found no feature-code fix worth doing now.</p></article>
+    </div>
+    <h3 style="margin-top:22px">Finding dispositions</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Finding set</th><th>Disposition</th><th>Verification</th></tr></thead>
+        <tbody>
+          <tr><td>BUD-001 through BUD-006</td><td>Accepted</td><td>Wake gates, connected owner authority, revalidation, directory durability, overflow accounting, and config validation fixed.</td></tr>
+          <tr><td>PSB-001 through PSB-005</td><td>Accepted</td><td>Per-start authorization, exact micro-USD bounds, rollback, startup diagnostics, and UI revalidation projection fixed.</td></tr>
+          <tr><td>FINAL-001 and FINAL-002</td><td>Accepted</td><td>Legacy wizard clamps removed and current diagnostics localized in all shipped locales.</td></tr>
+          <tr><td>Formatter consolidation</td><td>Deferred</td><td>Optional cleanup only; exact values are currently tested.</td></tr>
+          <tr><td>Immediate stale-dialog pause polish</td><td>Deferred</td><td>Bounded by the independent 30-second revalidation timer.</td></tr>
+          <tr><td>Second provider-diverse reviewer</td><td>User-waived</td><td>Explicit scoped waiver after the configured slot required higher-cost DeepSeek V4 Pro.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section" id="usage">
+    <h2>Usage and rollout</h2>
+    <div class="step"><div class="num">1</div><div><h3>Open the paused workspace</h3><p>Use Overview or Progress. A Budget pause with queued background work makes the direct action eligible.</p></div></div>
+    <div class="step"><div class="num">2</div><div><h3>Press <code>b</code></h3><p>The focused dialog shows every currently affected limit and the proposed old-to-new values. Double is selected initially.</p></div></div>
+    <div class="step"><div class="num">3</div><div><h3>Choose and confirm</h3><p>Use Tab, arrows, or Vim movement keys to choose Double or Unlimited. Press Enter to apply, or Esc to cancel before submission.</p></div></div>
+    <div class="step"><div class="num">4</div><div><h3>Read the result</h3><p>If Double is insufficient, the queue stays paused and the residual limits are named. Unlimited removes only the affected budget ceilings. Other policy gates continue to apply.</p></div></div>
+    <details><summary>Residual risks and unverified live behavior</summary><ul><li>No paid model/provider call was made during verification.</li><li>The dialog has deterministic narrow-terminal render tests, but no live terminal screenshot was captured after implementation.</li><li>Four pre-existing Pi Scan tests remain ignored because they require installed/configured Pi or explicit benchmark execution.</li></ul></details>
+  </section>
+
+  <section class="section" id="sources">
+    <h2>Sources and traceability</h2>
+    <ul>
+      <li>Canonical plan: <a href="../plans/archive/pi-scan-budget-adjustment.md"><code>plans/archive/pi-scan-budget-adjustment.md</code></a></li>
+      <li>Branch PR record: <a href="../dev/PR/PR_feat-aur-scan-integrated.md"><code>dev/PR/PR_feat-aur-scan-integrated.md</code></a></li>
+      <li>Primary implementation evidence: current Rust source and focused tests under <code>src/</code> and <code>tests/pi_scan/</code>.</li>
+      <li>Reviewer artifacts are local under <code>.pi/subagents/reviews/</code> and are not required at runtime.</li>
+    </ul>
+    <p class="muted">Generated 2026-08-21 from local repository evidence. No web claims, remote assets, telemetry, or external scripts are included.</p>
+  </section>
+  <footer><p><strong>Scope:</strong> Pi Scan unattended budget semantics, direct adjustment interaction, persistence, authorization, validation, localization, and test evidence.</p></footer>
+</main>
+</body>
+</html>

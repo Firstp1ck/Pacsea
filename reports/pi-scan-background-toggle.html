@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>Pi Scan background toggle implementation report</title>
+  <style>
+    :root{color-scheme:dark;--bg:#0b1220;--panel:#121c2d;--panel2:#18253a;--text:#e8eef8;--muted:#a9b7cb;--line:#2b3b55;--green:#50d890;--yellow:#f7c65c;--red:#ff7373;--blue:#65b5ff;--code:#07101c;--radius-lg:16px;--radius-md:12px;--shadow:0 14px 36px rgb(0 0 0/.22)}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(circle at 15% 0%,#142848 0,transparent 35rem),var(--bg);color:var(--text);font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}a{color:var(--blue)}a:focus-visible,summary:focus-visible{outline:3px solid var(--blue);outline-offset:3px}.skip{position:fixed;top:8px;left:8px;transform:translateY(-160%);background:var(--blue);color:#06111f;padding:8px 12px;border-radius:8px;font-weight:800;z-index:10}.skip:focus{transform:none}main{width:min(1120px,calc(100% - 32px));margin:36px auto 64px}header,.section{background:color-mix(in srgb,var(--panel) 94%,transparent);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow)}header{padding:30px;margin-bottom:20px}.section{padding:24px;margin:18px 0}h1,h2,h3{line-height:1.25;margin-top:0}h1{font-size:clamp(1.9rem,5vw,3rem);margin-bottom:8px;letter-spacing:-.025em}h2{font-size:1.45rem;border-bottom:1px solid var(--line);padding-bottom:10px}h3{font-size:1.08rem;margin-bottom:6px}p{margin:8px 0 14px}.lead{font-size:1.1rem;max-width:82ch}.muted{color:var(--muted)}code,pre{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}code{background:var(--code);padding:.12em .38em;border-radius:5px}pre{background:var(--code);border:1px solid var(--line);border-radius:10px;padding:14px;overflow-x:auto;white-space:pre-wrap;color:#d9e6f7}.badge{display:inline-block;padding:3px 9px;border-radius:999px;font-size:.78rem;font-weight:750;letter-spacing:.035em;text-transform:uppercase;margin-bottom:8px}.good{color:var(--green)}.warn{color:var(--yellow)}.info{color:var(--blue)}.bad{color:var(--red)}.badge.good{background:rgb(80 216 144/.14);border:1px solid rgb(80 216 144/.38)}.badge.warn{background:rgb(247 198 92/.14);border:1px solid rgb(247 198 92/.38)}.badge.info{background:rgb(101 181 255/.14);border:1px solid rgb(101 181 255/.38)}.callout{border-left:5px solid var(--green);background:rgb(80 216 144/.08);border-radius:8px;padding:14px 16px;margin:14px 0}.callout.warn{border-left-color:var(--yellow);background:rgb(247 198 92/.08);color:var(--text)}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}.card,.metric{background:var(--panel2);border:1px solid var(--line);border-radius:var(--radius-md);padding:16px}.metric strong{display:block;font-size:1.35rem}.table-wrap{overflow-x:auto;border-radius:10px}table{width:100%;border-collapse:collapse;min-width:680px}th,td{text-align:left;vertical-align:top;padding:11px 9px;border-bottom:1px solid var(--line)}th{color:var(--muted);font-size:.86rem;text-transform:uppercase;letter-spacing:.04em}figure{margin:18px 0}figure svg{display:block;width:100%;height:auto;background:var(--code);border:1px solid var(--line);border-radius:12px}figcaption{color:var(--muted);margin-top:8px;font-size:.92rem}.node{fill:#182b43;stroke:var(--blue);stroke-width:2}.node.good-node{stroke:var(--green)}.node.warn-node{stroke:var(--yellow)}.node-text{fill:var(--text);font:650 14px system-ui,sans-serif;text-anchor:middle}.edge{fill:none;stroke:var(--muted);stroke-width:2.5;marker-end:url(#arrow)}.step{display:grid;grid-template-columns:36px 1fr;gap:12px;margin:14px 0}.num{display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:var(--blue);color:#06111f;font-weight:800}details{border-top:1px solid var(--line);padding-top:10px;margin-top:10px}summary{cursor:pointer;color:var(--blue);font-weight:700}footer{color:var(--muted);margin-top:24px;font-size:.9rem}
+    @media(max-width:620px){main{width:min(100% - 18px,1120px);margin-top:10px}header,.section{padding:18px}.node-text{font-size:12px}}
+    @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important}}
+    @media print{:root{color-scheme:light}body{background:white;color:#111}main{width:100%;margin:0}header,.section,.card,.metric{box-shadow:none;background:white;color:#111;border-color:#bbb;break-inside:avoid}pre,code,figure svg{color:#111;background:#f1f3f5;border-color:#bbb}.muted,figcaption,footer{color:#444}a{color:#111;text-decoration:underline}.skip{display:none}figure{break-inside:avoid}}
+  </style>
+</head>
+<body>
+<a class="skip" href="#content">Skip to report content</a>
+<main id="content">
+  <header>
+    <span class="badge good">Completed implementation</span>
+    <h1>Pi Scan background toggle</h1>
+    <p class="lead">Implementation report for the persistent unattended Pi AUR scan control and the app-wide status indicator. Evidence comes from the integrated Rust source, deterministic tests, full repository checks, and fresh-context reviews.</p>
+    <div class="callout"><strong>Conclusion.</strong> Users can press <code>Shift+B</code> on Pi Scan Overview or Setup to enable or disable unattended scans. The top bar shows the effective state throughout the app. Disable is fail-closed and lets the current scan finish. Enable keeps every existing privacy and paid-execution consent gate intact.</div>
+    <p class="muted"><strong>Confidence: 97/100.</strong> Static checks, unit and integration tests, restart and persistence failures, queue concurrency, localization, and narrow rendering passed. Live paid-provider execution and hands-on terminal rendering were not run.</p>
+  </header>
+
+  <section class="section" id="overview">
+    <h2>Overview</h2>
+    <div class="grid" aria-label="Headline evidence">
+      <div class="metric"><span class="badge good">Rust suite</span><strong>1,390 library tests</strong><span class="muted">Zero failures; 7 existing ignored tests.</span></div>
+      <div class="metric"><span class="badge good">Pi Scan</span><strong>177 integration tests</strong><span class="muted">Zero failures; 4 environment-dependent ignores.</span></div>
+      <div class="metric"><span class="badge info">Indicator</span><strong>5 states, 4 modes</strong><span class="muted">Verified at normal and 14-column widths.</span></div>
+    </div>
+    <h3 style="margin-top:22px">Implementation map</h3>
+    <div class="table-wrap">
+      <table data-overview>
+        <thead><tr><th>Area</th><th>Delivered behavior</th><th>Evidence</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>Control</td><td><code>Shift+B</code> on Overview and Setup; lowercase <code>b</code> keeps its existing budget and consent actions.</td><td>Keyboard routing and regression tests.</td><td><span class="good">Verified</span></td></tr>
+          <tr><td>Runtime</td><td>Disable revokes future starts before saving. Enable validates consent, saves, authorizes, then wakes queued work.</td><td>Typed request tests, failure injection, and two-job concurrency coverage.</td><td><span class="good">Verified</span></td></tr>
+          <tr><td>Persistence</td><td><code>pi_scan_background_enabled</code> changes atomically and survives restart without invalidating current consent.</td><td>Normal settings parser and runtime reconstruction tests.</td><td><span class="good">Verified</span></td></tr>
+          <tr><td>Top bar</td><td>Shows ON, OFF, OFF finishing, SETUP, or pending in Package, News, Config Editor, and Pi Scan.</td><td>Five-state, four-mode, two-width render matrix.</td><td><span class="good">Verified</span></td></tr>
+          <tr><td>Review</td><td>Six findings were accepted, fixed, and revalidated. No source blocker remains.</td><td>Three fresh OpenAI review outputs; provider diversity explicitly waived after OpenRouter quota failures.</td><td><span class="warn">Scoped waiver</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section" id="behavior">
+    <h2>User behavior</h2>
+    <div class="grid">
+      <article class="card"><span class="badge info">Off</span><h3>Stop future unattended starts</h3><p>Pressing <code>Shift+B</code> publishes the off policy before settings I/O. A scan that already owns the start boundary may finish. The next background item stays queued.</p></article>
+      <article class="card"><span class="badge good">On</span><h3>Reuse consent, never grant it</h3><p>Enable checks the current disclosure, observation, paid execution, fallback, pricing, and readiness state. Missing prerequisites open guided setup. The toggle never approves them.</p></article>
+      <article class="card"><span class="badge warn">Save failure</span><h3>Remain off for this session</h3><p>If disabling cannot be saved, runtime authorization stays off. The notice warns that a restart may restore the previous saved value.</p></article>
+    </div>
+    <figure data-visual-kind="diagram" data-purpose="Explain the asymmetric enable and disable ordering">
+      <svg role="img" aria-labelledby="flow-title flow-desc" viewBox="0 0 960 430">
+        <title id="flow-title">Background scan toggle sequence</title>
+        <desc id="flow-desc">Disable revokes authorization before saving and leaves active work alone. Enable validates existing consent, persists the setting, publishes authorization, then wakes eligible queued work.</desc>
+        <defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#a9b7cb"/></marker></defs>
+        <text class="node-text" x="105" y="42">Disable path</text>
+        <path class="edge" d="M195 95 H285"/><path class="edge" d="M445 95 H535"/><path class="edge" d="M695 95 H785"/>
+        <rect class="node" x="30" y="58" width="165" height="74" rx="12"/><text class="node-text" x="112" y="89">Press Shift+B</text><text class="node-text" x="112" y="112">Request OFF</text>
+        <rect class="node warn-node" x="285" y="58" width="160" height="74" rx="12"/><text class="node-text" x="365" y="89">Revoke future</text><text class="node-text" x="365" y="112">background starts</text>
+        <rect class="node" x="535" y="58" width="160" height="74" rx="12"/><text class="node-text" x="615" y="89">Persist OFF</text><text class="node-text" x="615" y="112">atomically</text>
+        <rect class="node good-node" x="785" y="58" width="145" height="74" rx="12"/><text class="node-text" x="857" y="89">Acknowledge</text><text class="node-text" x="857" y="112">active may finish</text>
+        <text class="node-text" x="100" y="238">Enable path</text>
+        <path class="edge" d="M195 290 H285"/><path class="edge" d="M445 290 H535"/><path class="edge" d="M695 290 H785"/>
+        <rect class="node" x="30" y="253" width="165" height="74" rx="12"/><text class="node-text" x="112" y="284">Press Shift+B</text><text class="node-text" x="112" y="307">Request ON</text>
+        <rect class="node warn-node" x="285" y="253" width="160" height="74" rx="12"/><text class="node-text" x="365" y="284">Validate existing</text><text class="node-text" x="365" y="307">setup and consent</text>
+        <rect class="node" x="535" y="253" width="160" height="74" rx="12"/><text class="node-text" x="615" y="284">Persist ON</text><text class="node-text" x="615" y="307">before authority</text>
+        <rect class="node good-node" x="785" y="253" width="145" height="74" rx="12"/><text class="node-text" x="857" y="284">Authorize</text><text class="node-text" x="857" y="307">then wake</text>
+        <path class="edge" d="M365 327 V385 H540"/><rect class="node" x="540" y="352" width="250" height="62" rx="12"/><text class="node-text" x="665" y="379">Missing prerequisite</text><text class="node-text" x="665" y="401">Open guided setup, change nothing</text>
+      </svg>
+      <figcaption>The two paths use different ordering on purpose. Disable favors immediate safety. Enable does not authorize work until persistence succeeds.</figcaption>
+    </figure>
+  </section>
+
+  <section class="section" id="implementation">
+    <h2>Implementation details</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Component</th><th>Responsibility</th><th>Key property</th></tr></thead>
+        <tbody>
+          <tr><td><code>pi_scan.rs</code></td><td>Typed request and acknowledgement protocol</td><td>Applied, preview, needs-setup, and failed outcomes carry authoritative effective state.</td></tr>
+          <tr><td><code>pi_scan_production.rs</code></td><td>Persistence order and live policy</td><td>Disable revokes first. Enable persists first. Dry-run exits before mutation.</td></tr>
+          <tr><td><code>pi_scan_orchestrator.rs</code></td><td>Start-time authorization and legacy consent</td><td>Dynamic policy replaces the immutable background gate only for production callers that provide it.</td></tr>
+          <tr><td><code>pi_scan_ui.rs</code>, event loop, keys</td><td>Duplicate-safe request ownership and projection</td><td>No optimistic state change. Missing consent opens setup without dispatch.</td></tr>
+          <tr><td><code>ui/updates.rs</code></td><td>Shared top-bar indicator</td><td>Indicator width is reserved before optional menu space, including narrow terminals.</td></tr>
+          <tr><td>Locales</td><td>English, German, and Hungarian UI text</td><td>German is complete. Hungarian follows the repository's English placeholder policy.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout warn"><strong>Consent compatibility.</strong> The background preference is operational policy, not provider, privacy, or pricing identity. Two exact historical binding formats migrate once. Fixed SHA-256 test vectors prevent accidental compatibility drift.</div>
+  </section>
+
+  <section class="section" id="verification">
+    <h2>Validation and review</h2>
+    <div class="grid">
+      <article class="card"><span class="badge good">Repository gates</span><h3>Required commands passed</h3><pre><code>cargo fmt --all
+cargo clippy --all-targets --all-features -- -D warnings
+cargo check
+cargo test -- --test-threads=1
+git diff --check</code></pre></article>
+      <article class="card"><span class="badge good">Failure coverage</span><h3>Boundaries are exercised</h3><p>Tests cover persistence rollback, restart reconstruction, consent preservation, active then disable ordering, dry-run, dropped channels, localized errors, duplicate input, and narrow rendering.</p></article>
+      <article class="card"><span class="badge good">Review</span><h3>No source finding remains</h3><p><code>PST-BGT-001</code> through <code>PST-BGT-006</code> were accepted, fixed, and inspected again. The final review found no additional code fix worth doing.</p></article>
+    </div>
+    <h3 style="margin-top:22px">Review record</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Review</th><th>Outcome</th><th>Disposition</th></tr></thead>
+        <tbody>
+          <tr><td>Runtime and consent review, run <code>8382e14b</code></td><td>Three test gaps</td><td>Accepted, fixed, revalidated.</td></tr>
+          <tr><td>UX and integration review, run <code>1ca39d71</code></td><td>Localized errors, render matrix, German wording</td><td>Accepted, fixed, revalidated.</td></tr>
+          <tr><td>Final post-fix review, run <code>a1a97ca6</code></td><td>No source blocker or new behavioral finding</td><td>Accepted as clean.</td></tr>
+          <tr><td>Provider diversity</td><td>DeepSeek and Moonshot failed before output because the OpenRouter key hit its monthly limit.</td><td>User-approved scoped waiver; two independent fresh OpenAI reviews satisfied the remaining quorum.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section" id="usage">
+    <h2>Usage</h2>
+    <div class="step"><div class="num">1</div><div><h3>Open Pi Scan Overview or Setup</h3><p>The control is labeled <code>[B] Background scans</code>. Existing lowercase shortcuts do not change.</p></div></div>
+    <div class="step"><div class="num">2</div><div><h3>Press Shift+B</h3><p>When turning scans on, Pacsea either applies the saved policy or opens guided setup to collect missing consent. When turning scans off, an active background scan may finish.</p></div></div>
+    <div class="step"><div class="num">3</div><div><h3>Read the top-bar state</h3><p><code>Pi BG: ON</code> means configured and ready. <code>OFF</code> means future unattended starts are disabled. <code>OFF · finishing</code> means one active background scan is completing. <code>SETUP</code> means the saved preference is on but required setup is incomplete. <code>…</code> means the runtime is processing a toggle.</p></div></div>
+  </section>
+
+  <section class="section" id="sources">
+    <h2>Evidence, limits, and links</h2>
+    <ul>
+      <li>Canonical completion record: <a href="../plans/archive/pi-scan-background-toggle.md">plans/archive/pi-scan-background-toggle.md</a>.</li>
+      <li>Branch change record: <a href="../dev/PR/PR_feat-aur-scan-integrated.md">dev/PR/PR_feat-aur-scan-integrated.md</a>.</li>
+      <li>Local ArchWiki context: <code>/usr/share/doc/arch-wiki/html/en/AUR_helpers.html</code>. AUR automation does not replace source review, which is why this control preserves explicit consent and default-off policy.</li>
+    </ul>
+    <details><summary>What was not tested</summary><p>No paid provider call or hands-on terminal session was run. Deterministic fake adapters cover execution ordering and failure paths. Ratatui tests cover every indicator state across all app modes and narrow widths. These checks reduce risk, but they do not replace a live visual pass.</p></details>
+    <details><summary>Rollback</summary><p>Revert the typed toggle protocol, dynamic background policy update, Overview and Setup control, and top-bar indicator together. No new configuration key or durable state schema was introduced. Existing <code>pi_scan_background_enabled</code> remains compatible.</p></details>
+  </section>
+
+  <footer><p>Generated 2026-08-23. Scope is the Pi Scan background toggle and status indicator on branch <code>feat/aur-scan-integrated</code>.</p></footer>
+</main>
+</body>
+</html>

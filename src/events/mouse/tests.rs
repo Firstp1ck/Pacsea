@@ -354,3 +354,156 @@ fn click_artix_filter_toggles_dropdown() {
     );
     assert!(app.artix_filter_menu_open);
 }
+
+#[test]
+/// What: Wheel scrolling inside the Pi Scan workspace must never request application exit.
+///
+/// Inputs:
+/// - `app`: State with `app_mode` set to [`crate::state::types::AppMode::PiScan`].
+/// - `ev`: Scroll-down and scroll-up mouse events anywhere in the workspace.
+///
+/// Output:
+/// - `handle_mouse_event_with_pkgbuild_checks` returns `false` (no exit request) for both events.
+///
+/// Details:
+/// - Regression test: the Pi Scan mouse handler returns `true` for "event handled", but the
+///   top-level dispatcher interprets `true` as "exit the app", which made wheel scrolling in
+///   the Pi Scan workspace quit Pacsea.
+fn pi_scan_scroll_does_not_exit_app() {
+    let mut app = new_app();
+    app.app_mode = crate::state::types::AppMode::PiScan;
+
+    let (dtx, _drx) = mpsc::unbounded_channel::<PackageItem>();
+    let (ptx, _prx) = mpsc::unbounded_channel::<PackageItem>();
+    let (atx, _arx) = mpsc::unbounded_channel::<PackageItem>();
+    let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
+    let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
+    let (qtx, _qrx) = mpsc::unbounded_channel::<QueryInput>();
+    let (pkgb_check_tx, _pkgb_check_rx) = mpsc::unbounded_channel::<PkgbuildCheckRequest>();
+
+    for kind in [MouseEventKind::ScrollDown, MouseEventKind::ScrollUp] {
+        let ev = MouseEvent {
+            kind,
+            column: 20,
+            row: 10,
+            modifiers: KeyModifiers::empty(),
+        };
+        let should_exit = handle_mouse_event_with_pkgbuild_checks(
+            ev,
+            &mut app,
+            &dtx,
+            &ptx,
+            &atx,
+            &pkgb_tx,
+            &comments_tx,
+            &qtx,
+            &pkgb_check_tx,
+        );
+        assert!(
+            !should_exit,
+            "Pi Scan wheel scroll must not request application exit"
+        );
+    }
+}
+
+#[test]
+/// What: Config-editor enum choice clicks select without saving or exiting.
+///
+/// Inputs:
+/// - `ConfigEditor` app with an open locale popup and choice-row rectangles.
+/// - Left-button down on the de-DE row.
+///
+/// Output:
+/// - Popup selects de-DE; mouse dispatcher returns false (no exit).
+///
+/// Details:
+/// - The popup remains open so Ctrl+S is still required to save.
+fn config_editor_enum_choice_click_selects_without_exit() {
+    let mut app = new_app();
+    app.app_mode = crate::state::types::AppMode::ConfigEditor;
+    let setting = crate::theme::find_setting("locale").expect("locale schema");
+    app.config_editor_state.popup =
+        Some(crate::state::EditPopupState::from_current(setting, "en-US"));
+    app.config_editor_state.popup_choice_rects =
+        vec![(10, 20, 25, 1), (10, 21, 25, 1), (10, 22, 25, 1)];
+    let (dtx, _drx) = mpsc::unbounded_channel::<PackageItem>();
+    let (ptx, _prx) = mpsc::unbounded_channel::<PackageItem>();
+    let (atx, _arx) = mpsc::unbounded_channel::<PackageItem>();
+    let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
+    let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
+    let (qtx, _qrx) = mpsc::unbounded_channel::<QueryInput>();
+    let (pkgb_check_tx, _pkgb_check_rx) = mpsc::unbounded_channel::<PkgbuildCheckRequest>();
+
+    let should_exit = handle_mouse_event_with_pkgbuild_checks(
+        MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: 12,
+            row: 22,
+            modifiers: KeyModifiers::empty(),
+        },
+        &mut app,
+        &dtx,
+        &ptx,
+        &atx,
+        &pkgb_tx,
+        &comments_tx,
+        &qtx,
+        &pkgb_check_tx,
+    );
+    assert!(!should_exit);
+    let popup = app
+        .config_editor_state
+        .popup
+        .as_ref()
+        .expect("popup remains open");
+    assert_eq!(popup.canonical_value(), "de-DE");
+}
+
+#[test]
+/// Pi Scan continuation confirmation owns all mouse input until confirmed or cancelled.
+fn pi_scan_continuation_confirmation_blocks_workspace_mouse_input() {
+    let mut app = new_app();
+    app.app_mode = crate::state::types::AppMode::PiScan;
+    app.pi_scan.set_view(crate::state::PiScanView::Details);
+    app.pi_scan.tab_rects[4] = Some((5, 2, 12, 1));
+    app.modal = crate::state::Modal::ConfirmPiScanContinuation {
+        confirmation: crate::state::modal::PiScanContinuationConfirmation {
+            result_binding: "binding".to_string(),
+            package_base: "demo".to_string(),
+            finding_acknowledgement_required: false,
+            stale_acknowledgement_required: false,
+        },
+        scroll: 0,
+    };
+    let (dtx, _drx) = mpsc::unbounded_channel::<PackageItem>();
+    let (ptx, _prx) = mpsc::unbounded_channel::<PackageItem>();
+    let (atx, _arx) = mpsc::unbounded_channel::<PackageItem>();
+    let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel::<PackageItem>();
+    let (comments_tx, _comments_rx) = mpsc::unbounded_channel::<String>();
+    let (qtx, _qrx) = mpsc::unbounded_channel::<QueryInput>();
+    let (pkgb_check_tx, _pkgb_check_rx) = mpsc::unbounded_channel::<PkgbuildCheckRequest>();
+
+    let should_exit = handle_mouse_event_with_pkgbuild_checks(
+        MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: 6,
+            row: 2,
+            modifiers: KeyModifiers::empty(),
+        },
+        &mut app,
+        &dtx,
+        &ptx,
+        &atx,
+        &pkgb_tx,
+        &comments_tx,
+        &qtx,
+        &pkgb_check_tx,
+    );
+
+    assert!(!should_exit);
+    assert_eq!(app.pi_scan.view, crate::state::PiScanView::Details);
+    assert!(matches!(
+        app.modal,
+        crate::state::Modal::ConfirmPiScanContinuation { .. }
+    ));
+}

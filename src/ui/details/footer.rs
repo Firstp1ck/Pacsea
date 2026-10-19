@@ -7,10 +7,8 @@ use ratatui::{
 };
 
 use crate::i18n;
-use crate::state::{
-    AppState, ConfigEditorState, ConfigEditorView, EditPopupKind, Focus, RightPaneFocus,
-};
-use crate::theme::{KeyChord, Theme, theme};
+use crate::state::{AppState, ConfigEditorState, EditPopupKind, Focus, RightPaneFocus};
+use crate::theme::{EditableSetting, KeyChord, Theme, theme};
 
 /// What: Determine label color based on focus state.
 ///
@@ -146,30 +144,33 @@ fn build_section_header(label: String, label_color: ratatui::style::Color) -> Ve
     ]
 }
 
-/// What: Build GLOBALS section spans.
+/// What: Build the GLOBALS footer lines.
 ///
 /// Inputs:
-/// - `app`: Application state
-/// - `th`: Theme
-/// - `key_style`: Style for keys
-/// - `sep_style`: Style for separator
+/// - `app`: Application state.
+/// - `th`: Theme.
+/// - `key_style`: Style for keys.
+/// - `sep_style`: Style for separators.
 ///
 /// Output:
-/// - Returns vector of spans for GLOBALS section.
+/// - Returns the general and Shift-shortcut lines for the GLOBALS section.
 ///
 /// Details:
-/// - Includes exit, help, reload theme, show pkgbuild, show comments, change sort, and normal mode toggle.
+/// - Keeps application-wide Shift actions out of the Search Normal Mode section.
 fn build_globals_section(
     app: &AppState,
     th: &Theme,
     key_style: Style,
     sep_style: Style,
-) -> Vec<Span<'static>> {
+) -> Vec<Line<'static>> {
     let km = &app.keymap;
-    let mut spans = build_section_header(
-        format!("{}  ", i18n::t(app, "app.headings.globals")),
-        th.overlay1,
-    );
+    let heading = || {
+        build_section_header(
+            format!("{}  ", i18n::t(app, "app.headings.globals")),
+            th.overlay1,
+        )
+    };
+    let mut spans = heading();
 
     add_keybind_entry(
         &mut spans,
@@ -235,7 +236,51 @@ fn build_globals_section(
         sep_style,
     );
 
-    spans
+    let mut shift_spans = heading();
+    for (key, label_key) in [
+        (
+            km.config_menu_toggle.first(),
+            "app.modals.help.key_labels.config_lists_menu",
+        ),
+        (
+            km.options_menu_toggle.first(),
+            "app.modals.help.key_labels.options_menu",
+        ),
+        (
+            km.panels_menu_toggle.first(),
+            "app.modals.help.key_labels.panels_menu",
+        ),
+        (
+            km.search_normal_open_status.first(),
+            "app.modals.help.key_labels.open_arch_status",
+        ),
+        (
+            km.search_normal_import.first(),
+            "app.modals.help.normal_mode.import",
+        ),
+        (
+            km.search_normal_export.first(),
+            "app.modals.help.normal_mode.export",
+        ),
+        (
+            km.search_normal_updates.first(),
+            "app.modals.help.normal_mode.updates",
+        ),
+        (
+            km.search_normal_pi_scan.first(),
+            "app.modals.help.key_labels.open_pi_scan",
+        ),
+    ] {
+        add_keybind_entry(
+            &mut shift_spans,
+            key,
+            key_style,
+            i18n::t(app, label_key).trim(),
+            sep_style,
+        );
+    }
+
+    vec![Line::from(spans), Line::from(shift_spans)]
 }
 
 /// What: Build SEARCH section spans.
@@ -581,111 +626,32 @@ fn build_recent_section(
 /// - Returns vector of lines for Normal Mode section (may be empty).
 ///
 /// Details:
-/// - Returns two lines: base normal mode help and optional menus/import-export line.
+/// - Returns one line containing only actions that depend on Search Normal Mode.
 fn build_normal_mode_section(app: &AppState, th: &Theme, key_style: Style) -> Vec<Line<'static>> {
     let km = &app.keymap;
-    let mut lines = Vec::new();
-
     let label =
         |v: &Vec<KeyChord>, def: &str| v.first().map_or_else(|| def.to_string(), KeyChord::label);
     let toggle_label = label(&km.search_normal_toggle, "Esc");
     let insert_label = label(&km.search_normal_insert, "i");
     let clear_label = label(&km.search_normal_clear, "Shift+Del");
 
-    let normal_mode_label = i18n::t(app, "app.modals.help.normal_mode.label");
-    let insert_mode_text = i18n::t(app, "app.modals.help.normal_mode.insert_mode");
-    let move_text = i18n::t(app, "app.modals.help.normal_mode.move");
-    let page_text = i18n::t(app, "app.modals.help.normal_mode.page");
-    let clear_input_text = i18n::t(app, "app.modals.help.normal_mode.clear_input");
-
     let n_spans: Vec<Span> = vec![
         Span::styled(
-            normal_mode_label,
+            i18n::t(app, "app.modals.help.normal_mode.label"),
             Style::default().fg(th.mauve).add_modifier(Modifier::BOLD),
         ),
         Span::raw("  "),
         Span::styled(format!("[{toggle_label} / {insert_label}]"), key_style),
-        Span::raw(insert_mode_text),
+        Span::raw(i18n::t(app, "app.modals.help.normal_mode.insert_mode")),
         Span::styled("[j / k]", key_style),
-        Span::raw(move_text),
+        Span::raw(i18n::t(app, "app.modals.help.normal_mode.move")),
         Span::styled("[Ctrl+d / Ctrl+u]", key_style),
-        Span::raw(page_text),
+        Span::raw(i18n::t(app, "app.modals.help.normal_mode.page")),
         Span::styled(format!("[{clear_label}]"), key_style),
-        Span::raw(clear_input_text),
+        Span::raw(i18n::t(app, "app.modals.help.normal_mode.clear_input")),
     ];
-    lines.push(Line::from(n_spans));
 
-    // Second line: menus and import/export (if any)
-    let mut second_line_spans: Vec<Span> = Vec::new();
-
-    if !km.config_menu_toggle.is_empty()
-        || !km.options_menu_toggle.is_empty()
-        || !km.panels_menu_toggle.is_empty()
-    {
-        let open_config_list_text = i18n::t(app, "app.modals.help.normal_mode.open_config_list");
-        let open_options_text = i18n::t(app, "app.modals.help.normal_mode.open_options");
-        let open_panels_text = i18n::t(app, "app.modals.help.normal_mode.open_panels");
-
-        if let Some(k) = km.config_menu_toggle.first() {
-            second_line_spans.push(Span::raw("  •  "));
-            second_line_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-            second_line_spans.push(Span::raw(open_config_list_text));
-        }
-        if let Some(k) = km.options_menu_toggle.first() {
-            second_line_spans.push(Span::raw("  •  "));
-            second_line_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-            second_line_spans.push(Span::raw(open_options_text));
-        }
-        if let Some(k) = km.panels_menu_toggle.first() {
-            second_line_spans.push(Span::raw("  •  "));
-            second_line_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-            second_line_spans.push(Span::raw(open_panels_text));
-        }
-    }
-
-    if !app.installed_only_mode
-        && (!km.search_normal_import.is_empty()
-            || !km.search_normal_export.is_empty()
-            || !km.search_normal_updates.is_empty())
-    {
-        let install_list_text = i18n::t(app, "app.modals.help.normal_mode.install_list");
-        let import_text = i18n::t(app, "app.modals.help.normal_mode.import");
-        let export_text = i18n::t(app, "app.modals.help.normal_mode.export");
-        let updates_text = i18n::t(app, "app.modals.help.normal_mode.updates");
-
-        second_line_spans.push(Span::raw(install_list_text));
-        if let Some(k) = km.search_normal_import.first() {
-            second_line_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-            second_line_spans.push(Span::raw(import_text));
-            if let Some(k2) = km.search_normal_export.first() {
-                second_line_spans.push(Span::raw(", "));
-                second_line_spans.push(Span::styled(format!("[{}]", k2.label()), key_style));
-                second_line_spans.push(Span::raw(export_text));
-            }
-            if let Some(k3) = km.search_normal_updates.first() {
-                second_line_spans.push(Span::raw(", "));
-                second_line_spans.push(Span::styled(format!("[{}]", k3.label()), key_style));
-                second_line_spans.push(Span::raw(updates_text));
-            }
-        } else if let Some(k) = km.search_normal_export.first() {
-            second_line_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-            second_line_spans.push(Span::raw(export_text));
-            if let Some(k2) = km.search_normal_updates.first() {
-                second_line_spans.push(Span::raw(", "));
-                second_line_spans.push(Span::styled(format!("[{}]", k2.label()), key_style));
-                second_line_spans.push(Span::raw(updates_text));
-            }
-        } else if let Some(k) = km.search_normal_updates.first() {
-            second_line_spans.push(Span::styled(format!("[{}]", k.label()), key_style));
-            second_line_spans.push(Span::raw(updates_text));
-        }
-    }
-
-    if !second_line_spans.is_empty() {
-        lines.push(Line::from(second_line_spans));
-    }
-
-    lines
+    vec![Line::from(n_spans)]
 }
 
 /// What: Render the keybind help footer inside the Package Info pane.
@@ -726,14 +692,14 @@ pub fn render_footer(f: &mut Frame, app: &AppState, bottom_container: Rect, help
         let sep_style = Style::default().fg(th.overlay2);
 
         // Build all sections
-        let g_spans = build_globals_section(app, &th, key_style, sep_style);
+        let global_lines = build_globals_section(app, &th, key_style, sep_style);
         let s_spans = build_search_section(app, &th, key_style, sep_style);
         let (right_lines_install, right_lines_split) =
             build_install_section(app, &th, key_style, sep_style);
         let r_spans = build_recent_section(app, &th, key_style, sep_style);
 
         // Assemble lines based on focus
-        let mut lines: Vec<Line<'static>> = vec![Line::from(g_spans)];
+        let mut lines: Vec<Line<'static>> = global_lines;
         if matches!(app.focus, Focus::Search) {
             lines.push(Line::from(s_spans));
         }
@@ -995,370 +961,373 @@ pub fn news_footer_height(app: &AppState) -> u16 {
     u16::try_from(line_count.max(1)).unwrap_or(1)
 }
 
-/// What: Append a footer entry using a literal key label (not from `keybinds.conf`).
-///
-/// Inputs:
-/// - `spans`: Span buffer to extend
-/// - `label`: Text inside the `[` `]` brackets (e.g. `Ctrl+S`)
-/// - `key_style`: Style applied to the bracketed label
-/// - `text`: Description after the key
-/// - `sep_style`: Style for the trailing separator when `trailing_sep` is true
-/// - `trailing_sep`: When true, appends the same `  |  ` divider used elsewhere in the footer
-///
-/// Output:
-/// - Pushes styled spans into `spans`.
-///
-/// Details:
-/// - Mirrors `add_keybind_entry` for chords that are fixed in the config editor (e.g. save overlay).
-fn add_literal_key_entry(
-    spans: &mut Vec<Span<'static>>,
-    label: &str,
-    key_style: Style,
-    text: &str,
-    sep_style: Style,
-    trailing_sep: bool,
-) {
-    spans.extend([
-        Span::styled(format!("[{label}]"), key_style),
-        Span::raw(format!(" {text}")),
-    ]);
-    if trailing_sep {
-        spans.push(Span::styled("  |  ", sep_style));
+/// One packable footer item for the config editor.
+enum EditorFooterItem {
+    /// Bold section heading that starts a group (e.g. `Globals`).
+    Heading(String),
+    /// Bracketed key label followed by its description.
+    Entry {
+        /// Text inside the `[` `]` brackets.
+        key: String,
+        /// Description shown after the key.
+        text: String,
+    },
+}
+
+impl EditorFooterItem {
+    /// Build an entry with a literal key label handled directly by the editor.
+    fn literal(key: &str, app: &AppState, text_key: &str) -> Self {
+        Self::Entry {
+            key: key.to_string(),
+            text: i18n::t(app, text_key),
+        }
+    }
+
+    /// Build an entry from a configured chord.
+    fn chord(chord: &KeyChord, app: &AppState, text_key: &str) -> Self {
+        Self::Entry {
+            key: chord.label(),
+            text: i18n::t(app, text_key),
+        }
+    }
+
+    /// Spans and display width of this item.
+    fn spans(&self, th: &Theme, key_style: Style) -> (Vec<Span<'static>>, usize) {
+        let spans = match self {
+            Self::Heading(label) => vec![Span::styled(
+                label.clone(),
+                Style::default()
+                    .fg(th.overlay1)
+                    .add_modifier(Modifier::BOLD),
+            )],
+            Self::Entry { key, text } => vec![
+                Span::styled(format!("[{key}]"), key_style),
+                Span::raw(format!(" {text}")),
+            ],
+        };
+        let width = spans.iter().map(Span::width).sum();
+        (spans, width)
     }
 }
 
-/// What: Build the first footer line for config editor mode (global shortcuts + menu toggles).
+/// Separator drawn between two entries on the same footer row.
+const EDITOR_FOOTER_SEPARATOR: &str = "  |  ";
+
+/// What: Greedily pack footer items into rows no wider than `width`.
 ///
 /// Inputs:
-/// - `app`: Application state (keymap + i18n locale)
-/// - `th`: Theme palette for section headers
-/// - `key_style`: Style for bracketed keys
-/// - `sep_style`: Style for `|` separators
+/// - `items`: Headings and entries in display order.
+/// - `width`: Available columns; `0` disables packing (one row).
+/// - `th`: Theme for headings and separators.
+/// - `key_style`: Style for bracketed keys.
 ///
 /// Output:
-/// - Span vector forming the GLOBALS + Menus strip.
+/// - Rows that never exceed `width` unless one item alone is wider.
 ///
 /// Details:
-/// - Skips `reload_config` because that binding is intentionally disabled while the integrated editor is active.
-fn build_config_editor_globals_menus_line(
-    app: &AppState,
+/// - The renderer draws these rows without wrapping, so the row count is exactly the
+///   footer height reported by [`config_editor_footer_reserved_rows`].
+fn pack_editor_footer(
+    items: &[EditorFooterItem],
+    width: u16,
     th: &Theme,
     key_style: Style,
-    sep_style: Style,
-) -> Vec<Span<'static>> {
-    let mut spans = build_section_header(
-        format!("{}  ", i18n::t(app, "app.headings.globals")),
-        th.overlay1,
-    );
-    add_keybind_entry(
-        &mut spans,
-        app.keymap.exit.first(),
-        key_style,
-        &i18n::t(app, "app.actions.exit"),
-        sep_style,
-    );
-    add_keybind_entry(
-        &mut spans,
-        app.keymap.help_overlay.first(),
-        key_style,
-        &i18n::t(app, "app.actions.help"),
-        sep_style,
-    );
-    spans.extend(build_section_header(
-        format!(
-            "{}  ",
-            i18n::t(app, "app.modals.config_editor.footer.heading_menus")
+) -> Vec<Line<'static>> {
+    let limit = if width == 0 {
+        usize::MAX
+    } else {
+        usize::from(width)
+    };
+    let sep_style = Style::default().fg(th.overlay2);
+    let mut rows: Vec<Vec<Span<'static>>> = vec![Vec::new()];
+    let mut used = 0usize;
+    let mut previous_was_entry = false;
+    for item in items {
+        let (spans, item_width) = item.spans(th, key_style);
+        let gap = match (used, item, previous_was_entry) {
+            (0, _, _) => "",
+            (_, EditorFooterItem::Entry { .. }, true) => EDITOR_FOOTER_SEPARATOR,
+            _ => "  ",
+        };
+        let gap_width = gap.chars().count();
+        if used > 0 && used + gap_width + item_width > limit {
+            rows.push(Vec::new());
+            used = 0;
+        } else if !gap.is_empty() {
+            let style = if gap == EDITOR_FOOTER_SEPARATOR {
+                sep_style
+            } else {
+                Style::default()
+            };
+            if let Some(row) = rows.last_mut() {
+                row.push(Span::styled(gap, style));
+            }
+            used += gap_width;
+        }
+        if let Some(row) = rows.last_mut() {
+            row.extend(spans);
+        }
+        used += item_width;
+        previous_was_entry = matches!(item, EditorFooterItem::Entry { .. });
+    }
+    rows.into_iter()
+        .filter(|row| !row.is_empty())
+        .map(Line::from)
+        .collect()
+}
+
+/// What: Footer items for the global shortcuts and top-row menu toggles.
+///
+/// Inputs:
+/// - `app`: Application state (keymap + locale).
+///
+/// Output:
+/// - Globals heading with exit/help, then the Menus heading with the three menu toggles.
+///
+/// Details:
+/// - Skips `reload_config` because that binding is intentionally disabled while the integrated
+///   editor is active.
+fn config_editor_global_items(app: &AppState) -> Vec<EditorFooterItem> {
+    let km = &app.keymap;
+    let mut items = vec![EditorFooterItem::Heading(i18n::t(
+        app,
+        "app.headings.globals",
+    ))];
+    for (chord, text_key) in [
+        (km.exit.first(), "app.actions.exit"),
+        (km.help_overlay.first(), "app.actions.help"),
+    ] {
+        items.extend(chord.map(|chord| EditorFooterItem::chord(chord, app, text_key)));
+    }
+    items.push(EditorFooterItem::Heading(i18n::t(
+        app,
+        "app.modals.config_editor.footer.heading_menus",
+    )));
+    for (chord, text_key) in [
+        (
+            km.config_menu_toggle.first(),
+            "app.modals.config_editor.footer.menu_config",
         ),
-        th.overlay1,
-    ));
-    add_keybind_entry(
-        &mut spans,
-        app.keymap.config_menu_toggle.first(),
-        key_style,
-        &i18n::t(app, "app.modals.config_editor.footer.menu_config"),
-        sep_style,
-    );
-    add_keybind_entry(
-        &mut spans,
-        app.keymap.options_menu_toggle.first(),
-        key_style,
-        &i18n::t(app, "app.modals.config_editor.footer.menu_options"),
-        sep_style,
-    );
-    add_keybind_entry(
-        &mut spans,
-        app.keymap.panels_menu_toggle.first(),
-        key_style,
-        &i18n::t(app, "app.modals.config_editor.footer.menu_panels"),
-        sep_style,
-    );
-    spans
+        (
+            km.options_menu_toggle.first(),
+            "app.modals.config_editor.footer.menu_options",
+        ),
+        (
+            km.panels_menu_toggle.first(),
+            "app.modals.config_editor.footer.menu_panels",
+        ),
+    ] {
+        items.extend(chord.map(|chord| EditorFooterItem::chord(chord, app, text_key)));
+    }
+    items
 }
 
-/// What: Append popup-specific footer hints for the config editor.
+/// What: Footer items for the key list (no popup, no recent-search dropdown).
 ///
 /// Inputs:
-/// - `spans`: Span buffer to extend
-/// - `app`: Application state (i18n)
-/// - `popup`: Active edit popup (variant decides which hints appear)
-/// - `key_style`: Style for bracketed keys
-/// - `sep_style`: Style for separators
+/// - `app`: Application state (keymap + locale).
+/// - `state`: Editor state deciding the Esc label.
+/// - `selected`: Selected key, deciding the Pi Scan setup entry.
 ///
 /// Output:
-/// - Pushes Esc/Ctrl+S/Ctrl+R/Ctrl+K/Ctrl+Z hints matching the popup kind.
+/// - Editor heading followed by the list shortcuts.
 ///
 /// Details:
-/// - While a key-chord popup is recording, only the cancel-recording hint is
-///   shown because every other key is captured verbatim.
-fn append_config_editor_popup_hints(
-    spans: &mut Vec<Span<'static>>,
-    app: &AppState,
-    popup: &crate::state::EditPopupState,
-    key_style: Style,
-    sep_style: Style,
-) {
-    if matches!(popup.kind, EditPopupKind::KeyChord { capturing: true }) {
-        add_literal_key_entry(
-            spans,
-            "Esc",
-            key_style,
-            &i18n::t(app, "app.modals.config_editor.footer.popup_capture_cancel"),
-            sep_style,
-            false,
-        );
-        return;
-    }
-    let secret = matches!(popup.kind, EditPopupKind::Secret { .. });
-    let keychord = matches!(popup.kind, EditPopupKind::KeyChord { .. });
-    add_literal_key_entry(
-        spans,
-        "Esc",
-        key_style,
-        &i18n::t(app, "app.modals.config_editor.footer.popup_cancel"),
-        sep_style,
-        true,
-    );
-    add_literal_key_entry(
-        spans,
-        "Ctrl+S",
-        key_style,
-        &i18n::t(app, "app.modals.config_editor.footer.popup_save"),
-        sep_style,
-        true,
-    );
-    if secret {
-        add_literal_key_entry(
-            spans,
-            "Ctrl+R",
-            key_style,
-            &i18n::t(app, "app.modals.config_editor.footer.popup_reveal"),
-            sep_style,
-            true,
-        );
-    }
-    if keychord {
-        add_literal_key_entry(
-            spans,
-            "Ctrl+K",
-            key_style,
-            &i18n::t(app, "app.modals.config_editor.footer.popup_record"),
-            sep_style,
-            true,
-        );
-    }
-    add_literal_key_entry(
-        spans,
-        "Ctrl+Z",
-        key_style,
-        &i18n::t(app, "app.modals.config_editor.footer.popup_reset"),
-        sep_style,
-        false,
-    );
-}
-
-/// What: Build the second footer line for config editor mode (editor list vs save overlay hints).
-///
-/// Inputs:
-/// - `app`: Application state (i18n)
-/// - `state`: Integrated editor state (view + optional popup)
-/// - `th`: Theme palette
-/// - `key_style`: Style for bracketed keys
-/// - `sep_style`: Style for separators
-///
-/// Output:
-/// - Span vector for the EDITOR section.
-///
-/// Details:
-/// - Uses literal chord labels for keys handled directly in `events::modals::config_editor` rather than `keybinds.conf`.
-fn build_config_editor_editor_line_spans(
+/// - Literal labels mirror `events::modals::config_editor`; the Pi Scan setup entry uses the
+///   configured `config_editor_pi_scan_setup` chord and appears only on `pi_scan_*` rows.
+fn config_editor_list_items(
     app: &AppState,
     state: &ConfigEditorState,
-    th: &Theme,
-    key_style: Style,
-    sep_style: Style,
-) -> Vec<Span<'static>> {
-    let mut spans = build_section_header(
-        format!(
-            "{}  ",
-            i18n::t(app, "app.modals.config_editor.footer.heading_editor")
+    selected: Option<&EditableSetting>,
+) -> Vec<EditorFooterItem> {
+    let esc_key = if state.query.is_empty() {
+        "app.modals.config_editor.footer.esc_leave"
+    } else {
+        "app.modals.config_editor.footer.esc_clear"
+    };
+    let mut items = vec![
+        EditorFooterItem::Heading(i18n::t(
+            app,
+            "app.modals.config_editor.footer.heading_editor",
+        )),
+        EditorFooterItem::literal(
+            "↑↓ PgUp/PgDn",
+            app,
+            "app.modals.config_editor.footer.move_key",
         ),
-        th.overlay1,
-    );
-    if let Some(popup) = state.popup.as_ref() {
-        append_config_editor_popup_hints(&mut spans, app, popup, key_style, sep_style);
-        return spans;
+        EditorFooterItem::literal("Enter", app, "app.modals.config_editor.footer.edit_key"),
+        EditorFooterItem::literal("Tab ← →", app, "app.modals.config_editor.footer.switch_tab"),
+        EditorFooterItem::literal("Ctrl+B", app, "app.modals.config_editor.footer.star"),
+        EditorFooterItem::literal("Ctrl+R", app, "app.modals.config_editor.footer.recent"),
+        EditorFooterItem::literal("Ctrl+E", app, "app.modals.config_editor.footer.export"),
+        EditorFooterItem::literal("Esc", app, esc_key),
+    ];
+    if selected.is_some_and(|setting| setting.key.starts_with("pi_scan_")) {
+        items.extend(app.keymap.config_editor_pi_scan_setup.first().map(|chord| {
+            EditorFooterItem::chord(chord, app, "app.modals.config_editor.footer.pi_scan_setup")
+        }));
     }
-    match state.view {
-        ConfigEditorView::FileList => {
-            add_literal_key_entry(
-                &mut spans,
-                "↑ / ↓",
-                key_style,
-                &i18n::t(app, "app.modals.config_editor.footer.move_file"),
-                sep_style,
-                true,
-            );
-            add_literal_key_entry(
-                &mut spans,
-                "Enter",
-                key_style,
-                &i18n::t(app, "app.modals.config_editor.footer.open_file"),
-                sep_style,
-                true,
-            );
-            add_literal_key_entry(
-                &mut spans,
-                "Tab / ← / →",
-                key_style,
-                &i18n::t(app, "app.modals.config_editor.footer.switch_panel"),
-                sep_style,
-                true,
-            );
-            add_literal_key_entry(
-                &mut spans,
-                "Ctrl+E",
-                key_style,
-                &i18n::t(app, "app.modals.config_editor.footer.export"),
-                sep_style,
-                false,
-            );
-        }
-        ConfigEditorView::KeyList => {
-            add_literal_key_entry(
-                &mut spans,
-                "↑ / ↓",
-                key_style,
-                &i18n::t(app, "app.modals.config_editor.footer.move_key"),
-                sep_style,
-                true,
-            );
-            add_literal_key_entry(
-                &mut spans,
-                "Enter",
-                key_style,
-                &i18n::t(app, "app.modals.config_editor.footer.edit_key"),
-                sep_style,
-                true,
-            );
-            add_literal_key_entry(
-                &mut spans,
-                "b",
-                key_style,
-                &i18n::t(app, "app.modals.config_editor.footer.bookmark"),
-                sep_style,
-                true,
-            );
-            add_literal_key_entry(
-                &mut spans,
-                "Tab / ← / →",
-                key_style,
-                &i18n::t(app, "app.modals.config_editor.footer.switch_panel"),
-                sep_style,
-                true,
-            );
-            add_literal_key_entry(
-                &mut spans,
-                "Esc",
-                key_style,
-                &i18n::t(app, "app.modals.config_editor.footer.esc_hint"),
-                sep_style,
-                true,
-            );
-            add_literal_key_entry(
-                &mut spans,
-                "Backspace",
-                key_style,
-                &i18n::t(app, "app.modals.config_editor.footer.widen_search"),
-                sep_style,
-                true,
-            );
-            add_literal_key_entry(
-                &mut spans,
-                "Ctrl+E",
-                key_style,
-                &i18n::t(app, "app.modals.config_editor.footer.export"),
-                sep_style,
-                false,
-            );
-        }
-    }
-    spans
+    items
 }
 
-/// What: Build integrated config editor footer hint lines using the same styling patterns as package mode.
+/// What: Footer items while the recent-search dropdown is open.
 ///
 /// Inputs:
-/// - `app`: Application state (keymap + locale)
-/// - `state`: Config editor state (which view and whether a popup is open)
-/// - `th`: Theme for colors
+/// - `app`: Application state (locale).
 ///
 /// Output:
-/// - One or more wrapped footer lines (globals+menus, then editor/popup hints).
+/// - Editor heading plus choose/apply/close entries.
 ///
 /// Details:
-/// - Intended for the bottom band of `ui::modals::config_editor`; keeps key cap styling aligned with
-///   `render_footer` in this module.
+/// - The dropdown consumes every key, so list shortcuts are hidden meanwhile.
+fn config_editor_recent_items(app: &AppState) -> Vec<EditorFooterItem> {
+    vec![
+        EditorFooterItem::Heading(i18n::t(
+            app,
+            "app.modals.config_editor.footer.heading_recent",
+        )),
+        EditorFooterItem::literal("↑↓", app, "app.modals.config_editor.footer.recent_choose"),
+        EditorFooterItem::literal("Enter", app, "app.modals.config_editor.footer.recent_apply"),
+        EditorFooterItem::literal("Esc", app, "app.modals.config_editor.footer.recent_close"),
+    ]
+}
+
+/// What: Footer items for an open edit popup.
+///
+/// Inputs:
+/// - `app`: Application state (locale).
+/// - `popup`: Active popup whose kind selects the extra entries.
+///
+/// Output:
+/// - Popup heading with save/cancel/complete/pick/reset plus kind-specific entries.
+///
+/// Details:
+/// - While a key-chord popup records, only Esc is listed because every other key is captured.
+fn config_editor_popup_items(
+    app: &AppState,
+    popup: &crate::state::EditPopupState,
+) -> Vec<EditorFooterItem> {
+    let heading = |key: &str| EditorFooterItem::Heading(i18n::t(app, key));
+    if matches!(popup.kind, EditPopupKind::KeyChord { capturing: true }) {
+        return vec![
+            heading("app.modals.config_editor.footer.heading_recording"),
+            EditorFooterItem::literal(
+                "Esc",
+                app,
+                "app.modals.config_editor.footer.popup_capture_cancel",
+            ),
+        ];
+    }
+    let complete_key = if popup.is_strict() {
+        "app.modals.config_editor.footer.popup_next_choice"
+    } else {
+        "app.modals.config_editor.footer.popup_complete"
+    };
+    let mut items = vec![
+        heading("app.modals.config_editor.footer.heading_popup"),
+        EditorFooterItem::literal(
+            "Enter/Ctrl+S",
+            app,
+            "app.modals.config_editor.footer.popup_save",
+        ),
+        EditorFooterItem::literal("Esc", app, "app.modals.config_editor.footer.popup_cancel"),
+        EditorFooterItem::literal("Tab", app, complete_key),
+        EditorFooterItem::literal("↑↓", app, "app.modals.config_editor.footer.popup_pick"),
+        EditorFooterItem::literal("Ctrl+Z", app, "app.modals.config_editor.footer.popup_reset"),
+    ];
+    match popup.kind {
+        EditPopupKind::Secret { .. } => items.push(EditorFooterItem::literal(
+            "Ctrl+R",
+            app,
+            "app.modals.config_editor.footer.popup_reveal",
+        )),
+        EditPopupKind::KeyChord { .. } => items.push(EditorFooterItem::literal(
+            "Ctrl+K",
+            app,
+            "app.modals.config_editor.footer.popup_record",
+        )),
+        EditPopupKind::Int { .. } => items.push(EditorFooterItem::literal(
+            "+/-",
+            app,
+            "app.modals.config_editor.footer.popup_adjust",
+        )),
+        EditPopupKind::Bool(_) => items.push(EditorFooterItem::literal(
+            "Space",
+            app,
+            "app.modals.config_editor.footer.popup_toggle",
+        )),
+        EditPopupKind::Enum { .. } | EditPopupKind::Text => {}
+    }
+    items
+}
+
+/// What: Build integrated config editor footer hint lines packed to the footer width.
+///
+/// Inputs:
+/// - `app`: Application state (keymap + locale).
+/// - `state`: Config editor state (popup, recent dropdown, query).
+/// - `selected`: Selected key, passed in so callers reuse their `filtered_keys()` result.
+/// - `th`: Theme for colors.
+/// - `width`: Footer width in columns; `0` keeps each group on one row.
+///
+/// Output:
+/// - Globals/menus rows followed by the rows for the active editor context.
+///
+/// Details:
+/// - Rows are pre-packed so the renderer can draw them without wrapping; the row count is the
+///   footer height used for layout and toast placement.
 pub fn build_config_editor_footer_hint_lines(
     app: &AppState,
     state: &ConfigEditorState,
+    selected: Option<&EditableSetting>,
     th: &Theme,
+    width: u16,
 ) -> Vec<Line<'static>> {
     let key_style = Style::default()
         .fg(th.text)
         .bg(th.surface2)
         .add_modifier(Modifier::BOLD);
-    let sep_style = Style::default().fg(th.overlay2);
-    vec![
-        Line::from(build_config_editor_globals_menus_line(
-            app, th, key_style, sep_style,
-        )),
-        Line::from(build_config_editor_editor_line_spans(
-            app, state, th, key_style, sep_style,
-        )),
-    ]
+    let context_items = state.popup.as_ref().map_or_else(
+        || {
+            if state.recent_dropdown.is_some() {
+                config_editor_recent_items(app)
+            } else {
+                config_editor_list_items(app, state, selected)
+            }
+        },
+        |popup| config_editor_popup_items(app, popup),
+    );
+    let mut lines = pack_editor_footer(&config_editor_global_items(app), width, th, key_style);
+    lines.extend(pack_editor_footer(&context_items, width, th, key_style));
+    lines
 }
 
-/// What: Compute how many rows the integrated config editor should reserve for its footer band.
+/// What: Compute how many rows the integrated config editor reserves for its footer band.
 ///
 /// Inputs:
-/// - `show_keybinds_footer`: Whether contextual hint lines are visible
-/// - `app`: Application state (for hint line assembly)
-/// - `state`: Editor state (status text + view)
+/// - `show_keybinds_footer`: Whether contextual hint lines are visible.
+/// - `app`: Application state (for hint line assembly).
+/// - `state`: Editor state (status text, popup, dropdown).
+/// - `selected`: Selected key (adds the Pi Scan setup entry on `pi_scan_*` rows).
+/// - `width`: Footer width in columns used for packing (`0` = unlimited).
 ///
 /// Output:
 /// - Total footer height in rows (`0` when nothing to show).
 ///
 /// Details:
-/// - Sums hint line count with an optional status row so transient save/bookmark messages stay visible.
+/// - Sums the packed hint rows with an optional status row so transient save/bookmark messages
+///   stay visible; must match what the renderer draws.
 pub fn config_editor_footer_reserved_rows(
     show_keybinds_footer: bool,
     app: &AppState,
     state: &ConfigEditorState,
+    selected: Option<&EditableSetting>,
+    width: u16,
 ) -> u16 {
     let mut rows: u16 = 0;
     if show_keybinds_footer {
         let th = theme();
-        let hint_lines = build_config_editor_footer_hint_lines(app, state, &th);
+        let hint_lines = build_config_editor_footer_hint_lines(app, state, selected, &th, width);
         rows = rows.saturating_add(u16::try_from(hint_lines.len()).unwrap_or(u16::MAX));
     }
     if state
@@ -1369,4 +1338,121 @@ pub fn config_editor_footer_reserved_rows(
         rows = rows.saturating_add(1);
     }
     rows
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// What: Verify global Shift shortcuts appear only in the Globals footer section.
+    ///
+    /// Inputs:
+    /// - Default application state and theme.
+    ///
+    /// Output:
+    /// - Globals contains the Pi Scan and menu chords while Normal Mode does not.
+    ///
+    /// Details:
+    /// - Keeps the footer categories aligned with the shortcuts' application-wide routing.
+    #[test]
+    fn global_shift_shortcuts_appear_in_globals_footer() {
+        let app = AppState::default();
+        let globals = build_globals_section(&app, &theme(), Style::default(), Style::default())
+            .iter()
+            .flat_map(|line| line.spans.iter())
+            .map(|span| span.content.as_ref())
+            .collect::<String>();
+        let normal = build_normal_mode_section(&app, &theme(), Style::default())
+            .iter()
+            .flat_map(|line| line.spans.iter())
+            .map(|span| span.content.as_ref())
+            .collect::<String>();
+
+        for chord in [
+            "Shift+A", "Shift+C", "Shift+E", "Shift+I", "Shift+O", "Shift+P", "Shift+S", "Shift+U",
+        ] {
+            assert!(globals.contains(chord), "Globals omitted {chord}");
+            assert!(
+                !normal.contains(chord),
+                "Normal Mode still contains {chord}"
+            );
+        }
+    }
+
+    /// Config-editor Pi Scan setup footer must display the configured chord label.
+    #[test]
+    fn config_editor_footer_uses_configured_pi_scan_setup_label() {
+        let mut app = AppState::default();
+        app.keymap.config_editor_pi_scan_setup = vec![KeyChord {
+            code: crossterm::event::KeyCode::Char('p'),
+            mods: crossterm::event::KeyModifiers::ALT,
+        }];
+        let mut state = ConfigEditorState {
+            selected_file: crate::theme::ConfigFile::Settings,
+            view: crate::state::ConfigEditorView::KeyList,
+            query: "pi_scan_binary".to_string(),
+            ..ConfigEditorState::default()
+        };
+        state.clamp_key_cursor();
+
+        let text =
+            build_config_editor_footer_hint_lines(&app, &state, state.selected_key(), &theme(), 0)
+                .iter()
+                .flat_map(|line| line.spans.iter())
+                .map(|span| span.content.as_ref())
+                .collect::<String>();
+
+        assert!(text.contains("[Alt+P]"));
+        assert!(!text.contains("[Ctrl+G]"));
+    }
+
+    /// Packed config-editor footer rows never exceed the footer width.
+    #[test]
+    fn config_editor_footer_rows_fit_width_and_match_reserved_rows() {
+        let mut app = AppState::default();
+        let locales = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("config/locales");
+        let translations = i18n::load_locale_file("en-US", &locales).expect("English locale");
+        app.translations.clone_from(&translations);
+        app.translations_fallback = translations;
+        let state = ConfigEditorState::default();
+        for width in [40u16, 80, 120, 200] {
+            let lines = build_config_editor_footer_hint_lines(&app, &state, None, &theme(), width);
+            assert!(
+                lines.iter().all(|line| line.width() <= usize::from(width)),
+                "a footer row overflowed {width} columns"
+            );
+            assert_eq!(
+                config_editor_footer_reserved_rows(true, &app, &state, None, width),
+                u16::try_from(lines.len()).expect("row count")
+            );
+        }
+        assert_eq!(
+            build_config_editor_footer_hint_lines(&app, &state, None, &theme(), 0).len(),
+            2
+        );
+    }
+
+    /// Recording shows only the stop-recording entry in the editor section.
+    #[test]
+    fn config_editor_footer_recording_lists_only_esc() {
+        let app = AppState::default();
+        let setting = crate::theme::find_setting("keybind_help").expect("keybind schema");
+        let mut popup = crate::state::EditPopupState::from_current(setting, "F1");
+        popup.kind = EditPopupKind::KeyChord { capturing: true };
+        let state = ConfigEditorState {
+            popup: Some(popup),
+            ..ConfigEditorState::default()
+        };
+        let lines = build_config_editor_footer_hint_lines(&app, &state, None, &theme(), 0);
+        let editor_row = lines
+            .last()
+            .expect("editor row")
+            .spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect::<String>();
+        assert!(editor_row.contains("[Esc]"));
+        assert!(!editor_row.contains("Ctrl+S"));
+        assert!(!editor_row.contains("Ctrl+K"));
+    }
 }

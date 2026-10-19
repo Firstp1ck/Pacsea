@@ -70,9 +70,13 @@ fn build_env_filter(log_level: &str) -> tracing_subscriber::EnvFilter {
 async fn main() {
     let args = args::Args::parse();
 
-    // Apply --config-dir before any path resolution (logging, settings, caches, lists)
+    // Apply --config-dir before any path resolution (logging, settings, caches, lists).
+    // Only the real binary may touch the user's config tree; library callers such as test
+    // harnesses never reach this point and stay in an isolated per-process directory.
     if let Some(dir) = args.config_dir.as_deref() {
         theme::set_config_dir_override(Some(std::path::PathBuf::from(dir)));
+    } else {
+        theme::set_home_config_enabled(true);
     }
 
     // Determine log level (verbose flag overrides log_level)
@@ -149,6 +153,6 @@ mod tests {
         let t = super::PacseaTimer;
         let _ = t.format_time(&mut writer);
         // Ensure something was written
-        assert!(!buf.is_empty());
+        assert_ne!(buf, "");
     }
 }

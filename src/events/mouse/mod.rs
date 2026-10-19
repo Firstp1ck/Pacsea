@@ -86,11 +86,21 @@ pub fn handle_mouse_event_with_pkgbuild_checks(
         return handled;
     }
 
+    if matches!(app.app_mode, crate::state::types::AppMode::PiScan) {
+        // `pi_scan::handle_mouse` returns "event handled", while this function's return
+        // value means "request application exit"; never forward it directly.
+        let _handled = crate::events::pi_scan::handle_mouse(m, app);
+        return false;
+    }
+
     // While the config editor window is active it behaves like a top
     // level mode (similar to news mode), so the top-row menu buttons
     // and any open dropdowns must still be operable. Route mouse events
     // through the menu handler before the generic modal-blocking gate.
     let in_config_editor = matches!(app.app_mode, crate::state::types::AppMode::ConfigEditor);
+    if in_config_editor && crate::events::modals::handle_config_editor_mouse(m, app) {
+        return false;
+    }
     if in_config_editor
         && is_left_down
         && let Some(handled) = menus::handle_menus_mouse(mx, my, app, details_tx)

@@ -74,7 +74,7 @@ fn detect_urls(text: &str) -> Vec<(usize, usize, String)> {
 /// Details:
 /// - URL ends at whitespace, closing parenthesis, or end of string.
 /// - Removes trailing punctuation that's not part of the URL.
-fn find_url_end(text: &str, start: usize) -> Option<usize> {
+const fn find_url_end(text: &str, start: usize) -> Option<usize> {
     let mut end = start;
     let text_bytes = text.as_bytes();
 

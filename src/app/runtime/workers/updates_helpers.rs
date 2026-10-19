@@ -31,12 +31,17 @@ pub fn check_aur_helper() -> (bool, bool, &'static str) {
 /// Details:
 /// - `authoritative` is `false` when the official repo list came only from a degraded path
 ///   (e.g. stale system `pacman` db) or when the worker panicked.
+pub use crate::pi_scan_orchestrator::UpdateCandidate;
+
+/// Typed result of one bounded official/AUR update-check cycle.
 #[derive(Debug, Clone)]
 pub struct UpdateCheckPayload {
     /// What: Count of packages in `package_names` after deduplication.
     pub count: usize,
     /// What: Sorted package names with available updates (official + AUR combined).
     pub package_names: Vec<String>,
+    /// What: Typed current/candidate version identities from this update cycle.
+    pub candidates: Vec<UpdateCandidate>,
     /// What: When `true`, the official repository list came from a synced or `checkupdates` path.
     pub authoritative: bool,
     /// What: Machine-readable reason codes from non-authoritative or failed sub-steps.
@@ -60,6 +65,7 @@ impl UpdateCheckPayload {
         Self {
             count: 0,
             package_names: Vec::new(),
+            candidates: Vec::new(),
             authoritative: false,
             reason_codes: vec!["worker_panic".to_string()],
             official_strategy: "none",

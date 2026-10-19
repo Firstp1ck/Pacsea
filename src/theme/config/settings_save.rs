@@ -1,5 +1,4 @@
 use std::fs;
-use std::path::Path;
 
 use crate::theme::config::skeletons::SETTINGS_SKELETON_CONTENT;
 use crate::theme::paths::resolve_settings_config_path;
@@ -16,17 +15,8 @@ use crate::theme::paths::resolve_settings_config_path;
 /// - Ensures the target file exists by seeding from the skeleton when missing.
 /// - Replaces existing `sort_mode`/`results_sort` entries while preserving comments.
 pub fn save_sort_mode(sm: crate::state::SortMode) {
-    let path = resolve_settings_config_path().or_else(|| {
-        std::env::var("XDG_CONFIG_HOME")
-            .ok()
-            .map(std::path::PathBuf::from)
-            .or_else(|| {
-                std::env::var("HOME")
-                    .ok()
-                    .map(|h| Path::new(&h).join(".config"))
-            })
-            .map(|base| base.join("pacsea").join("settings.conf"))
-    });
+    let path = resolve_settings_config_path()
+        .or_else(|| crate::theme::paths::default_config_file_path("settings.conf"));
     let Some(p) = path else {
         return;
     };
@@ -97,17 +87,8 @@ pub fn save_sort_mode(sm: crate::state::SortMode) {
 /// - Rewrites existing entries (including aliases) in place; otherwise appends the primary key.
 /// - When an alias is encountered, it is replaced with the primary key to migrate configs forward.
 fn save_boolean_key_with_aliases(primary_key: &str, aliases: &[&str], value: bool) {
-    let path = resolve_settings_config_path().or_else(|| {
-        std::env::var("XDG_CONFIG_HOME")
-            .ok()
-            .map(std::path::PathBuf::from)
-            .or_else(|| {
-                std::env::var("HOME")
-                    .ok()
-                    .map(|h| Path::new(&h).join(".config"))
-            })
-            .map(|base| base.join("pacsea").join("settings.conf"))
-    });
+    let path = resolve_settings_config_path()
+        .or_else(|| crate::theme::paths::default_config_file_path("settings.conf"));
     let Some(p) = path else {
         return;
     };
@@ -200,17 +181,8 @@ fn save_boolean_key(key_norm: &str, value: bool) {
 /// - Bootstraps the configuration file from the skeleton if necessary.
 /// - Updates the existing key in place or appends a new line when absent.
 fn save_string_key(key_norm: &str, value: &str) {
-    let path = resolve_settings_config_path().or_else(|| {
-        std::env::var("XDG_CONFIG_HOME")
-            .ok()
-            .map(std::path::PathBuf::from)
-            .or_else(|| {
-                std::env::var("HOME")
-                    .ok()
-                    .map(|h| Path::new(&h).join(".config"))
-            })
-            .map(|base| base.join("pacsea").join("settings.conf"))
-    });
+    let path = resolve_settings_config_path()
+        .or_else(|| crate::theme::paths::default_config_file_path("settings.conf"));
     let Some(p) = path else {
         return;
     };

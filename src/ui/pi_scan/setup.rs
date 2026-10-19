@@ -1,0 +1,784 @@
+//! Setup, disclosure, and consent page.
+
+use crate::state::pi_scan_ui::PiScanSetupRow;
+use crate::state::{AppState, PiScanAvailability, PiScanReadiness};
+use ratatui::{
+    Frame,
+    layout::Rect,
+    style::Modifier,
+    text::{Line, Span},
+};
+
+use super::SemanticTone;
+
+/// Render provider/privacy/cost/coverage disclosure and independent consents.
+pub(super) fn render(f: &mut Frame, app: &mut AppState, area: Rect) {
+    if app.pi_scan.wizard.is_some() {
+        super::wizard::render(f, app, area);
+        return;
+    }
+    render_advanced(f, app, area);
+}
+
+/// Preserve advanced setup controls while presenting them in balanced sections.
+fn render_advanced(f: &mut Frame, app: &mut AppState, area: Rect) {
+    let mut lines = Vec::new();
+    for (index, row) in PiScanSetupRow::ALL.iter().enumerate() {
+        let key = match row {
+            PiScanSetupRow::Wizard => "app.pi_scan.setup.rerun_wizard",
+            PiScanSetupRow::Verify => "app.pi_scan.setup.verify_action",
+            PiScanSetupRow::Background => "app.pi_scan.background_toggle.label",
+            PiScanSetupRow::Disclosure => "app.pi_scan.setup.disclosure_consent",
+            PiScanSetupRow::Observation => "app.pi_scan.setup.observation_consent",
+            PiScanSetupRow::Paid => "app.pi_scan.setup.paid_consent",
+            PiScanSetupRow::BackgroundPaid => "app.pi_scan.setup.background_paid_consent",
+            PiScanSetupRow::Fallback => "app.pi_scan.setup.fallback_consent",
+            PiScanSetupRow::Warning => "app.pi_scan.setup.warning_consent",
+        };
+        let marker = if app.pi_scan.selected_setup == index {
+            "▶"
+        } else {
+            " "
+        };
+        let pending =
+            app.pi_scan.pending_setup_consent == Some(index) && !app.pi_scan.setup_facts_verified;
+        let value = if matches!(row, PiScanSetupRow::Wizard | PiScanSetupRow::Verify) {
+            String::new()
+        } else if pending {
+            "[…] ".to_string()
+        } else {
+            let checked = match row {
+                PiScanSetupRow::Background => app.pi_scan.settings.background_enabled,
+                PiScanSetupRow::Disclosure => app.pi_scan.disclosure_confirmed,
+                PiScanSetupRow::Observation => app.pi_scan.runtime.consent.background_observation,
+                PiScanSetupRow::Paid => app.pi_scan.runtime.consent.paid_execution,
+                PiScanSetupRow::BackgroundPaid => app.pi_scan.background_paid_execution_confirmed,
+                PiScanSetupRow::Fallback => app.pi_scan.fallback_confirmed,
+                PiScanSetupRow::Warning => app.pi_scan.readiness_warning_confirmed,
+                PiScanSetupRow::Wizard | PiScanSetupRow::Verify => false,
+            };
+            if checked {
+                "[x] ".to_string()
+            } else {
+                "[ ] ".to_string()
+            }
+        };
+        let style = super::semantic_style(if pending {
+            SemanticTone::Warning
+        } else if index == app.pi_scan.selected_setup {
+            SemanticTone::Active
+        } else {
+            SemanticTone::Normal
+        });
+        let style = if index == app.pi_scan.selected_setup {
+            style.add_modifier(Modifier::BOLD)
+        } else {
+            style
+        };
+        lines.push(super::targets::truncate_line(
+            Line::from(Span::styled(
+                format!("{marker} {value}{}", crate::i18n::t(app, key)),
+                style,
+            )),
+            usize::from(area.width.saturating_sub(2)),
+        ));
+    }
+    push_runtime_lines(&mut lines, app);
+    push_route_cost_lines(&mut lines, app);
+    push_safety_lines(&mut lines, app);
+    push_permission_lines(&mut lines, app);
+    app.pi_scan.setup_visible_rows = usize::from(area.height.saturating_sub(2)).max(1);
+    let scroll = super::clamp_line_scroll(app.pi_scan.view_scroll.setup, &lines, area);
+    app.pi_scan.view_scroll.setup = scroll;
+    app.pi_scan.setup_row_rects = std::array::from_fn(|index| {
+        let row = area
+            .y
+            .saturating_add(1)
+            .saturating_add(u16::try_from(index).unwrap_or(u16::MAX))
+            .saturating_sub(scroll);
+        (index >= usize::from(scroll) && row < area.y.saturating_add(area.height.saturating_sub(1)))
+            .then_some((
+                area.x.saturating_add(1),
+                row,
+                area.width.saturating_sub(2),
+                1,
+            ))
+    });
+    super::body_scrolled(f, app, area, "app.pi_scan.tabs.setup", lines, scroll);
+}
+
+/// Append runtime availability, readiness, and bounded-configuration rows.
+fn push_runtime_lines(lines: &mut Vec<Line<'static>>, app: &AppState) {
+    let pi = &app.pi_scan;
+    let setting = &pi.settings;
+    let (availability, availability_tone) = availability_state(app, &pi.availability);
+    let (readiness, readiness_tone) = readiness_state(app, &pi.readiness);
+    let issues = setting.validation_issues();
+    let (configuration, configuration_tone) = if issues.is_empty() {
+        (
+            crate::i18n::t(app, "app.pi_scan.setup.config_within_bounds"),
+            SemanticTone::Success,
+        )
+    } else {
+        (
+            issues
+                .iter()
+                .map(|issue| localize_setting_issue(app, issue))
+                .collect::<Vec<_>>()
+                .join("; "),
+            SemanticTone::Error,
+        )
+    };
+    let feature = format!(
+        "{} / {}",
+        enabled_disabled(app, setting.enabled),
+        enabled_disabled(app, setting.background_enabled)
+    );
+    let feature_tone = if setting.enabled && setting.background_enabled {
+        SemanticTone::Success
+    } else {
+        SemanticTone::Warning
+    };
+
+    push_section_gap(lines, app, "app.pi_scan.setup.sections.runtime");
+    lines.push(super::labeled_line(
+        crate::i18n::t(app, "app.pi_scan.setup.availability"),
+        availability,
+        availability_tone,
+    ));
+    lines.push(super::labeled_line(
+        format!(
+            "[B] {}",
+            crate::i18n::t(app, "app.pi_scan.background_toggle.label")
+        ),
+        crate::i18n::t(
+            app,
+            if setting.background_enabled {
+                "app.pi_scan.background_toggle.on"
+            } else {
+                "app.pi_scan.background_toggle.off"
+            },
+        ),
+        if setting.background_enabled {
+            SemanticTone::Success
+        } else {
+            SemanticTone::Warning
+        },
+    ));
+    lines.push(super::labeled_line(
+        crate::i18n::t(app, "app.pi_scan.setup.feature_background"),
+        feature,
+        feature_tone,
+    ));
+    lines.push(super::labeled_line(
+        crate::i18n::t(app, "app.pi_scan.setup.readiness"),
+        readiness,
+        readiness_tone,
+    ));
+    lines.push(super::labeled_line(
+        crate::i18n::t(app, "app.pi_scan.setup.config"),
+        configuration,
+        configuration_tone,
+    ));
+    lines.push(effective_compiled_line(app, setting));
+}
+
+/// Append provider route, verified identity, and worst-case cost rows.
+fn push_route_cost_lines(lines: &mut Vec<Line<'static>>, app: &AppState) {
+    let pi = &app.pi_scan;
+    let setting = &pi.settings;
+    push_section_gap(lines, app, "app.pi_scan.setup.sections.route_cost");
+    lines.push(super::labeled_line(
+        crate::i18n::t(app, "app.pi_scan.setup.provider_model"),
+        format!(
+            "{} / {}",
+            display_or_unset(&setting.provider),
+            display_or_unset(&setting.model)
+        ),
+        configured_tone(&setting.provider, &setting.model),
+    ));
+    lines.push(super::labeled_line(
+        crate::i18n::t(app, "app.pi_scan.setup.fallback"),
+        display_or_unset(&setting.fallback_models),
+        SemanticTone::Muted,
+    ));
+    lines.push(super::labeled_line(
+        format!(
+            "{} / {}",
+            crate::i18n::t(app, "app.pi_scan.setup.thinking"),
+            crate::i18n::t(app, "app.pi_scan.setup.tool_contract")
+        ),
+        format!(
+            "{} / {}",
+            setting.thinking,
+            crate::pi_agent::TOOL_CONTRACT_VERSION
+        ),
+        SemanticTone::Normal,
+    ));
+    lines.push(super::labeled_line(
+        format!(
+            "[v] {}",
+            crate::i18n::t(app, "app.pi_scan.setup.verified_pi")
+        ),
+        display_or_unset(&pi.verified_pi_version),
+        present_tone(&pi.verified_pi_version),
+    ));
+    lines.push(super::labeled_line(
+        crate::i18n::t(app, "app.pi_scan.setup.verified_route"),
+        format!(
+            "{} / {}",
+            display_or_unset(&pi.verified_provider),
+            display_or_unset(&pi.verified_model)
+        ),
+        configured_tone(&pi.verified_provider, &pi.verified_model),
+    ));
+    lines.push(super::labeled_line(
+        crate::i18n::t(app, "app.pi_scan.wizard.route.advertised"),
+        pi.verified_available_models.len().to_string(),
+        if pi.verified_available_models.is_empty() {
+            SemanticTone::Warning
+        } else {
+            SemanticTone::Success
+        },
+    ));
+    lines.push(super::labeled_line(
+        crate::i18n::t(app, "app.pi_scan.wizard.pricing.worst_case"),
+        format!(
+            "{} {} · {}",
+            super::format_token_count(pi.verified_reservation.tokens),
+            crate::i18n::t(app, "app.pi_scan.wizard.pricing.tokens"),
+            super::format_microusd(pi.verified_reservation.cost_microusd)
+        ),
+        SemanticTone::Normal,
+    ));
+    lines.push(super::labeled_line(
+        crate::i18n::t(app, "app.pi_scan.wizard.pricing.provenance"),
+        if pi.verified_pricing_summary.is_empty() {
+            "—".to_string()
+        } else {
+            crate::i18n::t(app, "app.pi_scan.wizard.pricing.provenance_value")
+        },
+        if pi.verified_pricing_summary.is_empty() {
+            SemanticTone::Warning
+        } else {
+            SemanticTone::Success
+        },
+    ));
+    lines.push(super::labeled_line(
+        crate::i18n::t(app, "app.pi_scan.setup.pricing_binding"),
+        display_or_unset(&pi.verified_pricing_binding),
+        present_tone(&pi.verified_pricing_binding),
+    ));
+}
+
+/// Append privacy, cost, and advisory coverage disclosures.
+fn push_safety_lines(lines: &mut Vec<Line<'static>>, app: &AppState) {
+    push_section_gap(lines, app, "app.pi_scan.setup.sections.safety");
+    lines.push(Line::from(Span::styled(
+        format!(
+            "  ⚠ {}",
+            crate::i18n::t(app, "app.pi_scan.setup.privacy_cost")
+        ),
+        super::semantic_style(SemanticTone::Warning),
+    )));
+    lines.push(Line::from(Span::styled(
+        format!("  ⚠ {}", crate::i18n::t(app, "app.pi_scan.setup.coverage")),
+        super::semantic_style(SemanticTone::Warning),
+    )));
+}
+
+/// Append all independent consent controls with explicit confirmation wording.
+fn push_permission_lines(lines: &mut Vec<Line<'static>>, app: &AppState) {
+    let pi = &app.pi_scan;
+    push_section_gap(lines, app, "app.pi_scan.setup.sections.permissions");
+    let permissions = [
+        (
+            "",
+            "app.pi_scan.setup.disclosure_consent",
+            pi.disclosure_confirmed,
+        ),
+        (
+            "",
+            "app.pi_scan.setup.observation_consent",
+            pi.runtime.consent.background_observation,
+        ),
+        (
+            "",
+            "app.pi_scan.setup.paid_consent",
+            pi.runtime.consent.paid_execution,
+        ),
+        (
+            "",
+            "app.pi_scan.setup.background_paid_consent",
+            pi.background_paid_execution_confirmed,
+        ),
+        (
+            "",
+            "app.pi_scan.setup.fallback_consent",
+            pi.fallback_confirmed,
+        ),
+        (
+            "",
+            "app.pi_scan.setup.warning_consent",
+            pi.readiness_warning_confirmed,
+        ),
+    ];
+    for (key, label_key, confirmed) in permissions {
+        let (value, tone) = confirmation_state(app, confirmed);
+        lines.push(super::labeled_line(
+            format!("{key}{}", crate::i18n::t(app, label_key)),
+            value,
+            tone,
+        ));
+    }
+}
+
+/// Insert one deliberate section gap followed by a shared heading.
+fn push_section_gap(lines: &mut Vec<Line<'static>>, app: &AppState, key: &str) {
+    lines.push(Line::from(""));
+    lines.push(super::section_heading(app, key));
+}
+
+/// Render effective settings beside immutable timeout maxima and truthful budget values.
+fn effective_compiled_line(
+    app: &AppState,
+    setting: &crate::theme::PiScanSettings,
+) -> Line<'static> {
+    let starts = budget_count_value(app, u64::from(setting.background_starts_per_hour));
+    let tokens = budget_count_value(app, setting.background_token_cap_24h);
+    let cost = budget_decimal_value(app, &setting.background_cost_cap_24h);
+    super::labeled_line(
+        crate::i18n::t(app, "app.pi_scan.setup.effective_compiled"),
+        crate::i18n::t_fmt(
+            app,
+            "app.pi_scan.setup.effective_values",
+            &[
+                &setting.head_query_timeout_seconds,
+                &setting.observation_deadline_seconds,
+                &setting.model_attempt_timeout_seconds,
+                &setting.logical_timeout_seconds,
+                &starts,
+                &tokens,
+                &cost,
+            ],
+        ),
+        SemanticTone::Muted,
+    )
+}
+
+/// What: Format one integer budget setting with numeric-zero Unlimited semantics.
+///
+/// Inputs:
+/// - `app`: Localization projection.
+/// - `value`: Starts or token budget.
+///
+/// Output:
+/// - Localized Unlimited or the finite decimal integer.
+///
+/// Details:
+/// - This is display-only and does not alter the persisted numeric representation.
+pub(super) fn budget_count_value(app: &AppState, value: u64) -> String {
+    if value == 0 {
+        crate::i18n::t(app, "app.pi_scan.common.unlimited")
+    } else {
+        value.to_string()
+    }
+}
+
+/// What: Format one decimal-dollar budget setting with numeric-zero Unlimited semantics.
+///
+/// Inputs:
+/// - `app`: Localization projection.
+/// - `value`: Parsed settings text retained exactly for finite display.
+///
+/// Output:
+/// - Localized Unlimited for any valid decimal zero, otherwise the original text.
+///
+/// Details:
+/// - Invalid text remains visible for the adjacent validation error instead of being relabeled.
+pub(super) fn budget_decimal_value(app: &AppState, value: &str) -> String {
+    if decimal_is_zero(value) {
+        crate::i18n::t(app, "app.pi_scan.common.unlimited")
+    } else {
+        value.to_string()
+    }
+}
+
+/// Return whether settings text is a syntactically valid decimal containing only zero digits.
+fn decimal_is_zero(value: &str) -> bool {
+    let trimmed = value.trim();
+    let mut separator_seen = false;
+    let mut digit_seen = false;
+    for character in trimmed.chars() {
+        if character == '.' && !separator_seen {
+            separator_seen = true;
+        } else if character == '0' {
+            digit_seen = true;
+        } else {
+            return false;
+        }
+    }
+    digit_seen
+}
+
+/// Localize one known settings validation issue while preserving unknown text verbatim.
+fn localize_setting_issue(app: &AppState, issue: &str) -> String {
+    let (key, arguments): (&str, &[&dyn std::fmt::Display]) = match issue {
+        "pi_scan_binary must name the Pi executable" => (
+            "app.pi_scan.setup.validation_issue.executable",
+            &[&"pi_scan_binary"],
+        ),
+        "pi_scan_observation_interval_seconds must be at least 900" => (
+            "app.pi_scan.setup.validation_issue.at_least",
+            &[&"pi_scan_observation_interval_seconds", &900],
+        ),
+        "pi_scan_head_query_timeout_seconds must be between 1 and 15" => (
+            "app.pi_scan.setup.validation_issue.between",
+            &[&"pi_scan_head_query_timeout_seconds", &15],
+        ),
+        "pi_scan_observation_deadline_seconds must be between 1 and 90" => (
+            "app.pi_scan.setup.validation_issue.between",
+            &[&"pi_scan_observation_deadline_seconds", &90],
+        ),
+        "pi_scan_model_attempt_timeout_seconds must be between 1 and 300" => (
+            "app.pi_scan.setup.validation_issue.between",
+            &[&"pi_scan_model_attempt_timeout_seconds", &300],
+        ),
+        "pi_scan_logical_timeout_seconds must be between 1 and 720" => (
+            "app.pi_scan.setup.validation_issue.between",
+            &[&"pi_scan_logical_timeout_seconds", &720],
+        ),
+        "pi_scan_result_retention_days must be at least 1" => (
+            "app.pi_scan.setup.validation_issue.at_least",
+            &[&"pi_scan_result_retention_days", &1],
+        ),
+        "pi_scan_background_token_cap_24h must be a non-negative integer no greater than 18446744073709551615" => {
+            (
+                "app.pi_scan.setup.validation_issue.native_integer",
+                &[&"pi_scan_background_token_cap_24h", &u64::MAX],
+            )
+        }
+        "pi_scan_background_cost_cap_24h must be a non-negative decimal with at most six fractional digits" => {
+            (
+                "app.pi_scan.setup.validation_issue.exact_decimal",
+                &[&"pi_scan_background_cost_cap_24h"],
+            )
+        }
+        "pi_scan_background_cost_cap_24h exceeds the maximum exact micro-USD value" => (
+            "app.pi_scan.setup.validation_issue.exact_cost_maximum",
+            &[&"pi_scan_background_cost_cap_24h"],
+        ),
+        "pi_scan_https_proxy must be credential-free HTTPS or empty" => (
+            "app.pi_scan.setup.validation_issue.https_proxy",
+            &[&"pi_scan_https_proxy"],
+        ),
+        _ => return issue.to_string(),
+    };
+    crate::i18n::t_fmt(app, key, arguments)
+}
+
+/// Return localized availability wording and its accessible semantic tone.
+fn availability_state(app: &AppState, availability: &PiScanAvailability) -> (String, SemanticTone) {
+    match availability {
+        PiScanAvailability::MissingBinary => (
+            crate::i18n::t(app, "app.pi_scan.setup.missing_pi"),
+            SemanticTone::Error,
+        ),
+        PiScanAvailability::RuntimeDisconnected => (
+            crate::i18n::t(app, "app.pi_scan.setup.integration_pending"),
+            SemanticTone::Error,
+        ),
+        PiScanAvailability::Disabled => (
+            crate::i18n::t(app, "app.pi_scan.setup.enable_hint"),
+            SemanticTone::Warning,
+        ),
+        PiScanAvailability::Unsupported => (
+            crate::i18n::t(app, "app.pi_scan.setup.unsupported"),
+            SemanticTone::Error,
+        ),
+        PiScanAvailability::RuntimeConnected => (
+            crate::i18n::t(app, "app.pi_scan.setup.connected"),
+            SemanticTone::Success,
+        ),
+    }
+}
+
+/// Return localized readiness wording and its accessible semantic tone.
+fn readiness_state(app: &AppState, readiness: &PiScanReadiness) -> (String, SemanticTone) {
+    match readiness {
+        PiScanReadiness::Unchecked => (
+            crate::i18n::t(app, "app.pi_scan.setup.readiness_unchecked"),
+            SemanticTone::Warning,
+        ),
+        PiScanReadiness::Warning(warning) => (
+            format!(
+                "{}: {warning}",
+                crate::i18n::t(app, "app.pi_scan.setup.readiness_warning")
+            ),
+            SemanticTone::Warning,
+        ),
+        PiScanReadiness::Confirmed => (
+            crate::i18n::t(app, "app.pi_scan.setup.readiness_confirmed"),
+            SemanticTone::Success,
+        ),
+    }
+}
+
+/// Display an unset provider/model field without implying auto-selection.
+fn display_or_unset(value: &str) -> &str {
+    if value.trim().is_empty() {
+        "—"
+    } else {
+        value
+    }
+}
+
+/// Select success only when both route components are configured.
+fn configured_tone(first: &str, second: &str) -> SemanticTone {
+    if first.trim().is_empty() || second.trim().is_empty() {
+        SemanticTone::Warning
+    } else {
+        SemanticTone::Success
+    }
+}
+
+/// Select success only when one verified value is present.
+fn present_tone(value: &str) -> SemanticTone {
+    if value.trim().is_empty() {
+        SemanticTone::Warning
+    } else {
+        SemanticTone::Success
+    }
+}
+
+/// Render a localized enabled/disabled state.
+fn enabled_disabled(app: &AppState, value: bool) -> String {
+    crate::i18n::t(
+        app,
+        if value {
+            "app.pi_scan.common.enabled"
+        } else {
+            "app.pi_scan.common.disabled"
+        },
+    )
+}
+
+/// Render a localized confirmation state with its semantic tone.
+fn confirmation_state(app: &AppState, value: bool) -> (String, SemanticTone) {
+    (
+        crate::i18n::t(
+            app,
+            if value {
+                "app.pi_scan.common.confirmed"
+            } else {
+                "app.pi_scan.common.not_confirmed"
+            },
+        ),
+        if value {
+            SemanticTone::Success
+        } else {
+            SemanticTone::Warning
+        },
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{localize_setting_issue, render};
+    use crate::state::AppState;
+    use ratatui::{Terminal, backend::TestBackend};
+
+    /// Advanced Setup exposes all balanced sections at a normal terminal size.
+    #[test]
+    fn advanced_setup_renders_balanced_sections() {
+        let backend = TestBackend::new(100, 40);
+        let mut terminal = Terminal::new(backend).expect("test terminal");
+        let mut app = AppState::default();
+        load_english(&mut app);
+        terminal
+            .draw(|frame| render(frame, &mut app, frame.area()))
+            .expect("advanced setup render");
+        let rendered = terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .map(ratatui::buffer::Cell::symbol)
+            .collect::<String>();
+        for heading in ["Connection", "AI model and cost", "Safety", "Permissions"] {
+            assert!(
+                rendered.contains(heading),
+                "missing {heading:?}: {rendered:?}"
+            );
+        }
+    }
+
+    /// Advanced Setup exposes the direct Shift+B background scan control and current preference.
+    #[test]
+    fn advanced_setup_renders_background_toggle_control() {
+        let backend = TestBackend::new(100, 40);
+        let mut terminal = Terminal::new(backend).expect("test terminal");
+        let mut app = AppState::default();
+        load_english(&mut app);
+        terminal
+            .draw(|frame| render(frame, &mut app, frame.area()))
+            .expect("advanced setup render");
+        let rendered = terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .map(ratatui::buffer::Cell::symbol)
+            .collect::<String>();
+        assert!(rendered.contains("[B] Background scans"), "{rendered:?}");
+        assert!(rendered.contains("Off"), "{rendered:?}");
+    }
+
+    /// Advanced Setup renders each numeric-zero budget as Unlimited without legacy maxima.
+    #[test]
+    fn advanced_setup_renders_zero_budgets_as_unlimited() {
+        let backend = TestBackend::new(120, 40);
+        let mut terminal = Terminal::new(backend).expect("test terminal");
+        let mut app = AppState::default();
+        load_english(&mut app);
+        app.pi_scan.settings.background_starts_per_hour = 0;
+        app.pi_scan.settings.background_token_cap_24h = 0;
+        app.pi_scan.settings.background_cost_cap_24h = "0.00".to_string();
+        terminal
+            .draw(|frame| render(frame, &mut app, frame.area()))
+            .expect("advanced setup render");
+        let rendered = terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .map(ratatui::buffer::Cell::symbol)
+            .collect::<String>();
+        assert!(rendered.matches("Unlimited").count() >= 3, "{rendered:?}");
+        assert!(!rendered.contains("starts 0/5"), "{rendered:?}");
+        assert!(!rendered.contains("tokens 0/500000"), "{rendered:?}");
+    }
+
+    /// German Advanced Setup localizes finite settings validation issues.
+    #[test]
+    fn advanced_setup_localizes_german_validation_issue() {
+        let backend = TestBackend::new(120, 40);
+        let mut terminal = Terminal::new(backend).expect("test terminal");
+        let mut app = AppState::default();
+        load_locale(&mut app, "de-DE");
+        app.pi_scan.settings.head_query_timeout_seconds = 16;
+        terminal
+            .draw(|frame| render(frame, &mut app, frame.area()))
+            .expect("German advanced setup render");
+        let rendered = terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .map(ratatui::buffer::Cell::symbol)
+            .collect::<String>();
+        assert!(
+            rendered.contains("pi_scan_head_query_timeout_seconds muss zwischen 1 und 15 liegen"),
+            "missing localized validation issue: {rendered:?}"
+        );
+        assert!(!rendered.contains("must be between"));
+    }
+
+    /// Current token and exact-cost validation producers localize in every shipped Setup locale.
+    #[test]
+    fn current_budget_validation_issues_localize_in_every_setup_locale() {
+        let token_issue = "pi_scan_background_token_cap_24h must be a non-negative integer no greater than 18446744073709551615";
+        let token = crate::theme::PiScanSettings {
+            background_token_cap_24h_parse_error: Some(token_issue.to_string()),
+            ..crate::theme::PiScanSettings::default()
+        };
+        let mut issues = token.validation_issues();
+        for value in ["malformed", "1.1234567", "18446744073709.551616"] {
+            let cost = crate::theme::PiScanSettings {
+                background_cost_cap_24h: value.to_string(),
+                ..crate::theme::PiScanSettings::default()
+            };
+            issues.extend(
+                cost.validation_issues()
+                    .into_iter()
+                    .filter(|issue| issue.starts_with("pi_scan_background_cost_cap_24h")),
+            );
+        }
+        assert_eq!(issues.len(), 4);
+
+        for (locale, expected_fragments) in [
+            (
+                "en-US",
+                [
+                    "must be a non-negative integer no greater than",
+                    "must be a non-negative decimal with at most six fractional digits",
+                    "exceeds the maximum exact micro-USD value",
+                ],
+            ),
+            (
+                "de-DE",
+                [
+                    "muss eine nichtnegative ganze Zahl sein, die nicht größer ist als",
+                    "muss eine nichtnegative Dezimalzahl mit höchstens sechs Nachkommastellen sein",
+                    "überschreitet den maximalen exakten Mikro-USD-Wert",
+                ],
+            ),
+            (
+                "hu-HU",
+                [
+                    "nemnegatív egész szám kell legyen, legfeljebb",
+                    "nemnegatív tizedes szám kell legyen, legfeljebb hat tizedesjeggyel",
+                    "meghaladja a pontos mikro-USD érték maximumát",
+                ],
+            ),
+        ] {
+            let mut app = AppState::default();
+            load_locale(&mut app, locale);
+            let localized = issues
+                .iter()
+                .map(|issue| localize_setting_issue(&app, issue))
+                .collect::<Vec<_>>();
+            for fragment in expected_fragments {
+                assert!(
+                    localized.iter().any(|issue| issue.contains(fragment)),
+                    "{locale} did not localize {fragment:?}: {localized:?}"
+                );
+            }
+        }
+    }
+
+    /// Unknown settings validation text remains visible verbatim.
+    #[test]
+    fn unknown_validation_issue_remains_verbatim() {
+        let mut app = AppState::default();
+        load_locale(&mut app, "de-DE");
+        let issue = "future validation issue with runtime detail";
+        assert_eq!(localize_setting_issue(&app, issue), issue);
+    }
+
+    /// Advanced Setup remains renderable at the compact supported dimensions.
+    #[test]
+    fn advanced_setup_renders_at_narrow_dimensions() {
+        let backend = TestBackend::new(20, 10);
+        let mut terminal = Terminal::new(backend).expect("test terminal");
+        let mut app = AppState::default();
+        load_english(&mut app);
+        terminal
+            .draw(|frame| render(frame, &mut app, frame.area()))
+            .expect("narrow advanced setup render");
+    }
+
+    /// Load one shipped locale for human-facing render assertions.
+    fn load_locale(app: &mut AppState, locale: &str) {
+        let locales = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("config/locales");
+        app.translations =
+            crate::i18n::load_locale_file(locale, &locales).expect("requested locale");
+        app.translations_fallback =
+            crate::i18n::load_locale_file("en-US", &locales).expect("English fallback locale");
+    }
+
+    /// Load the shipped English locale for human-facing render assertions.
+    fn load_english(app: &mut AppState) {
+        load_locale(app, "en-US");
+    }
+}

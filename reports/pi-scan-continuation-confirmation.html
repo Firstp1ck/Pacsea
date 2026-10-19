@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>Pi Scan continuation confirmation report</title>
+  <style>
+    :root{color-scheme:dark;--bg:#0b1220;--panel:#121c2d;--panel2:#18253a;--text:#e8eef8;--muted:#a9b7cb;--line:#2b3b55;--green:#50d890;--yellow:#f7c65c;--red:#ff7373;--blue:#65b5ff;--code:#07101c;--radius:16px;--shadow:0 14px 36px rgb(0 0 0/.22)}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(circle at 15% 0%,#142848 0,transparent 35rem),var(--bg);color:var(--text);font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}a{color:var(--blue)}a:focus-visible{outline:3px solid var(--blue);outline-offset:3px}.skip{position:fixed;top:8px;left:8px;transform:translateY(-160%);background:var(--blue);color:#06111f;padding:8px 12px;border-radius:8px;font-weight:800}.skip:focus{transform:none}main{width:min(1120px,calc(100% - 32px));margin:36px auto 64px}header,section{background:color-mix(in srgb,var(--panel) 94%,transparent);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}header{padding:30px;margin-bottom:20px}section{padding:24px;margin:18px 0}h1,h2,h3{line-height:1.25;margin-top:0}h1{font-size:clamp(1.9rem,5vw,3rem);margin-bottom:8px}h2{font-size:1.45rem;border-bottom:1px solid var(--line);padding-bottom:10px}.lead{font-size:1.1rem;max-width:80ch}.muted{color:var(--muted)}.badge{display:inline-block;padding:3px 9px;border-radius:999px;font-size:.78rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;margin-bottom:8px}.good{color:var(--green)}.warn{color:var(--yellow)}.info{color:var(--blue)}.badge.good{background:rgb(80 216 144/.14);border:1px solid rgb(80 216 144/.38)}.badge.info{background:rgb(101 181 255/.14);border:1px solid rgb(101 181 255/.38)}.callout{border-left:5px solid var(--green);background:rgb(80 216 144/.08);border-radius:8px;padding:14px 16px;margin:14px 0}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}.card,.step{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:16px}.card strong{display:block;font-size:1.25rem}.table-wrap{overflow-x:auto;border-radius:10px}table{width:100%;border-collapse:collapse;min-width:680px}th,td{text-align:left;vertical-align:top;padding:11px 9px;border-bottom:1px solid var(--line)}th{color:var(--muted);font-size:.86rem;text-transform:uppercase;letter-spacing:.04em}code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--code);padding:.12em .38em;border-radius:5px}figure{margin:16px 0;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:14px}figcaption{color:var(--muted);margin-top:8px}.steps{display:grid;gap:10px}.status-list li{margin:.45rem 0}@media(max-width:620px){main{width:min(100% - 18px,1120px);margin:14px auto 34px}header,section{padding:17px}.table-wrap{margin-inline:-8px}figure{padding:8px}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}@media print{body{background:white;color:#111}main{width:100%;margin:0}header,section,figure,.card,.step{background:white;color:#111;box-shadow:none;border-color:#bbb;break-inside:avoid}.muted,figcaption,th{color:#444}a{color:#0645ad}.badge{border:1px solid #555}}
+  </style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to report</a>
+<main id="main">
+  <header>
+    <span class="badge good">Implemented and verified</span>
+    <h1>Pi Scan continuation confirmation</h1>
+    <p class="lead">The Details page now has a visible <code>[c] Review &amp; continue</code> action. Keyboard and mouse open the same confirmation popup before Pacsea records any required acknowledgement or starts the existing continuation recheck.</p>
+    <div class="callout"><strong>Result:</strong> continuation is discoverable, exact-result bound, cancellable, and explicit about what happens next. Confirmation does not install anything or bypass normal preflight.</div>
+    <p class="muted">Canonical plan: <a href="../plans/archive/pi-scan-continuation-confirmation.txt">plans/archive/pi-scan-continuation-confirmation.txt</a></p>
+  </header>
+
+  <section aria-labelledby="overview-title">
+    <h2 id="overview-title">Overview</h2>
+    <div class="table-wrap">
+      <table data-overview>
+        <thead><tr><th>Area</th><th>Delivered behavior</th><th>Safety condition</th><th>Evidence</th></tr></thead>
+        <tbody>
+          <tr><td>Details action</td><td>Fixed <code>[c] Review &amp; continue</code> row plus clickable hit rectangle</td><td>Keyboard and mouse use one opening helper</td><td>WS4 narrow/action test</td></tr>
+          <tr><td>Confirmation</td><td>Package, pending acknowledgements, next steps, and controls</td><td>Payload stores immutable result binding and package base</td><td>Popup rendering and modal tests</td></tr>
+          <tr><td>Continuation</td><td>Rechecks AUR HEAD and mutable-source identities</td><td>Any identity change stops continuation</td><td>Existing runtime continuation tests</td></tr>
+          <tr><td>Package flow</td><td>Matching result returns to normal install/update list</td><td>Normal preflight and user confirmation remain authoritative</td><td>Existing event-loop boundary</td></tr>
+          <tr><td>Validation</td><td>Formatting, lint, compile, full serial suite, and diff checks passed</td><td>No live install or model call was used for verification</td><td>Final parent validation</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section aria-labelledby="use-title">
+    <h2 id="use-title">How to use it</h2>
+    <div class="steps">
+      <div class="step"><h3>1. Open the package result</h3><p>Select the package in Results and open Details.</p></div>
+      <div class="step"><h3>2. Review and continue</h3><p>Press <code>c</code> or click <code>[c] Review &amp; continue</code>. Existing <code>a</code> and <code>s</code> shortcuts still record finding and stale-identity acknowledgements directly.</p></div>
+      <div class="step"><h3>3. Read the popup</h3><p>The popup states which acknowledgements are still pending and lists the identity recheck, stop-on-change behavior, return to the package list, and normal preflight.</p></div>
+      <div class="step"><h3>4. Confirm or cancel</h3><p>Use <code>Enter</code> or <code>y</code> to confirm. Use <code>Esc</code>, <code>q</code>, or <code>n</code> to cancel without changing acknowledgement state. Use <code>j/k</code>, arrows, or <code>PgUp/PgDn</code> to scroll narrow popups.</p></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="flow-title">
+    <h2 id="flow-title">Continuation flow</h2>
+    <figure data-visual-kind="diagram" data-purpose="Show the exact guarded sequence from Details to normal package preflight">
+      <svg role="img" aria-labelledby="flow-svg-title flow-svg-desc" viewBox="0 0 980 250" width="100%">
+        <title id="flow-svg-title">Guarded Pi Scan continuation sequence</title>
+        <desc id="flow-svg-desc">Details opens an exact-binding confirmation. Confirmation records only pending acknowledgements. Pacsea rechecks identities. A changed identity stops; a matching identity returns the package to the normal list and preflight.</desc>
+        <defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#65b5ff"/></marker></defs>
+        <g font-family="system-ui,sans-serif" font-size="15" text-anchor="middle">
+          <g><rect x="20" y="45" width="165" height="72" rx="12" fill="#18253a" stroke="#65b5ff"/><text x="102" y="75" fill="#e8eef8">Details</text><text x="102" y="98" fill="#a9b7cb">c or click</text></g>
+          <g><rect x="220" y="45" width="175" height="72" rx="12" fill="#18253a" stroke="#f7c65c"/><text x="307" y="75" fill="#e8eef8">Confirm exact result</text><text x="307" y="98" fill="#a9b7cb">pending acks only</text></g>
+          <g><rect x="430" y="45" width="175" height="72" rx="12" fill="#18253a" stroke="#65b5ff"/><text x="517" y="75" fill="#e8eef8">Recheck identities</text><text x="517" y="98" fill="#a9b7cb">AUR + mutable refs</text></g>
+          <g><rect x="665" y="15" width="190" height="72" rx="12" fill="#18253a" stroke="#ff7373"/><text x="760" y="45" fill="#e8eef8">Changed</text><text x="760" y="68" fill="#a9b7cb">stop and review/rescan</text></g>
+          <g><rect x="665" y="145" width="190" height="72" rx="12" fill="#18253a" stroke="#50d890"/><text x="760" y="175" fill="#e8eef8">Matches</text><text x="760" y="198" fill="#a9b7cb">normal list + preflight</text></g>
+          <line x1="185" y1="81" x2="215" y2="81" stroke="#65b5ff" stroke-width="3" marker-end="url(#arrow)"/>
+          <line x1="395" y1="81" x2="425" y2="81" stroke="#65b5ff" stroke-width="3" marker-end="url(#arrow)"/>
+          <line x1="605" y1="72" x2="660" y2="52" stroke="#ff7373" stroke-width="3" marker-end="url(#arrow)"/><text x="635" y="45" fill="#ff7373">changed</text>
+          <line x1="605" y1="93" x2="660" y2="176" stroke="#50d890" stroke-width="3" marker-end="url(#arrow)"/><text x="628" y="143" fill="#50d890">match</text>
+        </g>
+      </svg>
+      <figcaption>The existing runtime recheck remains authoritative. The new popup explains the boundary; it does not replace or weaken it.</figcaption>
+    </figure>
+  </section>
+
+  <section aria-labelledby="implementation-title">
+    <h2 id="implementation-title">Implementation map</h2>
+    <div class="grid">
+      <div class="card"><span class="badge info">State</span><strong>Exact modal payload</strong><p><code>PiScanContinuationConfirmation</code> carries the result binding, package base, pending finding acknowledgement, and pending stale acknowledgement.</p></div>
+      <div class="card"><span class="badge info">Input</span><strong>One transition for c and click</strong><p>The Details key and action hit rectangle call the same helper. Mouse input cannot reach the covered workspace while the popup is open.</p></div>
+      <div class="card"><span class="badge info">Rendering</span><strong>Fixed action and scrollable popup</strong><p>The action stays outside report scrolling. Wrapped popup content supports arrows, j/k, and page scrolling on narrow terminals.</p></div>
+      <div class="card"><span class="badge info">Localization</span><strong>Three shipped locale contracts</strong><p>English and German include translated copy. Hungarian follows the repository's existing explicitly marked untranslated fallback convention.</p></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="testing-title">
+    <h2 id="testing-title">Testing and acceptance evidence</h2>
+    <ul class="status-list">
+      <li><strong class="good">Passed:</strong> <code>cargo fmt --all</code></li>
+      <li><strong class="good">Passed:</strong> <code>cargo clippy --all-targets --all-features -- -D warnings</code></li>
+      <li><strong class="good">Passed:</strong> <code>cargo check</code></li>
+      <li><strong class="good">Passed:</strong> <code>cargo test -- --test-threads=1</code></li>
+      <li><strong class="good">Passed:</strong> <code>git diff --check</code></li>
+    </ul>
+    <div class="grid">
+      <div class="card"><strong>1,366</strong><span class="muted">library tests passed; 7 ignored</span></div>
+      <div class="card"><strong>176</strong><span class="muted">Pi Scan integration tests passed; 4 ignored</span></div>
+      <div class="card"><strong>2</strong><span class="muted">distinct implementation worker outcomes</span></div>
+      <div class="card"><strong>2</strong><span class="muted">fresh independent review runs</span></div>
+    </div>
+    <p class="muted">The full command also passed main-binary, configuration, install, preflight, removal, scan, update, and doc-test suites. No dependency changed, so <code>cargo audit</code> was not required by this feature.</p>
+  </section>
+
+  <section aria-labelledby="review-title">
+    <h2 id="review-title">Independent review findings and dispositions</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>ID</th><th>Finding</th><th>Disposition</th><th>Verification</th></tr></thead>
+        <tbody>
+          <tr><td>A-F01</td><td>Popup did not own mouse input</td><td><span class="good">Accepted and fixed</span></td><td>Modal mouse handler now consumes every event; regression test passes.</td></tr>
+          <tr><td>A-F02</td><td>Narrow popup content and controls could clip</td><td><span class="good">Accepted and fixed</span></td><td>Typed scroll state, keyboard scrolling, reachability test, and final suite pass.</td></tr>
+          <tr><td>B-001</td><td>Popup disclosed acknowledgements already recorded via a/s</td><td><span class="good">Accepted and fixed</span></td><td>Payload and confirmation now derive exact pending categories; focused and full tests pass.</td></tr>
+          <tr><td>B-002</td><td>Hungarian strings remain explicitly marked English fallbacks</td><td><span class="warn">Rejected as blocker</span></td><td>The approved plan explicitly retained the repository's existing Hungarian untranslated-fallback convention. All keys are present and tested.</td></tr>
+          <tr><td>B-003</td><td>Help described c as direct continuation</td><td><span class="good">Accepted and fixed</span></td><td>Help now says c opens Review &amp; continue; help test passes.</td></tr>
+          <tr><td>B-004</td><td>Page scrolling was not advertised</td><td><span class="good">Accepted and fixed</span></td><td>Popup guidance lists PgUp/PgDn; rendering and full tests pass.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="muted">Provider note: OpenRouter's monthly key limit blocked the configured DeepSeek reviewer. The user explicitly approved a scoped provider-diversity waiver for a second fresh OpenAI reviewer. Independence, fresh context, read-only scope, and separate review output were preserved.</p>
+  </section>
+
+  <section aria-labelledby="risks-title">
+    <h2 id="risks-title">Residual risks and manual checks</h2>
+    <ul>
+      <li>Live terminal pointer behavior and 20×10 scrolling were covered deterministically, but not manually exercised in a real terminal.</li>
+      <li>Hungarian continuation copy remains an explicitly marked English fallback, consistent with existing locale policy.</li>
+      <li>A stale result may still stop at the authoritative identity recheck after acknowledgement. The popup states this before confirmation.</li>
+      <li>The repository remains intentionally dirty with other approved Pi Scan fixes. This report covers the continuation-confirmation feature only.</li>
+    </ul>
+  </section>
+</main>
+</body>
+</html>

@@ -32,6 +32,7 @@ fn app_state_default_initializes_paths_and_flags() {
     ));
     let _ = std::fs::create_dir_all(&dir);
     unsafe { std::env::set_var("HOME", dir.display().to_string()) };
+    crate::theme::set_home_config_enabled(true);
 
     let app = AppState::default();
     assert_eq!(app.selected, 0);
@@ -47,6 +48,7 @@ fn app_state_default_initializes_paths_and_flags() {
     assert!(app.official_index_path.starts_with(&lists));
     assert!(app.news_read_ids_path.starts_with(&lists));
 
+    crate::theme::set_home_config_enabled(false);
     unsafe {
         if let Some(v) = orig_home {
             std::env::set_var("HOME", v);
@@ -85,6 +87,7 @@ fn refresh_news_results_applies_all_source_filters() {
     ));
     let _ = std::fs::create_dir_all(&dir);
     unsafe { std::env::set_var("HOME", dir.display().to_string()) };
+    crate::theme::set_home_config_enabled(true);
 
     let mut app = AppState::default();
     app.news_items = vec![
@@ -151,6 +154,7 @@ fn refresh_news_results_applies_all_source_filters() {
     assert_eq!(app.news_results.len(), 1);
     assert_eq!(app.news_results[0].id, "comment");
 
+    crate::theme::set_home_config_enabled(false);
     unsafe {
         if let Some(v) = orig_home {
             std::env::set_var("HOME", v);
@@ -189,6 +193,7 @@ fn refresh_news_results_applies_read_filter() {
     ));
     let _ = std::fs::create_dir_all(&dir);
     unsafe { std::env::set_var("HOME", dir.display().to_string()) };
+    crate::theme::set_home_config_enabled(true);
 
     let mut app = AppState::default();
     app.news_items = vec![
@@ -230,6 +235,7 @@ fn refresh_news_results_applies_read_filter() {
     app.refresh_news_results();
     assert_eq!(app.news_results.len(), 2);
 
+    crate::theme::set_home_config_enabled(false);
     unsafe {
         if let Some(v) = orig_home {
             std::env::set_var("HOME", v);
@@ -272,6 +278,7 @@ fn refresh_news_results_advisories_all_shows_all() {
     ));
     let _ = std::fs::create_dir_all(&dir);
     unsafe { std::env::set_var("HOME", dir.display().to_string()) };
+    crate::theme::set_home_config_enabled(true);
 
     let mut app = AppState::default();
 
@@ -331,6 +338,7 @@ fn refresh_news_results_advisories_all_shows_all() {
     assert!(app.news_results.iter().any(|it| it.id == "adv-2"));
     assert!(app.news_results.iter().any(|it| it.id == "adv-3"));
 
+    crate::theme::set_home_config_enabled(false);
     unsafe {
         if let Some(v) = orig_home {
             std::env::set_var("HOME", v);
@@ -368,6 +376,7 @@ fn refresh_news_results_sorts_by_severity_then_date() {
     ));
     let _ = std::fs::create_dir_all(&dir);
     unsafe { std::env::set_var("HOME", dir.display().to_string()) };
+    crate::theme::set_home_config_enabled(true);
 
     let mut app = AppState::default();
     app.news_items = vec![
@@ -424,6 +433,7 @@ fn refresh_news_results_sorts_by_severity_then_date() {
     let ids: Vec<String> = app.news_results.iter().map(|it| it.id.clone()).collect();
     assert_eq!(ids, vec!["crit", "high-new", "high-old", "unknown"]);
 
+    crate::theme::set_home_config_enabled(false);
     unsafe {
         if let Some(v) = orig_home {
             std::env::set_var("HOME", v);
@@ -461,6 +471,7 @@ fn refresh_news_results_sorts_unread_first_then_date() {
     ));
     let _ = std::fs::create_dir_all(&dir);
     unsafe { std::env::set_var("HOME", dir.display().to_string()) };
+    crate::theme::set_home_config_enabled(true);
 
     let mut app = AppState::default();
     app.news_items = vec![
@@ -529,6 +540,7 @@ fn refresh_news_results_sorts_unread_first_then_date() {
         ]
     );
 
+    crate::theme::set_home_config_enabled(false);
     unsafe {
         if let Some(v) = orig_home {
             std::env::set_var("HOME", v);

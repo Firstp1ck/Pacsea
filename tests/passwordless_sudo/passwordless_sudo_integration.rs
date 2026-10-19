@@ -475,7 +475,7 @@ fn integration_preflight_exec_modal_state_passwordless_active() {
                 assert_eq!(*action, PreflightAction::Install);
                 assert_eq!(*tab, PreflightTab::Summary);
                 assert!(!verbose);
-                assert!(log_lines.is_empty());
+                assert_eq!(log_lines.as_slice(), [] as [String; 0]);
                 assert!(!abortable);
                 assert!(success.is_none());
             }

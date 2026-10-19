@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>Pi Scan tab readability implementation report</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b1220;
+      --panel: #121c2d;
+      --panel-2: #18253a;
+      --text: #e8eef8;
+      --muted: #a9b7cb;
+      --line: #2b3b55;
+      --green: #50d890;
+      --yellow: #f7c65c;
+      --red: #ff7373;
+      --blue: #65b5ff;
+      --code: #07101c;
+      --radius-lg: 16px;
+      --radius-md: 12px;
+      --shadow: 0 14px 36px rgb(0 0 0 / 22%);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: radial-gradient(circle at 15% 0%, #142848 0, transparent 35rem), var(--bg);
+      color: var(--text);
+      font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    a { color: var(--blue); }
+    a:focus-visible, button:focus-visible, summary:focus-visible {
+      outline: 3px solid var(--blue);
+      outline-offset: 3px;
+    }
+    .skip-link {
+      position: fixed;
+      z-index: 20;
+      top: 8px;
+      left: 8px;
+      transform: translateY(-160%);
+      background: var(--blue);
+      color: #06111f;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-weight: 800;
+    }
+    .skip-link:focus { transform: none; }
+    main { width: min(1120px, calc(100% - 32px)); margin: 36px auto 64px; }
+    header, .report-section {
+      background: color-mix(in srgb, var(--panel) 94%, transparent);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+    }
+    header { padding: 30px; margin-bottom: 20px; }
+    .report-section { padding: 24px; margin: 18px 0; }
+    h1, h2, h3 { line-height: 1.25; margin-top: 0; }
+    h1 { font-size: clamp(1.9rem, 5vw, 3rem); margin-bottom: 8px; letter-spacing: -.025em; }
+    h2 { font-size: 1.45rem; border-bottom: 1px solid var(--line); padding-bottom: 10px; }
+    h3 { font-size: 1.08rem; margin-bottom: 6px; }
+    p { margin: 8px 0 14px; }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    code { background: var(--code); padding: .12em .38em; border-radius: 5px; }
+    pre {
+      background: var(--code);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 14px;
+      overflow-x: auto;
+      color: #d9e6f7;
+      white-space: pre-wrap;
+    }
+    .muted { color: var(--muted); }
+    .lead { font-size: 1.1rem; max-width: 82ch; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(225px, 1fr)); gap: 14px; }
+    .metric, .card, .finding, .step, .visual-card {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      padding: 16px;
+    }
+    .metric strong { display: block; font-size: 1.35rem; }
+    .badge {
+      display: inline-block;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: .78rem;
+      font-weight: 750;
+      letter-spacing: .035em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .good { color: var(--green); }
+    .warn { color: var(--yellow); }
+    .bad { color: var(--red); }
+    .info { color: var(--blue); }
+    .badge.good { background: rgb(80 216 144 / 14%); border: 1px solid rgb(80 216 144 / 38%); }
+    .badge.warn { background: rgb(247 198 92 / 14%); border: 1px solid rgb(247 198 92 / 38%); }
+    .badge.bad { background: rgb(255 115 115 / 14%); border: 1px solid rgb(255 115 115 / 38%); }
+    .badge.info { background: rgb(101 181 255 / 14%); border: 1px solid rgb(101 181 255 / 38%); }
+    .callout {
+      border-left: 5px solid var(--yellow);
+      background: rgb(247 198 92 / 8%);
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin: 14px 0;
+    }
+    .callout.good-callout { border-left-color: var(--green); background: rgb(80 216 144 / 8%); }
+    .callout.info-callout { border-left-color: var(--blue); background: rgb(101 181 255 / 8%); }
+    .table-wrap { overflow-x: auto; border-radius: 10px; }
+    table { width: 100%; border-collapse: collapse; min-width: 680px; }
+    th, td { text-align: left; vertical-align: top; padding: 11px 9px; border-bottom: 1px solid var(--line); }
+    th { color: var(--muted); font-size: .86rem; text-transform: uppercase; letter-spacing: .04em; }
+    tbody tr:hover { background: rgb(101 181 255 / 5%); }
+    [role="tablist"] {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 8px;
+      margin: 0 0 18px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgb(7 16 28 / 72%);
+    }
+    [role="tab"] {
+      appearance: none;
+      border: 1px solid transparent;
+      border-radius: 9px;
+      background: transparent;
+      color: var(--muted);
+      padding: 9px 13px;
+      white-space: nowrap;
+      font: inherit;
+      font-weight: 750;
+      cursor: pointer;
+    }
+    [role="tab"][aria-selected="true"] {
+      color: var(--text);
+      border-color: rgb(101 181 255 / 45%);
+      background: rgb(101 181 255 / 14%);
+    }
+    [role="tabpanel"] { scroll-margin-top: 16px; }
+    .tabs-ready [role="tabpanel"][hidden] { display: none; }
+    ol.steps { list-style: none; padding: 0; counter-reset: steps; }
+    ol.steps > li { counter-increment: steps; margin: 14px 0; }
+    ol.steps > li::before {
+      content: counter(steps);
+      float: left;
+      display: grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      margin: 1px 12px 0 0;
+      border-radius: 50%;
+      background: var(--blue);
+      color: #06111f;
+      font-weight: 800;
+    }
+    .step { overflow: hidden; }
+    figure { margin: 18px 0; }
+    figure svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      background: var(--code);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+    }
+    figcaption { color: var(--muted); margin-top: 8px; font-size: .92rem; }
+    .node { fill: #182b43; stroke: var(--blue); stroke-width: 2; }
+    .node.good-node { stroke: var(--green); }
+    .node.warn-node { stroke: var(--yellow); stroke-dasharray: 7 5; }
+    .node-text { fill: var(--text); font: 650 14px system-ui, sans-serif; text-anchor: middle; }
+    .edge { fill: none; stroke: var(--muted); stroke-width: 2.5; marker-end: url(#arrow); }
+    details { border-top: 1px solid var(--line); padding-top: 10px; margin-top: 10px; }
+    summary { cursor: pointer; color: var(--blue); font-weight: 700; }
+    footer { color: var(--muted); margin-top: 24px; font-size: .9rem; }
+    @media (max-width: 620px) {
+      main { width: min(100% - 18px, 1120px); margin-top: 10px; }
+      header, .report-section { padding: 18px; }
+      [role="tablist"] { position: sticky; top: 0; z-index: 5; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
+    }
+    @media print {
+      :root { color-scheme: light; }
+      body { background: white; color: #111; }
+      main { width: 100%; margin: 0; }
+      header, .report-section, .metric, .card, .finding, .step, .visual-card {
+        box-shadow: none;
+        background: white;
+        color: #111;
+        border-color: #bbb;
+        break-inside: avoid;
+      }
+      [role="tablist"], .skip-link { display: none !important; }
+      [role="tabpanel"], [role="tabpanel"][hidden] { display: block !important; }
+      pre, code, figure svg { color: #111; background: #f1f3f5; border-color: #bbb; }
+      .muted, figcaption, footer { color: #444; }
+      a { color: #111; text-decoration: underline; }
+      figure { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+<a class="skip-link" href="#report-content">Skip to report content</a>
+<main id="report-content">
+  <header>
+    <span class="badge good">Implemented and verified</span>
+    <h1>Pi Scan tab readability</h1>
+    <p class="lead">Implementation report for the Setup, Overview, Targets, Progress, and Results redesign in Pacsea's Pi-backed AUR scanner. Evidence comes from the current source, deterministic TestBackend rendering, worker handoffs, full Rust checks, and independent review.</p>
+    <div class="callout good-callout"><strong>Conclusion:</strong> The scanner now uses one compact visual hierarchy, accessible semantic colors, shorter human-facing identities, and clearer status wording across every tab. Existing controls, scanner policy, and exact technical identities remain intact.</div>
+    <p class="muted"><strong>Confidence:</strong> 96/100. Automated evidence is complete. Manual live-terminal and custom-theme review were not performed, and the user approved a scoped waiver for the unavailable second post-fix provider review.</p>
+  </header>
+
+  <div class="tabs-shell">
+    <nav role="tablist" aria-label="Report sections">
+      <button id="tab-overview" role="tab" aria-selected="true" aria-controls="panel-overview" tabindex="0">Overview</button>
+      <button id="tab-design" role="tab" aria-selected="false" aria-controls="panel-design" tabindex="-1">Design</button>
+      <button id="tab-implementation" role="tab" aria-selected="false" aria-controls="panel-implementation" tabindex="-1">Implementation</button>
+      <button id="tab-validation" role="tab" aria-selected="false" aria-controls="panel-validation" tabindex="-1">Validation</button>
+      <button id="tab-evidence" role="tab" aria-selected="false" aria-controls="panel-evidence" tabindex="-1">Evidence and limits</button>
+    </nav>
+
+    <section class="report-section" id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
+      <h2>Overview</h2>
+      <div class="grid" aria-label="Headline evidence">
+        <div class="metric"><span class="badge good">Scope</span><strong>5 tabs + wizard</strong><span class="muted">Setup, Overview, Targets, Progress, Results, and both Setup modes</span></div>
+        <div class="metric"><span class="badge good">Tests</span><strong>1,299 library tests</strong><span class="muted">All passed; 7 declared ignores</span></div>
+        <div class="metric"><span class="badge good">Pi Scan</span><strong>161 integration tests</strong><span class="muted">All passed; 4 declared ignores</span></div>
+        <div class="metric"><span class="badge warn">Review exception</span><strong>1 scoped waiver</strong><span class="muted">Second post-fix provider unavailable due Batch API and monthly quota limits</span></div>
+      </div>
+      <h3 style="margin-top:22px">Implementation map</h3>
+      <div class="table-wrap">
+        <table data-overview>
+          <thead><tr><th>Area</th><th>Main change</th><th>Evidence</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td>Setup and wizard</td><td>Runtime, route/cost, safety, and permission sections; truthful progress and notice states</td><td>Module render tests, wrapped-control click tests, localized validation tests</td><td><span class="good">Complete</span></td></tr>
+            <tr><td>Overview</td><td>Separate activity, unattended budget, permissions, and notices</td><td>Normal and 20×10 TestBackend rendering</td><td><span class="good">Complete</span></td></tr>
+            <tr><td>Targets</td><td>Package-first rows, semantic status, optional package base, 12-character commit</td><td>Style, compact rendering, viewport, and hit-rectangle assertions</td><td><span class="good">Complete</span></td></tr>
+            <tr><td>Progress</td><td>Session, current work, and queue sections with preserved truthful animation and pause details</td><td>Spinner, phase, pause, budget, count, and narrow-scroll tests</td><td><span class="good">Complete</span></td></tr>
+            <tr><td>Results</td><td>Coverage, severity, identity, localized completion, and optional short commit on one row</td><td>English/German rendering, semantic styles, and one-row hit seams</td><td><span class="good">Complete</span></td></tr>
+            <tr><td>Review and release evidence</td><td>Four accepted defects fixed with red/green regressions</td><td>DeepSeek post-fix review plus scoped user waiver for unavailable second provider</td><td><span class="warn">Complete with waiver</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="report-section" id="panel-design" role="tabpanel" aria-labelledby="tab-design">
+      <h2>Approved design</h2>
+      <p>The user selected balanced sections, 12-character hashes outside Technical Details, coverage of both advanced Setup and the guided wizard, and semantic color that never carries meaning alone.</p>
+      <div class="grid">
+        <article class="card"><span class="badge info">Active</span><h3>Sapphire</h3><p>Selected rows, current work, focused controls, and direct actions. Text, arrows, checkboxes, or spinner symbols accompany the color.</p></article>
+        <article class="card"><span class="badge good">Success</span><h3>Green</h3><p>Connected, current, complete, confirmed, and finished states. Each retains an explicit status word or check mark.</p></article>
+        <article class="card"><span class="badge warn">Attention</span><h3>Yellow</h3><p>Pending, paused, incomplete, disabled, and warning states. Pause and warning symbols remain visible without color.</p></article>
+        <article class="card"><span class="badge bad">Failure</span><h3>Red</h3><p>Failed, disconnected, stale, high, and critical states. Labels remain readable in monochrome output.</p></article>
+      </div>
+      <div class="callout info-callout"><strong>Identity rule:</strong> package names and status lead every human-facing row. Commit IDs use a deterministic 12-character prefix outside Technical Details. Scanner state and the expanded Details technical section retain the exact full identity.</div>
+    </section>
+
+    <section class="report-section" id="panel-implementation" role="tabpanel" aria-labelledby="tab-implementation">
+      <h2>Implementation path</h2>
+      <figure data-visual-kind="diagram" data-purpose="Show the sequential implementation, integration, review, and waiver path">
+        <svg role="img" aria-labelledby="flow-title flow-desc" viewBox="0 0 1050 320">
+          <title id="flow-title">Pi Scan readability delivery flow</title>
+          <desc id="flow-desc">The approved plan led to two sequential implementation workstreams, integrated tests, independent review, a bounded fix pass, post-fix review, and a user-approved waiver after the second provider became unavailable.</desc>
+          <defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#a9b7cb"/></marker></defs>
+          <path class="edge" d="M180 85 H245"/><path class="edge" d="M405 85 H470"/><path class="edge" d="M630 85 H695"/>
+          <path class="edge" d="M775 125 C775 205 620 235 555 235"/><path class="edge" d="M475 235 H385"/><path class="edge" d="M305 235 H215"/>
+          <rect class="node" x="20" y="45" width="160" height="80" rx="12"/><text class="node-text" x="100" y="80">Approved plan</text><text class="node-text" x="100" y="102">and visual rules</text>
+          <rect class="node" x="245" y="45" width="160" height="80" rx="12"/><text class="node-text" x="325" y="80">WS1</text><text class="node-text" x="325" y="102">Setup + Overview</text>
+          <rect class="node" x="470" y="45" width="160" height="80" rx="12"/><text class="node-text" x="550" y="80">WS2</text><text class="node-text" x="550" y="102">Lists + Progress</text>
+          <rect class="node good-node" x="695" y="45" width="160" height="80" rx="12"/><text class="node-text" x="775" y="80">Integration</text><text class="node-text" x="775" y="102">Full checks pass</text>
+          <rect class="node" x="475" y="195" width="160" height="80" rx="12"/><text class="node-text" x="555" y="230">Review</text><text class="node-text" x="555" y="252">4 findings accepted</text>
+          <rect class="node good-node" x="225" y="195" width="160" height="80" rx="12"/><text class="node-text" x="305" y="230">Fix pass</text><text class="node-text" x="305" y="252">Red → green tests</text>
+          <rect class="node warn-node" x="20" y="195" width="195" height="80" rx="12"/><text class="node-text" x="117" y="226">Final review</text><text class="node-text" x="117" y="248">DeepSeek + waiver</text>
+        </svg>
+        <figcaption>Two implementation workers wrote sequentially in the shared dirty worktree. The parent inspected each boundary, ran integrated checks, dispositioned every review finding, and accepted only the four verified fixes.</figcaption>
+      </figure>
+      <ol class="steps">
+        <li class="step"><h3>Shared visual system and Setup surfaces</h3><p><code>mod.rs</code> gained shared semantic tone, label/value, section heading, short-identity, and wrapped-line helpers. Setup, the wizard, and Overview adopted the new hierarchy.</p></li>
+        <li class="step"><h3>Target, progress, and result surfaces</h3><p>Targets and Results now render one bounded visual row per item with matching mouse seams. Progress separates summary, current work, and queue content.</p></li>
+        <li class="step"><h3>Validated review fixes</h3><p>Wrapped wizard clicks, completed notice styling, German Results wording, and German Setup validation text each received a failing regression before the fix and a passing rerun afterward.</p></li>
+      </ol>
+    </section>
+
+    <section class="report-section" id="panel-validation" role="tabpanel" aria-labelledby="tab-validation">
+      <h2>Validation and review</h2>
+      <div class="grid">
+        <article class="finding"><span class="badge good">Passed</span><h3>Formatting and linting</h3><p><code>cargo fmt --all</code> and Clippy across all targets/features with warnings denied completed successfully.</p></article>
+        <article class="finding"><span class="badge good">Passed</span><h3>Compilation</h3><p><code>cargo check</code> completed successfully after integration and after the accepted fix pass.</p></article>
+        <article class="finding"><span class="badge good">Passed</span><h3>Full suite</h3><p>1,299 library tests passed with 7 declared ignores. Pi Scan ran 161 passing integration tests with 4 declared ignores. All other integration and doctest groups passed with their declared ignores.</p></article>
+        <article class="finding"><span class="badge good">Passed</span><h3>Diff integrity</h3><p><code>git diff --check</code> reported no whitespace errors. No worker staged, committed, reset, or published changes.</p></article>
+      </div>
+      <h3 style="margin-top:22px">Accepted findings</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Finding</th><th>Disposition</th><th>Fix evidence</th></tr></thead>
+          <tbody>
+            <tr><td>Wrapped wizard controls could activate the wrong consent</td><td><span class="good">Accepted and fixed</span></td><td>80/48-column mouse tests failed before the fix and pass with wrapped/scrolled hit-row calculation.</td></tr>
+            <tr><td>Completed wizard notices appeared pending</td><td><span class="good">Accepted and fixed</span></td><td>Known pending, complete, and warning notices now have truthful marker/color tests.</td></tr>
+            <tr><td>German Results rows contained English completion text</td><td><span class="good">Accepted and fixed</span></td><td>Typed localized zero, one, and multiple-finding assertions pass.</td></tr>
+            <tr><td>German Setup exposed English validation errors</td><td><span class="good">Accepted and fixed</span></td><td>Finite issue mapping and unknown-message fallback tests pass.</td></tr>
+            <tr><td>Duplicate list helpers</td><td><span class="warn">Deferred</span></td><td>Low-risk maintenance note; current copies are bounded and covered.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout"><strong>Review waiver:</strong> The post-fix DeepSeek reviewer reported all four accepted issues fixed, no blocker, and 98/100 confidence. Gemini could not run through the normal endpoint, then Mistral/Moonshot retries hit the OpenRouter monthly key limit. The user explicitly waived the second-provider review for this feature only.</div>
+    </section>
+
+    <section class="report-section" id="panel-evidence" role="tabpanel" aria-labelledby="tab-evidence">
+      <h2>Evidence, files, and limitations</h2>
+      <h3>Primary source files</h3>
+      <ul>
+        <li><code>src/ui/pi_scan/mod.rs</code> — shared visual helpers and top-bar status.</li>
+        <li><code>src/ui/pi_scan/setup.rs</code>, <code>wizard.rs</code>, <code>overview.rs</code> — structured Setup surfaces and Overview.</li>
+        <li><code>src/ui/pi_scan/targets.rs</code>, <code>progress.rs</code>, <code>results.rs</code> — package-first lists, semantic status, and current-work hierarchy.</li>
+        <li><code>config/locales/en-US.yml</code>, <code>de-DE.yml</code>, <code>hu-HU.yml</code> — complete English/German copy and Hungarian pending-translation policy entries.</li>
+        <li><code>tests/pi_scan/ws4_tui.rs</code> — hierarchy, semantic styles, compact rendering, hit seams, localization, and mouse behavior.</li>
+      </ul>
+      <h3>Trace artifacts</h3>
+      <ul>
+        <li><a href="../plans/archive/pi-scan-tab-readability.md">Archived canonical plan</a></li>
+        <li><a href="handoffs/pi-scan-tab-readability-ws1.md">WS1 handoff</a></li>
+        <li><a href="handoffs/pi-scan-tab-readability-ws2.md">WS2 handoff</a></li>
+        <li><a href="handoffs/pi-scan-tab-readability-fixes.md">Accepted-fix handoff and red/green evidence</a></li>
+        <li><a href="handoffs/pi-scan-tab-readability-review-kimi.md">Initial review with four accepted findings</a></li>
+      </ul>
+      <details>
+        <summary>Scope boundaries preserved</summary>
+        <p>No scanner execution, network, acquisition, result schema, persistence, budget, consent policy, keybinding, dependency, or acknowledgement behavior changed. Full identities remain in state and Technical Details.</p>
+      </details>
+      <details>
+        <summary>Residual risks</summary>
+        <ul>
+          <li>No manual live-terminal pointer review was performed after rebuilding.</li>
+          <li>Custom user-theme contrast was not assessed manually; deterministic semantic style tests use the active repository theme.</li>
+          <li>Very long package names can consume a narrow row after lower-priority metadata is removed.</li>
+          <li>Two small helper duplications remain deferred.</li>
+          <li>The second distinct-provider post-fix review was explicitly waived after documented provider failures.</li>
+        </ul>
+      </details>
+      <div class="callout info-callout"><strong>Rollback:</strong> revert Targets/Progress/Results and their acceptance tests first, then Setup/Overview/wizard/shared helpers and locale keys. No state migration or durable scanner-data rollback is required.</div>
+    </section>
+  </div>
+
+  <footer>
+    <p><strong>Scope:</strong> Pi Scan presentation and deterministic UI acceptance evidence. Generated 2026-08-20 from local repository evidence. No external assets, telemetry, or network-backed widgets are used.</p>
+  </footer>
+</main>
+<script>
+(() => {
+  const tablist = document.querySelector('[role="tablist"]');
+  if (!tablist) return;
+  const tabs = [...tablist.querySelectorAll('[role="tab"]')];
+  const panels = tabs.map((tab) => document.getElementById(tab.getAttribute('aria-controls'))).filter(Boolean);
+  document.documentElement.classList.add('tabs-ready');
+  function activate(tab, focus = false) {
+    tabs.forEach((candidate) => {
+      const selected = candidate === tab;
+      candidate.setAttribute('aria-selected', String(selected));
+      candidate.tabIndex = selected ? 0 : -1;
+      const panel = document.getElementById(candidate.getAttribute('aria-controls'));
+      if (panel) panel.hidden = !selected;
+    });
+    history.replaceState(null, '', `#${tab.getAttribute('aria-controls')}`);
+    if (focus) tab.focus();
+  }
+  tabs.forEach((tab, index) => {
+    tab.addEventListener('click', () => activate(tab));
+    tab.addEventListener('keydown', (event) => {
+      let next = null;
+      if (event.key === 'ArrowRight') next = (index + 1) % tabs.length;
+      if (event.key === 'ArrowLeft') next = (index - 1 + tabs.length) % tabs.length;
+      if (event.key === 'Home') next = 0;
+      if (event.key === 'End') next = tabs.length - 1;
+      if (next === null) return;
+      event.preventDefault();
+      activate(tabs[next], true);
+    });
+  });
+  const initialPanel = panels.find((panel) => `#${panel.id}` === location.hash);
+  const initialTab = initialPanel
+    ? tabs.find((tab) => tab.getAttribute('aria-controls') === initialPanel.id)
+    : tabs[0];
+  activate(initialTab || tabs[0]);
+})();
+</script>
+</body>
+</html>

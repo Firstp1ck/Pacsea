@@ -12,6 +12,13 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+#[cfg(test)]
+use std::sync::atomic::{AtomicBool, Ordering};
+
+/// One-shot deterministic post-rename parent-sync failure seam for internal tests.
+#[cfg(test)]
+static FAIL_NEXT_PARENT_SYNC: AtomicBool = AtomicBool::new(false);
+
 use crate::theme::config::skeletons::{
     KEYBINDS_SKELETON_CONTENT, REPOS_SKELETON_CONTENT, SETTINGS_SKELETON_CONTENT,
     THEME_SKELETON_CONTENT,
@@ -120,6 +127,15 @@ pub struct PatchRequest<'a> {
     pub dry_run: bool,
 }
 
+/// One key/value entry in an atomic settings-file transaction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SettingsPatch<'a> {
+    /// Canonical settings key.
+    pub key: &'a str,
+    /// Fully formatted value written after `=`.
+    pub value: &'a str,
+}
+
 /// Successful outcome of a [`patch_key`] call.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PatchOutcome {
@@ -206,21 +222,9 @@ fn normalize_key(key: &str) -> String {
 /// - Matches the fallback logic used by existing fire-and-forget helpers so the
 ///   patch API and the `save_*` functions write to the same file.
 fn resolve_path(file: ConfigFile) -> PathBuf {
-    if let Some(p) = file.try_resolve() {
-        return p;
-    }
-    let base = std::env::var("XDG_CONFIG_HOME")
-        .ok()
-        .map(PathBuf::from)
-        .or_else(|| {
-            std::env::var("HOME")
-                .ok()
-                .map(|h| Path::new(&h).join(".config"))
-        });
-    if let Some(base) = base {
-        return base.join("pacsea").join(file.default_filename());
-    }
-    config_dir().join(file.default_filename())
+    file.try_resolve()
+        .or_else(|| crate::theme::paths::default_config_file_path(file.default_filename()))
+        .unwrap_or_else(|| config_dir().join(file.default_filename()))
 }
 
 /// What: Resolve the active path for a Pacsea config file.
@@ -263,6 +267,34 @@ fn read_or_seed_lines(path: &Path, file: ConfigFile) -> Result<Vec<String>, Conf
             source,
         }),
     }
+}
+
+/// Read an exact optional file snapshot while distinguishing missing files from I/O failures.
+fn read_optional_snapshot(path: &Path) -> Result<Option<String>, ConfigWriteError> {
+    match fs::read_to_string(path) {
+        Ok(content) => Ok(Some(content)),
+        Err(source) if source.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(source) => Err(ConfigWriteError::Io {
+            path: path.to_path_buf(),
+            source,
+        }),
+    }
+}
+
+/// Commit settings content only while the exact source snapshot still matches disk.
+fn commit_settings_snapshot(
+    path: &Path,
+    expected: Option<&str>,
+    content: &str,
+) -> Result<(), ConfigWriteError> {
+    let current = read_optional_snapshot(path)?;
+    if current.as_deref() != expected {
+        return Err(ConfigWriteError::Invalid(
+            "settings changed while applying the budget transaction; retry the adjustment"
+                .to_string(),
+        ));
+    }
+    atomic_write(path, content)
 }
 
 /// What: Replace an existing line for `primary` (or any alias) with the desired
@@ -333,7 +365,74 @@ fn lines_to_content(lines: &[String], fallback_key: &str, fallback_value: &str) 
 ///   symlink) and `rename`s into place so partially-written files never become
 ///   visible. On Unix, the temp file is created with mode `0o600` to avoid
 ///   leaking secrets such as `virustotal_api_key` while the rename is racing.
+/// - On Unix, the parent directory is synced after rename so success includes the directory-entry
+///   durability boundary required before dependent runtime actions may proceed.
 fn atomic_write(path: &Path, content: &str) -> Result<(), ConfigWriteError> {
+    #[cfg(unix)]
+    let result = atomic_write_with_parent_sync(path, content, sync_parent_directory);
+    #[cfg(not(unix))]
+    let result = replace_file_without_parent_sync(path, content.as_bytes());
+    result
+}
+
+/// Replace one file and restore its exact prior snapshot if post-rename parent sync fails.
+#[cfg(unix)]
+fn atomic_write_with_parent_sync<F>(
+    path: &Path,
+    content: &str,
+    mut sync_parent: F,
+) -> Result<(), ConfigWriteError>
+where
+    F: FnMut(&Path) -> Result<(), ConfigWriteError>,
+{
+    let previous = match fs::read(path) {
+        Ok(bytes) => Some(bytes),
+        Err(source) if source.kind() == std::io::ErrorKind::NotFound => None,
+        Err(source) => {
+            return Err(ConfigWriteError::Io {
+                path: path.to_path_buf(),
+                source,
+            });
+        }
+    };
+    replace_file_without_parent_sync(path, content.as_bytes())?;
+    let Err(commit_error) = sync_parent(path) else {
+        return Ok(());
+    };
+    let rollback = restore_file_snapshot(path, previous.as_deref(), &mut sync_parent);
+    Err(ConfigWriteError::Invalid(format!(
+        "parent-directory sync failed after settings rename: {commit_error}; {}",
+        rollback.map_or_else(
+            |error| format!("rollback also failed: {error}"),
+            |()| "rollback restored the exact prior settings snapshot and synced its parent"
+                .to_string(),
+        )
+    )))
+}
+
+/// Atomically restore an existing snapshot, or restore absence for a newly-created target.
+#[cfg(unix)]
+fn restore_file_snapshot<F>(
+    path: &Path,
+    previous: Option<&[u8]>,
+    sync_parent: &mut F,
+) -> Result<(), ConfigWriteError>
+where
+    F: FnMut(&Path) -> Result<(), ConfigWriteError>,
+{
+    if let Some(bytes) = previous {
+        replace_file_without_parent_sync(path, bytes)?;
+    } else {
+        fs::remove_file(path).map_err(|source| ConfigWriteError::Io {
+            path: path.to_path_buf(),
+            source,
+        })?;
+    }
+    sync_parent(path)
+}
+
+/// Write and rename one sibling temp file without claiming parent-directory durability.
+fn replace_file_without_parent_sync(path: &Path, content: &[u8]) -> Result<(), ConfigWriteError> {
     if let Some(dir) = path.parent() {
         fs::create_dir_all(dir).map_err(|source| ConfigWriteError::Io {
             path: dir.to_path_buf(),
@@ -343,14 +442,42 @@ fn atomic_write(path: &Path, content: &str) -> Result<(), ConfigWriteError> {
     let tmp = make_temp_path(path);
     write_temp_file(&tmp, content)?;
     fs::rename(&tmp, path).map_err(|source| {
-        // Best-effort cleanup so we don't leave a stray temp file behind.
         let _ = fs::remove_file(&tmp);
         ConfigWriteError::Io {
             path: path.to_path_buf(),
             source,
         }
+    })
+}
+
+/// Sync the renamed target's parent directory on Unix.
+#[cfg(unix)]
+fn sync_parent_directory(target: &Path) -> Result<(), ConfigWriteError> {
+    #[cfg(test)]
+    if FAIL_NEXT_PARENT_SYNC.swap(false, Ordering::SeqCst) {
+        return Err(ConfigWriteError::Io {
+            path: target
+                .parent()
+                .unwrap_or_else(|| Path::new("."))
+                .to_path_buf(),
+            source: std::io::Error::other("injected post-rename parent sync failure"),
+        });
+    }
+    let parent = target.parent().unwrap_or_else(|| Path::new("."));
+    let directory = fs::File::open(parent).map_err(|source| ConfigWriteError::Io {
+        path: parent.to_path_buf(),
+        source,
     })?;
-    Ok(())
+    directory.sync_all().map_err(|source| ConfigWriteError::Io {
+        path: parent.to_path_buf(),
+        source,
+    })
+}
+
+/// Arm one deterministic post-rename parent-directory sync failure.
+#[cfg(test)]
+pub fn fail_next_parent_directory_sync_after_rename() {
+    FAIL_NEXT_PARENT_SYNC.store(true, Ordering::SeqCst);
 }
 
 /// What: Build a unique temp path adjacent to `target`.
@@ -393,7 +520,7 @@ fn make_temp_path(target: &Path) -> PathBuf {
 ///   call to fail rather than overwrite something unexpected.
 /// - Calls `sync_all` to flush data and metadata before the rename so a crash
 ///   cannot leave a zero-length file.
-fn write_temp_file(tmp: &Path, content: &str) -> Result<(), ConfigWriteError> {
+fn write_temp_file(tmp: &Path, content: &[u8]) -> Result<(), ConfigWriteError> {
     use std::io::Write;
     let mut opts = fs::OpenOptions::new();
     opts.write(true).create_new(true);
@@ -406,7 +533,7 @@ fn write_temp_file(tmp: &Path, content: &str) -> Result<(), ConfigWriteError> {
         path: tmp.to_path_buf(),
         source,
     })?;
-    f.write_all(content.as_bytes())
+    f.write_all(content)
         .map_err(|source| ConfigWriteError::Io {
             path: tmp.to_path_buf(),
             source,
@@ -480,6 +607,89 @@ pub fn patch_key(req: &PatchRequest<'_>) -> Result<PatchOutcome, ConfigWriteErro
     Ok(PatchOutcome::Written { path })
 }
 
+/// What: Apply multiple settings values through one atomic file replacement.
+///
+/// Inputs:
+/// - `patches`: Canonical key/value entries that must commit together.
+/// - `dry_run`: Whether to return proposed content without touching disk.
+///
+/// Output:
+/// - One outcome for the complete transaction.
+///
+/// Details:
+/// - The settings file is read once, every requested key is replaced or appended in memory,
+///   and one same-directory atomic rename commits all values. Comments and unrelated keys remain.
+///
+/// # Errors
+/// - Rejects empty/duplicate keys or returns the same I/O failures as [`patch_key`].
+pub fn patch_settings_keys_atomic(
+    patches: &[SettingsPatch<'_>],
+    dry_run: bool,
+) -> Result<PatchOutcome, ConfigWriteError> {
+    if patches.is_empty() {
+        return Err(ConfigWriteError::Invalid(
+            "settings transaction must contain at least one key".to_string(),
+        ));
+    }
+    let mut normalized = std::collections::BTreeSet::new();
+    for patch in patches {
+        let key = normalize_key(patch.key);
+        if key.is_empty() {
+            return Err(ConfigWriteError::Invalid(
+                "settings transaction key must not be empty".to_string(),
+            ));
+        }
+        if !normalized.insert(key) {
+            return Err(ConfigWriteError::Invalid(format!(
+                "settings transaction repeats key {}",
+                patch.key
+            )));
+        }
+    }
+    let path = resolve_path(ConfigFile::Settings);
+    let snapshot = read_optional_snapshot(&path)?;
+    let mut lines: Vec<String> = snapshot.as_deref().map_or_else(
+        || {
+            ConfigFile::Settings
+                .skeleton()
+                .lines()
+                .map(ToString::to_string)
+                .collect()
+        },
+        |content| {
+            if content.is_empty() {
+                ConfigFile::Settings
+                    .skeleton()
+                    .lines()
+                    .map(ToString::to_string)
+                    .collect()
+            } else {
+                content.lines().map(ToString::to_string).collect()
+            }
+        },
+    );
+    for patch in patches {
+        if !replace_in_place(&mut lines, patch.key, &[], patch.value) {
+            lines.push(format!("{} = {}", patch.key, patch.value));
+        }
+    }
+    let first = patches.first().ok_or_else(|| {
+        ConfigWriteError::Invalid("settings transaction unexpectedly became empty".to_string())
+    })?;
+    let content = lines_to_content(&lines, first.key, first.value);
+    if snapshot.as_deref() == Some(content.as_str()) {
+        return Ok(PatchOutcome::NoChange { path });
+    }
+    if dry_run {
+        return Ok(PatchOutcome::DryRun {
+            path,
+            proposed: content,
+        });
+    }
+    commit_settings_snapshot(&path, snapshot.as_deref(), &content)?;
+    Ok(PatchOutcome::Written { path })
+}
+
 /// What: Atomically replace the entire content of a config file.
 ///
 /// Inputs:
@@ -532,6 +742,8 @@ mod tests {
         cfg_dir: PathBuf,
         orig_home: Option<std::ffi::OsString>,
         orig_xdg: Option<std::ffi::OsString>,
+        /// Home-resolution flag restored on drop.
+        orig_home_config: bool,
     }
 
     impl EnvGuard {
@@ -548,21 +760,25 @@ mod tests {
             ));
             let cfg_dir = base.join(".config").join("pacsea");
             fs::create_dir_all(&cfg_dir).expect("create cfg dir");
+            let orig_home_config = crate::theme::home_config_enabled();
             unsafe {
                 std::env::set_var("HOME", base.display().to_string());
                 std::env::remove_var("XDG_CONFIG_HOME");
             }
+            crate::theme::set_home_config_enabled(true);
             Self {
                 base,
                 cfg_dir,
                 orig_home,
                 orig_xdg,
+                orig_home_config,
             }
         }
     }
 
     impl Drop for EnvGuard {
         fn drop(&mut self) {
+            crate::theme::set_home_config_enabled(self.orig_home_config);
             unsafe {
                 if let Some(v) = self.orig_home.as_ref() {
                     std::env::set_var("HOME", v);
@@ -741,6 +957,87 @@ mod tests {
     }
 
     #[test]
+    fn atomic_settings_transaction_updates_all_keys_and_preserves_others() {
+        let _g = crate::theme::test_mutex().lock().expect("mutex");
+        let env = EnvGuard::new("multi_settings");
+        let path = env.cfg_dir.join("settings.conf");
+        fs::write(
+            &path,
+            "# budgets\npi_scan_background_starts_per_hour = 5\npi_scan_background_token_cap_24h = 500000\npi_scan_background_cost_cap_24h = 1.25\npi_scan_enabled = true\n",
+        )
+        .expect("write");
+
+        let outcome = patch_settings_keys_atomic(
+            &[
+                SettingsPatch {
+                    key: "pi_scan_background_starts_per_hour",
+                    value: "10",
+                },
+                SettingsPatch {
+                    key: "pi_scan_background_token_cap_24h",
+                    value: "1000000",
+                },
+                SettingsPatch {
+                    key: "pi_scan_background_cost_cap_24h",
+                    value: "0.00",
+                },
+            ],
+            false,
+        )
+        .expect("transaction");
+
+        assert!(matches!(outcome, PatchOutcome::Written { .. }));
+        let after = fs::read_to_string(path).expect("read");
+        assert!(after.contains("# budgets"));
+        assert!(after.contains("pi_scan_background_starts_per_hour = 10"));
+        assert!(after.contains("pi_scan_background_token_cap_24h = 1000000"));
+        assert!(after.contains("pi_scan_background_cost_cap_24h = 0.00"));
+        assert!(after.contains("pi_scan_enabled = true"));
+        drop(env);
+    }
+
+    #[test]
+    fn atomic_settings_transaction_rejects_snapshot_drift_without_writing() {
+        let _g = crate::theme::test_mutex().lock().expect("mutex");
+        let env = EnvGuard::new("multi_settings_drift");
+        let path = env.cfg_dir.join("settings.conf");
+        let original = "pi_scan_background_starts_per_hour = 5\nunrelated = before\n";
+        let drifted = "pi_scan_background_starts_per_hour = 5\nunrelated = concurrent\n";
+        let proposed = "pi_scan_background_starts_per_hour = 10\nunrelated = before\n";
+        fs::write(&path, original).expect("original");
+        let snapshot = read_optional_snapshot(&path).expect("snapshot");
+        fs::write(&path, drifted).expect("concurrent edit");
+
+        let error = commit_settings_snapshot(&path, snapshot.as_deref(), proposed)
+            .expect_err("drift must reject");
+
+        assert!(matches!(error, ConfigWriteError::Invalid(_)));
+        assert_eq!(fs::read_to_string(&path).expect("read"), drifted);
+        drop(env);
+    }
+
+    #[test]
+    fn atomic_settings_transaction_dry_run_and_invalid_input_do_not_mutate() {
+        let _g = crate::theme::test_mutex().lock().expect("mutex");
+        let env = EnvGuard::new("multi_settings_dry");
+        let path = env.cfg_dir.join("settings.conf");
+        let original = "pi_scan_background_starts_per_hour = 5\n";
+        fs::write(&path, original).expect("write");
+        let patches = [SettingsPatch {
+            key: "pi_scan_background_starts_per_hour",
+            value: "10",
+        }];
+
+        assert!(matches!(
+            patch_settings_keys_atomic(&patches, true).expect("dry transaction"),
+            PatchOutcome::DryRun { .. }
+        ));
+        assert!(patch_settings_keys_atomic(&[], false).is_err());
+        assert_eq!(fs::read_to_string(path).expect("read"), original);
+        drop(env);
+    }
+
+    #[test]
     fn patch_rejects_empty_key() {
         let req = PatchRequest {
             file: ConfigFile::Settings,
@@ -751,6 +1048,43 @@ mod tests {
         };
         let err = patch_key(&req).expect_err("should reject empty key");
         assert!(matches!(err, ConfigWriteError::Invalid(_)));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn parent_directory_sync_surfaces_open_failure() {
+        let temp = tempfile::tempdir().expect("temp");
+        let missing_target = temp.path().join("missing-parent/settings.conf");
+
+        let error = sync_parent_directory(&missing_target).expect_err("missing parent must fail");
+        assert!(
+            matches!(error, ConfigWriteError::Io { path, .. } if path == temp.path().join("missing-parent"))
+        );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn post_rename_sync_failure_restores_exact_prior_snapshot() {
+        let _g = crate::theme::test_mutex().lock().expect("mutex");
+        let env = EnvGuard::new("sync_rollback");
+        let path = env.cfg_dir.join("settings.conf");
+        let original = b"# exact prior bytes\npi_scan_background_starts_per_hour = 5\n";
+        fs::write(&path, original).expect("seed prior snapshot");
+        fail_next_parent_directory_sync_after_rename();
+
+        let error = atomic_write(
+            &path,
+            "# changed\npi_scan_background_starts_per_hour = 10\n",
+        )
+        .expect_err("injected post-rename sync failure must reject");
+
+        assert!(
+            error
+                .to_string()
+                .contains("rollback restored the exact prior settings snapshot")
+        );
+        assert_eq!(fs::read(&path).expect("restored bytes"), original);
+        drop(env);
     }
 
     #[test]

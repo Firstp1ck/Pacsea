@@ -54,6 +54,248 @@ pub enum PackageMarker {
     End,
 }
 
+/// Conservative settings for the optional Pi-backed AUR scanner.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PiScanSettings {
+    /// Runtime feature gate; default off.
+    pub enabled: bool,
+    /// Unattended paid model execution gate; default off.
+    pub background_enabled: bool,
+    /// Pi executable name or absolute path.
+    pub binary: String,
+    /// Explicit provider route, empty until selected.
+    pub provider: String,
+    /// Explicit primary model, empty until selected.
+    pub model: String,
+    /// Ordered comma-separated fallback models.
+    pub fallback_models: String,
+    /// Requested Pi thinking level.
+    pub thinking: String,
+    /// Native observation interval in seconds.
+    pub observation_interval_seconds: u64,
+    /// Per-head-query timeout in seconds.
+    pub head_query_timeout_seconds: u64,
+    /// Whole observation-cycle deadline in seconds.
+    pub observation_deadline_seconds: u64,
+    /// Per-model-attempt timeout in seconds.
+    pub model_attempt_timeout_seconds: u64,
+    /// Whole logical-scan timeout in seconds.
+    pub logical_timeout_seconds: u64,
+    /// Unattended starts allowed per rolling hour.
+    pub background_starts_per_hour: u32,
+    /// Unattended token cap per rolling 24 hours.
+    pub background_token_cap_24h: u64,
+    /// Parser diagnostic retained when a known token-cap value is malformed or overflows.
+    pub background_token_cap_24h_parse_error: Option<String>,
+    /// Decimal dollar cost cap per rolling 24 hours.
+    pub background_cost_cap_24h: String,
+    /// Detailed result retention in days.
+    pub result_retention_days: u32,
+    /// Whether the canonical validated-data raw view is visible.
+    pub show_raw_output: bool,
+    /// Explicit credential-free HTTPS proxy, empty for direct access.
+    pub https_proxy: String,
+}
+
+impl Default for PiScanSettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            background_enabled: false,
+            binary: "pi".to_string(),
+            provider: String::new(),
+            model: String::new(),
+            fallback_models: String::new(),
+            thinking: "medium".to_string(),
+            observation_interval_seconds: 900,
+            head_query_timeout_seconds: 15,
+            observation_deadline_seconds: 90,
+            model_attempt_timeout_seconds: 300,
+            logical_timeout_seconds: 720,
+            background_starts_per_hour: 5,
+            background_token_cap_24h: 500_000,
+            background_token_cap_24h_parse_error: None,
+            background_cost_cap_24h: "0.00".to_string(),
+            result_retention_days: 30,
+            show_raw_output: false,
+            https_proxy: String::new(),
+        }
+    }
+}
+
+impl PiScanSettings {
+    /// What: Persist the unattended Pi execution preference through one atomic settings replacement.
+    ///
+    /// Inputs:
+    /// - `enabled`: Exact durable operational preference.
+    ///
+    /// Output:
+    /// - Success after atomic replacement, or actionable config-write text.
+    ///
+    /// Details:
+    /// - Unrelated settings and comments are preserved by the shared private-file patcher.
+    pub(crate) fn persist_background_enabled_atomic(enabled: bool) -> Result<(), String> {
+        let value = enabled.to_string();
+        crate::theme::config::patch::patch_settings_keys_atomic(
+            &[crate::theme::config::patch::SettingsPatch {
+                key: "pi_scan_background_enabled",
+                value: &value,
+            }],
+            false,
+        )
+        .map(|_| ())
+        .map_err(|error| {
+            format!("could not persist the Pi background scan preference atomically: {error}")
+        })
+    }
+
+    /// What: Persist all three Pi Scan budget values in one settings-file transaction.
+    ///
+    /// Inputs:
+    /// - `limits`: Exact starts, tokens, and micro-USD policy to serialize.
+    ///
+    /// Output:
+    /// - Success after one atomic replacement, or actionable config-write text.
+    ///
+    /// Details:
+    /// - Numeric zero serializes as the Unlimited representation. Unrelated settings, including
+    ///   route/privacy/setup gates, are preserved by the underlying patch transaction.
+    pub(crate) fn persist_budget_limits_atomic(
+        limits: crate::state::pi_scan::PiScanBudgetLimits,
+    ) -> Result<(), String> {
+        let starts = limits.starts_per_hour.to_string();
+        let tokens = limits.tokens_per_24h.to_string();
+        let cost = format_pi_scan_budget_microusd(limits.cost_microusd_per_24h);
+        crate::theme::config::patch::patch_settings_keys_atomic(
+            &[
+                crate::theme::config::patch::SettingsPatch {
+                    key: "pi_scan_background_starts_per_hour",
+                    value: &starts,
+                },
+                crate::theme::config::patch::SettingsPatch {
+                    key: "pi_scan_background_token_cap_24h",
+                    value: &tokens,
+                },
+                crate::theme::config::patch::SettingsPatch {
+                    key: "pi_scan_background_cost_cap_24h",
+                    value: &cost,
+                },
+            ],
+            false,
+        )
+        .map(|_| ())
+        .map_err(|error| format!("could not persist Pi scan budget settings atomically: {error}"))
+    }
+
+    /// Return actionable configuration issues without silently raising or clamping limits.
+    #[must_use]
+    pub fn validation_issues(&self) -> Vec<String> {
+        let mut issues = Vec::new();
+        if self.binary.trim().is_empty() {
+            issues.push("pi_scan_binary must name the Pi executable".to_string());
+        }
+        if self.observation_interval_seconds < 900 {
+            issues.push("pi_scan_observation_interval_seconds must be at least 900".to_string());
+        }
+        check_pi_scan_upper(
+            &mut issues,
+            "pi_scan_head_query_timeout_seconds",
+            self.head_query_timeout_seconds,
+            15,
+        );
+        check_pi_scan_upper(
+            &mut issues,
+            "pi_scan_observation_deadline_seconds",
+            self.observation_deadline_seconds,
+            90,
+        );
+        check_pi_scan_upper(
+            &mut issues,
+            "pi_scan_model_attempt_timeout_seconds",
+            self.model_attempt_timeout_seconds,
+            300,
+        );
+        check_pi_scan_upper(
+            &mut issues,
+            "pi_scan_logical_timeout_seconds",
+            self.logical_timeout_seconds,
+            720,
+        );
+        if self.result_retention_days == 0 {
+            issues.push("pi_scan_result_retention_days must be at least 1".to_string());
+        }
+        if let Some(error) = &self.background_token_cap_24h_parse_error {
+            issues.push(error.clone());
+        }
+        if let Err(error) = parse_pi_scan_cost_microusd(&self.background_cost_cap_24h) {
+            issues.push(error);
+        }
+        let proxy = self.https_proxy.trim();
+        if !proxy.is_empty() && (!proxy.starts_with("https://") || proxy.contains('@')) {
+            issues.push("pi_scan_https_proxy must be credential-free HTTPS or empty".to_string());
+        }
+        issues
+    }
+}
+
+/// Format micro-USD as an exact parser-compatible decimal dollar setting.
+pub fn format_pi_scan_budget_microusd(value: u64) -> String {
+    let dollars = value / 1_000_000;
+    let mut fraction = format!("{:06}", value % 1_000_000);
+    while fraction.len() > 2 && fraction.ends_with('0') {
+        fraction.pop();
+    }
+    format!("{dollars}.{fraction}")
+}
+
+/// Add a positive bounded setting violation.
+fn check_pi_scan_upper(issues: &mut Vec<String>, key: &str, value: u64, maximum: u64) {
+    if value == 0 || value > maximum {
+        issues.push(format!("{key} must be between 1 and {maximum}"));
+    }
+}
+
+/// What: Parse one exact Pi Scan decimal-dollar cap as integer micro-USD.
+///
+/// Inputs:
+/// - `value`: Non-negative decimal text with at most six fractional digits.
+///
+/// Output:
+/// - Exact native-range micro-USD, including zero and `u64::MAX`.
+///
+/// Details:
+/// - Malformed input and arithmetic overflow return an actionable validation issue; neither is
+///   ever converted to the zero/Unlimited policy.
+///
+/// # Errors
+/// - Returns an actionable key-specific issue for malformed, fractional-precision, or overflow
+///   input.
+pub fn parse_pi_scan_cost_microusd(value: &str) -> Result<u64, String> {
+    let invalid = || {
+        "pi_scan_background_cost_cap_24h must be a non-negative decimal with at most six fractional digits"
+            .to_string()
+    };
+    let overflow =
+        || "pi_scan_background_cost_cap_24h exceeds the maximum exact micro-USD value".to_string();
+    let trimmed = value.trim();
+    let (whole, fraction) = trimmed.split_once('.').unwrap_or((trimmed, ""));
+    if whole.is_empty()
+        || !whole.chars().all(|character| character.is_ascii_digit())
+        || fraction.len() > 6
+        || !fraction.chars().all(|character| character.is_ascii_digit())
+    {
+        return Err(invalid());
+    }
+    let dollars = whole.parse::<u64>().map_err(|_| overflow())?;
+    let micros = format!("{fraction:0<6}")
+        .parse::<u64>()
+        .map_err(|_| invalid())?;
+    dollars
+        .checked_mul(1_000_000)
+        .and_then(|value| value.checked_add(micros))
+        .ok_or_else(overflow)
+}
+
 /// User-configurable application settings parsed from `pacsea.conf`.
 #[derive(Clone, Debug)]
 #[allow(clippy::struct_excessive_bools)]
@@ -222,6 +464,8 @@ pub struct Settings {
     ///
     /// Keys match canonical `results_filter` tokens from repos.conf (e.g. `vendor_pkgs` for `results_filter_show_vendor_pkgs`).
     pub results_filter_toggles: HashMap<String, bool>,
+    /// Optional Pi scanner configuration, conservative and runtime default-off.
+    pub pi_scan: PiScanSettings,
 }
 
 impl Default for Settings {
@@ -303,6 +547,7 @@ impl Default for Settings {
             aur_vote_ssh_timeout_seconds: 10,
             aur_vote_ssh_command: "ssh".to_string(),
             results_filter_toggles: HashMap::new(),
+            pi_scan: PiScanSettings::default(),
         }
     }
 }
@@ -374,6 +619,54 @@ mod tests {
     use super::*;
 
     #[test]
+    /// What: Verify finite Pi Scan budgets accept native-range values needed by exact doubling.
+    ///
+    /// Inputs:
+    /// - Starts above the legacy five-start cap and tokens above the legacy 500k cap.
+    ///
+    /// Output:
+    /// - No configuration validation issue rejects either finite value.
+    ///
+    /// Details:
+    /// - Native integer parsing and checked adjustment arithmetic remain the authoritative bounds.
+    fn pi_scan_finite_budgets_are_not_limited_by_legacy_defaults() {
+        let settings = PiScanSettings {
+            background_starts_per_hour: 10,
+            background_token_cap_24h: 1_000_000,
+            background_cost_cap_24h: "18446744073709.551615".to_string(),
+            ..PiScanSettings::default()
+        };
+
+        assert_eq!(settings.validation_issues(), [] as [String; 0]);
+        assert_eq!(
+            format_pi_scan_budget_microusd(u64::MAX),
+            "18446744073709.551615"
+        );
+        assert_eq!(format_pi_scan_budget_microusd(0), "0.00");
+    }
+
+    #[test]
+    /// What: Enforce exact native micro-USD bounds without weakening invalid input to Unlimited.
+    fn pi_scan_cost_parser_accepts_exact_bounds_and_rejects_overflow() {
+        assert_eq!(parse_pi_scan_cost_microusd("0"), Ok(0));
+        assert_eq!(parse_pi_scan_cost_microusd("0.00"), Ok(0));
+        assert_eq!(
+            parse_pi_scan_cost_microusd("18446744073709.551615"),
+            Ok(u64::MAX)
+        );
+        assert!(parse_pi_scan_cost_microusd("18446744073709.551616").is_err());
+        assert!(parse_pi_scan_cost_microusd("malformed").is_err());
+
+        let overflow = PiScanSettings {
+            background_cost_cap_24h: "18446744073709.551616".to_string(),
+            ..PiScanSettings::default()
+        };
+        assert!(overflow.validation_issues().iter().any(|issue| {
+            issue.contains("pi_scan_background_cost_cap_24h") && issue.contains("maximum")
+        }));
+    }
+
+    #[test]
     /// What: Ensure `KeyChord::label` renders user-facing text for modifier and key combinations.
     ///
     /// Inputs:
@@ -432,6 +725,8 @@ pub struct KeyMap {
     pub help_overlay: Vec<KeyChord>,
     /// Key chords to reload configuration.
     pub reload_config: Vec<KeyChord>,
+    /// Key chords to open guided Pi Scan setup from a selected config-editor setting.
+    pub config_editor_pi_scan_setup: Vec<KeyChord>,
     /// Key chords to exit the application.
     pub exit: Vec<KeyChord>,
     /// Global: Show/Hide PKGBUILD viewer
@@ -492,14 +787,16 @@ pub struct KeyMap {
     pub search_normal_delete: Vec<KeyChord>,
     /// Normal mode: clear entire search input (default: Shift+Del)
     pub search_normal_clear: Vec<KeyChord>,
-    /// Normal mode: open Arch status page in browser (default: Shift+S)
+    /// Global package workspace: open Arch status page in browser (default: Shift+S).
     pub search_normal_open_status: Vec<KeyChord>,
-    /// Normal mode: trigger Import packages dialog
+    /// Global package workspace: trigger Import packages dialog.
     pub search_normal_import: Vec<KeyChord>,
-    /// Normal mode: trigger Export Install list
+    /// Global package workspace: trigger Export Install list.
     pub search_normal_export: Vec<KeyChord>,
-    /// Normal mode: open Available Updates window
+    /// Global package workspace: open Available Updates window.
     pub search_normal_updates: Vec<KeyChord>,
+    /// Global package workspace: open the Pi Scan workspace.
+    pub search_normal_pi_scan: Vec<KeyChord>,
     /// Toggle fuzzy search mode on/off
     pub toggle_fuzzy: Vec<KeyChord>,
 
@@ -645,16 +942,10 @@ type InstallKeys = (
 fn default_global_keys(none: KeyModifiers, ctrl: KeyModifiers) -> GlobalKeys {
     use KeyCode::{BackTab, Char, Left, Right, Tab};
     (
-        vec![
-            KeyChord {
-                code: KeyCode::F(1),
-                mods: none,
-            },
-            KeyChord {
-                code: Char('?'),
-                mods: none,
-            },
-        ],
+        vec![KeyChord {
+            code: Char('?'),
+            mods: none,
+        }],
         vec![KeyChord {
             code: Char('r'),
             mods: ctrl,
@@ -1054,6 +1345,10 @@ fn build_default_keymap() -> KeyMap {
     KeyMap {
         help_overlay: global.0,
         reload_config: global.1,
+        config_editor_pi_scan_setup: vec![KeyChord {
+            code: KeyCode::Char('g'),
+            mods: ctrl,
+        }],
         exit: global.2,
         show_pkgbuild: global.3,
         comments_toggle: global.4,
@@ -1089,6 +1384,10 @@ fn build_default_keymap() -> KeyMap {
         search_normal_import: search_normal.7,
         search_normal_export: search_normal.8,
         search_normal_updates: search_normal.9,
+        search_normal_pi_scan: vec![KeyChord {
+            code: KeyCode::Char('a'),
+            mods: shift,
+        }],
         toggle_fuzzy: vec![KeyChord {
             code: KeyCode::Char('f'),
             mods: ctrl,
@@ -1128,8 +1427,8 @@ impl Default for KeyMap {
     /// - Returns a `KeyMap` prefilling chord vectors for global, search, recent, install, and news actions.
     ///
     /// Details:
-    /// - Encodes human-friendly defaults such as `F1` for help and `Ctrl+R` to reload the configuration.
-    /// - Provides multiple bindings for certain actions (e.g., `F1` and `?` for help).
+    /// - Encodes human-friendly defaults such as `?` for help and `Ctrl+R` to reload the configuration.
+    /// - Keeps one unambiguous default binding per global action.
     /// - Delegates to `build_default_keymap()` to reduce data flow complexity.
     fn default() -> Self {
         build_default_keymap()

@@ -277,6 +277,7 @@ mod tests {
         // Set HOME to empty directory to avoid finding cached PKGBUILDs
         let old_home = std::env::var("HOME").unwrap_or_default();
         unsafe { std::env::set_var("HOME", root.to_string_lossy().as_ref()) };
+        crate::theme::set_home_config_enabled(true);
 
         // Create a new tokio runtime AFTER setting PATH and HOME so worker threads inherit them
         let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime for test");
@@ -301,6 +302,7 @@ mod tests {
         assert!(txt.contains("pkgrel=2"));
 
         unsafe { std::env::set_var("PATH", &old_path) };
+        crate::theme::set_home_config_enabled(false);
         unsafe { std::env::set_var("HOME", &old_home) };
         unsafe { std::env::remove_var("PACSEA_CURL_PATH") };
         let _ = std::fs::remove_dir_all(&root);

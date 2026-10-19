@@ -509,6 +509,72 @@ pub(super) fn handle_foreign_repo_overlap_modal(
     false
 }
 
+/// What: Handle key events for the exact Pi Scan continuation confirmation.
+///
+/// Inputs:
+/// - `ke`: Key event owned by the confirmation modal.
+/// - `app`: Application state containing the current selected result.
+/// - `modal`: Taken modal carrying the immutable confirmation payload.
+///
+/// Output:
+/// - Always consumes input while the confirmation is active.
+///
+/// Details:
+/// - Enter/y confirms against the exact current binding; Esc/q/n cancels without mutation.
+pub(super) fn handle_confirm_pi_scan_continuation_modal(
+    ke: KeyEvent,
+    app: &mut AppState,
+    modal: &Modal,
+) -> bool {
+    let Modal::ConfirmPiScanContinuation {
+        confirmation,
+        scroll,
+    } = modal
+    else {
+        return false;
+    };
+    match ke.code {
+        KeyCode::Esc | KeyCode::Char('q' | 'Q' | 'n' | 'N') => {
+            app.modal = Modal::None;
+        }
+        KeyCode::Enter | KeyCode::Char('\n' | '\r' | 'y' | 'Y') => {
+            if let Err(message_key) = app.pi_scan.confirm_continuation(confirmation) {
+                app.pi_scan.set_foreground_notice(
+                    crate::i18n::t(app, message_key),
+                    crate::state::pi_scan_ui::PiScanNoticeSeverity::Error,
+                );
+            }
+            app.modal = Modal::None;
+        }
+        KeyCode::Up | KeyCode::Char('k') => {
+            restore_pi_scan_continuation_modal(app, confirmation, scroll.saturating_sub(1));
+        }
+        KeyCode::Down | KeyCode::Char('j') => {
+            restore_pi_scan_continuation_modal(app, confirmation, scroll.saturating_add(1));
+        }
+        KeyCode::PageUp => {
+            restore_pi_scan_continuation_modal(app, confirmation, scroll.saturating_sub(5));
+        }
+        KeyCode::PageDown => {
+            restore_pi_scan_continuation_modal(app, confirmation, scroll.saturating_add(5));
+        }
+        _ => app.modal = modal.clone(),
+    }
+    true
+}
+
+/// Restore the continuation modal at one bounded vertical content offset.
+fn restore_pi_scan_continuation_modal(
+    app: &mut AppState,
+    confirmation: &crate::state::modal::PiScanContinuationConfirmation,
+    scroll: u16,
+) {
+    app.modal = Modal::ConfirmPiScanContinuation {
+        confirmation: confirmation.clone(),
+        scroll,
+    };
+}
+
 /// What: Handle key events for `ConfirmAurVote` modal.
 ///
 /// Inputs:
@@ -2067,5 +2133,179 @@ mod tests {
             app.previous_modal.is_none(),
             "stale previous_modal should be cleared on cancel"
         );
+    }
+
+    /// Build one result requiring both continuation acknowledgement categories.
+    fn continuation_result() -> crate::state::PiScanDisplayResult {
+        crate::state::PiScanDisplayResult {
+            validated: crate::logic::pi_scan::result::MergedScanResult {
+                identity: crate::logic::pi_scan::result::ExpectedIdentity {
+                    scan_id: "scan-alpha".to_string(),
+                    package_base: "alpha".to_string(),
+                    commit_oid: "commit".to_string(),
+                },
+                coverage: crate::logic::pi_scan::result::Coverage::Complete,
+                limitations: Vec::new(),
+                findings: vec![crate::logic::pi_scan::result::MergedFinding {
+                    fingerprint: "finding".to_string(),
+                    severity: crate::logic::pi_scan::result::Severity::High,
+                    snapshot: "recipe".to_string(),
+                    path: "PKGBUILD".to_string(),
+                    evidence: "evidence".to_string(),
+                    assessments: Vec::new(),
+                    disagreement: false,
+                }],
+            },
+            observed_head_oid: "head".to_string(),
+            stale: true,
+            mutable_sources: Vec::new(),
+        }
+    }
+
+    /// Build the modal payload from the exact selected result.
+    fn continuation_modal(app: &AppState) -> Modal {
+        let result = app.pi_scan.selected_result().expect("selected result");
+        Modal::ConfirmPiScanContinuation {
+            confirmation: crate::state::modal::PiScanContinuationConfirmation {
+                result_binding: result.binding(),
+                package_base: result.validated.identity.package_base.clone(),
+                finding_acknowledgement_required: result.needs_finding_acknowledgement(),
+                stale_acknowledgement_required: result.stale,
+            },
+            scroll: 0,
+        }
+    }
+
+    /// Enter confirms the exact binding, records disclosed acknowledgements, and queues continuation.
+    #[test]
+    fn pi_scan_continuation_enter_confirms_exact_binding() {
+        let mut app = AppState::default();
+        app.pi_scan.results.push(continuation_result());
+        let modal = continuation_modal(&app);
+        let binding = app
+            .pi_scan
+            .selected_result()
+            .expect("selected result")
+            .binding();
+
+        assert!(handle_confirm_pi_scan_continuation_modal(
+            KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE),
+            &mut app,
+            &modal,
+        ));
+
+        assert!(matches!(app.modal, Modal::None));
+        assert!(app.pi_scan.finding_acknowledgements.contains(&binding));
+        assert!(app.pi_scan.stale_acknowledgements.contains(&binding));
+        assert_eq!(
+            app.pi_scan.pending_action,
+            Some(crate::state::PiScanUiAction::ContinueSelected)
+        );
+    }
+
+    /// Cancellation closes the popup without acknowledgement or continuation mutation.
+    #[test]
+    fn pi_scan_continuation_cancel_is_inert() {
+        for code in [KeyCode::Esc, KeyCode::Char('q'), KeyCode::Char('n')] {
+            let mut app = AppState::default();
+            app.pi_scan.results.push(continuation_result());
+            let modal = continuation_modal(&app);
+
+            assert!(handle_confirm_pi_scan_continuation_modal(
+                KeyEvent::new(code, KeyModifiers::NONE),
+                &mut app,
+                &modal,
+            ));
+            assert!(matches!(app.modal, Modal::None));
+            assert!(app.pi_scan.finding_acknowledgements.is_empty());
+            assert!(app.pi_scan.stale_acknowledgements.is_empty());
+            assert!(app.pi_scan.pending_action.is_none());
+        }
+    }
+
+    /// Scroll keys keep the confirmation open and move its narrow-terminal viewport.
+    #[test]
+    fn pi_scan_continuation_scroll_keys_update_modal_offset() {
+        let mut app = AppState::default();
+        app.pi_scan.results.push(continuation_result());
+        let modal = continuation_modal(&app);
+
+        assert!(handle_confirm_pi_scan_continuation_modal(
+            KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE),
+            &mut app,
+            &modal,
+        ));
+        assert!(matches!(
+            app.modal,
+            Modal::ConfirmPiScanContinuation { scroll: 5, .. }
+        ));
+    }
+
+    /// A missing result closes fail-closed without recording any modal payload acknowledgement.
+    #[test]
+    fn pi_scan_continuation_missing_result_shows_error_notice() {
+        let mut app = AppState::default();
+        let modal = Modal::ConfirmPiScanContinuation {
+            confirmation: crate::state::modal::PiScanContinuationConfirmation {
+                result_binding: "missing-binding".to_string(),
+                package_base: "missing-package".to_string(),
+                finding_acknowledgement_required: true,
+                stale_acknowledgement_required: true,
+            },
+            scroll: 0,
+        };
+
+        assert!(handle_confirm_pi_scan_continuation_modal(
+            KeyEvent::new(KeyCode::Char('y'), KeyModifiers::NONE),
+            &mut app,
+            &modal,
+        ));
+
+        assert!(matches!(app.modal, Modal::None));
+        assert!(app.pi_scan.finding_acknowledgements.is_empty());
+        assert!(app.pi_scan.stale_acknowledgements.is_empty());
+        assert!(app.pi_scan.pending_action.is_none());
+        let notice = app
+            .pi_scan
+            .notices
+            .foreground
+            .as_ref()
+            .expect("foreground notice");
+        assert_eq!(
+            notice.severity,
+            crate::state::pi_scan_ui::PiScanNoticeSeverity::Error
+        );
+        assert_eq!(notice.text, "app.pi_scan.continuation.result_missing");
+    }
+
+    /// Binding drift closes fail-closed with actionable foreground feedback.
+    #[test]
+    fn pi_scan_continuation_binding_drift_shows_error_notice() {
+        let mut app = AppState::default();
+        app.pi_scan.results.push(continuation_result());
+        let modal = continuation_modal(&app);
+        app.pi_scan.results[0].observed_head_oid = "changed-head".to_string();
+
+        assert!(handle_confirm_pi_scan_continuation_modal(
+            KeyEvent::new(KeyCode::Char('y'), KeyModifiers::NONE),
+            &mut app,
+            &modal,
+        ));
+
+        assert!(matches!(app.modal, Modal::None));
+        assert!(app.pi_scan.finding_acknowledgements.is_empty());
+        assert!(app.pi_scan.stale_acknowledgements.is_empty());
+        assert!(app.pi_scan.pending_action.is_none());
+        let notice = app
+            .pi_scan
+            .notices
+            .foreground
+            .as_ref()
+            .expect("foreground notice");
+        assert_eq!(
+            notice.severity,
+            crate::state::pi_scan_ui::PiScanNoticeSeverity::Error
+        );
+        assert_eq!(notice.text, "app.pi_scan.continuation.result_changed");
     }
 }

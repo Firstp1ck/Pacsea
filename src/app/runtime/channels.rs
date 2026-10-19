@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
@@ -8,12 +9,50 @@ use crate::app::runtime::workers::UpdateCheckPayload;
 use crate::app::runtime::workers::aur_vote::{
     AurVoteRequest, AurVoteResponse, AurVoteStateRequest, AurVoteStateResponse,
 };
+use crate::app::runtime::workers::pi_scan::{
+    PiScanCancelMessage, PiScanProgressMessage, PiScanRequestMessage, PiScanResultMessage,
+    PiScanRuntimeNotice, PiScanRuntimeOptions, PiScanSessionRegistration, PiScanShutdownMessage,
+    PiScanUserPauseMessage,
+};
+use crate::app::runtime::workers::pi_scan_setup::{
+    PiScanRollbackReport, PiScanRuntimeTransfer, PiScanSetupEvent, PiScanSetupRequest,
+    PiScanSetupTimeout,
+};
 use crate::integrations::arch_toolkit::{ToolkitContext, ToolkitContextError};
 use crate::state::types::NewsFeedPayload;
 use crate::state::{
     ArchStatusColor, PackageDetails, PackageItem, PkgbuildCheckRequest, PkgbuildCheckResponse,
     QueryInput, SearchResults,
 };
+
+/// Result of the off-thread bounded wait for the previous Pi Scan runtime owner.
+pub struct PiScanOwnerShutdownResult {
+    /// Actionable failure, absent when the durability acknowledgement succeeded.
+    pub(crate) failure: Option<PiScanOwnerShutdownFailure>,
+}
+
+/// Bounded shutdown failure with whether the previous owner is known to have stopped.
+pub struct PiScanOwnerShutdownFailure {
+    /// Actionable durability or liveness failure.
+    pub(crate) reason: String,
+    /// Whether restoring a replacement cannot duplicate a live owner.
+    pub(crate) owner_stopped: bool,
+}
+
+/// Typed completion returned to the central event loop after nonblocking transfer work.
+pub enum PiScanRuntimeTransferCompletion {
+    /// Previous-owner shutdown finished and the retained transfer is ready for final handling.
+    OwnerShutdown {
+        /// Correlated candidate transfer retaining explicit rollback ownership.
+        transfer: Box<PiScanRuntimeTransfer>,
+        /// Exact previous options used if owner restoration becomes necessary.
+        previous_options: Box<PiScanRuntimeOptions>,
+        /// Bounded shutdown result.
+        result: PiScanOwnerShutdownResult,
+    },
+    /// An abandoned transfer completed explicit rollback off the redraw path.
+    Rollback(PiScanRollbackReport),
+}
 
 /// What: Channel definitions for runtime communication.
 ///
@@ -158,6 +197,40 @@ pub struct Channels {
     pub post_summary_res_rx: mpsc::UnboundedReceiver<crate::logic::summary::PostSummaryData>,
     /// Sender for search queries to the search worker.
     pub query_tx: mpsc::UnboundedSender<QueryInput>,
+    /// Sender for typed Pi scan queue and policy requests.
+    pub(crate) pi_scan_request_tx: mpsc::UnboundedSender<PiScanRequestMessage>,
+    /// Sender for user pause controls isolated from potentially blocking requests.
+    pub(crate) pi_scan_user_pause_tx: mpsc::UnboundedSender<PiScanUserPauseMessage>,
+    /// Sender for exact correlated Pi scan cancellation.
+    pub(crate) pi_scan_cancel_tx: mpsc::UnboundedSender<PiScanCancelMessage>,
+    /// Sender used by deferred execution to register a correlated WS2 process target.
+    pub(crate) pi_scan_session_tx: mpsc::UnboundedSender<PiScanSessionRegistration>,
+    /// Sender for bounded Pi scan shutdown acknowledgement.
+    pub(crate) pi_scan_shutdown_tx: mpsc::UnboundedSender<PiScanShutdownMessage>,
+    /// Receiver for typed Pi scan progress updates.
+    pub(crate) pi_scan_progress_rx: mpsc::UnboundedReceiver<PiScanProgressMessage>,
+    /// Receiver for typed Pi scan terminal results and rejections.
+    pub(crate) pi_scan_result_rx: mpsc::UnboundedReceiver<PiScanResultMessage>,
+    /// Receiver for provenance-bearing runtime policy notices.
+    pub(crate) pi_scan_notice_rx: mpsc::UnboundedReceiver<PiScanRuntimeNotice>,
+    /// Sender for nonblocking runtime-transfer follow-up completion.
+    pub(crate) pi_scan_transfer_completion_tx:
+        mpsc::UnboundedSender<PiScanRuntimeTransferCompletion>,
+    /// Receiver for nonblocking runtime-transfer follow-up completion.
+    pub(crate) pi_scan_transfer_completion_rx:
+        mpsc::UnboundedReceiver<PiScanRuntimeTransferCompletion>,
+    /// Whether central integration explicitly enabled the runtime worker.
+    pub(crate) pi_scan_runtime_enabled: bool,
+    /// Runtime options currently authoritative for rollback/restart.
+    pub(crate) pi_scan_runtime_options: PiScanRuntimeOptions,
+    /// Sender for guided setup probe/validate/apply requests.
+    pub(crate) pi_scan_setup_request_tx: mpsc::UnboundedSender<PiScanSetupRequest>,
+    /// Receiver for correlated guided setup events.
+    pub(crate) pi_scan_setup_event_rx: mpsc::UnboundedReceiver<PiScanSetupEvent>,
+    /// Receiver for post-persistence candidate runtime transfers.
+    pub(crate) pi_scan_setup_transfer_rx: mpsc::UnboundedReceiver<PiScanRuntimeTransfer>,
+    /// Receiver for correlated setup-controller deadline expiry.
+    pub(crate) pi_scan_setup_timeout_rx: mpsc::UnboundedReceiver<PiScanSetupTimeout>,
 }
 
 /// What: Event channel pair and cancellation flag.
@@ -550,13 +623,82 @@ impl Channels {
     ///
     /// Output:
     /// - Returns initialized channels or an actionable toolkit-client construction error.
+    #[allow(
+        dead_code,
+        reason = "retained for tests and default-off constructor compatibility"
+    )]
     pub fn new(index_path: std::path::PathBuf) -> Result<Self, ToolkitContextError> {
+        Self::new_with_pi_scan(
+            index_path,
+            crate::app::runtime::workers::pi_scan::PiScanRuntimeOptions::default(),
+        )
+    }
+
+    /// What: Create runtime channels with an explicitly validated Pi scanner configuration.
+    ///
+    /// Inputs:
+    /// - `index_path`: Path to the official package index.
+    /// - `pi_scan_options`: Default-off, dry-run, platform, and private persistence settings.
+    ///
+    /// Output:
+    /// - Initialized channels. A Pi-state load failure degrades only the optional scanner
+    ///   to its inert default-off worker and leaves Pacsea usable.
+    ///
+    /// Details:
+    /// - The scanner is marked enabled only when its worker loaded successfully and the
+    ///   compiled platform/setting gate is effective.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "legacy channel assembly remains centralized; Pi selection adds no branching to worker setup"
+    )]
+    pub fn new_with_pi_scan(
+        index_path: std::path::PathBuf,
+        pi_scan_options: crate::app::runtime::workers::pi_scan::PiScanRuntimeOptions,
+    ) -> Result<Self, ToolkitContextError> {
         let toolkit = ToolkitContext::new()?;
         let event_channels = create_event_channels();
         let search_channels = create_search_channels();
         let details_channels = create_details_channels();
         let preflight_channels = create_preflight_channels();
         let utility_channels = create_utility_channels();
+        let setup_root = pi_scan_options.state_path.parent().map_or_else(
+            || crate::theme::config_dir().join("pi_scan"),
+            Path::to_path_buf,
+        );
+        let setup_channels =
+            crate::app::runtime::workers::pi_scan_setup::spawn_pi_scan_setup_controller(
+                crate::app::runtime::workers::pi_scan_setup::PiScanSetupControllerOptions {
+                    dry_run: pi_scan_options.dry_run,
+                    settings_path: crate::theme::resolved_config_path(
+                        crate::theme::ConfigFile::Settings,
+                    ),
+                    consent_path: setup_root.join("consent-v1.json"),
+                    state_path: pi_scan_options.state_path.clone(),
+                    quarantine_dir: pi_scan_options.quarantine_dir.clone(),
+                },
+            );
+        let current_pi_scan_options = pi_scan_options.clone();
+        let requested_pi_scan_enabled = pi_scan_options.effective_enabled();
+        let (pi_scan_transfer_completion_tx, pi_scan_transfer_completion_rx) =
+            mpsc::unbounded_channel();
+        let production_requested =
+            requested_pi_scan_enabled && pi_scan_options.production.is_some();
+        let pi_scan_spawn = if production_requested {
+            crate::pi_scan_production::spawn_production_pi_scan_worker(&pi_scan_options)
+        } else {
+            crate::app::runtime::workers::pi_scan::spawn_pi_scan_worker(pi_scan_options)
+                .map_err(|error| error.to_string())
+        };
+        let (pi_scan_channels, pi_scan_runtime_enabled) = match pi_scan_spawn {
+            Ok(channels) => (channels, requested_pi_scan_enabled),
+            Err(error) => {
+                tracing::warn!(%error, "Pi scanner state is unavailable; continuing with the optional scanner disabled");
+                (
+                    crate::app::runtime::workers::pi_scan::spawn_default_off_pi_scan_worker(),
+                    false,
+                )
+            }
+        };
 
         // Spawn background workers
         crate::app::runtime::workers::details::spawn_details_worker(
@@ -694,6 +836,22 @@ impl Channels {
             post_summary_req_tx: utility_channels.post_summary_req_tx,
             post_summary_res_rx: utility_channels.post_summary_res_rx,
             query_tx: search_channels.query_tx,
+            pi_scan_request_tx: pi_scan_channels.request_tx,
+            pi_scan_user_pause_tx: pi_scan_channels.user_pause_tx,
+            pi_scan_cancel_tx: pi_scan_channels.cancel_tx,
+            pi_scan_session_tx: pi_scan_channels.session_tx,
+            pi_scan_shutdown_tx: pi_scan_channels.shutdown_tx,
+            pi_scan_progress_rx: pi_scan_channels.progress_rx,
+            pi_scan_result_rx: pi_scan_channels.result_rx,
+            pi_scan_notice_rx: pi_scan_channels.notice_rx,
+            pi_scan_transfer_completion_tx,
+            pi_scan_transfer_completion_rx,
+            pi_scan_runtime_enabled,
+            pi_scan_runtime_options: current_pi_scan_options,
+            pi_scan_setup_request_tx: setup_channels.request_tx,
+            pi_scan_setup_event_rx: setup_channels.event_rx,
+            pi_scan_setup_transfer_rx: setup_channels.transfer_rx,
+            pi_scan_setup_timeout_rx: setup_channels.timeout_rx,
         })
     }
 }

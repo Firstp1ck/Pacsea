@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>Pi Scan Setup Wizard — Implementation and Verification Report</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg:#0b1220;--panel:#121c2d;--panel-2:#18253a;--text:#e8eef8;
+      --muted:#a9b7cb;--line:#2b3b55;--green:#50d890;--yellow:#f7c65c;
+      --red:#ff7373;--blue:#65b5ff;--code:#07101c;--radius-lg:16px;
+      --radius-md:12px;--shadow:0 14px 36px rgb(0 0 0 / 22%);
+    }
+    *{box-sizing:border-box} html{scroll-behavior:smooth}
+    body{margin:0;background:radial-gradient(circle at 15% 0%,#142848 0,transparent 35rem),var(--bg);color:var(--text);font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}
+    a{color:var(--blue)} a:focus-visible,button:focus-visible,summary:focus-visible{outline:3px solid var(--blue);outline-offset:3px}
+    .skip{position:fixed;top:8px;left:8px;transform:translateY(-160%);background:var(--blue);color:#06111f;padding:8px 12px;border-radius:8px;font-weight:800;z-index:20}.skip:focus{transform:none}
+    main{width:min(1120px,calc(100% - 32px));margin:36px auto 64px}
+    header,.panel{background:color-mix(in srgb,var(--panel) 94%,transparent);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow)}
+    header{padding:30px;margin-bottom:20px}.panel{padding:24px;margin:18px 0}
+    h1,h2,h3{line-height:1.25;margin-top:0}h1{font-size:clamp(1.9rem,5vw,3rem);margin-bottom:8px}h2{font-size:1.45rem;border-bottom:1px solid var(--line);padding-bottom:10px}h3{font-size:1.08rem;margin-bottom:6px}
+    p{margin:8px 0 14px}.lead{font-size:1.1rem;max-width:82ch}.muted{color:var(--muted)}
+    code,pre{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}code{background:var(--code);padding:.12em .38em;border-radius:5px}pre{background:var(--code);border:1px solid var(--line);border-radius:10px;padding:14px;overflow:auto;white-space:pre-wrap}
+    .badge{display:inline-block;padding:3px 9px;border-radius:999px;font-size:.78rem;font-weight:750;letter-spacing:.035em;text-transform:uppercase;margin-bottom:8px}.good{color:var(--green)}.warn{color:var(--yellow)}.bad{color:var(--red)}.info{color:var(--blue)}
+    .badge.good{background:rgb(80 216 144 / 14%);border:1px solid rgb(80 216 144 / 38%)}.badge.warn{background:rgb(247 198 92 / 14%);border:1px solid rgb(247 198 92 / 38%)}.badge.info{background:rgb(101 181 255 / 14%);border:1px solid rgb(101 181 255 / 38%)}
+    .callout{border-left:5px solid var(--green);background:rgb(80 216 144 / 8%);border-radius:8px;padding:14px 16px;margin:14px 0}.callout.warn{border-left-color:var(--yellow);background:rgb(247 198 92 / 8%);color:var(--text)}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}.card,.metric{background:var(--panel-2);border:1px solid var(--line);border-radius:var(--radius-md);padding:16px}.metric strong{display:block;font-size:1.35rem}
+    .table-wrap{overflow-x:auto;border-radius:10px}table{width:100%;border-collapse:collapse;min-width:680px}th,td{text-align:left;vertical-align:top;padding:11px 9px;border-bottom:1px solid var(--line)}th{color:var(--muted);font-size:.84rem;text-transform:uppercase;letter-spacing:.04em}tbody tr:hover{background:rgb(101 181 255 / 5%)}
+    [role="tablist"]{display:flex;gap:8px;overflow-x:auto;padding:8px;margin:0 0 18px;border:1px solid var(--line);border-radius:12px;background:rgb(7 16 28 / 72%)}
+    [role="tab"]{appearance:none;border:1px solid transparent;border-radius:9px;background:transparent;color:var(--muted);padding:9px 13px;white-space:nowrap;font:inherit;font-weight:750;cursor:pointer}[role="tab"][aria-selected="true"]{color:var(--text);border-color:rgb(101 181 255 / 45%);background:rgb(101 181 255 / 14%)}
+    .tabs-ready [role="tabpanel"][hidden]{display:none}[role="tabpanel"]{scroll-margin-top:16px}
+    figure{margin:18px 0}figure svg{display:block;width:100%;height:auto;background:var(--code);border:1px solid var(--line);border-radius:12px}figcaption{color:var(--muted);margin-top:8px;font-size:.92rem}
+    .node{fill:#182b43;stroke:var(--blue);stroke-width:2}.node.good-node{stroke:var(--green)}.node.warn-node{stroke:var(--yellow)}.node-text{fill:var(--text);font:650 13px system-ui,sans-serif;text-anchor:middle}.edge{fill:none;stroke:var(--muted);stroke-width:2.5;marker-end:url(#arrow)}.rollback{stroke:var(--yellow);stroke-dasharray:8 6}
+    details{border-top:1px solid var(--line);padding-top:10px;margin-top:10px}summary{cursor:pointer;color:var(--blue);font-weight:700}
+    footer{color:var(--muted);margin-top:24px;font-size:.9rem}
+    @media(max-width:620px){main{width:min(100% - 18px,1120px);margin-top:10px}header,.panel{padding:18px}[role="tablist"]{position:sticky;top:0;z-index:5}}
+    @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important}}
+    @media print{:root{color-scheme:light}body{background:white;color:#111}main{width:100%;margin:0}header,.panel,.card,.metric{box-shadow:none;background:white;color:#111;border-color:#bbb;break-inside:avoid}[role="tablist"],.skip{display:none!important}[role="tabpanel"],[role="tabpanel"][hidden]{display:block!important}pre,code,figure svg{color:#111;background:#f1f3f5;border-color:#bbb}.muted,figcaption,footer{color:#444}a{color:#111;text-decoration:underline}figure{break-inside:avoid}}
+  </style>
+</head>
+<body>
+<a class="skip" href="#content">Skip to report content</a>
+<main id="content">
+  <header>
+    <span class="badge good">Completed complex feature</span>
+    <h1>Pi Scan Setup Wizard</h1>
+    <p class="lead">Implementation and verification report for the native, restart-free setup flow on <code>feat/aur-scan-integrated</code>. Evidence comes from the integrated repository diff, deterministic tests, four installed-Pi metadata-only checks, and two independent reviewer runs.</p>
+    <div class="callout"><strong>Conclusion:</strong> The seven-step wizard is implemented and verified. It opens while Pi Scan is disabled, makes no setup model call, keeps draft values and six consent decisions isolated, applies through a fail-closed transaction, and activates production without restarting Pacsea.</div>
+    <p class="muted"><strong>Confidence: 96/100.</strong> Code, tests, live Pi 0.84.0 metadata paths, review findings, and report validation are directly verified. Confidence is reduced by the absence of a native-speaker translation review, a formal user study, and a literal power-loss test between the two durable file replacements.</p>
+  </header>
+
+  <div class="tabs-shell">
+    <nav role="tablist" aria-label="Report sections">
+      <button id="tab-overview" role="tab" aria-selected="true" aria-controls="overview" tabindex="0">Overview</button>
+      <button id="tab-design" role="tab" aria-selected="false" aria-controls="design" tabindex="-1">Design</button>
+      <button id="tab-implementation" role="tab" aria-selected="false" aria-controls="implementation" tabindex="-1">Implementation</button>
+      <button id="tab-review" role="tab" aria-selected="false" aria-controls="review" tabindex="-1">Review</button>
+      <button id="tab-evidence" role="tab" aria-selected="false" aria-controls="evidence" tabindex="-1">Evidence &amp; rollout</button>
+    </nav>
+
+    <section class="panel" id="overview" role="tabpanel" aria-labelledby="tab-overview">
+      <h2>Executive overview</h2>
+      <div class="grid" aria-label="Headline evidence">
+        <div class="metric"><span class="badge good">UX</span><strong>7 steps</strong><span class="muted">Welcome through verified activation, with Back, Next, Cancel, Retry, Apply, and scroll controls.</span></div>
+        <div class="metric"><span class="badge good">Regression</span><strong>122 / 0</strong><span class="muted">Pi Scan target passed / failed; four environment-dependent checks remain ignored by default.</span></div>
+        <div class="metric"><span class="badge good">Live</span><strong>4 checks</strong><span class="muted">Capability, route/pricing, production setup, and full Apply→restored-consent checks passed on Pi 0.84.0.</span></div>
+        <div class="metric"><span class="badge info">Review</span><strong>2 providers</strong><span class="muted">Fresh-context OpenAI correctness/UX and Moonshot security/privacy outputs.</span></div>
+      </div>
+      <h3 style="margin-top:22px">Report map</h3>
+      <div class="table-wrap">
+        <table data-overview>
+          <thead><tr><th>Area</th><th>Implemented outcome</th><th>Verification</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td>Entry and UX</td><td>Disabled Shift+A entry, explicit Setup rerun, Config Editor <code>Ctrl+G</code>, seven localized steps, compact scrolling layout, and selected-route-only pricing with grouped tokens and exact USD.</td><td>State, key, mouse, Config Editor, locale, narrow-render, and catalog-omission tests.</td><td><span class="good">Verified</span></td></tr>
+            <tr><td>Probe and selection</td><td>Direct-argv Pi capability probe; exact priced routes and per-route reservations; no prompt/model command.</td><td>Fake transport command-order tests and installed-Pi metadata probe.</td><td><span class="good">Verified</span></td></tr>
+            <tr><td>Consent and binding</td><td>Disclosure, foreground payment, observation, background payment, fallback, and readiness remain independent and material-bound.</td><td>Combination tests, drift invalidation, canonical startup binding, live restored consent.</td><td><span class="good">Verified</span></td></tr>
+            <tr><td>Transaction and runtime</td><td>Consent-first private persistence, settings fingerprinting, bounded owner shutdown, queue-inert candidate, restart-free swap, rollback.</td><td>Injected save/consent/settings/activation failures plus full live Apply.</td><td><span class="good">Verified</span></td></tr>
+            <tr><td>Process</td><td>Two delegated implementation outcomes, central integration, two reviews, dispositions, full validation, report.</td><td>Canonical plan and reviewer run records.</td><td><span class="good">Complete</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" id="design" role="tabpanel" aria-labelledby="tab-design">
+      <h2>Architecture and trust flow</h2>
+      <p>The setup controller is always available, even when production scanning is disabled. Wizard state owns only a draft. Probe and candidate validation are write-free. Only a correlated Apply can create a queue-inert candidate, persist consent/settings, and request central ownership transfer.</p>
+      <figure data-visual-kind="diagram" data-purpose="Explain the ordered setup, commit, activation, and rollback boundaries">
+        <svg role="img" aria-labelledby="flow-title flow-desc" viewBox="0 0 1080 430">
+          <title id="flow-title">Pi Scan wizard activation sequence</title>
+          <desc id="flow-desc">A seven-step draft asks an always-available setup controller to run metadata-only Pi probes, validate a candidate, persist consent before settings, stop the previous owner, activate the candidate, and publish restored consent. Failure rolls files back and restores or disconnects the old owner according to proven liveness.</desc>
+          <defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#a9b7cb"/></marker></defs>
+          <path class="edge" d="M210 105 H285"/><path class="edge" d="M455 105 H530"/><path class="edge" d="M700 105 H775"/>
+          <path class="edge" d="M865 145 V220"/><path class="edge" d="M775 265 H700"/><path class="edge" d="M530 265 H455"/><path class="edge" d="M285 265 H210"/>
+          <path class="edge rollback" d="M540 305 C540 385 190 385 145 145"/>
+          <rect class="node" x="40" y="65" width="170" height="80" rx="12"/><text class="node-text" x="125" y="98">Wizard draft</text><text class="node-text" x="125" y="120">no effective mutation</text>
+          <rect class="node" x="285" y="65" width="170" height="80" rx="12"/><text class="node-text" x="370" y="98">Metadata-only Pi</text><text class="node-text" x="370" y="120">exact routes/prices</text>
+          <rect class="node" x="530" y="65" width="170" height="80" rx="12"/><text class="node-text" x="615" y="98">Write-free validation</text><text class="node-text" x="615" y="120">fresh material binding</text>
+          <rect class="node warn-node" x="775" y="65" width="260" height="80" rx="12"/><text class="node-text" x="905" y="98">Consent-first commit</text><text class="node-text" x="905" y="120">then settings + fsync</text>
+          <rect class="node" x="775" y="225" width="260" height="80" rx="12"/><text class="node-text" x="905" y="258">Bounded old-owner stop</text><text class="node-text" x="905" y="280">liveness classified</text>
+          <rect class="node good-node" x="530" y="225" width="170" height="80" rx="12"/><text class="node-text" x="615" y="258">Candidate activate</text><text class="node-text" x="615" y="280">atomic channel swap</text>
+          <rect class="node good-node" x="285" y="225" width="170" height="80" rx="12"/><text class="node-text" x="370" y="258">RuntimeConnected</text><text class="node-text" x="370" y="280">consent restored</text>
+          <rect class="node" x="40" y="225" width="170" height="80" rx="12"/><text class="node-text" x="125" y="258">Normal workspace</text><text class="node-text" x="125" y="280">no restart</text>
+          <text class="node-text" x="390" y="405">failure path: tear down candidate · restore files · restore owner only when duplication is impossible</text>
+        </svg>
+        <figcaption>The diagram mirrors the implemented controller/event-loop sequence. The dashed path is fail-closed recovery, not a queue-execution path.</figcaption>
+      </figure>
+      <div class="grid">
+        <article class="card"><span class="badge info">Isolation</span><h3>Draft boundary</h3><p>Candidate settings, route facts, confirmations, correlation, and apply status stay in <code>PiScanSetupWizardState</code>. Cancel drops the draft and sends no runtime request.</p></article>
+        <article class="card"><span class="badge info">Probe boundary</span><h3>No model call</h3><p>The adapter issues only <code>get_available_models</code>, <code>get_commands</code>, and <code>get_state</code>. CLI and RPC processes have deadlines and process-group cleanup.</p></article>
+        <article class="card"><span class="badge info">Consent boundary</span><h3>Two durable projections</h3><p>Runtime consent covers observation and foreground payment. Setup consent separately carries background payment, disclosure, fallback, readiness, Pi version, and pricing binding.</p></article>
+        <article class="card"><span class="badge info">Ownership boundary</span><h3>One active owner</h3><p>Central integration stops the old owner before activation and installs all channel endpoints together. Uncertain shutdown never triggers a duplicate-owner restore.</p></article>
+      </div>
+    </section>
+
+    <section class="panel" id="implementation" role="tabpanel" aria-labelledby="tab-implementation">
+      <h2>Implementation map and behavior</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Component</th><th>Responsibility</th><th>Key files</th><th>Notable invariant</th></tr></thead>
+          <tbody>
+            <tr><td>Wizard state/UI</td><td>Seven steps, focus, scrolling, route/fallback reservation, concise selected-route pricing, review, and localized validation.</td><td><code>src/state/pi_scan_setup.rs</code><br><code>src/ui/pi_scan/wizard.rs</code></td><td>No draft value enters effective state before successful transfer; unselected route catalogs never enter the normal pricing view.</td></tr>
+            <tr><td>Input and entry</td><td>Shift+A routing, Setup <code>r</code>, Config Editor <code>Ctrl+G</code>, keyboard/mouse parity.</td><td><code>src/events/pi_scan/keys.rs</code><br><code>src/events/modals/config_editor.rs</code></td><td>Verified setup bypasses; incomplete setup opens Welcome.</td></tr>
+            <tr><td>No-model probe</td><td>Binary/version/tool/isolation verification, exact priced route catalog, freshness and binding.</td><td><code>src/integrations/pi_agent/setup_probe.rs</code></td><td>No prompt, model selection, package acquisition, or provider response retention.</td></tr>
+            <tr><td>Setup transaction</td><td>Correlation, normalization, re-probe, queue-inert runtime preparation, private persistence, rollback transfer.</td><td><code>src/app/runtime/workers/pi_scan_setup.rs</code></td><td>Only Apply writes; consent is persisted before settings.</td></tr>
+            <tr><td>Runtime integration</td><td>Always-on controller channels, previous-owner shutdown, candidate activation, channel replacement, restoration.</td><td><code>src/app/runtime/channels.rs</code><br><code>src/app/runtime/event_loop.rs</code></td><td>Exactly one owner is addressable after a successful swap.</td></tr>
+            <tr><td>Production compatibility</td><td>Canonical setup probe and material binding on startup, independent background-paid gate.</td><td><code>src/app/runtime/workers/pi_scan_production.rs</code><br><code>src/app/runtime/workers/pi_scan_orchestrator.rs</code></td><td>Unchanged material restores consent instead of resetting it.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <h3>Wizard decisions</h3>
+      <ol>
+        <li><strong>Welcome:</strong> advisory scope, data flow, no package execution, Pi-owned credentials.</li>
+        <li><strong>Pi readiness:</strong> binary resolution, supported version, required flags and isolated tool contract.</li>
+        <li><strong>Route:</strong> exact advertised provider/model and thinking level.</li>
+        <li><strong>Pricing/privacy:</strong> per-route worst-case reservation, provenance/freshness, disclosure, foreground payment, readiness warning.</li>
+        <li><strong>Optional behavior:</strong> observation, paid background work, exact fallback, budgets, retention, credential-free HTTPS proxy.</li>
+        <li><strong>Review:</strong> every effective value, compiled maxima, six decisions, exact binding and transaction effects.</li>
+        <li><strong>Activate:</strong> re-probe, persist, stop old owner, activate, restore consent, or show retryable failure.</li>
+      </ol>
+      <div class="callout warn"><strong>Crash ordering:</strong> two separate files cannot share one filesystem rename. The implementation writes private consent first and settings second. A process/power interruption between them therefore leaves the prior settings authoritative; the mismatched consent fails closed. In-process failures restore both snapshots, and rename durability includes parent-directory fsync.</div>
+    </section>
+
+    <section class="panel" id="review" role="tabpanel" aria-labelledby="tab-review">
+      <h2>Independent review and dispositions</h2>
+      <p>Both reviewers inspected the integrated working-tree diff from Wave 0 in fresh, read-only contexts. The correctness reviewer used OpenAI. The security reviewer’s requested Anthropic routes were rate-limited; the qualifying successful output used Moonshot/Kimi through OpenRouter, preserving provider-family diversity.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Finding</th><th>Severity</th><th>Disposition</th><th>Implemented evidence</th></tr></thead>
+          <tbody>
+            <tr><td>PSW-001 / F-1 — setup and production binding divergence</td><td>Blocker / High</td><td><span class="good">Accepted, fixed</span></td><td>Shared material binding, canonical production probe, stable material pricing hash, live restored-consent test.</td></tr>
+            <tr><td>PSW-002 — wrong displayed route/fallback reservation</td><td>High</td><td><span class="good">Accepted, fixed</span></td><td>Per-route reservations and current primary/fallback maximum with regression test.</td></tr>
+            <tr><td>PSW-003 / F-3 — payment consent collapsed</td><td>High / Medium</td><td><span class="good">Accepted, fixed</span></td><td>Independent protocol, durable state, advanced <code>[p]</code>/<code>[b]</code> actions, combination tests.</td></tr>
+            <tr><td>PSW-004 — stopped old owner reported connected</td><td>High</td><td><span class="good">Accepted, fixed</span></td><td>Typed liveness classification, safe restore, truthful disconnected state.</td></tr>
+            <tr><td>PSW-005 — footer/Enter mismatch</td><td>Medium</td><td><span class="good">Accepted, fixed</span></td><td><code>[n] Next</code> is visible; Enter/Space are described as control actions.</td></tr>
+            <tr><td>PSW-006 / F-5 — persistence durability gaps</td><td>Medium / Low</td><td><span class="good">Accepted, fixed</span></td><td>Consent-first ordering, rollback seam, fingerprint guard, file and parent fsync.</td></tr>
+            <tr><td>PSW-007 — incomplete final Review</td><td>Medium</td><td><span class="good">Accepted, fixed</span></td><td>Review includes version, reservation, freshness, confirmations, limits, timeouts, proxy/raw-output and maxima.</td></tr>
+            <tr><td>PSW-008 — narrow clipping</td><td>Medium</td><td><span class="good">Accepted, fixed</span></td><td>Compact layout plus PageUp/PageDown body scrolling and tests.</td></tr>
+            <tr><td>PSW-009 — English-only state errors</td><td>Medium</td><td><span class="good">Accepted, fixed</span></td><td>Localized state keys and failure stages; German/Hungarian wizard sections contain no unresolved translation markers.</td></tr>
+            <tr><td>F-2 — correlation resets on rerun</td><td>Medium</td><td><span class="good">Accepted, fixed</span></td><td>Process-wide sequence retained across wizard sessions and regression-tested.</td></tr>
+            <tr><td>PSW-010 — no Config Editor entry</td><td>Low</td><td><span class="good">Accepted, fixed</span></td><td>Contextual <code>Ctrl+G</code>, localized footer hint, transition test.</td></tr>
+            <tr><td>F-4 — unbounded CLI information command</td><td>Low</td><td><span class="good">Accepted, fixed</span></td><td>15-second deadline, bounded readers, group kill/reap, deterministic timeout test.</td></tr>
+            <tr><td>PSW-011 — incomplete process artifacts</td><td>Low</td><td><span class="good">Accepted, completed</span></td><td>Dispositions, revalidation, report, plan link, and archival.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p><strong>Open findings:</strong> none. No finding was rejected, deferred, or left as needs-verification. Every accepted change was followed by focused checks and the complete required validation sequence.</p>
+      <div class="callout warn"><strong>Post-review usability correction:</strong> an interactive screenshot exposed that the pricing page joined every advertised route and exact price record into one enormous paragraph. The reviewers and initial render tests missed this. The wizard and advanced Setup page now show only the selected route, advertised-route count, concise pricing source, grouped token reservation, and exact USD amount. A regression test rejects unselected route names and raw <code>micro-USD</code> output.</div>
+    </section>
+
+    <section class="panel" id="evidence" role="tabpanel" aria-labelledby="tab-evidence">
+      <h2>Validation evidence, usage, and limitations</h2>
+      <div class="grid">
+        <article class="card"><span class="badge good">Required checks</span><h3>Clean build pipeline</h3><p><code>cargo fmt --all</code>, strict all-target/all-feature Clippy, <code>cargo check</code>, full serial tests, Pi Scan target, complexity checks, and <code>git diff --check</code> all passed.</p></article>
+        <article class="card"><span class="badge good">Full suite</span><h3>Repository regression</h3><p>Library portion: 1,252 passed, 0 failed, 7 ignored. Every integration and doctest binary passed.</p></article>
+        <article class="card"><span class="badge good">Pi Scan</span><h3>Feature target</h3><p>122 passed, 0 failed, 4 intentionally ignored environment-dependent checks.</p></article>
+        <article class="card"><span class="badge good">Live Pi</span><h3>Metadata-only activation</h3><p>Pi 0.84.0 live probes verified tools, exact priced routes, production setup, full Apply, runtime activation, consent restoration, and bounded shutdown without a model call.</p></article>
+      </div>
+      <h3>How to use the completed flow</h3>
+      <ol>
+        <li>From Search, press the configured Pi Scan shortcut (default <code>Shift+A</code>). Incomplete setup opens Welcome even when <code>pi_scan_enabled = false</code>.</li>
+        <li>Verify Pi, select an exact route, review pricing/privacy, choose conservative optional behavior, then inspect the complete Review page.</li>
+        <li>Press <code>a</code> on Review to Apply. Success transitions to production in the same process; no manual settings edit or Pacsea restart is required.</li>
+        <li>Later, press <code>r</code> on advanced Setup or <code>Ctrl+G</code> on a Pi Scan Config Editor row to rerun guided setup. Material expert edits invalidate prior setup consent.</li>
+      </ol>
+      <details open>
+        <summary>Decisive commands</summary>
+        <pre><code>cargo fmt --all
+cargo clippy --all-targets --all-features -- -D warnings
+cargo check
+cargo test -- --test-threads=1
+cargo test --test pi_scan -- --test-threads=1
+cargo test complexity -- --nocapture
+git diff --check
+
+cargo test live_pi_rpc_capability_probe_exposes_exact_tools -- --ignored --test-threads=1
+cargo test live_setup_probe_enumerates_priced_routes_without_model_call -- --ignored --test-threads=1
+cargo test live_production_setup_probe_verifies_tools_models_and_pricing -- --ignored --test-threads=1
+cargo test live_setup_apply_activates_and_restores_consent_without_restart -- --ignored --test-threads=1</code></pre>
+      </details>
+      <details>
+        <summary>Residual risks and limitations</summary>
+        <ul>
+          <li>The host Pi binary remains an accepted optional-dependency trust boundary; Pacsea constrains argv, environment, tools, lifecycle, output, and authority but does not claim an OS sandbox.</li>
+          <li>No paid provider/model request was made during setup validation. Live evidence covers metadata and runtime activation, not provider billing behavior.</li>
+          <li>A literal power-cut test between consent and settings replacement was not run. The ordering is designed so prior settings remain authoritative, while in-process after-consent failure and rollback are deterministic tests.</li>
+          <li>German and Hungarian key completeness and placeholder policy are tested, but translation quality was not reviewed by native speakers.</li>
+          <li>Responsive rendering is automated; no formal interactive terminal usability study was performed.</li>
+        </ul>
+      </details>
+      <h3>Sources and traceability</h3>
+      <ul>
+        <li>Canonical completed plan: <a href="../plans/archive/pi-scan-setup-wizard.md"><code>plans/archive/pi-scan-setup-wizard.md</code></a></li>
+        <li>PR record: <a href="../dev/PR/PR_feat-aur-scan-integrated.md"><code>dev/PR/PR_feat-aur-scan-integrated.md</code></a></li>
+        <li>Primary implementation: <code>src/state/pi_scan_setup.rs</code>, <code>src/integrations/pi_agent/setup_probe.rs</code>, <code>src/app/runtime/workers/pi_scan_setup.rs</code>, <code>src/app/runtime/event_loop.rs</code>.</li>
+        <li>Acceptance coverage: <code>tests/pi_scan/setup_wizard.rs</code>, <code>tests/pi_scan/ws_setup_probe.rs</code>, <code>tests/pi_scan/ws_setup_runtime.rs</code>, <code>tests/pi_scan/ws_setup_ui.rs</code>.</li>
+        <li>Independent reviewer run identifiers: <code>920d7389</code> and <code>c7a7c247</code>.</li>
+      </ul>
+    </section>
+  </div>
+  <footer><p><strong>Generated:</strong> 2026-08-10 · <strong>Scope:</strong> Pi Scan initial setup wizard implementation, review remediation, and acceptance evidence on <code>feat/aur-scan-integrated</code>.</p></footer>
+</main>
+<script>
+(() => {
+  const list = document.querySelector('[role="tablist"]');
+  if (!list) return;
+  const tabs = [...list.querySelectorAll('[role="tab"]')];
+  document.documentElement.classList.add('tabs-ready');
+  function activate(tab, updateHash = true) {
+    tabs.forEach(candidate => {
+      const selected = candidate === tab;
+      candidate.setAttribute('aria-selected', String(selected));
+      candidate.tabIndex = selected ? 0 : -1;
+      const panel = document.getElementById(candidate.getAttribute('aria-controls'));
+      if (panel) panel.hidden = !selected;
+    });
+    if (updateHash) history.replaceState(null, '', `#${tab.getAttribute('aria-controls')}`);
+  }
+  tabs.forEach((tab, index) => {
+    tab.addEventListener('click', () => activate(tab));
+    tab.addEventListener('keydown', event => {
+      let target = null;
+      if (event.key === 'ArrowRight') target = (index + 1) % tabs.length;
+      if (event.key === 'ArrowLeft') target = (index - 1 + tabs.length) % tabs.length;
+      if (event.key === 'Home') target = 0;
+      if (event.key === 'End') target = tabs.length - 1;
+      if (target === null) return;
+      event.preventDefault();
+      activate(tabs[target]);
+      tabs[target].focus();
+    });
+  });
+  const fromHash = tabs.find(tab => `#${tab.getAttribute('aria-controls')}` === location.hash);
+  activate(fromHash || tabs[0], false);
+})();
+</script>
+</body>
+</html>

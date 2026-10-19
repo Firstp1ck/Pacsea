@@ -81,7 +81,7 @@ fn integration_edge_case_remove_empty_list() {
 
     match request {
         ExecutorRequest::Remove { names, .. } => {
-            assert!(names.is_empty());
+            assert_eq!(names, [] as [std::string::String; 0]);
         }
         _ => panic!("Expected ExecutorRequest::Remove"),
     }
@@ -107,7 +107,7 @@ fn integration_edge_case_update_empty_commands() {
 
     match request {
         ExecutorRequest::Update { commands, .. } => {
-            assert!(commands.is_empty());
+            assert_eq!(commands, [] as [std::string::String; 0]);
         }
         _ => panic!("Expected ExecutorRequest::Update"),
     }
@@ -133,7 +133,7 @@ fn integration_edge_case_downgrade_empty_list() {
 
     match request {
         ExecutorRequest::Downgrade { names, .. } => {
-            assert!(names.is_empty());
+            assert_eq!(names, [] as [std::string::String; 0]);
         }
         _ => panic!("Expected ExecutorRequest::Downgrade"),
     }
@@ -433,7 +433,7 @@ fn integration_edge_case_package_empty_version() {
         orphaned: false,
     };
 
-    assert!(pkg.version.is_empty());
+    assert_eq!(pkg.version, "");
 }
 
 #[test]

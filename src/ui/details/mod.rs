@@ -19,6 +19,31 @@ pub use pkgbuild::cycle_pkgbuild_view_section;
 /// PKGBUILD syntax highlighting.
 mod pkgbuild_highlight;
 
+/// What: Locate the top edge of the visible package or news keybind footer.
+///
+/// Inputs:
+/// - `app`: Application state controlling mode, footer visibility, focus, and keymap
+/// - `area`: Rectangle assigned to the package-info band
+///
+/// Output:
+/// - The footer's first row when keybinds are visible, otherwise `None`.
+///
+/// Details:
+/// - Mirrors the package and news footer height rules used by their renderers.
+pub(super) fn keybind_footer_top(app: &AppState, area: Rect) -> Option<u16> {
+    if matches!(app.app_mode, crate::state::types::AppMode::News) {
+        if !app.show_keybinds_footer {
+            return None;
+        }
+        let height = footer::news_footer_height(app).min(area.height);
+        return (height > 0).then(|| area.y.saturating_add(area.height.saturating_sub(height)));
+    }
+
+    let height = layout::calculate_footer_height(app, area);
+    let (_, _, _, _, visible) = layout::calculate_layout_areas(app, area, height);
+    visible.then(|| area.y.saturating_add(area.height.saturating_sub(height)))
+}
+
 /// What: Render the bottom details pane, footer, optional PKGBUILD viewer, and optional comments viewer.
 ///
 /// Inputs:

@@ -373,6 +373,29 @@ pkgbuild_shellcheck_exclude = SC2034,SC2164,SC2148,SC2154\n\
 # Show Raw output block for PKGBUILD static checks (shellcheck/namcap)\n\
 pkgbuild_checks_show_raw_output = false\n\
 \n\
+# Optional Pi-backed AUR scanner (runtime default-off)\n\
+# Provider/model calls can incur cost and send analyzed package data to the selected provider.\n\
+pi_scan_enabled = false\n\
+pi_scan_background_enabled = false\n\
+pi_scan_binary = pi\n\
+pi_scan_provider =\n\
+pi_scan_model =\n\
+pi_scan_fallback_models =\n\
+pi_scan_thinking = medium\n\
+pi_scan_observation_interval_seconds = 900\n\
+pi_scan_head_query_timeout_seconds = 15\n\
+pi_scan_observation_deadline_seconds = 90\n\
+pi_scan_model_attempt_timeout_seconds = 300\n\
+pi_scan_logical_timeout_seconds = 720\n\
+# A numeric zero means Unlimited for each of the following independent budgets.\n\
+pi_scan_background_starts_per_hour = 5\n\
+pi_scan_background_token_cap_24h = 500000\n\
+pi_scan_background_cost_cap_24h = 0.00\n\
+pi_scan_result_retention_days = 30\n\
+pi_scan_show_raw_output = false\n\
+# Explicit credential-free HTTPS proxy only; empty disables proxy use.\n\
+pi_scan_https_proxy =\n\
+\n\
 # News\n\
 # Symbols for read/unread indicators in the News popup\n\
 app_start_mode = package\n\
@@ -464,16 +487,28 @@ pub const KEYBINDS_SKELETON_CONTENT: &str = "# Pacsea keybindings configuration\
 # Modifiers can be one of: SUPER, CTRL, SHIFT, ALT.\n\
 \n\
 # GLOBAL — App\n\
-keybind_help = F1\n\
-# Alternative help shortcut\n\
 keybind_help = ?\n\
 keybind_reload_config = CTRL+R\n\
+keybind_config_editor_pi_scan_setup = CTRL+G\n\
 keybind_exit = CTRL+Q\n\
 keybind_show_pkgbuild = CTRL+X\n\
 keybind_comments_toggle = CTRL+T\n\
 # Run PKGBUILD checks; same setting as keybind_pkgbuild_checks / keybind_toggle_pkgbuild_checks\n\
 keybind_run_pkgbuild_checks = CTRL+K\n\
 keybind_cycle_pkgbuild_sections = CTRL+D\n\
+\n\
+# GLOBAL — Menus\n\
+keybind_toggle_config = Shift+C\n\
+keybind_toggle_options = Shift+O\n\
+keybind_toggle_panels = Shift+P\n\
+\n\
+# GLOBAL — Package actions\n\
+# These legacy key names remain valid across Search, Recent, and Install panes.\n\
+keybind_search_normal_open_status = Shift+S\n\
+keybind_search_normal_import = Shift+I\n\
+keybind_search_normal_export = Shift+E\n\
+keybind_search_normal_updates = Shift+U\n\
+keybind_search_normal_pi_scan = Shift+A\n\
 \n\
 # GLOBAL — Pane switching\n\
 keybind_pane_left = Left\n\
@@ -505,22 +540,6 @@ keybind_search_normal_select_left = h\n\
 keybind_search_normal_select_right = l\n\
 keybind_search_normal_delete = d\n\
 keybind_search_normal_clear = Shift+Del\n\
-\n\
-# SEARCH — Normal Mode (Menus)\n\
-# Toggle dropdown menus while in Normal Mode\n\
-keybind_toggle_config = Shift+C\n\
-keybind_toggle_options = Shift+O\n\
-keybind_toggle_panels = Shift+P\n\
-\n\
-# SEARCH — Normal Mode (Other)\n\
-# Open Arch status page in default browser\n\
-keybind_search_normal_open_status = Shift+S\n\
-# Import packages list into Install list\n\
-keybind_search_normal_import = Shift+I\n\
-# Export current Install list to a file\n\
-keybind_search_normal_export = Shift+E\n\
-# Open Available Updates window\n\
-keybind_search_normal_updates = Shift+U\n\
 \n\
 # SEARCH — Fuzzy Search Toggle\n\
 # Toggle between normal substring search and fuzzy search (fzf-style)\n\

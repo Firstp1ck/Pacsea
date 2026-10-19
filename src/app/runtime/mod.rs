@@ -19,8 +19,8 @@ mod handlers;
 pub mod init;
 /// Tick handler for periodic UI updates.
 mod tick_handler;
-/// Background worker implementations.
-mod workers;
+/// Background worker implementations shared with the crate-level production Pi adapter.
+pub mod workers;
 
 use background::{Channels, spawn_auxiliary_workers, spawn_event_thread};
 use cleanup::cleanup_on_exit;
@@ -149,8 +149,22 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
     // Initialize application state (loads settings, caches, etc.)
     let init_flags = initialize_app_state(&mut app, dry_run_flag, headless, &prefs);
 
-    // Create channels and spawn background workers
-    let mut channels = Channels::new(app.official_index_path.clone())?;
+    // Create channels and spawn background workers. The optional scanner is enabled only
+    // after settings validation; failures degrade that path without taking down Pacsea.
+    let pi_scan_options = pi_scan_runtime_options(&prefs, app.dry_run);
+    let mut channels =
+        Channels::new_with_pi_scan(app.official_index_path.clone(), pi_scan_options)?;
+    if channels.pi_scan_runtime_enabled {
+        app.pi_scan.availability = crate::state::PiScanAvailability::RuntimeConnected;
+    } else if prefs.pi_scan.enabled
+        && !matches!(
+            app.pi_scan.availability,
+            crate::state::PiScanAvailability::MissingBinary
+                | crate::state::PiScanAvailability::Unsupported
+        )
+    {
+        app.pi_scan.availability = crate::state::PiScanAvailability::RuntimeDisconnected;
+    }
 
     // Get updates refresh interval from settings (minimum 60s per requirement)
     let updates_refresh_interval = crate::theme::settings().updates_refresh_interval.max(60);
@@ -203,7 +217,7 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
     run_event_loop(&mut terminal, &mut app, &mut channels).await;
 
     // Cleanup on exit - this resets flags and flushes caches
-    cleanup_on_exit(&mut app, &channels);
+    cleanup_on_exit(&mut app, &channels).await;
 
     // Drop channels to close request channels and stop workers from accepting new work
     drop(channels);
@@ -218,4 +232,152 @@ pub async fn run(dry_run_flag: bool) -> Result<()> {
     // This is necessary because spawn_blocking tasks cannot be cancelled and would
     // otherwise keep the tokio runtime alive until they complete
     std::process::exit(0);
+}
+
+/// What: Build validated private runtime options for the optional Pi scanner.
+///
+/// Inputs:
+/// - `prefs`: Resolved settings snapshot.
+/// - `dry_run`: Effective session dry-run flag.
+///
+/// Output:
+/// - Default-off options when scanner settings are invalid; otherwise the explicit gate
+///   and private config-relative state/quarantine paths.
+///
+/// Details:
+/// - Validation never clamps raised security limits. The runtime worker separately applies
+///   the Linux platform gate and refuses corrupt/newer durable state.
+fn pi_scan_runtime_options(
+    prefs: &crate::theme::Settings,
+    dry_run: bool,
+) -> crate::app::runtime::workers::pi_scan::PiScanRuntimeOptions {
+    pi_scan_runtime_options_for_settings(&prefs.pi_scan, dry_run)
+}
+
+/// What: Build runtime options from one effective Pi Scan settings snapshot.
+///
+/// Inputs:
+/// - `settings`: Effective scanner settings.
+/// - `dry_run`: Effective session dry-run flag.
+///
+/// Output:
+/// - Validated runtime options suitable for initial spawn or rollback restoration.
+///
+/// Details:
+/// - Central setup integration uses this after an in-process Apply and when restoring
+///   the previous owner after activation failure.
+pub fn pi_scan_runtime_options_for_settings(
+    settings: &crate::theme::PiScanSettings,
+    dry_run: bool,
+) -> crate::app::runtime::workers::pi_scan::PiScanRuntimeOptions {
+    let root = crate::theme::config_dir().join("pi_scan");
+    let cost_microusd =
+        crate::theme::parse_pi_scan_cost_microusd(&settings.background_cost_cap_24h);
+    let settings_valid = settings.validation_issues().is_empty();
+    let enabled = settings.enabled && settings_valid;
+    let production = cost_microusd
+        .ok()
+        .filter(|_| settings_valid)
+        .map(|cost_microusd| {
+            let mut models = Vec::new();
+            if !settings.provider.trim().is_empty() && !settings.model.trim().is_empty() {
+                models.push(crate::pi_agent::session::ModelChoice {
+                    provider: settings.provider.trim().to_string(),
+                    model: settings.model.trim().to_string(),
+                });
+            }
+            for fallback in settings
+                .fallback_models
+                .split(',')
+                .map(str::trim)
+                .filter(|model| !model.is_empty())
+            {
+                let (provider, model) = fallback.split_once('/').map_or_else(
+                    || (settings.provider.trim(), fallback),
+                    |(provider, model)| (provider, model),
+                );
+                models.push(crate::pi_agent::session::ModelChoice {
+                    provider: provider.to_string(),
+                    model: model.to_string(),
+                });
+            }
+            crate::pi_scan_production::ProductionRuntimeSettings {
+                binary: settings.binary.clone(),
+                models,
+                background_execution: settings.background_enabled,
+                thinking: settings.thinking.clone(),
+                observation_interval_seconds: settings.observation_interval_seconds,
+                model_attempt_timeout: std::time::Duration::from_secs(
+                    settings.model_attempt_timeout_seconds,
+                ),
+                logical_timeout: std::time::Duration::from_secs(settings.logical_timeout_seconds),
+                head_query_timeout: std::time::Duration::from_secs(
+                    settings.head_query_timeout_seconds,
+                ),
+                observation_deadline: std::time::Duration::from_secs(
+                    settings.observation_deadline_seconds,
+                ),
+                result_retention_days: settings.result_retention_days,
+                reservation: crate::state::pi_scan::PiScanReservation {
+                    tokens: crate::pi_agent::setup_probe::SETUP_PROBE_RESERVATION_TOKENS,
+                    cost_microusd: u64::MAX,
+                },
+                budget_limits: crate::state::pi_scan::PiScanBudgetLimits {
+                    starts_per_hour: settings.background_starts_per_hour,
+                    tokens_per_24h: settings.background_token_cap_24h,
+                    cost_microusd_per_24h: cost_microusd,
+                },
+                https_proxy: settings.https_proxy.clone(),
+            }
+        });
+    crate::app::runtime::workers::pi_scan::PiScanRuntimeOptions {
+        enabled,
+        dry_run,
+        state_path: root.join("backlog-v1.json"),
+        quarantine_dir: root.join("quarantine"),
+        production,
+    }
+}
+
+#[cfg(test)]
+mod pi_scan_budget_validation_tests {
+    use super::pi_scan_runtime_options_for_settings;
+
+    /// Runtime construction accepts explicit Unlimited and the exact native micro-USD maximum.
+    #[test]
+    fn runtime_cost_budget_preserves_exact_zero_and_maximum() {
+        for (text, expected) in [("0.00", 0), ("18446744073709.551615", u64::MAX)] {
+            let settings = crate::theme::PiScanSettings {
+                enabled: true,
+                background_cost_cap_24h: text.to_string(),
+                ..crate::theme::PiScanSettings::default()
+            };
+            let options = pi_scan_runtime_options_for_settings(&settings, false);
+            assert!(options.enabled);
+            assert_eq!(
+                options
+                    .production
+                    .expect("valid runtime")
+                    .budget_limits
+                    .cost_microusd_per_24h,
+                expected
+            );
+        }
+    }
+
+    /// Runtime construction fails closed instead of converting malformed or overflowing cost to zero.
+    #[test]
+    fn runtime_cost_budget_rejects_malformed_and_overflow_values() {
+        for text in ["malformed", "18446744073709.551616"] {
+            let settings = crate::theme::PiScanSettings {
+                enabled: true,
+                background_cost_cap_24h: text.to_string(),
+                ..crate::theme::PiScanSettings::default()
+            };
+            let options = pi_scan_runtime_options_for_settings(&settings, false);
+            assert!(!options.enabled);
+            assert!(options.production.is_none());
+            assert_ne!(settings.validation_issues(), [] as [String; 0]);
+        }
+    }
 }

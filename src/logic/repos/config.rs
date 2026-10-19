@@ -578,8 +578,8 @@ mod tests {
 
     #[test]
     fn canonical_key_empty_when_no_alphanumerics() {
-        assert!(canonical_results_filter_key("---").is_empty());
-        assert!(canonical_results_filter_key("  ..  ").is_empty());
+        assert_eq!(canonical_results_filter_key("---"), "");
+        assert_eq!(canonical_results_filter_key("  ..  "), "");
     }
 
     #[test]

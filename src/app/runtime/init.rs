@@ -311,11 +311,40 @@ pub fn apply_settings_to_app_state(app: &mut AppState, prefs: &crate::theme::Set
     app.search_normal_mode = prefs.search_startup_mode;
     app.fuzzy_search_enabled = prefs.fuzzy_search;
     app.installed_packages_mode = prefs.installed_packages_mode;
-    app.app_mode = if prefs.start_in_news {
-        crate::state::types::AppMode::News
+    let preserve_pi_scan_mode = app.app_mode == crate::state::types::AppMode::PiScan;
+    let wizard_was_open = app.pi_scan.wizard.is_some();
+    let pi_binary_found = configured_pi_binary_found(&prefs.pi_scan.binary);
+    let pi_scan_settings_changed = app
+        .pi_scan
+        .apply_settings(prefs.pi_scan.clone(), pi_binary_found);
+    let connected_budget_diverged = app.pi_scan.availability
+        == crate::state::pi_scan_ui::PiScanAvailability::RuntimeConnected
+        && !app.pi_scan.budget_settings_match_runtime();
+    if connected_budget_diverged && !pi_scan_settings_changed {
+        let notice = crate::i18n::t(app, "app.pi_scan.notices.budget_reload_requires_restart");
+        app.pi_scan.set_foreground_notice(
+            notice,
+            crate::state::pi_scan_ui::PiScanNoticeSeverity::Warning,
+        );
+    }
+    if preserve_pi_scan_mode {
+        app.app_mode = crate::state::types::AppMode::PiScan;
+        if pi_scan_settings_changed && wizard_was_open {
+            app.pi_scan.wizard = None;
+            app.pi_scan.pending_action = None;
+            let notice = crate::i18n::t(app, "app.pi_scan.notices.settings_changed_reload");
+            app.pi_scan.set_foreground_notice(
+                notice,
+                crate::state::pi_scan_ui::PiScanNoticeSeverity::Warning,
+            );
+        }
     } else {
-        crate::state::types::AppMode::Package
-    };
+        app.app_mode = if prefs.start_in_news {
+            crate::state::types::AppMode::News
+        } else {
+            crate::state::types::AppMode::Package
+        };
+    }
     app.news_filter_show_arch_news = prefs.news_filter_show_arch_news;
     app.news_filter_show_advisories = prefs.news_filter_show_advisories;
     app.news_filter_show_pkg_updates = prefs.news_filter_show_pkg_updates;
@@ -326,6 +355,19 @@ pub fn apply_settings_to_app_state(app: &mut AppState, prefs: &crate::theme::Set
     // Recompute news results with loaded filters/age
     app.refresh_news_results();
     crate::logic::repos::refresh_dynamic_filters_in_app(app, prefs);
+}
+
+/// Return whether the configured Pi binary can be found without executing it.
+fn configured_pi_binary_found(binary: &str) -> bool {
+    let trimmed = binary.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+    let path = std::path::Path::new(trimmed);
+    if path.is_absolute() {
+        return path.is_file();
+    }
+    crate::install::command_on_path(trimmed)
 }
 
 /// What: Check if GNOME terminal is needed and set modal if required.
@@ -344,9 +386,8 @@ fn check_gnome_terminal(app: &mut AppState, headless: bool) {
         return;
     }
 
-    let is_gnome = std::env::var("XDG_CURRENT_DESKTOP")
-        .ok()
-        .is_some_and(|v| v.to_uppercase().contains("GNOME"));
+    let is_gnome =
+        std::env::var("XDG_CURRENT_DESKTOP").is_ok_and(|v| v.to_uppercase().contains("GNOME"));
 
     if !is_gnome {
         return;
@@ -887,7 +928,7 @@ mod tests {
         initialize_locale_system(&mut app, "", &prefs);
 
         // Locale should be set (either resolved or default)
-        assert!(!app.locale.is_empty());
+        assert_ne!(app.locale, "");
         // Translations maps should be initialized
         assert!(app.translations.is_empty() || !app.translations.is_empty());
         assert!(app.translations_fallback.is_empty() || !app.translations_fallback.is_empty());
@@ -1039,28 +1080,28 @@ mod tests {
             .expect("Dependency cache file should exist");
         let deps_cache: crate::app::deps_cache::DependencyCache =
             serde_json::from_str(&deps_body).expect("Dependency cache should parse");
-        assert!(deps_cache.install_list_signature.is_empty());
+        assert_eq!(deps_cache.install_list_signature, [] as [String; 0]);
         assert!(deps_cache.dependencies.is_empty());
 
         let files_body =
             std::fs::read_to_string(&app.files_cache_path).expect("File cache file should exist");
         let files_cache: crate::app::files_cache::FileCache =
             serde_json::from_str(&files_body).expect("File cache should parse");
-        assert!(files_cache.install_list_signature.is_empty());
+        assert_eq!(files_cache.install_list_signature, [] as [String; 0]);
         assert!(files_cache.files.is_empty());
 
         let services_body = std::fs::read_to_string(&app.services_cache_path)
             .expect("Service cache file should exist");
         let services_cache: crate::app::services_cache::ServiceCache =
             serde_json::from_str(&services_body).expect("Service cache should parse");
-        assert!(services_cache.install_list_signature.is_empty());
+        assert_eq!(services_cache.install_list_signature, [] as [String; 0]);
         assert!(services_cache.services.is_empty());
 
         let sandbox_body = std::fs::read_to_string(&app.sandbox_cache_path)
             .expect("Sandbox cache file should exist");
         let sandbox_cache: crate::app::sandbox_cache::SandboxCache =
             serde_json::from_str(&sandbox_body).expect("Sandbox cache should parse");
-        assert!(sandbox_cache.install_list_signature.is_empty());
+        assert_eq!(sandbox_cache.install_list_signature, [] as [String; 0]);
         assert!(sandbox_cache.sandbox_info.is_empty());
 
         let _ = std::fs::remove_file(&app.deps_cache_path);

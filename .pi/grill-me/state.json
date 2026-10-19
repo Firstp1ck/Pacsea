@@ -1,0 +1,890 @@
+{
+  "createdAt": "2026-08-09T09:33:20.236Z",
+  "updatedAt": "2026-08-09T11:57:54.984Z",
+  "projectDir": "/mnt/SSD_NVME_4TB/GitHub/pacsea",
+  "plan": "@plans/planned/pi-agent-aur-scanner.md",
+  "turns": [
+    {
+      "question": "Which SourceSnapshotProvider should the initial feature implement?",
+      "recommendedAnswer": "Direct immutable .SRCINFO acquisition, because it fulfills the identity-bound upstream-source goal; relying only on existing provenance-bound trees would leave many scans incomplete.",
+      "userAnswer": "A — Direct immutable .SRCINFO acquisition.",
+      "decisionStatus": "resolved",
+      "notes": "This resolves the top-level DG-1 provider choice. Supported schemes, archive formats, verification policy, retention, and VCS/dynamic behavior remain to be decided."
+    },
+    {
+      "question": "Should we pause so you can reload/fix the Grill Me tool exposure, or continue with a state-compatible fallback that directly updates .pi/grill-me/state.json and later writes the same Markdown format?",
+      "recommendedAnswer": "Pause and reload/fix tool exposure, because the interview rules explicitly require the named Grill Me tools.",
+      "userAnswer": "Retry the tools now; Grill Me tools have been enabled.",
+      "decisionStatus": "resolved",
+      "notes": "Tool exposure was restored and grill_record_turn succeeded. No fallback is needed."
+    },
+    {
+      "question": "Which upstream source transports should v1 acquire?",
+      "recommendedAnswer": "HTTPS static files/archives plus Git-over-HTTPS (git+https), while treating plain HTTP, FTP, SSH, git://, SVN, Mercurial, Bazaar, local paths, and unknown schemes as unsupported limitations that force Incomplete.",
+      "userAnswer": "A — HTTPS static sources plus git+https; all other transports are unsupported and make the scan incomplete.",
+      "decisionStatus": "resolved",
+      "notes": "AUR-repository files remain covered separately by the immutable recipe snapshot."
+    },
+    {
+      "question": "Which downloaded source formats should v1 unpack for analysis?",
+      "recommendedAnswer": "Support raw regular files plus .tar, .tar.gz/.tgz, .tar.bz2, .tar.xz/.txz, .tar.zst, and .zip, detected by content and validated against the declared name; unsupported or unknown containers make the scan incomplete.",
+      "userAnswer": "A — Support the recommended common bounded archive set.",
+      "decisionStatus": "resolved",
+      "notes": "7z, RAR, self-extracting installers, disk images, nested unsupported formats, and unknown containers are out of scope for v1 and produce Incomplete."
+    },
+    {
+      "question": "How should v1 handle links and unsafe/non-regular entries during extraction?",
+      "recommendedAnswer": "Extract only normalized directories and regular files; record safe in-archive symlink/hardlink metadata without creating filesystem links; reject the snapshot as Incomplete for traversal, escaping/dangling links, duplicate normalized paths, devices, FIFOs, sockets, or path-type conflicts.",
+      "userAnswer": "A — Use metadata-only safe links and fail closed on unsafe entries.",
+      "decisionStatus": "resolved",
+      "notes": "Coverage is allowed only when a confined link target exists and its content is independently manifested."
+    },
+    {
+      "question": "What verification should be required for downloaded non-VCS sources?",
+      "recommendedAnswer": "Require at least one matching strong digest declared in the immutable .SRCINFO: SHA-256, SHA-384, SHA-512, or BLAKE2. A mismatch is Failed; SKIP, missing checksums, or weak-only MD5/SHA-1/SHA-224 verification is Incomplete unless an approved signature policy supplies adequate verification.",
+      "userAnswer": "A — Require a declared strong digest.",
+      "decisionStatus": "resolved",
+      "notes": "Detached-signature trust and behavior remain a separate decision."
+    },
+    {
+      "question": "How should declared detached signatures affect scan completeness?",
+      "recommendedAnswer": "A strong checksum is sufficient when no signature is declared. When the immutable recipe declares a detached signature and validpgpkeys, verification is mandatory: a bad signature or signer mismatch is Failed; unavailable verification material is Incomplete; never silently downgrade to checksum-only success.",
+      "userAnswer": "A — Enforce declared signatures as recommended.",
+      "decisionStatus": "resolved",
+      "notes": "The key acquisition and isolation mechanism remains to be decided."
+    },
+    {
+      "question": "How should Pacsea obtain public keys needed for mandatory signature verification?",
+      "recommendedAnswer": "Fetch only exact validpgpkeys fingerprints from an allowlisted HTTPS key endpoint into a Pacsea-controlled private cache, verify the full fingerprint after import, and perform verification in an isolated ephemeral keyring without ambient GnuPG state or arbitrary keyserver discovery.",
+      "userAnswer": "A — Use allowlisted HTTPS fingerprint fetch with isolated verification.",
+      "decisionStatus": "resolved",
+      "notes": "The setup flow must disclose key lookup network requests. Key-cache expiration can follow the broader cache-retention policy."
+    },
+    {
+      "question": "What upstream acquisition data should persist after a scan?",
+      "recommendedAnswer": "Keep verified content-addressed download blobs and private Git objects only while referenced by an active queue item, accepted baseline, or retained result, then delete them after a 7-day unreferenced grace period; extracted trees remain ephemeral.",
+      "userAnswer": "B — Do not persist a source cache.",
+      "decisionStatus": "resolved",
+      "notes": "Upstream download blobs, upstream VCS objects, extracted trees, and Pi-readable source workspaces are removed after each scan. Persist only result metadata, manifests, provenance, and bounded validated evidence. This does not remove the separate durable private AUR recipe repository needed for recipe history and commit-range discovery."
+    },
+    {
+      "question": "Which git+https references may produce a Complete source snapshot?",
+      "recommendedAnswer": "Only an explicit full commit OID. Tags, branches, and unqualified HEAD are resolved to exact commits for advisory scanning but remain Incomplete; they are re-resolved before linked install/update continuation and changes make the result Stale.",
+      "userAnswer": "A — Only explicit full commit OIDs can be complete.",
+      "decisionStatus": "resolved",
+      "notes": "This preserves advisory value for mutable refs without treating them as reproducible source identity."
+    },
+    {
+      "question": "Should Pacsea unpack a supported archive for analysis when .SRCINFO marks it noextract?",
+      "recommendedAnswer": "Safely unpack an isolated copy using Pacsea's bounded extractor, preserve and manifest the original archive, label it analysis-only extraction that may differ from prepare() behavior, and report Incomplete when meaningful source requires custom transformation.",
+      "userAnswer": "A — Perform safe analysis-only extraction.",
+      "decisionStatus": "resolved",
+      "notes": "ArchWiki evidence: /usr/share/doc/arch-wiki/html/en/PKGBUILD.html — noextract. Pacsea does not execute prepare() or any PKGBUILD function."
+    },
+    {
+      "question": "Should Pacsea fetch additional content referenced only by acquired upstream files or build logic, such as .gitmodules, prepare() commands, language package-manager metadata, or installer scripts?",
+      "recommendedAnswer": "Fetch only sources independently declared by the immutable .SRCINFO. Analyze undeclared references as evidence but never follow their URLs automatically; mark coverage Incomplete when meaningful build content depends on them.",
+      "userAnswer": "A — Fetch only immutable .SRCINFO declarations.",
+      "decisionStatus": "resolved",
+      "notes": "This prevents hostile acquired content from expanding Pacsea's network authority. Pi never receives a URL-fetch tool."
+    },
+    {
+      "question": "What compressed-download cap profile should v1 enforce?",
+      "recommendedAnswer": "Use reqwest streaming to private atomic files with 100 MiB per source and 250 MiB total per package/commit; settings may lower but not raise these limits in v1. Oversized sources become Incomplete.",
+      "userAnswer": "A — Enforce 100 MiB per source and 250 MiB per package/commit.",
+      "decisionStatus": "resolved",
+      "notes": "Do not weaken src/util/mod.rs::curl_args() or its 10 MiB shared curl safeguard. Reject oversized Content-Length early and stop streaming at the cap."
+    },
+    {
+      "question": "What archive-expansion cap profile should v1 enforce per package/commit?",
+      "recommendedAnswer": "Cap extraction at 1 GiB total regular-file bytes, 50,000 entries, depth 32, and a 25:1 expansion ratio; delete partial workspaces and report Incomplete when exceeded.",
+      "userAnswer": "B — Use the stricter profile: 256 MiB total regular-file bytes, 10,000 entries, depth 16, and a 10:1 expansion ratio.",
+      "decisionStatus": "resolved",
+      "notes": "Settings may lower but not raise these limits in v1. Exceeding a limit stops extraction, removes the partial workspace, and records Incomplete."
+    },
+    {
+      "question": "Must the first release ship the external-watcher spool integration and sister-repository WSE changes?",
+      "recommendedAnswer": "No. Ship the native targeted observer first, retain the RecipeHeadSource interface and spool design, and hide external-watcher/auto settings until a separately verified follow-up.",
+      "userAnswer": "A — Ship a native-only first release and defer external integration.",
+      "decisionStatus": "resolved",
+      "notes": "Remove WSE from the first-release execution DAG and acceptance criteria. Do not expose nonfunctional external-watcher or auto settings. The follow-up can reuse the documented spool contract after independent cross-repository verification."
+    },
+    {
+      "question": "Which source should the native observer use to establish each installed package base's AUR HEAD?",
+      "recommendedAnswer": "Use hardened direct-argv git ls-remote against the official per-package repository at https://aur.archlinux.org/<package-base>.git, then independently fetch discovered ranges into Pacsea's private bare repository; do not treat the GitHub mirror as authoritative identity.",
+      "userAnswer": "A — Use the official per-package AUR Git repositories.",
+      "decisionStatus": "resolved",
+      "notes": "Canonical host validation and strict package-base grammar apply before URL construction."
+    },
+    {
+      "question": "How often should Pacsea query installed AUR package heads?",
+      "recommendedAnswer": "Run once after enabled startup, on explicit manual refresh, and at most once every 15 minutes when update cycles occur, with bounded concurrency and jitter rather than every 60-second update check.",
+      "userAnswer": "A — Use startup/manual observation plus a 15-minute periodic floor.",
+      "decisionStatus": "resolved",
+      "notes": "The existing package update worker still retains its own cadence; Pi scanner head observation only piggybacks eligible cycles."
+    },
+    {
+      "question": "Can the existing update-check payload provide the stable cycle identity required to freeze candidate AUR HEADs?",
+      "recommendedAnswer": "No. Add a typed UpdateCycleId to UpdateCheckPayload and propagate it through the update worker/channel seam; do not derive scan identity later from available_updates.txt or timestamps alone.",
+      "userAnswer": "Resolved from codebase evidence: UpdateCheckPayload currently carries count, package_names, authoritative, reason_codes, and official_strategy, but no cycle ID, so a new typed cycle identifier is required.",
+      "decisionStatus": "resolved",
+      "notes": "Evidence: src/app/runtime/workers/updates_helpers.rs::UpdateCheckPayload and src/app/runtime/workers/updates.rs. Prefer a process-instance UUID plus monotonic sequence so IDs remain unique without requiring persistence."
+    },
+    {
+      "question": "What limits should the native observer use for official AUR git ls-remote checks?",
+      "recommendedAnswer": "Allow up to 4 concurrent head queries with a 15-second per-query timeout and 90-second whole-cycle deadline; keep Pi scans and repository range processing at concurrency 1.",
+      "userAnswer": "B — Run head observations fully sequentially.",
+      "decisionStatus": "resolved",
+      "notes": "Keep a 15-second per-query timeout and 90-second whole-cycle deadline unless a later decision changes them. Failed observations retain the prior cursor and retry on the next eligible cycle."
+    },
+    {
+      "question": "When setup reaches the installed AUR package list, which targets should be selected by default?",
+      "recommendedAnswer": "Select none by default; show all resolvable package bases and estimated maximum input/cost, with the existing a shortcut available to select all before explicit confirmation.",
+      "userAnswer": "A — Select no initial baseline targets by default.",
+      "decisionStatus": "resolved",
+      "notes": "This applies to entering setup without a contextual package intent; contextual entry behavior remains to be decided."
+    },
+    {
+      "question": "If setup is opened from a specific package detail or update candidate, should that package base be preselected despite the global none-selected default?",
+      "recommendedAnswer": "Preselect only the contextual package base while still requiring the normal consent and cost confirmation before acquisition or Pi execution.",
+      "userAnswer": "A — Preselect only the contextual package.",
+      "decisionStatus": "resolved",
+      "notes": "Non-contextual setup continues to select none by default."
+    },
+    {
+      "question": "After a validated Complete scan, should Pacsea automatically advance that package base's comparison baseline even when the result contains high/critical findings?",
+      "recommendedAnswer": "Yes. Advance automatically after Complete because the baseline is a technical comparison anchor, not package approval; never advance after Incomplete, Failed, Cancelled, or Stale.",
+      "userAnswer": "A — Automatically advance after every complete scan.",
+      "decisionStatus": "resolved",
+      "notes": "Findings remain independently retained and linked install/update acknowledgement rules remain unchanged."
+    },
+    {
+      "question": "Once the user has explicitly enabled paid background scanning and set a nonzero unattended budget, should newly detected unbaselined AUR package bases scan automatically?",
+      "recommendedAnswer": "Queue them as Unbaselined and process them automatically within configured daily/job limits; if background is off or the budget is zero, only queue and notify.",
+      "userAnswer": "A — Automatically scan newly detected unbaselined package bases under explicit background consent and budget.",
+      "decisionStatus": "resolved",
+      "notes": "Setup must clearly disclose this unattended behavior."
+    },
+    {
+      "question": "Should a newly requested manual scan interrupt an active background Pi scan?",
+      "recommendedAnswer": "Let the active package settle, fail, or be explicitly cancelled; place the manual request at the front of the queue for next execution to avoid wasting paid work and partial results.",
+      "userAnswer": "A — Run the manual request next without automatic preemption.",
+      "decisionStatus": "resolved",
+      "notes": "The user can still explicitly cancel the active scan."
+    },
+    {
+      "question": "How should Pacsea order pending background work across package bases?",
+      "recommendedAnswer": "Use deterministic round-robin across package bases while preserving oldest-first commit order within each base, so one high-churn package cannot monopolize the queue.",
+      "userAnswer": "A — Use per-package round-robin with oldest-first ordering within each package base.",
+      "decisionStatus": "resolved",
+      "notes": "Newly unbaselined packages participate as their package base's oldest item. Foreground manual requests retain the separate next-in-queue priority."
+    },
+    {
+      "question": "Which failed background operations may retry without fresh user confirmation?",
+      "recommendedAnswer": "Automatically retry only transient acquisition/head-query failures and Pi startup failures that occur before any model request is accepted, using bounded exponential backoff. Once model usage may have occurred, require manual retry.",
+      "userAnswer": "A — Retry only clearly pre-usage transient failures.",
+      "decisionStatus": "resolved",
+      "notes": "The single bounded in-session schema correction is not a new paid scan retry."
+    },
+    {
+      "question": "What bounded retry schedule should apply to eligible pre-usage transient failures?",
+      "recommendedAnswer": "Use three total attempts: the initial attempt, then retries after 1 minute and 5 minutes; do not hold the queue slot while waiting.",
+      "userAnswer": "B — Use two total attempts with a single 1-minute backoff.",
+      "decisionStatus": "resolved",
+      "notes": "After the retry is exhausted, retain the item as failed until manual retry or a separately eligible future operation; never spin within the same queue slot."
+    },
+    {
+      "question": "Should unattended scanning run when Pi cannot provide reliable usage statistics or Pacsea cannot determine the model's cost?",
+      "recommendedAnswer": "Disable unattended scans when usage cannot be bounded; require reliable token usage and reliable cost data whenever a nonzero cost cap is configured.",
+      "userAnswer": "D — Permit unattended scanning using estimates derived from prompt, tool-response, and output byte counts.",
+      "decisionStatus": "resolved",
+      "notes": "A conservative estimation formula, cost handling, and UI labeling must be defined before this can safely enable background work."
+    },
+    {
+      "question": "How conservative should fallback byte-based accounting be?",
+      "recommendedAnswer": "Count every UTF-8 byte sent to or received from Pi, then estimate ceil(total_bytes / 2) + 8,000 tokens per scan; label it Estimated, reserve before launch, and reconcile downward only if reliable statistics later arrive.",
+      "userAnswer": "A — Use bytes divided by 2 plus an 8,000-token fixed reserve.",
+      "decisionStatus": "resolved",
+      "notes": "All prompts, tool results, corrections, and final output bytes count toward the estimate."
+    },
+    {
+      "question": "If Pi provides no trustworthy price metadata, how should Pacsea estimate dollars for the unattended cost cap?",
+      "recommendedAnswer": "Require a user-supplied conservative maximum USD per million tokens and never infer prices from model names.",
+      "userAnswer": "C — Fetch current pricing automatically from the web.",
+      "decisionStatus": "resolved",
+      "notes": "Runtime source authority, freshness, subscription-route semantics, and fail-closed behavior must be specified before implementation."
+    },
+    {
+      "question": "Does Pi RPC expose model pricing and post-scan token/cost statistics that Pacsea can use before any web fallback?",
+      "recommendedAnswer": "Yes. Treat Pi's full Model.cost returned by get_available_models/get_state as the primary pricing source and get_session_stats as the primary post-scan accounting source; invoke web pricing lookup only when that metadata is missing or explicitly classified as unknown.",
+      "userAnswer": "Resolved from official Pi documentation: get_available_models returns full Model objects with per-million-token cost fields, and get_session_stats returns aggregate token and cost statistics.",
+      "decisionStatus": "resolved",
+      "notes": "Evidence: /home/firstpick/npm-packages/pi-package-webui/node_modules/@earendil-works/pi-coding-agent/docs/rpc.md — get_available_models, get_session_stats, Model; docs/models.md — Model Configuration. Custom model cost defaults to all zeros, so zero can mean either local/free or unspecified and needs explicit classification."
+    },
+    {
+      "question": "Which online sources may Pacsea trust for automatic model pricing?",
+      "recommendedAnswer": "Only allowlisted provider-owned HTTPS machine-readable endpoints keyed by exact canonical provider and model ID; if unavailable, disable background scanning for that model.",
+      "userAnswer": "C — Allow trusted third-party pricing aggregators.",
+      "decisionStatus": "resolved",
+      "notes": "The trusted aggregator allowlist, route-specific semantics, exact matching, freshness, and disagreement handling remain to be defined."
+    },
+    {
+      "question": "Which structured catalogs may Pacsea use for automatic model pricing?",
+      "recommendedAnswer": "Use LiteLLM's cost map for exact recognized direct-provider model IDs and OpenRouter's official model endpoint only for OpenRouter-routed models, with exact provider/model matching and fail-closed ambiguity handling.",
+      "userAnswer": "A — Use LiteLLM for direct routes and the OpenRouter API for OpenRouter routes.",
+      "decisionStatus": "resolved",
+      "notes": "Verified sources: https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json and https://openrouter.ai/api/v1/models. No fuzzy aliases or cross-route price substitution."
+    },
+    {
+      "question": "How should Pacsea account for subscription-backed Pi providers where per-token catalog pricing does not equal the user's actual marginal charge?",
+      "recommendedAnswer": "Enforce the daily token cap, show catalog pricing only as API-equivalent reference cost, and require acknowledgement that it is not actual spend.",
+      "userAnswer": "C — Treat subscription-backed Pi provider usage as zero dollar cost.",
+      "decisionStatus": "resolved",
+      "notes": "The daily token cap and conservative byte-based fallback still apply; only dollar-cost accounting is zero for explicitly recognized subscription routes. The UI must label the route as subscription-backed rather than free API usage."
+    },
+    {
+      "question": "How long may cached online pricing remain usable for unattended direct/OpenRouter scans?",
+      "recommendedAnswer": "Refresh every 24 hours; permit exact-match stale pricing for up to 7 days on transient failure; then disable unattended scans until refresh succeeds.",
+      "userAnswer": "C — Refresh pricing weekly and allow cached prices to remain usable without expiry.",
+      "decisionStatus": "resolved",
+      "notes": "Because prices never expire under this choice, a separate stale-price safety margin and UI warning policy must be defined."
+    },
+    {
+      "question": "What safety margin should apply when cached pricing is older than seven days?",
+      "recommendedAnswer": "Use twice the highest price ever observed for the exact provider/model/route, never automatically lower that historical ceiling, and label the estimate stale.",
+      "userAnswer": "E — Refetch the pricing when cached pricing is older than seven days.",
+      "decisionStatus": "resolved",
+      "notes": "This supersedes the prior never-expire behavior for unattended enforcement: stale cached data triggers an online refresh rather than indefinite reuse. Failure behavior remains to be decided."
+    },
+    {
+      "question": "If the required stale-price refetch fails, should unattended scanning proceed using the old cached price?",
+      "recommendedAnswer": "Pause unattended scans until pricing refresh succeeds; preserve stale pricing only for display and allow manual scans with a warning.",
+      "userAnswer": "B — Continue unattended scanning using the stale cached price.",
+      "decisionStatus": "resolved",
+      "notes": "The UI and persisted accounting must mark the price stale and record the failed refresh timestamp. This choice accepts that the dollar cap may underestimate current provider pricing; the token cap remains authoritative."
+    },
+    {
+      "question": "How should Pacsea define daily token, job, and cost caps?",
+      "recommendedAnswer": "Use a rolling 24-hour window over persisted completed and reserved usage to avoid midnight double-spend, timezone changes, and boundary bursts.",
+      "userAnswer": "A — Use a rolling 24-hour budget window.",
+      "decisionStatus": "resolved",
+      "notes": "Budget state must persist across Pacsea restarts."
+    },
+    {
+      "question": "If Pacsea or Pi exits before reliable usage statistics arrive, how should the reserved background budget be reconciled?",
+      "recommendedAnswer": "Charge the full pre-launch reservation for the rolling 24-hour window and reconcile downward only when trustworthy final statistics exist.",
+      "userAnswer": "A — Charge the full reservation when usage is unknown.",
+      "decisionStatus": "resolved",
+      "notes": "This prevents crash/restart loops from releasing possibly consumed unattended budget."
+    },
+    {
+      "question": "What must the selected Pi model prove before Pacsea allows real scans?",
+      "recommendedAnswer": "Require a bounded synthetic readiness test using the exact provider/model/thinking level: restricted-tool use, schema-valid identity-bound JSON, cancellation handling, and accounting support or approved fallback; never silently switch models.",
+      "userAnswer": "C — Warn when tool/schema readiness checks fail but still allow scanning.",
+      "decisionStatus": "resolved",
+      "notes": "A follow-up decision must constrain background eligibility and Complete-result semantics for readiness-failed models."
+    },
+    {
+      "question": "If a model fails the synthetic tool/schema readiness test but the user proceeds, what restrictions apply?",
+      "recommendedAnswer": "Permit manual scans only, disable unattended/background use, and prevent Complete results until that exact model configuration passes readiness.",
+      "userAnswer": "C — Allow manual and background scans normally despite the failed readiness test.",
+      "decisionStatus": "resolved",
+      "notes": "Per-scan strict schema, identity, tool-boundary, and output validation remain mandatory. Individual scans may be Complete if they satisfy all runtime validation; readiness failure is retained as a prominent warning."
+    },
+    {
+      "question": "If the configured provider/model becomes unavailable while work is queued, may Pacsea automatically switch to another configured model?",
+      "recommendedAnswer": "Pause affected scans and require explicit model reselection because model changes alter security behavior, privacy, cost, and baseline identity.",
+      "userAnswer": "C — Automatically use a configured ordered fallback list.",
+      "decisionStatus": "resolved",
+      "notes": "The fallback list must be explicitly configured and consented; fallback timing and per-model readiness/accounting remain to be defined."
+    },
+    {
+      "question": "At what point may Pacsea advance to the next model in the configured fallback list?",
+      "recommendedAnswer": "Only before Pi accepts the first package prompt; after acceptance or possible usage, fail the scan and require manual retry. Never continue one scan across models.",
+      "userAnswer": "D — Continue the same scan on another model when fallback is needed.",
+      "decisionStatus": "resolved",
+      "notes": "This changes the original one-model-per-scan assumption. Multi-model provenance, accounting, context replay, output authority, and privacy disclosure must be specified."
+    },
+    {
+      "question": "How should continue the same scan preserve context when switching models?",
+      "recommendedAnswer": "Use a fresh Pi process and attempt ID from the same immutable manifests under one logical scan group; do not replay partial assistant output; use only the successful model's final result.",
+      "userAnswer": "B — Use RPC set_model in the existing Pi conversation.",
+      "decisionStatus": "resolved",
+      "notes": "The scan remains one short-lived Pi process but may now use multiple models. Persist ordered model/provider transitions and account for all usage. Final-output authority and correction behavior remain to be defined."
+    },
+    {
+      "question": "Which assistant output becomes authoritative after an in-session set_model fallback?",
+      "recommendedAnswer": "Require a fresh full validation pass and accept only the last post-switch schema-valid result; never merge earlier drafts automatically.",
+      "userAnswer": "B — Merge all schema-valid findings across models.",
+      "decisionStatus": "resolved",
+      "notes": "The merged result must preserve per-model attribution, ordered provenance, and all usage. Deduplication and conflict-resolution rules remain to be defined."
+    },
+    {
+      "question": "How should Pacsea deduplicate and resolve conflicting findings from fallback models?",
+      "recommendedAnswer": "Build a deterministic union keyed by exact evidence fingerprint; collapse exact duplicates but retain each model's severity, confidence, and rationale; use the highest reported severity for sorting and acknowledgement gates; preserve disagreement visibly.",
+      "userAnswer": "A — Use an evidence-fingerprint union with visible disagreement.",
+      "decisionStatus": "resolved",
+      "notes": "No majority vote or last-model erasure. Every contributing model remains in result provenance and accounting."
+    },
+    {
+      "question": "Which failures should advance to the next configured model?",
+      "recommendedAnswer": "Trigger fallback for terminal provider/API errors, explicit refusal, missing final output, or schema/identity failure after one bounded same-model correction; do not fallback for source limitations, a valid Incomplete result, low confidence, or disliked findings.",
+      "userAnswer": "A — Trigger fallback only for model, provider, or output-contract failures.",
+      "decisionStatus": "resolved",
+      "notes": "Every fallback remains subject to the configured ordered list and budget reservation."
+    },
+    {
+      "question": "How many models may one logical scan try automatically?",
+      "recommendedAnswer": "At most three model attempts total, including the primary, and only while the full projected reservation remains within job, token, and cost caps.",
+      "userAnswer": "A — Allow a maximum of three model attempts per logical scan.",
+      "decisionStatus": "resolved",
+      "notes": "Exhaustion produces Failed with all attempted model/provider identities and accounting retained."
+    },
+    {
+      "question": "May Pacsea send the selected package base and affected installed package names to a remote model?",
+      "recommendedAnswer": "Yes, after explicit setup disclosure; send only identities for the current scan, never the full installed-package inventory, and offer local models as the privacy-preserving alternative.",
+      "userAnswer": "A — Send current-scan package identities after consent.",
+      "decisionStatus": "resolved",
+      "notes": "Persist provider/model and disclosure provenance with each result."
+    },
+    {
+      "question": "How much source metadata should Pacsea place directly in the first package prompt?",
+      "recommendedAnswer": "Send only scan identity, manifest hashes/counts, bounded changed-file summary, deterministic detector findings, coverage limits, and prioritized entry paths; let the model inspect files through restricted tools and do not inline the full manifest or source bodies.",
+      "userAnswer": "A — Use a bounded summary plus restricted-tool discovery.",
+      "decisionStatus": "resolved",
+      "notes": "This constrains privacy, context size, and cost while retaining exact identity binding."
+    },
+    {
+      "question": "Should pacsea_scan_grep accept model-supplied regular expressions?",
+      "recommendedAnswer": "No. Support bounded literal substring search with explicit case sensitivity and validated globs; avoid model-supplied JavaScript regex and catastrophic backtracking risk.",
+      "userAnswer": "A — Support literal substring search only.",
+      "decisionStatus": "resolved",
+      "notes": "The model may issue multiple bounded literal searches."
+    },
+    {
+      "question": "Which per-scan restricted-tool budget should v1 enforce?",
+      "recommendedAnswer": "Maximum 100 tool calls and 4 MiB cumulative tool-result text per model attempt, with per-call limits of read 64 KiB, grep 200 matches/128 KiB, and find/ls 500 entries/128 KiB.",
+      "userAnswer": "C — Allow up to 250 tool calls and 16 MiB cumulative tool-result text per model attempt.",
+      "decisionStatus": "resolved",
+      "notes": "Keep the recommended per-call limits unless separately changed. Reaching a limit must become an explicit coverage limitation and may prevent Complete."
+    },
+    {
+      "question": "What wall-clock limits should accompany the larger 250-call/16 MiB tool budget?",
+      "recommendedAnswer": "Allow 5 minutes per model attempt and 12 minutes per logical scan across fallback models; allow 5 seconds for RPC abort before terminating and reaping the process group.",
+      "userAnswer": "A — Use 5 minutes per model attempt and 12 minutes per logical scan.",
+      "decisionStatus": "resolved",
+      "notes": "Queue wait is excluded; acquisition and validation within the logical scan are included."
+    },
+    {
+      "question": "What maximum validated model-result size should v1 accept per model attempt?",
+      "recommendedAnswer": "Accept at most 1 MiB JSON and 200 findings, with 4 KiB each for evidence, rationale, and recommendation; one correction is allowed before failing the attempt.",
+      "userAnswer": "C — Allow up to 4 MiB JSON and 500 findings per model attempt.",
+      "decisionStatus": "resolved",
+      "notes": "Keep the 4 KiB per-field limits for evidence, rationale, and recommendation. A repeated size/count violation fails the attempt and may trigger configured fallback."
+    },
+    {
+      "question": "May a model downgrade or suppress a deterministic detector finding?",
+      "recommendedAnswer": "No. Keep deterministic findings as a separate attributed layer with original severity; models may add visible context but cannot erase or lower the acknowledgement gate. Only explicit user adjudication may mark it benign.",
+      "userAnswer": "A — Deterministic findings cannot be downgraded or suppressed by models.",
+      "decisionStatus": "resolved",
+      "notes": "User adjudication carry-forward rules remain to be defined."
+    },
+    {
+      "question": "When may a user's accepted-as-benign verdict suppress repeated acknowledgement for a deterministic finding?",
+      "recommendedAnswer": "Only when detector ID/version, package base, relative path, exact evidence fingerprint, and relevant manifest entry hash are unchanged; any change resurfaces the finding.",
+      "userAnswer": "A — Carry benign verdicts forward only on an exact identity and evidence match.",
+      "decisionStatus": "resolved",
+      "notes": "Verdicts remain advisory metadata and never authorize installation by themselves."
+    },
+    {
+      "question": "What interaction should allow a linked install/update to continue despite high or critical advisory findings?",
+      "recommendedAnswer": "Show a result-bound modal with View findings focused by default; require deliberate selection of Continue anyway; bind acknowledgement to exact scan ID, manifests, and current AUR/source identities; never offer a global always-allow.",
+      "userAnswer": "A — Use deliberate result-bound confirmation.",
+      "decisionStatus": "resolved",
+      "notes": "Acknowledgement remains advisory and cannot authorize installation without the user's existing install action."
+    },
+    {
+      "question": "If AUR HEAD or a mutable source ref changes after scanning, may the earlier high/critical acknowledgement still apply?",
+      "recommendedAnswer": "Invalidate it and require a separate stale-result confirmation, with Rescan focused by default and any continuation bound to the newly observed identities.",
+      "userAnswer": "A — Require a separate stale-result acknowledgement.",
+      "decisionStatus": "resolved",
+      "notes": "Prior finding acknowledgements never carry across stale recipe or source identity."
+    },
+    {
+      "question": "How should a validated complete result with no findings be labeled?",
+      "recommendedAnswer": "Complete — no findings in analyzed scope, always paired with coverage and residual uncertainty; never use Safe, Clean, Trusted, or an approval checkmark.",
+      "userAnswer": "A — Label it “Complete — no findings in analyzed scope.”",
+      "decisionStatus": "resolved",
+      "notes": "Severity colors may indicate findings, but completion itself must not visually imply package safety."
+    },
+    {
+      "question": "Should Pacsea persist the original schema-valid assistant JSON in addition to the typed result?",
+      "recommendedAnswer": "No. Persist only the validated typed result and render canonical JSON behind Raw; allow original-response export only through an explicit live debug action after sanitization.",
+      "userAnswer": "A — Persist typed data only and render canonical JSON.",
+      "decisionStatus": "resolved",
+      "notes": "Invalid attempts, model thinking, and original raw responses are not persisted."
+    },
+    {
+      "question": "Which scan results should survive beyond the default 30-day retention window?",
+      "recommendedAnswer": "Always retain the current accepted comparison baseline result and every unresolved high/critical result; apply 30-day cleanup to other superseded results.",
+      "userAnswer": "D — Retain only the newest result per package base beyond the normal retention window.",
+      "decisionStatus": "resolved",
+      "notes": "The accepted baseline record, queue, and ledger metadata remain independently durable. Whether the detailed result referenced by an older accepted baseline is exempt needs clarification."
+    },
+    {
+      "question": "If the newest result is failed, incomplete, cancelled, or stale, should Pacsea also retain the older detailed result that established the current accepted comparison baseline?",
+      "recommendedAnswer": "Keep at most two detailed results in that case: the newest attempt and the current baseline result, so baseline evidence is not lost.",
+      "userAnswer": "A — Retain the newest result plus the current baseline result when they differ.",
+      "decisionStatus": "resolved",
+      "notes": "Other superseded results follow the 30-day retention policy, including older findings not represented by these retained records."
+    },
+    {
+      "question": "Can Pi scan persistence safely reuse Pacsea's existing generic cache loader for corrupt or newer-schema state?",
+      "recommendedAnswer": "No. Implement dedicated versioned Pi scan persistence that distinguishes missing, corrupt, unsupported-newer, and I/O-failed state; never collapse them to an empty baseline.",
+      "userAnswer": "Resolved from codebase evidence: src/app/cache_common.rs::load_signed_cache only logs read/parse failures and returns None, with no schema-version or quarantine contract, so it is insufficient for security baseline/backlog state.",
+      "decisionStatus": "resolved",
+      "notes": "The Pi scan loader may reuse path/config conventions but needs separate private atomic state and actionable recovery semantics."
+    },
+    {
+      "question": "What should Pacsea do when baseline, backlog, or result JSON is corrupt or from a newer unsupported schema?",
+      "recommendedAnswer": "Atomically move it without replacement into a private pi_scan/quarantine directory named by type, timestamp, and SHA-256; disable affected state and show recovery actions; never overwrite, reset, or delete automatically.",
+      "userAnswer": "A — Quarantine corrupt or unsupported state and fail closed.",
+      "decisionStatus": "resolved",
+      "notes": "If quarantine itself fails, leave the original untouched and keep the affected scanner state unavailable."
+    },
+    {
+      "question": "What destructive recovery actions should the TUI offer for quarantined Pi-scan state?",
+      "recommendedAnswer": "Offer Retry load, Show quarantine path, and package-base-scoped Reset scanner state with explicit confirmation; provide global reset only in advanced settings with a second confirmation; never delete quarantine files automatically.",
+      "userAnswer": "A — Provide package-scoped reset plus a guarded global reset.",
+      "decisionStatus": "resolved",
+      "notes": "Quarantine artifacts remain until the user removes them outside automatic retention."
+    },
+    {
+      "question": "On startup, how should Pacsea handle a queue item persisted as active when the previous process ended unexpectedly?",
+      "recommendedAnswer": "Reclassify it as Interrupted, retain the full budget reservation for 24 hours, clean only verified private workspaces, require manual retry, and continue other eligible queue items.",
+      "userAnswer": "A — Mark the scan interrupted and require manual retry.",
+      "decisionStatus": "resolved",
+      "notes": "This aligns crash accounting with the full-reservation decision."
+    },
+    {
+      "question": "Is Shift+A already assigned in Pacsea's shipped keybindings or current KeyMap?",
+      "recommendedAnswer": "No. It is available for a new configurable Search Normal-mode shortcut, subject to adding the new KeyMap/schema/editor/help wiring.",
+      "userAnswer": "Resolved from codebase evidence: config/keybinds.conf and src/theme/types.rs::KeyMap define existing Shift+C/O/P/S/I/E/U shortcuts but no Shift+A binding; repository search found no Shift+A handler.",
+      "decisionStatus": "resolved",
+      "notes": "Evidence: config/keybinds.conf; src/theme/types.rs; src/theme/settings/parse_keybinds.rs; src/theme/config/schema.rs."
+    },
+    {
+      "question": "Should Shift+A in Search Normal mode open the Pi Scan workspace?",
+      "recommendedAnswer": "Yes. It is collision-free in current defaults, mnemonic for AUR/AI analysis, configurable, and does not conflict with lowercase a selection inside the workspace.",
+      "userAnswer": "A — Use Shift+A as the default Search Normal-mode shortcut.",
+      "decisionStatus": "resolved",
+      "notes": "Update keybind config, parser, schema/editor, help overlay, and locale descriptions."
+    },
+    {
+      "question": "In --dry-run mode, may Pacsea perform AUR Git queries or upstream downloads for a Pi scan preview?",
+      "recommendedAnswer": "Perform no Pi launch, Git/network acquisition, key lookup, pricing fetch, or durable queue/baseline mutation; show a local-only preview.",
+      "userAnswer": "B — Allow read-only AUR and upstream source acquisition in dry-run mode, but do not launch Pi.",
+      "decisionStatus": "resolved",
+      "notes": "Acquisition may use private temporary workspaces and network reads, but must not mutate durable scan queue, baseline, ledger, result, or budget state. Cleanup and signature/key-fetch behavior remain to be clarified."
+    },
+    {
+      "question": "May dry-run acquisition fetch public signing keys and perform checksum/signature verification?",
+      "recommendedAnswer": "Allow temporary allowlisted HTTPS public-key lookup and isolated checksum/signature verification; skip Pi readiness/pricing fetches and persist no fetched key or source data after dry-run.",
+      "userAnswer": "A — Verify sources in dry-run, including temporary public-key fetches.",
+      "decisionStatus": "resolved",
+      "notes": "All dry-run acquisition workspaces and fetched keys are removed after the preview."
+    },
+    {
+      "question": "Should signature verification use an external isolated GnuPG process or a new Rust OpenPGP dependency?",
+      "recommendedAnswer": "Use gpg/gpgv via direct arguments with a private ephemeral home/keyring, disabled auto-key retrieval, bounded output/time, and exact fingerprint checks; if unavailable, mark declared-signature sources Incomplete.",
+      "userAnswer": "A — Use isolated external gpg/gpgv.",
+      "decisionStatus": "resolved",
+      "notes": "Do not inherit ambient GnuPG configuration, agents, trustdb, or keyservers."
+    },
+    {
+      "question": "Which authentication mechanisms may the Pacsea-launched Pi process use?",
+      "recommendedAnswer": "Allow only Pi's existing standard auth store/login state and static non-secret model metadata; do not pass provider API-key environment variables or permit models.json credential shell commands in scanner mode.",
+      "userAnswer": "A — Use the standard Pi auth store only.",
+      "decisionStatus": "resolved",
+      "notes": "Pacsea never prompts for, stores, logs, or forwards provider secrets. Unsupported env/command-based custom auth is reported with guidance to use Pi's normal login flow."
+    },
+    {
+      "question": "How should Pacsea classify a custom model endpoint as local or remote?",
+      "recommendedAnswer": "Use three classes: loopback/Unix socket as Local, literal RFC1918/ULA as Private network, and everything else—including custom hostnames—as Remote unless explicitly overridden; show the class on model selection and results.",
+      "userAnswer": "A — Use three-tier classification with remote-by-default custom hostnames.",
+      "decisionStatus": "resolved",
+      "notes": "User overrides are non-secret settings and must be displayed as overrides rather than detected facts."
+    },
+    {
+      "question": "Does the currently installed Pi binary support the scanner's required RPC isolation flags?",
+      "recommendedAnswer": "Yes for the installed version; pin a tested minimum version and fail closed if any required flag disappears or changes.",
+      "userAnswer": "Resolved from live read-only evidence: Pi 0.84.0 at /home/firstpick/.npm-global/bin/pi supports --mode rpc, --no-session, --no-builtin-tools, --tools, --extension, --no-extensions, --no-skills, --no-prompt-templates, --no-themes, --no-context-files, and --no-approve.",
+      "decisionStatus": "resolved",
+      "notes": "Evidence: `pi --version` and `pi --help`. Wave 0 should convert this into an automated capability probe rather than relying only on version comparison."
+    },
+    {
+      "question": "Should Pacsea enforce a narrow Pi version range or rely primarily on capability/protocol probes?",
+      "recommendedAnswer": "Require Pi >= 0.84.0, then probe every required CLI flag and RPC behavior; do not set a hard maximum, but allow newer versions only when framing, commands, isolation, abort, model enumeration, and result retrieval probes pass.",
+      "userAnswer": "A — Use a minimum version plus fail-closed capability probes.",
+      "decisionStatus": "resolved",
+      "notes": "Version checks are advisory beyond the minimum; capability and protocol behavior are authoritative."
+    },
+    {
+      "question": "Should the scanner leave Pi's own automatic provider retry enabled?",
+      "recommendedAnswer": "Disable Pi auto-retry so Pacsea's retry policy, fallback list, reservations, cancellation, and provenance remain authoritative.",
+      "userAnswer": "B — Keep Pi automatic provider retry enabled.",
+      "decisionStatus": "resolved",
+      "notes": "Nested Pi retries must be bounded, included in budget reservation/accounting, exposed in provenance, and coordinated with Pacsea-level fallback."
+    },
+    {
+      "question": "What limit should Pacsea enforce around Pi's enabled automatic provider retries?",
+      "recommendedAnswer": "Allow at most three provider-call attempts per model attempt; reserve 3x estimated model budget, record auto_retry events, and abort retries beyond the cap.",
+      "userAnswer": "A — Allow a maximum of three provider-call attempts for each low-level model request.",
+      "decisionStatus": "resolved",
+      "notes": "This caps retries of each low-level provider request, not the number of normal model turns/tool loops in a scan. The 3x retry reserve applies to the projected logical model-attempt usage."
+    },
+    {
+      "question": "Which tab should the Pi Scan workspace open first?",
+      "recommendedAnswer": "Use context-sensitive landing: top bar/Shift+A opens Overview, package shortcut opens focused Targets, active scan opens Progress, and result shortcut opens that Result; restore the last tab only without stronger context.",
+      "userAnswer": "A — Use context-sensitive workspace landing.",
+      "decisionStatus": "resolved",
+      "notes": "Disabled state always lands in Setup regardless of entry context."
+    },
+    {
+      "question": "When multiple states apply simultaneously, what should the top-bar Pi Scan chip display?",
+      "recommendedAnswer": "Combine active progress with the highest unresolved condition, otherwise prioritize Unavailable/Disabled, Baseline needed, unresolved Critical/High, Backlog, then Enabled; never let backlog hide severe findings.",
+      "userAnswer": "A — Combine progress with prioritized unresolved status.",
+      "decisionStatus": "resolved",
+      "notes": "Example: Scanning 2/5 • Critical."
+    },
+    {
+      "question": "How persistent should scan-completion notifications be?",
+      "recommendedAnswer": "Critical/high findings and corrupted-state/isolation/stale-identity failures create persistent typed notifications until opened or dismissed; medium/low/informational completions use timed toasts.",
+      "userAnswer": "A — Use persistent critical/high and security-boundary notifications.",
+      "decisionStatus": "resolved",
+      "notes": "Typed notification categories must replace string-matched classification."
+    },
+    {
+      "question": "Which changes should force the setup/privacy consent screen to reappear?",
+      "recommendedAnswer": "Re-consent when primary/fallback provider or model changes, endpoint privacy class changes, background scanning is enabled, pricing/accounting policy changes, or scanner prompt/tool major version changes; not for minor UI changes or tighter limits.",
+      "userAnswer": "A — Re-consent on material privacy, cost, or capability changes.",
+      "decisionStatus": "resolved",
+      "notes": "Persist consent version and the exact disclosed configuration fingerprint."
+    },
+    {
+      "question": "When Pi background execution is off but the scanner feature is enabled, should native AUR head observation still run and persist backlog entries?",
+      "recommendedAnswer": "Yes. Continue unpaid read-only head observation so intermediate commits are not missed; disclose periodic AUR network traffic and keep model execution paused until manual action or explicit background consent.",
+      "userAnswer": "A — Observe and persist backlog while background model execution is off.",
+      "decisionStatus": "resolved",
+      "notes": "Dry-run remains separate and does not mutate durable backlog state."
+    },
+    {
+      "question": "How many unseen AUR commits may one native observation cycle expand into the durable ledger?",
+      "recommendedAnswer": "Process at most 500 commits per package base and 2,000 total per cycle, oldest-first and resumably; never coalesce the remainder.",
+      "userAnswer": "D — When the expansion limit is exceeded, keep only the newest unseen commit.",
+      "decisionStatus": "resolved",
+      "notes": "This conflicts with the current success criterion requiring every observed intermediate recipe-tree-changing commit to be ledgered/scanned. The intended relaxation must be confirmed explicitly."
+    },
+    {
+      "question": "Does your previous choice intentionally replace the plan's requirement to account for every observed intermediate commit when catch-up exceeds the cap?",
+      "recommendedAnswer": "Preserve every-commit accounting with resumable bounded expansion so every commit is eventually ledgered; otherwise a malicious intermediate recipe could be silently discarded.",
+      "userAnswer": "A — Preserve every-commit accounting with resumable bounds.",
+      "decisionStatus": "resolved",
+      "notes": "This supersedes turn 83's coalescing choice. Use 500 commits per package base and 2,000 total per cycle, oldest-first; advance only through the last durably inserted commit and resume later."
+    },
+    {
+      "question": "If a newly observed AUR HEAD is not a descendant of the persisted cursor, what should Pacsea do?",
+      "recommendedAnswer": "Pause that package base, preserve old ledger/results, fetch and manifest the new history without automatic scanning, and require explicit rebaseline confirmation showing old and new OIDs; never rewrite or silently discard old history.",
+      "userAnswer": "A — Pause and require explicit rebaseline.",
+      "decisionStatus": "resolved",
+      "notes": "The rebaseline action creates a new comparison lineage while retaining prior lineage provenance."
+    },
+    {
+      "question": "If several AUR commits have the same installed pkgver/pkgrel and Pacsea cannot prove which one produced the installed package, what should it scan?",
+      "recommendedAnswer": "Scan the newest matching recipe commit for advisory value, mark installed provenance Unverified and the overall result Incomplete, and allow manual selection of another matching commit; never treat version equality as build identity.",
+      "userAnswer": "A — Scan the newest matching commit and mark the result incomplete.",
+      "decisionStatus": "resolved",
+      "notes": "This result cannot advance the accepted complete comparison baseline."
+    },
+    {
+      "question": "When installed-package provenance cannot be proven, what snapshot should establish future changed-recipe comparisons?",
+      "recommendedAnswer": "Keep the installed-provenance scan Incomplete, then offer a separate explicit scan of the current observed AUR HEAD and bound upstream sources; a complete result may establish an observation baseline, not proof of installed bytes.",
+      "userAnswer": "A — Use a separate explicit current-HEAD baseline.",
+      "decisionStatus": "resolved",
+      "notes": "The UI must distinguish Installed provenance scan from Current AUR observation baseline."
+    },
+    {
+      "question": "If AUR HEAD changes after an update cycle freezes a candidate commit but before its scan starts, should Pacsea silently scan the newer HEAD instead?",
+      "recommendedAnswer": "No. Scan the frozen candidate if reachable, mark it Stale, and queue the newer commit separately in chronological order to preserve cycle identity and every-commit accounting.",
+      "userAnswer": "A — Preserve the frozen candidate and queue the newer HEAD separately.",
+      "decisionStatus": "resolved",
+      "notes": "Do not run the two Pi scans concurrently; normal queue ordering applies."
+    },
+    {
+      "question": "Which AUR file changes should trigger a paid Pi scan?",
+      "recommendedAnswer": "Trigger for PKGBUILD, .SRCINFO, install/changelog files, and tracked local source/build inputs; ledger unreferenced documentation, CI metadata, or .gitignore-only changes without a Pi call; scan when classification is uncertain.",
+      "userAnswer": "A — Trigger scans for build-relevant tracked-file changes and scan when classification is uncertain.",
+      "decisionStatus": "resolved",
+      "notes": "This replaces a literal any-tree-change rule with a conservative build-relevance classifier while preserving every commit in the ledger."
+    },
+    {
+      "question": "Must the model read every upstream source file for a result to be Complete?",
+      "recommendedAnswer": "No. Require exhaustive manifesting and deterministic scanning of every eligible file, plus model inspection of all AUR recipe files, changed files, executables/scripts, detector hits, and declared entry points; explicitly label remaining files as manifest-only risk-prioritized scope.",
+      "userAnswer": "A — Use exhaustive deterministic coverage plus mandatory risk-based model reads.",
+      "decisionStatus": "resolved",
+      "notes": "Complete refers to this declared bounded policy, not exhaustive semantic review by the model."
+    },
+    {
+      "question": "Which binary files should force a source-bearing result to Incomplete?",
+      "recommendedAnswer": "Mark Incomplete for executable binaries, libraries, object files, firmware, opaque generated archives, or unknown binary formats that could affect build/runtime; known non-executable media/font assets may remain manifest-only unless build/runtime-relevant.",
+      "userAnswer": "A — Security-relevant or unknown binary files force an incomplete result.",
+      "decisionStatus": "resolved",
+      "notes": "File classification must be deterministic and recorded; uncertainty is treated as security-relevant."
+    },
+    {
+      "question": "What per-file size limit should apply to full deterministic text analysis?",
+      "recommendedAnswer": "Stream/hash every file within the snapshot cap, but fully classify/search text only up to 16 MiB per file; larger build/runtime-relevant text files remain manifested but force Incomplete.",
+      "userAnswer": "A — Use a 16 MiB per-text-file analysis limit.",
+      "decisionStatus": "resolved",
+      "notes": "Known non-build documentation above the limit may remain manifest-only; uncertainty is incomplete."
+    },
+    {
+      "question": "Which source encodings should restricted tools and deterministic detectors treat as analyzable text?",
+      "recommendedAnswer": "Support strict UTF-8/ASCII plus UTF-16 LE/BE only with a valid BOM, normalize to UTF-8 for analysis while hashing original bytes, and mark unsupported build/runtime-relevant encodings Incomplete.",
+      "userAnswer": "A — Support UTF-8/ASCII plus BOM-marked UTF-16.",
+      "decisionStatus": "resolved",
+      "notes": "Evidence paths and hashes bind original bytes; displayed line ranges bind the canonical decoded text representation."
+    },
+    {
+      "question": "If otherwise valid model JSON contains terminal control characters or escape sequences in a string field, should Pacsea sanitize the field or reject the result?",
+      "recommendedAnswer": "Reject the entire result and use one bounded correction request; silent sanitization could alter evidence or hide an injection attempt. A repeated violation fails the model attempt.",
+      "userAnswer": "A — Reject the result and request one correction.",
+      "decisionStatus": "resolved",
+      "notes": "JSON framing controls such as escaped newline/tab are allowed only where schema permits; terminal escape/control sequences are forbidden."
+    },
+    {
+      "question": "If one model finding's quoted evidence or line range does not exactly match the immutable snapshot, should Pacsea drop only that finding or reject the whole result?",
+      "recommendedAnswer": "Reject the whole result and request one correction; after a repeated mismatch, fail the model attempt rather than dropping potentially important findings or accepting fabricated evidence.",
+      "userAnswer": "A — Reject the whole result and allow one correction.",
+      "decisionStatus": "resolved",
+      "notes": "Evidence matching uses canonical decoded text while path/hash identity binds original bytes."
+    },
+    {
+      "question": "How should static-source downloads handle redirects?",
+      "recommendedAnswer": "Follow at most 5 redirects, requiring HTTPS and no URL userinfo at every hop; revalidate every destination, strip authorization/cookies/referrer, reject loops/downgrades/unsupported ports, and record the redirect chain.",
+      "userAnswer": "A — Follow up to 5 fully revalidated HTTPS redirects.",
+      "decisionStatus": "resolved",
+      "notes": "Checksums do not permit HTTP downgrade."
+    },
+    {
+      "question": "May untrusted .SRCINFO source URLs resolve to loopback, private, link-local, multicast, or otherwise non-public IP ranges?",
+      "recommendedAnswer": "No. Resolve each hostname, reject if any address is non-public, pin validated addresses for the connection, and repeat validation on every redirect to prevent SSRF.",
+      "userAnswer": "A — Allow public Internet destinations only.",
+      "decisionStatus": "resolved",
+      "notes": "Apply the same destination policy to static HTTPS sources and git+https remotes. Pacsea-owned allowlisted pricing/key endpoints are separately configured trusted services but still reject non-public DNS results."
+    },
+    {
+      "question": "Should source acquisition inherit HTTP_PROXY, HTTPS_PROXY, or ALL_PROXY from Pacsea's environment?",
+      "recommendedAnswer": "Disable ambient proxy inheritance; optionally support a separate explicit credential-free Pacsea HTTPS-proxy setting that forbids userinfo, validates destination, and is disclosed during setup.",
+      "userAnswer": "A — Do not inherit ambient proxies; allow only an explicit credential-free proxy setting.",
+      "decisionStatus": "resolved",
+      "notes": "Acquisition and Pi subprocess environments exclude ambient proxy variables."
+    },
+    {
+      "question": "Should v1 support a Pacsea-specific custom CA bundle for source, key, or pricing HTTPS requests?",
+      "recommendedAnswer": "No. Use the operating system trust store only, never disable certificate verification, and require private/corporate CAs to be installed into system trust.",
+      "userAnswer": "A — Use the system trust store only.",
+      "decisionStatus": "resolved",
+      "notes": "Do not inherit SSL_CERT_FILE/SSL_CERT_DIR or add per-source TLS exceptions."
+    },
+    {
+      "question": "If an installed pacman -Qm package cannot be uniquely mapped to an AUR package base, may the user supply a custom recipe repository URL?",
+      "recommendedAnswer": "Do not allow custom recipe URLs in v1; mark the target Unavailable rather than expanding the trusted-host and identity model.",
+      "userAnswer": "B — Allow user-supplied official AUR repository URLs only.",
+      "decisionStatus": "resolved",
+      "notes": "Manual URL validation and proof that the repository corresponds to the installed package remain to be defined."
+    },
+    {
+      "question": "When a user supplies an official AUR URL, what must Pacsea verify before accepting the mapping?",
+      "recommendedAnswer": "Canonicalize it to https://aur.archlinux.org/<strict-pkgbase>.git, reject query/fragment/userinfo/alternate ports, fetch the immutable recipe, and require .SRCINFO to list the installed package name under that package base; retain user-confirmed provenance.",
+      "userAnswer": "A — Require the canonical official AUR URL plus .SRCINFO membership proof.",
+      "decisionStatus": "resolved",
+      "notes": "The mapping is package-scoped, not a global alias, and must be revalidated when recipe identity changes."
+    },
+    {
+      "question": "How long should a verified user-supplied AUR mapping persist?",
+      "recommendedAnswer": "Persist it while the package remains installed and every newly observed HEAD still lists the package name in .SRCINFO; invalidate on removal, package-base change, membership loss, or divergence.",
+      "userAnswer": "A — Persist the mapping with continuous .SRCINFO membership revalidation.",
+      "decisionStatus": "resolved",
+      "notes": "Fresh confirmation is required if an invalidated mapping later reappears."
+    },
+    {
+      "question": "If all installed split-package names for a package base are removed while work is queued or active, what should happen?",
+      "recommendedAnswer": "Remove unstarted background items from the runnable queue but retain ledger/results; let an already accepted Pi scan finish, mark it No longer installed, and do not advance a live installed-package baseline; allow explicit cancellation.",
+      "userAnswer": "A — Drop queued work and let an already accepted active scan finish.",
+      "decisionStatus": "resolved",
+      "notes": "Observation for that package base stops once no installed names remain."
+    },
+    {
+      "question": "If the package base is installed again later, may Pacsea reuse an earlier exact-identity complete result?",
+      "recommendedAnswer": "Reuse only when current AUR commit, source manifests, prompt/tool/schema versions, and model policy match exactly; label installed provenance separately; never reuse based only on package version.",
+      "userAnswer": "A — Reuse only on a complete exact identity match.",
+      "decisionStatus": "resolved",
+      "notes": "If any identity component differs, queue the package as Unbaselined."
+    },
+    {
+      "question": "Should v1 still support one-time import of heads.tsv/heads.tsv.gz from the external watcher scripts?",
+      "recommendedAnswer": "Defer legacy import with external-watcher interoperability so native-only v1 establishes its own explicit observation cursor and baseline without carrying external schema/import complexity.",
+      "userAnswer": "A — Defer legacy heads import with external integration.",
+      "decisionStatus": "resolved",
+      "notes": "Remove legacy_import.rs, related settings, tests, workstream tasks, and acceptance claims from first-release scope."
+    },
+    {
+      "question": "Can Pacsea reuse an existing process-group cancellation implementation for Pi child-tree cleanup?",
+      "recommendedAnswer": "No. Add a dedicated Unix process group for each Pi subprocess and use bounded SIGTERM then SIGKILL group escalation with explicit wait/reap; extend the existing nix dependency only with the minimal process/signal features needed.",
+      "userAnswer": "Resolved from codebase evidence: repository search found no existing pre_exec/process_group/setpgid/setsid/killpg or child-kill escalation implementation, while Cargo.toml already depends on nix without process/signal features.",
+      "decisionStatus": "resolved",
+      "notes": "Use safe direct APIs such as Unix Command process_group(0) plus nix::sys::signal::killpg; avoid unsafe libc/pre_exec when a safe API is available. Central integration owns Cargo.toml/Cargo.lock and cargo audit/deny checks."
+    },
+    {
+      "question": "Which resource bounds are authoritative where the original plan table conflicts with later interview decisions?",
+      "recommendedAnswer": "The explicit interview decisions supersede the draft table and must replace it before implementation.",
+      "userAnswer": "Resolved from the user's prior explicit choices: 100 MiB/source and 250 MiB/package downloads; 256 MiB expanded bytes, 10,000 entries, depth 16, ratio 10:1; 16 MiB analyzable text/file; 250 Pi tool calls and 16 MiB tool results/model attempt; 5 minutes/model attempt and 12 minutes/logical scan; 4 MiB final JSON and 500 findings; Pi concurrency 1.",
+      "decisionStatus": "resolved",
+      "notes": "Per-call tool limits remain read 64 KiB, grep 200 matches/128 KiB, find/ls 500 entries/128 KiB. The implementation plan and acceptance tests must remove obsolete 64 MiB/2,000-entry/512 KiB/4 MiB/90-second/256 KiB/200-finding values."
+    },
+    {
+      "question": "Should v1 extract archives in-process or invoke system bsdtar?",
+      "recommendedAnswer": "Use in-process Rust readers, iterate entries manually, and materialize only validated directories/regular files; never call broad unpack helpers; choose compression decoders after advisory/license/unsafe review.",
+      "userAnswer": "A — Use in-process Rust entry-by-entry extraction.",
+      "decisionStatus": "resolved",
+      "notes": "Wave 0 must document exact crates, versions, licenses, unsafe/transitive dependency review, cargo audit/deny results, and archive-bomb regression tests."
+    },
+    {
+      "question": "How should unattended queue execution relate to the 15-minute head-observation cycle?",
+      "recommendedAnswer": "Decouple them: observe every 15 minutes while a sequential runner processes backlog continuously when Pacsea is open, subject to pause, rolling budgets, and 5 job starts per rolling hour.",
+      "userAnswer": "A — Use a continuous sequential runner with at most 5 job starts per rolling hour.",
+      "decisionStatus": "resolved",
+      "notes": "Remove the obsolete 5-jobs/300-second per-update-cycle model. Observation discovers work; execution has independent rate/budget controls."
+    },
+    {
+      "question": "Should an explicitly confirmed manual scan be blocked when unattended hourly, token, or cost caps are exhausted?",
+      "recommendedAnswer": "No. Manual scans may bypass unattended caps after showing the current estimate and requiring confirmation; record usage separately while retaining all per-scan safety limits.",
+      "userAnswer": "A — Manual scans bypass unattended caps with explicit confirmation.",
+      "decisionStatus": "resolved",
+      "notes": "The confirmation must display the worst-case primary/fallback/retry reservation."
+    },
+    {
+      "question": "When the user presses p, should Pacsea abort the active scan or pause only before the next queue item?",
+      "recommendedAnswer": "Let the active logical scan finish, then pause before starting another item; use x for explicit cancellation to avoid wasting paid work.",
+      "userAnswer": "A — Pause after the active scan finishes.",
+      "decisionStatus": "resolved",
+      "notes": "Pause state persists across workspace detach/reopen but not necessarily application restarts unless separately decided."
+    },
+    {
+      "question": "If the user presses x during a logical scan, may Pacsea continue with the next fallback model?",
+      "recommendedAnswer": "No. Cancellation aborts the entire logical scan, suppresses correction/fallback, terminates and reaps Pi after grace, and records Cancelled with consumed/reserved usage.",
+      "userAnswer": "A — Cancel the whole logical scan.",
+      "decisionStatus": "resolved",
+      "notes": "Cancellation never advances the accepted baseline."
+    },
+    {
+      "question": "Should an explicit queue pause survive Pacsea restarts?",
+      "recommendedAnswer": "Yes. Persist user-initiated pause and require explicit resume so reopening cannot unexpectedly restart paid background work; distinguish it from automatic budget/service pauses.",
+      "userAnswer": "A — Persist explicit pause across restarts.",
+      "decisionStatus": "resolved",
+      "notes": "Only the user can clear an explicit pause."
+    },
+    {
+      "question": "When rolling unattended budgets become available again, should a budget-paused queue resume automatically?",
+      "recommendedAnswer": "Yes, if background consent remains valid and there is no explicit user pause; recompute reservations, notify, and require relevant readiness checks for non-budget pauses.",
+      "userAnswer": "Yes — choose A: automatically resume after revalidation.",
+      "decisionStatus": "resolved",
+      "notes": "Automatic resume is never allowed to override a persisted user pause."
+    },
+    {
+      "question": "How long may Pacsea delay exit while aborting Pi, reaping children, cleaning private workspaces, and durably persisting queue state?",
+      "recommendedAnswer": "Allow 10 seconds total: request RPC abort, escalate after the 5-second grace, then complete bounded cleanup/persistence; persist a recovery marker if durability fails.",
+      "userAnswer": "A — Use a 10-second total shutdown deadline.",
+      "decisionStatus": "resolved",
+      "notes": "Startup must surface any recovery marker and fail closed on uncertain queue/budget state."
+    },
+    {
+      "question": "Should the Pi scanner be hidden behind a Cargo compile-time feature in addition to the default-off runtime setting?",
+      "recommendedAnswer": "No. Compile it normally with clear Arch/Linux cfg runtime boundaries, gate every trigger behind pi_scan_enabled=false by default, and keep CI coverage active.",
+      "userAnswer": "A — Use runtime gating only and compile the scanner by default.",
+      "decisionStatus": "resolved",
+      "notes": "Windows must continue to compile and report the runtime feature unavailable."
+    },
+    {
+      "question": "Should users be able to raise acquisition, extraction, tool, output, or timeout safety caps through settings.conf?",
+      "recommendedAnswer": "No in v1. Expose settings that may only lower hard compiled maxima and reject higher values with actionable config errors; operational retention and unattended budgets may remain lowerable.",
+      "userAnswer": "A — Users may lower but not raise hard safety caps.",
+      "decisionStatus": "resolved",
+      "notes": "Persist and display both configured effective values and compiled maxima."
+    },
+    {
+      "question": "Which public-key service should v1 allow?",
+      "recommendedAnswer": "Use only the keys.openpgp.org VKS full-fingerprint endpoint; require exact fingerprint match and mark verification unavailable/Incomplete on 404, outage, or rate limit rather than trying arbitrary keyservers.",
+      "userAnswer": "A — Use keys.openpgp.org VKS only.",
+      "decisionStatus": "resolved",
+      "notes": "Endpoint: https://keys.openpgp.org/vks/v1/by-fingerprint/<FULL_UPPERCASE_FINGERPRINT>. Source: https://keys.openpgp.org/about/api."
+    },
+    {
+      "question": "What rolling 24-hour token limit should setup propose when background scanning is enabled?",
+      "recommendedAnswer": "Use 250,000 tokens, counting exact or conservative estimated usage across Pi retries and fallback models; require explicit acceptance and reserve before launch.",
+      "userAnswer": "C — Use a 500,000-token rolling 24-hour unattended cap.",
+      "decisionStatus": "resolved",
+      "notes": "The user may lower but not bypass the configured cap for unattended work; manual scans follow the separate confirmation policy."
+    },
+    {
+      "question": "What rolling 24-hour dollar cap should setup propose for direct API/OpenRouter background scans?",
+      "recommendedAnswer": "Use $0.00 by default, disabling paid unattended scans until the user explicitly enters a nonzero cap; subscription-backed routes still obey the token cap.",
+      "userAnswer": "A — Default the paid unattended cost cap to $0.00 and require nonzero opt-in.",
+      "decisionStatus": "resolved",
+      "notes": "Stale pricing behavior follows turns 35-37; direct/OpenRouter scans cannot reserve against a zero cap."
+    },
+    {
+      "question": "Should setup automatically populate fallback models?",
+      "recommendedAnswer": "Start with an empty fallback list and require explicit addition/order after provider, privacy, readiness, and pricing disclosure.",
+      "userAnswer": "B — Automatically add the cheapest configured model as a fallback.",
+      "decisionStatus": "resolved",
+      "notes": "Eligibility, privacy-class constraints, tie-breaking, and user confirmation remain to be defined."
+    },
+    {
+      "question": "Which models may qualify as the automatically selected cheapest fallback?",
+      "recommendedAnswer": "Only an available distinct provider/model in the same privacy class as the primary, with known/estimated pricing and completed readiness probe; show it preselected but require setup confirmation; otherwise leave empty.",
+      "userAnswer": "A — Use the cheapest eligible model in the same privacy class with explicit confirmation.",
+      "decisionStatus": "resolved",
+      "notes": "A failed readiness probe does not disqualify the model under turns 40-41, but its warning must remain visible at confirmation and runtime."
+    },
+    {
+      "question": "How should setup rank eligible automatic fallback models by price?",
+      "recommendedAnswer": "Compare each model's worst-case reservation for the configured scan profile, including estimated input/output/cache rates, thinking level, Pi retry multiplier, and correction allowance; do not rank by input price alone.",
+      "userAnswer": "A — Rank by lowest worst-case reserved cost.",
+      "decisionStatus": "resolved",
+      "notes": "Subscription-backed routes are dollar-zero under the earlier decision, so tie-breaking must use token reservation and capability/context fit rather than nominal API price."
+    },
+    {
+      "question": "When several eligible subscription/local models have $0 cost, how should Pacsea choose the automatic fallback?",
+      "recommendedAnswer": "Use deterministic readiness, capability-fit, token-reservation, and stable-ID tie-breaks.",
+      "userAnswer": "E — The user should choose among tied eligible fallback models.",
+      "decisionStatus": "resolved",
+      "notes": "If the cheapest eligible price is tied, setup must present the tied candidates and require explicit selection; do not auto-populate a fallback until the tie is resolved."
+    },
+    {
+      "question": "What thinking level should setup preselect for the primary and fallback models?",
+      "recommendedAnswer": "Preselect medium, validate supported levels per model, and adjust only downward when unsupported while showing the adjustment; never silently increase reasoning/cost.",
+      "userAnswer": "A — Default to medium with downward-only compatibility adjustment.",
+      "decisionStatus": "resolved",
+      "notes": "The exact selected level remains part of consent, scan identity, pricing reservation, and result provenance."
+    },
+    {
+      "question": "How long may Pacsea reuse a successfully fetched signing key from keys.openpgp.org?",
+      "recommendedAnswer": "Cache exact fingerprint-bound public keys privately for 24 hours; after expiry refetch and mark verification Incomplete on refresh failure rather than using stale material.",
+      "userAnswer": "B — Cache exact fingerprint-bound public keys for 7 days.",
+      "decisionStatus": "resolved",
+      "notes": "After 7 days, refetch is required; if refresh fails, declared-signature verification is unavailable and the source is Incomplete. Persist only fingerprint/status with results, not key bodies."
+    }
+  ]
+}

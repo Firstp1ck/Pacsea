@@ -268,6 +268,7 @@ mod tests {
             std::env::set_var("HOME", dir.display().to_string());
             std::env::remove_var("XDG_CONFIG_HOME");
         }
+        crate::theme::set_home_config_enabled(true);
 
         let defaults = PatternSets::default();
         let loaded = super::load();
@@ -276,6 +277,7 @@ mod tests {
         assert_eq!(loaded.medium, defaults.medium);
         assert_eq!(loaded.low, defaults.low);
 
+        crate::theme::set_home_config_enabled(false);
         unsafe {
             if let Some(v) = orig_home {
                 std::env::set_var("HOME", v);
@@ -326,6 +328,7 @@ mod tests {
             std::env::set_var("HOME", dir.display().to_string());
             std::env::remove_var("XDG_CONFIG_HOME");
         }
+        crate::theme::set_home_config_enabled(true);
 
         let config_dir = crate::theme::config_dir();
         let pattern_path = config_dir.join("pattern.conf");
@@ -338,6 +341,7 @@ mod tests {
         assert_eq!(loaded.medium, "mid");
         assert_eq!(loaded.low, "lo");
 
+        crate::theme::set_home_config_enabled(false);
         unsafe {
             if let Some(v) = orig_home {
                 std::env::set_var("HOME", v);

@@ -89,7 +89,7 @@ fn ui_preflight_exec_remove_rendering() {
             assert_eq!(action, PreflightAction::Remove);
             assert_eq!(tab, PreflightTab::Summary);
             assert!(!verbose);
-            assert!(log_lines.is_empty());
+            assert_eq!(log_lines, [] as [std::string::String; 0]);
             assert!(!abortable);
         }
         _ => panic!("Expected PreflightExec modal"),

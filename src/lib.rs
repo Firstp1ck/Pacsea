@@ -124,8 +124,15 @@ pub mod events;
 pub mod i18n;
 pub mod index;
 pub mod install;
-mod integrations;
+pub mod integrations;
 pub mod logic;
+/// Optional Pi coding-agent bridge for the advisory AUR scanner.
+#[path = "integrations/pi_agent/mod.rs"]
+pub mod pi_agent;
+#[path = "app/runtime/workers/pi_scan_orchestrator.rs"]
+pub mod pi_scan_orchestrator;
+#[path = "app/runtime/workers/pi_scan_production.rs"]
+pub mod pi_scan_production;
 pub mod sources;
 pub mod state;
 pub mod theme;

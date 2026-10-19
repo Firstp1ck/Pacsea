@@ -100,9 +100,8 @@ fn type_query(app: &mut AppState, channels: &EventChannels, query: &str) {
 
 /// What: Navigate to the theme file row (index 2) and open its key list.
 fn enter_theme_file(app: &mut AppState, channels: &EventChannels) {
-    send_key(app, KeyCode::Down, KeyModifiers::NONE, channels);
-    send_key(app, KeyCode::Down, KeyModifiers::NONE, channels);
-    send_key(app, KeyCode::Enter, KeyModifiers::NONE, channels);
+    send_key(app, KeyCode::Tab, KeyModifiers::NONE, channels);
+    send_key(app, KeyCode::Tab, KeyModifiers::NONE, channels);
 }
 
 /// What: Load the shipped complete theme config for seeding isolated homes.
@@ -269,8 +268,7 @@ fn config_editor_phase4_stale_file_warns_then_overwrites() {
     };
     let channels = build_event_channels();
 
-    // Open settings.conf (file cursor starts at 0) and the sort_mode popup.
-    send_key(&mut app, KeyCode::Enter, KeyModifiers::NONE, &channels);
+    // Open the sort_mode popup from the default Settings tab.
     type_query(&mut app, &channels, "sort_mode");
     send_key(&mut app, KeyCode::Enter, KeyModifiers::NONE, &channels);
     assert!(app.config_editor_state.popup.is_some(), "popup must open");
@@ -335,7 +333,7 @@ fn config_editor_phase4_export_writes_effective_values_with_redaction() {
     let settings_path = home.join(".config").join("pacsea").join("settings.conf");
     fs::write(
         &settings_path,
-        "sort_mode = alphabetical\nvirustotal_api_key = super_secret_value\n",
+        "sort_mode = alphabetical\nvirustotal_api_key = super_secret_value\npi_scan_https_proxy = https://user:proxy_password@proxy.invalid\n",
     )
     .expect("must seed settings.conf");
 
@@ -345,8 +343,7 @@ fn config_editor_phase4_export_writes_effective_values_with_redaction() {
     };
     let channels = build_event_channels();
 
-    // Open settings.conf, then export.
-    send_key(&mut app, KeyCode::Enter, KeyModifiers::NONE, &channels);
+    // Export the default Settings tab.
     send_key(
         &mut app,
         KeyCode::Char('e'),
@@ -372,6 +369,8 @@ fn config_editor_phase4_export_writes_effective_values_with_redaction() {
         !exported.contains("super_secret_value"),
         "raw secret must never appear in exports"
     );
+    assert!(exported.contains("pi_scan_https_proxy = [REDACTED]"));
+    assert!(!exported.contains("proxy_password"));
     let status = editor_status(&app);
     assert!(
         status.contains("Exported"),

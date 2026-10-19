@@ -60,6 +60,534 @@ de-DE:
     search_mode_fuzzy: "FUZZY"
     search_mode_normal: "NORMAL"
 
+    pi_scan:
+      title: "Pi-Scan"
+      tabs:
+        setup: "Einstellungen"
+        overview: "Status"
+        targets: "Scannen"
+        progress: "Fortschritt"
+        results: "Ergebnisse"
+        details: "Bericht"
+      tabs_short:
+        setup: "Einst"
+        overview: "Stat"
+        targets: "Scan"
+        progress: "Fort"
+        results: "Erg"
+        details: "Ber"
+      status:
+        disabled: "Nicht eingerichtet"
+        unsupported: "Hier nicht unterstützt"
+        missing_pi: "Pi nicht installiert"
+        disconnected: "Nicht verbunden"
+        connected: "Bereit"
+        scanning: "Scanne {}"
+        waiting: "{} wartend"
+        paused: "Pausiert"
+      top_bar:
+        queued: "{} wartend"
+        running: "Pi-Scan: läuft"
+        rescans_pending: 'Pi: {} erneute Scans ausstehend'
+        new_results: "Pi-Scan: {} neue Ergebnisse"
+        background_on: "Pi BG: AN"
+        background_off: "Pi BG: AUS"
+        background_finishing: "Pi BG: AUS · läuft aus"
+        background_setup: "Pi BG: EINRICHTUNG"
+        background_pending: "Pi BG: …"
+      common:
+        search_shortcut: "konfiguriertes Pi-Scan-Kürzel"
+        confirmed: "bestätigt"
+        not_confirmed: "nicht bestätigt"
+        enabled: "aktiviert"
+        disabled: "deaktiviert"
+        allowed: "erlaubt"
+        not_allowed: "nicht erlaubt"
+        none: "keine"
+        unlimited: "Unbegrenzt"
+        package_base: "Paketbasis"
+        commit: "Commit"
+      background_toggle:
+        label: "Hintergrundscans"
+        on: "Ein"
+        off: "Aus"
+      coverage:
+        complete: "vollständig"
+        incomplete: "unvollständig"
+      priority:
+        foreground: "Vordergrund"
+        background: "Hintergrund"
+      target_status:
+        unbaselined: "noch nicht gescannt"
+        queued: "wartend"
+        running: "wird gescannt"
+        paused: "pausiert"
+        completed: "fertig"
+        failed: "fehlgeschlagen"
+        interrupted: "unterbrochen"
+        cancelled: "abgebrochen"
+      setup:
+        sections:
+          runtime: "Verbindung"
+          route_cost: "KI-Modell und Kosten"
+          safety: "Sicherheit"
+          permissions: "Berechtigungen"
+        verify_action: "Prüfen, ob die Einrichtung funktioniert"
+        rerun_wizard: "Geführte Einrichtung starten"
+        availability: "Nächster Schritt"
+        missing_pi: "Pi wurde nicht gefunden. Pi installieren, pi_scan_binary setzen und Pacsea neu starten."
+        integration_pending: "Pi ist vorhanden, aber die Scanner-Laufzeit ist getrennt. Geführte Einrichtung starten oder den gemeldeten Laufzeitfehler prüfen."
+        enable_hint: "Vor der Aktivierung die geführte Einrichtung ausführen und alle Hinweise prüfen."
+        unsupported: "Nativer Pi-Scan läuft nur unter Arch/Linux."
+        connected: "Laufzeitkanal verbunden; Einrichtungsbestätigungen gelten weiterhin."
+        readiness_unchecked: "nicht geprüft; kein Modellaufruf erfolgte"
+        readiness_warning: "Warnung"
+        readiness_confirmed: "bestätigt"
+        config_within_bounds: "Konfigurierte Grenzen liegen innerhalb der kompilierten Grenzen"
+        validation_issue:
+          executable: "{} muss das Pi-Programm benennen"
+          at_least: "{} muss mindestens {} sein"
+          between: "{} muss zwischen 1 und {} liegen"
+          cannot_exceed: "{} darf {} nicht überschreiten"
+          native_integer: "{} muss eine nichtnegative ganze Zahl sein, die nicht größer ist als {}"
+          exact_decimal: "{} muss eine nichtnegative Dezimalzahl mit höchstens sechs Nachkommastellen sein"
+          exact_cost_maximum: "{} überschreitet den maximalen exakten Mikro-USD-Wert"
+          https_proxy: "{} muss ein HTTPS-Proxy ohne Zugangsdaten oder leer sein"
+        feature_background: "Funktion aktiv / bezahlter Hintergrund aktiv"
+        provider_model: "Anbieter / Modell"
+        fallback: "Geordneter Fallback"
+        privacy_cost: "Datenschutz/Kosten: Analysierte Paketdaten gehen an den gewählten Anbieter; Modell- und Fallback-Aufrufe können Kosten verursachen."
+        coverage: "Abdeckung: Ergebnisse sind Hinweise und können unvollständig sein; sie beweisen weder installierte Bytes noch Paketsicherheit."
+        readiness: "Bereitschaft"
+        config: "Konfiguration"
+        effective_compiled: "Effektive Einstellungen / kompilierte Zeitlimit-Maxima"
+        effective_values: "Head {}/15 · Beobachtung {}/90 · Modell {}/300 · Gesamt {}/720 · Starts {} · Token {} · Kosten {} (Budgetwert 0 = Unbegrenzt)"
+        thinking: "Denkstufe"
+        tool_contract: "Werkzeugvertrag"
+        verified_pi: "Verifiziertes Pi"
+        verified_route: "Verifizierte ausgewählte Route"
+        pricing_binding: "Preisbindung"
+        disclosure_consent: "Ich verstehe, welche Daten gesendet werden und was es kosten kann"
+        observation_consent: "Im Hintergrund nach Paketaktualisierungen suchen (nur lesend)"
+        paid_consent: "Von mir gestartete Scans dürfen das kostenpflichtige KI-Modell nutzen"
+        background_paid_consent: "Hintergrundscans dürfen das kostenpflichtige KI-Modell nutzen"
+        fallback_consent: "Ersatzmodelle erlauben, wenn das Hauptmodell ausfällt"
+        warning_consent: "Trotz der Einrichtungswarnung fortfahren"
+      wizard:
+        progress: "Einrichtung"
+        steps:
+          welcome: "Willkommen"
+          readiness: "Pi-Bereitschaft"
+          route: "Route"
+          pricing: "Preise und Datenschutz"
+          optional: "Optionales Verhalten"
+          review: "Prüfen"
+          activate: "Aktivieren"
+        common:
+          on: "ein"
+          off: "aus"
+        controls:
+          back: "Zurück"
+          next: "Weiter"
+          cancel: "Abbrechen"
+          close: "Schließen"
+          retry: "Erneut"
+          apply: "Anwenden"
+          select: "Auswählen"
+        validation:
+          ready: "Nur Entwurf — Einstellungen, Laufzeit und Zustimmung sind unverändert."
+          dry_run_probe: "Der Probelauf startet Pi nicht und reiht keine Einrichtungsprüfung ein."
+          binary_required: "Den Pi-Programmnamen oder einen absoluten Pfad eingeben."
+          no_routes: "Pi meldete keine nutzbaren Routen; Zugangsdaten außerhalb von Pacsea einrichten und erneut versuchen."
+          dry_run_apply: "Der Probelauf wendet nichts an, schreibt keine Einstellungen oder Zustimmung und aktiviert Pi Scan nicht."
+          validate_before_apply: "Den vollständigen Kandidaten vor dem Anwenden validieren."
+          dry_run_validation: "Der Probelauf reiht keine Kandidatenvalidierung ein und startet Pi nicht."
+          verify_first: "Vor dem Fortfahren die Pi-Fähigkeiten verifizieren."
+          route_required: "Eine exakt von Pi gemeldete Anbieter-/Modellroute auswählen."
+          thinking_required: "Eine unterstützte Denkstufe auswählen."
+          disclosure_required: "Den Anbieter-/Datenschutz-/Kosten-/Abdeckungshinweis bestätigen."
+          foreground_required: "Bezahlte Vordergrundausführung separat bestätigen."
+          fallback_required: "Den geordneten Fallback separat bestätigen oder deaktivieren."
+          background_paid_required: "Bezahlte Hintergrundausführung benötigt eine unabhängige Zustimmung."
+        failure_stage:
+          probe: "Pi-Fähigkeitsprüfung fehlgeschlagen"
+          validation: "Kandidatenvalidierung fehlgeschlagen"
+          activation: "Laufzeitaktivierung fehlgeschlagen"
+          persistence: "Speichern der Einrichtung fehlgeschlagen"
+        failure:
+          controller_unavailable: "Die Einrichtungssteuerung ist nicht verfügbar. Geführte Einrichtung schließen, wieder öffnen und erneut versuchen."
+        failure_timeout:
+          probe: "Zeitlimit der Pi-Fähigkeitsprüfung erreicht; Pi-Programm prüfen und wiederholen."
+          validation: "Zeitlimit der Kandidatenvalidierung erreicht; Route prüfen und wiederholen."
+          activation: "Zeitlimit der Laufzeitaktivierung erreicht; die bisherige Laufzeit bleibt maßgeblich. Erneut versuchen."
+          persistence: "Zeitlimit beim Speichern erreicht; die bisherigen Einstellungen bleiben maßgeblich. Erneut versuchen."
+        in_flight: "arbeitet"
+        notices:
+          dry_run_review: "Nur geplante Werte prüfen; den Probelauf verlassen, um Pi zu verifizieren."
+          verifying: "Pi wird ohne Modellaufruf verifiziert…"
+          readiness_verified: "Pi-Bereitschaft verifiziert; eine exakt gemeldete Route auswählen."
+          validation_write_free: "Die Kandidatenvalidierung hat nichts dauerhaft geändert."
+          validating: "Der isolierte Kandidat wird ohne Schreibzugriffe validiert…"
+          route_reselected: "Die bisherige Route wird nicht mehr gemeldet; {} wurde gewählt. Vor dem Fortfahren prüfen."
+        welcome:
+          summary: "Dieser Assistent richtet Pi Scan in sieben Schritten ohne settings.conf-Bearbeitung oder Pacsea-Neustart ein."
+          advisory: "Pi Scan gibt nur Hinweise: Risiken können fehlen und weder Paket noch installierte Bytes gelten als sicher."
+          data_flow: "Ausgewählte Rezept-/Quelldaten gehen an die exakt geprüfte Anbieterroute."
+          no_execution: "Die Einrichtung führt kein Paket aus; die Erkennung macht keinen bezahlten Modellaufruf."
+          credentials: "Anbieterzugänge bleiben bei Pi; Pacsea fragt sie nie ab, zeigt, protokolliert oder speichert sie nicht."
+          first_run: "Konservative Vorgaben bleiben bis zum abschließenden Anwenden gewählt."
+          reconfigure: "Die verifizierte Laufzeit bleibt maßgeblich, sofern Anwenden nicht erfolgreich ist."
+        readiness:
+          explanation: "Pi-Programm wählen und danach exakte Version, Isolationsvertrag, Routen und Preisdaten prüfen."
+          binary: "Pi-Programm"
+          verify: "Ohne Modellaufruf prüfen"
+          version: "Verifizierte Pi-Version"
+          no_model: "Die Prüfung nutzt nur Versions-, Hilfe- und Fähigkeitsmetadaten und sendet keinen Prompt."
+          credentials: "Fehlen Routen, Anbieterzugang außerhalb von Pacsea in Pi einrichten und erneut versuchen."
+        route:
+          explanation: "Nur exakte Anbieter-/Modellkennungen aus dieser verifizierten Pi-Prüfung wählen."
+          primary: "Primärroute"
+          thinking: "Denkstufe"
+          advertised: "Angekündigte exakte Routen"
+          exact_only: "Freier Routentext ist gesperrt; nach Änderungen an Pi erneut prüfen."
+        pricing:
+          selected_route: "Ausgewählte Route"
+          worst_case: "Maximal reserviert pro Prüfung"
+          tokens: "Token"
+          provenance: "Preisquelle"
+          provenance_value: "Verifizierter Live-Modellkatalog von Pi (verbrauchsabhängiger Tarif)"
+          disclosure: "Anbieterhinweis: Analysierte Paketdaten verlassen diesen Rechner; Modellaufrufe können Kosten verursachen."
+          coverage: "Abdeckung kann unvollständig sein; Ergebnisse autorisieren keine Installation."
+          confirm_disclosure: "Ich habe Datenschutz, Kosten und Abdeckung geprüft"
+          confirm_foreground: "Ich erlaube separat bezahlte Vordergrundausführung"
+          confirm_readiness: "Ich akzeptiere separat jede angezeigte Bereitschaftswarnung"
+        optional:
+          observation: "Nur lesende Hintergrundbeobachtung"
+          background_paid: "Bezahlte Hintergrundausführung"
+          fallback: "Geordneter exakter Fallback"
+          starts: "Hintergrundstarts/Stunde (0 = Unbegrenzt)"
+          tokens: "Hintergrundtoken/24 h (0 = Unbegrenzt)"
+          cost: "Hintergrundkosten USD/24 h (0 = Unbegrenzt)"
+          retention: "Ergebnisaufbewahrung in Tagen"
+          proxy: "Zugangsdatenfreier HTTPS-Proxy"
+          defaults: "Konservative Vorgaben: Beobachtung aus · bezahlt im Hintergrund aus · Fallback aus · Kosten Unbegrenzt (gespeichert als 0.00)."
+          fallback_list: "Enter: aus Liste wählen"
+        review:
+          explanation: "Alle effektiven Werte prüfen. Die isolierte Validierung hat nichts dauerhaft geändert."
+          route: "Programm · exakte Route · Denkstufe"
+          pi_version: "Verifizierte Pi-Version"
+          pricing: "Maximale Token / Mikro-USD / Unix-Prüfzeit / Aktualität in Sekunden"
+          fallback: "Geordneter Fallback"
+          confirmations: "Hinweis / bezahlt im Vordergrund / Beobachtung / bezahlt im Hintergrund / Fallback / Bereitschaft"
+          background: "Hintergrund aktiv / Starts pro Stunde / Kosten USD (0 = Unbegrenzt)"
+          timeouts: "Head- / Beobachtungs- / Modell- / Gesamtzeitlimit in Sekunden"
+          limits: "Token (0 = Unbegrenzt) / Aufbewahrung / Rohausgabe / HTTPS-Proxy"
+          compiled: "Kompilierte Zeitlimit-Maxima"
+          compiled_values: "Head≤15 / Beobachtung≤90 / Modell≤300 / Gesamt≤720 (Budgets: 0 = Unbegrenzt)"
+          binding: "Exakte Preisbindung"
+          transaction: "Anwenden validiert erneut, prüft einen Kandidaten, speichert atomar und tauscht danach die Laufzeit."
+          advisory: "Vor Anwenden verwirft Abbrechen nur den Entwurf. Während Anwenden warnt Esc zuerst; ein zweites Esc fordert explizites Zurückrollen an."
+        activate:
+          idle: "Bereit zur Aktivierung."
+          validating: "Exakte Route, Preise, Grenzen und Zustimmungsbindung werden erneut geprüft…"
+          activating: "Kandidatenlaufzeit wird erstellt und geprüft…"
+          persisting: "Einstellungen und gebundene Zustimmung werden atomar gespeichert…"
+          complete: "Pi Scan ist verifiziert und bereit; Pacsea muss nicht neu gestartet werden."
+          failed: "Aktivierung fehlgeschlagen; bisherige Konfiguration, Laufzeit und Zustimmung bleiben maßgeblich."
+          retry_guidance: "Gemeldetes Problem beheben, bei Wertänderungen Zurück wählen oder Transaktion wiederholen."
+          previous_authoritative: "Vor Abschluss der Kandidatentransaktion wird keine Warteschlangenarbeit freigegeben."
+          no_restart: "Erfolgreiche Aktivierung wechselt in diesem Prozess zur Produktionslaufzeit."
+          advisory: "Bereit bedeutet konfiguriert und verbunden, nicht dass ein Paket sicher ist."
+        footer:
+          notice: "Nichts wird gespeichert, bevor im letzten Schritt Anwenden gedrückt wird. Esc bricht die geführte Einrichtung ab."
+        picker:
+          title: "Ersatzmodell wählen"
+          search: "Suchen"
+          off: "Aus — kein Ersatzmodell"
+          no_match: "Kein Modell passt zu „{}“"
+          hint: "↑↓ bewegen · tippen zum Suchen · Enter wählen · Esc schließen"
+          no_routes: "Pi in Schritt 2 prüfen, um Modelle aufzulisten · Esc schließen"
+      overview:
+        sections:
+          activity: "Gerade jetzt"
+          budget: "Limits für Hintergrundscans"
+          permissions: "Berechtigungen"
+          notices: "Gut zu wissen"
+        active: "Aktueller Scan"
+        no_active: "Es läuft kein Scan"
+        queued: "Wartend"
+        pauses: "Pausiert, weil"
+        starts_limit: "Gestartete Scans (letzte Stunde)"
+        tokens_used: "KI-Nutzung, letzte 24 h (Token)"
+        cost_used: "Kosten, letzte 24 h"
+        background_notice: "Hintergrund"
+        observation_permission: "Auf Paketaktualisierungen achten"
+        paid_permission: "Bezahlte KI-Scans erlauben"
+        advisory: "Ergebnisse sind nur Hinweise und genehmigen nie eine Installation; alles, was nicht geprüft werden konnte, wird angezeigt."
+      budget_dialog:
+        title: "Unbeaufsichtigte Budgets anpassen"
+        prompt: "Wählen Sie, wie alle derzeit den nächsten Hintergrundscan blockierenden Grenzen angepasst werden."
+        double: "Betroffene Grenzen verdoppeln"
+        unlimited: "Betroffene Grenzen auf Unbegrenzt setzen"
+        unlimited_warning: "Unbegrenzt entfernt diese Ausgabenobergrenzen; bezahlte Hintergrund-Modellaufrufe können bis zu einer separaten Pause weiterlaufen."
+        overflow: "kann nicht exakt verdoppelt werden"
+        submitting: "Anpassung über die Pi-Scan-Laufzeit wird angewendet…"
+        rejected: "Anpassung abgelehnt"
+        hint_navigation: "←/→ Auswählen · Tab/Shift+Tab Option wechseln"
+        hint_actions: "Enter Anwenden · Esc Abbrechen"
+      targets:
+        list_heading: "Pakete"
+        hint: "Die AUR-Pakete abhaken, die geprüft werden sollen, dann mit Enter den Scan starten."
+        package_base: "Basis"
+        commit: "Version"
+        empty: "Noch kein Paket hier. Zurück zur Suche, ein AUR-Paket markieren und {} drücken, um es hierher zu holen."
+        new_version: "neue Version verfügbar"
+        new_version_queued: "neue Version · erneuter Scan wartet"
+        dry_run_preview: "Dry-run-Prozessvorschau"
+        dry_run_disclosure: "Dry-run führt keinen Pi-/Modellaufruf aus und verändert keinen dauerhaften Scannerzustand."
+      progress:
+        sections:
+          session: "Diese Sitzung"
+          current: "Jetzt"
+          queue: "Wartend"
+        queue_empty: "Nichts wartet."
+        active: "Aktueller Scan"
+        no_active: "Gerade läuft kein Scan."
+        running_for: "Laufzeit"
+        reservation: "Reservierungsgrenze"
+        waiting: "Warten auf den Start des nächsten Scans…"
+        paused: "Pausiert"
+        current_step: "Aktueller Schritt"
+        working: "Scan läuft"
+        cancelling: "Aktiver Scan wird abgebrochen"
+        phase:
+          preparing: "Das unveränderliche Scan-Ziel wird vorbereitet"
+          resolving_metadata: "Aktuelle AUR-Metadaten werden aufgelöst"
+          waiting_to_retry: "Warten vor dem einmaligen Wiederholungsversuch"
+          acquiring_sources: "Paketquellen werden erfasst und auf Integrität geprüft"
+          running_model: "Pi analysiert das Paket und validiert seine Antwort"
+          rechecking_identity: "AUR-Identität und veränderliche Quellen werden erneut geprüft"
+          validating_result: "Das Ergebnis wird gegen das Scan-Ziel validiert"
+          finalizing: "Das validierte Ergebnis und die Abrechnung werden gespeichert"
+        pause:
+          user: "manuell pausiert"
+          service: "vom Scanner nach Fehlern pausiert; p prüft die Einrichtung und setzt fort"
+          budget: "ein Ausgabelimit wurde erreicht"
+        budget_limits: "Überschrittene Grenze(n)"
+        budget_solution: "Warten Sie auf das Zeitfenster oder drücken Sie hier b, um Verdoppeln oder Unbegrenzt für die betroffenen Grenzen zu wählen. Verdoppeln kann weiterhin eine Grenze überschreiten."
+        budget_unknown: "Die nächste Reservierung konnte nicht zugeordnet werden"
+        limit_starts: "Hintergrundstarts/Stunde"
+        limit_tokens: "Hintergrundtoken/24 Stunden"
+        limit_cost: "Hintergrundkosten/24 Stunden"
+      results:
+        list_heading: "Gescannte Pakete"
+        advisory: "KI-gestützte Prüfungen können Probleme übersehen. Ein sauberes Ergebnis beweist nicht, dass ein Paket sicher ist."
+        empty: "Noch keine Ergebnisse. Auf der Seite Scannen (1) Pakete auswählen und Enter drücken."
+        current: "Aktuell"
+        newer_version: "Neuere Version verfügbar"
+        stale: "Paket seit dem Scan geändert"
+        completion:
+          complete_no_findings: "Keine Probleme gefunden"
+          incomplete_no_findings: "Keine Probleme gefunden, aber einige Dateien konnten nicht geprüft werden"
+          one_finding: "{} Fund zu prüfen"
+          many_findings: "{} Funde zu prüfen"
+        severity:
+          critical: "kritisch"
+          high: "hoch"
+          medium: "mittel"
+          low: "niedrig"
+          info: "Info"
+      details:
+        package_list_hint: "Mit ↑↓ ein Paket wählen. Enter blendet seinen Bericht ein oder aus. Esc geht zurück zur Liste."
+        selected: "ausgewählt"
+        completion: "Abschluss"
+        summary: "Prüfübersicht"
+        result: "Ergebnis"
+        coverage: "Abdeckung"
+        identity: "Paketversion"
+        next_step: "Nächster Schritt"
+        no_findings_complete: "Keine Funde in den von Pi analysierten Dateien"
+        no_findings_incomplete: "Keine Funde, aber ein Teil des Pakets konnte nicht geprüft werden"
+        one_finding: "Fund muss geprüft werden"
+        many_findings: "Funde müssen geprüft werden"
+        coverage_complete: "Alle verfügbaren Dateien wurden geprüft"
+        coverage_incomplete: "Einige Dateien konnten nicht geprüft werden"
+        identity_newer_version: 'Neuere Version verfügbar'
+        identity_current: "Entspricht der gescannten Version"
+        identity_changed: "Das Paket wurde nach diesem Scan geändert"
+        ready_to_continue: "Bereit zum Fortfahren"
+        ack_required: "Vor dem Fortfahren ist eine Bestätigung erforderlich"
+        limitations: "Was nicht geprüft werden konnte"
+        findings: "Funde"
+        untitled_finding: "Diesen Fund prüfen"
+        location: "Fundort"
+        evidence: "Beleg"
+        note: "Hinweis"
+        disagreement: "Die Modelle bewerteten diesen Fund unterschiedlich; die höchste Bewertung wird angezeigt."
+        technical: "Technische Details"
+        technical_hidden: "ausgeblendet · t zum Anzeigen"
+        technical_visible: "sichtbar · t zum Ausblenden"
+        technical_hint: "Exakte Scan-Metadaten und ursprüngliche Validierungsmeldungen sind ausgeblendet."
+        limit_tools_unavailable: "Einige Paketdateien konnten nicht geprüft werden, weil die benötigten Archivwerkzeuge fehlten."
+        limit_no_sources: "Es waren keine Quelldateien zur Prüfung verfügbar."
+        limit_incomplete_address: "Eine Quelldatei konnte wegen einer unvollständigen Downloadadresse nicht geprüft werden."
+        limit_incomplete_address_subject: "konnte wegen einer unvollständigen Downloadadresse nicht geprüft werden."
+        limit_archive_too_large: "Ein Quellarchiv wurde nur teilweise geprüft, weil es zu viele Dateien enthält."
+        limit_archive_too_large_subject: "wurde nur teilweise geprüft, weil das Archiv zu viele Dateien enthält."
+        limit_unsupported_entry: "Das Paketarchiv enthält einen nicht unterstützten Eintrag."
+        limit_unsupported_entry_named: "Das Paketarchiv enthält einen nicht unterstützten Eintrag:"
+        stale: "Veraltete Identität"
+        raw: "Kanonische Ansicht validierter Daten:"
+        breadcrumb: "Bericht: {}"
+      continuation:
+        action: "Prüfen & fortfahren"
+        title: "Prüfen & fortfahren"
+        package: "Paket"
+        acknowledgements: "Die Bestätigung zeichnet Folgendes auf:"
+        ack_findings: "Ich habe die hohen/kritischen Funde für genau dieses Scanergebnis geprüft."
+        ack_stale: "Ich akzeptiere, dass dieses Scanergebnis eine ältere Paketidentität verwendet."
+        ack_none: "Keine zusätzliche Risikobestätigung ist erforderlich."
+        next_steps: "Nächste Prozessschritte"
+        step_recheck: "1. Pacsea prüft den aktuellen AUR-HEAD und alle veränderlichen Quellidentitäten erneut."
+        step_stop: "2. Bei einer Identitätsänderung stoppt die Fortsetzung zur erneuten Prüfung oder zum Neuscan."
+        step_return: "3. Stimmen die Identitäten überein, kehrt das Paket zur normalen Installations-/Aktualisierungsliste zurück."
+        step_preflight: "4. Normale Vorprüfung und Benutzerbestätigung gelten weiterhin; diese Aktion installiert nichts."
+        button_confirm: "[ Enter Bestätigen ]"
+        button_cancel: "[ Esc Abbrechen ]"
+        button_confirm_compact: "[Enter]"
+        button_cancel_compact: "[Esc]"
+        hint_compact_scroll: "j/k Bild↑/Bild↓"
+        hint_compact_actions: "Enter/y · Esc/q/n"
+        keys: "j/k oder Bild↑/Bild↓ Scrollen · Enter/y Bestätigen · Esc/q/n Abbrechen"
+        open_requires_result: "Wählen Sie vor Prüfen & fortfahren ein Pi-Scan-Ergebnis aus."
+        result_missing: "Das Pi-Scan-Ergebnis ist nicht mehr verfügbar. Wählen Sie das aktuelle Ergebnis aus und öffnen Sie Prüfen & fortfahren erneut."
+        result_changed: "Das Pi-Scan-Ergebnis hat sich während der Bestätigung geändert. Prüfen Sie das aktuelle Ergebnis und öffnen Sie Prüfen & fortfahren erneut."
+      footer:
+        title: "Status / Hilfe"
+        notice: "Pi-Scan ist beratend; konfigurierte Laufzeitaktionen können Netzwerk, das gewählte Modell und dauerhaften Scannerzustand verwenden."
+        background: "Hintergrund"
+        labels:
+          next_field: "Nächstes Feld"
+          confirm_field: "Bestätigen"
+          type_value: "Wert eingeben"
+          activate: "Auswählen"
+          adjust: "Ändern"
+          choose: "Wählen"
+          focus: "Fokus"
+          next: "Weiter"
+          back: "Zurück"
+          apply: "Anwenden"
+          retry: "Erneut versuchen"
+          retry_failed: "Fehlgeschlagene erneut scannen"
+          previous_field: "Vorheriges Feld"
+          wizard: "Geführte Einrichtung"
+          verify: "Einrichtung prüfen"
+          background: "Hintergrundscans"
+          pause: "Pausieren"
+          resume: "Fortsetzen"
+          cancel: "Scan abbrechen"
+          budget: "Limits erhöhen"
+          select: "An-/abhaken"
+          queue: "Scan starten"
+          details: "Bericht öffnen"
+          acknowledge: "Funde als gelesen markieren"
+          stale: "Paketänderung akzeptieren"
+          continue: "Prüfen & fortfahren"
+          baseline: "Als geprüft markieren"
+          raw: "Technische Details"
+          expand: "Bericht ein-/ausblenden"
+          move: "Bewegen"
+          pages: "Seite wechseln"
+          scroll: "Scrollen"
+          cancel_dialog: "Abbrechen"
+          back_workspace: "Pi Scan schließen"
+          help: "Hilfe"
+          back_results: "Zurück zu Ergebnissen"
+        tips:
+          scan: "Pakete zum Prüfen mit der Leertaste abhaken, dann mit Enter den Scan starten."
+          scan_empty: "Noch nichts zu scannen: In der Suche ein AUR-Paket markieren und dort Pi Scan öffnen."
+          progress_running: "Ein Scan läuft. Pacsea bleibt nutzbar; fertige Berichte erscheinen unter Ergebnisse (3)."
+          progress_idle: "Es läuft kein Scan. Auf der Seite Scannen (1) Pakete auswählen und starten."
+          results: "Ein Paket markieren und Enter drücken, um seinen Bericht zu lesen."
+          results_empty: "Noch keine Ergebnisse. Auf der Seite Scannen (1) Pakete auswählen und Enter drücken."
+          details: "Enter blendet einen Bericht ein oder aus. Esc geht zurück zur Liste."
+          status: "Hintergrundscans, Ausgabelimits und Berechtigungen auf einen Blick."
+          settings: "w startet die geführte Einrichtung, v prüft, ob noch alles funktioniert."
+      notices:
+        new_version_queued: 'Neue AUR-Version von {}: erneuter Scan im Hintergrund vorgemerkt'
+        new_version_manual: "Neue AUR-Version von {}: Hintergrundscans sind aus. Pi Scan › Scannen öffnen und Enter drücken, um jetzt zu scannen"
+        new_versions_queued: '{} Pakete haben neue AUR-Versionen: erneute Scans im Hintergrund vorgemerkt'
+        new_versions_manual: "{} Pakete haben neue AUR-Versionen: Hintergrundscans sind aus. Pi Scan › Scannen öffnen und Enter drücken, um jetzt zu scannen"
+        new_version_preview: "Testlauf: Neue AUR-Version von {} verfügbar. Pi Scan › Scannen öffnen und Enter für eine Vorschau drücken"
+        new_versions_preview: "Testlauf: {} Pakete haben neue AUR-Versionen. Pi Scan › Scannen öffnen und Enter für eine Vorschau drücken"
+        confirm_cancel: "Zum Abbrechen des Scans erneut x drücken"
+        session_only: "Zustimmung aktualisiert; die Laufzeit wendet gespeicherte Zustimmung vor berechtigter Arbeit an."
+        background_setup_required: "Schließen Sie die geführte Einrichtung und jede erforderliche Zustimmung ab, bevor Sie Hintergrundscans aktivieren."
+        background_enabled: "Hintergrundscans sind aktiviert."
+        background_disabled: "Hintergrundscans sind deaktiviert; ein aktiver Hintergrundscan darf fertig werden."
+        background_enable_preview: "Dry-run-Vorschau: Hintergrundscans würden aktiviert; Einstellung und Laufzeitrichtlinie bleiben unverändert."
+        background_disable_preview: "Dry-run-Vorschau: Hintergrundscans würden deaktiviert; Einstellung und Laufzeitrichtlinie bleiben unverändert."
+        background_needs_setup: "Hintergrundscans benötigen die geführte Einrichtung: {}"
+        background_channel_closed: "Die Pi-Scan-Laufzeit hat den Bestätigungskanal der Hintergrundeinstellung geschlossen; versuchen Sie den Schalter erneut."
+        background_disable_failed: "Hintergrundscans sind für diese Sitzung aus, aber das Speichern ist fehlgeschlagen und ein Neustart kann die vorherige Einstellung wiederherstellen: {}"
+        background_toggle_failed: "Die Einstellung für Hintergrundscans konnte nicht geändert werden: {}"
+        non_aur_entry: "Pi-Scan analysiert AUR-Pakete; in der Suche ein AUR-Ergebnis wählen und mit {} als Ziel hinzufügen."
+        settings_changed_reload: "Die Pi-Scan-Einstellungen wurden beim Neuladen geändert; die geführte Einrichtung wurde geschlossen, damit Sie die neuen Werte prüfen können."
+        budget_reload_requires_restart: "Die Pi-Scan-Budgeteinstellungen wurden außerhalb der laufenden Laufzeit geändert. Die verbundene Laufzeit behält ihre aktuellen Limits; starten Sie Pacsea neu, um die bearbeiteten Werte anzuwenden, oder drücken Sie b auf der Status- oder Fortschrittsseite, solange ein Limit einen Scan blockiert."
+        select_result_continue: "Wählen Sie vor dem Fortfahren ein validiertes Pi-Scan-Ergebnis aus."
+        select_result_baseline: "Wählen Sie ein validiertes Pi-Scan-Ergebnis aus, bevor Sie eine Basis übernehmen."
+        cancel_requested: "Aktiver Scan wird abgebrochen…"
+        verifying_setup: "Exakte Pi-Version, Routenpreise und Herkunft werden vor der Zustimmung geprüft…"
+        verify_then_toggle: "Einrichtung wird geprüft… danach zum Umschalten erneut Leertaste drücken."
+        setup_still_resolving: "Ein vorheriges Anwenden der Pi-Scan-Einrichtung läuft noch; Zurückrollen oder Abschluss abwarten."
+        guided_setup_cancelled: "Geführte Einrichtung abgebrochen — w startet sie erneut, Esc verlässt den Arbeitsbereich."
+        apply_abandon_warning: "Anwenden läuft — Esc erneut drücken, um abzubrechen und zurückzurollen."
+        apply_abandon_requested: "Abbruch der Pi-Scan-Einrichtung angefordert; explizites Zurückrollen wird abgewartet."
+        select_failed_target: "Mindestens ein fehlgeschlagenes, unterbrochenes oder abgebrochenes Paket zum erneuten Versuch abhaken."
+        select_target: "Zuerst mindestens ein Paket abhaken (Leertaste)."
+        preview_only: "Dry-run-Vorschau erstellt; kein Pi-Prozess, Modellaufruf oder dauerhafter Scannerzugriff."
+        setup_required: "Vor dem Scannen die geführte Einrichtung auf der Seite Einstellungen (5) abschließen und bezahlte Scans erlauben."
+        confirm_required: "Auf der Seite Einstellungen (5) die Ersatzmodelle und eventuelle Einrichtungswarnungen bestätigen, bevor ein Scan startet."
+        runtime_disconnected: "Pi Scan ist nicht verbunden. Einstellungen (5) öffnen, geführte Einrichtung starten und erneut versuchen."
+        resolving_queue_intent: "Die ausgewählten Pakete werden vor dem Scan geprüft"
+        already_scanned_current: "{} wurde bereits in der aktuellen AUR-Version gescannt; siehe Ergebnisse (3)"
+        queue_intent_unresolved: "Das ausgewählte Ziel konnte nicht aufgelöst werden"
+        queue_intent_submitted: "Die ausgewählten Pakete warten jetzt auf den Scan."
+        validated_complete: "Scan abgeschlossen; siehe Ergebnisse (3)"
+        cancelled: "Scan abgebrochen."
+        baseline_persisted: "Das ausgewählte vollständige aktuelle Ergebnis wurde als Beobachtungsbasis übernommen."
+        baseline_binding_changed: "Die Basis wurde gespeichert, aber die angezeigte Ergebnisbindung hat sich inzwischen geändert."
+        continuation_complete: "Scan-Ergebnis akzeptiert und an den Paketablauf übergeben"
+        runtime_rejected: "Pi-Scan-Laufzeit hat die Anfrage abgelehnt"
+        dry_run_acquired: "Dry-run-Erfassung abgeschlossen"
+        setup_complete: "Pi-Scan-Einrichtung abgeschlossen; die Produktionslaufzeit ist verbunden."
+        setup_failed: "Pi-Scan-Einrichtung fehlgeschlagen"
+        setup_rollback_complete: "Pi-Scan-Einrichtung zurückgerollt; die bisherige Konfiguration bleibt maßgeblich."
+        setup_rollback_failed: "Zurückrollen der Pi-Scan-Einrichtung fehlgeschlagen"
+        setup_secondary_outcome: "Sekundäres Rückrollergebnis"
+        budget_no_longer_blocked: "Der wartende Hintergrundscan ist nicht mehr budgetblockiert; keine Grenze wurde geändert."
+        budget_no_longer_blocked_preview: "Dry-run-Vorschau: Der wartende Hintergrundscan ist nicht mehr budgetblockiert; keine Grenze würde geändert."
+        budget_preview: "Nur Dry-run-Vorschau: Vorgeschlagene Budgetgrenzen wurden nicht geschrieben und der Laufzeitzustand blieb unverändert."
+        budget_applied: "Budgetgrenzen wurden angewendet; keine Budgetpause bleibt bestehen."
+        budget_applied_residual: "Budgetgrenzen wurden angewendet, aber die Arbeit bleibt budgetpausiert durch"
+        budget_rejected: "Budgetanpassung wurde nicht angewendet"
+        policy:
+          pause:
+            requesting: "Pause wird angefordert…"
+            queued: "Pause bis zum Ende des aktiven Scans vorgemerkt."
+            persisted: "Pi-Scan wurde vom Benutzer pausiert."
+            failed: "Pause konnte nicht gespeichert werden"
+          resume:
+            requesting: "Fortsetzen wird angefordert…"
+            queued: "Fortsetzen bis zum Ende des aktiven Scans vorgemerkt."
+            persisted: "Pi-Scan wurde fortgesetzt."
+            failed: "Fortsetzen konnte nicht gespeichert werden"
+          policy:
+            requesting: "Richtlinienänderung wird angefordert…"
+            queued: "Richtlinienänderung bis zum Ende des aktiven Scans vorgemerkt."
+            persisted: "Richtlinienänderung gespeichert."
+            failed: "Richtlinienänderung konnte nicht gespeichert werden"
+
     titles:
       search: "Suche"
       search_focused: "Suche (fokussiert)"
@@ -347,6 +875,7 @@ de-DE:
         news_age_all: "News-Alter: unbegrenzt"
         tui_optional_deps: "TUI Optionale Abhängigkeiten"
         repositories: "Paketquellen"
+        open_pi_scan_workspace: "Pi-Scan-Arbeitsbereich öffnen"
     news:
       filters:
         arch: "Arch"
@@ -362,45 +891,595 @@ de-DE:
         close_hint: "Enter oder Esc zum Schließen drücken"
       config_editor:
         title: "Konfigurations-Editor"
-        title_files: "Konfigurations-Editor — Dateien"
-        files_pane_title: " Dateien "
-        files_heading: "Wähle eine Konfigurationsdatei:"
-        keys_pane_title: "Schlüssel"
-        keys_heading: "Schlüssel"
-        keys_heading_filtered: "Gefiltert"
-        no_matches: "Keine Treffer. Mit Backspace die Suche erweitern."
-        details_pane_title: " Details "
-        hint_pick_file: "Datei mit Enter wählen, dann ↑/↓ und Enter auf einem Schlüssel zum Bearbeiten."
-        hint_no_key: "Kein Schlüssel ausgewählt."
-        search_pane_title: " Suche "
-        search_recent_title: "Verlauf"
-        search_recent_empty: "Keine letzten Suchen."
-        search_input_title: "Eingabe"
-        search_input_placeholder: "/ Schlüssel suchen"
-        search_hint: "Tab/←/→ Panel wechseln · Enter anwenden"
-        search_bookmarks_title: "Lesezeichen"
-        search_bookmarks_empty: "Keine markierten Schlüssel."
+        tabs:
+          settings: "settings.conf"
+          keybinds: "keybinds.conf"
+          theme: "theme.conf"
+          starred: "★ Favoriten"
+        search:
+          label: "Suche:"
+          placeholder: "tippen, um nach Schlüssel, Bezeichnung oder Beschreibung zu filtern"
+          count: "{} von {}"
+          recent_hint: "Strg+R Verlauf"
+        recent:
+          title: "Letzte Suchen"
+          empty: "Noch keine letzten Suchen. Eine Suche wird gespeichert, sobald du einen Schlüssel mit Enter öffnest."
+        list:
+          title: "Schlüssel"
+          no_matches: "Kein Schlüssel passt zu \"{}\". Backspace erweitert die Suche, Esc leert sie."
+          starred_empty: "Noch keine Favoriten. Wähle auf einem anderen Tab einen Schlüssel und drücke Strg+B, um ihn zu markieren."
+        details:
+          title: "Details"
+          no_key: "Kein Schlüssel ausgewählt."
+          key: "Schlüssel"
+          current: "Aktuell"
+          default: "Standard"
+          modified: "geändert"
+          type: "Typ"
+          applies: "Wirkung"
+          file: "Datei"
+          extra_chords: "Auch belegt"
+          extra_chords_note: "(weitere Kürzel bleiben erhalten; hier wird nur das erste bearbeitet)"
+          pi_scan_setup: "Einrichtung"
+          pi_scan_setup_hint: "öffnet die geführte Pi-Scan-Einrichtung"
+          starred: "★ Favorit"
+        types:
+          bool: "an/aus"
+          enum: "eine von {} Optionen"
+          int: "Ganzzahl {}–{}"
+          text: "Text"
+          list: "kommagetrennte Liste"
+          path: "Befehlsname oder Pfad"
+          secret: "Geheimwert (maskiert)"
+          days: "Anzahl Tage oder all"
+          color: "Farbe (#rrggbb oder R,G,B)"
+          pane_order: "Bereichsreihenfolge (eine von {} Anordnungen)"
+          chord: "Tastenkürzel · Konfliktbereich: {}"
+        applies:
+          auto_reload: "automatisch"
+          on_save: "beim Speichern"
+          restart: "nach einem Neustart"
+        values:
+          "on": "an"
+          "off": "aus"
+          empty: "(leer)"
+          unbound: "(nicht belegt)"
+          secret_unset: "(nicht gesetzt)"
+        tags:
+          current: "Aktuell"
+          default: "Standard"
+          auto_detect: "Automatisch"
+          unlimited: "Unbegrenzt"
+          installed: "Installiert"
+          detected: "Erkannt"
+          minimum: "Min"
+          maximum: "Max"
+        duration:
+          seconds: "{} s"
+          minutes: "{} min"
+          hours: "{} h"
+          day: "{} Tag"
+          days: "{} Tage"
+        popup:
+          type_chord: "Tastenkürzel"
+          applies_auto_reload: "automatisch"
+          applies_on_save: "beim Speichern"
+          applies_restart: "Neustart nötig"
+          title: "Bearbeiten · {}"
+          placeholder_filter: "tippen zum Filtern"
+          placeholder_text: "Wert eingeben"
+          record: "● Aufnehmen (Strg+K)"
+          record_alt: "oder ein Kürzel wie Ctrl+R eintippen"
+          recording: "● Aufnahme…"
+          recording_prompt: "Neue Tastenkombination drücken · Esc beendet die Aufnahme"
+          valid: "✓ Gültig"
+          invalid: "✗ {}"
+          saves: "Enter speichert:"
+          more_above: "↑ {} weitere"
+          more_below: "↓ {} weitere"
+          no_matches: "Keine passenden Vorschläge — Enter speichert den eingegebenen Wert."
+          hint_bool: "↑↓/Leertaste wählen · Enter speichern · Esc abbrechen"
+          hint_enum: "Tippen filtert · ↑↓/Tab wählen · Enter speichern · Esc abbrechen"
+          hint_int: "Zahl eingeben · +/- anpassen · ↑↓ auswählen · Tab vervollständigen · Enter speichern"
+          hint_text: "Wert eingeben · ↑↓ Vorschlag wählen · Tab vervollständigen · Enter speichern"
+          hint_list: "Kommagetrennt · Tab vervollständigt den letzten Eintrag · ↑↓ auswählen · Enter speichern"
+          hint_secret: "Geheimwert eingeben · Strg+R anzeigen · Enter speichern · Esc abbrechen"
+          hint_chord: "Kürzel eintippen oder mit Strg+K aufnehmen · ↑↓ auswählen · Enter speichern"
+          hint_recording: "Jede Taste wird aufgenommen · Esc beendet die Aufnahme"
+        popup_empty_choice: "Automatisch erkennen"
         footer:
           heading_menus: "Menüs"
           heading_editor: "Editor"
+          heading_popup: "Bearbeiten"
+          heading_recording: "Aufnahme"
+          heading_recent: "Letzte Suchen"
           menu_config: "Konfiguration / Listen"
           menu_options: "Optionen"
           menu_panels: "Panels"
-          move_file: "Auswahl bewegen"
-          open_file: "Datei öffnen"
           move_key: "Auswahl bewegen"
           edit_key: "Wert bearbeiten"
-          bookmark: "Lesezeichen umschalten"
-          switch_panel: "Bereich wechseln (Eingabe / Verlauf / Lesezeichen)"
-          esc_hint: "Zurück zu den Dateien bei leerem Filter"
-          widen_search: "Filter verkleinern"
-          popup_cancel: "Overlay schließen"
-          popup_save: "Speichern"
-          popup_reveal: "Geheimwert anzeigen"
-          popup_record: "Tastenkürzel aufnehmen"
-          popup_capture_cancel: "Aufnahme abbrechen"
-          popup_reset: "Wert zurücksetzen"
+          switch_tab: "Tab wechseln"
+          star: "Favorit an/aus"
+          recent: "Letzte Suchen"
           export: "Effektive Werte exportieren"
+          esc_leave: "Editor verlassen"
+          esc_clear: "Suche leeren"
+          pi_scan_setup: "Geführte Pi-Scan-Einrichtung öffnen"
+          recent_choose: "Auswählen"
+          recent_apply: "Suche übernehmen"
+          recent_close: "Schließen"
+          popup_save: "Speichern"
+          popup_cancel: "Abbrechen"
+          popup_complete: "Vorschlag übernehmen"
+          popup_next_choice: "Nächste Option"
+          popup_pick: "Vorschlag wählen"
+          popup_reset: "Auf Ausgangswert zurücksetzen"
+          popup_reveal: "Geheimwert anzeigen"
+          popup_record: "Kürzel aufnehmen"
+          popup_adjust: "Um eins ändern"
+          popup_toggle: "Umschalten"
+          popup_capture_cancel: "Aufnahme beenden"
+        settings:
+          pi_scan_enabled:
+            label: "Pi Scan: aktiviert"
+            summary: "Laufzeitfunktion; bleibt bis zur ausdrücklichen Aktivierung und einem Neustart ausgeschaltet."
+          pi_scan_background_enabled:
+            label: "Pi Scan: kostenpflichtige Hintergrundausführung"
+            summary: "Erlaubt unbeaufsichtigte kostenpflichtige Ausführung nur mit gesonderter Laufzeitzustimmung und festgelegten Budgets."
+          pi_scan_binary:
+            label: "Pi Scan: Pi-Programm"
+            summary: "Programmname oder absoluter Pfad zu Pi; Pacsea nimmt keine Zugangsdaten für Anbieter entgegen."
+          pi_scan_provider:
+            label: "Pi Scan: Anbieter"
+            summary: "Explizite Anbieterroute, die vor der Modellausführung angezeigt wird."
+          pi_scan_model:
+            label: "Pi Scan: primäres Modell"
+            summary: "Exakte Kennung des primären Modells; leer bedeutet keine Auswahl."
+          pi_scan_fallback_models:
+            label: "Pi Scan: Ersatzmodelle"
+            summary: "Geordnete, durch Kommas getrennte Ersatzmodelle; erfordern eine ausdrückliche Bestätigung."
+          pi_scan_thinking:
+            label: "Pi Scan: Denktiefe"
+            summary: "Gewünschte Denktiefe; standardmäßig medium und bei fehlender Unterstützung nur nach unten angepasst."
+          pi_scan_observation_interval_seconds:
+            label: "Pi Scan: Beobachtungsintervall (s)"
+            summary: "Intervall für rein lesende AUR-Beobachtungen; mindestens 900 Sekunden."
+          pi_scan_head_query_timeout_seconds:
+            label: "Pi Scan: Zeitlimit je HEAD-Abfrage (s)"
+            summary: "Zeitlimit je Abfrage; fest einkompiliertes Maximum von 15 Sekunden."
+          pi_scan_observation_deadline_seconds:
+            label: "Pi Scan: Gesamtzeitlimit der Beobachtung (s)"
+            summary: "Gesamtzeitlimit für die sequenzielle Beobachtung; festes Maximum von 90 Sekunden."
+          pi_scan_model_attempt_timeout_seconds:
+            label: "Pi Scan: Zeitlimit je Modellversuch (s)"
+            summary: "Verstrichene Zeit je Versuch; fest einkompiliertes Maximum von 300 Sekunden."
+          pi_scan_logical_timeout_seconds:
+            label: "Pi Scan: Gesamtzeitlimit je Scan (s)"
+            summary: "Zeitlimit für einen vollständigen logischen Scan; festes Maximum von 720 Sekunden."
+          pi_scan_result_retention_days:
+            label: "Pi Scan: Aufbewahrungsdauer der Ergebnisse (Tage)"
+            summary: "Aufbewahrungsdauer für abgelöste, detaillierte und validierte Ergebnisse."
+          pi_scan_show_raw_output:
+            label: "Pi Scan: kanonische Rohansicht anzeigen"
+            summary: "Zeigt serialisierte validierte Daten, niemals die ursprüngliche Modellausgabe."
+          pi_scan_https_proxy:
+            label: "Pi Scan: HTTPS-Proxy"
+            summary: "Optionaler expliziter HTTPS-Proxy ohne Zugangsdaten; leer deaktiviert die Proxy-Nutzung."
+          sort_mode:
+            label: "Sortierung der Ergebnisse"
+            summary: "Sortierreihenfolge im Bereich der Suchergebnisse."
+          show_install_pane:
+            label: "Installationsbereich anzeigen"
+            summary: "Zeigt oder verbirgt die Installationswarteschlange in der Hauptansicht."
+          show_search_history_pane:
+            label: "Suchverlauf anzeigen"
+            summary: "Zeigt oder verbirgt die zuletzt verwendeten Suchanfragen in der Hauptansicht."
+          mirror_count:
+            label: "Anzahl der Spiegelserver"
+            summary: "Anzahl der beim Aktualisieren der Spiegelliste abgerufenen Server."
+          news_max_age_days:
+            label: "Höchstalter für Nachrichten (Tage)"
+            summary: "Blendet Nachrichten aus, die älter als N Tage sind; `all` deaktiviert den Filter."
+          clipboard_suffix:
+            label: "Zusatz für die Zwischenablage"
+            summary: "Text, der an kopierte Paketbefehle angehängt wird."
+          preferred_terminal:
+            label: "Bevorzugtes Terminal"
+            summary: "Terminalprogramm zum Starten externer Befehle."
+          privilege_mode:
+            label: "Methode zur Rechteerhöhung"
+            summary: "Hilfsprogramm zum Erlangen von Root-Rechten beim Installieren und Entfernen."
+          main_pane_order:
+            label: "Reihenfolge der Hauptbereiche"
+            summary: "Vertikale Reihenfolge der Such-, Ergebnis- und Detailbereiche."
+          virustotal_api_key:
+            label: "VirusTotal-API-Schlüssel"
+            summary: "Persönlicher API-Schlüssel für den optionalen VirusTotal-Scan."
+          layout_left_pct:
+            label: "Layout: Breite des linken Bereichs (%)"
+            summary: "Breite der linken Spalte in der mittleren Zeile; zusammen mit Mitte und rechts insgesamt 100."
+          layout_center_pct:
+            label: "Layout: Breite des mittleren Bereichs (%)"
+            summary: "Breite der mittleren Suchspalte in der mittleren Zeile."
+          layout_right_pct:
+            label: "Layout: Breite des rechten Bereichs (%)"
+            summary: "Breite der rechten Installationsspalte in der mittleren Zeile."
+          vertical_min_results:
+            label: "Vertikal: Mindestzeilen für Ergebnisse"
+            summary: "Mindestens reservierte Zeilen für den Ergebnisbereich."
+          vertical_max_results:
+            label: "Vertikal: Höchstzeilen für Ergebnisse"
+            summary: "Maximale Zeilenanzahl, auf die der Ergebnisbereich anwachsen darf."
+          vertical_min_middle:
+            label: "Vertikal: Mindestzeilen für den Suchbereich"
+            summary: "Mindestens reservierte Zeilen für den mittleren Suchbereich."
+          vertical_max_middle:
+            label: "Vertikal: Höchstzeilen für den Suchbereich"
+            summary: "Maximale Zeilenanzahl, auf die der mittlere Suchbereich anwachsen darf."
+          vertical_min_package_info:
+            label: "Vertikal: Mindestzeilen für Paketdetails"
+            summary: "Mindestens reservierte Zeilen für Paketinformationen und Details."
+          app_dry_run_default:
+            label: "Testlauf standardmäßig aktivieren"
+            summary: "Startet im Testlaufmodus; kann durch --dry-run übersteuert werden."
+          show_keybinds_footer:
+            label: "Tastenhinweise anzeigen"
+            summary: "Zeigt die kontextabhängigen Tastenkürzel am unteren Rand der Oberfläche."
+          search_startup_mode:
+            label: "Startmodus der Suche"
+            summary: "Legt fest, ob die Suche im Einfüge- oder Normalmodus startet."
+          fuzzy_search:
+            label: "Unscharfe Suche"
+            summary: "Verwendet unscharfe Suche wie fzf statt einfacher Teilzeichenfolgensuche."
+          installed_packages_mode:
+            label: "Filter für installierte Pakete"
+            summary: "Zeigt nur Pakete ohne abhängige Pakete oder alle explizit installierten Pakete."
+          skip_preflight:
+            label: "Vorabprüfung überspringen"
+            summary: "Überspringt den Bestätigungsdialog vor Aktionen mit erhöhten Rechten."
+          use_passwordless_sudo:
+            label: "Sudo ohne Passwort verwenden"
+            summary: "Erlaubt sudo ohne Passwort, sofern das System dafür eingerichtet ist."
+          auth_mode:
+            label: "Authentifizierungsmodus"
+            summary: "Verfahren für die Rechteauthentifizierung: Abfrage, ohne Passwort oder interaktiv."
+          selected_countries:
+            label: "Länder für Spiegelserver"
+            summary: "Durch Kommas getrennte Länderliste zur Auswahl der Spiegelserver."
+          scan_do_clamav:
+            label: "Scan: ClamAV"
+            summary: "Aktiviert ClamAV standardmäßig im Dialog zur Scan-Konfiguration."
+          scan_do_trivy:
+            label: "Scan: Trivy"
+            summary: "Aktiviert Trivy standardmäßig im Dialog zur Scan-Konfiguration."
+          scan_do_semgrep:
+            label: "Scan: Semgrep"
+            summary: "Aktiviert Semgrep standardmäßig im Dialog zur Scan-Konfiguration."
+          scan_do_shellcheck:
+            label: "Scan: ShellCheck"
+            summary: "Aktiviert ShellCheck standardmäßig im Dialog zur Scan-Konfiguration."
+          scan_do_virustotal:
+            label: "Scan: VirusTotal"
+            summary: "Aktiviert VirusTotal standardmäßig im Dialog zur Scan-Konfiguration."
+          scan_do_custom:
+            label: "Scan: benutzerdefiniert"
+            summary: "Aktiviert den benutzerdefinierten Scan standardmäßig."
+          scan_do_sleuth:
+            label: "Scan: Sleuth"
+            summary: "Aktiviert den Sleuth-Scan standardmäßig."
+          pkgbuild_shellcheck_exclude:
+            label: "PKGBUILD: ShellCheck-Ausnahmen"
+            summary: "Durch Kommas getrennte Kennungen ausgeschlossener ShellCheck-Regeln, z. B. SC2034,SC2148."
+          pkgbuild_checks_show_raw_output:
+            label: "PKGBUILD: rohe Prüfausgabe anzeigen"
+            summary: "Zeigt die unverarbeitete Ausgabe von ShellCheck und Namcap im PKGBUILD-Betrachter."
+          news_read_symbol:
+            label: "Nachrichten: Symbol für gelesen"
+            summary: "Zeichen neben bereits gelesenen Nachrichten."
+          news_unread_symbol:
+            label: "Nachrichten: Symbol für ungelesen"
+            summary: "Zeichen neben ungelesenen Nachrichten."
+          news_filter_show_arch_news:
+            label: "Nachrichtenfilter: Arch-Nachrichten"
+            summary: "Nimmt Beiträge von Arch Linux in den Nachrichtenstrom auf."
+          news_filter_show_advisories:
+            label: "Nachrichtenfilter: Sicherheitsmeldungen"
+            summary: "Nimmt Arch-Sicherheitsmeldungen in den Nachrichtenstrom auf."
+          news_filter_show_pkg_updates:
+            label: "Nachrichtenfilter: Paketaktualisierungen"
+            summary: "Nimmt Paketaktualisierungen aus offiziellen Paketquellen in den Nachrichtenstrom auf."
+          news_filter_show_aur_updates:
+            label: "Nachrichtenfilter: AUR-Aktualisierungen"
+            summary: "Nimmt Aktualisierungen von AUR-Paketen in den Nachrichtenstrom auf."
+          news_filter_show_aur_comments:
+            label: "Nachrichtenfilter: AUR-Kommentare"
+            summary: "Nimmt neue AUR-Kommentare in den Nachrichtenstrom auf."
+          news_filter_installed_only:
+            label: "Nachrichten: nur installierte Pakete"
+            summary: "Beschränkt Sicherheitsmeldungen auf betroffene installierte Pakete."
+          startup_news_configured:
+            label: "Startnachrichten: eingerichtet"
+            summary: "Kennzeichnet die Einrichtung des Nachrichtenfensters beim Start als abgeschlossen."
+          startup_news_show_arch_news:
+            label: "Startnachrichten: Arch-Nachrichten"
+            summary: "Zeigt Arch-Nachrichten im Fenster beim Start."
+          startup_news_show_advisories:
+            label: "Startnachrichten: Sicherheitsmeldungen"
+            summary: "Zeigt Sicherheitsmeldungen im Fenster beim Start."
+          startup_news_show_aur_updates:
+            label: "Startnachrichten: AUR-Aktualisierungen"
+            summary: "Zeigt AUR-Aktualisierungen im Fenster beim Start."
+          startup_news_show_aur_comments:
+            label: "Startnachrichten: AUR-Kommentare"
+            summary: "Zeigt AUR-Kommentare im Fenster beim Start."
+          startup_news_show_pkg_updates:
+            label: "Startnachrichten: Paketaktualisierungen"
+            summary: "Zeigt offizielle Paketaktualisierungen im Fenster beim Start."
+          startup_news_max_age_days:
+            label: "Höchstalter für Startnachrichten (Tage)"
+            summary: "Blendet Startnachrichten aus, die älter als N Tage sind; `all` deaktiviert den Filter."
+          package_marker:
+            label: "Markierung ausgewählter Pakete"
+            summary: "Darstellung vorgemerkter Installations-, Entfernungs- und Downgrade-Zeilen."
+          updates_refresh_interval:
+            label: "Intervall für Aktualisierungsprüfungen (s)"
+            summary: "Sekunden zwischen Hintergrundprüfungen auf Pacman- und AUR-Aktualisierungen."
+          use_terminal_theme:
+            label: "Terminalfarben verwenden"
+            summary: "Ermittelt Farben über OSC 10/11 aus dem Terminal statt aus theme.conf."
+          aur_vote_enabled:
+            label: "AUR-Abstimmungen aktivieren"
+            summary: "Aktiviert das Abstimmen und Zurücknehmen von AUR-Stimmen über SSH innerhalb der App."
+          aur_vote_ssh_timeout_seconds:
+            label: "SSH-Zeitlimit für AUR-Abstimmungen (s)"
+            summary: "Zeitlimit zum Verbindungsaufbau bei SSH-Aufrufen für AUR-Abstimmungen."
+          aur_vote_ssh_command:
+            label: "SSH-Programm für AUR-Abstimmungen"
+            summary: "SSH-Programm für AUR-Abstimmungen; standardmäßig ssh."
+          locale:
+            label: "Sprache"
+            summary: "Automatisch vom System erkennen oder en-US, de-DE bzw. hu-HU wählen. Neustart erforderlich."
+          pi_scan_background_starts_per_hour:
+            label: "Pi Scan: Hintergrundstarts/Stunde"
+            summary: "Rollendes Budget für unbeaufsichtigte Starts; 0 bedeutet Unbegrenzt."
+          pi_scan_background_token_cap_24h:
+            label: "Pi Scan: Hintergrundtoken/24 h"
+            summary: "Rollendes Budget für unbeaufsichtigte Token; 0 bedeutet Unbegrenzt."
+          pi_scan_background_cost_cap_24h:
+            label: "Pi Scan: Hintergrundkosten/24 h"
+            summary: "Nichtnegatives dezimales Dollarbudget; 0 oder 0.00 bedeutet Unbegrenzt."
+          keybind_help:
+            label: "Hilfe öffnen"
+          keybind_toggle_config:
+            label: "Menü Konfiguration/Listen umschalten"
+          keybind_toggle_options:
+            label: "Menü Optionen umschalten"
+          keybind_toggle_panels:
+            label: "Menü Panels umschalten"
+          keybind_reload_config:
+            label: "Konfiguration neu laden"
+          keybind_exit:
+            label: "Pacsea beenden"
+          keybind_show_pkgbuild:
+            label: "PKGBUILD anzeigen"
+          keybind_comments_toggle:
+            label: "AUR-Kommentare umschalten"
+          keybind_run_pkgbuild_checks:
+            label: "PKGBUILD-Prüfungen ausführen"
+          keybind_cycle_pkgbuild_sections:
+            label: "PKGBUILD-Abschnitte durchschalten"
+          keybind_change_sort:
+            label: "Sortierung ändern"
+          keybind_pane_next:
+            label: "Nächster Bereich"
+          keybind_pane_left:
+            label: "Bereich links"
+          keybind_pane_right:
+            label: "Bereich rechts"
+          keybind_toggle_fuzzy:
+            label: "Unscharfe Suche umschalten"
+          keybind_search_move_up:
+            label: "Suche: nach oben"
+          keybind_search_move_down:
+            label: "Suche: nach unten"
+          keybind_search_page_up:
+            label: "Suche: Seite nach oben"
+          keybind_search_page_down:
+            label: "Suche: Seite nach unten"
+          keybind_search_add:
+            label: "Suche: zur Installationsliste hinzufügen"
+          keybind_search_install:
+            label: "Suche: sofort installieren"
+          keybind_search_focus_left:
+            label: "Suche: Fokus nach links"
+          keybind_search_focus_right:
+            label: "Suche: Fokus nach rechts"
+          keybind_search_backspace:
+            label: "Suche: Zeichen löschen"
+          keybind_search_insert_clear:
+            label: "Suche: Eingabe leeren"
+          keybind_search_normal_toggle:
+            label: "Normalmodus: umschalten"
+          keybind_search_normal_insert:
+            label: "Normalmodus: zurück zum Einfügemodus"
+          keybind_search_normal_select_left:
+            label: "Normalmodus: Auswahl nach links erweitern"
+          keybind_search_normal_select_right:
+            label: "Normalmodus: Auswahl nach rechts erweitern"
+          keybind_search_normal_delete:
+            label: "Normalmodus: Auswahl löschen"
+          keybind_search_normal_clear:
+            label: "Normalmodus: Eingabe leeren"
+          keybind_search_normal_open_status:
+            label: "Arch-Statusseite öffnen"
+          keybind_search_normal_import:
+            label: "Paketliste importieren"
+          keybind_search_normal_export:
+            label: "Installationsliste exportieren"
+          keybind_search_normal_updates:
+            label: "Verfügbare Aktualisierungen öffnen"
+          keybind_search_normal_pi_scan:
+            label: "Pi Scan öffnen"
+          keybind_recent_move_up:
+            label: "Verlauf: nach oben"
+          keybind_recent_move_down:
+            label: "Verlauf: nach unten"
+          keybind_recent_find:
+            label: "Verlauf: suchen"
+          keybind_recent_use:
+            label: "Verlauf: erneut suchen"
+          keybind_recent_add:
+            label: "Verlauf: zur Installationsliste hinzufügen"
+          keybind_recent_to_search:
+            label: "Verlauf: zurück zur Suche"
+          keybind_recent_focus_right:
+            label: "Verlauf: Fokus nach rechts"
+          keybind_recent_remove:
+            label: "Verlauf: Eintrag entfernen"
+          keybind_recent_clear:
+            label: "Verlauf: alles löschen"
+          keybind_install_move_up:
+            label: "Installationsliste: nach oben"
+          keybind_install_move_down:
+            label: "Installationsliste: nach unten"
+          keybind_install_confirm:
+            label: "Installationsliste: bestätigen"
+          keybind_install_remove:
+            label: "Installationsliste: Eintrag entfernen"
+          keybind_install_clear:
+            label: "Installationsliste: alles löschen"
+          keybind_install_find:
+            label: "Installationsliste: suchen"
+          keybind_install_to_search:
+            label: "Installationsliste: zurück zur Suche"
+          keybind_install_focus_left:
+            label: "Installationsliste: Fokus nach links"
+          keybind_news_mark_read:
+            label: "Neuigkeiten: Eintrag als gelesen markieren"
+          keybind_news_mark_all_read:
+            label: "Neuigkeiten: alle als gelesen markieren"
+          keybind_news_feed_mark_read:
+            label: "Newsfeed: als gelesen markieren"
+          keybind_news_feed_mark_unread:
+            label: "Newsfeed: als ungelesen markieren"
+          keybind_news_feed_toggle_read:
+            label: "Newsfeed: gelesen umschalten"
+          background_base:
+            label: "Hintergrund: Basis"
+            summary: "Hintergrund des Hauptfensters."
+          background_mantle:
+            label: "Hintergrund: Mantel"
+            summary: "Hintergrund von Popups, Hilfe und Seitenbereichen."
+          background_crust:
+            label: "Hintergrund: Kruste"
+            summary: "Dunkelste Hintergrundebene für kontrastreiche Bereiche."
+          surface_level1:
+            label: "Fläche: Stufe 1"
+            summary: "Auswahlhervorhebung und erhöhte Flächen."
+          surface_level2:
+            label: "Fläche: Stufe 2"
+            summary: "Tastenkappen und stärker erhöhte Flächen."
+          overlay_primary:
+            label: "Überlagerung: primär"
+            summary: "Kontrastarme Rahmen und gedimmter Hilfetext."
+          overlay_secondary:
+            label: "Überlagerung: sekundär"
+            summary: "Trennlinien und sekundäre Rahmen."
+          text_primary:
+            label: "Text: primär"
+            summary: "Haupttextfarbe."
+          text_secondary:
+            label: "Text: sekundär"
+            summary: "Beschreibungen und weniger auffälliger Text."
+          text_tertiary:
+            label: "Text: tertiär"
+            summary: "Feldbezeichnungen und untergeordnete Überschriften."
+          accent_interactive:
+            label: "Akzent: interaktiv"
+            summary: "Interaktive Elemente, Links und Gruppenüberschriften."
+          accent_heading:
+            label: "Akzent: Überschriften"
+            summary: "Titel, fokussierte Rahmen und der aktive Tab."
+          semantic_success:
+            label: "Status: Erfolg"
+            summary: "Erfolgsmeldungen, aktivierte Werte und bestandene Prüfungen."
+          semantic_warning:
+            label: "Status: Warnung"
+            summary: "Warnungen, das Bearbeitungs-Popup und Änderungsmarkierungen."
+          semantic_error:
+            label: "Status: Fehler"
+            summary: "Fehler, ungültige Werte und Markierungen für nötigen Neustart."
+          accent_emphasis:
+            label: "Akzent: Hervorhebung"
+            summary: "Hervorgehobene Rahmen und Akzente."
+        choices:
+          sort_mode:
+            best_matches: "Relevanteste Treffer zuerst"
+            alphabetical: "Nach Paketname von A bis Z"
+            official_first: "Pakete aus offiziellen Repositorien vor dem AUR"
+            aur_popularity: "Beliebteste AUR-Pakete zuerst"
+          privilege_mode:
+            auto: "doas bevorzugen, wenn installiert, sonst sudo"
+            sudo: "Immer sudo verwenden"
+            doas: "Immer doas verwenden (Passworteingabe im Terminal)"
+          auth_mode:
+            prompt: "Pacsea fragt das Passwort ab und gibt es an das Rechte-Werkzeug weiter"
+            passwordless_only: "Abfrage nur überspringen, wenn das Werkzeug passwortlose Ausführung erlaubt"
+            interactive: "Authentifizierung dem Rechte-Werkzeug überlassen (unterstützt Fingerabdruck über PAM)"
+          installed_packages_mode:
+            leaf: "Nur explizit installierte Pakete, von denen nichts abhängt"
+            all: "Alle explizit installierten Pakete"
+          search_startup_mode:
+            insert_mode: "Sofort mit der Sucheingabe beginnen"
+            normal_mode: "Im Vim-artigen Normalmodus starten"
+          package_marker:
+            full_line: "Ganze Zeile einfärben"
+            front: "Markierung am Zeilenanfang"
+            end: "Markierung am Zeilenende"
+          locale:
+            _empty: "Systemsprache verwenden (LANG/LC_ALL)"
+            "en-US": "Englisch (USA)"
+            "de-DE": "Deutsch (Deutschland)"
+            "hu-HU": "Ungarisch (Ungarn)"
+          pi_scan_thinking:
+            "off": "Kein erweitertes Nachdenken; am schnellsten und günstigsten"
+            minimal: "Minimales Nachdenken"
+            low: "Leichtes Nachdenken"
+            medium: "Ausgewogenes Nachdenken"
+            high: "Gründliches Nachdenken; langsamer und teurer"
+            xhigh: "Sehr gründliches Nachdenken"
+            max: "Maximales Nachdenken, das das Modell unterstützt"
+          main_pane_order:
+            "results, search, package_info": "Von oben nach unten: Ergebnisse, Suche, Details"
+            "results, package_info, search": "Von oben nach unten: Ergebnisse, Details, Suche"
+            "search, results, package_info": "Von oben nach unten: Suche, Ergebnisse, Details"
+            "search, package_info, results": "Von oben nach unten: Suche, Details, Ergebnisse"
+            "package_info, results, search": "Von oben nach unten: Details, Ergebnisse, Suche"
+            "package_info, search, results": "Von oben nach unten: Details, Suche, Ergebnisse"
+        groups:
+          general: "Allgemein"
+          layout: "Layout"
+          search: "Suche"
+          privileges: "Berechtigungen"
+          mirrors: "Spiegelserver"
+          updates: "Aktualisierungen"
+          scans: "Sicherheitsscans"
+          pkgbuild: "PKGBUILD-Prüfungen"
+          news: "Neuigkeiten"
+          startup_news: "Start-Neuigkeiten"
+          aur_voting: "AUR-Abstimmung"
+          pi_scan: "Pi Scan"
+          keybind_global: "Globale Kürzel"
+          keybind_search: "Suchbereich"
+          keybind_search_normal: "Suche im Normalmodus"
+          keybind_recent: "Suchverlauf"
+          keybind_install: "Installationsliste"
+          keybind_news: "Neuigkeiten-Dialog"
+          backgrounds: "Hintergründe"
+          surfaces_overlays: "Flächen & Überlagerungen"
+          text: "Text"
+          accents: "Akzente"
+          semantic: "Statusfarben"
       alert:
         header_configuration_error: "Konfigurationsfehler"
         header_clipboard_copy: "Zwischenablage kopieren"
@@ -505,6 +1584,7 @@ de-DE:
         title: " Hilfe "
         heading: "Pacsea Hilfe"
         sections:
+          pi_scan: "Pi-Scan-Arbeitsbereich:"
           search: "Suche:"
           search_normal: "Suche (Normalmodus):"
           install: "Installieren:"
@@ -515,6 +1595,19 @@ de-DE:
           repositories_modal: "Paketquellen-Dialog:"
           foreign_overlap_dialog: "Repository-Überschneidung / AUR vs. Repo:"
           config_editor: "Konfigurations-Editor:"
+        pi_scan_lines:
+          - "  • Öffnen: in der Suche ein AUR-Paket markieren und das Pi-Scan-Kürzel drücken · Esc schließt Pi Scan"
+          - "  • Seiten: 1 Scannen · 2 Fortschritt · 3 Ergebnisse · 4 Status · 5 Einstellungen · ←/→, Tab/Shift+Tab oder [/] wechseln"
+          - "  • Listen: ↑/↓ oder j/k bewegen · Bild↑/Bild↓ scrollen · Pos1/Ende oder g/G zum Anfang/Ende"
+          - "  • Scannen: Leertaste oder Klick hakt ein Paket ab · Enter startet den Scan"
+          - "  • Fortschritt/Status: p pausieren/fortsetzen · x x Scan abbrechen · r Fehlgeschlagene erneut (Fortschritt) · b Limits erhöhen, wenn ein Limit blockiert · B Hintergrundscans (Status)"
+          - "  • Ergebnisse: Enter oder zweiter Klick öffnet den Bericht · Esc oder Rücktaste im Bericht kehrt zur Liste zurück"
+          - "  • Bericht: Enter oder Klick auf die Kopfzeile ein-/ausblenden · a Funde als gelesen markieren · s Paketänderung akzeptieren · c prüfen und fortfahren · b als geprüft markieren · t technische Details"
+          - "  • Einstellungen: Enter auswählen · w geführte Einrichtung · v Einrichtung prüfen · B Hintergrundscans"
+          - "  • Assistent: Tab/Shift+Tab Fokus · Enter bestätigt Textfeld · druckbare Tasten bearbeiten Text · Bild↑/Bild↓ scrollen"
+          - "  • Assistent, Zahlenfelder: Ziffern tippen (. bei Kosten) · Rücktaste löscht · ←/→ oder h/l schrittweise · Enter bestätigt"
+          - "  • Assistent: n Weiter · b Zurück · a Anwenden · r Erneut nur außerhalb von Textfeldern · Esc Abbrechen"
+          - "  • Assistent, Ersatzmodell: Enter oder Klick öffnet die Liste · tippen zum Suchen · ↑/↓ bewegen · Enter wählen · Esc schließt die Liste"
         mouse_lines:
           - "  • Listen (Ergebnisse/Kürzlich/Installieren) und PKGBUILD mit Mausrad scrollen"
           - "  • PKGBUILD umschalten: 'PKGBUILD anzeigen' in Details klicken"
@@ -541,10 +1634,12 @@ de-DE:
         news_lines:
           - "  • Öffnen über Optionen → Neuigkeiten • Hoch/Runter: auswählen • Enter: öffnen • Esc: schließen"
         config_editor_lines:
-          - "  • Öffnen über Config/Lists → Config editor (TUI); Esc wechselt von Schlüsseln zurück zur Dateiliste"
-          - "  • Tippen filtert Schlüssel • Hoch/Runter: bewegen • Enter: bearbeiten • b: Lesezeichen"
-          - "  • Popup: Strg+S speichern • Esc abbrechen • Strg+Z auf Ausgangswert zurücksetzen"
-          - "  • Tastenkürzel-Zeilen: Strg+K nimmt das nächste gedrückte Kürzel auf (Esc bricht ab)"
+          - "  • Öffnen über Config/Lists → Config editor (TUI); Tabs: settings.conf · keybinds.conf · theme.conf · ★ Favoriten"
+          - "  • Tippen durchsucht Schlüssel, Bezeichnungen und Beschreibungen (alle Wörter müssen passen) • Strg+R: letzte Suchen"
+          - "  • ↑/↓ Bild↑/Bild↓ Pos1/Ende: bewegen • Tab/←/→: Tab wechseln • Enter: bearbeiten • Strg+B: Favorit • Esc: Suche leeren, dann verlassen"
+          - "  • Popup: ↑/↓ Vorschlag wählen oder Wert eintippen • Tab vervollständigt • Enter/Strg+S speichert den hinter „Enter speichert“ gezeigten Wert • Esc bricht ab • Strg+Z setzt zurück"
+          - "  • Ganzzahlen: +/- ändern um eins • Geheimwerte: Strg+R zeigt an • An/Aus-Einstellungen öffnen eine kleine Auswahl"
+          - "  • Tastenkürzel-Zeilen: Kürzel eintippen oder Strg+K / Klick auf ● Aufnehmen und die neue Kombination drücken (Esc beendet die Aufnahme)"
           - "  • Themenfarben validieren die gesamte Datei vor dem Speichern; ungültige Änderungen erreichen die Festplatte nie"
           - "  • Strg+E exportiert die effektiven Werte der gewählten Datei (Geheimnisse geschwärzt)"
         close_hint: "Enter oder Esc zum Schließen drücken"
@@ -577,6 +1672,8 @@ de-DE:
           select_left: "  Links auswählen"
           select_right: "  Rechts auswählen"
           open_arch_status: "  Arch-Status öffnen"
+          open_pi_scan: "  Pi-Scan-Arbeitsbereich öffnen"
+          pi_scan_setup: "Geführte Pi-Scan-Einrichtung"
           config_lists_menu: "  Konfiguration/Listen-Menü"
           options_menu: "  Optionen-Menü"
           panels_menu: "  Panels-Menü"
