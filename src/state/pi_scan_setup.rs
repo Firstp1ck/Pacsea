@@ -293,6 +293,9 @@ pub struct PiScanSetupWizardState {
     pub hit_rects: Vec<PiScanSetupHitRect>,
     /// Open fallback-model dropdown, when shown.
     pub fallback_picker: Option<PiScanFallbackPicker>,
+    /// Optional-page numeric control whose typed entry is in progress; a digit typed into any
+    /// other numeric control replaces its value instead of appending.
+    pub numeric_entry: Option<usize>,
 }
 
 impl PiScanSetupWizardState {
@@ -331,6 +334,7 @@ impl PiScanSetupWizardState {
             pending_action: None,
             hit_rects: Vec::new(),
             fallback_picker: None,
+            numeric_entry: None,
         }
     }
 
@@ -354,6 +358,21 @@ impl PiScanSetupWizardState {
             (self.step, self.focus),
             (PiScanSetupStep::PiReadiness, 0) | (PiScanSetupStep::OptionalBehavior, 7)
         )
+    }
+
+    /// Return whether keyboard focus currently owns a typed numeric optional setting.
+    #[must_use]
+    pub const fn focuses_numeric_field(&self) -> bool {
+        matches!(
+            (self.step, self.focus),
+            (PiScanSetupStep::OptionalBehavior, 3..=6)
+        )
+    }
+
+    /// Return whether the focused numeric setting is mid-entry and should show its raw text.
+    #[must_use]
+    pub fn numeric_entry_active(&self) -> bool {
+        self.focuses_numeric_field() && self.numeric_entry == Some(self.focus)
     }
 
     /// Return the number of page-local controls available to keyboard focus.
@@ -430,6 +449,7 @@ impl PiScanSetupWizardState {
     ///
     /// Details: Footer buttons stay reachable even while editing a text field.
     pub fn move_focus(&mut self, forward: bool) {
+        self.numeric_entry = None;
         let count = self.focus_count() + self.footer_targets().len();
         if forward {
             self.focus = (self.focus + 1) % count;
@@ -681,7 +701,75 @@ impl PiScanSetupWizardState {
             }
             _ => return,
         }
+        self.numeric_entry = None;
         self.invalidate_review();
+    }
+
+    /// What: Type or erase one character of the focused numeric optional setting.
+    ///
+    /// Inputs:
+    /// - `character`: Typed character, or `None` to erase the last digit.
+    ///
+    /// Output:
+    /// - `true` when a numeric control is focused and the key belongs to number entry, even
+    ///   if an out-of-range result left the value unchanged; `false` otherwise.
+    ///
+    /// Details:
+    /// - The first digit typed after focusing or stepping replaces the shown value so `0`
+    ///   enters zero (Unlimited) directly; later digits append. Only the cost accepts `.`.
+    ///   Non-numeric characters fall through so letter shortcuts keep working.
+    pub fn edit_number(&mut self, character: Option<char>) -> bool {
+        if !self.focuses_numeric_field() {
+            return false;
+        }
+        let accepted = character.is_none_or(|character| {
+            character.is_ascii_digit() || (character == '.' && self.focus == 5)
+        });
+        if !accepted {
+            return false;
+        }
+        let replace = character.is_some() && self.numeric_entry != Some(self.focus);
+        match self.focus {
+            3 => {
+                let edited = edit_integer(
+                    u64::from(self.candidate.background_starts_per_hour),
+                    character,
+                    replace,
+                    u64::from(u32::MAX),
+                );
+                if let Ok(edited) = u32::try_from(edited) {
+                    self.candidate.background_starts_per_hour = edited;
+                }
+            }
+            4 => {
+                self.candidate.background_token_cap_24h = edit_integer(
+                    self.candidate.background_token_cap_24h,
+                    character,
+                    replace,
+                    u64::MAX,
+                );
+                self.candidate.background_token_cap_24h_parse_error = None;
+            }
+            5 => {
+                self.candidate.background_cost_cap_24h =
+                    edit_cost(&self.candidate.background_cost_cap_24h, character, replace);
+            }
+            6 => {
+                let edited = edit_integer(
+                    u64::from(self.candidate.result_retention_days),
+                    character,
+                    replace,
+                    365,
+                );
+                if let Ok(edited) = u32::try_from(edited) {
+                    self.candidate.result_retention_days = edited;
+                }
+            }
+            _ => return false,
+        }
+        self.numeric_entry = Some(self.focus);
+        self.invalidate_review();
+        true
     }
 
     /// Edit the focused binary or credential-free proxy text field.
@@ -1105,6 +1193,7 @@ impl PiScanSetupWizardState {
         self.body_scroll = 0;
         self.hit_rects.clear();
         self.fallback_picker = None;
+        self.numeric_entry = None;
     }
 
     /// Clear reviewed bindings after any draft mutation.
@@ -1144,6 +1233,70 @@ fn adjust_cost(value: &str, increase: bool) -> String {
         microusd.checked_sub(step).unwrap_or(microusd)
     };
     crate::theme::format_pi_scan_budget_microusd(adjusted)
+}
+
+/// What: Apply one typed digit or erase to a bounded integer setting.
+///
+/// Inputs:
+/// - `value`: Current setting value.
+/// - `character`: Typed character, or `None` to erase the last digit.
+/// - `replace`: Whether the digit starts a fresh entry instead of appending.
+/// - `maximum`: Largest accepted value.
+///
+/// Output:
+/// - The edited value, or `value` unchanged when the character is not a digit or the result
+///   would exceed `maximum`.
+///
+/// Details:
+/// - Erasing the final digit yields zero; range minimums are enforced by step validation.
+fn edit_integer(value: u64, character: Option<char>, replace: bool, maximum: u64) -> u64 {
+    let Some(character) = character else {
+        return value / 10;
+    };
+    let Some(digit) = character.to_digit(10) else {
+        return value;
+    };
+    let base = if replace { 0 } else { value };
+    base.checked_mul(10)
+        .and_then(|shifted| shifted.checked_add(u64::from(digit)))
+        .filter(|edited| *edited <= maximum)
+        .unwrap_or(value)
+}
+
+/// What: Apply one typed character or erase to the decimal-dollar cost text.
+///
+/// Inputs:
+/// - `value`: Current cost text.
+/// - `character`: Typed digit or `.`, or `None` to erase the last character.
+/// - `replace`: Whether the character starts a fresh entry instead of appending.
+///
+/// Output:
+/// - The edited text, or `value` unchanged when the result would not parse.
+///
+/// Details:
+/// - A leading `.` becomes `0.` and a lone `0` is replaced by the next digit, so every kept
+///   result is exact parser-compatible text. Erasing may leave empty text, which step
+///   validation reports.
+fn edit_cost(value: &str, character: Option<char>, replace: bool) -> String {
+    let Some(character) = character else {
+        let mut erased = value.to_string();
+        erased.pop();
+        return erased;
+    };
+    let mut edited = if replace || value == "0" {
+        String::new()
+    } else {
+        value.to_string()
+    };
+    if edited.is_empty() && character == '.' {
+        edited.push('0');
+    }
+    edited.push(character);
+    if crate::theme::parse_pi_scan_cost_microusd(&edited).is_ok() {
+        edited
+    } else {
+        value.to_string()
+    }
 }
 
 #[cfg(test)]
@@ -1472,5 +1625,136 @@ mod tests {
         assert_eq!(wizard.hit_test(4, 8), Some(PiScanSetupHitTarget::Next));
         assert_eq!(wizard.hit_test(9, 8), Some(PiScanSetupHitTarget::Next));
         assert_eq!(wizard.hit_test(10, 8), None);
+    }
+
+    /// Open the optional-behavior page with one numeric control focused.
+    fn optional_wizard(focus: usize) -> PiScanSetupWizardState {
+        let mut wizard = PiScanSetupWizardState::open(
+            PiScanSettings::default(),
+            PiScanConsentState::default(),
+            true,
+        );
+        wizard.step = PiScanSetupStep::OptionalBehavior;
+        wizard.focus = focus;
+        wizard
+    }
+
+    /// Type a sequence into the focused numeric control; `\u{8}` erases one character.
+    fn type_number(wizard: &mut PiScanSetupWizardState, keys: &str) {
+        for key in keys.chars() {
+            let character = (key != '\u{8}').then_some(key);
+            assert!(
+                wizard.edit_number(character),
+                "numeric key {key:?} consumed"
+            );
+        }
+    }
+
+    /// The first typed digit replaces the shown cost, so zero (Unlimited) is one keystroke away.
+    #[test]
+    fn typed_cost_replaces_then_appends_exact_text() {
+        let mut wizard = optional_wizard(5);
+        wizard.candidate.background_cost_cap_24h = "2.00004".to_string();
+        type_number(&mut wizard, "0");
+        assert_eq!(wizard.candidate.background_cost_cap_24h, "0");
+        assert!(wizard.numeric_entry_active());
+        type_number(&mut wizard, ".25");
+        assert_eq!(wizard.candidate.background_cost_cap_24h, "0.25");
+        type_number(&mut wizard, "\u{8}\u{8}");
+        assert_eq!(wizard.candidate.background_cost_cap_24h, "0.");
+        assert!(wizard.current_step_issues().is_empty());
+    }
+
+    /// Cost entry keeps only parser-compatible text.
+    #[test]
+    fn typed_cost_rejects_unparseable_characters() {
+        let mut wizard = optional_wizard(5);
+        type_number(&mut wizard, ".");
+        assert_eq!(wizard.candidate.background_cost_cap_24h, "0.");
+        type_number(&mut wizard, "1234567.");
+        assert_eq!(wizard.candidate.background_cost_cap_24h, "0.123456");
+        wizard.move_focus(true);
+        wizard.move_focus(false);
+        type_number(&mut wizard, "05");
+        assert_eq!(wizard.candidate.background_cost_cap_24h, "5");
+    }
+
+    /// Erasing the whole cost leaves empty text that blocks Next with the parser issue.
+    #[test]
+    fn erased_cost_is_reported_by_step_validation() {
+        let mut wizard = optional_wizard(5);
+        wizard.candidate.background_cost_cap_24h = "1.5".to_string();
+        type_number(&mut wizard, "\u{8}\u{8}\u{8}");
+        assert_eq!(wizard.candidate.background_cost_cap_24h, "");
+        assert!(
+            wizard
+                .current_step_issues()
+                .iter()
+                .any(|issue| issue.starts_with("pi_scan_background_cost_cap_24h"))
+        );
+    }
+
+    /// Integer budgets accept typed values, erase by digit, and reach zero directly.
+    #[test]
+    fn typed_integer_budgets_replace_append_and_erase() {
+        let mut wizard = optional_wizard(3);
+        wizard.candidate.background_starts_per_hour = 7;
+        type_number(&mut wizard, "12");
+        assert_eq!(wizard.candidate.background_starts_per_hour, 12);
+        type_number(&mut wizard, "\u{8}");
+        assert_eq!(wizard.candidate.background_starts_per_hour, 1);
+
+        wizard.move_focus(true);
+        wizard.candidate.background_token_cap_24h = 5_000;
+        wizard.candidate.background_token_cap_24h_parse_error = Some("stale".to_string());
+        type_number(&mut wizard, "0");
+        assert_eq!(wizard.candidate.background_token_cap_24h, 0);
+        assert_eq!(wizard.candidate.background_token_cap_24h_parse_error, None);
+        type_number(&mut wizard, "99999999999999999999");
+        assert_eq!(
+            wizard.candidate.background_token_cap_24h, 9_999_999_999_999_999_999,
+            "digits that would overflow u64 are ignored"
+        );
+    }
+
+    /// Retention rejects digits above the 365-day stepper bound; zero is a step issue.
+    #[test]
+    fn typed_retention_respects_bounds() {
+        let mut wizard = optional_wizard(6);
+        type_number(&mut wizard, "999");
+        assert_eq!(wizard.candidate.result_retention_days, 99);
+        type_number(&mut wizard, "\u{8}\u{8}");
+        assert_eq!(wizard.candidate.result_retention_days, 0);
+        assert!(
+            wizard
+                .current_step_issues()
+                .iter()
+                .any(|issue| issue.starts_with("pi_scan_result_retention_days"))
+        );
+    }
+
+    /// Stepping ends typed entry so the next digit starts a fresh value.
+    #[test]
+    fn stepping_restarts_typed_entry() {
+        let mut wizard = optional_wizard(3);
+        type_number(&mut wizard, "4");
+        wizard.adjust_focused(true);
+        assert_eq!(wizard.candidate.background_starts_per_hour, 5);
+        assert!(!wizard.numeric_entry_active());
+        type_number(&mut wizard, "2");
+        assert_eq!(wizard.candidate.background_starts_per_hour, 2);
+    }
+
+    /// Letters stay shortcuts and `.` belongs only to the cost field.
+    #[test]
+    fn number_entry_ignores_non_numeric_keys() {
+        let mut wizard = optional_wizard(4);
+        let before = wizard.candidate.background_token_cap_24h;
+        assert!(!wizard.edit_number(Some('n')));
+        assert!(!wizard.edit_number(Some('.')));
+        assert_eq!(wizard.candidate.background_token_cap_24h, before);
+        wizard.focus = 2;
+        assert!(!wizard.edit_number(Some('1')));
+        assert!(!wizard.edit_number(None));
     }
 }

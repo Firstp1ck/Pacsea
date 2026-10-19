@@ -1134,7 +1134,8 @@ impl SetupController {
         let request = self.probe_request(binary);
         match self.probe_with_deadline(request, PiScanSetupStage::Probe) {
             Ok(snapshot) => {
-                let projection = setup_projection(&snapshot, None);
+                let projection =
+                    setup_projection(&snapshot, None, snapshot.pricing_binding.clone());
                 self.probe = Some(snapshot);
                 PiScanSetupEvent::CapabilitiesVerified {
                     correlation_id,
@@ -1232,6 +1233,10 @@ impl SetupController {
             Ok(value) => value,
             Err(reason) => return failed_binding(correlation_id, &reason),
         };
+        let pricing_binding = match fresh.configured_pricing_binding(&models) {
+            Ok(binding) => binding,
+            Err(error) => return failed_binding(correlation_id, &error.to_string()),
+        };
         let configuration_binding =
             match material_consent_binding(&normalized, &models, reservation) {
                 Ok(binding) => binding,
@@ -1263,16 +1268,24 @@ impl SetupController {
             let teardown = candidate_runtime.teardown().err();
             return persistence_failure(correlation_id, &reason, teardown);
         }
-        let fresh_projection =
-            setup_projection(&fresh, Some((&normalized.provider, &normalized.model)));
-        let consent_json =
-            match setup_consent_json(&configuration_binding, consent, confirmations, &fresh) {
-                Ok(json) => json,
-                Err(reason) => {
-                    let teardown = candidate_runtime.teardown().err();
-                    return persistence_failure(correlation_id, &reason, teardown);
-                }
-            };
+        let fresh_projection = setup_projection(
+            &fresh,
+            Some((&normalized.provider, &normalized.model)),
+            pricing_binding.clone(),
+        );
+        let consent_json = match setup_consent_json(
+            &configuration_binding,
+            consent,
+            confirmations,
+            &fresh,
+            pricing_binding,
+        ) {
+            Ok(json) => json,
+            Err(reason) => {
+                let teardown = candidate_runtime.teardown().err();
+                return persistence_failure(correlation_id, &reason, teardown);
+            }
+        };
         let commit = match commit_setup_files(
             &mut *self.driver,
             &self.options,
@@ -1689,10 +1702,22 @@ fn same_material_probe(reviewed: &PiSetupProbeSnapshot, fresh: &PiSetupProbeSnap
         && reviewed.maximum_pricing_age == fresh.maximum_pricing_age
 }
 
-/// Convert WS2A's complete snapshot into the existing bounded wizard/runtime projection.
+/// What: Convert WS2A's complete snapshot into the existing bounded wizard/runtime projection.
+///
+/// Inputs:
+/// - `snapshot`: Complete probe facts.
+/// - `selected`: Exact primary route, or `None` before a route is chosen.
+/// - `pricing_binding`: Binding to expose; the configured-routes binding once routes are chosen.
+///
+/// Output:
+/// - Credential-free projection for the wizard and the runtime transfer.
+///
+/// Details:
+/// - An unknown or absent selection falls back to the first advertised route.
 fn setup_projection(
     snapshot: &PiSetupProbeSnapshot,
     selected: Option<(&str, &str)>,
+    pricing_binding: String,
 ) -> SetupSnapshot {
     let route = selected
         .and_then(|(provider, model)| snapshot.exact_route(provider, model).ok())
@@ -1737,7 +1762,7 @@ fn setup_projection(
                 )
             })
             .collect(),
-        pricing_binding: snapshot.pricing_binding.clone(),
+        pricing_binding,
         pricing_observed_at_unix_seconds: snapshot.pricing_observed_at_unix_seconds,
         maximum_pricing_age_seconds: snapshot.maximum_pricing_age.as_secs(),
         pricing_summary: snapshot.routes.iter().map(pricing_summary).collect(),
@@ -1839,12 +1864,26 @@ fn hash_json(value: &Value) -> String {
     crate::pi_agent::to_hex(&crate::pi_agent::sha256(value.to_string().as_bytes()))
 }
 
-/// Serialize consent through the exact schema consumed by the production orchestrator.
+/// What: Serialize consent through the exact schema consumed by the production orchestrator.
+///
+/// Inputs:
+/// - `binding`: Material configuration binding.
+/// - `consent`, `confirmations`: Reviewed runtime consent and independent confirmations.
+/// - `snapshot`: Fresh probe facts supplying the confirmed Pi version.
+/// - `pricing_binding`: Configured-routes binding that startup recomputes and compares.
+///
+/// Output:
+/// - Canonical consent document JSON or actionable serialization failure text.
+///
+/// Details:
+/// - Storing the configured-routes binding, not the whole-catalog one, keeps consent across
+///   Pi price refreshes of routes the scanner never uses.
 fn setup_consent_json(
     binding: &str,
     consent: PiScanConsentState,
     confirmations: PiScanSetupConfirmations,
     snapshot: &PiSetupProbeSnapshot,
+    pricing_binding: String,
 ) -> Result<String, String> {
     let runtime = PiScanConsentState {
         background_observation: consent.background_observation,
@@ -1860,7 +1899,7 @@ fn setup_consent_json(
             background_paid_execution: consent.paid_execution,
             readiness_warning_confirmed: confirmations.readiness_warning_confirmed,
             confirmed_pi_version: snapshot.pi_version.to_string(),
-            confirmed_pricing_binding: snapshot.pricing_binding.clone(),
+            confirmed_pricing_binding: pricing_binding,
         },
     )
 }

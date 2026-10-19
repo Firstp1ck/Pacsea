@@ -82,6 +82,7 @@ mod tests {
         ));
         let _ = fs::create_dir_all(&home);
         unsafe { std::env::set_var("HOME", home.display().to_string()) };
+        crate::theme::set_home_config_enabled(true);
 
         // Write install log
         let names = vec!["a".to_string(), "b".to_string()];
@@ -99,6 +100,7 @@ mod tests {
         assert!(body_r.contains("a\n") || body_r.contains("a\r\n"));
 
         // Cleanup env; not removing files so test artifacts may remain in tmp
+        crate::theme::set_home_config_enabled(false);
         unsafe {
             if let Some(v) = orig_home {
                 std::env::set_var("HOME", v);

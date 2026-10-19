@@ -200,6 +200,37 @@ fn wizard_budget_adjustments_are_checked_at_native_boundaries() {
     assert_eq!(wizard.candidate.background_cost_cap_24h, "0.50");
 }
 
+/// Typed entry sets every numeric optional setting directly, including a sub-dollar cost to zero.
+#[test]
+fn wizard_numeric_settings_accept_typed_values() {
+    let mut wizard = pacsea::state::PiScanSetupWizardState::open(
+        PiScanSettings::default(),
+        PiScanConsentState::default(),
+        false,
+    );
+    wizard.step = pacsea::state::PiScanSetupStep::OptionalBehavior;
+    wizard.focus = 3;
+    for typed in ["8", "0", "0", "14"] {
+        for character in typed.chars() {
+            assert!(wizard.edit_number(Some(character)));
+        }
+        wizard.move_focus(true);
+    }
+    wizard.focus = 5;
+    wizard.candidate.background_cost_cap_24h = "2.00004".to_string();
+    wizard.adjust_focused(false);
+    wizard.adjust_focused(false);
+    wizard.adjust_focused(false);
+    assert_eq!(wizard.candidate.background_cost_cap_24h, "0.00004");
+    assert!(wizard.edit_number(Some('0')));
+
+    assert_eq!(wizard.candidate.background_starts_per_hour, 8);
+    assert_eq!(wizard.candidate.background_token_cap_24h, 0);
+    assert_eq!(wizard.candidate.background_cost_cap_24h, "0");
+    assert_eq!(wizard.candidate.result_retention_days, 14);
+    assert!(wizard.current_step_issues().is_empty());
+}
+
 /// Contract: the probe verifies Pi and enumerates routes without a model call.
 #[tokio::test]
 #[ignore = "Wave 0 contract: WS2 no-model capability probe"]

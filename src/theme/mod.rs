@@ -41,7 +41,8 @@ pub use config::{
     save_virustotal_api_key, settings_for, try_load_theme_from_content, write_full_content,
 };
 pub use paths::{
-    config_dir, lists_dir, logs_dir, resolve_repos_config_path, set_config_dir_override,
+    config_dir, home_config_enabled, lists_dir, logs_dir, resolve_repos_config_path,
+    set_config_dir_override, set_home_config_enabled,
 };
 pub use resolve::default_theme;
 pub use settings::settings;

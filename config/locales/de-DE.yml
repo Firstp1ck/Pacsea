@@ -469,6 +469,7 @@ de-DE:
         labels:
           next_field: "Nächstes Feld"
           confirm_field: "Bestätigen"
+          type_value: "Wert eingeben"
           activate: "Auswählen"
           adjust: "Ändern"
           choose: "Wählen"
@@ -1604,6 +1605,7 @@ de-DE:
           - "  • Bericht: Enter oder Klick auf die Kopfzeile ein-/ausblenden · a Funde als gelesen markieren · s Paketänderung akzeptieren · c prüfen und fortfahren · b als geprüft markieren · t technische Details"
           - "  • Einstellungen: Enter auswählen · w geführte Einrichtung · v Einrichtung prüfen · B Hintergrundscans"
           - "  • Assistent: Tab/Shift+Tab Fokus · Enter bestätigt Textfeld · druckbare Tasten bearbeiten Text · Bild↑/Bild↓ scrollen"
+          - "  • Assistent, Zahlenfelder: Ziffern tippen (. bei Kosten) · Rücktaste löscht · ←/→ oder h/l schrittweise · Enter bestätigt"
           - "  • Assistent: n Weiter · b Zurück · a Anwenden · r Erneut nur außerhalb von Textfeldern · Esc Abbrechen"
           - "  • Assistent, Ersatzmodell: Enter oder Klick öffnet die Liste · tippen zum Suchen · ↑/↓ bewegen · Enter wählen · Esc schließt die Liste"
         mouse_lines:

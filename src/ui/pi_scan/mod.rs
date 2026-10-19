@@ -977,14 +977,18 @@ fn wizard_footer_segments(
         ) && wizard.focus == 1
         {
             add("Enter", "verify", 1);
+        } else if wizard.focuses_numeric_field() {
+            add(
+                if wizard.focus == 5 { "0-9/." } else { "0-9" },
+                "type_value",
+                1,
+            );
+            add("←/→/h/l", "adjust", 1);
+            add("Enter", "confirm_field", 1);
         } else if matches!(
             wizard.step,
             crate::state::pi_scan_setup::PiScanSetupStep::Route
-        ) || matches!(
-            wizard.step,
-            crate::state::pi_scan_setup::PiScanSetupStep::OptionalBehavior
-        ) && (3..=6).contains(&wizard.focus)
-        {
+        ) {
             add("Enter/←/→/h/l", "adjust", 1);
         } else if matches!(
             wizard.step,

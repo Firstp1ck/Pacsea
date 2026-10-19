@@ -86,6 +86,7 @@ impl EnvGuard {
             std::env::set_var("HOME", &home_root);
             std::env::remove_var("XDG_CONFIG_HOME");
         }
+        pacsea::theme::set_home_config_enabled(true);
         Self {
             original_home,
             original_xdg,
@@ -107,6 +108,7 @@ impl Drop for EnvGuard {
     /// - Runs before the held `_env_lock` guard drops, so the environment is
     ///   fully restored before another test can acquire the lock.
     fn drop(&mut self) {
+        pacsea::theme::set_home_config_enabled(false);
         unsafe {
             if let Some(home) = self.original_home.as_ref() {
                 std::env::set_var("HOME", home);

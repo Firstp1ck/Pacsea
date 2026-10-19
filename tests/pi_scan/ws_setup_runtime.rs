@@ -753,7 +753,22 @@ async fn successful_transfer_commits_runtime_and_compatible_consent() {
     assert_eq!(setup_consent.configuration_binding, binding);
     assert!(!setup_consent.background_paid_execution);
     assert_eq!(setup_consent.confirmed_pi_version, "0.84.0");
-    assert_ne!(setup_consent.confirmed_pricing_binding, "");
+    let configured = [ModelChoice {
+        provider: selected.provider.clone(),
+        model: selected.model.clone(),
+    }];
+    let mut unused_route_repriced = snapshot(1_000);
+    unused_route_repriced.routes[1] = route("provider-b", "model-b", 99);
+    assert_eq!(
+        setup_consent.confirmed_pricing_binding,
+        unused_route_repriced
+            .configured_pricing_binding(&configured)
+            .expect("startup binding")
+    );
+    assert_ne!(
+        setup_consent.confirmed_pricing_binding,
+        snapshot(1_000).pricing_binding
+    );
 
     let (ack_tx, ack_rx) = std::sync::mpsc::sync_channel(1);
     runtime_channels

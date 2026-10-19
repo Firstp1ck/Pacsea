@@ -196,8 +196,11 @@ fn handle_wizard(key: KeyEvent, app: &mut AppState) -> bool {
         KeyCode::BackTab => wizard.move_focus(false),
         KeyCode::PageUp => wizard.scroll_body(false),
         KeyCode::PageDown => wizard.scroll_body(true),
-        KeyCode::Backspace if wizard.edit_text(None, true) => {}
-        KeyCode::Enter if wizard.focuses_text_field() => wizard.move_focus(true),
+        KeyCode::Backspace if wizard.edit_text(None, true) || wizard.edit_number(None) => {}
+        // Enter confirms a typed value; stepping a number on Enter would corrupt it.
+        KeyCode::Enter if wizard.focuses_text_field() || wizard.focuses_numeric_field() => {
+            wizard.move_focus(true);
+        }
         KeyCode::Enter if wizard.focus >= wizard.focus_count() => {
             let target = wizard
                 .footer_targets()
@@ -212,6 +215,9 @@ fn handle_wizard(key: KeyEvent, app: &mut AppState) -> bool {
             if wizard.focuses_text_field()
                 && (key.modifiers.is_empty() || key.modifiers == KeyModifiers::SHIFT)
                 && wizard.edit_text(Some(character), false) => {}
+        KeyCode::Char(character)
+            if (key.modifiers.is_empty() || key.modifiers == KeyModifiers::SHIFT)
+                && wizard.edit_number(Some(character)) => {}
         KeyCode::Char('n')
             if wizard
                 .footer_targets()
@@ -1278,6 +1284,36 @@ mod tests {
                 .binary,
             "nbr"
         );
+    }
+
+    /// Numeric fields take typed digits, Enter confirms without stepping, and `l` still steps.
+    #[test]
+    fn wizard_numeric_field_accepts_typed_value() {
+        let mut app = AppState::default();
+        app.pi_scan.begin_setup_wizard(true);
+        let wizard = app.pi_scan.wizard.as_mut().expect("wizard");
+        wizard.step = PiScanSetupStep::OptionalBehavior;
+        wizard.focus = 5;
+        wizard.candidate.background_cost_cap_24h = "2.00004".to_string();
+        for code in [KeyCode::Char('0'), KeyCode::Enter] {
+            assert!(handle_wizard(
+                KeyEvent::new(code, KeyModifiers::NONE),
+                &mut app
+            ));
+        }
+        let wizard = app.pi_scan.wizard.as_ref().expect("wizard");
+        assert_eq!(wizard.candidate.background_cost_cap_24h, "0");
+        assert_eq!(
+            wizard.focus, 6,
+            "Enter confirms by moving to the next field"
+        );
+
+        assert!(handle_wizard(
+            KeyEvent::new(KeyCode::Char('l'), KeyModifiers::NONE),
+            &mut app
+        ));
+        let wizard = app.pi_scan.wizard.as_ref().expect("wizard");
+        assert_eq!(wizard.candidate.result_retention_days, 31);
     }
 
     /// The open fallback dropdown owns keys: letters search, Esc closes only the dropdown.

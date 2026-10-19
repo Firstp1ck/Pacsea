@@ -472,6 +472,7 @@ hu-HU:
         labels:
           next_field: "Next field" # TODO: translate to Hungarian
           confirm_field: "Confirm" # TODO: translate to Hungarian
+          type_value: "Type value" # TODO: translate to Hungarian
           activate: "Select" # TODO: translate to Hungarian
           adjust: "Change" # TODO: translate to Hungarian
           choose: "Choose" # TODO: translate to Hungarian
@@ -1607,6 +1608,7 @@ hu-HU:
           - "  • Report: Enter or a header click shows/hides · a mark findings as read · s accept package change · c review & continue · b mark as reviewed · t technical details" # TODO: translate to Hungarian
           - "  • Settings: Enter selects · w guided setup · v check setup · B background scans" # TODO: translate to Hungarian
           - "  • Wizard: Tab/Shift+Tab focus · Enter confirms text field · printable keys edit text · PgUp/PgDn scroll" # TODO: translate to Hungarian
+          - "  • Wizard number fields: type digits (. for cost) · Backspace erases · ←/→ or h/l step · Enter confirms" # TODO: translate to Hungarian
           - "  • Wizard: n Next · b Back · a Apply · r Retry only outside text fields · Esc Cancel" # TODO: translate to Hungarian
           - "  • Wizard backup model: Enter or a click opens the list · type to search · ↑/↓ move · Enter choose · Esc closes the list" # TODO: translate to Hungarian
         mouse_lines:

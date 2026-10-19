@@ -337,6 +337,95 @@ fn pricing_binding_excludes_observation_time_but_freshness_remains_typed() {
     );
 }
 
+/// Probe the given advertised Pi model records through a passing fake backend.
+fn probe_models(models: Vec<Value>) -> super::PiSetupProbeSnapshot {
+    let mut backend = FakeBackend::passing(models);
+    probe_pi_setup_with_backend(&request(), &mut backend).expect("probe passes")
+}
+
+/// Build one exact configured route.
+fn choice(provider: &str, model: &str) -> crate::pi_agent::session::ModelChoice {
+    crate::pi_agent::session::ModelChoice {
+        provider: provider.to_string(),
+        model: model.to_string(),
+    }
+}
+
+/// A Pi price refresh on an unused route changes the catalog binding but not the consent one.
+#[test]
+fn configured_pricing_binding_ignores_unconfigured_route_prices() {
+    let configured = [choice("anthropic", "claude-x")];
+    let at_setup = probe_models(vec![
+        route("anthropic", "claude-x", 3.0, 15.0),
+        route("openrouter", "vendor/model-y", 1.0, 4.0),
+    ]);
+    let refreshed = probe_models(vec![
+        route("anthropic", "claude-x", 3.0, 15.0),
+        route("openrouter", "vendor/model-y", 1.5, 4.0),
+    ]);
+
+    assert_ne!(at_setup.pricing_binding, refreshed.pricing_binding);
+    assert_eq!(
+        at_setup
+            .configured_pricing_binding(&configured)
+            .expect("configured binding"),
+        refreshed
+            .configured_pricing_binding(&configured)
+            .expect("configured binding")
+    );
+}
+
+/// Configured route prices, fallback order, and the Pi version stay bound.
+#[test]
+fn configured_pricing_binding_tracks_configured_route_facts() {
+    let catalog = vec![
+        route("anthropic", "claude-x", 3.0, 15.0),
+        route("openrouter", "vendor/model-y", 1.0, 4.0),
+    ];
+    let ordered = [
+        choice("anthropic", "claude-x"),
+        choice("openrouter", "vendor/model-y"),
+    ];
+    let reordered = [ordered[1].clone(), ordered[0].clone()];
+    let probe = probe_models(catalog.clone());
+    let binding = |snapshot: &super::PiSetupProbeSnapshot, models: &[_]| {
+        snapshot
+            .configured_pricing_binding(models)
+            .expect("configured binding")
+    };
+    let baseline = binding(&probe, &ordered);
+
+    let fallback_repriced = probe_models(vec![
+        route("anthropic", "claude-x", 3.0, 15.0),
+        route("openrouter", "vendor/model-y", 1.0, 4.5),
+    ]);
+    let mut newer_pi = FakeBackend::passing(catalog);
+    newer_pi.version = "0.84.1\n".to_string();
+    let newer_pi = probe_pi_setup_with_backend(&request(), &mut newer_pi).expect("newer Pi");
+
+    assert_ne!(baseline, binding(&fallback_repriced, &ordered));
+    assert_ne!(baseline, binding(&probe, &reordered));
+    assert_ne!(baseline, binding(&probe, &ordered[..1]));
+    assert_ne!(baseline, binding(&newer_pi, &ordered));
+}
+
+/// A configured route Pi no longer advertises fails closed instead of narrowing the binding.
+#[test]
+fn configured_pricing_binding_rejects_unadvertised_route() {
+    let probe = probe_models(vec![route("anthropic", "claude-x", 3.0, 15.0)]);
+
+    assert_eq!(
+        probe.configured_pricing_binding(&[
+            choice("anthropic", "claude-x"),
+            choice("anthropic", "claude-gone"),
+        ]),
+        Err(PiSetupProbeError::RouteNotAdvertised {
+            provider: "anthropic".to_string(),
+            model: "claude-gone".to_string(),
+        })
+    );
+}
+
 /// Whole RPC deadline must abort/reap before returning actionable Retry.
 #[test]
 fn whole_probe_deadline_aborts_and_reaps_before_return() {

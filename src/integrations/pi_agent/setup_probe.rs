@@ -31,6 +31,7 @@ use crate::pi_agent::process::{
 };
 use crate::pi_agent::protocol::{CommandCorrelator, decode_record, encode_command};
 use crate::pi_agent::restricted_tools::SnapshotRegistry;
+use crate::pi_agent::session::ModelChoice;
 use crate::pi_agent::{
     PiVersion, RESTRICTED_TOOL_NAMES, TOOL_CONTRACT_VERSION, has_forbidden_control,
 };
@@ -149,7 +150,8 @@ pub struct PiSetupProbeSnapshot {
     pub pricing_observed_at_unix_seconds: u64,
     /// Maximum age accepted for this pricing snapshot.
     pub maximum_pricing_age: Duration,
-    /// SHA-256 over exact version, isolation, routes, prices, provenance, reservations, and time.
+    /// SHA-256 over exact version, isolation, and the pricing, provenance, and reservation of
+    /// every advertised route; persisted consent uses [`Self::configured_pricing_binding`].
     pub pricing_binding: String,
 }
 
@@ -216,6 +218,31 @@ impl PiSetupProbeSnapshot {
                 provider: provider.to_string(),
                 model: model.to_string(),
             })
+    }
+
+    /// What: Bind the exact Pi facts and pricing of the configured routes only.
+    ///
+    /// Inputs:
+    /// - `models`: Configured primary route followed by its ordered fallbacks.
+    ///
+    /// Output:
+    /// - SHA-256 over version, isolation, and each configured route's pricing in order.
+    ///
+    /// Details:
+    /// - Persisted consent stores this value, so a Pi price refresh on a route the scanner never
+    ///   uses keeps consent, while any change to a configured route's price or order resets it.
+    ///
+    /// # Errors
+    /// - Returns [`PiSetupProbeError::RouteNotAdvertised`] when a configured route is absent.
+    pub fn configured_pricing_binding(
+        &self,
+        models: &[ModelChoice],
+    ) -> Result<String, PiSetupProbeError> {
+        let routes = models
+            .iter()
+            .map(|choice| self.exact_route(&choice.provider, &choice.model))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(pricing_binding(self.pi_version, &self.isolation, routes))
     }
 }
 
@@ -1167,13 +1194,7 @@ fn build_snapshot(
     isolation: PiSetupIsolationContract,
     routes: Vec<PiSetupAdvertisedRoute>,
 ) -> Result<PiSetupProbeSnapshot, PiSetupProbeError> {
-    let pricing_binding = pricing_binding(
-        pi_version,
-        &isolation,
-        &routes,
-        request.now_unix_seconds,
-        request.maximum_pricing_age,
-    );
+    let pricing_binding = pricing_binding(pi_version, &isolation, &routes);
     let snapshot = PiSetupProbeSnapshot {
         executable,
         pi_version,
@@ -1187,16 +1208,14 @@ fn build_snapshot(
     Ok(snapshot)
 }
 
-/// Hash the exact typed setup facts without retaining Pi's raw response object.
-fn pricing_binding(
+/// Hash the exact typed setup facts of `routes` without retaining Pi's raw response object.
+fn pricing_binding<'a>(
     pi_version: PiVersion,
     isolation: &PiSetupIsolationContract,
-    routes: &[PiSetupAdvertisedRoute],
-    _observed_at: u64,
-    _maximum_age: Duration,
+    routes: impl IntoIterator<Item = &'a PiSetupAdvertisedRoute>,
 ) -> String {
     let route_values: Vec<Value> = routes
-        .iter()
+        .into_iter()
         .map(|route| {
             serde_json::json!({
                 "provider": route.provider,

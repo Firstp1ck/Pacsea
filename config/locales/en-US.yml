@@ -469,6 +469,7 @@ en-US:
         labels:
           next_field: "Next field"
           confirm_field: "Confirm"
+          type_value: "Type value"
           activate: "Select"
           adjust: "Change"
           choose: "Choose"
@@ -1604,6 +1605,7 @@ en-US:
           - "  • Report: Enter or a header click shows/hides · a mark findings as read · s accept package change · c review & continue · b mark as reviewed · t technical details"
           - "  • Settings: Enter selects · w guided setup · v check setup · B background scans"
           - "  • Wizard: Tab/Shift+Tab focus · Enter confirms text field · printable keys edit text · PgUp/PgDn scroll"
+          - "  • Wizard number fields: type digits (. for cost) · Backspace erases · ←/→ or h/l step · Enter confirms"
           - "  • Wizard: n Next · b Back · a Apply · r Retry only outside text fields · Esc Cancel"
           - "  • Wizard backup model: Enter or a click opens the list · type to search · ↑/↓ move · Enter choose · Esc closes the list"
         mouse_lines:

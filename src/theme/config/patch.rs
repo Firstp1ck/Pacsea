@@ -222,21 +222,9 @@ fn normalize_key(key: &str) -> String {
 /// - Matches the fallback logic used by existing fire-and-forget helpers so the
 ///   patch API and the `save_*` functions write to the same file.
 fn resolve_path(file: ConfigFile) -> PathBuf {
-    if let Some(p) = file.try_resolve() {
-        return p;
-    }
-    let base = std::env::var("XDG_CONFIG_HOME")
-        .ok()
-        .map(PathBuf::from)
-        .or_else(|| {
-            std::env::var("HOME")
-                .ok()
-                .map(|h| Path::new(&h).join(".config"))
-        });
-    if let Some(base) = base {
-        return base.join("pacsea").join(file.default_filename());
-    }
-    config_dir().join(file.default_filename())
+    file.try_resolve()
+        .or_else(|| crate::theme::paths::default_config_file_path(file.default_filename()))
+        .unwrap_or_else(|| config_dir().join(file.default_filename()))
 }
 
 /// What: Resolve the active path for a Pacsea config file.
@@ -754,6 +742,8 @@ mod tests {
         cfg_dir: PathBuf,
         orig_home: Option<std::ffi::OsString>,
         orig_xdg: Option<std::ffi::OsString>,
+        /// Home-resolution flag restored on drop.
+        orig_home_config: bool,
     }
 
     impl EnvGuard {
@@ -770,21 +760,25 @@ mod tests {
             ));
             let cfg_dir = base.join(".config").join("pacsea");
             fs::create_dir_all(&cfg_dir).expect("create cfg dir");
+            let orig_home_config = crate::theme::home_config_enabled();
             unsafe {
                 std::env::set_var("HOME", base.display().to_string());
                 std::env::remove_var("XDG_CONFIG_HOME");
             }
+            crate::theme::set_home_config_enabled(true);
             Self {
                 base,
                 cfg_dir,
                 orig_home,
                 orig_xdg,
+                orig_home_config,
             }
         }
     }
 
     impl Drop for EnvGuard {
         fn drop(&mut self) {
+            crate::theme::set_home_config_enabled(self.orig_home_config);
             unsafe {
                 if let Some(v) = self.orig_home.as_ref() {
                     std::env::set_var("HOME", v);

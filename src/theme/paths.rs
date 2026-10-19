@@ -1,12 +1,22 @@
 use std::env;
 use std::path::{Path, PathBuf};
-use std::sync::RwLock;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{OnceLock, RwLock};
 
 /// Process-wide override for the Pacsea configuration root, set by the CLI `--config-dir` flag.
 ///
 /// Details: When set, all config, cache (lists), and log paths resolve under this directory
 /// instead of `$HOME/.config/pacsea` / `$XDG_CONFIG_HOME/pacsea`.
 static CONFIG_DIR_OVERRIDE: RwLock<Option<PathBuf>> = RwLock::new(None);
+
+/// Whether paths may resolve into the user's real `$HOME`/`$XDG_CONFIG_HOME` config tree.
+///
+/// Details: Off by default so library code driven by a test harness, which never runs `main`,
+/// cannot read or modify the developer's real configuration. `main` enables it at startup.
+static HOME_CONFIG_ENABLED: AtomicBool = AtomicBool::new(false);
+
+/// Private per-process config root used while home resolution is disabled.
+static ISOLATED_CONFIG_DIR: OnceLock<PathBuf> = OnceLock::new();
 
 /// What: Set or clear the process-wide configuration directory override.
 ///
@@ -19,6 +29,7 @@ static CONFIG_DIR_OVERRIDE: RwLock<Option<PathBuf>> = RwLock::new(None);
 /// Details:
 /// - Called once at startup when `--config-dir` is passed, before logging initializes.
 /// - Also used by tests to isolate path resolution; ignores a poisoned lock by recovering it.
+/// - Clearing restores the isolated root unless [`set_home_config_enabled`] enabled home paths.
 pub fn set_config_dir_override(path: Option<PathBuf>) {
     let mut guard = CONFIG_DIR_OVERRIDE
         .write()
@@ -26,21 +37,168 @@ pub fn set_config_dir_override(path: Option<PathBuf>) {
     *guard = path;
 }
 
-/// What: Read the current configuration directory override, if any.
+/// What: Allow or forbid resolving config paths from `$HOME`/`$XDG_CONFIG_HOME`.
+///
+/// Inputs:
+/// - `enabled`: `true` to use the user's real config tree when no override is set.
+///
+/// Output:
+/// - None (side effect: changes where subsequent path helpers resolve).
+///
+/// Details:
+/// - `main` enables this once at startup unless `--config-dir` is passed. Tests that exercise
+///   home-based resolution enable it only while `HOME` points at a temporary directory and
+///   restore the previous value afterwards.
+pub fn set_home_config_enabled(enabled: bool) {
+    HOME_CONFIG_ENABLED.store(enabled, Ordering::SeqCst);
+}
+
+/// What: Report whether config paths may resolve from `$HOME`/`$XDG_CONFIG_HOME`.
 ///
 /// Inputs:
 /// - None.
 ///
 /// Output:
-/// - `Some(PathBuf)` when `--config-dir` is active; `None` otherwise.
+/// - `true` after [`set_home_config_enabled`] enabled home resolution.
+///
+/// Details:
+/// - Lets scoped test guards restore the exact previous state.
+#[must_use]
+pub fn home_config_enabled() -> bool {
+    HOME_CONFIG_ENABLED.load(Ordering::SeqCst)
+}
+
+/// What: Read the effective configuration root override, if any.
+///
+/// Inputs:
+/// - None.
+///
+/// Output:
+/// - `Some(PathBuf)` for `--config-dir`, or for the private isolated root while home
+///   resolution is disabled; `None` when paths resolve from `$HOME`/`$XDG_CONFIG_HOME`.
 ///
 /// Details:
 /// - Recovers from a poisoned lock instead of panicking.
 pub fn config_dir_override() -> Option<PathBuf> {
-    CONFIG_DIR_OVERRIDE
+    let explicit = CONFIG_DIR_OVERRIDE
         .read()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .clone()
+        .clone();
+    if explicit.is_some() || home_config_enabled() {
+        return explicit;
+    }
+    Some(
+        ISOLATED_CONFIG_DIR
+            .get_or_init(create_isolated_config_dir)
+            .clone(),
+    )
+}
+
+/// What: Create the private per-process config root used while home resolution is disabled.
+///
+/// Inputs:
+/// - None (uses the system temporary directory).
+///
+/// Output:
+/// - Path of a newly created directory, or the last attempted path if every attempt failed.
+///
+/// Details:
+/// - Uses exclusive creation with mode `0o700` on Unix so a pre-existing or attacker-planted
+///   path is never adopted. The directory outlives the process; the next isolated process
+///   sweeps it (see [`remove_stale_isolated_config_dirs`]).
+fn create_isolated_config_dir() -> PathBuf {
+    let base = env::temp_dir();
+    remove_stale_isolated_config_dirs(&base);
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |elapsed| elapsed.subsec_nanos());
+    let mut candidate = base.clone();
+    for attempt in 0..16_u32 {
+        candidate = base.join(format!(
+            "{ISOLATED_CONFIG_DIR_PREFIX}{}-{nanos}-{attempt}",
+            std::process::id()
+        ));
+        let mut builder = std::fs::DirBuilder::new();
+        #[cfg(unix)]
+        std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);
+        if builder.create(&candidate).is_ok() {
+            break;
+        }
+    }
+    candidate
+}
+
+/// File-name prefix of isolated config roots, followed by `<pid>-<nanos>-<attempt>`.
+const ISOLATED_CONFIG_DIR_PREFIX: &str = "pacsea-isolated-config-";
+
+/// What: Remove isolated config roots left behind by processes that have exited.
+///
+/// Inputs:
+/// - `base`: Temporary directory holding isolated roots.
+///
+/// Output:
+/// - None (best-effort removal; failures are ignored).
+///
+/// Details:
+/// - Linux only, because liveness is read from `/proc/<pid>`. Roots of live processes,
+///   including this one, are kept, and symlinked entries are skipped rather than followed.
+#[cfg(target_os = "linux")]
+fn remove_stale_isolated_config_dirs(base: &Path) {
+    let Ok(entries) = std::fs::read_dir(base) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let Some(pid) = name
+            .to_str()
+            .and_then(|name| name.strip_prefix(ISOLATED_CONFIG_DIR_PREFIX))
+            .and_then(|rest| rest.split('-').next())
+            .and_then(|pid| pid.parse::<u32>().ok())
+        else {
+            continue;
+        };
+        let is_real_dir = entry.file_type().is_ok_and(|kind| kind.is_dir());
+        let exited = !Path::new("/proc").join(pid.to_string()).exists();
+        if is_real_dir && pid != std::process::id() && exited {
+            let _ = std::fs::remove_dir_all(entry.path());
+        }
+    }
+}
+
+/// What: Skip stale isolated-root cleanup where process liveness is unavailable.
+///
+/// Inputs:
+/// - `_base`: Unused temporary directory.
+///
+/// Output:
+/// - None.
+///
+/// Details:
+/// - Leftover roots stay in the system temp directory on non-Linux platforms.
+#[cfg(not(target_os = "linux"))]
+const fn remove_stale_isolated_config_dirs(_base: &Path) {}
+
+/// What: Choose where a config file is created when no existing file was found.
+///
+/// Inputs:
+/// - `file_name`: File name inside the Pacsea config root, e.g. `settings.conf`.
+///
+/// Output:
+/// - Target path, or `None` when neither an override nor `$XDG_CONFIG_HOME`/`$HOME` is set.
+///
+/// Details:
+/// - Honors `--config-dir` and the isolated root first, so writers never fall back to the
+///   real home directory when the override directory simply lacks the file yet.
+#[must_use]
+pub fn default_config_file_path(file_name: &str) -> Option<PathBuf> {
+    if let Some(root) = config_dir_override() {
+        return Some(root.join(file_name));
+    }
+    env::var("XDG_CONFIG_HOME")
+        .ok()
+        .map(PathBuf::from)
+        .or_else(|| env::var("HOME").ok().map(|h| Path::new(&h).join(".config")))
+        .map(|base| base.join("pacsea").join(file_name))
 }
 
 /// What: Locate the active theme configuration file, considering modern and legacy layouts.
@@ -319,6 +477,8 @@ mod tests {
         orig_home: Option<std::ffi::OsString>,
         orig_xdg: Option<std::ffi::OsString>,
         base: std::path::PathBuf,
+        /// Home-resolution flag restored on drop.
+        orig_home_config: bool,
     }
 
     impl HomeTestGuard {
@@ -336,20 +496,24 @@ mod tests {
             let orig_home = std::env::var_os("HOME");
             let orig_xdg = std::env::var_os("XDG_CONFIG_HOME");
             let _ = std::fs::create_dir_all(&base);
+            let orig_home_config = crate::theme::home_config_enabled();
             unsafe {
                 std::env::set_var("HOME", base.display().to_string());
                 std::env::remove_var("XDG_CONFIG_HOME");
             }
+            crate::theme::set_home_config_enabled(true);
             Self {
                 orig_home,
                 orig_xdg,
                 base,
+                orig_home_config,
             }
         }
     }
 
     impl Drop for HomeTestGuard {
         fn drop(&mut self) {
+            crate::theme::set_home_config_enabled(self.orig_home_config);
             unsafe {
                 if let Some(v) = self.orig_home.as_ref() {
                     std::env::set_var("HOME", v);
@@ -501,5 +665,79 @@ mod tests {
             cfg.starts_with(&home_root),
             "config_dir should resolve under test HOME, not decoy XDG_CONFIG_HOME; got {cfg:?}"
         );
+    }
+
+    #[test]
+    /// What: Library callers that never enable home resolution stay out of `$HOME`.
+    ///
+    /// Inputs:
+    /// - Default process state: no `--config-dir` override, home resolution disabled.
+    ///
+    /// Output:
+    /// - Every path helper and the new-file fallback resolve under the isolated temp root.
+    ///
+    /// Details:
+    /// - Guards the test-suite isolation contract: harness processes never run `main`, so they
+    ///   must not read or write the developer's real `~/.config/pacsea`.
+    fn paths_default_to_isolated_root_without_home_opt_in() {
+        let _guard = crate::theme::test_mutex()
+            .lock()
+            .expect("Test mutex poisoned");
+        assert!(!super::home_config_enabled());
+        let isolated = super::config_dir_override().expect("isolated root");
+        assert!(isolated.starts_with(std::env::temp_dir()));
+        assert!(isolated.is_dir());
+        let home = std::path::PathBuf::from(std::env::var_os("HOME").expect("HOME"));
+        for path in [
+            super::config_dir(),
+            super::logs_dir(),
+            super::lists_dir(),
+            super::default_config_file_path("settings.conf").expect("fallback"),
+        ] {
+            assert!(path.starts_with(&isolated), "{path:?} escaped {isolated:?}");
+            assert!(!path.starts_with(&home), "{path:?} resolved under HOME");
+        }
+    }
+
+    #[test]
+    /// What: Saving into an override that lacks `settings.conf` creates it there, not in `$HOME`.
+    ///
+    /// Inputs:
+    /// - Empty `--config-dir` override plus a temporary `HOME` with home resolution enabled.
+    ///
+    /// Output:
+    /// - `save_sort_mode` seeds `settings.conf` inside the override; `HOME` stays untouched.
+    ///
+    /// Details:
+    /// - Regression: the missing-file fallback used to ignore the override and target
+    ///   `$XDG_CONFIG_HOME`/`$HOME`, so `--config-dir` and test overrides leaked writes.
+    fn save_into_empty_override_never_falls_back_to_home() {
+        let _guard = crate::theme::test_mutex()
+            .lock()
+            .expect("Test mutex poisoned");
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("System time is before UNIX epoch")
+            .as_nanos();
+        let tmp = std::env::temp_dir();
+        let home = tmp.join(format!(
+            "pacsea_test_fallback_home_{}_{stamp}",
+            std::process::id()
+        ));
+        let override_dir = tmp.join(format!(
+            "pacsea_test_fallback_cfg_{}_{stamp}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&override_dir).expect("create override dir");
+        let home_guard = HomeTestGuard::new(home.clone());
+        super::set_config_dir_override(Some(override_dir.clone()));
+        let _override_guard = OverrideGuard;
+
+        crate::theme::save_sort_mode(crate::state::SortMode::BestMatches);
+
+        assert!(override_dir.join("settings.conf").is_file());
+        assert!(!home.join(".config").exists(), "save leaked into HOME");
+        drop(home_guard);
+        let _ = std::fs::remove_dir_all(&override_dir);
     }
 }

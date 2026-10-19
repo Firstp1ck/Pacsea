@@ -51,8 +51,8 @@ use crate::pi_agent::scan_engine::{
 };
 use crate::pi_agent::session::ModelChoice;
 use crate::pi_agent::setup_probe::{
-    PiSetupProbeRequest, SETUP_PROBE_MAXIMUM_PRICING_AGE, SETUP_PROBE_RESERVATION_TOKENS,
-    probe_pi_setup,
+    PiSetupProbeRequest, PiSetupProbeSnapshot, SETUP_PROBE_MAXIMUM_PRICING_AGE,
+    SETUP_PROBE_RESERVATION_TOKENS, probe_pi_setup,
 };
 use crate::pi_scan_orchestrator::{
     DiscoveredPackage, DryRunAcquisitionReceipt, ExecutionFailure, ExecutionReceipt,
@@ -534,6 +534,82 @@ fn enumerate_foreign_filtered(
     Ok(grouped.into_values().collect())
 }
 
+/// What: Project one fresh setup probe onto the configured ordered routes.
+///
+/// Inputs:
+/// - `probe`: Fresh no-model Pi setup probe.
+/// - `models`: Configured primary route followed by its ordered fallbacks.
+///
+/// Output:
+/// - The verified setup identity that startup compares against persisted consent.
+///
+/// Details:
+/// - Every configured route must be advertised; the first one is the primary.
+/// - The reservation is the worst case over the configured routes.
+/// - The pricing binding covers only the configured routes, matching what setup persisted, so
+///   a Pi price refresh on an unused route does not reset consent.
+fn production_setup_snapshot(
+    probe: &PiSetupProbeSnapshot,
+    models: &[ModelChoice],
+) -> Result<SetupSnapshot, String> {
+    let primary = models
+        .first()
+        .ok_or_else(|| "no primary Pi model was configured".to_string())?;
+    let mut reservation = PiScanReservation {
+        tokens: SETUP_PROBE_RESERVATION_TOKENS,
+        cost_microusd: 0,
+    };
+    for choice in models {
+        let route = probe
+            .exact_route(&choice.provider, &choice.model)
+            .map_err(|error| error.to_string())?;
+        reservation.cost_microusd = reservation
+            .cost_microusd
+            .max(route.reservation.cost_microusd);
+    }
+    Ok(SetupSnapshot {
+        pi_version: probe.pi_version.to_string(),
+        available_models: probe
+            .routes
+            .iter()
+            .map(|route| (route.provider.clone(), route.model.clone()))
+            .collect(),
+        selected_provider: primary.provider.clone(),
+        selected_model: primary.model.clone(),
+        reservation,
+        route_reservations: probe
+            .routes
+            .iter()
+            .map(|route| {
+                (
+                    route.provider.clone(),
+                    route.model.clone(),
+                    route.reservation,
+                )
+            })
+            .collect(),
+        pricing_binding: probe
+            .configured_pricing_binding(models)
+            .map_err(|error| error.to_string())?,
+        pricing_observed_at_unix_seconds: probe.pricing_observed_at_unix_seconds,
+        maximum_pricing_age_seconds: probe.maximum_pricing_age.as_secs(),
+        pricing_summary: probe
+            .routes
+            .iter()
+            .map(|route| {
+                format!(
+                    "{}/{} · input={} output={} micro-USD/million · {}",
+                    route.provider,
+                    route.model,
+                    route.pricing.rates.input_microusd_per_million,
+                    route.pricing.rates.output_microusd_per_million,
+                    route.pricing_provenance
+                )
+            })
+            .collect(),
+    })
+}
+
 impl OrchestrationAdapter for ProductionOrchestrationAdapter {
     fn probe_setup(&mut self) -> Result<SetupSnapshot, String> {
         let probe = probe_pi_setup(&PiSetupProbeRequest {
@@ -544,70 +620,10 @@ impl OrchestrationAdapter for ProductionOrchestrationAdapter {
             maximum_pricing_age: SETUP_PROBE_MAXIMUM_PRICING_AGE,
         })
         .map_err(|error| error.to_string())?;
-        for choice in &self.config.models {
-            probe
-                .exact_route(&choice.provider, &choice.model)
-                .map_err(|error| error.to_string())?;
-        }
-        let primary = self
-            .config
-            .models
-            .first()
-            .cloned()
-            .ok_or_else(|| "no primary Pi model was configured".to_string())?;
-        let mut reservation = PiScanReservation {
-            tokens: SETUP_PROBE_RESERVATION_TOKENS,
-            cost_microusd: 0,
-        };
-        for choice in &self.config.models {
-            let route = probe
-                .exact_route(&choice.provider, &choice.model)
-                .map_err(|error| error.to_string())?;
-            reservation.cost_microusd = reservation
-                .cost_microusd
-                .max(route.reservation.cost_microusd);
-        }
-        self.config.reservation = reservation;
-        self.pi_version = Some(probe.pi_version.to_string());
-        Ok(SetupSnapshot {
-            pi_version: probe.pi_version.to_string(),
-            available_models: probe
-                .routes
-                .iter()
-                .map(|route| (route.provider.clone(), route.model.clone()))
-                .collect(),
-            selected_provider: primary.provider,
-            selected_model: primary.model,
-            reservation,
-            route_reservations: probe
-                .routes
-                .iter()
-                .map(|route| {
-                    (
-                        route.provider.clone(),
-                        route.model.clone(),
-                        route.reservation,
-                    )
-                })
-                .collect(),
-            pricing_binding: probe.pricing_binding,
-            pricing_observed_at_unix_seconds: probe.pricing_observed_at_unix_seconds,
-            maximum_pricing_age_seconds: probe.maximum_pricing_age.as_secs(),
-            pricing_summary: probe
-                .routes
-                .iter()
-                .map(|route| {
-                    format!(
-                        "{}/{} · input={} output={} micro-USD/million · {}",
-                        route.provider,
-                        route.model,
-                        route.pricing.rates.input_microusd_per_million,
-                        route.pricing.rates.output_microusd_per_million,
-                        route.pricing_provenance
-                    )
-                })
-                .collect(),
-        })
+        let snapshot = production_setup_snapshot(&probe, &self.config.models)?;
+        self.config.reservation = snapshot.reservation;
+        self.pi_version = Some(snapshot.pi_version.clone());
+        Ok(snapshot)
     }
 
     fn dry_run_setup(&mut self) -> Result<SetupSnapshot, String> {
@@ -3108,10 +3124,11 @@ mod tests {
         handle_production_budget_adjustment, handle_production_budget_revalidation,
         handle_production_request, legacy_background_consent_binding,
         legacy_budget_inclusive_consent_binding, missing_selected_foreign_packages,
-        production_background_wake_eligible, production_consent_binding, publish_cancelled,
-        publish_failed, publish_observation, publish_observation_with_queue, publish_policy_notice,
-        publish_validated_completion, request_background_execution_if_eligible,
-        reservation_from_probed_models, resolve_production_adapter_config,
+        production_background_wake_eligible, production_consent_binding, production_setup_snapshot,
+        publish_cancelled, publish_failed, publish_observation, publish_observation_with_queue,
+        publish_policy_notice, publish_validated_completion,
+        request_background_execution_if_eligible, reservation_from_probed_models,
+        resolve_production_adapter_config,
     };
     use crate::app::runtime::workers::pi_scan::{
         PiScanBackgroundExecutionAcknowledgement, PiScanBudgetAdjustmentAcknowledgement,
@@ -3452,6 +3469,135 @@ mod tests {
             execution_count,
             first_failure: None,
         }
+    }
+
+    /// Build one probe snapshot whose advertised routes carry the given flat rates.
+    fn priced_setup_probe(
+        routes: &[(&str, &str, u64)],
+        catalog_binding: &str,
+    ) -> crate::pi_agent::setup_probe::PiSetupProbeSnapshot {
+        use crate::logic::pi_scan::pricing::{
+            PricingAccounting, PricingSource, RoutePricing, TokenRates,
+        };
+        use crate::pi_agent::setup_probe::{
+            PiSetupAdvertisedRoute, PiSetupIsolationContract, PiSetupProbeSnapshot,
+            SETUP_PROBE_MAXIMUM_PRICING_AGE, SETUP_PROBE_RESERVATION_TOKENS,
+        };
+        PiSetupProbeSnapshot {
+            executable: PathBuf::from("/opt/pi/bin/pi"),
+            pi_version: crate::pi_agent::PiVersion {
+                major: 0,
+                minor: 84,
+                patch: 0,
+            },
+            isolation: PiSetupIsolationContract {
+                tool_contract_version: crate::pi_agent::TOOL_CONTRACT_VERSION.to_string(),
+                extension_sha256: crate::pi_agent::process::EMBEDDED_EXTENSION_SHA256.to_string(),
+                active_tools: vec!["pacsea_read_snapshot".to_string()],
+                argv: vec!["--mode".to_string(), "rpc".to_string()],
+            },
+            routes: routes
+                .iter()
+                .map(|&(provider, model, rate)| PiSetupAdvertisedRoute {
+                    provider: provider.to_string(),
+                    model: model.to_string(),
+                    pricing: RoutePricing {
+                        provider: provider.to_string(),
+                        model: model.to_string(),
+                        rates: TokenRates {
+                            input_microusd_per_million: rate,
+                            output_microusd_per_million: rate,
+                        },
+                        source: PricingSource::PiModelCost,
+                        accounting: PricingAccounting::Metered,
+                    },
+                    pricing_provenance: "pi-rpc:get_available_models/Model.cost".to_string(),
+                    reservation: PiScanReservation {
+                        tokens: SETUP_PROBE_RESERVATION_TOKENS,
+                        cost_microusd: rate,
+                    },
+                })
+                .collect(),
+            pricing_observed_at_unix_seconds: 1,
+            maximum_pricing_age: SETUP_PROBE_MAXIMUM_PRICING_AGE,
+            pricing_binding: catalog_binding.to_string(),
+        }
+    }
+
+    /// Build one exact configured route.
+    fn configured_route(provider: &str, model: &str) -> ModelChoice {
+        ModelChoice {
+            provider: provider.to_string(),
+            model: model.to_string(),
+        }
+    }
+
+    /// A Pi price refresh on a route the scanner never uses must not reset persisted consent.
+    #[test]
+    fn startup_pricing_binding_ignores_unconfigured_route_prices() {
+        let models = vec![configured_route("provider-a", "model-a")];
+        let reviewed = priced_setup_probe(
+            &[("provider-a", "model-a", 10), ("provider-b", "model-b", 20)],
+            "catalog-at-setup",
+        );
+        let refreshed = priced_setup_probe(
+            &[("provider-a", "model-a", 10), ("provider-b", "model-b", 25)],
+            "catalog-after-refresh",
+        );
+
+        let at_setup = production_setup_snapshot(&reviewed, &models).expect("setup projection");
+        let at_startup =
+            production_setup_snapshot(&refreshed, &models).expect("startup projection");
+
+        assert_eq!(at_setup.pricing_binding, at_startup.pricing_binding);
+        assert_eq!(at_startup.available_models.len(), 2);
+    }
+
+    /// Price, order, and membership changes of configured routes still invalidate consent.
+    #[test]
+    fn startup_pricing_binding_tracks_configured_routes() {
+        let catalog = [("provider-a", "model-a", 10), ("provider-b", "model-b", 20)];
+        let primary_only = vec![configured_route("provider-a", "model-a")];
+        let with_fallback = vec![
+            configured_route("provider-a", "model-a"),
+            configured_route("provider-b", "model-b"),
+        ];
+        let reordered = vec![
+            configured_route("provider-b", "model-b"),
+            configured_route("provider-a", "model-a"),
+        ];
+        let binding = |routes: &[(&str, &str, u64)], models: &[ModelChoice]| {
+            production_setup_snapshot(&priced_setup_probe(routes, "catalog"), models)
+                .expect("projection")
+                .pricing_binding
+        };
+        let baseline = binding(&catalog, &with_fallback);
+
+        let primary_repriced = [("provider-a", "model-a", 11), ("provider-b", "model-b", 20)];
+        let fallback_repriced = [("provider-a", "model-a", 10), ("provider-b", "model-b", 21)];
+        assert_ne!(baseline, binding(&primary_repriced, &with_fallback));
+        assert_ne!(baseline, binding(&fallback_repriced, &with_fallback));
+        assert_ne!(baseline, binding(&catalog, &reordered));
+        assert_ne!(baseline, binding(&catalog, &primary_only));
+        assert_eq!(
+            binding(&catalog, &primary_only),
+            binding(&fallback_repriced, &primary_only)
+        );
+    }
+
+    /// An unadvertised configured route fails closed instead of narrowing the binding.
+    #[test]
+    fn startup_projection_rejects_unadvertised_configured_route() {
+        let probe = priced_setup_probe(&[("provider-a", "model-a", 10)], "catalog");
+        let models = vec![
+            configured_route("provider-a", "model-a"),
+            configured_route("provider-b", "model-b"),
+        ];
+
+        let error = production_setup_snapshot(&probe, &models).expect_err("must fail closed");
+
+        assert!(error.contains("provider-b"), "{error}");
+        assert!(production_setup_snapshot(&probe, &[]).is_err());
     }
 
     /// Build the exact verified setup identity used by the blocking adapter.

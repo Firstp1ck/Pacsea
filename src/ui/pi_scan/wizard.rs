@@ -686,6 +686,8 @@ fn pricing_lines(app: &AppState, wizard: &PiScanSetupWizardState) -> Vec<Line<'s
 
 /// Build conservative optional settings and independent background decisions.
 fn optional_lines(app: &AppState, wizard: &PiScanSetupWizardState) -> Vec<Line<'static>> {
+    let settings = &wizard.candidate;
+    let retention = settings.result_retention_days.to_string();
     let fallback = if wizard.candidate.fallback_models.is_empty() {
         crate::i18n::t(app, "app.pi_scan.wizard.common.off")
     } else {
@@ -723,48 +725,37 @@ fn optional_lines(app: &AppState, wizard: &PiScanSetupWizardState) -> Vec<Line<'
                 )
             },
         ),
-        focused_line(
+        numeric_line(
             app,
             wizard,
             3,
-            format!(
-                "← {}: {} →",
-                crate::i18n::t(app, "app.pi_scan.wizard.optional.starts"),
-                super::setup::budget_count_value(
-                    app,
-                    u64::from(wizard.candidate.background_starts_per_hour)
-                )
-            ),
+            "app.pi_scan.wizard.optional.starts",
+            &super::setup::budget_count_value(app, u64::from(settings.background_starts_per_hour)),
+            &settings.background_starts_per_hour.to_string(),
         ),
-        focused_line(
+        numeric_line(
             app,
             wizard,
             4,
-            format!(
-                "← {}: {} →",
-                crate::i18n::t(app, "app.pi_scan.wizard.optional.tokens"),
-                super::setup::budget_count_value(app, wizard.candidate.background_token_cap_24h)
-            ),
+            "app.pi_scan.wizard.optional.tokens",
+            &super::setup::budget_count_value(app, settings.background_token_cap_24h),
+            &settings.background_token_cap_24h.to_string(),
         ),
-        focused_line(
+        numeric_line(
             app,
             wizard,
             5,
-            format!(
-                "← {}: {} →",
-                crate::i18n::t(app, "app.pi_scan.wizard.optional.cost"),
-                super::setup::budget_decimal_value(app, &wizard.candidate.background_cost_cap_24h)
-            ),
+            "app.pi_scan.wizard.optional.cost",
+            &super::setup::budget_decimal_value(app, &settings.background_cost_cap_24h),
+            &settings.background_cost_cap_24h,
         ),
-        focused_line(
+        numeric_line(
             app,
             wizard,
             6,
-            format!(
-                "← {}: {} →",
-                crate::i18n::t(app, "app.pi_scan.wizard.optional.retention"),
-                wizard.candidate.result_retention_days
-            ),
+            "app.pi_scan.wizard.optional.retention",
+            &retention,
+            &retention,
         ),
         focused_line(
             app,
@@ -908,6 +899,39 @@ fn activate_lines(app: &AppState, wizard: &PiScanSetupWizardState) -> Vec<Line<'
         "app.pi_scan.wizard.activate.advisory",
     )));
     lines
+}
+
+/// What: Render one optional numeric setting with its stepper arrows.
+///
+/// Inputs:
+/// - `app`: Localization projection.
+/// - `wizard`: Draft state providing focus and typed-entry progress.
+/// - `index`: Page-local focus index of this control.
+/// - `label_key`: Locale key of the setting label.
+/// - `formatted`: Display value, such as localized Unlimited for zero budgets.
+/// - `raw`: Exact typed text shown while entry is in progress.
+///
+/// Output:
+/// - One focusable line.
+///
+/// Details:
+/// - Mid-entry rows show the raw text with a cursor so a partial value such as `0.` is not
+///   relabeled as Unlimited before the user finishes typing.
+fn numeric_line(
+    app: &AppState,
+    wizard: &PiScanSetupWizardState,
+    index: usize,
+    label_key: &str,
+    formatted: &str,
+    raw: &str,
+) -> Line<'static> {
+    let label = crate::i18n::t(app, label_key);
+    let text = if wizard.focus == index && wizard.numeric_entry_active() {
+        format!("← {label}: {raw}_ →")
+    } else {
+        format!("← {label}: {formatted} →")
+    };
+    focused_line(app, wizard, index, text)
 }
 
 /// Render one focused page-local line.
@@ -1131,6 +1155,37 @@ mod tests {
                 .iter()
                 .any(|rect| { matches!(rect.target, PiScanSetupHitTarget::Next) })
         );
+    }
+
+    /// A partially typed zero cost shows its raw text instead of the Unlimited label.
+    #[test]
+    fn typed_cost_renders_raw_text_with_cursor() {
+        let backend = TestBackend::new(100, 24);
+        let mut terminal = Terminal::new(backend).expect("test terminal");
+        let mut app = AppState::default();
+        let locales = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("config/locales");
+        app.translations =
+            crate::i18n::load_locale_file("en-US", &locales).expect("English locale");
+        let mut wizard = PiScanSetupWizardState::open(
+            app.pi_scan.settings.clone(),
+            PiScanConsentState::default(),
+            true,
+        );
+        wizard.step = PiScanSetupStep::OptionalBehavior;
+        wizard.focus = 5;
+        assert!(wizard.edit_number(Some('.')));
+        app.pi_scan.wizard = Some(wizard);
+        terminal
+            .draw(|frame| render(frame, &mut app, frame.area()))
+            .expect("wizard render");
+        let text = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(ratatui::buffer::Cell::symbol)
+            .collect::<String>();
+        assert!(text.contains("Background cost USD/24h (0 = Unlimited): 0._ →"));
     }
 
     /// The open fallback dropdown draws on top and its rows win hit testing.

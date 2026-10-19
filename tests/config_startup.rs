@@ -51,6 +51,7 @@ impl EnvGuard {
             std::env::remove_var("XDG_CONFIG_HOME");
             std::env::set_var("PACSEA_TEST_HEADLESS", "1");
         }
+        pacsea::theme::set_home_config_enabled(true);
 
         Self {
             home,
@@ -62,6 +63,7 @@ impl EnvGuard {
 
 impl Drop for EnvGuard {
     fn drop(&mut self) {
+        pacsea::theme::set_home_config_enabled(false);
         unsafe {
             if let Some(home) = self.home.as_ref() {
                 std::env::set_var("HOME", home);

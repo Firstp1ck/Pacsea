@@ -383,17 +383,8 @@ fn ensure_repos_conf_skeleton() {
 pub fn ensure_settings_keys_present(prefs: &Settings) {
     // Always resolve to HOME/XDG path similar to save_sort_mode
     // This ensures we always have a path, even if the file doesn't exist yet
-    let p = resolve_settings_config_path().or_else(|| {
-        std::env::var("XDG_CONFIG_HOME")
-            .ok()
-            .map(std::path::PathBuf::from)
-            .or_else(|| {
-                std::env::var("HOME")
-                    .ok()
-                    .map(|h| Path::new(&h).join(".config"))
-            })
-            .map(|base| base.join("pacsea").join("settings.conf"))
-    });
+    let p = resolve_settings_config_path()
+        .or_else(|| crate::theme::paths::default_config_file_path("settings.conf"));
     let Some(p) = p else {
         // This should never happen (HOME should always be set), but if it does, we can't proceed
         return;
