@@ -41,6 +41,23 @@ pub struct FaillockConfig {
     pub fail_interval: u32,
 }
 
+/// What: Decide whether the recorded failure count triggers a lockout.
+///
+/// Inputs:
+/// - `attempts`: Number of consecutive failed attempts recorded for the user.
+/// - `deny`: Configured `deny` threshold (`0` disables lockout).
+///
+/// Output:
+/// - `true` if the account should currently be considered locked.
+///
+/// Details:
+/// - Mirrors pam_faillock semantics: `deny = 0` disables lockout entirely,
+///   so the threshold comparison must be skipped in that case.
+#[must_use]
+fn lockout_triggered(attempts: u32, deny: u32) -> bool {
+    deny > 0 && attempts >= deny
+}
+
 /// What: Check faillock status for a user.
 ///
 /// Inputs:
@@ -160,7 +177,7 @@ pub fn check_faillock_status(username: &str) -> Result<FaillockStatus, String> {
     }
 
     // Check if user should be locked based on attempts
-    let should_be_locked = attempts_used >= config.deny;
+    let should_be_locked = lockout_triggered(attempts_used, config.deny);
 
     // If locked, check if lockout has expired based on timestamp
     let is_locked = if should_be_locked {
@@ -464,5 +481,18 @@ mod tests {
             let _ = status.lockout_duration_minutes;
             // Just verify the struct can be accessed
         }
+    }
+
+    #[test]
+    fn deny_zero_disables_lockout() {
+        assert!(!lockout_triggered(0, 0));
+        assert!(!lockout_triggered(5, 0));
+    }
+
+    #[test]
+    fn deny_threshold_still_works() {
+        assert!(!lockout_triggered(2, 3));
+        assert!(lockout_triggered(3, 3));
+        assert!(lockout_triggered(4, 3));
     }
 }
