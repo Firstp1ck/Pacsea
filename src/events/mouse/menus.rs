@@ -455,7 +455,7 @@ fn handle_installed_only_toggle(
                     crate::state::Source::Aur
                 };
                 items.push(crate::state::PackageItem {
-                    name: name.clone(),
+                    name,
                     version: String::new(),
                     description: String::new(),
                     source: src,

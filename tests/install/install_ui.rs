@@ -480,7 +480,7 @@ fn ui_preflight_exec_risk_levels() {
             verbose: false,
             log_lines: log_lines.clone(),
             abortable: true,
-            header_chips: header_chips.clone(),
+            header_chips,
             success: None,
         };
 
