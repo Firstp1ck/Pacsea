@@ -75,7 +75,7 @@ pub fn render_sort_menu(f: &mut Frame, app: &mut AppState, area: Rect, btn_x: u1
         };
         let widest = opts
             .iter()
-            .map(|(s, _)| u16::try_from(s.len()).map_or(u16::MAX, |x| x))
+            .map(|(s, _)| u16::try_from(s.len()).unwrap_or(u16::MAX))
             .max()
             .unwrap_or(0);
         let w = widest.saturating_add(2).min(area.width.saturating_sub(2));

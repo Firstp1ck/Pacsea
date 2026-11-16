@@ -1753,7 +1753,10 @@ mod tests {
         );
 
         assert_eq!(app.pkgb_check_status, PkgbuildCheckStatus::Idle);
-        assert!(app.pkgb_check_findings.is_empty());
+        assert_eq!(
+            app.pkgb_check_findings,
+            [] as [crate::state::app_state::PkgbuildCheckFinding; 0]
+        );
     }
 
     #[test]
@@ -1797,7 +1800,10 @@ mod tests {
         );
 
         assert_eq!(app.pkgb_check_status, PkgbuildCheckStatus::Complete);
-        assert!(app.pkgb_check_findings.is_empty());
+        assert_eq!(
+            app.pkgb_check_findings,
+            [] as [crate::state::app_state::PkgbuildCheckFinding; 0]
+        );
         assert_eq!(app.pkgb_check_missing_tools, vec![missing]);
     }
 

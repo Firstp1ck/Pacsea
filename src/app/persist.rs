@@ -984,7 +984,7 @@ mod tests {
             .expect("Failed to read test deps cache file");
         let cache: crate::app::deps_cache::DependencyCache =
             serde_json::from_str(&body).expect("Failed to parse dependency cache");
-        assert!(cache.install_list_signature.is_empty());
+        assert_eq!(cache.install_list_signature, [] as [String; 0]);
         assert!(cache.dependencies.is_empty());
         let _ = std::fs::remove_file(&app.deps_cache_path);
     }
@@ -1083,7 +1083,7 @@ mod tests {
             .expect("Failed to read test files cache file");
         let cache: crate::app::files_cache::FileCache =
             serde_json::from_str(&body).expect("Failed to parse file cache");
-        assert!(cache.install_list_signature.is_empty());
+        assert_eq!(cache.install_list_signature, [] as [String; 0]);
         assert!(cache.files.is_empty());
         let _ = std::fs::remove_file(&app.files_cache_path);
     }
@@ -1123,7 +1123,7 @@ mod tests {
             .expect("Failed to read test services cache file");
         let cache: crate::app::services_cache::ServiceCache =
             serde_json::from_str(&body).expect("Failed to parse service cache");
-        assert!(cache.install_list_signature.is_empty());
+        assert_eq!(cache.install_list_signature, [] as [String; 0]);
         assert!(cache.services.is_empty());
         let _ = std::fs::remove_file(&app.services_cache_path);
     }
@@ -1163,7 +1163,7 @@ mod tests {
             .expect("Failed to read test sandbox cache file");
         let cache: crate::app::sandbox_cache::SandboxCache =
             serde_json::from_str(&body).expect("Failed to parse sandbox cache");
-        assert!(cache.install_list_signature.is_empty());
+        assert_eq!(cache.install_list_signature, [] as [String; 0]);
         assert!(cache.sandbox_info.is_empty());
         let _ = std::fs::remove_file(&app.sandbox_cache_path);
     }

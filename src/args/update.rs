@@ -1322,8 +1322,7 @@ pub fn handle_update(no_color: bool, update_mirrors: bool) -> ! {
     if state.all_succeeded {
         tracing::info!("System update completed successfully");
         std::process::exit(0);
-    } else {
-        tracing::error!("System update completed with errors");
-        std::process::exit(1);
     }
+    tracing::error!("System update completed with errors");
+    std::process::exit(1);
 }

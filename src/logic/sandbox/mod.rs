@@ -150,8 +150,8 @@ mod tests {
             super::parse_pkgbuild_deps("depends=('glibc')\nmakedepends=('rust')");
         assert_eq!(depends, vec!["glibc"]);
         assert_eq!(make, vec!["rust"]);
-        assert!(check.is_empty());
-        assert!(optional.is_empty());
+        assert_eq!(check, [] as [String; 0]);
+        assert_eq!(optional, [] as [String; 0]);
     }
 
     /// What: Verify dependency-name extraction handles annotations and versions.
@@ -199,8 +199,8 @@ mod tests {
 
         assert_eq!(depends, vec!["foo", "bar>=1.2", "baz"]);
         assert_eq!(make, vec!["cmake", "ninja"]);
-        assert!(check.is_empty());
-        assert!(optional.is_empty());
+        assert_eq!(check, [] as [String; 0]);
+        assert_eq!(optional, [] as [String; 0]);
     }
 
     /// What: Verify invalid package tokens and shared-library dependencies remain filtered.
@@ -222,9 +222,9 @@ mod tests {
         let (depends, make, check, optional) = super::parse_pkgbuild_deps(pkgbuild);
 
         assert_eq!(depends, vec!["valid-package", "valid>=1.0"]);
-        assert!(make.is_empty());
-        assert!(check.is_empty());
-        assert!(optional.is_empty());
+        assert_eq!(make, [] as [String; 0]);
+        assert_eq!(check, [] as [String; 0]);
+        assert_eq!(optional, [] as [String; 0]);
     }
 
     /// What: Verify repeated dependency declarations use toolkit deduplication semantics.
@@ -244,9 +244,9 @@ mod tests {
         let (depends, make, check, optional) = super::parse_pkgbuild_deps(pkgbuild);
 
         assert_eq!(depends, vec!["foo", "bar"]);
-        assert!(make.is_empty());
-        assert!(check.is_empty());
-        assert!(optional.is_empty());
+        assert_eq!(make, [] as [String; 0]);
+        assert_eq!(check, [] as [String; 0]);
+        assert_eq!(optional, [] as [String; 0]);
     }
 
     /// What: Verify conflict parsing strips versions and filters shared-library tokens.
