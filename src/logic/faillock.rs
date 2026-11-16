@@ -25,6 +25,27 @@ pub struct FaillockStatus {
     pub last_failed_timestamp: Option<std::time::SystemTime>,
 }
 
+impl FaillockStatus {
+    /// What: Number of failed password attempts left before faillock locks the account.
+    ///
+    /// Inputs:
+    /// - `self`: Status returned by [`check_faillock_status`].
+    ///
+    /// Output:
+    /// - `Some(n)` with the attempts left, or `None` when lockout is disabled.
+    ///
+    /// Details:
+    /// - `max_attempts == 0` mirrors `deny = 0`, which disables `pam_faillock`
+    ///   lockout, so there is no attempt budget to report.
+    #[must_use]
+    pub const fn remaining_attempts(&self) -> Option<u32> {
+        if self.max_attempts == 0 {
+            return None;
+        }
+        Some(self.max_attempts.saturating_sub(self.attempts_used))
+    }
+}
+
 /// What: Faillock configuration values.
 ///
 /// Inputs: None (parsed from `/etc/security/faillock.conf`).
@@ -51,10 +72,10 @@ pub struct FaillockConfig {
 /// - `true` if the account should currently be considered locked.
 ///
 /// Details:
-/// - Mirrors pam_faillock semantics: `deny = 0` disables lockout entirely,
+/// - Mirrors `pam_faillock` semantics: `deny = 0` disables lockout entirely,
 ///   so the threshold comparison must be skipped in that case.
 #[must_use]
-fn lockout_triggered(attempts: u32, deny: u32) -> bool {
+const fn lockout_triggered(attempts: u32, deny: u32) -> bool {
     deny > 0 && attempts >= deny
 }
 
@@ -452,8 +473,7 @@ mod tests {
         let result = check_faillock_status(&username);
         // Should return Ok or handle errors gracefully
         if let Ok(status) = result {
-            // Verify status has reasonable values
-            assert!(status.max_attempts > 0);
+            // `max_attempts` may legitimately be 0 (`deny = 0` disables lockout).
             assert!(status.lockout_duration_minutes > 0);
         } else {
             // Error is acceptable (e.g., faillock not configured)
@@ -484,15 +504,89 @@ mod tests {
     }
 
     #[test]
+    /// What: `deny = 0` never triggers a lockout.
+    ///
+    /// Inputs:
+    /// - Zero and non-zero failure counts with `deny = 0`.
+    ///
+    /// Output:
+    /// - `lockout_triggered` returns `false` for every count.
+    ///
+    /// Details:
+    /// - Regression test for #169: `pam_faillock` treats `deny = 0` as disabled.
     fn deny_zero_disables_lockout() {
         assert!(!lockout_triggered(0, 0));
         assert!(!lockout_triggered(5, 0));
     }
 
     #[test]
+    /// What: A positive `deny` still locks at the threshold.
+    ///
+    /// Inputs:
+    /// - Failure counts below, at, and above `deny = 3`.
+    ///
+    /// Output:
+    /// - `false` below the threshold, `true` at or above it.
+    ///
+    /// Details:
+    /// - Guards the normal lockout path against the `deny = 0` change.
     fn deny_threshold_still_works() {
         assert!(!lockout_triggered(2, 3));
         assert!(lockout_triggered(3, 3));
         assert!(lockout_triggered(4, 3));
+    }
+
+    /// What: Build a `FaillockStatus` for attempt-budget tests.
+    ///
+    /// Inputs:
+    /// - `attempts_used`: Recorded failures.
+    /// - `max_attempts`: Configured `deny` value.
+    ///
+    /// Output:
+    /// - An unlocked status with no timestamp.
+    ///
+    /// Details:
+    /// - Avoids reading the host's faillock state in unit tests.
+    const fn status_with(attempts_used: u32, max_attempts: u32) -> FaillockStatus {
+        FaillockStatus {
+            attempts_used,
+            max_attempts,
+            is_locked: false,
+            lockout_duration_minutes: 15,
+            last_failed_timestamp: None,
+        }
+    }
+
+    #[test]
+    /// What: `deny = 0` reports no attempt budget.
+    ///
+    /// Inputs:
+    /// - Status with `max_attempts = 0` and zero or more failures.
+    ///
+    /// Output:
+    /// - `remaining_attempts` returns `None`.
+    ///
+    /// Details:
+    /// - Without this, the password prompt says "0 attempts remaining" on
+    ///   systems that disabled lockout.
+    fn remaining_attempts_none_when_lockout_disabled() {
+        assert_eq!(status_with(0, 0).remaining_attempts(), None);
+        assert_eq!(status_with(2, 0).remaining_attempts(), None);
+    }
+
+    #[test]
+    /// What: A positive `deny` reports the attempts left.
+    ///
+    /// Inputs:
+    /// - Status with `max_attempts = 3` and 1 or 5 failures.
+    ///
+    /// Output:
+    /// - `Some(2)` for 1 failure, `Some(0)` once the budget is spent.
+    ///
+    /// Details:
+    /// - Saturates instead of underflowing past the threshold.
+    fn remaining_attempts_counts_down_when_lockout_enabled() {
+        assert_eq!(status_with(1, 3).remaining_attempts(), Some(2));
+        assert_eq!(status_with(5, 3).remaining_attempts(), Some(0));
     }
 }
