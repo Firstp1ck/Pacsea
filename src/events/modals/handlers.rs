@@ -1515,17 +1515,18 @@ pub(super) fn handle_password_prompt_modal(
 
                         // Not locked out, check status for remaining attempts
                         let error_msg = crate::logic::faillock::check_faillock_status(&username)
+                            .ok()
+                            .and_then(|status| status.remaining_attempts())
                             .map_or_else(
-                                |_| {
-                                    // Couldn't check faillock status, just show generic error
+                                || {
+                                    // Status unavailable or lockout disabled (`deny = 0`):
+                                    // there is no attempt count to show.
                                     crate::i18n::t(
                                         app,
                                         "app.modals.password_prompt.incorrect_password",
                                     )
                                 },
-                                |status| {
-                                    let remaining =
-                                        status.max_attempts.saturating_sub(status.attempts_used);
+                                |remaining| {
                                     crate::i18n::t_fmt1(
                                         app,
                                         "app.modals.password_prompt.incorrect_password_attempts",
