@@ -282,6 +282,12 @@ impl PiRpcClient {
             }
         }
         self.stdin.take();
+        // The stdout reader may be blocked sending into the bounded channel. Dropping the
+        // live receiver makes that send fail so the reader exits and the join is bounded.
+        drop(std::mem::replace(
+            &mut self.records,
+            mpsc::sync_channel(0).1,
+        ));
         join_reader(self.stdout_reader.take());
         join_reader(self.stderr_reader.take());
         if let Err(error) = std::fs::remove_dir_all(&self.workspace)
@@ -429,4 +435,87 @@ fn workspace_name() -> String {
         .duration_since(UNIX_EPOCH)
         .map_or(0, |duration| duration.as_nanos());
     format!("scan-{}-{nanos}-{sequence}", std::process::id())
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::{PiRpcClient, RpcTransport as _};
+    use crate::pi_agent::protocol::CommandCorrelator;
+    use crate::pi_agent::restricted_tools::SnapshotRegistry;
+    use std::os::unix::fs::PermissionsExt as _;
+    use std::sync::atomic::AtomicBool;
+    use std::sync::mpsc;
+    use std::time::{Duration, Instant};
+
+    /// Write a fake `pi` that prints `records` JSON lines and then stays alive.
+    fn fake_pi(dir: &std::path::Path, records: usize) -> std::path::PathBuf {
+        let path = dir.join("fake-pi");
+        let script = format!(
+            "#!/bin/sh\ni=0\nwhile [ $i -lt {records} ]; do echo '{{\"type\":\"noise\"}}'; i=$((i+1)); done\nexec sleep 600\n"
+        );
+        std::fs::write(&path, script).expect("write fake pi");
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755))
+            .expect("chmod fake pi");
+        path
+    }
+
+    /// Launch the fake, read one record, then run `teardown` on a thread with a deadline.
+    fn teardown_returns_within(
+        records: usize,
+        teardown: fn(&mut PiRpcClient),
+        limit: Duration,
+    ) -> bool {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let executable = fake_pi(dir.path(), records);
+        let mut client = PiRpcClient::launch(dir.path(), &executable, &SnapshotRegistry::new())
+            .expect("launch fake pi");
+        client
+            .read_record(
+                Instant::now() + Duration::from_secs(10),
+                &AtomicBool::new(false),
+            )
+            .expect("first record");
+        // Give the reader time to fill the bounded channel and block on `send`.
+        std::thread::sleep(Duration::from_millis(200));
+        let (done, finished) = mpsc::channel();
+        std::thread::spawn(move || {
+            teardown(&mut client);
+            let _ = done.send(());
+        });
+        finished.recv_timeout(limit).is_ok()
+    }
+
+    /// What: Verify teardown returns while the stdout reader is blocked on undelivered records.
+    ///
+    /// Inputs:
+    /// - Fake Pi emitting 50 records, of which the test reads one.
+    ///
+    /// Output:
+    /// - `reap` and `abort_and_reap` both return within ten seconds.
+    ///
+    /// Details:
+    /// - Regression: teardown joined the reader while still holding the full receiver.
+    #[test]
+    fn teardown_returns_with_unread_records_pending() {
+        assert!(
+            teardown_returns_within(
+                50,
+                |client| {
+                    let _ = client.reap();
+                },
+                Duration::from_secs(10)
+            ),
+            "reap hung with unread records"
+        );
+        assert!(
+            teardown_returns_within(
+                50,
+                |client| {
+                    let _ = client.abort_and_reap(&mut CommandCorrelator::new());
+                },
+                Duration::from_secs(10)
+            ),
+            "abort_and_reap hung with unread records"
+        );
+    }
 }
