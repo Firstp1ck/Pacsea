@@ -1025,7 +1025,7 @@ mod tests {
             let spec = PiLaunchSpec {
                 executable: PathBuf::from("/nonexistent/pacsea-pi-must-not-run"),
                 neutral_cwd: temp.path().to_path_buf(),
-                extension_path: extension.clone(),
+                extension_path: extension,
             };
             let launch_error = launch_pi(&spec).expect_err("launch must fail closed");
             assert!(

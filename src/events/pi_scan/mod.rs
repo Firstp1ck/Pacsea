@@ -148,13 +148,9 @@ pub fn handle_mouse(event: MouseEvent, app: &mut AppState) -> bool {
         MouseEventKind::Down(MouseButton::Left) => {}
         _ => return false,
     }
-    if activate_tab(event.column, event.row, app)
+    activate_tab(event.column, event.row, app)
         || activate_details_continue_action(event.column, event.row, app)
         || activate_row(event.column, event.row, app)
-    {
-        return true;
-    }
-    false
 }
 
 /// Activate one workspace tab using the state-owned view transition.
