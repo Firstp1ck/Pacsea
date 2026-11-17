@@ -1570,10 +1570,15 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
                     .to_string(),
             ));
         };
-        match self
+        let outcome = match self
             .adapter
             .execute_with_progress(&target, cancelled, &progress)
         {
+            // Cancellation acknowledged during the final rechecks wins over a late receipt.
+            Ok(_) if cancelled.load(Ordering::SeqCst) => Err(ExecutionFailure::Cancelled),
+            other => other,
+        };
+        match outcome {
             Ok(receipt) => {
                 progress.report(PiScanExecutionPhase::ValidatingResult);
                 let accepted = self.accept_execution(

@@ -5,6 +5,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
+use std::net::IpAddr;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -23,17 +24,18 @@ use crate::app::runtime::workers::pi_scan::{
 };
 use crate::install::resolve_command_on_path;
 use crate::logic::pi_scan::acquisition::{
-    AcquisitionError, AcquisitionLimits, AcquisitionOutcome, AcquisitionRequest, AurRpcData,
-    acquire_package, acquire_package_with_https_proxy, fetch_commit_invocation,
-    init_repository_invocation, mutable_source_identity_changed, resolve_package_base,
+    AcquisitionError, AcquisitionLimits, AcquisitionOutcome, AcquisitionRequest, AddressResolver,
+    AurRpcData, HttpFetcher, HttpRequest, HttpResponse, acquire_package,
+    acquire_package_with_https_proxy, fetch_commit_invocation, init_repository_invocation,
+    mutable_source_identity_changed, resolve_package_base,
 };
 use crate::logic::pi_scan::identity::{AurRepoUrl, CommitOid, PackageName};
 use crate::logic::pi_scan::network::{
     SystemNetworkAdapter, fetch_aur_rpc_package_base, fetch_aur_rpc_package_bases_with_timeout,
 };
 use crate::logic::pi_scan::observer::{
-    ExplicitHttpsProxyGitRunner, GitCommandRunner, GitInvocation, ObservationCycle,
-    SystemGitRunner, head_query_invocation, observe_package_base, parse_head_oid,
+    ExplicitHttpsProxyGitRunner, GitCommandRunner, GitInvocation, GitOutput, ObservationCycle,
+    ObserverError, SystemGitRunner, head_query_invocation, observe_package_base, parse_head_oid,
 };
 #[cfg(test)]
 use crate::logic::pi_scan::pricing::{pricing_from_pi_model_cost, reserve_worst_case_microusd};
@@ -916,20 +918,35 @@ impl ProductionOrchestrationAdapter {
         })
     }
 
-    /// Perform one bounded immutable acquisition attempt before any model can run.
+    /// What: Perform one bounded immutable acquisition attempt before any model can run.
+    ///
+    /// Inputs:
+    /// - `request`: Frozen acquisition request.
+    /// - `cancelled`: Sticky scan cancellation flag.
+    ///
+    /// Output:
+    /// - The acquisition outcome or its bounded error.
+    ///
+    /// Details:
+    /// - Git, HTTP, and DNS seams refuse new work once `cancelled` is set, so a cancelled
+    ///   scan stops after the call in flight instead of walking every remaining source.
     fn acquire_once(
         &mut self,
         request: &AcquisitionRequest,
+        cancelled: &AtomicBool,
     ) -> Result<AcquisitionOutcome, AcquisitionError> {
-        let mut http = self.network().map_err(|reason| AcquisitionError::Network {
+        let mut network = self.network().map_err(|reason| AcquisitionError::Network {
             url: "Pi scanner network adapter".to_string(),
             reason,
         })?;
-        let mut resolver = http.clone();
+        let mut dns = network.clone();
         let mut verifier = IsolatedSignatureVerifier::production_with_network(
             self.config.workspace_parent.clone(),
-            http.clone(),
+            network.clone(),
         );
+        let mut http = Cancellable::new(&mut network, cancelled);
+        let mut resolver = Cancellable::new(&mut dns, cancelled);
+        let mut git = Cancellable::new(&mut self.git, cancelled);
         if let Some(proxy) = self.config.https_proxy.as_deref() {
             acquire_package_with_https_proxy(
                 request,
@@ -937,7 +954,7 @@ impl ProductionOrchestrationAdapter {
                 &self.config.git_executable,
                 &mut http,
                 &mut resolver,
-                &mut self.git,
+                &mut git,
                 &mut verifier,
                 proxy,
             )
@@ -948,7 +965,7 @@ impl ProductionOrchestrationAdapter {
                 &self.config.git_executable,
                 &mut http,
                 &mut resolver,
-                &mut self.git,
+                &mut git,
                 &mut verifier,
             )
         }
@@ -1043,7 +1060,11 @@ impl ProductionOrchestrationAdapter {
             dry_run: false,
         };
         progress.report(PiScanExecutionPhase::AcquiringSources);
-        let acquisition = match self.acquire_once(&request) {
+        let first_attempt = self.acquire_once(&request, cancelled);
+        if cancelled.load(Ordering::SeqCst) {
+            return Err(ExecutionFailure::Cancelled);
+        }
+        let acquisition = match first_attempt {
             Ok(acquisition) => acquisition,
             Err(first_error)
                 if !pre_model_retry_used && Self::is_transient_pre_model(&first_error) =>
@@ -1051,7 +1072,11 @@ impl ProductionOrchestrationAdapter {
                 progress.report(PiScanExecutionPhase::WaitingToRetry);
                 Self::wait_for_pre_model_retry(cancelled)?;
                 progress.report(PiScanExecutionPhase::AcquiringSources);
-                self.acquire_once(&request).map_err(|second_error| {
+                let second_attempt = self.acquire_once(&request, cancelled);
+                if cancelled.load(Ordering::SeqCst) {
+                    return Err(ExecutionFailure::Cancelled);
+                }
+                second_attempt.map_err(|second_error| {
                     retried_acquisition_failure(
                         "pre-model acquisition",
                         &first_error,
@@ -1118,6 +1143,9 @@ impl ProductionOrchestrationAdapter {
             });
         let stale =
             head_changed || mutable_changed || acquisition.status != AcquisitionStatus::Complete;
+        if cancelled.load(Ordering::SeqCst) {
+            return Err(ExecutionFailure::Cancelled);
+        }
         let tokens = output.provenance.total_tokens();
         Ok(ExecutionReceipt {
             result,
@@ -1272,6 +1300,91 @@ fn map_execution_failure(error: &ExecutionError) -> ExecutionFailure {
         ExecutionError::Transport(_) | ExecutionError::Rpc(_) => {
             ExecutionFailure::Environment(error.to_string())
         }
+    }
+}
+
+/// What: Acquisition seam wrapper that refuses new work once a scan is cancelled.
+///
+/// Inputs:
+/// - `inner`: Real Git, HTTP, or DNS seam.
+/// - `cancelled`: Sticky scan cancellation flag.
+///
+/// Output:
+/// - The inner seam's result, or an inert "cancelled" error without calling it.
+///
+/// Details:
+/// - The error makes the current source incomplete; the caller then checks the flag and
+///   reports the whole execution as cancelled.
+struct Cancellable<'a, T> {
+    /// Wrapped seam.
+    inner: &'a mut T,
+    /// Sticky scan cancellation flag.
+    cancelled: &'a AtomicBool,
+}
+
+impl<'a, T> Cancellable<'a, T> {
+    /// Wrap one seam with the scan's cancellation flag.
+    const fn new(inner: &'a mut T, cancelled: &'a AtomicBool) -> Self {
+        Self { inner, cancelled }
+    }
+
+    /// Return whether cancellation was requested.
+    fn is_cancelled(&self) -> bool {
+        self.cancelled.load(Ordering::SeqCst)
+    }
+}
+
+/// Reason attached to seam calls refused after cancellation.
+const CANCELLED_SEAM_REASON: &str = "the scan was cancelled";
+
+impl<T: GitCommandRunner> GitCommandRunner for Cancellable<'_, T> {
+    fn run(&mut self, invocation: &GitInvocation) -> Result<GitOutput, ObserverError> {
+        if self.is_cancelled() {
+            return Err(ObserverError::GitCommand {
+                operation: "cancelled".to_string(),
+                reason: CANCELLED_SEAM_REASON.to_string(),
+            });
+        }
+        self.inner.run(invocation)
+    }
+}
+
+impl<T: HttpFetcher> HttpFetcher for Cancellable<'_, T> {
+    fn fetch(&mut self, request: &HttpRequest) -> Result<HttpResponse, AcquisitionError> {
+        if self.is_cancelled() {
+            return Err(AcquisitionError::Network {
+                url: request.url.clone(),
+                reason: CANCELLED_SEAM_REASON.to_string(),
+            });
+        }
+        self.inner.fetch(request)
+    }
+}
+
+impl<T: AddressResolver> AddressResolver for Cancellable<'_, T> {
+    fn resolve(&mut self, host: &str, port: u16) -> Result<Vec<IpAddr>, AcquisitionError> {
+        if self.is_cancelled() {
+            return Err(AcquisitionError::Network {
+                url: host.to_string(),
+                reason: CANCELLED_SEAM_REASON.to_string(),
+            });
+        }
+        self.inner.resolve(host, port)
+    }
+
+    fn resolve_with_timeout(
+        &mut self,
+        host: &str,
+        port: u16,
+        timeout: Duration,
+    ) -> Result<Vec<IpAddr>, AcquisitionError> {
+        if self.is_cancelled() {
+            return Err(AcquisitionError::Network {
+                url: host.to_string(),
+                reason: CANCELLED_SEAM_REASON.to_string(),
+            });
+        }
+        self.inner.resolve_with_timeout(host, port, timeout)
     }
 }
 
@@ -5368,5 +5481,109 @@ mod tests {
         assert_eq!(setup.selected_provider, "openai-codex");
         assert_eq!(setup.selected_model, "gpt-5.6-luna");
         assert!(setup.reservation.cost_microusd <= 1_000_000);
+    }
+}
+
+#[cfg(test)]
+mod cancellable_seam_tests {
+    use super::Cancellable;
+    use crate::logic::pi_scan::acquisition::{
+        AcquisitionError, AddressResolver, HttpFetcher, HttpRequest, HttpResponse,
+    };
+    use crate::logic::pi_scan::observer::{
+        GitCommandRunner, GitInvocation, GitOutput, ObserverError,
+    };
+    use std::net::{IpAddr, Ipv4Addr};
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::time::Duration;
+
+    /// Seam double that counts every call it receives.
+    #[derive(Default)]
+    struct CountingSeam {
+        /// Calls that reached the real seam.
+        calls: usize,
+    }
+
+    impl GitCommandRunner for CountingSeam {
+        fn run(&mut self, _invocation: &GitInvocation) -> Result<GitOutput, ObserverError> {
+            self.calls += 1;
+            Ok(GitOutput {
+                success: true,
+                stdout: Vec::new(),
+                stderr: String::new(),
+            })
+        }
+    }
+
+    impl HttpFetcher for CountingSeam {
+        fn fetch(&mut self, _request: &HttpRequest) -> Result<HttpResponse, AcquisitionError> {
+            self.calls += 1;
+            Err(AcquisitionError::Network {
+                url: "https://example.com/".to_string(),
+                reason: "not scripted".to_string(),
+            })
+        }
+    }
+
+    impl AddressResolver for CountingSeam {
+        fn resolve(&mut self, _host: &str, _port: u16) -> Result<Vec<IpAddr>, AcquisitionError> {
+            self.calls += 1;
+            Ok(vec![IpAddr::V4(Ipv4Addr::new(93, 184, 216, 34))])
+        }
+    }
+
+    /// Build a minimal Git invocation for the wrapper tests.
+    fn invocation() -> GitInvocation {
+        GitInvocation {
+            executable: "/usr/bin/git".into(),
+            argv: Vec::new(),
+            passthrough_environment: Vec::new(),
+            fixed_environment: Vec::new(),
+            timeout: Duration::from_secs(1),
+            stdout_limit: 1,
+            storage_limit: None,
+        }
+    }
+
+    /// What: Verify each acquisition seam delegates until cancellation, then refuses work.
+    ///
+    /// Inputs:
+    /// - Counting Git, HTTP, and DNS doubles behind one shared cancellation flag.
+    ///
+    /// Output:
+    /// - One delegated call per seam before cancellation and none after it.
+    ///
+    /// Details:
+    /// - Regression: acquisition kept fetching every remaining source after Cancel.
+    #[test]
+    fn cancellable_seams_refuse_work_after_cancellation() {
+        let cancelled = AtomicBool::new(false);
+        let mut git = CountingSeam::default();
+        let mut http = CountingSeam::default();
+        let mut dns = CountingSeam::default();
+        let request = HttpRequest {
+            url: "https://example.com/source.tar".to_string(),
+            pinned_address: IpAddr::V4(Ipv4Addr::new(93, 184, 216, 34)),
+            max_bytes: 1,
+            timeout: Duration::from_secs(1),
+        };
+        {
+            let mut git_seam = Cancellable::new(&mut git, &cancelled);
+            let mut http_seam = Cancellable::new(&mut http, &cancelled);
+            let mut dns_seam = Cancellable::new(&mut dns, &cancelled);
+            assert!(git_seam.run(&invocation()).is_ok());
+            let _ = http_seam.fetch(&request);
+            assert!(dns_seam.resolve("example.com", 443).is_ok());
+            cancelled.store(true, Ordering::SeqCst);
+            assert!(git_seam.run(&invocation()).is_err());
+            assert!(http_seam.fetch(&request).is_err());
+            assert!(dns_seam.resolve("example.com", 443).is_err());
+            assert!(
+                dns_seam
+                    .resolve_with_timeout("example.com", 443, Duration::from_secs(1))
+                    .is_err()
+            );
+        }
+        assert_eq!((git.calls, http.calls, dns.calls), (1, 1, 1));
     }
 }

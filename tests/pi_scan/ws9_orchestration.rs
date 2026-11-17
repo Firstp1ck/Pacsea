@@ -47,6 +47,8 @@ struct FakeAdapter {
     continuation_stale: Option<bool>,
     /// Scripted mutable-source staleness.
     mutable_stale: Option<bool>,
+    /// Whether cancellation arrives just before the scripted receipt is returned.
+    cancel_before_returning: bool,
 }
 
 impl OrchestrationAdapter for FakeAdapter {
@@ -129,6 +131,9 @@ impl OrchestrationAdapter for FakeAdapter {
         }
         if self.instant_success {
             return Ok(success(target, false));
+        }
+        if self.cancel_before_returning {
+            cancelled.store(true, Ordering::SeqCst);
         }
         self.executions.pop_front().unwrap_or_else(|| {
             Err(ExecutionFailure::Service(
@@ -997,6 +1002,39 @@ fn post_run_save_failure_terminalizes_and_the_queue_continues() {
         orchestrator.state().runtime.terminal[1].status,
         pacsea::state::pi_scan::PiScanTerminalStatus::Completed
     );
+}
+
+/// What: A receipt returned after cancellation must not be accepted as a completed scan.
+///
+/// Inputs:
+/// - One queued package whose execution is cancelled during its final rechecks.
+///
+/// Output:
+/// - `Cancelled`, a terminal Cancelled record, and no saved result document.
+///
+/// Details:
+/// - Regression: the `Ok(receipt)` path never looked at the cancellation flag, so the UI
+///   showed Cancelling while the item completed.
+#[test]
+fn receipt_after_cancellation_is_cancelled_not_completed() {
+    let temp = tempfile::tempdir().expect("temp");
+    let (mut orchestrator, targets) = observed_queue(temp.path(), &["demo"]);
+    orchestrator.adapter_mut().cancel_before_returning = true;
+    orchestrator
+        .adapter_mut()
+        .executions
+        .push_back(Ok(success(&targets[0], false)));
+    assert!(matches!(
+        orchestrator.run_next(2, &AtomicBool::new(false)),
+        Err(OrchestrationError::Cancelled)
+    ));
+    assert!(orchestrator.state().runtime.active.is_none());
+    assert_eq!(
+        orchestrator.state().runtime.terminal[0].status,
+        pacsea::state::pi_scan::PiScanTerminalStatus::Cancelled
+    );
+    let saved = std::fs::read_dir(temp.path().join("results-v1")).map_or(0, Iterator::count);
+    assert_eq!(saved, 0, "a cancelled scan must not save a result");
 }
 
 /// What: Environment failures pause only after several consecutive packages fail.
