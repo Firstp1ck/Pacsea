@@ -8,7 +8,6 @@ authors = ["Firstpick <firstpick@users.noreply.github.com>"]
 description = "A fast, friendly TUI for browsing and installing Arch and AUR packages with built-in news and security scanning"
 license = "MIT"
 readme = "README.md"
-homepage = "https://github.com/Firstp1ck/Pacsea"
 repository = "https://github.com/Firstp1ck/Pacsea"
 documentation = "https://firstp1ck.github.io/Pacsea/pacsea/index.html"
 keywords = ["tui", "archlinux", "aur", "package-manager", "terminal"]
