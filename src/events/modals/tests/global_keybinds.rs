@@ -29,7 +29,7 @@ fn global_keybind_ctrl_r_blocked_in_all_modals() {
 
     for (modal, name) in create_test_modals() {
         let mut app = new_app();
-        app.modal = modal.clone();
+        app.modal = modal;
 
         let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
         let ke = key_event(KeyCode::Char('r'), KeyModifiers::CONTROL);
@@ -66,7 +66,7 @@ fn global_keybind_ctrl_r_blocked_in_all_modals() {
 fn global_keybind_ctrl_x_blocked_in_all_modals() {
     for (modal, name) in create_test_modals() {
         let mut app = new_app();
-        app.modal = modal.clone();
+        app.modal = modal;
         app.pkgb_visible = false;
 
         let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
@@ -96,7 +96,7 @@ fn global_keybind_ctrl_x_blocked_in_all_modals() {
 fn global_keybind_ctrl_s_blocked_in_all_modals() {
     for (modal, name) in create_test_modals() {
         let mut app = new_app();
-        app.modal = modal.clone();
+        app.modal = modal;
         let original_sort = app.sort_mode;
 
         let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();
@@ -164,7 +164,7 @@ fn global_keybind_help_blocked_in_all_modals() {
 fn global_keybind_ctrl_t_blocked_in_all_modals() {
     for (modal, name) in create_test_modals() {
         let mut app = new_app();
-        app.modal = modal.clone();
+        app.modal = modal;
         let original_comments_visible = app.comments_visible;
 
         let (add_tx, _add_rx) = mpsc::unbounded_channel::<PackageItem>();

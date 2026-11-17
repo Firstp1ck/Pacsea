@@ -90,15 +90,10 @@ pub fn is_package_loading_preflight(app: &AppState, package_name: &str) -> bool 
     // Then check install list resolution (when modal is not open)
     // Note: sandbox only applies to AUR packages
     // Only show indicator if sandbox is actually resolving AND preflight is not resolving
-    if app.sandbox_resolving
+    app.sandbox_resolving
         && !app.preflight_sandbox_resolving
         && app
             .install_list
             .iter()
             .any(|p| p.name == package_name && matches!(p.source, crate::state::Source::Aur))
-    {
-        return true;
-    }
-
-    false
 }

@@ -54,7 +54,7 @@ pub fn handle_search_results(
                         Source::Aur
                     };
                     items.push(PackageItem {
-                        name: name.clone(),
+                        name,
                         version: String::new(),
                         description: String::new(),
                         source: src,

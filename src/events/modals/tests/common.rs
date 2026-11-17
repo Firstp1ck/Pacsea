@@ -259,7 +259,7 @@ fn updates_navigation_keys_are_safe_when_empty() {
             filtered_indices,
             ..
         } => {
-            assert_eq!(entries.as_slice(), []);
+            assert_eq!(entries.as_slice(), [] as [(String, String, String); 0]);
             assert_eq!(*selected, 0);
             assert_eq!(filtered_indices.as_slice(), [] as [usize; 0]);
         }

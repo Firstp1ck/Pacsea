@@ -106,7 +106,7 @@ pub fn render_optional_deps(
             Style::default().fg(th.overlay1),
         ));
         segs.push(Span::raw("  "));
-        segs.push(Span::styled(mark.clone(), Style::default().fg(color)));
+        segs.push(Span::styled(mark, Style::default().fg(color)));
         if let Some(note) = &row.note {
             segs.push(Span::raw("  "));
             segs.push(Span::styled(
@@ -812,7 +812,7 @@ pub fn render_news_setup(
         } else {
             Style::default().fg(th.subtext1)
         };
-        date_spans.push(Span::styled(button_text.clone(), style));
+        date_spans.push(Span::styled(button_text, style));
         if i < date_options.len() - 1 {
             date_spans.push(Span::raw("  "));
         }

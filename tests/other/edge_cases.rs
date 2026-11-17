@@ -81,7 +81,7 @@ fn integration_edge_case_remove_empty_list() {
 
     match request {
         ExecutorRequest::Remove { names, .. } => {
-            assert_eq!(names, [] as [std::string::String; 0]);
+            assert_eq!(names, [] as [String; 0]);
         }
         _ => panic!("Expected ExecutorRequest::Remove"),
     }
@@ -107,7 +107,7 @@ fn integration_edge_case_update_empty_commands() {
 
     match request {
         ExecutorRequest::Update { commands, .. } => {
-            assert_eq!(commands, [] as [std::string::String; 0]);
+            assert_eq!(commands, [] as [String; 0]);
         }
         _ => panic!("Expected ExecutorRequest::Update"),
     }
@@ -133,7 +133,7 @@ fn integration_edge_case_downgrade_empty_list() {
 
     match request {
         ExecutorRequest::Downgrade { names, .. } => {
-            assert_eq!(names, [] as [std::string::String; 0]);
+            assert_eq!(names, [] as [String; 0]);
         }
         _ => panic!("Expected ExecutorRequest::Downgrade"),
     }
