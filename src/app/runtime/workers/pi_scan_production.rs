@@ -1089,6 +1089,7 @@ impl ProductionOrchestrationAdapter {
                 pi_version,
                 model_attempt_timeout: self.config.model_attempt_timeout,
                 logical_timeout: self.config.logical_timeout,
+                token_budget: target.reservation.tokens,
                 cancelled,
             },
         })

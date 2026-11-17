@@ -357,8 +357,6 @@ pub enum PiScanStateError {
     StaleResponse,
     /// No active item exists for the requested transition.
     NoActiveItem,
-    /// Reconciled usage exceeded the reserved maximum.
-    UsageExceedsReservation,
 }
 
 impl fmt::Display for PiScanStateError {
@@ -374,10 +372,6 @@ impl fmt::Display for PiScanStateError {
                 "stale Pi scan response did not match the active package, commit, and correlation id; it was ignored"
             ),
             Self::NoActiveItem => write!(formatter, "no Pi scan is currently active"),
-            Self::UsageExceedsReservation => write!(
-                formatter,
-                "reported Pi usage exceeds its confirmed reservation; keep the full reservation and review provider accounting"
-            ),
         }
     }
 }
@@ -643,9 +637,12 @@ impl PiScanRuntimeState {
     ///
     /// Details:
     /// - A stale or post-cancel response leaves active and terminal state unchanged.
+    /// - Usage above the reservation still completes the item, so the queue keeps moving. The
+    ///   budget is charged the larger of actual usage and the reservation per dimension, and
+    ///   the overrun is logged.
     ///
     /// # Errors
-    /// - Returns an identity, correlation, reservation, or accounting error without accepting the response.
+    /// - Returns an identity, correlation, or accounting error without accepting the response.
     pub fn complete(
         &mut self,
         correlation_id: u64,
@@ -656,12 +653,27 @@ impl PiScanRuntimeState {
         if self.response_is_stale(correlation_id, key) {
             return Err(PiScanStateError::StaleResponse);
         }
-        let active = self.matching_active(correlation_id, key)?;
-        if usage.tokens > active.request.reservation.tokens
-            || usage.cost_microusd > active.request.reservation.cost_microusd
-        {
-            return Err(PiScanStateError::UsageExceedsReservation);
-        }
+        let reserved = self
+            .matching_active(correlation_id, key)?
+            .request
+            .reservation;
+        let usage =
+            if usage.tokens > reserved.tokens || usage.cost_microusd > reserved.cost_microusd {
+                tracing::warn!(
+                    package_base = %key.package_base,
+                    reported_tokens = usage.tokens,
+                    reserved_tokens = reserved.tokens,
+                    reported_cost_microusd = usage.cost_microusd,
+                    reserved_cost_microusd = reserved.cost_microusd,
+                    "Pi scan usage exceeded its reservation; charging the larger amount"
+                );
+                PiScanActualUsage {
+                    tokens: usage.tokens.max(reserved.tokens),
+                    cost_microusd: usage.cost_microusd.max(reserved.cost_microusd),
+                }
+            } else {
+                usage
+            };
         self.reconcile_budget(correlation_id, usage)?;
         let active = self.active.take().ok_or(PiScanStateError::NoActiveItem)?;
         Ok(self.push_terminal(active, PiScanTerminalStatus::Completed, finished_at_unix))

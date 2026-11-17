@@ -645,6 +645,50 @@ fn consent_and_pause_resume_ownership_are_independent() {
     assert!(state.start_next(4, true).expect("resumed").is_some());
 }
 
+/// What: Verify a usage overrun completes the item and charges the larger actual usage.
+///
+/// Inputs:
+/// - One active item reserved at 500 tokens / 25 micro-USD, completed with 900 / 30.
+///
+/// Output:
+/// - A Completed terminal record, no active item, and the overrun charged to the budget.
+///
+/// Details:
+/// - Regression: the overrun was an error that left the item active and the queue stuck.
+#[test]
+fn usage_overrun_completes_and_charges_actual_usage() {
+    let mut state = PiScanRuntimeState::default();
+    enable_paid_execution(&mut state);
+    state
+        .enqueue(request(
+            1,
+            "overrun-demo",
+            PiScanPriority::Foreground,
+            500,
+            25,
+        ))
+        .expect("queued");
+    let active = state
+        .start_next(1, true)
+        .expect("eligible")
+        .expect("active");
+    let record = state
+        .complete(
+            active.correlation_id,
+            &active.request.key,
+            PiScanActualUsage {
+                tokens: 900,
+                cost_microusd: 30,
+            },
+            2,
+        )
+        .expect("overrun is terminal, not an error");
+    assert_eq!(record.status, PiScanTerminalStatus::Completed);
+    assert!(state.active.is_none());
+    assert_eq!(state.budget.records[0].effective_tokens(), 900);
+    assert_eq!(state.budget.records[0].effective_cost_microusd(), 30);
+}
+
 /// What: Verify cancellation suppression and interrupted recovery consume full reservations.
 ///
 /// Inputs:

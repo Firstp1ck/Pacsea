@@ -195,6 +195,7 @@ impl Fixture {
             pi_version: "0.84.0",
             model_attempt_timeout: Duration::from_secs(5),
             logical_timeout: Duration::from_secs(20),
+            token_budget: 500_000,
             cancelled: &self.cancelled,
         }
     }
@@ -400,6 +401,92 @@ fn fake_pi_tool_call_budget_is_enforced_and_reaped() {
         error,
         ExecutionError::AttemptBudgetExceeded("tool calls")
     ));
+    assert!(fake.reaped);
+}
+
+/// What: Verify streamed traffic past the token reservation aborts the attempt mid-stream.
+///
+/// Inputs:
+/// - 1,000 streamed update events of about 200 bytes against a 50,000-token reservation.
+///
+/// Output:
+/// - `AttemptBudgetExceeded("token reservation")`, a reaped transport, and no final-text request.
+///
+/// Details:
+/// - The engine charges at least `ceil(rpc_bytes / 2)` tokens, so 200 KB already exceeds 50,000.
+#[test]
+fn fake_pi_token_reservation_aborts_streaming_attempt() {
+    let fixture = Fixture::new();
+    let mut inbound = preflight(&fixture.models);
+    inbound.pop();
+    let chunk = "x".repeat(180);
+    for _ in 0..1_000 {
+        inbound.push(Inbound::Record(
+            json!({"type": "message_update", "delta": chunk}),
+        ));
+    }
+    inbound.push(Inbound::Record(json!({"type": "agent_settled"})));
+    let mut fake = FakeTransport::new(inbound);
+    let input = ScanExecutionInput {
+        token_budget: 50_000,
+        ..fixture.input()
+    };
+    let error = execute_with_transport(&mut fake, input).expect_err("token reservation");
+    assert!(matches!(
+        error,
+        ExecutionError::AttemptBudgetExceeded("token reservation")
+    ));
+    assert!(fake.reaped);
+    assert!(
+        !fake
+            .commands()
+            .iter()
+            .any(|record| record["type"] == "get_last_assistant_text")
+    );
+}
+
+/// What: Verify an exhausted token reservation stops the correction/fallback chain.
+///
+/// Inputs:
+/// - The invalid-then-fallback script with a reservation smaller than the first attempt.
+///
+/// Output:
+/// - `AttemptBudgetExceeded("token reservation")` and no fallback `set_model`.
+///
+/// Details:
+/// - Without the ceiling a second model would run and push usage further past the reservation.
+#[test]
+fn fake_pi_token_reservation_stops_fallback_chain() {
+    let fixture = Fixture::new();
+    let mut inbound = preflight(&fixture.models);
+    inbound.extend([
+        response(6, "get_last_assistant_text", json!({"text": "not json"})),
+        response(7, "prompt", Value::Null),
+        Inbound::Record(json!({"type": "agent_settled"})),
+        response(
+            8,
+            "get_last_assistant_text",
+            json!({"text": "still not json"}),
+        ),
+        response(9, "get_session_stats", json!({"tokens": {"total": 100}})),
+    ]);
+    let mut fake = FakeTransport::new(inbound);
+    let input = ScanExecutionInput {
+        token_budget: 100,
+        ..fixture.input()
+    };
+    let error = execute_with_transport(&mut fake, input).expect_err("token reservation");
+    assert!(matches!(
+        error,
+        ExecutionError::AttemptBudgetExceeded("token reservation")
+    ));
+    assert_eq!(
+        fake.commands()
+            .iter()
+            .filter(|record| record["type"] == "set_model")
+            .count(),
+        1
+    );
     assert!(fake.reaped);
 }
 

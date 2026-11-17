@@ -52,6 +52,9 @@ pub struct ScanExecutionInput<'a> {
     pub model_attempt_timeout: Duration,
     /// Whole logical-scan wall deadline.
     pub logical_timeout: Duration,
+    /// Token reservation for the whole logical scan; the attempt chain stops once
+    /// conservatively accounted usage reaches it.
+    pub token_budget: u64,
     /// Sticky cancellation flag owned by the caller.
     pub cancelled: &'a AtomicBool,
 }
@@ -251,6 +254,11 @@ fn validate_input(input: &ScanExecutionInput<'_>) -> Result<(), ExecutionError> 
             "logical timeout must be within 1ns..=720s".to_string(),
         ));
     }
+    if input.token_budget == 0 {
+        return Err(ExecutionError::InvalidInput(
+            "the scan token reservation must be greater than zero".to_string(),
+        ));
+    }
     if input.prompt.scan_id != input.identity.scan_id
         || input.prompt.package_base != input.identity.package_base
         || input.prompt.commit_oid != input.identity.commit_oid
@@ -356,14 +364,22 @@ fn run_attempts(
         check_cancelled(input)?;
         let attempt_started = transport.bytes_exchanged();
         let attempt_deadline = bounded_deadline(logical_deadline, input.model_attempt_timeout)?;
+        let ceiling = TokenCeiling {
+            attempt_started_bytes: attempt_started,
+            charged_before: charged_tokens(&records),
+            budget: input.token_budget,
+        };
         let outcome = run_one_model(
             transport,
             input,
             correlator,
             controller,
             full_prompt,
-            attempt_deadline,
-            logical_deadline,
+            AttemptLimits {
+                deadline: attempt_deadline,
+                logical_deadline,
+                ceiling,
+            },
         )?;
         let cumulative = session_tokens(
             transport,
@@ -399,6 +415,9 @@ fn run_attempts(
                 .map_err(|error| ExecutionError::Rpc(error.to_string()))?;
             return Ok(build_output(transport, input, records, &attributed));
         }
+        if charged_tokens(&records) >= input.token_budget {
+            return Err(ExecutionError::AttemptBudgetExceeded("token reservation"));
+        }
         match controller
             .validation_failed()
             .map_err(|error| ExecutionError::Rpc(error.to_string()))?
@@ -428,16 +447,77 @@ fn run_attempts(
     }
 }
 
+/// Sum the conservative effective tokens already charged by finished attempts.
+fn charged_tokens(records: &[ModelAttemptRecord]) -> u64 {
+    records
+        .iter()
+        .map(|record| record.usage.effective_tokens())
+        .fold(0, u64::saturating_add)
+}
+
+/// What: Logical-scan token ceiling applied while one model attempt streams.
+///
+/// Inputs:
+/// - Built per attempt from the transport byte counter and earlier attempt records.
+///
+/// Output:
+/// - Consumed by [`AttemptEventBudget::check_tokens`].
+///
+/// Details:
+/// - Mid-attempt only the byte floor (`ceil(bytes / 2)`) of [`UsageAccounting`] is known;
+///   reported tokens arrive after settlement and are checked between attempts.
+#[derive(Clone, Copy)]
+struct TokenCeiling {
+    /// Transport byte counter when the current attempt started.
+    attempt_started_bytes: u64,
+    /// Effective tokens charged by earlier attempts of this logical scan.
+    charged_before: u64,
+    /// Reserved tokens for the whole logical scan.
+    budget: u64,
+}
+
+/// Deadlines and token ceiling that bound one model attempt.
+#[derive(Clone, Copy)]
+struct AttemptLimits {
+    /// Per-attempt wall deadline.
+    deadline: Instant,
+    /// Whole logical-scan wall deadline.
+    logical_deadline: Instant,
+    /// Logical-scan token ceiling.
+    ceiling: TokenCeiling,
+}
+
 /// Per-model event budgets enforced while waiting for full settlement.
-#[derive(Default)]
 struct AttemptEventBudget {
     /// Observed tool starts across the full response and its one correction.
     tool_calls: u32,
     /// Conservative wire bytes carrying tool-result events.
     tool_result_bytes: usize,
+    /// Logical-scan token ceiling.
+    ceiling: TokenCeiling,
 }
 
 impl AttemptEventBudget {
+    /// Create an empty per-attempt budget under one logical-scan token ceiling.
+    const fn new(ceiling: TokenCeiling) -> Self {
+        Self {
+            tool_calls: 0,
+            tool_result_bytes: 0,
+            ceiling,
+        }
+    }
+
+    /// Reject the attempt once its byte floor pushes the scan past its token reservation.
+    const fn check_tokens(&self, bytes_exchanged: u64) -> Result<(), ExecutionError> {
+        let floor = bytes_exchanged
+            .saturating_sub(self.ceiling.attempt_started_bytes)
+            .div_ceil(2);
+        if self.ceiling.charged_before.saturating_add(floor) >= self.ceiling.budget {
+            return Err(ExecutionError::AttemptBudgetExceeded("token reservation"));
+        }
+        Ok(())
+    }
+
     /// Observe one bounded Pi event and reject an exhausted attempt budget.
     fn observe(
         &mut self,
@@ -478,10 +558,14 @@ fn run_one_model(
     correlator: &mut CommandCorrelator,
     controller: &mut ScanAttemptController,
     full_prompt: &str,
-    deadline: Instant,
-    logical_deadline: Instant,
+    limits: AttemptLimits,
 ) -> Result<ModelOutcome, ExecutionError> {
-    let mut budget = AttemptEventBudget::default();
+    let AttemptLimits {
+        deadline,
+        logical_deadline,
+        ceiling,
+    } = limits;
+    let mut budget = AttemptEventBudget::new(ceiling);
     let raw = prompt_and_read(
         transport,
         correlator,
@@ -626,6 +710,7 @@ fn wait_for_settled(
     loop {
         let (object, wire_bytes) = read_object(transport, deadline, logical_deadline, input)?;
         budget.observe(&object, wire_bytes)?;
+        budget.check_tokens(transport.bytes_exchanged())?;
         if object.get("type").and_then(Value::as_str) == Some("agent_settled")
             && CommandCorrelator::is_event(&object)
         {
