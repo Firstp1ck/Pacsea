@@ -236,11 +236,12 @@ fn observation_issues_sequential_queries_in_the_exact_order() {
     assert!(!observation.commits[1].requires_scan());
     assert!(!observation.paused_for_rebaseline);
 
-    // The rev-list argv must request reverse topological order and the per-package cap.
+    // The rev-list argv must request reverse topological order. The per-package cap is
+    // applied by the parser: Git's `--max-count` would keep the newest commits, not the oldest.
     let rev_list = runner.argv(2);
     assert!(rev_list.contains(&"--reverse".to_string()));
     assert!(rev_list.contains(&"--topo-order".to_string()));
-    assert!(rev_list.contains(&format!("--max-count={MAX_COMMIT_EXPANSION_PER_PACKAGE}")));
+    assert!(!rev_list.iter().any(|arg| arg.starts_with("--max-count")));
     assert!(rev_list.contains(&format!("{}..{head}", oid(1))));
 }
 

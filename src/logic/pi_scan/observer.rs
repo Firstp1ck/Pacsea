@@ -398,7 +398,9 @@ pub fn head_query_invocation(
 /// Details:
 /// - `--reverse --topo-order` yields strict oldest-first order so commits can be inserted
 ///   and resumed without coalescing.
-/// - `--max-count` applies the per-package hard cap inside Git as well as in the parser.
+/// - No `--max-count`: Git applies it before `--reverse`, which would keep the newest
+///   commits. [`parse_unseen_commits`] caps the oldest-first list instead; the stdout limit
+///   bounds the listing at roughly 100,000 commits.
 #[must_use]
 pub fn unseen_commits_invocation(
     executable: &OsStr,
@@ -408,18 +410,16 @@ pub fn unseen_commits_invocation(
     timeout: Duration,
 ) -> GitInvocation {
     let dir = repository_dir.to_os_string();
-    let max_count = OsString::from(format!("--max-count={MAX_COMMIT_EXPANSION_PER_PACKAGE}"));
     let revision = range.map_or_else(
         || OsString::from(head.as_str()),
         |from| OsString::from(format!("{}..{}", from.as_str(), head.as_str())),
     );
-    let args: [&OsStr; 9] = [
+    let args: [&OsStr; 8] = [
         OsStr::new("-C"),
         dir.as_os_str(),
         OsStr::new("rev-list"),
         OsStr::new("--reverse"),
         OsStr::new("--topo-order"),
-        max_count.as_os_str(),
         OsStr::new("--no-walk=unsorted"),
         revision.as_os_str(),
         OsStr::new("--"),
@@ -1324,8 +1324,9 @@ mod tests {
     use super::{
         DEFAULT_HEAD_QUERY_TIMEOUT, GitCommandRunner, GitInvocation, GitOutput,
         MAX_COMMIT_EXPANSION_PER_PACKAGE, ObservationCycle, SystemGitRunner, git_argv,
-        head_query_invocation, parse_head_oid, parse_unseen_commits,
+        head_query_invocation, parse_head_oid, parse_unseen_commits, unseen_commits_invocation,
     };
+    use crate::logic::pi_scan::identity::CommitOid;
     use crate::logic::pi_scan::identity::{AurRepoUrl, PackageBase};
     use std::ffi::OsStr;
 
@@ -1493,6 +1494,96 @@ mod tests {
         }
         let unseen = parse_unseen_commits(&ok(&lines), 5).expect("bounded");
         assert_eq!(unseen.commits.len(), 5);
+        assert!(unseen.truncated);
+    }
+
+    /// Run one isolated real Git command in `dir`, returning stdout on success.
+    fn real_git(dir: &std::path::Path, args: &[&str], stdin: Option<&[u8]>) -> Option<Vec<u8>> {
+        use std::io::Write as _;
+        let mut command = std::process::Command::new("git");
+        command
+            .current_dir(dir)
+            .args(args)
+            .env("GIT_CONFIG_GLOBAL", "/dev/null")
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .env("HOME", dir)
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null());
+        let mut child = command.spawn().ok()?;
+        if let Some(bytes) = stdin {
+            child.stdin.take()?.write_all(bytes).ok()?;
+        }
+        let output = child.wait_with_output().ok()?;
+        output.status.success().then_some(output.stdout)
+    }
+
+    /// What: Verify a capped history walk returns the oldest unseen commits, not the newest.
+    ///
+    /// Inputs:
+    /// - A real 600-commit linear repository built with `git fast-import`; the range starts
+    ///   after commit 1, so 599 commits are unseen.
+    ///
+    /// Output:
+    /// - 500 commits starting at commit 2, ending before HEAD, with `truncated` set.
+    ///
+    /// Details:
+    /// - Regression: `--max-count` applied before `--reverse`, so Git returned the newest 500
+    ///   and the cursor jumped to HEAD, skipping the oldest 99 forever.
+    /// - Skips when `git` is not installed.
+    #[test]
+    fn unseen_history_cap_keeps_the_oldest_commits() {
+        let temp = tempfile::tempdir().expect("temp repo");
+        let dir = temp.path();
+        if real_git(dir, &["init", "--quiet", "--bare"], None).is_none() {
+            eprintln!("skipping: git is not available");
+            return;
+        }
+        let mut stream = String::new();
+        for index in 1..=600 {
+            use std::fmt::Write as _;
+            let _ = write!(
+                stream,
+                "commit refs/heads/main\nmark :{index}\ncommitter T <t@example.invalid> {index} +0000\ndata 1\nc\n"
+            );
+            if index > 1 {
+                let _ = writeln!(stream, "from :{}", index - 1);
+            }
+            let _ = write!(
+                stream,
+                "M 644 inline f\ndata {}\n{index}\n\n",
+                index.to_string().len()
+            );
+        }
+        real_git(dir, &["fast-import", "--quiet"], Some(stream.as_bytes()))
+            .expect("fast-import builds the repository");
+        let listing = real_git(dir, &["rev-list", "--reverse", "refs/heads/main"], None)
+            .expect("list commits");
+        let all: Vec<CommitOid> = String::from_utf8_lossy(&listing)
+            .lines()
+            .map(|line| CommitOid::new(line.trim()).expect("oid"))
+            .collect();
+        assert_eq!(all.len(), 600);
+        let mut invocation = unseen_commits_invocation(
+            OsStr::new("git"),
+            dir.as_os_str(),
+            Some(&all[0]),
+            &all[599],
+            std::time::Duration::from_secs(20),
+        );
+        invocation
+            .fixed_environment
+            .push(("HOME".to_string(), dir.display().to_string()));
+        let output = SystemGitRunner::new()
+            .run(&invocation)
+            .expect("rev-list runs");
+        let unseen = parse_unseen_commits(&output, usize::MAX).expect("parsed");
+        assert_eq!(unseen.commits.len(), MAX_COMMIT_EXPANSION_PER_PACKAGE);
+        assert_eq!(unseen.commits[0], all[1]);
+        assert_eq!(
+            unseen.commits[MAX_COMMIT_EXPANSION_PER_PACKAGE - 1],
+            all[500]
+        );
         assert!(unseen.truncated);
     }
 
