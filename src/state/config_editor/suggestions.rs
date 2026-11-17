@@ -301,6 +301,10 @@ fn add_key_values(out: &mut Vec<Suggestion>, key: &str, ctx: &SuggestionContext)
             add(out, "0", Some(SuggestionTag::Unlimited));
             add_values(out, &["10000", "100000", "1000000"]);
         }
+        "pi_scan_max_tokens_per_scan" => {
+            add(out, "0", Some(SuggestionTag::Unlimited));
+            add_values(out, &["100000", "500000", "1000000"]);
+        }
         "pi_scan_background_cost_cap_24h" => {
             add(out, "0", Some(SuggestionTag::Unlimited));
             add_values(out, &["0.10", "1.00", "5.00", "10.00"]);
@@ -579,6 +583,7 @@ mod tests {
             "pi_scan_background_token_cap_24h",
             "pi_scan_background_cost_cap_24h",
             "pi_scan_background_starts_per_hour",
+            "pi_scan_max_tokens_per_scan",
         ] {
             assert!(
                 candidates(key, &ctx)

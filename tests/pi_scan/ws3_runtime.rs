@@ -37,6 +37,7 @@ fn request(
         reservation: PiScanReservation {
             tokens,
             cost_microusd,
+            per_scan_unlimited: false,
         },
         manual_budget_override_confirmed: priority == PiScanPriority::Foreground,
     }
@@ -362,6 +363,7 @@ fn double_adjusts_only_exceeded_limits_and_revalidates_pause() {
             reserved: PiScanReservation {
                 tokens: 3,
                 cost_microusd: 10,
+                per_scan_unlimited: false,
             },
             consumed_tokens: None,
             consumed_cost_microusd: None,
@@ -484,6 +486,7 @@ fn aggregate_token_overflow_exceeds_finite_maximum() {
                 reserved: PiScanReservation {
                     tokens,
                     cost_microusd: 0,
+                    per_scan_unlimited: false,
                 },
                 consumed_tokens: None,
                 consumed_cost_microusd: None,
@@ -527,6 +530,7 @@ fn aggregate_cost_overflow_exceeds_finite_maximum() {
                 reserved: PiScanReservation {
                     tokens: 0,
                     cost_microusd,
+                    per_scan_unlimited: false,
                 },
                 consumed_tokens: None,
                 consumed_cost_microusd: None,
@@ -579,6 +583,7 @@ fn double_overflow_rejects_without_partial_mutation() {
             reserved: PiScanReservation {
                 tokens: 0,
                 cost_microusd: u64::MAX,
+                per_scan_unlimited: false,
             },
             consumed_tokens: None,
             consumed_cost_microusd: None,
@@ -687,6 +692,203 @@ fn usage_overrun_completes_and_charges_actual_usage() {
     assert!(state.active.is_none());
     assert_eq!(state.budget.records[0].effective_tokens(), 900);
     assert_eq!(state.budget.records[0].effective_cost_microusd(), 30);
+}
+
+/// Build one background request without a per-scan token limit.
+fn unlimited_request(request_id: u64, package_base: &str) -> PiScanJobRequest {
+    PiScanJobRequest {
+        reservation: PiScanReservation::UNLIMITED,
+        ..request(request_id, package_base, PiScanPriority::Background, 0, 0)
+    }
+}
+
+/// What: A scan without a per-scan limit completes past 500k tokens and is charged actuals.
+///
+/// Inputs:
+/// - Default state with a 500k rolling token cap and an unlimited-per-scan background item.
+///
+/// Output:
+/// - Completed terminal record charging the actual 750k tokens and cost; the next background
+///   item is then blocked by the rolling token budget.
+///
+/// Details:
+/// - While active the record holds the remaining rolling budget, not a fixed reservation.
+#[test]
+fn unlimited_per_scan_completes_past_500k_and_charges_actual_usage() {
+    let mut state = PiScanRuntimeState::default();
+    enable_paid_execution(&mut state);
+    state
+        .enqueue(unlimited_request(1, "unlimited-demo"))
+        .expect("queued");
+    let active = state
+        .start_next(10, true)
+        .expect("fits remaining budget")
+        .expect("active");
+    assert_eq!(active.request.reservation.per_scan_token_limit(), None);
+    assert_eq!(state.budget.records[0].effective_tokens(), 500_000);
+    let record = state
+        .complete(
+            active.correlation_id,
+            &active.request.key,
+            PiScanActualUsage {
+                tokens: 750_000,
+                cost_microusd: 42,
+            },
+            11,
+        )
+        .expect("completes");
+    assert_eq!(record.status, PiScanTerminalStatus::Completed);
+    assert_eq!(state.budget.records[0].effective_tokens(), 750_000);
+    assert_eq!(state.budget.records[0].effective_cost_microusd(), 42);
+
+    state
+        .enqueue(unlimited_request(2, "unlimited-demo"))
+        .expect("second queued");
+    assert_eq!(state.start_next(12, true), Err(PiScanStartBlock::Budget));
+}
+
+/// What: Rolling budgets gate unlimited-per-scan starts and cheap scans are charged actuals.
+///
+/// Inputs:
+/// - A 1,000-token rolling cap, one cheap unlimited scan, then usage that reaches the cap.
+///
+/// Output:
+/// - The cheap scan is charged its 10 tokens, not the held remainder; a start at exactly the
+///   cap is blocked; an all-unlimited budget never blocks.
+#[test]
+fn unlimited_per_scan_respects_rolling_budgets() {
+    let mut state = PiScanRuntimeState {
+        budget_limits: PiScanBudgetLimits {
+            starts_per_hour: 0,
+            tokens_per_24h: 1_000,
+            cost_microusd_per_24h: 0,
+        },
+        ..PiScanRuntimeState::default()
+    };
+    enable_paid_execution(&mut state);
+    for (index, tokens) in [(1, 10), (2, 990)] {
+        state
+            .enqueue(unlimited_request(index, "rolling-demo"))
+            .expect("queued");
+        let active = state
+            .start_next(index, true)
+            .expect("budget left")
+            .expect("active");
+        assert_eq!(
+            state
+                .budget
+                .records
+                .last()
+                .map(crate::state::pi_scan::PiScanBudgetRecord::effective_tokens),
+            Some(1_000 - if index == 1 { 0 } else { 10 })
+        );
+        state
+            .complete(
+                active.correlation_id,
+                &active.request.key,
+                PiScanActualUsage {
+                    tokens,
+                    cost_microusd: 0,
+                },
+                index,
+            )
+            .expect("accounted");
+    }
+    assert_eq!(state.budget.records[0].effective_tokens(), 10);
+    state
+        .enqueue(unlimited_request(3, "rolling-demo"))
+        .expect("queued");
+    assert_eq!(state.start_next(3, true), Err(PiScanStartBlock::Budget));
+
+    let mut unbounded = PiScanRuntimeState {
+        budget_limits: PiScanBudgetLimits {
+            starts_per_hour: 0,
+            tokens_per_24h: 0,
+            cost_microusd_per_24h: 0,
+        },
+        ..PiScanRuntimeState::default()
+    };
+    enable_paid_execution(&mut unbounded);
+    unbounded
+        .enqueue(unlimited_request(1, "free-demo"))
+        .expect("queued");
+    let active = unbounded
+        .start_next(1, true)
+        .expect("nothing blocks")
+        .expect("active");
+    assert_eq!(unbounded.budget.records[0].effective_tokens(), 0);
+    unbounded
+        .complete(
+            active.correlation_id,
+            &active.request.key,
+            PiScanActualUsage {
+                tokens: u64::MAX / 2,
+                cost_microusd: 0,
+            },
+            2,
+        )
+        .expect("accounted");
+    unbounded
+        .enqueue(unlimited_request(2, "free-demo"))
+        .expect("queued");
+    assert!(unbounded.start_next(3, true).expect("still free").is_some());
+}
+
+/// What: An interrupted unlimited-per-scan item charges the remaining rolling budget.
+///
+/// Inputs:
+/// - Default 500k cap with 100k already used, then an unlimited item interrupted mid-run.
+///
+/// Output:
+/// - The interrupted record charges the 400k remainder, so later starts stay blocked until the
+///   window rolls instead of under-charging unknown usage.
+#[test]
+fn interrupted_unlimited_per_scan_charges_remaining_budget() {
+    let mut state = PiScanRuntimeState::default();
+    enable_paid_execution(&mut state);
+    state
+        .enqueue(request(
+            1,
+            "used-demo",
+            PiScanPriority::Background,
+            100_000,
+            0,
+        ))
+        .expect("queued");
+    let first = state.start_next(1, true).expect("fits").expect("active");
+    state
+        .complete(
+            first.correlation_id,
+            &first.request.key,
+            PiScanActualUsage {
+                tokens: 100_000,
+                cost_microusd: 0,
+            },
+            2,
+        )
+        .expect("accounted");
+    state
+        .enqueue(unlimited_request(2, "interrupt-demo"))
+        .expect("queued");
+    state.start_next(3, true).expect("fits").expect("active");
+    state
+        .recover_interrupted(4)
+        .expect("recovered")
+        .expect("terminal");
+    assert_eq!(state.budget.records[1].effective_tokens(), 400_000);
+    state
+        .enqueue(unlimited_request(3, "interrupt-demo"))
+        .expect("queued");
+    assert_eq!(state.start_next(5, true), Err(PiScanStartBlock::Budget));
+}
+
+/// What: Persisted reservations without the per-scan flag load as bounded reservations.
+#[test]
+fn legacy_reservation_without_flag_loads_as_bounded() {
+    let parsed: PiScanReservation =
+        serde_json::from_str(r#"{"tokens":500000,"cost_microusd":7}"#).expect("legacy shape");
+    assert_eq!(parsed.per_scan_token_limit(), Some(500_000));
+    assert!(!parsed.per_scan_unlimited);
 }
 
 /// What: Verify cancellation suppression and interrupted recovery consume full reservations.

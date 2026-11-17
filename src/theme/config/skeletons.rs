@@ -391,6 +391,7 @@ pi_scan_logical_timeout_seconds = 720\n\
 pi_scan_background_starts_per_hour = 5\n\
 pi_scan_background_token_cap_24h = 500000\n\
 pi_scan_background_cost_cap_24h = 0.00\n\
+pi_scan_max_tokens_per_scan = 0\n\
 pi_scan_result_retention_days = 30\n\
 pi_scan_show_raw_output = false\n\
 # Explicit credential-free HTTPS proxy only; empty disables proxy use.\n\

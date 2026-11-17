@@ -168,6 +168,7 @@ fn pi_scan_current_value(key: &str, settings: &crate::theme::PiScanSettings) -> 
         "pi_scan_background_starts_per_hour" => settings.background_starts_per_hour.to_string(),
         "pi_scan_background_token_cap_24h" => settings.background_token_cap_24h.to_string(),
         "pi_scan_background_cost_cap_24h" => settings.background_cost_cap_24h.clone(),
+        "pi_scan_max_tokens_per_scan" => settings.max_tokens_per_scan.to_string(),
         "pi_scan_result_retention_days" => settings.result_retention_days.to_string(),
         "pi_scan_show_raw_output" => bool_to_canonical(settings.show_raw_output).to_string(),
         "pi_scan_https_proxy" => settings.https_proxy.clone(),

@@ -52,9 +52,10 @@ pub struct ScanExecutionInput<'a> {
     pub model_attempt_timeout: Duration,
     /// Whole logical-scan wall deadline.
     pub logical_timeout: Duration,
-    /// Token reservation for the whole logical scan; the attempt chain stops once
-    /// conservatively accounted usage reaches it.
-    pub token_budget: u64,
+    /// Per-scan token limit for the whole logical scan; the attempt chain stops once
+    /// conservatively accounted usage reaches it. `None` means the user set no per-scan
+    /// limit, so only deadlines and event budgets bound the scan.
+    pub token_budget: Option<u64>,
     /// Sticky cancellation flag owned by the caller.
     pub cancelled: &'a AtomicBool,
 }
@@ -254,7 +255,7 @@ fn validate_input(input: &ScanExecutionInput<'_>) -> Result<(), ExecutionError> 
             "logical timeout must be within 1ns..=720s".to_string(),
         ));
     }
-    if input.token_budget == 0 {
+    if input.token_budget == Some(0) {
         return Err(ExecutionError::InvalidInput(
             "the scan token reservation must be greater than zero".to_string(),
         ));
@@ -415,7 +416,10 @@ fn run_attempts(
                 .map_err(|error| ExecutionError::Rpc(error.to_string()))?;
             return Ok(build_output(transport, input, records, &attributed));
         }
-        if charged_tokens(&records) >= input.token_budget {
+        if input
+            .token_budget
+            .is_some_and(|budget| charged_tokens(&records) >= budget)
+        {
             return Err(ExecutionError::AttemptBudgetExceeded("token reservation"));
         }
         match controller
@@ -472,8 +476,8 @@ struct TokenCeiling {
     attempt_started_bytes: u64,
     /// Effective tokens charged by earlier attempts of this logical scan.
     charged_before: u64,
-    /// Reserved tokens for the whole logical scan.
-    budget: u64,
+    /// Per-scan token limit for the whole logical scan, or `None` for no limit.
+    budget: Option<u64>,
 }
 
 /// Deadlines and token ceiling that bound one model attempt.
@@ -509,10 +513,13 @@ impl AttemptEventBudget {
 
     /// Reject the attempt once its byte floor pushes the scan past its token reservation.
     const fn check_tokens(&self, bytes_exchanged: u64) -> Result<(), ExecutionError> {
+        let Some(budget) = self.ceiling.budget else {
+            return Ok(());
+        };
         let floor = bytes_exchanged
             .saturating_sub(self.ceiling.attempt_started_bytes)
             .div_ceil(2);
-        if self.ceiling.charged_before.saturating_add(floor) >= self.ceiling.budget {
+        if self.ceiling.charged_before.saturating_add(floor) >= budget {
             return Err(ExecutionError::AttemptBudgetExceeded("token reservation"));
         }
         Ok(())

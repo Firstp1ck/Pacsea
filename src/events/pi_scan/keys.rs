@@ -258,7 +258,7 @@ fn activate_focused(app: &mut AppState, dry_run: bool) -> bool {
     };
     match (wizard.step, wizard.focus) {
         (PiScanSetupStep::PiReadiness, 1) => wizard.request_probe(dry_run),
-        (PiScanSetupStep::Route, _) | (PiScanSetupStep::OptionalBehavior, 3..=6) => {
+        (PiScanSetupStep::Route, _) | (PiScanSetupStep::OptionalBehavior, 3..=6 | 8) => {
             wizard.adjust_focused(true);
         }
         (PiScanSetupStep::PricingPrivacy, _) | (PiScanSetupStep::OptionalBehavior, 0..=2) => {
@@ -930,6 +930,7 @@ mod tests {
             reservation: PiScanReservation {
                 tokens: 501,
                 cost_microusd: 1,
+                per_scan_unlimited: false,
             },
             manual_budget_override_confirmed: false,
         }

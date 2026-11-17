@@ -195,7 +195,7 @@ impl Fixture {
             pi_version: "0.84.0",
             model_attempt_timeout: Duration::from_secs(5),
             logical_timeout: Duration::from_secs(20),
-            token_budget: 500_000,
+            token_budget: Some(500_000),
             cancelled: &self.cancelled,
         }
     }
@@ -428,7 +428,7 @@ fn fake_pi_token_reservation_aborts_streaming_attempt() {
     inbound.push(Inbound::Record(json!({"type": "agent_settled"})));
     let mut fake = FakeTransport::new(inbound);
     let input = ScanExecutionInput {
-        token_budget: 50_000,
+        token_budget: Some(50_000),
         ..fixture.input()
     };
     let error = execute_with_transport(&mut fake, input).expect_err("token reservation");
@@ -443,6 +443,51 @@ fn fake_pi_token_reservation_aborts_streaming_attempt() {
             .iter()
             .any(|record| record["type"] == "get_last_assistant_text")
     );
+}
+
+/// What: Verify a scan without a per-scan limit is not stopped by its token usage.
+///
+/// Inputs:
+/// - The streaming script that aborts under a 50,000-token limit, followed by a valid answer
+///   whose session stats report 600,000 tokens, with `token_budget: None`.
+///
+/// Output:
+/// - A validated result whose provenance carries the full reported usage.
+///
+/// Details:
+/// - Rolling 24-hour budgets are enforced at admission and charged on completion, not here.
+#[test]
+fn fake_pi_unlimited_per_scan_budget_completes_past_reference_reservation() {
+    let fixture = Fixture::new();
+    let mut inbound = preflight(&fixture.models);
+    inbound.pop();
+    let chunk = "x".repeat(180);
+    for _ in 0..1_000 {
+        inbound.push(Inbound::Record(
+            json!({"type": "message_update", "delta": chunk}),
+        ));
+    }
+    inbound.extend([
+        Inbound::Record(json!({"type": "agent_settled"})),
+        response(
+            6,
+            "get_last_assistant_text",
+            json!({"text": valid_final(&fixture.identity, "high")}),
+        ),
+        response(
+            7,
+            "get_session_stats",
+            json!({"tokens": {"total": 600_000}}),
+        ),
+    ]);
+    let mut fake = FakeTransport::new(inbound);
+    let input = ScanExecutionInput {
+        token_budget: None,
+        ..fixture.input()
+    };
+    let output = execute_with_transport(&mut fake, input).expect("no per-scan stop");
+    assert_eq!(output.provenance.total_tokens(), 600_000);
+    assert!(fake.reaped);
 }
 
 /// What: Verify an exhausted token reservation stops the correction/fallback chain.
@@ -472,7 +517,7 @@ fn fake_pi_token_reservation_stops_fallback_chain() {
     ]);
     let mut fake = FakeTransport::new(inbound);
     let input = ScanExecutionInput {
-        token_budget: 100,
+        token_budget: Some(100),
         ..fixture.input()
     };
     let error = execute_with_transport(&mut fake, input).expect_err("token reservation");

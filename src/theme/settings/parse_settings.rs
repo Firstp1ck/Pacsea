@@ -199,6 +199,7 @@ fn parse_pi_scan_settings(key: &str, val: &str, settings: &mut Settings) -> bool
             }
         },
         "pi_scan_background_cost_cap_24h" => pi.background_cost_cap_24h = val.trim().to_string(),
+        "pi_scan_max_tokens_per_scan" => return assign_u64(val, &mut pi.max_tokens_per_scan),
         "pi_scan_result_retention_days" => return assign_u32(val, &mut pi.result_retention_days),
         "pi_scan_show_raw_output" => pi.show_raw_output = parse_bool(val),
         "pi_scan_https_proxy" => pi.https_proxy = val.trim().to_string(),
@@ -752,5 +753,35 @@ mod tests {
         assert_eq!(pi.result_retention_days, 14);
         assert_eq!(pi.https_proxy, "https://proxy.example");
         assert_eq!(pi.validation_issues(), [] as [String; 0]);
+    }
+
+    #[test]
+    /// What: The per-scan token limit defaults to Unlimited, round-trips through the shipped
+    /// example, and keeps the default when an older file omits the key.
+    fn parse_settings_pi_scan_max_tokens_per_scan_defaults_to_unlimited() {
+        let path = Path::new("settings.conf");
+        assert_eq!(Settings::default().pi_scan.max_tokens_per_scan, 0);
+
+        let mut legacy = Settings::default();
+        parse_settings(
+            "pi_scan_background_token_cap_24h = 500000
+",
+            path,
+            &mut legacy,
+        );
+        assert_eq!(legacy.pi_scan.max_tokens_per_scan, 0);
+
+        let shipped = include_str!("../../../config/settings.conf");
+        assert!(shipped.contains("pi_scan_max_tokens_per_scan = 0\n"));
+        let mut parsed = Settings::default();
+        parsed.pi_scan.max_tokens_per_scan = 7;
+        parse_settings(shipped, path, &mut parsed);
+        assert_eq!(parsed.pi_scan.max_tokens_per_scan, 0);
+
+        let mut limited = Settings::default();
+        parse_settings("pi_scan_max_tokens_per_scan = 250000\n", path, &mut limited);
+        assert_eq!(limited.pi_scan.max_tokens_per_scan, 250_000);
+        parse_settings("pi_scan_max_tokens_per_scan = bogus\n", path, &mut limited);
+        assert_eq!(limited.pi_scan.max_tokens_per_scan, 250_000);
     }
 }

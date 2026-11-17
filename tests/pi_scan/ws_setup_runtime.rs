@@ -286,6 +286,7 @@ fn route(provider: &str, model: &str, rate: u64) -> PiSetupAdvertisedRoute {
         reservation: PiScanReservation {
             tokens: SETUP_PROBE_RESERVATION_TOKENS,
             cost_microusd: rate,
+            per_scan_unlimited: false,
         },
     }
 }
@@ -720,6 +721,7 @@ async fn successful_transfer_commits_runtime_and_compatible_consent() {
             PiScanReservation {
                 tokens: SETUP_PROBE_RESERVATION_TOKENS,
                 cost_microusd: 10,
+                per_scan_unlimited: false,
             },
         )
         .expect("production settings"),

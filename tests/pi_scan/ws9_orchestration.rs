@@ -210,6 +210,7 @@ fn setup() -> SetupSnapshot {
         reservation: PiScanReservation {
             tokens: 10_000,
             cost_microusd: 50,
+            per_scan_unlimited: false,
         },
         route_reservations: vec![(
             "provider".to_string(),
@@ -217,6 +218,7 @@ fn setup() -> SetupSnapshot {
             PiScanReservation {
                 tokens: 10_000,
                 cost_microusd: 50,
+                per_scan_unlimited: false,
             },
         )],
         pricing_binding: "test-pricing-v1".to_string(),
@@ -576,6 +578,7 @@ fn manual_queue_requires_full_frozen_identity_and_exact_pricing() {
         reservation: PiScanReservation {
             tokens: 10_000,
             cost_microusd: 50,
+            per_scan_unlimited: false,
         },
         priority: PiScanPriority::Foreground,
     };
@@ -613,6 +616,7 @@ fn foreground_start_recovers_a_revalidated_service_pause() {
         reservation: PiScanReservation {
             tokens: 10_000,
             cost_microusd: 50,
+            per_scan_unlimited: false,
         },
         priority: PiScanPriority::Foreground,
     };

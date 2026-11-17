@@ -318,9 +318,15 @@ pub fn pi_scan_runtime_options_for_settings(
                     settings.observation_deadline_seconds,
                 ),
                 result_retention_days: settings.result_retention_days,
-                reservation: crate::state::pi_scan::PiScanReservation {
-                    tokens: crate::pi_agent::setup_probe::SETUP_PROBE_RESERVATION_TOKENS,
-                    cost_microusd: u64::MAX,
+                // The cost placeholder is replaced by the exact route cost once setup is probed.
+                reservation: if settings.max_tokens_per_scan == 0 {
+                    crate::state::pi_scan::PiScanReservation::UNLIMITED
+                } else {
+                    crate::state::pi_scan::PiScanReservation {
+                        tokens: settings.max_tokens_per_scan,
+                        cost_microusd: u64::MAX,
+                        per_scan_unlimited: false,
+                    }
                 },
                 budget_limits: crate::state::pi_scan::PiScanBudgetLimits {
                     starts_per_hour: settings.background_starts_per_hour,

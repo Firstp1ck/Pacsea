@@ -1967,6 +1967,7 @@ fn enqueue_resolved_queue_intent(
     let reservation = crate::state::pi_scan::PiScanReservation {
         tokens: intent.reservation_tokens,
         cost_microusd: decimal_dollars_to_microusd(&intent.reservation_cost_cap)?,
+        per_scan_unlimited: false,
     };
     let mut identities: Vec<_> = intent
         .exact_targets
@@ -3924,6 +3925,7 @@ mod tests {
             reservation: crate::state::pi_scan::PiScanReservation {
                 tokens: 100,
                 cost_microusd: 20,
+                per_scan_unlimited: false,
             },
             manual_budget_override_confirmed: false,
         }
@@ -4360,6 +4362,7 @@ mod tests {
                 reserved: crate::state::pi_scan::PiScanReservation {
                     tokens: 10,
                     cost_microusd: 10,
+                    per_scan_unlimited: false,
                 },
                 consumed_tokens: None,
                 consumed_cost_microusd: None,
@@ -5105,6 +5108,7 @@ mod tests {
             reservation: crate::state::pi_scan::PiScanReservation {
                 tokens: 100,
                 cost_microusd: 10,
+                per_scan_unlimited: false,
             },
             manual_budget_override_confirmed: false,
         };
@@ -5194,6 +5198,7 @@ mod tests {
             reservation: crate::state::pi_scan::PiScanReservation {
                 tokens: 100,
                 cost_microusd: 10,
+                per_scan_unlimited: false,
             },
         };
         (app, frozen)
@@ -5791,6 +5796,7 @@ mod tests {
                 reservation: crate::state::pi_scan::PiScanReservation {
                     tokens: 100,
                     cost_microusd: 20,
+                    per_scan_unlimited: false,
                 },
             }
         };
@@ -5993,6 +5999,7 @@ mod tests {
                     reservation: crate::state::pi_scan::PiScanReservation {
                         tokens: 10_000,
                         cost_microusd: 50,
+                        per_scan_unlimited: false,
                     },
                     route_reservations: vec![(
                         "provider".to_string(),
@@ -6000,6 +6007,7 @@ mod tests {
                         crate::state::pi_scan::PiScanReservation {
                             tokens: 10_000,
                             cost_microusd: 50,
+                            per_scan_unlimited: false,
                         },
                     )],
                     pricing_binding: "pricing-binding".to_string(),
@@ -6383,6 +6391,7 @@ mod tests {
             reservation: crate::state::pi_scan::PiScanReservation {
                 tokens: 500_000,
                 cost_microusd: 600_000,
+                per_scan_unlimited: false,
             },
             manual_budget_override_confirmed: false,
         };

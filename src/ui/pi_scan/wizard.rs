@@ -635,7 +635,8 @@ fn route_lines(app: &AppState, wizard: &PiScanSetupWizardState) -> Vec<Line<'sta
 
 /// Build selected-route pricing, disclosure, and foreground-paid confirmation content.
 fn pricing_lines(app: &AppState, wizard: &PiScanSetupWizardState) -> Vec<Line<'static>> {
-    let reservation = wizard.reviewed_reservation();
+    let (reserved_tokens, reserved_cost) =
+        super::format_reservation(app, &wizard.reviewed_reservation());
     let route = format!(
         "{}/{}",
         display_or_dash(&wizard.candidate.provider),
@@ -649,9 +650,9 @@ fn pricing_lines(app: &AppState, wizard: &PiScanSetupWizardState) -> Vec<Line<'s
         Line::from(format!(
             "{}: {} {} · {}",
             crate::i18n::t(app, "app.pi_scan.wizard.pricing.worst_case"),
-            super::format_token_count(reservation.tokens),
+            reserved_tokens,
             crate::i18n::t(app, "app.pi_scan.wizard.pricing.tokens"),
-            super::format_microusd(reservation.cost_microusd)
+            reserved_cost
         )),
         Line::from(format!(
             "{}: {}",
@@ -767,6 +768,14 @@ fn optional_lines(app: &AppState, wizard: &PiScanSetupWizardState) -> Vec<Line<'
                 display_or_dash(&wizard.candidate.https_proxy)
             ),
         ),
+        numeric_line(
+            app,
+            wizard,
+            8,
+            "app.pi_scan.wizard.optional.max_tokens_per_scan",
+            &super::setup::budget_count_value(app, settings.max_tokens_per_scan),
+            &settings.max_tokens_per_scan.to_string(),
+        ),
         Line::from(crate::i18n::t(app, "app.pi_scan.wizard.optional.defaults")),
     ]
 }
@@ -779,7 +788,8 @@ fn review_lines(app: &AppState, wizard: &PiScanSetupWizardState) -> Vec<Line<'st
     let pi_version = facts.map_or("—", |facts| facts.pi_version.as_str());
     let pricing_observed = facts.map_or(0, |facts| facts.pricing_observed_at_unix_seconds);
     let pricing_age = facts.map_or(0, |facts| facts.maximum_pricing_age_seconds);
-    let reservation = wizard.reviewed_reservation();
+    let (reserved_tokens, reserved_cost) =
+        super::format_reservation(app, &wizard.reviewed_reservation());
     let starts =
         super::setup::budget_count_value(app, u64::from(settings.background_starts_per_hour));
     let tokens = super::setup::budget_count_value(app, settings.background_token_cap_24h);
@@ -802,8 +812,8 @@ fn review_lines(app: &AppState, wizard: &PiScanSetupWizardState) -> Vec<Line<'st
         Line::from(format!(
             "{}: {} / {} / {} / {}",
             crate::i18n::t(app, "app.pi_scan.wizard.review.pricing"),
-            reservation.tokens,
-            reservation.cost_microusd,
+            reserved_tokens,
+            reserved_cost,
             pricing_observed,
             pricing_age
         )),

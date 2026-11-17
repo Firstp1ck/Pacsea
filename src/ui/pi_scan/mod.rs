@@ -1125,6 +1125,33 @@ pub(super) const fn notice_color(notice: &PiScanNotice, th: &crate::theme::Theme
     }
 }
 
+/// What: Format a scan reservation as token and cost text.
+///
+/// Inputs:
+/// - `app`: Localization projection.
+/// - `reservation`: Queued, active, or reviewed scan reservation.
+///
+/// Output:
+/// - `(tokens, cost)` display strings.
+///
+/// Details:
+/// - A reservation without a per-scan limit has no worst case, so both parts read Unlimited
+///   instead of showing its placeholder zeros.
+pub(super) fn format_reservation(
+    app: &AppState,
+    reservation: &crate::state::pi_scan::PiScanReservation,
+) -> (String, String) {
+    if reservation.per_scan_unlimited {
+        let unlimited = crate::i18n::t(app, "app.pi_scan.common.unlimited");
+        (unlimited.clone(), unlimited)
+    } else {
+        (
+            format_token_count(reservation.tokens),
+            format_microusd(reservation.cost_microusd),
+        )
+    }
+}
+
 /// What: Format a token count with grouped decimal digits.
 ///
 /// Inputs:

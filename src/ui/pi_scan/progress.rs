@@ -265,6 +265,8 @@ fn push_active_lines(
             super::semantic_style(phase_tone).add_modifier(Modifier::BOLD),
         ),
     ]));
+    let (reserved_tokens, reserved_cost) =
+        super::format_reservation(app, &active.request.reservation);
     lines.push(super::labeled_line(
         crate::i18n::t(app, "app.pi_scan.progress.running_for"),
         format!(
@@ -272,9 +274,9 @@ fn push_active_lines(
             elapsed / 60,
             elapsed % 60,
             crate::i18n::t(app, "app.pi_scan.progress.reservation"),
-            super::format_token_count(active.request.reservation.tokens),
+            reserved_tokens,
             crate::i18n::t(app, "app.pi_scan.wizard.pricing.tokens"),
-            super::format_microusd(active.request.reservation.cost_microusd),
+            reserved_cost,
         ),
         SemanticTone::Muted,
     ));
@@ -447,6 +449,7 @@ fn push_queue_request_line(
             crate::state::pi_scan::PiScanPriority::Background => "app.pi_scan.priority.background",
         },
     );
+    let (reserved_tokens, reserved_cost) = super::format_reservation(app, &request.reservation);
     lines.push(Line::from(vec![
         Span::styled(
             prefix,
@@ -458,9 +461,9 @@ fn push_queue_request_line(
                 " — {priority} · {}: {} · {} {} / {}",
                 crate::i18n::t(app, "app.pi_scan.targets.commit"),
                 super::short_identity(request.key.commit_oid.as_str()),
-                super::format_token_count(request.reservation.tokens),
+                reserved_tokens,
                 crate::i18n::t(app, "app.pi_scan.wizard.pricing.tokens"),
-                super::format_microusd(request.reservation.cost_microusd),
+                reserved_cost,
             ),
             super::semantic_style(SemanticTone::Muted),
         ),
@@ -633,6 +636,7 @@ mod tests {
             reservation: PiScanReservation {
                 tokens: 501,
                 cost_microusd: 1,
+                per_scan_unlimited: false,
             },
             manual_budget_override_confirmed: false,
         }

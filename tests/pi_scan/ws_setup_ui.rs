@@ -32,11 +32,13 @@ fn verified_facts() -> PiScanSetupVerifiedFacts {
             pacsea::state::pi_scan::PiScanReservation {
                 tokens: 10_000,
                 cost_microusd: 125,
+                per_scan_unlimited: false,
             },
         )],
         reservation: pacsea::state::pi_scan::PiScanReservation {
             tokens: 10_000,
             cost_microusd: 125,
+            per_scan_unlimited: false,
         },
         pricing_binding: "pricing-binding".to_string(),
         pricing_observed_at_unix_seconds: 1_000,
@@ -341,6 +343,7 @@ fn pricing_page_omits_catalog_dump_and_formats_the_reservation() {
         pacsea::state::pi_scan::PiScanReservation {
             tokens: 10_000,
             cost_microusd: 999_999,
+            per_scan_unlimited: false,
         },
     ));
     facts.pricing_summary = vec![
@@ -357,6 +360,7 @@ fn pricing_page_omits_catalog_dump_and_formats_the_reservation() {
     wizard.step = PiScanSetupStep::PricingPrivacy;
     wizard.candidate.provider = "provider".to_string();
     wizard.candidate.model = "model".to_string();
+    wizard.candidate.max_tokens_per_scan = 10_000;
     wizard.verified = Some(facts);
     app.pi_scan.wizard = Some(wizard);
 
@@ -379,6 +383,24 @@ fn pricing_page_omits_catalog_dump_and_formats_the_reservation() {
     assert!(rendered.contains("$0.000125 USD"));
     assert!(!rendered.contains("other-provider/other-model"));
     assert!(!rendered.contains("micro-USD"));
+
+    if let Some(wizard) = app.pi_scan.wizard.as_mut() {
+        wizard.candidate.max_tokens_per_scan = 0;
+    }
+    terminal
+        .draw(|frame| pacsea::ui::ui(frame, &mut app))
+        .expect("unlimited pricing render");
+    let rendered = terminal
+        .backend()
+        .buffer()
+        .content
+        .iter()
+        .map(ratatui::buffer::Cell::symbol)
+        .collect::<String>();
+    assert!(
+        !rendered.contains("10,000 "),
+        "an unlimited per-scan limit must not show a token worst case: {rendered:?}"
+    );
 }
 
 /// In-flight probe and retryable Apply failure state must be visible in the rendered wizard.

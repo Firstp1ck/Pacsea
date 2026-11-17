@@ -704,6 +704,7 @@ pub const EDITABLE_SETTINGS: &[EditableSetting] = &[
     ),
     pi_setting("pi_scan_background_token_cap_24h", ValueKind::String),
     pi_setting("pi_scan_background_cost_cap_24h", ValueKind::String),
+    pi_setting("pi_scan_max_tokens_per_scan", ValueKind::String),
     pi_setting(
         "pi_scan_result_retention_days",
         ValueKind::IntRange {

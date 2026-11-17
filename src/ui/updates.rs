@@ -569,6 +569,7 @@ mod tests {
                 reservation: crate::state::pi_scan::PiScanReservation {
                     tokens: 1,
                     cost_microusd: 1,
+                    per_scan_unlimited: false,
                 },
                 manual_budget_override_confirmed: false,
             },

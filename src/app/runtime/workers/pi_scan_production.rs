@@ -102,7 +102,8 @@ pub struct ProductionAdapterConfig {
     pub head_query_timeout: Duration,
     /// Whole observation-cycle deadline.
     pub observation_deadline: Duration,
-    /// Conservative reservation supplied by the setup disclosure.
+    /// Conservative reservation supplied by the setup disclosure. Its per-scan token limit
+    /// is the user setting and survives every setup re-probe.
     pub reservation: PiScanReservation,
     /// Explicit credential-free HTTPS proxy, or direct-only when absent.
     pub https_proxy: Option<String>,
@@ -249,6 +250,9 @@ pub struct ProductionOrchestrationAdapter {
     observation_cycle: ObservationCycle,
     /// Verified Pi version cached after the no-model setup probe.
     pi_version: Option<String>,
+    /// Exact configured-route pricing cached after the setup probe, used to charge actual
+    /// cost for scans without a per-scan limit.
+    route_pricing: Vec<(String, String, crate::logic::pi_scan::pricing::RoutePricing)>,
 }
 
 impl ProductionOrchestrationAdapter {
@@ -272,6 +276,7 @@ impl ProductionOrchestrationAdapter {
             update_candidates: BTreeMap::new(),
             observation_cycle,
             pi_version: None,
+            route_pricing: Vec::new(),
         }
     }
 
@@ -374,6 +379,7 @@ fn reservation_from_probed_models(
     Ok(PiScanReservation {
         tokens: cap.tokens,
         cost_microusd: worst_cost,
+        per_scan_unlimited: false,
     })
 }
 
@@ -536,39 +542,62 @@ fn enumerate_foreign_filtered(
     Ok(grouped.into_values().collect())
 }
 
+/// What: Charge the conservative cost of every model attempt in one logical scan.
+///
+/// Inputs:
+/// - `route_pricing`: Exact pricing for every advertised route from the setup probe.
+/// - `attempts`: Attempt records with per-attempt usage.
+///
+/// Output:
+/// - Saturating sum of worst-rate cost per attempt in micro-USD.
+///
+/// Details:
+/// - Used only for scans without a per-scan limit, whose reservation has no cost to charge.
+/// - An attempt on a route with no recorded pricing charges `u64::MAX`. Setup refuses unpriced
+///   routes, so that path means state drift, and over-charging pauses the rolling cost budget
+///   instead of silently under-charging it.
+fn attempts_cost_microusd(
+    route_pricing: &[(String, String, crate::logic::pi_scan::pricing::RoutePricing)],
+    attempts: &[crate::logic::pi_scan::result::ModelAttemptRecord],
+) -> u64 {
+    attempts.iter().fold(0u64, |total, attempt| {
+        let cost = route_pricing
+            .iter()
+            .find(|(provider, model, _)| *provider == attempt.provider && *model == attempt.model)
+            .map_or(u64::MAX, |(_, _, pricing)| {
+                crate::logic::pi_scan::pricing::reserve_worst_case_microusd(pricing, attempt.usage)
+            });
+        total.saturating_add(cost)
+    })
+}
+
 /// What: Project one fresh setup probe onto the configured ordered routes.
 ///
 /// Inputs:
 /// - `probe`: Fresh no-model Pi setup probe.
 /// - `models`: Configured primary route followed by its ordered fallbacks.
+/// - `max_tokens_per_scan`: User per-scan token limit; zero means Unlimited.
 ///
 /// Output:
 /// - The verified setup identity that startup compares against persisted consent.
 ///
 /// Details:
 /// - Every configured route must be advertised; the first one is the primary.
-/// - The reservation is the worst case over the configured routes.
+/// - The reservation follows the per-scan token limit; see
+///   [`PiSetupProbeSnapshot::scan_reservation`].
 /// - The pricing binding covers only the configured routes, matching what setup persisted, so
 ///   a Pi price refresh on an unused route does not reset consent.
 fn production_setup_snapshot(
     probe: &PiSetupProbeSnapshot,
     models: &[ModelChoice],
+    max_tokens_per_scan: u64,
 ) -> Result<SetupSnapshot, String> {
     let primary = models
         .first()
         .ok_or_else(|| "no primary Pi model was configured".to_string())?;
-    let mut reservation = PiScanReservation {
-        tokens: SETUP_PROBE_RESERVATION_TOKENS,
-        cost_microusd: 0,
-    };
-    for choice in models {
-        let route = probe
-            .exact_route(&choice.provider, &choice.model)
-            .map_err(|error| error.to_string())?;
-        reservation.cost_microusd = reservation
-            .cost_microusd
-            .max(route.reservation.cost_microusd);
-    }
+    let reservation = probe
+        .scan_reservation(models, max_tokens_per_scan)
+        .map_err(|error| error.to_string())?;
     Ok(SetupSnapshot {
         pi_version: probe.pi_version.to_string(),
         available_models: probe
@@ -622,9 +651,21 @@ impl OrchestrationAdapter for ProductionOrchestrationAdapter {
             maximum_pricing_age: SETUP_PROBE_MAXIMUM_PRICING_AGE,
         })
         .map_err(|error| error.to_string())?;
-        let snapshot = production_setup_snapshot(&probe, &self.config.models)?;
+        let max_tokens_per_scan = self.config.reservation.per_scan_token_limit().unwrap_or(0);
+        let snapshot = production_setup_snapshot(&probe, &self.config.models, max_tokens_per_scan)?;
         self.config.reservation = snapshot.reservation;
         self.pi_version = Some(snapshot.pi_version.clone());
+        self.route_pricing = probe
+            .routes
+            .iter()
+            .map(|route| {
+                (
+                    route.provider.clone(),
+                    route.model.clone(),
+                    route.pricing.clone(),
+                )
+            })
+            .collect();
         Ok(snapshot)
     }
 
@@ -1114,7 +1155,7 @@ impl ProductionOrchestrationAdapter {
                 pi_version,
                 model_attempt_timeout: self.config.model_attempt_timeout,
                 logical_timeout: self.config.logical_timeout,
-                token_budget: target.reservation.tokens,
+                token_budget: target.reservation.per_scan_token_limit(),
                 cancelled,
             },
         })
@@ -1147,6 +1188,11 @@ impl ProductionOrchestrationAdapter {
             return Err(ExecutionFailure::Cancelled);
         }
         let tokens = output.provenance.total_tokens();
+        let cost_microusd = if target.reservation.per_scan_unlimited {
+            attempts_cost_microusd(&self.route_pricing, &output.provenance.attempts)
+        } else {
+            target.reservation.cost_microusd
+        };
         Ok(ExecutionReceipt {
             result,
             observed_head_oid: target.observed_head_oid.clone(),
@@ -1154,7 +1200,7 @@ impl ProductionOrchestrationAdapter {
             manifests: vec![acquisition.recipe_manifest, acquisition.source_manifest],
             usage: PiScanActualUsage {
                 tokens,
-                cost_microusd: target.reservation.cost_microusd,
+                cost_microusd,
             },
             stale,
             mutable_sources: acquisition.mutable_sources,
@@ -3313,6 +3359,7 @@ mod tests {
             reservation: PiScanReservation {
                 tokens: 10_000,
                 cost_microusd: 50,
+                per_scan_unlimited: false,
             },
             budget_limits: PiScanBudgetLimits {
                 starts_per_hour: 5,
@@ -3360,6 +3407,7 @@ mod tests {
             reservation: PiScanReservation {
                 tokens: 10_000,
                 cost_microusd: 50,
+                per_scan_unlimited: false,
             },
             https_proxy: None,
         })
@@ -3653,6 +3701,7 @@ mod tests {
                     reservation: PiScanReservation {
                         tokens: SETUP_PROBE_RESERVATION_TOKENS,
                         cost_microusd: rate,
+                        per_scan_unlimited: false,
                     },
                 })
                 .collect(),
@@ -3670,6 +3719,71 @@ mod tests {
         }
     }
 
+    /// The startup projection follows the per-scan limit: zero is Unlimited, a finite limit
+    /// prices the worst configured route at that many tokens.
+    #[test]
+    fn startup_projection_reservation_follows_per_scan_limit() {
+        let models = vec![
+            configured_route("provider-a", "model-a"),
+            configured_route("provider-b", "model-b"),
+        ];
+        let probe = priced_setup_probe(
+            &[
+                ("provider-a", "model-a", 2_000_000),
+                ("provider-b", "model-b", 4_000_000),
+            ],
+            "catalog",
+        );
+        let unlimited = production_setup_snapshot(&probe, &models, 0).expect("unlimited");
+        assert_eq!(unlimited.reservation, PiScanReservation::UNLIMITED);
+        let bounded = production_setup_snapshot(&probe, &models, 250_000).expect("bounded");
+        assert_eq!(bounded.reservation.per_scan_token_limit(), Some(250_000));
+        assert_eq!(bounded.reservation.cost_microusd, 1_000_000);
+    }
+
+    /// Unlimited scans charge each attempt at its own route's worst rate; an unpriced route
+    /// over-charges instead of silently charging nothing.
+    #[test]
+    fn unlimited_scan_cost_sums_attempts_by_route() {
+        let probe = priced_setup_probe(
+            &[
+                ("provider-a", "model-a", 1_000_000),
+                ("provider-b", "model-b", 3_000_000),
+            ],
+            "catalog",
+        );
+        let pricing: Vec<_> = probe
+            .routes
+            .iter()
+            .map(|route| {
+                (
+                    route.provider.clone(),
+                    route.model.clone(),
+                    route.pricing.clone(),
+                )
+            })
+            .collect();
+        let attempt = |provider: &str, model: &str, tokens: u64| {
+            crate::logic::pi_scan::result::ModelAttemptRecord {
+                provider: provider.to_string(),
+                model: model.to_string(),
+                validated: false,
+                corrected: false,
+                usage: crate::logic::pi_scan::result::UsageAccounting {
+                    rpc_bytes: 0,
+                    reported_tokens: Some(tokens),
+                },
+            }
+        };
+        let attempts = [
+            attempt("provider-a", "model-a", 1_000),
+            attempt("provider-b", "model-b", 2_000),
+        ];
+        assert_eq!(super::attempts_cost_microusd(&pricing, &attempts), 7_000);
+        let unknown = [attempt("provider-z", "model-z", 1)];
+        assert_eq!(super::attempts_cost_microusd(&pricing, &unknown), u64::MAX);
+    }
+
     /// A Pi price refresh on a route the scanner never uses must not reset persisted consent.
     #[test]
     fn startup_pricing_binding_ignores_unconfigured_route_prices() {
@@ -3683,9 +3797,9 @@ mod tests {
             "catalog-after-refresh",
         );
 
-        let at_setup = production_setup_snapshot(&reviewed, &models).expect("setup projection");
+        let at_setup = production_setup_snapshot(&reviewed, &models, 0).expect("setup projection");
         let at_startup =
-            production_setup_snapshot(&refreshed, &models).expect("startup projection");
+            production_setup_snapshot(&refreshed, &models, 0).expect("startup projection");
 
         assert_eq!(at_setup.pricing_binding, at_startup.pricing_binding);
         assert_eq!(at_startup.available_models.len(), 2);
@@ -3705,7 +3819,7 @@ mod tests {
             configured_route("provider-a", "model-a"),
         ];
         let binding = |routes: &[(&str, &str, u64)], models: &[ModelChoice]| {
-            production_setup_snapshot(&priced_setup_probe(routes, "catalog"), models)
+            production_setup_snapshot(&priced_setup_probe(routes, "catalog"), models, 0)
                 .expect("projection")
                 .pricing_binding
         };
@@ -3732,10 +3846,10 @@ mod tests {
             configured_route("provider-b", "model-b"),
         ];
 
-        let error = production_setup_snapshot(&probe, &models).expect_err("must fail closed");
+        let error = production_setup_snapshot(&probe, &models, 0).expect_err("must fail closed");
 
         assert!(error.contains("provider-b"), "{error}");
-        assert!(production_setup_snapshot(&probe, &[]).is_err());
+        assert!(production_setup_snapshot(&probe, &[], 0).is_err());
     }
 
     /// Build the exact verified setup identity used by the blocking adapter.
@@ -3748,6 +3862,7 @@ mod tests {
             reservation: PiScanReservation {
                 tokens: 10_000,
                 cost_microusd: 50,
+                per_scan_unlimited: false,
             },
             route_reservations: vec![(
                 "provider".to_string(),
@@ -3755,6 +3870,7 @@ mod tests {
                 PiScanReservation {
                     tokens: 10_000,
                     cost_microusd: 50,
+                    per_scan_unlimited: false,
                 },
             )],
             pricing_binding: "pricing-v1".to_string(),
@@ -4128,6 +4244,7 @@ mod tests {
                 reservation: PiScanReservation {
                     tokens: 1_000,
                     cost_microusd: 10,
+                    per_scan_unlimited: false,
                 },
                 manual_budget_override_confirmed: false,
             },
@@ -4405,6 +4522,7 @@ mod tests {
                 reservation: PiScanReservation {
                     tokens: 10_000,
                     cost_microusd: 50,
+                    per_scan_unlimited: false,
                 },
                 manual_budget_override_confirmed: false,
             })
@@ -4416,6 +4534,7 @@ mod tests {
             reserved: PiScanReservation {
                 tokens: settings.budget_limits.tokens_per_24h,
                 cost_microusd: settings.budget_limits.cost_microusd_per_24h,
+                per_scan_unlimited: false,
             },
             consumed_tokens: None,
             consumed_cost_microusd: None,
@@ -4507,6 +4626,7 @@ mod tests {
                 reservation: PiScanReservation {
                     tokens: 10_000,
                     cost_microusd: 50,
+                    per_scan_unlimited: false,
                 },
                 manual_budget_override_confirmed: false,
             })
@@ -4667,6 +4787,7 @@ mod tests {
             PiScanReservation {
                 tokens: 10_000,
                 cost_microusd: 150_000,
+                per_scan_unlimited: false,
             },
         )
         .expect("exact cap accepts");
@@ -4679,6 +4800,7 @@ mod tests {
                 PiScanReservation {
                     tokens: 10_000,
                     cost_microusd: 149_999,
+                    per_scan_unlimited: false,
                 },
             )
             .is_err(),
@@ -5427,6 +5549,7 @@ mod tests {
             PiScanReservation {
                 tokens: 10_000,
                 cost_microusd: 1_000_000,
+                per_scan_unlimited: false,
             },
             "",
             true,
@@ -5460,6 +5583,7 @@ mod tests {
                 PiScanReservation {
                     tokens: 10_000,
                     cost_microusd: 1_000_000,
+                    per_scan_unlimited: false,
                 },
                 proxy,
                 true,
@@ -5494,6 +5618,7 @@ mod tests {
             PiScanReservation {
                 tokens: 10_000,
                 cost_microusd: 1_000_000,
+                per_scan_unlimited: false,
             },
             "",
             false,

@@ -164,7 +164,7 @@ hu-HU:
         readiness: "Readiness" # TODO: translate to Hungarian
         config: "Configuration" # TODO: translate to Hungarian
         effective_compiled: "Érvényes beállítások / beépített időkorlát-maximumok"
-        effective_values: "head {}/15 · megfigyelés {}/90 · modell {}/300 · teljes {}/720 · indítás {} · token {} · költség {} (a 0 keret = Korlátlan)"
+        effective_values: "head {}/15 · megfigyelés {}/90 · modell {}/300 · teljes {}/720 · indítás {} · token {} · költség {} · per scan {} (a 0 keret = Korlátlan)"
         thinking: "Thinking" # TODO: translate to Hungarian
         tool_contract: "Tool contract" # TODO: translate to Hungarian
         verified_pi: "Verified Pi" # TODO: translate to Hungarian
@@ -272,6 +272,7 @@ hu-HU:
           tokens: "Háttértoken/24 óra (0 = Korlátlan)"
           cost: "Háttérköltség USD/24 óra (0 = Korlátlan)"
           retention: "Eredménymegőrzés napokban"
+          max_tokens_per_scan: "Max tokens per scan (0 = Unlimited)"
           proxy: "Hitelesítő adatok nélküli HTTPS-proxy"
           defaults: "Konzervatív alapértékek: megfigyelés ki · fizetős háttér ki · tartalék útvonal ki · költség Korlátlan (0.00-ként tárolva)."
           fallback_list: "Enter: választás a listából"
@@ -1251,6 +1252,9 @@ hu-HU:
           pi_scan_background_cost_cap_24h:
             label: "Pi Scan: háttérköltség/24 óra"
             summary: "Nem negatív decimális dollárkeret; a 0 vagy 0.00 jelentése Korlátlan."
+          pi_scan_max_tokens_per_scan:
+            label: "Pi Scan: max tokens per scan"
+            summary: "Token limit for one scan; the scan stops when it is reached. 0 means Unlimited."
           keybind_help:
             label: "Open help" # TODO: translate to Hungarian
           keybind_toggle_config:

@@ -347,6 +347,7 @@ fn effective_compiled_line(
     let starts = budget_count_value(app, u64::from(setting.background_starts_per_hour));
     let tokens = budget_count_value(app, setting.background_token_cap_24h);
     let cost = budget_decimal_value(app, &setting.background_cost_cap_24h);
+    let per_scan = budget_count_value(app, setting.max_tokens_per_scan);
     super::labeled_line(
         crate::i18n::t(app, "app.pi_scan.setup.effective_compiled"),
         crate::i18n::t_fmt(
@@ -360,6 +361,7 @@ fn effective_compiled_line(
                 &starts,
                 &tokens,
                 &cost,
+                &per_scan,
             ],
         ),
         SemanticTone::Muted,

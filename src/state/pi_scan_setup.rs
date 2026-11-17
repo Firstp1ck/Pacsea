@@ -233,6 +233,7 @@ impl Default for PiScanSetupVerifiedFacts {
             reservation: PiScanReservation {
                 tokens: 0,
                 cost_microusd: 0,
+                per_scan_unlimited: false,
             },
             pricing_binding: String::new(),
             pricing_observed_at_unix_seconds: 0,
@@ -365,7 +366,7 @@ impl PiScanSetupWizardState {
     pub const fn focuses_numeric_field(&self) -> bool {
         matches!(
             (self.step, self.focus),
-            (PiScanSetupStep::OptionalBehavior, 3..=6)
+            (PiScanSetupStep::OptionalBehavior, 3..=6 | 8)
         )
     }
 
@@ -382,7 +383,7 @@ impl PiScanSetupWizardState {
             PiScanSetupStep::Welcome | PiScanSetupStep::Review | PiScanSetupStep::Activate => 0,
             PiScanSetupStep::PiReadiness | PiScanSetupStep::Route => 2,
             PiScanSetupStep::PricingPrivacy => 3,
-            PiScanSetupStep::OptionalBehavior => 8,
+            PiScanSetupStep::OptionalBehavior => 9,
         }
     }
 
@@ -468,13 +469,29 @@ impl PiScanSetupWizardState {
         })
     }
 
-    /// Return the exact worst-case reservation for the current primary and fallback routes.
+    /// What: Return the worst-case reservation for the current routes and per-scan limit.
+    ///
+    /// Inputs:
+    /// - `self`: Candidate routes, `max_tokens_per_scan`, and verified route reservations.
+    ///
+    /// Output:
+    /// - [`PiScanReservation::UNLIMITED`] when the per-scan limit is zero, otherwise the
+    ///   largest selected route reservation scaled to the per-scan limit.
+    ///
+    /// Details:
+    /// - Verified route reservations are priced at the setup probe's reference token count.
+    ///   Scaling rounds up, so the shown cost is never below the exact one the setup worker
+    ///   applies (it can exceed it by at most one micro-USD).
     #[must_use]
     pub fn reviewed_reservation(&self) -> PiScanReservation {
+        if self.candidate.max_tokens_per_scan == 0 {
+            return PiScanReservation::UNLIMITED;
+        }
         let Some(facts) = &self.verified else {
             return PiScanReservation {
                 tokens: 0,
                 cost_microusd: 0,
+                per_scan_unlimited: false,
             };
         };
         let mut selected = vec![(
@@ -499,10 +516,14 @@ impl PiScanSetupWizardState {
                 PiScanReservation {
                     tokens: 0,
                     cost_microusd: 0,
+                    per_scan_unlimited: false,
                 },
                 |reservation, (_, _, route)| PiScanReservation {
-                    tokens: reservation.tokens.max(route.tokens),
-                    cost_microusd: reservation.cost_microusd.max(route.cost_microusd),
+                    tokens: self.candidate.max_tokens_per_scan,
+                    cost_microusd: reservation
+                        .cost_microusd
+                        .max(scale_cost(route, self.candidate.max_tokens_per_scan)),
+                    per_scan_unlimited: false,
                 },
             )
     }
@@ -699,6 +720,15 @@ impl PiScanSetupWizardState {
                 self.candidate.result_retention_days =
                     adjust_u32(self.candidate.result_retention_days, increase, 1, 365, 1);
             }
+            (PiScanSetupStep::OptionalBehavior, 8) => {
+                self.candidate.max_tokens_per_scan = adjust_u64(
+                    self.candidate.max_tokens_per_scan,
+                    increase,
+                    0,
+                    u64::MAX,
+                    50_000,
+                );
+            }
             _ => return,
         }
         self.numeric_entry = None;
@@ -764,6 +794,14 @@ impl PiScanSetupWizardState {
                 if let Ok(edited) = u32::try_from(edited) {
                     self.candidate.result_retention_days = edited;
                 }
+            }
+            8 => {
+                self.candidate.max_tokens_per_scan = edit_integer(
+                    self.candidate.max_tokens_per_scan,
+                    character,
+                    replace,
+                    u64::MAX,
+                );
             }
             _ => return false,
         }
@@ -1299,6 +1337,26 @@ fn edit_cost(value: &str, character: Option<char>, replace: bool) -> String {
     }
 }
 
+/// What: Scale one route reservation's cost to another token count, rounding up.
+///
+/// Inputs:
+/// - `route`: Route reservation priced at its own token count.
+/// - `tokens`: Target per-scan token limit.
+///
+/// Output:
+/// - Cost in micro-USD for `tokens`, saturating at `u64::MAX`.
+///
+/// Details:
+/// - A route reservation with zero tokens has no rate to scale and yields zero.
+fn scale_cost(route: &PiScanReservation, tokens: u64) -> u64 {
+    if route.tokens == 0 {
+        return 0;
+    }
+    let scaled =
+        (u128::from(route.cost_microusd) * u128::from(tokens)).div_ceil(u128::from(route.tokens));
+    u64::try_from(scaled).unwrap_or(u64::MAX)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1318,6 +1376,7 @@ mod tests {
                     PiScanReservation {
                         tokens: 10_000,
                         cost_microusd: 50,
+                        per_scan_unlimited: false,
                     },
                 ),
                 (
@@ -1326,12 +1385,14 @@ mod tests {
                     PiScanReservation {
                         tokens: 10_000,
                         cost_microusd: 500,
+                        per_scan_unlimited: false,
                     },
                 ),
             ],
             reservation: PiScanReservation {
                 tokens: 10_000,
                 cost_microusd: 50,
+                per_scan_unlimited: false,
             },
             pricing_binding: "pricing".to_string(),
             pricing_observed_at_unix_seconds: 1_000,
@@ -1451,6 +1512,7 @@ mod tests {
             true,
         );
         wizard.verified = Some(facts());
+        wizard.candidate.max_tokens_per_scan = 10_000;
         wizard.candidate.provider = "provider-a".to_string();
         wizard.candidate.model = "model-a".to_string();
         assert_eq!(wizard.reviewed_reservation().cost_microusd, 50);
@@ -1462,6 +1524,27 @@ mod tests {
         wizard.candidate.model = "model-a".to_string();
         wizard.candidate.fallback_models = "provider-b/model-b".to_string();
         assert_eq!(wizard.reviewed_reservation().cost_microusd, 500);
+    }
+
+    /// The default per-scan limit is Unlimited; a finite limit scales the route cost up.
+    #[test]
+    fn reviewed_reservation_follows_the_per_scan_limit() {
+        let mut wizard = PiScanSetupWizardState::open(
+            PiScanSettings::default(),
+            PiScanConsentState::default(),
+            true,
+        );
+        wizard.verified = Some(facts());
+        wizard.candidate.provider = "provider-a".to_string();
+        wizard.candidate.model = "model-a".to_string();
+        assert_eq!(wizard.candidate.max_tokens_per_scan, 0);
+        assert_eq!(wizard.reviewed_reservation(), PiScanReservation::UNLIMITED);
+
+        wizard.candidate.max_tokens_per_scan = 25_000;
+        let bounded = wizard.reviewed_reservation();
+        assert_eq!(bounded.tokens, 25_000);
+        assert_eq!(bounded.cost_microusd, 125);
+        assert_eq!(bounded.per_scan_token_limit(), Some(25_000));
     }
 
     /// The fallback selector must expose every verified route except the active primary.

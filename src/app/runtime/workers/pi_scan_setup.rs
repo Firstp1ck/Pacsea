@@ -855,7 +855,7 @@ fn render_pi_scan_settings(
 }
 
 /// Return every canonical Pi Scan settings key exactly once.
-fn pi_scan_setting_values(settings: &PiScanSettings) -> [(&'static str, String); 18] {
+fn pi_scan_setting_values(settings: &PiScanSettings) -> [(&'static str, String); 19] {
     [
         ("pi_scan_enabled", settings.enabled.to_string()),
         (
@@ -898,6 +898,10 @@ fn pi_scan_setting_values(settings: &PiScanSettings) -> [(&'static str, String);
         (
             "pi_scan_background_cost_cap_24h",
             settings.background_cost_cap_24h.clone(),
+        ),
+        (
+            "pi_scan_max_tokens_per_scan",
+            settings.max_tokens_per_scan.to_string(),
         ),
         (
             "pi_scan_result_retention_days",
@@ -1667,18 +1671,9 @@ fn selected_models_and_reservation(
         model: candidate.model.clone(),
     }];
     models.extend(parse_fallback_models(candidate)?);
-    let mut reservation = PiScanReservation {
-        tokens: SETUP_PROBE_RESERVATION_TOKENS,
-        cost_microusd: 0,
-    };
-    for choice in &models {
-        let route = snapshot
-            .exact_route(&choice.provider, &choice.model)
-            .map_err(|error| error.to_string())?;
-        reservation.cost_microusd = reservation
-            .cost_microusd
-            .max(route.reservation.cost_microusd);
-    }
+    let reservation = snapshot
+        .scan_reservation(&models, candidate.max_tokens_per_scan)
+        .map_err(|error| error.to_string())?;
     Ok((models, reservation))
 }
 
@@ -1730,6 +1725,7 @@ fn setup_projection(
                 PiScanReservation {
                     tokens: 0,
                     cost_microusd: 0,
+                    per_scan_unlimited: false,
                 },
             )
         },
@@ -1841,6 +1837,7 @@ fn settings_value(settings: &PiScanSettings) -> Value {
         "background_starts_per_hour": settings.background_starts_per_hour,
         "background_token_cap_24h": settings.background_token_cap_24h,
         "background_cost_cap_24h": settings.background_cost_cap_24h,
+        "max_tokens_per_scan": settings.max_tokens_per_scan,
         "result_retention_days": settings.result_retention_days,
         "show_raw_output": settings.show_raw_output,
         "https_proxy": settings.https_proxy,

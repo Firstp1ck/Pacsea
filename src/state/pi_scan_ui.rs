@@ -829,6 +829,7 @@ impl Default for PiScanWorkspaceState {
             verified_reservation: crate::state::pi_scan::PiScanReservation {
                 tokens: 0,
                 cost_microusd: 0,
+                per_scan_unlimited: false,
             },
             verified_pricing_binding: String::new(),
             verified_pricing_summary: Vec::new(),
@@ -867,7 +868,7 @@ impl Default for PiScanWorkspaceState {
     }
 }
 
-/// What: Determine whether a settings reload changed anything beyond the three mutable budgets.
+/// What: Determine whether a settings reload changed anything beyond the mutable budgets.
 ///
 /// Inputs:
 /// - `previous`: Effective settings before reload.
@@ -887,6 +888,7 @@ fn pi_scan_material_settings_changed(previous: &PiScanSettings, current: &PiScan
     comparable
         .background_cost_cap_24h
         .clone_from(&current.background_cost_cap_24h);
+    comparable.max_tokens_per_scan = current.max_tokens_per_scan;
     comparable != *current
 }
 

@@ -183,6 +183,7 @@ fn scan_request() -> pacsea::state::pi_scan::PiScanJobRequest {
         reservation: pacsea::state::pi_scan::PiScanReservation {
             tokens: 12_345,
             cost_microusd: 125_000,
+            per_scan_unlimited: false,
         },
         manual_budget_override_confirmed: true,
     }

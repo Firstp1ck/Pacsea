@@ -66,12 +66,48 @@ pub enum PiScanPriority {
 ///
 /// Details:
 /// - Micro-USD integers avoid floating-point drift in persistence and comparisons.
+/// - `per_scan_unlimited` marks a scan with no per-scan token limit. Its `tokens` and
+///   `cost_microusd` are then not a worst case: admission reserves whatever is left of each
+///   finite rolling budget at start time, and completion charges actual usage. See
+///   [`PiScanRuntimeState::start_next`] and [`PiScanRuntimeState::complete`].
+/// - Older persisted state has no flag and loads as a bounded reservation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PiScanReservation {
     /// Worst-case tokens reserved for the logical scan.
     pub tokens: u64,
     /// Worst-case cost in millionths of one US dollar.
     pub cost_microusd: u64,
+    /// Whether the scan runs without a per-scan token limit.
+    #[serde(default)]
+    pub per_scan_unlimited: bool,
+}
+
+impl PiScanReservation {
+    /// Reservation for a scan with no per-scan token limit.
+    pub const UNLIMITED: Self = Self {
+        tokens: 0,
+        cost_microusd: 0,
+        per_scan_unlimited: true,
+    };
+
+    /// What: Return the per-scan token limit the execution engine must enforce.
+    ///
+    /// Inputs:
+    /// - `self`: Exact queued reservation.
+    ///
+    /// Output:
+    /// - `Some(tokens)` for a bounded scan, `None` when the scan has no per-scan limit.
+    ///
+    /// Details:
+    /// - Rolling 24-hour budgets are enforced at admission, not through this value.
+    #[must_use]
+    pub const fn per_scan_token_limit(&self) -> Option<u64> {
+        if self.per_scan_unlimited {
+            None
+        } else {
+            Some(self.tokens)
+        }
+    }
 }
 
 /// What: One immutable request retained in the sequential queue.
@@ -571,6 +607,9 @@ impl PiScanRuntimeState {
     /// Details:
     /// - An existing active item is never preempted. The oldest foreground item is selected
     ///   ahead of background work; ordering within each priority remains stable.
+    /// - A reservation without a per-scan limit is admitted while every finite rolling budget
+    ///   has something left. While active it holds the remaining budget, so nothing else is
+    ///   admitted until completion charges actual usage. Unlimited rolling budgets never block.
     ///
     /// # Errors
     /// - Returns the exact policy, budget, platform, or correlation reason that blocks a start.
@@ -640,6 +679,8 @@ impl PiScanRuntimeState {
     /// - Usage above the reservation still completes the item, so the queue keeps moving. The
     ///   budget is charged the larger of actual usage and the reservation per dimension, and
     ///   the overrun is logged.
+    /// - A scan without a per-scan limit is charged its actual usage. Its active charge was only
+    ///   an admission hold, so charging the larger amount would bill the whole remaining budget.
     ///
     /// # Errors
     /// - Returns an identity, correlation, or accounting error without accepting the response.
@@ -657,23 +698,24 @@ impl PiScanRuntimeState {
             .matching_active(correlation_id, key)?
             .request
             .reservation;
-        let usage =
-            if usage.tokens > reserved.tokens || usage.cost_microusd > reserved.cost_microusd {
-                tracing::warn!(
-                    package_base = %key.package_base,
-                    reported_tokens = usage.tokens,
-                    reserved_tokens = reserved.tokens,
-                    reported_cost_microusd = usage.cost_microusd,
-                    reserved_cost_microusd = reserved.cost_microusd,
-                    "Pi scan usage exceeded its reservation; charging the larger amount"
-                );
-                PiScanActualUsage {
-                    tokens: usage.tokens.max(reserved.tokens),
-                    cost_microusd: usage.cost_microusd.max(reserved.cost_microusd),
-                }
-            } else {
-                usage
-            };
+        let usage = if reserved.per_scan_unlimited {
+            usage
+        } else if usage.tokens > reserved.tokens || usage.cost_microusd > reserved.cost_microusd {
+            tracing::warn!(
+                package_base = %key.package_base,
+                reported_tokens = usage.tokens,
+                reserved_tokens = reserved.tokens,
+                reported_cost_microusd = usage.cost_microusd,
+                reserved_cost_microusd = reserved.cost_microusd,
+                "Pi scan usage exceeded its reservation; charging the larger amount"
+            );
+            PiScanActualUsage {
+                tokens: usage.tokens.max(reserved.tokens),
+                cost_microusd: usage.cost_microusd.max(reserved.cost_microusd),
+            }
+        } else {
+            usage
+        };
         self.reconcile_budget(correlation_id, usage)?;
         let active = self.active.take().ok_or(PiScanStateError::NoActiveItem)?;
         Ok(self.push_terminal(active, PiScanTerminalStatus::Completed, finished_at_unix))
@@ -793,10 +835,17 @@ impl PiScanRuntimeState {
         ) {
             exceeded.insert(PiScanBudgetDimension::Starts);
         }
+        // An unlimited per-scan reservation has no worst case to add, so it fits while any of
+        // the finite rolling budget is left; completion then charges actual usage.
+        let (token_reservation, cost_reservation) = if reservation.per_scan_unlimited {
+            (1, 1)
+        } else {
+            (reservation.tokens, reservation.cost_microusd)
+        };
         if finite_usage_exceeded(
             usage.tokens,
             usage.tokens_overflowed,
-            reservation.tokens,
+            token_reservation,
             self.budget_limits.tokens_per_24h,
         ) {
             exceeded.insert(PiScanBudgetDimension::Tokens);
@@ -804,7 +853,7 @@ impl PiScanRuntimeState {
         if finite_usage_exceeded(
             usage.cost_microusd,
             usage.cost_overflowed,
-            reservation.cost_microusd,
+            cost_reservation,
             self.budget_limits.cost_microusd_per_24h,
         ) {
             exceeded.insert(PiScanBudgetDimension::Cost);
@@ -842,17 +891,58 @@ impl PiScanRuntimeState {
         usage
     }
 
+    /// What: Resolve the amount charged to the rolling window while a scan is active.
+    ///
+    /// Inputs:
+    /// - `reservation`: Exact queued reservation.
+    /// - `now_unix`: Deterministic start timestamp.
+    ///
+    /// Output:
+    /// - The bounded reservation unchanged, or for an unlimited per-scan reservation the
+    ///   remaining amount of each finite rolling budget (zero for an unlimited dimension).
+    ///
+    /// Details:
+    /// - Holding the remaining budget keeps later admissions blocked while the scan runs, and an
+    ///   interrupted or cancelled unlimited scan charges the rest of the window conservatively.
+    fn active_charge(&self, reservation: PiScanReservation, now_unix: u64) -> PiScanReservation {
+        if !reservation.per_scan_unlimited {
+            return reservation;
+        }
+        let usage = self.background_usage(now_unix);
+        let remaining = |limit: u64, used: u64, overflowed: bool| {
+            if overflowed {
+                0
+            } else {
+                limit.saturating_sub(used)
+            }
+        };
+        PiScanReservation {
+            tokens: remaining(
+                self.budget_limits.tokens_per_24h,
+                usage.tokens,
+                usage.tokens_overflowed,
+            ),
+            cost_microusd: remaining(
+                self.budget_limits.cost_microusd_per_24h,
+                usage.cost_microusd,
+                usage.cost_overflowed,
+            ),
+            per_scan_unlimited: true,
+        }
+    }
+
     /// Record a new active reservation.
     fn reserve(&mut self, active: &PiScanActiveItem) {
         let class = match active.request.priority {
             PiScanPriority::Foreground => PiScanAccountingClass::Foreground,
             PiScanPriority::Background => PiScanAccountingClass::Background,
         };
+        let reserved = self.active_charge(active.request.reservation, active.started_at_unix);
         self.budget.records.push(PiScanBudgetRecord {
             correlation_id: active.correlation_id,
             started_at_unix: active.started_at_unix,
             class,
-            reserved: active.request.reservation,
+            reserved,
             consumed_tokens: None,
             consumed_cost_microusd: None,
         });

@@ -161,7 +161,7 @@ de-DE:
         readiness: "Bereitschaft"
         config: "Konfiguration"
         effective_compiled: "Effektive Einstellungen / kompilierte Zeitlimit-Maxima"
-        effective_values: "Head {}/15 · Beobachtung {}/90 · Modell {}/300 · Gesamt {}/720 · Starts {} · Token {} · Kosten {} (Budgetwert 0 = Unbegrenzt)"
+        effective_values: "Head {}/15 · Beobachtung {}/90 · Modell {}/300 · Gesamt {}/720 · Starts {} · Token {} · Kosten {} · pro Scan {} (Budgetwert 0 = Unbegrenzt)"
         thinking: "Denkstufe"
         tool_contract: "Werkzeugvertrag"
         verified_pi: "Verifiziertes Pi"
@@ -269,6 +269,7 @@ de-DE:
           tokens: "Hintergrundtoken/24 h (0 = Unbegrenzt)"
           cost: "Hintergrundkosten USD/24 h (0 = Unbegrenzt)"
           retention: "Ergebnisaufbewahrung in Tagen"
+          max_tokens_per_scan: "Max. Token pro Scan (0 = Unbegrenzt)"
           proxy: "Zugangsdatenfreier HTTPS-Proxy"
           defaults: "Konservative Vorgaben: Beobachtung aus · bezahlt im Hintergrund aus · Fallback aus · Kosten Unbegrenzt (gespeichert als 0.00)."
           fallback_list: "Enter: aus Liste wählen"
@@ -1248,6 +1249,9 @@ de-DE:
           pi_scan_background_cost_cap_24h:
             label: "Pi Scan: Hintergrundkosten/24 h"
             summary: "Nichtnegatives dezimales Dollarbudget; 0 oder 0.00 bedeutet Unbegrenzt."
+          pi_scan_max_tokens_per_scan:
+            label: "Pi Scan: max. Token pro Scan"
+            summary: "Token-Limit für einen Scan; der Scan stoppt, sobald es erreicht ist. 0 bedeutet Unbegrenzt."
           keybind_help:
             label: "Hilfe öffnen"
           keybind_toggle_config:

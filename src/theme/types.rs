@@ -89,6 +89,8 @@ pub struct PiScanSettings {
     pub background_token_cap_24h_parse_error: Option<String>,
     /// Decimal dollar cost cap per rolling 24 hours.
     pub background_cost_cap_24h: String,
+    /// Token limit for one logical scan; zero means Unlimited.
+    pub max_tokens_per_scan: u64,
     /// Detailed result retention in days.
     pub result_retention_days: u32,
     /// Whether the canonical validated-data raw view is visible.
@@ -116,6 +118,7 @@ impl Default for PiScanSettings {
             background_token_cap_24h: 500_000,
             background_token_cap_24h_parse_error: None,
             background_cost_cap_24h: "0.00".to_string(),
+            max_tokens_per_scan: 0,
             result_retention_days: 30,
             show_raw_output: false,
             https_proxy: String::new(),

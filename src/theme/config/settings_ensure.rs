@@ -213,6 +213,7 @@ fn get_pi_scan_value(key: &str, prefs: &Settings) -> Option<String> {
         "pi_scan_background_starts_per_hour" => pi.background_starts_per_hour.to_string(),
         "pi_scan_background_token_cap_24h" => pi.background_token_cap_24h.to_string(),
         "pi_scan_background_cost_cap_24h" => pi.background_cost_cap_24h.clone(),
+        "pi_scan_max_tokens_per_scan" => pi.max_tokens_per_scan.to_string(),
         "pi_scan_result_retention_days" => pi.result_retention_days.to_string(),
         "pi_scan_show_raw_output" => bool_to_string(pi.show_raw_output),
         "pi_scan_https_proxy" => pi.https_proxy.clone(),

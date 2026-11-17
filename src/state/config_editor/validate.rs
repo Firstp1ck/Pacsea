@@ -88,7 +88,9 @@ fn validate_semantic_string_key(key: &str, value: &str) -> Result<(), String> {
                 Err("use a credential-free https:// proxy URL (remove user:password@), or leave empty to disable the proxy".to_string())
             }
         }
-        "pi_scan_background_token_cap_24h" => validate_u64_decimal(value),
+        "pi_scan_background_token_cap_24h" | "pi_scan_max_tokens_per_scan" => {
+            validate_u64_decimal(value)
+        }
         "pi_scan_background_cost_cap_24h" => crate::theme::parse_pi_scan_cost_microusd(value)
             .map(|_| ())
             .map_err(|error| error.replace("pi_scan_background_cost_cap_24h ", "")),

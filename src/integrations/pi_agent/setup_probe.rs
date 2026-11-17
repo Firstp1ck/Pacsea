@@ -244,6 +244,48 @@ impl PiSetupProbeSnapshot {
             .collect::<Result<Vec<_>, _>>()?;
         Ok(pricing_binding(self.pi_version, &self.isolation, routes))
     }
+
+    /// What: Compute the scan reservation for configured routes and a per-scan token limit.
+    ///
+    /// Inputs:
+    /// - `models`: Configured primary route followed by its ordered fallbacks.
+    /// - `max_tokens_per_scan`: User per-scan token limit; zero means Unlimited.
+    ///
+    /// Output:
+    /// - [`PiScanReservation::UNLIMITED`] for zero, otherwise the limit with the worst-case
+    ///   cost over every configured route at that many tokens.
+    ///
+    /// Details:
+    /// - Every configured route must be advertised even when the limit is Unlimited, so an
+    ///   unknown route still fails closed.
+    ///
+    /// # Errors
+    /// - Returns [`PiSetupProbeError::RouteNotAdvertised`] for an unknown configured route.
+    pub fn scan_reservation(
+        &self,
+        models: &[ModelChoice],
+        max_tokens_per_scan: u64,
+    ) -> Result<PiScanReservation, PiSetupProbeError> {
+        let mut cost_microusd = 0u64;
+        for choice in models {
+            let route = self.exact_route(&choice.provider, &choice.model)?;
+            cost_microusd = cost_microusd.max(reserve_worst_case_microusd(
+                &route.pricing,
+                UsageAccounting {
+                    rpc_bytes: 0,
+                    reported_tokens: Some(max_tokens_per_scan),
+                },
+            ));
+        }
+        if max_tokens_per_scan == 0 {
+            return Ok(PiScanReservation::UNLIMITED);
+        }
+        Ok(PiScanReservation {
+            tokens: max_tokens_per_scan,
+            cost_microusd,
+            per_scan_unlimited: false,
+        })
+    }
 }
 
 /// What: Typed fail-closed setup probe errors.
@@ -1142,6 +1184,7 @@ fn parse_route_pricing(
         reservation: PiScanReservation {
             tokens: reservation_tokens,
             cost_microusd,
+            per_scan_unlimited: false,
         },
     })
 }

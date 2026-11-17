@@ -919,4 +919,10 @@ mod tests {
         assert_eq!(loaded.vertical_max_middle, 6);
         assert_eq!(loaded.vertical_min_package_info, 2);
     }
+
+    /// What: The generated settings skeleton ships the per-scan token limit as Unlimited.
+    #[test]
+    fn settings_skeleton_ships_unlimited_per_scan_token_limit() {
+        assert!(SETTINGS_SKELETON_CONTENT.contains("\npi_scan_max_tokens_per_scan = 0\n"));
+    }
 }
