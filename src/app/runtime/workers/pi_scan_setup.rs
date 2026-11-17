@@ -1759,6 +1759,7 @@ fn setup_projection(
             })
             .collect(),
         pricing_binding,
+        legacy_pricing_bindings: Vec::new(),
         pricing_observed_at_unix_seconds: snapshot.pricing_observed_at_unix_seconds,
         maximum_pricing_age_seconds: snapshot.maximum_pricing_age.as_secs(),
         pricing_summary: snapshot.routes.iter().map(pricing_summary).collect(),

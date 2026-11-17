@@ -6011,6 +6011,7 @@ mod tests {
                         },
                     )],
                     pricing_binding: "pricing-binding".to_string(),
+                    legacy_pricing_bindings: Vec::new(),
                     pricing_observed_at_unix_seconds: 1_000,
                     maximum_pricing_age_seconds: 900,
                     pricing_summary: vec![

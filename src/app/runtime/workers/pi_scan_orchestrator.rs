@@ -164,6 +164,9 @@ pub struct SetupSnapshot {
     pub route_reservations: Vec<(String, String, PiScanReservation)>,
     /// SHA-256 binding over exact Pi-reported pricing/provenance for configured routes.
     pub pricing_binding: String,
+    /// Pre-v2 bindings of the same configured routes that earlier builds persisted; a
+    /// confirmed binding found here is rewritten to `pricing_binding` instead of reset.
+    pub legacy_pricing_bindings: Vec<String>,
     /// Unix timestamp of the exact pricing observation.
     pub pricing_observed_at_unix_seconds: u64,
     /// Maximum accepted age of that pricing observation.

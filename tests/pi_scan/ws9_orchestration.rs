@@ -222,6 +222,7 @@ fn setup() -> SetupSnapshot {
             },
         )],
         pricing_binding: "test-pricing-v1".to_string(),
+        legacy_pricing_bindings: Vec::new(),
         pricing_observed_at_unix_seconds: 1_000,
         maximum_pricing_age_seconds: 900,
         pricing_summary: vec!["provider/model · Pi native metadata · cost=0.05".to_string()],

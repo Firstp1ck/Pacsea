@@ -150,8 +150,8 @@ pub struct PiSetupProbeSnapshot {
     pub pricing_observed_at_unix_seconds: u64,
     /// Maximum age accepted for this pricing snapshot.
     pub maximum_pricing_age: Duration,
-    /// SHA-256 over exact version, isolation, and the pricing, provenance, and reservation of
-    /// every advertised route; persisted consent uses [`Self::configured_pricing_binding`].
+    /// SHA-256 over the exact version and the pricing and provenance of every advertised
+    /// route; persisted consent uses [`Self::configured_pricing_binding`].
     pub pricing_binding: String,
 }
 
@@ -242,7 +242,44 @@ impl PiSetupProbeSnapshot {
             .iter()
             .map(|choice| self.exact_route(&choice.provider, &choice.model))
             .collect::<Result<Vec<_>, _>>()?;
-        Ok(pricing_binding(self.pi_version, &self.isolation, routes))
+        Ok(pricing_binding(self.pi_version, routes))
+    }
+
+    /// What: Recompute the pre-v2 pricing bindings an earlier build would have persisted.
+    ///
+    /// Inputs:
+    /// - `models`: Configured primary route followed by its ordered fallbacks.
+    ///
+    /// Output:
+    /// - One binding per historical extension digest, over the same configured routes.
+    ///
+    /// Details:
+    /// - Pre-v2 bindings also hashed the extension digest, tool contract, active tools, argv,
+    ///   and the reference reservation. A persisted binding that equals one of these values
+    ///   confirmed exactly the current Pi version and route pricing, so startup may rewrite it
+    ///   to [`Self::configured_pricing_binding`] without asking again.
+    ///
+    /// # Errors
+    /// - Returns [`PiSetupProbeError::RouteNotAdvertised`] for an unknown configured route.
+    pub fn legacy_configured_pricing_bindings(
+        &self,
+        models: &[ModelChoice],
+    ) -> Result<Vec<String>, PiSetupProbeError> {
+        let routes = models
+            .iter()
+            .map(|choice| self.exact_route(&choice.provider, &choice.model))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(super::legacy_binding::EXTENSION_SHA256
+            .iter()
+            .map(|extension_sha256| {
+                legacy_pricing_binding(
+                    self.pi_version,
+                    &self.isolation,
+                    extension_sha256,
+                    routes.iter().copied(),
+                )
+            })
+            .collect())
     }
 
     /// What: Compute the scan reservation for configured routes and a per-scan token limit.
@@ -1237,7 +1274,7 @@ fn build_snapshot(
     isolation: PiSetupIsolationContract,
     routes: Vec<PiSetupAdvertisedRoute>,
 ) -> Result<PiSetupProbeSnapshot, PiSetupProbeError> {
-    let pricing_binding = pricing_binding(pi_version, &isolation, &routes);
+    let pricing_binding = pricing_binding(pi_version, &routes);
     let snapshot = PiSetupProbeSnapshot {
         executable,
         pi_version,
@@ -1251,10 +1288,63 @@ fn build_snapshot(
     Ok(snapshot)
 }
 
-/// Hash the exact typed setup facts of `routes` without retaining Pi's raw response object.
+/// What: Hash the user-visible pricing facts of `routes` for consent.
+///
+/// Inputs:
+/// - `pi_version`: Verified Pi version the user confirmed.
+/// - `routes`: Configured (or all advertised) routes.
+///
+/// Output:
+/// - Lowercase SHA-256 over the Pi version and each route's identity, rates, source,
+///   accounting, and provenance.
+///
+/// Details:
+/// - Values that change with a Pacsea build (extension digest, tool contract, argv, the
+///   reference reservation) are deliberately excluded so an update keeps consent. The
+///   extension is still verified against this build's digest before every launch.
 fn pricing_binding<'a>(
     pi_version: PiVersion,
+    routes: impl IntoIterator<Item = &'a PiSetupAdvertisedRoute>,
+) -> String {
+    let route_values: Vec<Value> = routes
+        .into_iter()
+        .map(|route| {
+            serde_json::json!({
+                "provider": route.provider,
+                "model": route.model,
+                "input_microusd_per_million": route.pricing.rates.input_microusd_per_million,
+                "output_microusd_per_million": route.pricing.rates.output_microusd_per_million,
+                "source": pricing_source_label(route.pricing.source),
+                "accounting": pricing_accounting_label(route.pricing.accounting),
+                "provenance": route.pricing_provenance,
+            })
+        })
+        .collect();
+    let value = serde_json::json!({
+        "binding": "pacsea-pi-scan-pricing-v2",
+        "pi_version": pi_version.to_string(),
+        "routes": route_values,
+    });
+    crate::pi_agent::to_hex(&crate::pi_agent::sha256(value.to_string().as_bytes()))
+}
+
+/// What: Reproduce the exact pre-v2 pricing binding for one historical extension digest.
+///
+/// Inputs:
+/// - `pi_version`, `routes`: Current probe facts.
+/// - `isolation`: Current probe isolation (active tools and argv are compiled constants).
+/// - `extension_sha256`: Historical digest from [`super::legacy_binding`].
+///
+/// Output:
+/// - Lowercase SHA-256 in the v1 shape, used only to recognize old consent records.
+///
+/// Details:
+/// - The shape and key set must stay byte-identical to the v1 function; fixed test vectors
+///   guard it.
+fn legacy_pricing_binding<'a>(
+    pi_version: PiVersion,
     isolation: &PiSetupIsolationContract,
+    extension_sha256: &str,
     routes: impl IntoIterator<Item = &'a PiSetupAdvertisedRoute>,
 ) -> String {
     let route_values: Vec<Value> = routes
@@ -1275,8 +1365,8 @@ fn pricing_binding<'a>(
         .collect();
     let value = serde_json::json!({
         "pi_version": pi_version.to_string(),
-        "tool_contract_version": isolation.tool_contract_version,
-        "extension_sha256": isolation.extension_sha256,
+        "tool_contract_version": super::legacy_binding::TOOL_CONTRACT_VERSION,
+        "extension_sha256": extension_sha256,
         "active_tools": isolation.active_tools,
         "isolation_argv": isolation.argv,
         "routes": route_values,

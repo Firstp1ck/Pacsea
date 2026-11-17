@@ -46,6 +46,34 @@ pub const RESTRICTED_TOOL_NAMES: [&str; 4] = [
 /// Version tag for the embedded extension plus tool argument/result contract.
 pub const TOOL_CONTRACT_VERSION: &str = "pacsea-scan-tools-1";
 
+/// What: Build-dependent values that pre-v2 consent and pricing bindings embedded.
+///
+/// Inputs:
+/// - None; these are frozen historical literals, never the current build's constants.
+///
+/// Output:
+/// - Used only to recompute bindings that earlier Pacsea builds persisted.
+///
+/// Details:
+/// - Current bindings bind only user-visible choices, so a Pacsea update does not reset
+///   consent. Recognizing an old record needs the exact values it was hashed with; deriving
+///   them from current constants would break as soon as one changes.
+/// - Append a digest here only if a build that hashed it into a binding was distributed.
+pub mod legacy_binding {
+    /// Extension digests embedded by every build that hashed the digest into a binding.
+    pub const EXTENSION_SHA256: [&str; 3] = [
+        "459204d0870be81e2eb39dc494da2975201550eb640edfdcda914802583318af",
+        "fa5a92121a71755d052357d074772a7def4897e1553a2099dd1369bbf9335e15",
+        "0409412f410590ac69da240d9f9cbc11b305a767d06aa59e4a2827ba65f3b01c",
+    ];
+    /// Tool contract version those bindings embedded.
+    pub const TOOL_CONTRACT_VERSION: &str = "pacsea-scan-tools-1";
+    /// Prompt version those consent bindings embedded.
+    pub const PROMPT_VERSION: &str = "pacsea-scan-prompt-1";
+    /// Result schema version those consent bindings embedded.
+    pub const SCHEMA_VERSION: &str = "pacsea-scan-schema-1";
+}
+
 /// Compiled hard maxima from the plan's authoritative resource-bound table.
 ///
 /// Settings may lower these values in later workstreams but may never raise them.

@@ -622,6 +622,9 @@ fn production_setup_snapshot(
         pricing_binding: probe
             .configured_pricing_binding(models)
             .map_err(|error| error.to_string())?,
+        legacy_pricing_bindings: probe
+            .legacy_configured_pricing_bindings(models)
+            .map_err(|error| error.to_string())?,
         pricing_observed_at_unix_seconds: probe.pricing_observed_at_unix_seconds,
         maximum_pricing_age_seconds: probe.maximum_pricing_age.as_secs(),
         pricing_summary: probe
@@ -697,6 +700,7 @@ impl OrchestrationAdapter for ProductionOrchestrationAdapter {
                 })
                 .collect(),
             pricing_binding: "dry-run-no-pricing".to_string(),
+            legacy_pricing_bindings: Vec::new(),
             pricing_observed_at_unix_seconds: 0,
             maximum_pricing_age_seconds: 0,
             pricing_summary: vec!["dry-run: pricing was not probed".to_string()],
@@ -1498,8 +1502,8 @@ pub(crate) fn spawn_production_pi_scan_worker(
         ));
     }
     let consent_binding = production_consent_binding(&settings);
-    let legacy_background_binding = legacy_background_consent_binding(&settings);
-    let legacy_budget_binding = legacy_budget_inclusive_consent_binding(&settings);
+    let legacy_bindings = legacy_consent_bindings(&settings);
+    let legacy_binding_refs: Vec<&str> = legacy_bindings.iter().map(String::as_str).collect();
     let orchestrator = PiScanOrchestrator::new_with_legacy_consent_bindings(
         OrchestrationConfig {
             enabled: options.effective_enabled(),
@@ -1523,7 +1527,7 @@ pub(crate) fn spawn_production_pi_scan_worker(
             budget_limits: settings.budget_limits,
         },
         ProductionOrchestrationAdapter::new(adapter_config),
-        &[&legacy_background_binding, &legacy_budget_binding],
+        &legacy_binding_refs,
     )
     .map_err(|error| error.to_string())?;
     let runner = PiScanSequentialRunner::new(orchestrator);
@@ -1589,50 +1593,98 @@ fn apply_result_retention(
     warnings
 }
 
-/// Hash material provider/model/privacy/pricing configuration for consent invalidation.
-pub(crate) fn production_consent_binding(settings: &ProductionRuntimeSettings) -> String {
-    production_consent_binding_with_operational_policy(settings, false, false)
-}
-
-/// Recompute the exact prior binding that included the mutable background preference.
-fn legacy_background_consent_binding(settings: &ProductionRuntimeSettings) -> String {
-    production_consent_binding_with_operational_policy(settings, true, false)
-}
-
-/// Recompute the older binding that included background and budget operational policy.
-fn legacy_budget_inclusive_consent_binding(settings: &ProductionRuntimeSettings) -> String {
-    production_consent_binding_with_operational_policy(settings, true, true)
-}
-
-/// What: Hash consent material with selected historical operational-policy fields.
+/// What: Hash the user-visible provider/model/privacy configuration for consent.
 ///
 /// Inputs:
-/// - `settings`: Exact provider/model/privacy/pricing and operational settings.
-/// - `include_background_policy`: Whether to reproduce the former background-setting field.
-/// - `include_budget_policy`: Whether to reproduce the older three budget fields.
+/// - `settings`: Validated production runtime settings.
 ///
 /// Output:
 /// - Lowercase SHA-256 material binding.
 ///
 /// Details:
-/// - Current consent excludes both mutable policy groups. Legacy callers select only exact known
-///   historical shapes so migration never broadens to partial or unrelated bindings.
-fn production_consent_binding_with_operational_policy(
+/// - Binds only what the user chose: Pi binary, ordered routes, thinking level, and HTTPS
+///   proxy. Budgets and the background preference are mutable policy. Build-dependent
+///   values (extension digest, tool contract, prompt and result schema versions) are left
+///   out so a Pacsea update keeps consent; the extension is still verified against this
+///   build's digest before every launch.
+pub(crate) fn production_consent_binding(settings: &ProductionRuntimeSettings) -> String {
+    let material = serde_json::json!({
+        "binding": "pacsea-pi-scan-consent-v2",
+        "binary": settings.binary,
+        "models": consent_model_values(settings),
+        "thinking": settings.thinking,
+        "https_proxy": settings.https_proxy,
+    });
+    let bytes = serde_json::to_vec(&material).unwrap_or_default();
+    sha256_hex(&bytes)
+}
+
+/// Serialize the ordered model routes exactly as every binding shape hashes them.
+fn consent_model_values(settings: &ProductionRuntimeSettings) -> Vec<serde_json::Value> {
+    settings
+        .models
+        .iter()
+        .map(|model| serde_json::json!({"provider": model.provider, "model": model.model}))
+        .collect()
+}
+
+/// What: Recompute every pre-v2 consent binding an earlier build could have persisted.
+///
+/// Inputs:
+/// - `settings`: Current validated production runtime settings.
+///
+/// Output:
+/// - Bindings for each historical extension digest in each historical operational-policy
+///   shape (none, background, background plus budgets).
+///
+/// Details:
+/// - A persisted binding matches only when its user-visible fields equal the current
+///   settings, so migrating it never widens consent.
+fn legacy_consent_bindings(settings: &ProductionRuntimeSettings) -> Vec<String> {
+    let mut bindings = Vec::new();
+    for extension_sha256 in crate::pi_agent::legacy_binding::EXTENSION_SHA256 {
+        for (background, budget) in [(false, false), (true, false), (true, true)] {
+            bindings.push(legacy_consent_binding(
+                settings,
+                extension_sha256,
+                background,
+                budget,
+            ));
+        }
+    }
+    bindings
+}
+
+/// What: Reproduce one exact pre-v2 consent binding.
+///
+/// Inputs:
+/// - `settings`: Exact provider/model/privacy and operational settings.
+/// - `extension_sha256`: Historical extension digest.
+/// - `include_background_policy`: Whether to reproduce the former background-setting field.
+/// - `include_budget_policy`: Whether to reproduce the older three budget fields.
+///
+/// Output:
+/// - Lowercase SHA-256 material binding in the v1 shape.
+///
+/// Details:
+/// - Uses frozen historical literals, never current build constants; fixed test vectors
+///   guard the byte-exact shape.
+fn legacy_consent_binding(
     settings: &ProductionRuntimeSettings,
+    extension_sha256: &str,
     include_background_policy: bool,
     include_budget_policy: bool,
 ) -> String {
+    use crate::pi_agent::legacy_binding;
     let mut material = serde_json::json!({
         "binary": settings.binary,
-        "models": settings.models.iter().map(|model| {
-            serde_json::json!({"provider": model.provider, "model": model.model})
-        }).collect::<Vec<_>>(),
+        "models": consent_model_values(settings),
         "thinking": settings.thinking,
         "https_proxy": settings.https_proxy,
-        "extension_sha256": crate::pi_agent::process::EMBEDDED_EXTENSION_SHA256,
-        "tool_contract": crate::pi_agent::TOOL_CONTRACT_VERSION,
-        "prompt_version": crate::logic::pi_scan::prompt::PROMPT_VERSION,
-        "result_schema": crate::logic::pi_scan::prompt::SCHEMA_VERSION,
+        "extension_sha256": extension_sha256,
+        "tool_contract": legacy_binding::TOOL_CONTRACT_VERSION,
+        "prompt_version": legacy_binding::PROMPT_VERSION,
+        "result_schema": legacy_binding::SCHEMA_VERSION,
     });
     if include_background_policy {
         material["background_execution"] = serde_json::json!(settings.background_execution);
@@ -1837,36 +1889,72 @@ fn request_background_execution_if_eligible(
     }
 }
 
-/// Own sequential observation, queue promotion, runtime policy, and execution requests.
-async fn run_production_requests(
-    runner: PiScanSequentialRunner<ProductionOrchestrationAdapter>,
-    mut request_rx: tokio::sync::mpsc::UnboundedReceiver<PiScanRequestMessage>,
-    senders: ProductionRequestSenders,
-    mut settings: ProductionRuntimeSettings,
+/// What happens to persisted pricing consent when the runtime starts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StartupPricingConsent {
+    /// The confirmed Pi version and pricing binding match the fresh probe.
+    Unchanged,
+    /// The confirmed binding is a pre-v2 binding of identical facts; rewrite it in place.
+    Migrate,
+    /// The Pi version or configured route pricing changed; consent must be given again.
+    Reset,
+}
+
+/// What: Compare persisted pricing consent with a fresh startup probe.
+///
+/// Inputs:
+/// - `setup`: Persisted setup confirmations.
+/// - `current`: Fresh setup snapshot with current and legacy pricing bindings.
+///
+/// Output:
+/// - [`StartupPricingConsent`] decision.
+///
+/// Details:
+/// - A legacy binding only matches when the user-visible facts it hashed are unchanged, so
+///   migration never widens consent. Build-dependent values no longer reset consent.
+fn startup_pricing_consent(
+    setup: &PiScanSetupConsentState,
+    current: &SetupSnapshot,
+) -> StartupPricingConsent {
+    if setup.confirmed_pi_version != current.pi_version {
+        StartupPricingConsent::Reset
+    } else if setup.confirmed_pricing_binding == current.pricing_binding {
+        StartupPricingConsent::Unchanged
+    } else if current
+        .legacy_pricing_bindings
+        .contains(&setup.confirmed_pricing_binding)
+    {
+        StartupPricingConsent::Migrate
+    } else {
+        StartupPricingConsent::Reset
+    }
+}
+
+/// What: Revalidate persisted setup consent against a fresh probe when the runtime starts.
+///
+/// Inputs:
+/// - `runner`: Sequential owner used for the probe and any consent rewrite.
+/// - `progress_tx`, `result_tx`: UI channels for verified facts and rejections.
+/// - `runtime_consent`, `setup_consent`: Persisted consent loaded by the owner.
+/// - `dry_run`: Skip the probe entirely when set.
+///
+/// Output:
+/// - The consent to continue with, or `None` after a reported fatal error.
+///
+/// Details:
+/// - See [`startup_pricing_consent`]: unchanged facts keep consent, a pre-v2 binding of the
+///   same facts is rewritten in place, and anything else resets consent with a notice.
+async fn revalidate_startup_consent(
+    runner: &PiScanSequentialRunner<ProductionOrchestrationAdapter>,
+    progress_tx: &tokio::sync::mpsc::UnboundedSender<PiScanProgressMessage>,
+    result_tx: &tokio::sync::mpsc::UnboundedSender<PiScanResultMessage>,
+    mut runtime_consent: crate::state::pi_scan::PiScanConsentState,
+    mut setup_consent: PiScanSetupConsentState,
     dry_run: bool,
-) {
-    let progress_tx = senders.progress.clone();
-    let result_tx = senders.result.clone();
-    let execution_tx = senders.execution.clone();
-    let restored_state = match runner.state_snapshot().await {
-        Ok(state) => state,
-        Err(error) => {
-            reject(&result_tx, error.to_string());
-            return;
-        }
-    };
-    drop(
-        progress_tx.send(PiScanProgressMessage::RestoredRuntime(Box::new(
-            restored_state,
-        ))),
-    );
-    let (mut runtime_consent, mut setup_consent) = match runner.consent_snapshot().await {
-        Ok(snapshot) => snapshot,
-        Err(error) => {
-            reject(&result_tx, error.to_string());
-            return;
-        }
-    };
+) -> Option<(
+    crate::state::pi_scan::PiScanConsentState,
+    PiScanSetupConsentState,
+)> {
     let has_persisted_setup_consent = setup_consent.disclosure_confirmed
         || setup_consent.fallback_confirmed
         || setup_consent.readiness_warning_confirmed
@@ -1876,14 +1964,22 @@ async fn run_production_requests(
         let current_setup = match runner.setup_snapshot().await {
             Ok(snapshot) => snapshot,
             Err(error) => {
-                reject(&result_tx, error.to_string());
-                return;
+                reject(result_tx, error.to_string());
+                return None;
             }
         };
         drop(progress_tx.send(PiScanProgressMessage::SetupVerified(current_setup.clone())));
-        let material_changed = setup_consent.confirmed_pi_version != current_setup.pi_version
-            || setup_consent.confirmed_pricing_binding != current_setup.pricing_binding;
-        if material_changed {
+        let decision = startup_pricing_consent(&setup_consent, &current_setup);
+        if decision == StartupPricingConsent::Migrate {
+            setup_consent
+                .confirmed_pricing_binding
+                .clone_from(&current_setup.pricing_binding);
+            if let Err(error) = runner.update_setup_consent(setup_consent.clone()).await {
+                reject(result_tx, error.to_string());
+                return None;
+            }
+        }
+        if decision == StartupPricingConsent::Reset {
             runtime_consent = crate::state::pi_scan::PiScanConsentState::default();
             setup_consent = crate::pi_scan_orchestrator::PiScanSetupConsentState {
                 configuration_binding: setup_consent.configuration_binding,
@@ -1908,16 +2004,61 @@ async fn run_production_requests(
                         .await,
                 );
             if let Err(error) = reset {
-                reject(&result_tx, error.to_string());
-                return;
+                reject(result_tx, error.to_string());
+                return None;
             }
             reject(
-                &result_tx,
+                result_tx,
                 "Pi version or exact route pricing changed; persisted scanner consent was reset and must be confirmed again"
                     .to_string(),
             );
         }
     }
+    Some((runtime_consent, setup_consent))
+}
+
+/// Own sequential observation, queue promotion, runtime policy, and execution requests.
+async fn run_production_requests(
+    runner: PiScanSequentialRunner<ProductionOrchestrationAdapter>,
+    mut request_rx: tokio::sync::mpsc::UnboundedReceiver<PiScanRequestMessage>,
+    senders: ProductionRequestSenders,
+    mut settings: ProductionRuntimeSettings,
+    dry_run: bool,
+) {
+    let progress_tx = senders.progress.clone();
+    let result_tx = senders.result.clone();
+    let execution_tx = senders.execution.clone();
+    let restored_state = match runner.state_snapshot().await {
+        Ok(state) => state,
+        Err(error) => {
+            reject(&result_tx, error.to_string());
+            return;
+        }
+    };
+    drop(
+        progress_tx.send(PiScanProgressMessage::RestoredRuntime(Box::new(
+            restored_state,
+        ))),
+    );
+    let (runtime_consent, setup_consent) = match runner.consent_snapshot().await {
+        Ok(snapshot) => snapshot,
+        Err(error) => {
+            reject(&result_tx, error.to_string());
+            return;
+        }
+    };
+    let Some((runtime_consent, setup_consent)) = revalidate_startup_consent(
+        &runner,
+        &progress_tx,
+        &result_tx,
+        runtime_consent,
+        setup_consent,
+        dry_run,
+    )
+    .await
+    else {
+        return;
+    };
     let background_paid_execution = setup_consent.background_paid_execution;
     drop(progress_tx.send(PiScanProgressMessage::RestoredConsent {
         consent: runtime_consent,
@@ -3303,16 +3444,15 @@ mod tests {
     use super::{
         ProbedModel, ProductionAdapterConfig, ProductionBudgetAdjustmentRequest,
         ProductionOrchestrationAdapter, ProductionPolicyProjection, ProductionRequestSenders,
-        ProductionRuntimeSettings, RuntimeConsentProjection, background_observation_due,
-        drain_eligible_queue, handle_production_background_execution,
+        ProductionRuntimeSettings, RuntimeConsentProjection, StartupPricingConsent,
+        background_observation_due, drain_eligible_queue, handle_production_background_execution,
         handle_production_budget_adjustment, handle_production_budget_revalidation,
-        handle_production_request, legacy_background_consent_binding,
-        legacy_budget_inclusive_consent_binding, missing_selected_foreign_packages,
-        production_background_wake_eligible, production_consent_binding, production_setup_snapshot,
-        publish_cancelled, publish_failed, publish_observation, publish_observation_with_queue,
-        publish_policy_notice, publish_validated_completion,
-        request_background_execution_if_eligible, reservation_from_probed_models,
-        resolve_production_adapter_config,
+        handle_production_request, legacy_consent_binding, legacy_consent_bindings,
+        missing_selected_foreign_packages, production_background_wake_eligible,
+        production_consent_binding, production_setup_snapshot, publish_cancelled, publish_failed,
+        publish_observation, publish_observation_with_queue, publish_policy_notice,
+        publish_validated_completion, request_background_execution_if_eligible,
+        reservation_from_probed_models, resolve_production_adapter_config, startup_pricing_consent,
     };
     use crate::app::runtime::workers::pi_scan::{
         PiScanBackgroundExecutionAcknowledgement, PiScanBudgetAdjustmentAcknowledgement,
@@ -3784,6 +3924,92 @@ mod tests {
         assert_eq!(super::attempts_cost_microusd(&pricing, &unknown), u64::MAX);
     }
 
+    /// What: Pricing bindings written by earlier builds are recognized for the same facts.
+    ///
+    /// Inputs:
+    /// - The two-route fixture probe with the primary route configured.
+    ///
+    /// Output:
+    /// - The three captured pre-v2 vectors (one per historical extension digest) appear in
+    ///   `legacy_pricing_bindings`; the v2 binding ignores build-dependent isolation facts.
+    #[test]
+    fn legacy_pricing_vectors_are_recognized_and_v2_ignores_build_facts() {
+        let models = vec![configured_route("provider-a", "model-a")];
+        let probe = priced_setup_probe(
+            &[("provider-a", "model-a", 10), ("provider-b", "model-b", 20)],
+            "catalog",
+        );
+        let snapshot = production_setup_snapshot(&probe, &models, 0).expect("snapshot");
+        for vector in [
+            "9389c992a9bc4d3255d5235ec931ee25b15cdfec265a5e76a18291e2e3d98ee3",
+            "9933526df113298213140488cb1517584d18fbff3514bf228836b8f16badc9f0",
+            "450a4171316ba5823b06c08a5280c69b77d2446bab278dfb7110da53292dcf06",
+        ] {
+            assert!(
+                snapshot.legacy_pricing_bindings.iter().any(|b| b == vector),
+                "{vector}"
+            );
+            assert_ne!(snapshot.pricing_binding, vector);
+        }
+
+        let mut rebuilt = probe;
+        rebuilt.isolation.extension_sha256 = "f".repeat(64);
+        rebuilt.isolation.tool_contract_version = "pacsea-scan-tools-2".to_string();
+        rebuilt.isolation.argv.push("--new-flag".to_string());
+        for route in &mut rebuilt.routes {
+            route.reservation.tokens = 1;
+        }
+        let after_update = production_setup_snapshot(&rebuilt, &models, 0).expect("snapshot");
+        assert_eq!(after_update.pricing_binding, snapshot.pricing_binding);
+    }
+
+    /// What: Startup keeps, migrates, or resets persisted pricing consent exactly.
+    #[test]
+    fn startup_pricing_consent_migrates_only_identical_legacy_facts() {
+        let models = vec![configured_route("provider-a", "model-a")];
+        let snapshot = |rate: u64| {
+            production_setup_snapshot(
+                &priced_setup_probe(&[("provider-a", "model-a", rate)], "catalog"),
+                &models,
+                0,
+            )
+            .expect("snapshot")
+        };
+        let current = snapshot(10);
+        let consent = |binding: &str| crate::pi_scan_orchestrator::PiScanSetupConsentState {
+            configuration_binding: "binding".to_string(),
+            disclosure_confirmed: true,
+            fallback_confirmed: false,
+            background_paid_execution: true,
+            readiness_warning_confirmed: true,
+            confirmed_pi_version: current.pi_version.clone(),
+            confirmed_pricing_binding: binding.to_string(),
+        };
+        assert_eq!(
+            startup_pricing_consent(&consent(&current.pricing_binding), &current),
+            StartupPricingConsent::Unchanged
+        );
+        assert_eq!(
+            startup_pricing_consent(&consent(&current.legacy_pricing_bindings[0]), &current),
+            StartupPricingConsent::Migrate
+        );
+        let repriced = snapshot(11);
+        assert_eq!(
+            startup_pricing_consent(&consent(&repriced.legacy_pricing_bindings[2]), &current),
+            StartupPricingConsent::Reset
+        );
+        assert_eq!(
+            startup_pricing_consent(&consent("unrelated"), &current),
+            StartupPricingConsent::Reset
+        );
+        let mut newer_pi = consent(&current.pricing_binding);
+        newer_pi.confirmed_pi_version = "0.85.0".to_string();
+        assert_eq!(
+            startup_pricing_consent(&newer_pi, &current),
+            StartupPricingConsent::Reset
+        );
+    }
+
     /// A Pi price refresh on a route the scanner never uses must not reset persisted consent.
     #[test]
     fn startup_pricing_binding_ignores_unconfigured_route_prices() {
@@ -3874,6 +4100,7 @@ mod tests {
                 },
             )],
             pricing_binding: "pricing-v1".to_string(),
+            legacy_pricing_bindings: Vec::new(),
             pricing_observed_at_unix_seconds: 1,
             maximum_pricing_age_seconds: 900,
             pricing_summary: vec!["provider/model test pricing".to_string()],
@@ -4808,17 +5035,77 @@ mod tests {
         );
     }
 
-    /// Fixed vectors anchor both released historical consent-binding shapes.
+    /// Pre-v2 binding with the most recent historical extension and the background field.
+    fn legacy_background_consent_binding(settings: &ProductionRuntimeSettings) -> String {
+        legacy_consent_binding(
+            settings,
+            crate::pi_agent::legacy_binding::EXTENSION_SHA256[2],
+            true,
+            false,
+        )
+    }
+
+    /// Pre-v2 binding with the most recent historical extension, background, and budgets.
+    fn legacy_budget_inclusive_consent_binding(settings: &ProductionRuntimeSettings) -> String {
+        legacy_consent_binding(
+            settings,
+            crate::pi_agent::legacy_binding::EXTENSION_SHA256[2],
+            true,
+            true,
+        )
+    }
+
+    /// What: Fixed vectors written by earlier builds stay recognized for migration.
+    ///
+    /// Inputs:
+    /// - The shared consent fixture settings.
+    ///
+    /// Output:
+    /// - Every binding below, captured from the code of the build that wrote it, appears in
+    ///   [`legacy_consent_bindings`]; the v2 binding is none of them.
+    ///
+    /// Details:
+    /// - Pre-F1, F1, and the isError-extension build each embedded a different extension
+    ///   digest, so a Pacsea update alone used to reset consent.
     #[test]
     fn historical_consent_binding_vectors_are_stable() {
         let settings = consent_test_settings();
-        assert_eq!(
-            legacy_background_consent_binding(&settings),
-            "ae0f38f2c16fdd3d01889d352d93352a89dc9e1d69a336dd38266eb876d3d23f"
+        let legacy = legacy_consent_bindings(&settings);
+        for vector in [
+            // pre-F1 extension: background shape, budget shape
+            "0e16b5e9abddab90234c4557064034780e7408487cd6ca519aa50143e22975ea",
+            "8ffa99864e7718d8b51fb46422adda980edb099181cd027d9c6c02b88e50dcb6",
+            // F1 extension: background shape, budget shape
+            "6f95c9ca1255f07950c40c05ab4f44ec3255ccbea091f6c645b3b004e831b04e",
+            "5b86647f88063b5a7f0767b7541239eb8a8b864c5afef4f15d25a446897ffe85",
+            // isError extension: background shape, budget shape, operational-free shape
+            "ae0f38f2c16fdd3d01889d352d93352a89dc9e1d69a336dd38266eb876d3d23f",
+            "bd66f61395fffffd6f496a2b3591225e0fd6c0002ac35e052d19f8765328d4ec",
+            "e44dce9592b327d0c2697eb7de7ee948cf9df7398e05434cb0dc3e352ef2f502",
+        ] {
+            assert!(legacy.iter().any(|binding| binding == vector), "{vector}");
+        }
+        assert!(!legacy.contains(&production_consent_binding(&settings)));
+    }
+
+    /// What: A changed user-visible choice matches no legacy binding of the old settings.
+    #[test]
+    fn legacy_consent_bindings_do_not_widen_to_changed_routes() {
+        let settings = consent_test_settings();
+        let original = legacy_consent_bindings(&settings);
+        let mut changed = settings.clone();
+        changed.models[0].model = "other-model".to_string();
+        assert!(
+            legacy_consent_bindings(&changed)
+                .iter()
+                .all(|binding| !original.contains(binding))
         );
-        assert_eq!(
-            legacy_budget_inclusive_consent_binding(&settings),
-            "bd66f61395fffffd6f496a2b3591225e0fd6c0002ac35e052d19f8765328d4ec"
+        let mut proxied = settings;
+        proxied.https_proxy = "https://proxy.example".to_string();
+        assert!(
+            legacy_consent_bindings(&proxied)
+                .iter()
+                .all(|binding| !original.contains(binding))
         );
     }
 
@@ -5415,14 +5702,22 @@ mod tests {
         assert_eq!(setup.configuration_binding, binding);
     }
 
-    /// Both exact historical operational-policy bindings migrate without losing consent.
+    /// Exact historical bindings, including ones bound to an older extension digest, migrate
+    /// without losing consent.
     #[test]
     fn valid_legacy_operational_bindings_migrate_and_rewrite_both_fields() {
         let settings = consent_test_settings();
         let current = production_consent_binding(&settings);
-        let legacy_background = legacy_background_consent_binding(&settings);
-        let legacy_budget = legacy_budget_inclusive_consent_binding(&settings);
-        for legacy in [&legacy_background, &legacy_budget] {
+        let allowance = legacy_consent_bindings(&settings);
+        let allowance_refs: Vec<&str> = allowance.iter().map(String::as_str).collect();
+        let pre_f1_extension = crate::pi_agent::legacy_binding::EXTENSION_SHA256[0];
+        let candidates = [
+            legacy_background_consent_binding(&settings),
+            legacy_budget_inclusive_consent_binding(&settings),
+            legacy_consent_binding(&settings, pre_f1_extension, false, false),
+            legacy_consent_binding(&settings, pre_f1_extension, true, true),
+        ];
+        for legacy in &candidates {
             let temp = tempfile::tempdir().expect("temp");
             let mut first = PiScanOrchestrator::new(
                 consent_test_config(temp.path(), legacy.clone()),
@@ -5435,7 +5730,7 @@ mod tests {
             let recovered = PiScanOrchestrator::new_with_legacy_consent_bindings(
                 consent_test_config(temp.path(), current.clone()),
                 consent_test_adapter(temp.path()),
-                &[&legacy_background, &legacy_budget],
+                &allowance_refs,
             )
             .expect("migrated owner");
 
