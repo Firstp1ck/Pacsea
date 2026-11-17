@@ -4,6 +4,8 @@
 mod capability_probe;
 #[path = "pi_scan/dependency_benchmarks.rs"]
 mod dependency_benchmarks;
+#[path = "pi_scan/extension_handlers.rs"]
+mod extension_handlers;
 #[path = "pi_scan/fixtures.rs"]
 mod fixtures;
 #[path = "pi_scan/security_boundary.rs"]

@@ -31,7 +31,7 @@ pub const EMBEDDED_EXTENSION_SOURCE: &str = include_str!("assets/pacsea-scan-too
 /// extension changes, rather than silently deriving both sides of the launch check from
 /// the same runtime bytes.
 pub const EMBEDDED_EXTENSION_SHA256: &str =
-    "459204d0870be81e2eb39dc494da2975201550eb640edfdcda914802583318af";
+    "fa5a92121a71755d052357d074772a7def4897e1553a2099dd1369bbf9335e15";
 
 /// File name used when the trusted extension is materialized at runtime.
 pub const EMBEDDED_EXTENSION_FILE_NAME: &str = "pacsea-scan-tools.ts";

@@ -299,12 +299,15 @@ export default function pacseaScanTools(pi: ExtensionAPI) {
       offset: Type.Optional(Type.Integer({ minimum: 0 })),
       limit: Type.Optional(Type.Integer({ minimum: 1, maximum: LIMITS.readBytes })),
     }),
-    async execute(args: {
-      snapshot: string;
-      relative_path: string;
-      offset?: number;
-      limit?: number;
-    }) {
+    async execute(
+      _toolCallId: string,
+      args: {
+        snapshot: string;
+        relative_path: string;
+        offset?: number;
+        limit?: number;
+      },
+    ) {
       return guarded(async () => {
         const limit = checkBound("limit", args.limit, LIMITS.readBytes);
         const offset = args.offset ?? 0;
@@ -352,12 +355,15 @@ export default function pacseaScanTools(pi: ExtensionAPI) {
       case_sensitive: Type.Optional(Type.Boolean()),
       max_matches: Type.Optional(Type.Integer({ minimum: 1, maximum: LIMITS.grepMatches })),
     }),
-    async execute(args: {
-      snapshot: string;
-      literal: string;
-      case_sensitive?: boolean;
-      max_matches?: number;
-    }) {
+    async execute(
+      _toolCallId: string,
+      args: {
+        snapshot: string;
+        literal: string;
+        case_sensitive?: boolean;
+        max_matches?: number;
+      },
+    ) {
       return guarded(async () => {
         const bound = checkBound("max_matches", args.max_matches, LIMITS.grepMatches);
         if (args.literal.length === 0) reject("the search literal must not be empty");
@@ -428,7 +434,10 @@ export default function pacseaScanTools(pi: ExtensionAPI) {
       glob: Type.String({ minLength: 1, maxLength: LIMITS.globChars }),
       max_results: Type.Optional(Type.Integer({ minimum: 1, maximum: LIMITS.listingEntries })),
     }),
-    async execute(args: { snapshot: string; glob: string; max_results?: number }) {
+    async execute(
+      _toolCallId: string,
+      args: { snapshot: string; glob: string; max_results?: number },
+    ) {
       return guarded(async () => {
         const bound = checkBound("max_results", args.max_results, LIMITS.listingEntries);
         if (args.glob.length === 0) reject("the glob must not be empty");
@@ -483,7 +492,10 @@ export default function pacseaScanTools(pi: ExtensionAPI) {
       relative_path: Type.Optional(Type.String()),
       max_entries: Type.Optional(Type.Integer({ minimum: 1, maximum: LIMITS.listingEntries })),
     }),
-    async execute(args: { snapshot: string; relative_path?: string; max_entries?: number }) {
+    async execute(
+      _toolCallId: string,
+      args: { snapshot: string; relative_path?: string; max_entries?: number },
+    ) {
       return guarded(async () => {
         const bound = checkBound("max_entries", args.max_entries, LIMITS.listingEntries);
         const root = await snapshotRoot(await roots(), args.snapshot);
