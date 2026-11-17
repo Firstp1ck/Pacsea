@@ -69,3 +69,8 @@ src/Pacsea/
 .DS_Store
 .pi-subagents/artifacts/
 .pi-subagents/
+
+# Agent reports and handoffs stay local
+reports/
+.pi/
+handoffs/

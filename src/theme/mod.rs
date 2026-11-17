@@ -41,11 +41,19 @@ pub use config::{
     save_virustotal_api_key, settings_for, try_load_theme_from_content, write_full_content,
 };
 pub use paths::{
-    config_dir, lists_dir, logs_dir, resolve_repos_config_path, set_config_dir_override,
+    config_dir, home_config_enabled, lists_dir, logs_dir, resolve_repos_config_path,
+    set_config_dir_override, set_home_config_enabled,
 };
+pub use resolve::default_theme;
 pub use settings::settings;
 pub use store::{reload_theme, theme};
-pub use types::{KeyChord, KeyMap, PackageMarker, Settings, Theme};
+pub(crate) use types::format_pi_scan_budget_microusd;
+pub use types::{
+    KeyChord, KeyMap, PackageMarker, PiScanSettings, Settings, Theme, parse_pi_scan_cost_microusd,
+};
+
+#[cfg(test)]
+pub(crate) use config::patch::fail_next_parent_directory_sync_after_rename;
 
 #[cfg(test)]
 static TEST_MUTEX: std::sync::OnceLock<std::sync::Mutex<()>> = std::sync::OnceLock::new();

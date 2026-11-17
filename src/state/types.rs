@@ -182,7 +182,7 @@ pub struct NewsItem {
 ///
 /// Inputs: None (enum variants)
 ///
-/// Output: Represents whether the UI is in package, news, or integrated config-editor view.
+/// Output: Represents the active package, news, config-editor, or Pi Scan workspace.
 ///
 /// Details:
 /// - `Package` preserves the existing package management experience.
@@ -196,6 +196,8 @@ pub enum AppMode {
     News,
     /// Integrated configuration editor mode rendered as a top-level view.
     ConfigEditor,
+    /// Optional Pi-backed advisory scanner workspace.
+    PiScan,
 }
 
 /// What: News/advisory source type.

@@ -911,6 +911,7 @@ fn installed_only_enter_opens_remove_preflight_normal_mode() {
     unsafe {
         std::env::set_var("HOME", base.display().to_string());
     }
+    crate::theme::set_home_config_enabled(true);
     std::fs::write(cfg.join("settings.conf"), "skip_preflight=false\n").expect("write settings");
     std::fs::write(cfg.join("keybinds.conf"), "").expect("write keybinds");
 
@@ -964,6 +965,7 @@ fn installed_only_enter_opens_remove_preflight_normal_mode() {
         other => panic!("expected remove preflight for rm-me, got {other:?}"),
     }
 
+    crate::theme::set_home_config_enabled(false);
     unsafe {
         if let Some(v) = orig_home {
             std::env::set_var("HOME", v);
@@ -994,6 +996,7 @@ fn installed_only_enter_opens_remove_preflight_insert_mode() {
     unsafe {
         std::env::set_var("HOME", base.display().to_string());
     }
+    crate::theme::set_home_config_enabled(true);
     std::fs::write(cfg.join("settings.conf"), "skip_preflight=false\n").expect("write settings");
     std::fs::write(cfg.join("keybinds.conf"), "").expect("write keybinds");
 
@@ -1043,6 +1046,7 @@ fn installed_only_enter_opens_remove_preflight_insert_mode() {
         other => panic!("expected remove preflight for rm-insert, got {other:?}"),
     }
 
+    crate::theme::set_home_config_enabled(false);
     unsafe {
         if let Some(v) = orig_home {
             std::env::set_var("HOME", v);

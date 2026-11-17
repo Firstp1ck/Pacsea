@@ -311,11 +311,40 @@ pub fn apply_settings_to_app_state(app: &mut AppState, prefs: &crate::theme::Set
     app.search_normal_mode = prefs.search_startup_mode;
     app.fuzzy_search_enabled = prefs.fuzzy_search;
     app.installed_packages_mode = prefs.installed_packages_mode;
-    app.app_mode = if prefs.start_in_news {
-        crate::state::types::AppMode::News
+    let preserve_pi_scan_mode = app.app_mode == crate::state::types::AppMode::PiScan;
+    let wizard_was_open = app.pi_scan.wizard.is_some();
+    let pi_binary_found = configured_pi_binary_found(&prefs.pi_scan.binary);
+    let pi_scan_settings_changed = app
+        .pi_scan
+        .apply_settings(prefs.pi_scan.clone(), pi_binary_found);
+    let connected_budget_diverged = app.pi_scan.availability
+        == crate::state::pi_scan_ui::PiScanAvailability::RuntimeConnected
+        && !app.pi_scan.budget_settings_match_runtime();
+    if connected_budget_diverged && !pi_scan_settings_changed {
+        let notice = crate::i18n::t(app, "app.pi_scan.notices.budget_reload_requires_restart");
+        app.pi_scan.set_foreground_notice(
+            notice,
+            crate::state::pi_scan_ui::PiScanNoticeSeverity::Warning,
+        );
+    }
+    if preserve_pi_scan_mode {
+        app.app_mode = crate::state::types::AppMode::PiScan;
+        if pi_scan_settings_changed && wizard_was_open {
+            app.pi_scan.wizard = None;
+            app.pi_scan.pending_action = None;
+            let notice = crate::i18n::t(app, "app.pi_scan.notices.settings_changed_reload");
+            app.pi_scan.set_foreground_notice(
+                notice,
+                crate::state::pi_scan_ui::PiScanNoticeSeverity::Warning,
+            );
+        }
     } else {
-        crate::state::types::AppMode::Package
-    };
+        app.app_mode = if prefs.start_in_news {
+            crate::state::types::AppMode::News
+        } else {
+            crate::state::types::AppMode::Package
+        };
+    }
     app.news_filter_show_arch_news = prefs.news_filter_show_arch_news;
     app.news_filter_show_advisories = prefs.news_filter_show_advisories;
     app.news_filter_show_pkg_updates = prefs.news_filter_show_pkg_updates;
@@ -326,6 +355,19 @@ pub fn apply_settings_to_app_state(app: &mut AppState, prefs: &crate::theme::Set
     // Recompute news results with loaded filters/age
     app.refresh_news_results();
     crate::logic::repos::refresh_dynamic_filters_in_app(app, prefs);
+}
+
+/// Return whether the configured Pi binary can be found without executing it.
+fn configured_pi_binary_found(binary: &str) -> bool {
+    let trimmed = binary.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+    let path = std::path::Path::new(trimmed);
+    if path.is_absolute() {
+        return path.is_file();
+    }
+    crate::install::command_on_path(trimmed)
 }
 
 /// What: Check if GNOME terminal is needed and set modal if required.
