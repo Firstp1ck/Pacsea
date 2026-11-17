@@ -2028,6 +2028,27 @@ fn enqueue_resolved_queue_intent(
     Ok(())
 }
 
+/// What: Refuse continuation from a result whose scanned commit is not its observed HEAD.
+///
+/// Inputs:
+/// - `result`: Displayed scan result selected for continuation.
+///
+/// Output:
+/// - `Err` with user guidance when the result covers an older commit than HEAD.
+///
+/// Details:
+/// - The HEAD recheck only proves HEAD has not moved since observation. A history scan of an
+///   older commit says nothing about the code at HEAD, which is what would be installed.
+fn ensure_result_scanned_head(result: &crate::state::PiScanDisplayResult) -> Result<(), String> {
+    if result.validated.identity.commit_oid == result.observed_head_oid {
+        return Ok(());
+    }
+    Err(
+        "this result covers an older commit, not the current AUR HEAD; continue from the result for the HEAD commit or scan HEAD first"
+            .to_string(),
+    )
+}
+
 /// Request a fresh AUR HEAD recheck for one fully acknowledged linked continuation.
 fn continue_selected_pi_scan_result(app: &AppState, channels: &Channels) -> Result<(), String> {
     if !app.pi_scan.selected_result_acknowledged() {
@@ -2037,6 +2058,7 @@ fn continue_selected_pi_scan_result(app: &AppState, channels: &Channels) -> Resu
         .pi_scan
         .selected_result()
         .ok_or_else(|| crate::i18n::t(app, "app.pi_scan.notices.select_result_continue"))?;
+    ensure_result_scanned_head(result)?;
     let package_base = crate::logic::pi_scan::identity::PackageBase::new(
         result.validated.identity.package_base.clone(),
     )
@@ -3070,6 +3092,7 @@ fn finish_pi_scan_continuation(
         );
     }
     let result = &app.pi_scan.results[result_index];
+    ensure_result_scanned_head(result)?;
     let binding = result.binding();
     let acknowledged = (!result.needs_finding_acknowledgement()
         || app.pi_scan.finding_acknowledgements.contains(&binding))
@@ -3787,8 +3810,10 @@ mod tests {
     use super::apply_pi_scan_progress;
     use super::apply_pi_scan_result;
     use super::apply_pi_scan_runtime_notice;
+    use super::continue_selected_pi_scan_result;
     use super::dispatch_pi_scan_background_toggle;
     use super::dispatch_pi_scan_ui_action;
+    use super::finish_pi_scan_continuation;
     use super::handle_aur_vote_response;
     use super::handle_aur_vote_state_response;
     use super::handle_executor_output;
@@ -5440,6 +5465,55 @@ mod tests {
         assert!(app.pi_scan.pending_queue_intent.is_none());
         assert!(rx.try_recv().is_err());
         assert!(app.pi_scan.notices.foreground.is_some());
+    }
+
+    /// What: Continue must refuse a historical result scanned at a commit older than HEAD.
+    ///
+    /// Inputs:
+    /// - An acknowledged result for commit `3...` whose observed HEAD is `4...`.
+    ///
+    /// Output:
+    /// - Both the Continue request and the post-recheck finish step return an error, and
+    ///   nothing reaches the runtime or the install queue.
+    ///
+    /// Details:
+    /// - Regression: the recheck compared HEAD with the observed HEAD, so a history scan
+    ///   authorized installing newer, unscanned code.
+    #[tokio::test]
+    async fn continuation_refuses_result_for_a_commit_other_than_head() {
+        let mut app = AppState::default();
+        app.pi_scan.results.push(crate::state::PiScanDisplayResult {
+            validated: crate::logic::pi_scan::result::MergedScanResult {
+                identity: crate::logic::pi_scan::result::ExpectedIdentity {
+                    scan_id: "scan-history".into(),
+                    package_base: "demo".into(),
+                    commit_oid: "3".repeat(40),
+                },
+                coverage: crate::logic::pi_scan::result::Coverage::Complete,
+                limitations: Vec::new(),
+                findings: Vec::new(),
+            },
+            observed_head_oid: "4".repeat(40),
+            stale: false,
+            mutable_sources: Vec::new(),
+        });
+        app.pi_scan.selected_result = 0;
+        assert!(app.pi_scan.selected_result_acknowledged());
+        let mut channels =
+            Channels::new(std::path::PathBuf::from("/tmp")).expect("channels should construct");
+        let (request_tx, mut request_rx) = tokio::sync::mpsc::unbounded_channel();
+        channels.pi_scan_request_tx = request_tx;
+        let (add_tx, mut add_rx) = tokio::sync::mpsc::unbounded_channel();
+        channels.add_tx = add_tx;
+        let error = continue_selected_pi_scan_result(&app, &channels)
+            .expect_err("historical result must not continue");
+        assert!(error.contains("HEAD"), "{error}");
+        assert!(request_rx.try_recv().is_err());
+        let binding = app.pi_scan.results[0].binding();
+        let error = finish_pi_scan_continuation(&mut app, &channels, "demo", &binding, false)
+            .expect_err("historical result must not finish continuation");
+        assert!(error.contains("HEAD"), "{error}");
+        assert!(add_rx.try_recv().is_err());
     }
 
     /// A stored result without a retained target is still earlier than newly observed work.
