@@ -2717,9 +2717,33 @@ async fn run_production_execution(
     settings: ProductionRuntimeSettings,
     policy: Arc<ProductionPolicyProjection>,
 ) {
-    while execution_rx.recv().await.is_some() {
-        drain_eligible_queue(&runner, &progress_tx, &result_tx, &settings, &policy).await;
-        while execution_rx.try_recv().is_ok() {}
+    run_wake_loop(&mut execution_rx, || {
+        drain_eligible_queue(&runner, &progress_tx, &result_tx, &settings, &policy)
+    })
+    .await;
+}
+
+/// What: Run `drain` once per batch of queued wake-ups until the wake channel closes.
+///
+/// Inputs:
+/// - `wakes`: Execution wake-up channel.
+/// - `drain`: Drains every currently eligible queue item.
+///
+/// Output:
+/// - Returns when every wake sender is dropped.
+///
+/// Details:
+/// - Pending wakes are coalesced before draining, never after. A wake sent while a drain
+///   runs (for example after its final eligibility check) stays queued and causes one more
+///   drain, so newly eligible work is never stranded.
+async fn run_wake_loop<F, Fut>(wakes: &mut tokio::sync::mpsc::UnboundedReceiver<()>, mut drain: F)
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = ()>,
+{
+    while wakes.recv().await.is_some() {
+        while wakes.try_recv().is_ok() {}
+        drain().await;
     }
 }
 
@@ -5481,6 +5505,45 @@ mod tests {
         assert_eq!(setup.selected_provider, "openai-codex");
         assert_eq!(setup.selected_model, "gpt-5.6-luna");
         assert!(setup.reservation.cost_microusd <= 1_000_000);
+    }
+}
+
+#[cfg(test)]
+mod wake_loop_tests {
+    use super::run_wake_loop;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    /// What: Verify a wake sent during a drain triggers another drain.
+    ///
+    /// Inputs:
+    /// - One initial wake; the first drain sends another wake just before it returns.
+    ///
+    /// Output:
+    /// - Exactly two drains before the channel closes.
+    ///
+    /// Details:
+    /// - Regression: wakes were discarded after the drain, so an enqueue that raced the final
+    ///   eligibility check stayed queued until an unrelated wake arrived.
+    #[tokio::test]
+    async fn wake_during_drain_runs_another_drain() {
+        let (wake_tx, mut wake_rx) = tokio::sync::mpsc::unbounded_channel();
+        wake_tx.send(()).expect("initial wake");
+        let drains = Arc::new(AtomicUsize::new(0));
+        let mut late_wake = Some(wake_tx);
+        run_wake_loop(&mut wake_rx, || {
+            let count = drains.fetch_add(1, Ordering::SeqCst) + 1;
+            let sender = late_wake.take();
+            async move {
+                if count == 1
+                    && let Some(sender) = sender
+                {
+                    sender.send(()).expect("late wake");
+                }
+            }
+        })
+        .await;
+        assert_eq!(drains.load(Ordering::SeqCst), 2);
     }
 }
 
