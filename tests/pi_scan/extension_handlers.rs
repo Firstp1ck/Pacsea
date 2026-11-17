@@ -51,11 +51,15 @@ register({
   registerCommand: () => {},
   getActiveTools: () => [],
 });
-const call = async (name, params) => {
-  const result = await tools.get(name).execute("call-1", params, undefined, undefined, {});
-  return JSON.parse(result.content[0].text);
-};
+const execute = (name, params) =>
+  tools.get(name).execute("call-1", params, undefined, undefined, {});
+const call = async (name, params) => JSON.parse((await execute(name, params)).content[0].text);
+const flag = async (name, params) => (await execute(name, params)).isError ?? null;
 const out = {
+  readIsError: await flag("pacsea_scan_read", { snapshot: "snap", relative_path: "PKGBUILD" }),
+  rejected: await call("pacsea_scan_read", { snapshot: "snap", relative_path: "../escape" }),
+  rejectedIsError: await flag("pacsea_scan_read", { snapshot: "snap", relative_path: "../escape" }),
+  unknownSnapshotIsError: await flag("pacsea_scan_ls", { snapshot: "missing" }),
   read: await call("pacsea_scan_read", { snapshot: "snap", relative_path: "PKGBUILD" }),
   grep: await call("pacsea_scan_grep", { snapshot: "snap", literal: "pkgname" }),
   find: await call("pacsea_scan_find", { snapshot: "snap", glob: "**" }),
@@ -70,7 +74,8 @@ process.stdout.write(JSON.stringify(out));
 /// - A temporary directory holding the asset, a `typebox` stub, a descriptor, and a snapshot.
 ///
 /// Output:
-/// - Asserts read, grep, find, and ls all return snapshot content rather than an error.
+/// - Asserts read, grep, find, and ls all return snapshot content rather than an error, and
+///   that a rejected request is reported with `isError: true` while a success is not.
 ///
 /// Details:
 /// - Skips with a message when `node` is not installed, since Node is not a build dependency.
@@ -126,4 +131,10 @@ fn embedded_tool_handlers_answer_pi_shaped_calls_under_node() {
         "{results}"
     );
     assert_eq!(results["ls"]["entries"][0]["path"], "PKGBUILD", "{results}");
+    // Pi copies `isError` into `tool_execution_end`; the scan engine counts only explicit
+    // `false` as a successful read, so rejections must carry `true`.
+    assert_ne!(results["readIsError"], true, "{results}");
+    assert!(results["rejected"]["error"].is_string(), "{results}");
+    assert_eq!(results["rejectedIsError"], true, "{results}");
+    assert_eq!(results["unknownSnapshotIsError"], true, "{results}");
 }

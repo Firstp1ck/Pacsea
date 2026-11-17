@@ -512,6 +512,9 @@ fn humanize_limitation(app: &AppState, limitation: &str) -> String {
     if limitation.contains("snapshot tools were unavailable") {
         return crate::i18n::t(app, "app.pi_scan.details.limit_tools_unavailable");
     }
+    if limitation == crate::pi_agent::scan_engine::NO_SUCCESSFUL_TOOL_READ_LIMITATION {
+        return crate::i18n::t(app, "app.pi_scan.details.limit_no_tool_reads");
+    }
     if limitation.contains("source snapshot is empty") {
         return crate::i18n::t(app, "app.pi_scan.details.limit_no_sources");
     }
@@ -757,4 +760,23 @@ fn severity_style(severity: Severity) -> Style {
         Severity::High | Severity::Critical => theme().red,
     };
     Style::default().fg(color)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::humanize_limitation;
+    use crate::pi_agent::scan_engine::NO_SUCCESSFUL_TOOL_READ_LIMITATION;
+    use crate::state::AppState;
+
+    /// What: The engine's no-successful-read limitation maps to its localized explanation.
+    #[test]
+    fn no_successful_tool_read_limitation_is_humanized() {
+        let app = AppState::default();
+        let shown = humanize_limitation(&app, NO_SUCCESSFUL_TOOL_READ_LIMITATION);
+        assert_ne!(shown, NO_SUCCESSFUL_TOOL_READ_LIMITATION);
+        assert_eq!(
+            shown,
+            crate::i18n::t(&app, "app.pi_scan.details.limit_no_tool_reads")
+        );
+    }
 }

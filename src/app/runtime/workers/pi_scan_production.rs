@@ -4814,11 +4814,11 @@ mod tests {
         let settings = consent_test_settings();
         assert_eq!(
             legacy_background_consent_binding(&settings),
-            "6f95c9ca1255f07950c40c05ab4f44ec3255ccbea091f6c645b3b004e831b04e"
+            "ae0f38f2c16fdd3d01889d352d93352a89dc9e1d69a336dd38266eb876d3d23f"
         );
         assert_eq!(
             legacy_budget_inclusive_consent_binding(&settings),
-            "5b86647f88063b5a7f0767b7541239eb8a8b864c5afef4f15d25a446897ffe85"
+            "bd66f61395fffffd6f496a2b3591225e0fd6c0002ac35e052d19f8765328d4ec"
         );
     }
 

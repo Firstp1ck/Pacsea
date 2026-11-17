@@ -431,6 +431,7 @@ de-DE:
         technical_hint: "Exakte Scan-Metadaten und ursprüngliche Validierungsmeldungen sind ausgeblendet."
         limit_tools_unavailable: "Einige Paketdateien konnten nicht geprüft werden, weil die benötigten Archivwerkzeuge fehlten."
         limit_no_sources: "Es waren keine Quelldateien zur Prüfung verfügbar."
+        limit_no_tool_reads: "Das Modell konnte keine Paketdatei erfolgreich lesen; dieses Ergebnis ist daher keine vollständige Prüfung."
         limit_incomplete_address: "Eine Quelldatei konnte wegen einer unvollständigen Downloadadresse nicht geprüft werden."
         limit_incomplete_address_subject: "konnte wegen einer unvollständigen Downloadadresse nicht geprüft werden."
         limit_archive_too_large: "Ein Quellarchiv wurde nur teilweise geprüft, weil es zu viele Dateien enthält."

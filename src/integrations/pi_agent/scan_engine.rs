@@ -80,6 +80,13 @@ pub struct ProductionScanRequest<'a> {
     pub input: ScanExecutionInput<'a>,
 }
 
+/// Limitation recorded when a model answered without one successful pacsea tool call.
+///
+/// The UI matches this exact text to show a localized explanation, so it must not change
+/// without updating `humanize_limitation`.
+pub const NO_SUCCESSFUL_TOOL_READ_LIMITATION: &str =
+    "the model did not successfully read any package file";
+
 /// What: Validated merged result and non-sensitive execution provenance.
 ///
 /// Inputs: Produced only after strict identity/evidence validation.
@@ -414,7 +421,11 @@ fn run_attempts(
             controller
                 .validated()
                 .map_err(|error| ExecutionError::Rpc(error.to_string()))?;
-            return Ok(build_output(transport, input, records, &attributed));
+            let mut output = build_output(transport, input, records, &attributed);
+            if outcome.successful_tool_calls == 0 {
+                mark_unread_package(&mut output.result);
+            }
+            return Ok(output);
         }
         if input
             .token_budget
@@ -497,6 +508,8 @@ struct AttemptEventBudget {
     tool_calls: u32,
     /// Conservative wire bytes carrying tool-result events.
     tool_result_bytes: usize,
+    /// Pacsea tool executions that ended with an explicit `isError: false`.
+    successful_tool_calls: u32,
     /// Logical-scan token ceiling.
     ceiling: TokenCeiling,
 }
@@ -507,6 +520,7 @@ impl AttemptEventBudget {
         Self {
             tool_calls: 0,
             tool_result_bytes: 0,
+            successful_tool_calls: 0,
             ceiling,
         }
     }
@@ -538,10 +552,13 @@ impl AttemptEventBudget {
                     return Err(ExecutionError::AttemptBudgetExceeded("tool calls"));
                 }
             }
-            Some("tool_execution_update" | "tool_execution_end") => {
+            Some(kind @ ("tool_execution_update" | "tool_execution_end")) => {
                 self.tool_result_bytes = self.tool_result_bytes.saturating_add(wire_bytes);
                 if self.tool_result_bytes > super::limits::MAX_RPC_RECORD_BYTES {
                     return Err(ExecutionError::AttemptBudgetExceeded("tool-result bytes"));
+                }
+                if kind == "tool_execution_end" && is_successful_pacsea_tool_end(object) {
+                    self.successful_tool_calls = self.successful_tool_calls.saturating_add(1);
                 }
             }
             _ => {}
@@ -550,12 +567,35 @@ impl AttemptEventBudget {
     }
 }
 
+/// What: Decide whether one `tool_execution_end` event is a successful pacsea tool call.
+///
+/// Inputs:
+/// - `object`: Decoded Pi event (`toolCallId`, `toolName`, `result`, `isError`, ...).
+///
+/// Output:
+/// - `true` only for one of the four pacsea tools with a boolean `isError` of `false`.
+///
+/// Details:
+/// - A missing or non-boolean `isError` is not success, so a Pi change that drops the
+///   field degrades to Incomplete results rather than trusting unread packages.
+/// - Other tool names are ignored; Pi should never expose them, and they cannot read the
+///   package snapshot anyway.
+fn is_successful_pacsea_tool_end(object: &Map<String, Value>) -> bool {
+    let pacsea_tool = object
+        .get("toolName")
+        .and_then(Value::as_str)
+        .is_some_and(|name| super::RESTRICTED_TOOL_NAMES.contains(&name));
+    pacsea_tool && object.get("isError").and_then(Value::as_bool) == Some(false)
+}
+
 /// Result of one model's full response and optional correction.
 struct ModelOutcome {
     /// Validated response, when successful.
     result: Option<crate::logic::pi_scan::result::ValidatedScanResult>,
     /// Whether correction was sent.
     corrected: bool,
+    /// Successful pacsea tool calls across the response and its correction.
+    successful_tool_calls: u32,
 }
 
 /// Run one full prompt and at most one correction for the current model.
@@ -586,6 +626,7 @@ fn run_one_model(
         Ok(result) => Ok(ModelOutcome {
             result: Some(result),
             corrected: false,
+            successful_tool_calls: budget.successful_tool_calls,
         }),
         Err(error) => {
             let decision = controller
@@ -613,6 +654,7 @@ fn run_one_model(
             Ok(ModelOutcome {
                 result: validate_response(&raw, input.identity, input.evidence).ok(),
                 corrected: true,
+                successful_tool_calls: budget.successful_tool_calls,
             })
         }
     }
@@ -878,6 +920,26 @@ fn check_deadline(
         Err(ExecutionError::LogicalTimeout)
     } else {
         Err(ExecutionError::AttemptTimeout)
+    }
+}
+
+/// What: Downgrade a result the model produced without reading the package.
+///
+/// Inputs:
+/// - `result`: Merged validated result of the accepted attempt.
+///
+/// Output:
+/// - Coverage set to Incomplete and [`NO_SUCCESSFUL_TOOL_READ_LIMITATION`] added once,
+///   keeping limitations sorted.
+///
+/// Details:
+/// - The answer is kept so the user still sees what the model said, but it is never
+///   presented as a complete review.
+fn mark_unread_package(result: &mut crate::logic::pi_scan::result::MergedScanResult) {
+    result.coverage = crate::logic::pi_scan::result::Coverage::Incomplete;
+    let note = NO_SUCCESSFUL_TOOL_READ_LIMITATION.to_string();
+    if let Err(position) = result.limitations.binary_search(&note) {
+        result.limitations.insert(position, note);
     }
 }
 

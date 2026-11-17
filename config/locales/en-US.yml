@@ -431,6 +431,7 @@ en-US:
         technical_hint: "Exact scan metadata and original validation messages are hidden."
         limit_tools_unavailable: "Some package files could not be inspected because the required archive tools were unavailable."
         limit_no_sources: "No source files were available to inspect."
+        limit_no_tool_reads: "The model did not successfully read any package file, so this result is not a full review."
         limit_incomplete_address: "A source file could not be inspected because its download address is incomplete."
         limit_incomplete_address_subject: "could not be inspected because its download address is incomplete."
         limit_archive_too_large: "A source archive was only partially checked because it contains too many files."

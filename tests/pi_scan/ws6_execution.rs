@@ -5,11 +5,12 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use pacsea::logic::pi_scan::prompt::{PackagePromptInput, SCHEMA_VERSION, SnapshotSummary};
-use pacsea::logic::pi_scan::result::{EvidenceIndex, ExpectedIdentity};
+use pacsea::logic::pi_scan::result::{Coverage, EvidenceIndex, ExpectedIdentity};
 use pacsea::pi_agent::client::{RpcTransport, TransportError, TransportMetadata};
 use pacsea::pi_agent::protocol::{CommandCorrelator, decode_record};
 use pacsea::pi_agent::scan_engine::{
-    ExecutionError, ProductionScanRequest, ScanExecutionInput, execute_scan, execute_with_transport,
+    ExecutionError, NO_SUCCESSFUL_TOOL_READ_LIMITATION, ProductionScanRequest, ScanExecutionInput,
+    execute_scan, execute_with_transport,
 };
 use pacsea::pi_agent::session::ModelChoice;
 use serde_json::{Map, Value, json};
@@ -250,11 +251,110 @@ fn valid_final(identity: &ExpectedIdentity, severity: &str) -> String {
     )
 }
 
+/// Build one documented Pi `tool_execution_end` event.
+fn tool_end(tool_name: &str, is_error: Option<Value>) -> Inbound {
+    let mut event = json!({
+        "type": "tool_execution_end",
+        "toolCallId": "call_1",
+        "toolName": tool_name,
+        "result": {"content": [{"type": "text", "text": "{}"}], "details": {}},
+        "durationMs": 3
+    });
+    if let Some(flag) = is_error {
+        event["isError"] = flag;
+    }
+    Inbound::Record(event)
+}
+
+/// Run one valid first-attempt answer after the given tool events.
+fn run_with_tool_events(
+    events: Vec<Inbound>,
+) -> pacsea::pi_agent::scan_engine::ScanExecutionOutput {
+    let fixture = Fixture::new();
+    let mut inbound = preflight(&fixture.models);
+    let settled = inbound.pop().expect("settled event");
+    inbound.extend(events);
+    inbound.push(settled);
+    inbound.extend([
+        response(
+            6,
+            "get_last_assistant_text",
+            json!({"text": valid_final(&fixture.identity, "high")}),
+        ),
+        response(7, "get_session_stats", json!({"tokens": {"total": 321}})),
+    ]);
+    let mut fake = FakeTransport::new(inbound);
+    execute_with_transport(&mut fake, fixture.input()).expect("valid scan")
+}
+
+/// What: A result produced while every pacsea tool call failed is Incomplete.
+///
+/// Inputs:
+/// - Two pacsea tool ends with `isError: true`, one with `isError` missing, one with a
+///   non-boolean `isError`, and one successful non-pacsea tool.
+///
+/// Output:
+/// - Incomplete coverage carrying the no-successful-read limitation.
+///
+/// Details:
+/// - Missing or unknown `isError` never counts as success; other tools are ignored.
+#[test]
+fn fake_pi_all_tool_calls_failed_marks_result_incomplete() {
+    let output = run_with_tool_events(vec![
+        tool_end("pacsea_scan_read", Some(json!(true))),
+        tool_end("pacsea_scan_grep", Some(json!(true))),
+        tool_end("pacsea_scan_ls", None),
+        tool_end("pacsea_scan_find", Some(json!("false"))),
+        tool_end("bash", Some(json!(false))),
+    ]);
+    assert_eq!(output.result.coverage, Coverage::Incomplete);
+    assert!(
+        output
+            .result
+            .limitations
+            .iter()
+            .any(|note| note == NO_SUCCESSFUL_TOOL_READ_LIMITATION)
+    );
+}
+
+/// What: A result produced without any tool call is Incomplete.
+#[test]
+fn fake_pi_no_tool_calls_marks_result_incomplete() {
+    let output = run_with_tool_events(Vec::new());
+    assert_eq!(output.result.coverage, Coverage::Incomplete);
+    assert!(
+        output
+            .result
+            .limitations
+            .iter()
+            .any(|note| note == NO_SUCCESSFUL_TOOL_READ_LIMITATION)
+    );
+}
+
+/// What: One successful pacsea tool call leaves the model's coverage claim unchanged.
+#[test]
+fn fake_pi_one_successful_tool_call_keeps_result_complete() {
+    let output = run_with_tool_events(vec![
+        tool_end("pacsea_scan_grep", Some(json!(true))),
+        tool_end("pacsea_scan_read", Some(json!(false))),
+    ]);
+    assert_eq!(output.result.coverage, Coverage::Complete);
+    assert!(
+        !output
+            .result
+            .limitations
+            .iter()
+            .any(|note| note == NO_SUCCESSFUL_TOOL_READ_LIMITATION)
+    );
+}
+
 /// Successful execution uses exact command order, framing, usage, and provenance.
 #[test]
 fn fake_pi_success_has_exact_order_framing_usage_and_reap() {
     let fixture = Fixture::new();
     let mut inbound = preflight(&fixture.models);
+    let settled = inbound.pop().expect("settled event");
+    inbound.extend([tool_end("pacsea_scan_read", Some(json!(false))), settled]);
     inbound.extend([
         response(
             6,
@@ -292,6 +392,7 @@ fn fake_pi_success_has_exact_order_framing_usage_and_reap() {
             .contains("attacker-controlled")
     );
     assert_eq!(output.result.findings.len(), 1);
+    assert_eq!(output.result.coverage, Coverage::Complete);
     assert_eq!(
         output.provenance.attempts[0].usage.reported_tokens,
         Some(321)

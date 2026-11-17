@@ -278,12 +278,14 @@ export default function pacseaScanTools(pi: ExtensionAPI) {
   const roots = () => (rootsPromise ??= loadSnapshotRoots());
 
   /** Run a tool body and convert rejections into inert model-visible errors. */
+  // Rejections set `isError` so Pi reports them in `tool_execution_end`; Pacsea counts only
+  // `isError: false` ends as package reads when deciding whether a result is complete.
   const guarded = async (body: () => Promise<unknown>) => {
     try {
       return textResult(await body());
     } catch (error) {
       const message = error instanceof ToolRejection ? error.message : "the request was rejected";
-      return textResult({ error: message });
+      return { ...textResult({ error: message }), isError: true };
     }
   };
 
