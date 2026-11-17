@@ -215,6 +215,27 @@ pub struct GitInvocation {
     pub timeout: Duration,
     /// Maximum stdout bytes accepted; more output fails the invocation as too large.
     pub stdout_limit: usize,
+    /// Optional bound on bytes the child may write under one directory, such as a fetch.
+    pub storage_limit: Option<StorageLimit>,
+}
+
+/// What: Bound on the bytes one Git invocation may store under a private directory.
+///
+/// Inputs:
+/// - Set by callers whose Git command writes to disk instead of stdout (`fetch`).
+///
+/// Output:
+/// - Enforced by [`SystemGitRunner`] while the child runs.
+///
+/// Details:
+/// - The runner sums regular-file sizes under `dir` without following symlinks and kills the
+///   process group once the total exceeds `max_bytes`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StorageLimit {
+    /// Private directory the child writes into.
+    pub dir: std::path::PathBuf,
+    /// Maximum total regular-file bytes allowed under `dir`.
+    pub max_bytes: u64,
 }
 
 impl GitInvocation {
@@ -496,6 +517,7 @@ fn build_invocation(executable: &OsStr, args: &[&OsStr], timeout: Duration) -> G
             .collect(),
         timeout,
         stdout_limit: MAX_GIT_OUTPUT_BYTES,
+        storage_limit: None,
     }
 }
 
@@ -1095,32 +1117,40 @@ impl GitCommandRunner for SystemGitRunner {
             operation: "spawn".to_string(),
             reason: error.to_string(),
         })?;
-        wait_bounded(child, invocation.timeout, invocation.stdout_limit)
+        wait_bounded(child, invocation)
     }
 }
 
 /// Bytes of Git stderr kept for user-facing messages.
 const MAX_GIT_STDERR_BYTES: usize = 4096;
 
+/// How often the runner re-measures a storage-limited directory.
+const STORAGE_POLL_INTERVAL: Duration = Duration::from_millis(200);
+
+/// Directory entries visited at most when measuring a storage-limited directory.
+const MAX_STORAGE_WALK_ENTRIES: usize = 200_000;
+
 /// What: Wait for one Git child while concurrently draining both bounded output pipes.
 ///
 /// Inputs:
 /// - `child`: Spawned Git process with piped stdout and stderr.
-/// - `timeout`: Wall-clock deadline for the whole invocation.
-/// - `stdout_limit`: Maximum stdout bytes accepted.
+/// - `invocation`: Source of the deadline, stdout limit, and optional storage limit.
 ///
 /// Output:
-/// - Captured output, or `OutputTooLarge` when stdout exceeded `stdout_limit`.
+/// - Captured output, or `OutputTooLarge` when stdout or stored bytes exceeded their limit.
 ///
 /// Details:
 /// - Readers keep draining past the limit so the child never blocks on a full pipe, but
 ///   only `stdout_limit + 1` bytes are retained. A prefix is never returned as success.
+/// - A storage-limited child is killed as soon as a poll sees the directory over its bound.
 fn wait_bounded(
     mut child: std::process::Child,
-    timeout: Duration,
-    stdout_limit: usize,
+    invocation: &GitInvocation,
 ) -> Result<GitOutput, ObserverError> {
     use std::time::Instant;
+
+    let timeout = invocation.timeout;
+    let stdout_limit = invocation.stdout_limit;
 
     let stdout = child
         .stdout
@@ -1139,6 +1169,7 @@ fn wait_bounded(
     let stdout_reader = spawn_bounded_reader(stdout, stdout_limit.saturating_add(1));
     let stderr_reader = spawn_bounded_reader(stderr, MAX_GIT_STDERR_BYTES.saturating_add(4));
     let started = Instant::now();
+    let mut last_storage_poll = started;
     let status = loop {
         match child.try_wait() {
             Ok(Some(status)) => break status,
@@ -1158,6 +1189,20 @@ fn wait_bounded(
                 reason: format!("the command exceeded its {timeout:?} deadline"),
             });
         }
+        if let Some(limit) = invocation.storage_limit.as_ref()
+            && last_storage_poll.elapsed() >= STORAGE_POLL_INTERVAL
+        {
+            last_storage_poll = Instant::now();
+            let stored = directory_bytes(&limit.dir);
+            if stored > limit.max_bytes {
+                terminate_git_child(&mut child);
+                return Err(ObserverError::OutputTooLarge {
+                    operation: "git fetch storage".to_string(),
+                    observed: usize::try_from(stored).unwrap_or(usize::MAX),
+                    limit: usize::try_from(limit.max_bytes).unwrap_or(usize::MAX),
+                });
+            }
+        }
         std::thread::sleep(Duration::from_millis(20));
     };
     let (stdout, stdout_total) = join_bounded_reader(stdout_reader, "stdout")?;
@@ -1176,6 +1221,44 @@ fn wait_bounded(
         stdout,
         stderr,
     })
+}
+
+/// What: Sum regular-file bytes under one directory without following symlinks.
+///
+/// Inputs:
+/// - `dir`: Directory to measure; missing or unreadable entries count as zero.
+///
+/// Output:
+/// - Total regular-file bytes seen, saturating; `u64::MAX` when the walk exceeds
+///   [`MAX_STORAGE_WALK_ENTRIES`], so a huge tree always counts as over budget.
+///
+/// Details:
+/// - Uses `symlink_metadata`, so links are never followed out of the directory.
+#[must_use]
+pub fn directory_bytes(dir: &std::path::Path) -> u64 {
+    let mut pending = vec![dir.to_path_buf()];
+    let mut total = 0u64;
+    let mut visited = 0usize;
+    while let Some(current) = pending.pop() {
+        let Ok(entries) = std::fs::read_dir(&current) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            visited += 1;
+            if visited > MAX_STORAGE_WALK_ENTRIES {
+                return u64::MAX;
+            }
+            let Ok(metadata) = std::fs::symlink_metadata(entry.path()) else {
+                continue;
+            };
+            if metadata.is_dir() {
+                pending.push(entry.path());
+            } else if metadata.is_file() {
+                total = total.saturating_add(metadata.len());
+            }
+        }
+    }
+    total
 }
 
 /// Pipe reader result: the retained prefix and the total byte count drained.
@@ -1256,6 +1339,7 @@ mod tests {
             fixed_environment: Vec::new(),
             timeout: std::time::Duration::from_secs(20),
             stdout_limit,
+            storage_limit: None,
         }
     }
 
@@ -1279,6 +1363,46 @@ mod tests {
         assert!(output.success);
         assert!(output.stderr.len() <= 4096);
         assert!(output.stderr.starts_with("aaaa"));
+    }
+
+    /// What: Verify a child writing past its storage limit is killed and reported too large.
+    ///
+    /// Inputs:
+    /// - A child that writes 2 MiB into a temp directory, then sleeps for 30 seconds.
+    ///
+    /// Output:
+    /// - `OutputTooLarge` long before the sleep or the 20 s deadline ends.
+    ///
+    /// Details:
+    /// - Mirrors an upstream fetch writing objects to disk rather than stdout.
+    #[test]
+    #[cfg(unix)]
+    fn storage_limit_kills_a_child_that_writes_too_much() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let target = dir.path().join("objects.pack");
+        let script = format!(
+            "head -c 2097152 /dev/zero > '{}'; exec sleep 30",
+            target.display()
+        );
+        let mut invocation = shell_invocation(&script, 1024);
+        invocation.storage_limit = Some(super::StorageLimit {
+            dir: dir.path().to_path_buf(),
+            max_bytes: 1024 * 1024,
+        });
+        let started = std::time::Instant::now();
+        let outcome = SystemGitRunner::new().run(&invocation);
+        assert!(
+            matches!(
+                outcome,
+                Err(super::ObserverError::OutputTooLarge {
+                    limit: 1_048_576,
+                    ..
+                })
+            ),
+            "{:?}",
+            outcome.map(|output| output.success)
+        );
+        assert!(started.elapsed() < std::time::Duration::from_secs(10));
     }
 
     /// What: Verify stdout above the invocation's cap is an explicit error, never a prefix.
@@ -1387,6 +1511,7 @@ mod tests {
             fixed_environment: Vec::new(),
             timeout: std::time::Duration::from_secs(2),
             stdout_limit: super::MAX_GIT_OUTPUT_BYTES,
+            storage_limit: None,
         };
         let output = SystemGitRunner::new()
             .run(&invocation)

@@ -38,7 +38,8 @@ use crate::logic::pi_scan::identity::{
 };
 use crate::logic::pi_scan::manifest::{CanonicalManifest, ManifestEntry, normalize_manifest_path};
 use crate::logic::pi_scan::observer::{
-    GitCommandRunner, GitInvocation, GitOutput, ObserverError, git_argv,
+    GitCommandRunner, GitInvocation, GitOutput, ObserverError, StorageLimit, directory_bytes,
+    git_argv,
 };
 use crate::logic::pi_scan::recipe::{RecipeSource, SrcInfo, SrcInfoError, parse_srcinfo};
 use crate::logic::pi_scan::source::{
@@ -846,6 +847,7 @@ fn git_invocation(executable: &OsStr, args: &[&OsStr], timeout: Duration) -> Git
             .collect(),
         timeout,
         stdout_limit: crate::logic::pi_scan::observer::MAX_GIT_OUTPUT_BYTES,
+        storage_limit: None,
     }
 }
 
@@ -939,12 +941,13 @@ fn fetch_pinned_source_invocation(
         IpAddr::V6(value) => format!("{}:{port}:[{value}]", address.host),
     };
     let pinned = OsString::from(format!("http.curloptResolve={pinned}"));
-    let args: [&OsStr; 11] = [
+    let args: [&OsStr; 12] = [
         OsStr::new("-c"),
         pinned.as_os_str(),
         OsStr::new("-C"),
         dir.as_os_str(),
         OsStr::new("fetch"),
+        OsStr::new("--depth=1"),
         OsStr::new("--no-recurse-submodules"),
         OsStr::new("--no-tags"),
         OsStr::new("--quiet"),
@@ -2332,21 +2335,32 @@ fn acquire_git_source(
             "upstream init",
             context.limits.source_bytes,
         )?;
+        let mut fetch = fetch_pinned_source_invocation(
+            seams.git_executable.as_os_str(),
+            repository.as_os_str(),
+            repository_url,
+            commit,
+            &address,
+            context.limits.git_timeout,
+        );
+        // Fetch writes objects to disk, not stdout, so its download is bounded by watching
+        // the private repository directory against what this source may still consume.
+        fetch.storage_limit = Some(StorageLimit {
+            dir: repository.clone(),
+            max_bytes: context
+                .limits
+                .source_bytes
+                .min(context.budget.remaining(context.limits.package_bytes)),
+        });
         run_git(
             seams.git,
-            &fetch_pinned_source_invocation(
-                seams.git_executable.as_os_str(),
-                repository.as_os_str(),
-                repository_url,
-                commit,
-                &address,
-                context.limits.git_timeout,
-            ),
+            &fetch,
             seams.https_proxy,
             "upstream fetch",
             context.limits.source_bytes,
         )?;
-        run_git(
+        let fetched = directory_bytes(&repository);
+        let archive = run_git(
             seams.git,
             &archive_tree_invocation(
                 seams.git_executable.as_os_str(),
@@ -2360,11 +2374,12 @@ fn acquire_git_source(
                 .limits
                 .source_bytes
                 .min(context.budget.remaining(context.limits.package_bytes)),
-        )
+        )?;
+        Ok::<_, AcquisitionError>((archive, fetched))
     })();
     let _ = std::fs::remove_dir_all(&repository);
-    let tar_bytes = match acquisition {
-        Ok(bytes) => bytes,
+    let (tar_bytes, fetched) = match acquisition {
+        Ok(output) => output,
         Err(error) => {
             return (
                 incomplete_source(source, vec![error.to_string()]),
@@ -2372,9 +2387,16 @@ fn acquire_git_source(
             );
         }
     };
+    // Both the fetched repository and the archive are charged; this double-counts the same
+    // content but keeps the package budget an upper bound on bytes written for this source.
     if let Err(reason) = context
         .budget
-        .charge(tar_bytes.len() as u64, context.limits.package_bytes)
+        .charge(fetched, context.limits.package_bytes)
+        .and_then(|()| {
+            context
+                .budget
+                .charge(tar_bytes.len() as u64, context.limits.package_bytes)
+        })
     {
         return (incomplete_source(source, vec![reason]), Vec::new());
     }

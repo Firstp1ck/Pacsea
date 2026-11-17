@@ -563,6 +563,64 @@ fn ws8_mutable_git_source_is_incomplete() {
     );
 }
 
+/// What: Verify the pinned upstream Git fetch is shallow and carries a storage bound.
+///
+/// Inputs:
+/// - A recipe declaring one commit-pinned `git+https` source.
+///
+/// Output:
+/// - The DNS-pinned upstream fetch uses `--depth=1` and a repository storage limit no
+///   larger than the per-source byte limit.
+///
+/// Details:
+/// - Regression: the fetch pulled full history with no byte bound; only the 60 s timeout
+///   limited how much it could write to disk.
+#[test]
+fn ws8_upstream_git_fetch_is_shallow_and_storage_bounded() {
+    let temp = tempfile::tempdir().expect("temp parent");
+    let srcinfo = format!(
+        "pkgbase = demo\npkgname = demo\nsource = git+https://example.com/repo.git#commit={}\nsha256sums = SKIP\n",
+        "b".repeat(40)
+    );
+    let recipe = tar_bytes(&[(".SRCINFO", srcinfo.as_bytes())]);
+    let mut git = FakeGit::with_recipe(recipe);
+    let mut http = FakeHttp {
+        scripted: VecDeque::new(),
+        seen: Vec::new(),
+    };
+    let _outcome = acquire_package(
+        &request("scan-upstream", false),
+        temp.path(),
+        Path::new("/usr/bin/git"),
+        &mut http,
+        &mut PublicResolver,
+        &mut git,
+        &mut UnavailableSignatureVerifier,
+    )
+    .expect("acquisition completes");
+    let upstream_fetch = git
+        .seen
+        .iter()
+        .find(|invocation| {
+            let argv = invocation.argv_strings();
+            argv.contains(&"fetch".to_string())
+                && argv
+                    .iter()
+                    .any(|arg| arg.starts_with("http.curloptResolve="))
+        })
+        .expect("an upstream fetch invocation");
+    assert!(
+        upstream_fetch
+            .argv_strings()
+            .contains(&"--depth=1".to_string())
+    );
+    let storage = upstream_fetch
+        .storage_limit
+        .as_ref()
+        .expect("upstream fetch has a storage bound");
+    assert!(storage.max_bytes > 0 && storage.max_bytes <= MAX_SOURCE_BYTES);
+}
+
 #[test]
 fn ws8_dry_run_publishes_no_root_and_leaves_no_workspace() {
     let temp = tempfile::tempdir().expect("temp parent");
