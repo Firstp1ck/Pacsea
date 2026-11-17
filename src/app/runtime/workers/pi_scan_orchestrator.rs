@@ -1988,7 +1988,23 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
         Ok(enqueued)
     }
 
-    /// Accept only exact canonical result identity, persist it, then reconcile the queue reservation.
+    /// What: Accept only exact canonical result identity, complete the item, then save the result.
+    ///
+    /// Inputs:
+    /// - `correlation_id`: Active correlation the receipt belongs to.
+    /// - `target`: Full frozen identity the receipt must match.
+    /// - `receipt`: Validated execution output.
+    /// - `now_unix`: Terminal timestamp.
+    /// - `progress`: Phase reporter.
+    ///
+    /// Output:
+    /// - The receipt once its result document and terminal record are both durable.
+    ///
+    /// Details:
+    /// - Every failure after the run leaves the item terminal, never active, so the queue keeps
+    ///   moving. Completion is recorded before the document is saved, so a saved result always
+    ///   belongs to a completed item; a failed save downgrades that record to Failed.
+    /// - Post-run failures are reported as package failures so later items still run.
     fn accept_execution(
         &mut self,
         correlation_id: u64,
@@ -2008,7 +2024,7 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
             ));
         }
         progress.report(PiScanExecutionPhase::Finalizing);
-        let mut document = StoredScanResult::from_validated_with_staleness(
+        let document = StoredScanResult::from_validated_with_staleness(
             &target.scan_id,
             &receipt.result,
             &receipt.provenance,
@@ -2017,27 +2033,80 @@ impl<A: OrchestrationAdapter> PiScanOrchestrator<A> {
             false,
             receipt.observed_head_oid.as_str(),
             receipt.stale,
-        )
-        .map_err(|error| OrchestrationError::Execution(error.to_string()))?;
+        );
+        let mut document = match document {
+            Ok(document) => document,
+            Err(error) => {
+                return self.fail_after_run(
+                    correlation_id,
+                    now_unix,
+                    format!("the scan result could not be stored: {error}"),
+                );
+            }
+        };
         document
             .mutable_sources
             .clone_from(&receipt.mutable_sources);
-        save_result_atomic(&self.config.results_root, &document)
-            .map_err(|error| OrchestrationError::Execution(error.to_string()))?;
-        self.state
-            .runtime
-            .complete(
+        let completed = self.state.runtime.complete(
+            correlation_id,
+            &PiScanQueueKey {
+                package_base: target.package_base.clone(),
+                commit_oid: target.commit_oid.clone(),
+            },
+            receipt.usage,
+            now_unix,
+        );
+        if let Err(error) = completed {
+            return self.fail_after_run(
                 correlation_id,
-                &PiScanQueueKey {
-                    package_base: target.package_base.clone(),
-                    commit_oid: target.commit_oid.clone(),
-                },
-                receipt.usage,
                 now_unix,
-            )
-            .map_err(|error| OrchestrationError::Execution(error.to_string()))?;
+                format!("the scan could not be completed: {error}"),
+            );
+        }
+        if let Err(error) = save_result_atomic(&self.config.results_root, &document) {
+            if let Some(last) = self.state.runtime.terminal.last_mut()
+                && last.correlation_id == correlation_id
+            {
+                last.status = PiScanTerminalStatus::Failed;
+            }
+            self.persist()?;
+            return Err(OrchestrationError::PackageFailed(format!(
+                "the scan finished but its result could not be saved: {error}. Check free disk space and permissions for the Pacsea results directory, then retry the scan"
+            )));
+        }
         self.persist()?;
         Ok(Some(receipt))
+    }
+
+    /// What: Terminalize an item whose Pi run succeeded but whose result was not accepted.
+    ///
+    /// Inputs:
+    /// - `correlation_id`: Correlation of the item that ran.
+    /// - `now_unix`: Terminal timestamp.
+    /// - `reason`: User-facing failure description.
+    ///
+    /// Output:
+    /// - Always `Err(PackageFailed(reason))`, after the item is terminal and persisted.
+    ///
+    /// Details:
+    /// - Consumes the full reservation through [`Self::fail_active`]. When the item is no
+    ///   longer active (already terminal), only the error is returned.
+    fn fail_after_run(
+        &mut self,
+        correlation_id: u64,
+        now_unix: u64,
+        reason: String,
+    ) -> Result<Option<ExecutionReceipt>, OrchestrationError> {
+        let still_active = self
+            .state
+            .runtime
+            .active
+            .as_ref()
+            .is_some_and(|active| active.correlation_id == correlation_id);
+        if still_active {
+            self.fail_active(correlation_id, now_unix, false)?;
+        }
+        Err(OrchestrationError::PackageFailed(reason))
     }
 
     /// Terminalize one exact active item as failed with full reservation consumption.

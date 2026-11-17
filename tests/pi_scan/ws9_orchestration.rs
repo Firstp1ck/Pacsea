@@ -952,6 +952,53 @@ fn package_failure_fails_only_that_item_and_the_queue_continues() {
     );
 }
 
+/// What: A failure after a successful Pi run must terminalize the item, not strand the queue.
+///
+/// Inputs:
+/// - Two queued packages; the results root is a regular file, so saving the first result fails.
+///
+/// Output:
+/// - The first item is terminal Failed with no active item left, and the second item runs.
+///
+/// Details:
+/// - Regression: post-run errors left `runtime.active` set, so every later `run_next`
+///   returned `Ok(None)` with work still queued.
+#[test]
+fn post_run_save_failure_terminalizes_and_the_queue_continues() {
+    let temp = tempfile::tempdir().expect("temp");
+    let (mut orchestrator, targets) = observed_queue(temp.path(), &["demo", "other"]);
+    let results_root = temp.path().join("results-v1");
+    std::fs::write(&results_root, b"not a directory").expect("block results root");
+    orchestrator
+        .adapter_mut()
+        .executions
+        .push_back(Ok(success(&targets[0], false)));
+    orchestrator
+        .adapter_mut()
+        .executions
+        .push_back(Ok(success(&targets[1], false)));
+    assert!(matches!(
+        orchestrator.run_next(2, &AtomicBool::new(false)),
+        Err(OrchestrationError::PackageFailed(_))
+    ));
+    assert!(orchestrator.state().runtime.active.is_none());
+    assert_eq!(
+        orchestrator.state().runtime.terminal[0].status,
+        pacsea::state::pi_scan::PiScanTerminalStatus::Failed
+    );
+    std::fs::remove_file(&results_root).expect("unblock results root");
+    assert!(
+        orchestrator
+            .run_next(3, &AtomicBool::new(false))
+            .expect("second package runs")
+            .is_some()
+    );
+    assert_eq!(
+        orchestrator.state().runtime.terminal[1].status,
+        pacsea::state::pi_scan::PiScanTerminalStatus::Completed
+    );
+}
+
 /// What: Environment failures pause only after several consecutive packages fail.
 ///
 /// Inputs:
