@@ -845,6 +845,7 @@ fn git_invocation(executable: &OsStr, args: &[&OsStr], timeout: Duration) -> Git
             .map(|(name, value)| ((*name).to_string(), (*value).to_string()))
             .collect(),
         timeout,
+        stdout_limit: crate::logic::pi_scan::observer::MAX_GIT_OUTPUT_BYTES,
     }
 }
 
@@ -1031,6 +1032,7 @@ fn run_git(
     if let Some(proxy) = https_proxy {
         invocation.set_https_proxy(proxy);
     }
+    invocation.stdout_limit = usize::try_from(limit).unwrap_or(usize::MAX);
     let output: GitOutput = runner.run(&invocation)?;
     if !output.success {
         let reason = if output.stderr.trim().is_empty() {

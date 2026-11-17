@@ -326,6 +326,44 @@ fn ws8_git_invocations_are_direct_argv_without_hooks_submodules_or_credentials()
     }
 }
 
+/// What: Verify every acquisition Git call carries the caller's own stdout cap.
+///
+/// Inputs:
+/// - A complete fake acquisition recording each invocation.
+///
+/// Output:
+/// - The recipe archive invocation allows the 16 MiB recipe limit, not the 4 MiB default.
+///
+/// Details:
+/// - Regression: the runner cut stdout at 4 MiB while callers accepted more, so a larger
+///   archive came back as a silent prefix instead of an explicit too-large error.
+#[test]
+fn ws8_git_invocations_carry_the_caller_stdout_limit() {
+    let temp = tempfile::tempdir().expect("temp parent");
+    let (recipe, payload) = complete_fixture();
+    let mut git = FakeGit::with_recipe(recipe);
+    let mut http = FakeHttp::single(payload);
+    let _outcome = acquire_package(
+        &request("scan-limit", false),
+        temp.path(),
+        Path::new("/usr/bin/git"),
+        &mut http,
+        &mut PublicResolver,
+        &mut git,
+        &mut UnavailableSignatureVerifier,
+    )
+    .expect("acquisition succeeds");
+    let archive = git
+        .seen
+        .iter()
+        .find(|invocation| invocation.argv_strings().contains(&"archive".to_string()))
+        .expect("an archive invocation");
+    assert_eq!(
+        archive.stdout_limit as u64,
+        pacsea::logic::pi_scan::acquisition::MAX_RECIPE_ARCHIVE_BYTES
+    );
+}
+
 #[test]
 fn ws8_membership_must_be_proven_by_the_immutable_srcinfo() {
     let srcinfo = parse_srcinfo("pkgbase = demo\npkgname = demo\n").expect("valid recipe");

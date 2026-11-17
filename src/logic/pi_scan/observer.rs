@@ -213,6 +213,8 @@ pub struct GitInvocation {
     pub fixed_environment: Vec<(String, String)>,
     /// Wall-clock deadline for this single invocation.
     pub timeout: Duration,
+    /// Maximum stdout bytes accepted; more output fails the invocation as too large.
+    pub stdout_limit: usize,
 }
 
 impl GitInvocation {
@@ -493,6 +495,7 @@ fn build_invocation(executable: &OsStr, args: &[&OsStr], timeout: Duration) -> G
             .map(|(name, value)| ((*name).to_string(), (*value).to_string()))
             .collect(),
         timeout,
+        stdout_limit: MAX_GIT_OUTPUT_BYTES,
     }
 }
 
@@ -1039,8 +1042,9 @@ fn bounded_stdout(output: &GitOutput, operation: &str) -> Result<String, Observe
 /// - The environment is cleared and rebuilt from the invocation's positive allowlist plus
 ///   its fixed values, so credential helpers, askpass hooks, proxies, and SSH-agent sockets
 ///   cannot be inherited even if new variables appear in the future.
-/// - Output is captured through pipes and truncated at [`MAX_GIT_OUTPUT_BYTES`] so a hostile
-///   or malfunctioning remote cannot exhaust memory.
+/// - Stdout is captured through a pipe and bounded by [`GitInvocation::stdout_limit`];
+///   output above it fails with [`ObserverError::OutputTooLarge`] so a hostile or
+///   malfunctioning remote can neither exhaust memory nor pass off a prefix as complete.
 /// - The invocation deadline is enforced by polling and, on timeout, the child is killed and
 ///   reaped so no Git process is left behind.
 #[derive(Debug, Default, Clone, Copy)]
@@ -1091,14 +1095,30 @@ impl GitCommandRunner for SystemGitRunner {
             operation: "spawn".to_string(),
             reason: error.to_string(),
         })?;
-        wait_bounded(child, invocation.timeout)
+        wait_bounded(child, invocation.timeout, invocation.stdout_limit)
     }
 }
 
-/// Wait for one Git child while concurrently draining both bounded output pipes.
+/// Bytes of Git stderr kept for user-facing messages.
+const MAX_GIT_STDERR_BYTES: usize = 4096;
+
+/// What: Wait for one Git child while concurrently draining both bounded output pipes.
+///
+/// Inputs:
+/// - `child`: Spawned Git process with piped stdout and stderr.
+/// - `timeout`: Wall-clock deadline for the whole invocation.
+/// - `stdout_limit`: Maximum stdout bytes accepted.
+///
+/// Output:
+/// - Captured output, or `OutputTooLarge` when stdout exceeded `stdout_limit`.
+///
+/// Details:
+/// - Readers keep draining past the limit so the child never blocks on a full pipe, but
+///   only `stdout_limit + 1` bytes are retained. A prefix is never returned as success.
 fn wait_bounded(
     mut child: std::process::Child,
     timeout: Duration,
+    stdout_limit: usize,
 ) -> Result<GitOutput, ObserverError> {
     use std::time::Instant;
 
@@ -1116,8 +1136,8 @@ fn wait_bounded(
             operation: "wait".to_string(),
             reason: "Git stderr pipe was unavailable".to_string(),
         })?;
-    let stdout_reader = spawn_bounded_reader(stdout, MAX_GIT_OUTPUT_BYTES.saturating_add(1));
-    let stderr_reader = spawn_bounded_reader(stderr, 4097);
+    let stdout_reader = spawn_bounded_reader(stdout, stdout_limit.saturating_add(1));
+    let stderr_reader = spawn_bounded_reader(stderr, MAX_GIT_STDERR_BYTES.saturating_add(4));
     let started = Instant::now();
     let status = loop {
         match child.try_wait() {
@@ -1140,10 +1160,17 @@ fn wait_bounded(
         }
         std::thread::sleep(Duration::from_millis(20));
     };
-    let stdout = join_bounded_reader(stdout_reader, "stdout")?;
-    let stderr_bytes = join_bounded_reader(stderr_reader, "stderr")?;
+    let (stdout, stdout_total) = join_bounded_reader(stdout_reader, "stdout")?;
+    if stdout_total > stdout_limit {
+        return Err(ObserverError::OutputTooLarge {
+            operation: "git output".to_string(),
+            observed: stdout_total,
+            limit: stdout_limit,
+        });
+    }
+    let (stderr_bytes, _) = join_bounded_reader(stderr_reader, "stderr")?;
     let mut stderr = String::from_utf8_lossy(&stderr_bytes).into_owned();
-    stderr.truncate(4096);
+    stderr.truncate(stderr.floor_char_boundary(MAX_GIT_STDERR_BYTES));
     Ok(GitOutput {
         success: status.success(),
         stdout,
@@ -1151,34 +1178,36 @@ fn wait_bounded(
     })
 }
 
-/// Spawn one pipe-draining reader that retains only a bounded prefix.
-fn spawn_bounded_reader<R>(
-    mut reader: R,
-    retain: usize,
-) -> std::thread::JoinHandle<Result<Vec<u8>, String>>
+/// Pipe reader result: the retained prefix and the total byte count drained.
+type BoundedRead = Result<(Vec<u8>, usize), String>;
+
+/// Spawn one pipe-draining reader that retains only a bounded prefix and counts every byte.
+fn spawn_bounded_reader<R>(mut reader: R, retain: usize) -> std::thread::JoinHandle<BoundedRead>
 where
     R: std::io::Read + Send + 'static,
 {
     std::thread::spawn(move || {
         let mut retained = Vec::with_capacity(retain.min(64 * 1024));
+        let mut total = 0usize;
         let mut chunk = [0u8; 16 * 1024];
         loop {
             let read = reader.read(&mut chunk).map_err(|error| error.to_string())?;
             if read == 0 {
                 break;
             }
+            total = total.saturating_add(read);
             let remaining = retain.saturating_sub(retained.len());
             retained.extend_from_slice(&chunk[..read.min(remaining)]);
         }
-        Ok(retained)
+        Ok((retained, total))
     })
 }
 
 /// Join one bounded reader and map panic/I/O failures to an inert Git error.
 fn join_bounded_reader(
-    reader: std::thread::JoinHandle<Result<Vec<u8>, String>>,
+    reader: std::thread::JoinHandle<BoundedRead>,
     stream: &str,
-) -> Result<Vec<u8>, ObserverError> {
+) -> Result<(Vec<u8>, usize), ObserverError> {
     reader
         .join()
         .map_err(|_| ObserverError::GitCommand {
@@ -1216,6 +1245,74 @@ mod tests {
     };
     use crate::logic::pi_scan::identity::{AurRepoUrl, PackageBase};
     use std::ffi::OsStr;
+
+    /// Build an isolated `/bin/sh -c <script>` invocation for runner-level tests.
+    #[cfg(unix)]
+    fn shell_invocation(script: &str, stdout_limit: usize) -> GitInvocation {
+        GitInvocation {
+            executable: "/bin/sh".into(),
+            argv: vec!["-c".into(), script.into()],
+            passthrough_environment: vec!["PATH".to_string()],
+            fixed_environment: Vec::new(),
+            timeout: std::time::Duration::from_secs(20),
+            stdout_limit,
+        }
+    }
+
+    /// What: Verify long stderr ending in a multibyte character is cut without panicking.
+    ///
+    /// Inputs:
+    /// - A child writing 4095 ASCII bytes plus `é` (two bytes) to stderr.
+    ///
+    /// Output:
+    /// - A successful output whose stderr is at most 4096 bytes and valid UTF-8.
+    ///
+    /// Details:
+    /// - Regression: `String::truncate(4096)` panicked inside the two-byte character.
+    #[test]
+    #[cfg(unix)]
+    fn stderr_cut_respects_utf8_boundaries() {
+        let script = "head -c 4095 /dev/zero | tr '\\000' a >&2; printf '\\303\\251' >&2";
+        let output = SystemGitRunner::new()
+            .run(&shell_invocation(script, 1024))
+            .expect("runner returns output");
+        assert!(output.success);
+        assert!(output.stderr.len() <= 4096);
+        assert!(output.stderr.starts_with("aaaa"));
+    }
+
+    /// What: Verify stdout above the invocation's cap is an explicit error, never a prefix.
+    ///
+    /// Inputs:
+    /// - Children writing exactly the cap and one byte more.
+    ///
+    /// Output:
+    /// - The exact-cap run succeeds with every byte; the larger run is `OutputTooLarge`.
+    ///
+    /// Details:
+    /// - Regression: the runner silently returned the first 4 MiB + 1 bytes as success.
+    #[test]
+    #[cfg(unix)]
+    fn stdout_over_invocation_cap_is_too_large() {
+        let mut runner = SystemGitRunner::new();
+        let exact = runner
+            .run(&shell_invocation("head -c 2048 /dev/zero", 2048))
+            .expect("exact cap succeeds");
+        assert_eq!(exact.stdout.len(), 2048);
+        let over = runner.run(&shell_invocation("head -c 5000 /dev/zero", 2048));
+        assert!(
+            matches!(
+                over,
+                Err(super::ObserverError::OutputTooLarge {
+                    observed: 5000,
+                    limit: 2048,
+                    ..
+                })
+            ),
+            "{:?}",
+            over.as_ref().map(|output| output.stdout.len())
+        );
+    }
 
     /// Build a successful output from stdout text.
     fn ok(stdout: &str) -> GitOutput {
@@ -1289,6 +1386,7 @@ mod tests {
             passthrough_environment: Vec::new(),
             fixed_environment: Vec::new(),
             timeout: std::time::Duration::from_secs(2),
+            stdout_limit: super::MAX_GIT_OUTPUT_BYTES,
         };
         let output = SystemGitRunner::new()
             .run(&invocation)
