@@ -5126,6 +5126,13 @@ mod tests {
             tokens_per_24h: 1_000_000,
             cost_microusd_per_24h: 100,
         };
+        changed_policy.reservation = PiScanReservation::UNLIMITED;
+        assert_eq!(production_consent_binding(&changed_policy), original);
+        changed_policy.reservation = PiScanReservation {
+            tokens: 250_000,
+            cost_microusd: 9,
+            per_scan_unlimited: false,
+        };
         assert_eq!(production_consent_binding(&changed_policy), original);
         assert_ne!(
             legacy_background_consent_binding(&changed_policy),
