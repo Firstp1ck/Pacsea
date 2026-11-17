@@ -805,6 +805,31 @@ async fn off_thread_runner_registers_exact_cancel_and_shuts_down_bounded() {
         .expect("shutdown");
 }
 
+/// What: A runner that has shut down must not start queued work afterwards.
+///
+/// Inputs:
+/// - One queued package with an instantly succeeding fake adapter; shutdown runs first.
+///
+/// Output:
+/// - The later `run_next` returns `Ok(None)` and the adapter is never asked to execute.
+///
+/// Details:
+/// - Regression: shutdown set flags only on an already registered item, so work registered
+///   after (or racing) shutdown ran with fresh, unset flags.
+#[tokio::test]
+async fn shutdown_is_sticky_for_later_registrations() {
+    let temp = tempfile::tempdir().expect("temp");
+    let (mut orchestrator, _targets) = observed_queue(temp.path(), &["demo"]);
+    orchestrator.adapter_mut().instant_success = true;
+    let runner = PiScanSequentialRunner::new(orchestrator);
+    tokio::time::timeout(Duration::from_secs(2), runner.shutdown(2))
+        .await
+        .expect("shutdown deadline")
+        .expect("shutdown");
+    assert!(matches!(runner.run_next(3).await, Ok(None)));
+    assert!(runner.active_correlation().is_none());
+}
+
 #[test]
 fn failed_execution_terminalizes_and_the_next_item_continues() {
     let temp = tempfile::tempdir().expect("temp");

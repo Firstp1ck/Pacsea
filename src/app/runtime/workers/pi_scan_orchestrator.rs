@@ -2311,6 +2311,8 @@ pub struct PiScanSequentialRunner<A> {
     active: Arc<Mutex<Option<ActiveCancellation>>>,
     /// User pause changes queued while one execution owns the orchestrator lock.
     pending_user_pauses: Arc<Mutex<VecDeque<PendingUserPause>>>,
+    /// Sticky runner shutdown; once set, no new item starts and a racing one is cancelled.
+    shutting_down: Arc<AtomicBool>,
 }
 
 /// One user pause mutation waiting for the active execution's durability boundary.
@@ -2327,6 +2329,7 @@ impl<A> Clone for PiScanSequentialRunner<A> {
             orchestrator: Arc::clone(&self.orchestrator),
             active: Arc::clone(&self.active),
             pending_user_pauses: Arc::clone(&self.pending_user_pauses),
+            shutting_down: Arc::clone(&self.shutting_down),
         }
     }
 }
@@ -2348,6 +2351,7 @@ impl<A: OrchestrationAdapter + Send + 'static> PiScanSequentialRunner<A> {
             orchestrator: Arc::new(Mutex::new(orchestrator)),
             active: Arc::new(Mutex::new(None)),
             pending_user_pauses: Arc::new(Mutex::new(VecDeque::new())),
+            shutting_down: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -3013,6 +3017,7 @@ impl<A: OrchestrationAdapter + Send + 'static> PiScanSequentialRunner<A> {
         let owner = Arc::clone(&self.orchestrator);
         let active = Arc::clone(&self.active);
         let pending_user_pauses = Arc::clone(&self.pending_user_pauses);
+        let shutting_down = Arc::clone(&self.shutting_down);
         tokio::task::spawn_blocking(move || {
             let cancelled = Arc::new(AtomicBool::new(false));
             let shutdown_requested = Arc::new(AtomicBool::new(false));
@@ -3024,6 +3029,9 @@ impl<A: OrchestrationAdapter + Send + 'static> PiScanSequentialRunner<A> {
                         .to_string(),
                 )
             })?;
+            if shutting_down.load(Ordering::SeqCst) {
+                return Ok(None);
+            }
             let result = orchestrator.run_next_registered(
                 now_unix,
                 &cancelled,
@@ -3031,6 +3039,12 @@ impl<A: OrchestrationAdapter + Send + 'static> PiScanSequentialRunner<A> {
                 unattended_authorization.as_deref(),
                 |item| {
                     if let Ok(mut slot) = active.lock() {
+                        // Shutdown sets its flag before taking this lock, so under the lock
+                        // either this item sees the flag or shutdown sees this item.
+                        if shutting_down.load(Ordering::SeqCst) {
+                            registration_shutdown.store(true, Ordering::SeqCst);
+                            registration_flag.store(true, Ordering::SeqCst);
+                        }
                         *slot = Some(ActiveCancellation {
                             item: item.clone(),
                             cancelled: registration_flag,
@@ -3070,10 +3084,13 @@ impl<A: OrchestrationAdapter + Send + 'static> PiScanSequentialRunner<A> {
     /// Details:
     /// - WS6 owns process abort/reap in response to the sticky flag. This method waits for
     ///   that call to return, then persists recovery state; timeout is explicit.
+    /// - Shutdown is sticky for this runner: an item registering concurrently is cancelled
+    ///   as interrupted, and later `run_next` calls start nothing.
     ///
     /// # Errors
     /// - Returns timeout, recovery, persistence, lock, or blocking-task failures.
     pub async fn shutdown(&self, now_unix: u64) -> Result<(), OrchestrationError> {
+        self.shutting_down.store(true, Ordering::SeqCst);
         if let Ok(active) = self.active.lock()
             && let Some(active) = active.as_ref()
         {
