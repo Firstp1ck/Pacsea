@@ -30,7 +30,7 @@ pub fn spawn_dependency_worker(
                 action
             );
             // Run blocking dependency resolution in a thread pool
-            let items_clone = items.clone();
+            let items_clone = items;
             let res_tx = deps_res_tx_bg.clone();
             let res_tx_error = deps_res_tx_bg.clone(); // Clone for error handling
             let handle = tokio::task::spawn_blocking(move || {
@@ -115,7 +115,7 @@ pub fn spawn_file_worker(
                 action
             );
             // Run blocking file resolution in a thread pool
-            let items_clone = items.clone();
+            let items_clone = items;
             let action_clone = action;
             let res_tx = files_res_tx_bg.clone();
             tokio::task::spawn_blocking(move || {
@@ -171,7 +171,7 @@ pub fn spawn_service_worker(
                 action
             );
             // Run blocking service resolution in a thread pool
-            let items_clone = items.clone();
+            let items_clone = items;
             let action_clone = action;
             let res_tx = services_res_tx_bg.clone();
             tokio::task::spawn_blocking(move || {
@@ -213,7 +213,7 @@ pub fn spawn_sandbox_worker(
     tokio::spawn(async move {
         while let Some(items) = sandbox_req_rx.recv().await {
             // Use async version for parallel HTTP fetches
-            let items_clone = items.clone();
+            let items_clone = items;
             let res_tx = sandbox_res_tx_bg.clone();
             let toolkit = toolkit.clone();
             tokio::spawn(async move {
@@ -264,7 +264,7 @@ pub fn spawn_summary_worker(
     tokio::spawn(async move {
         while let Some((items, action)) = summary_req_rx.recv().await {
             // Run blocking summary computation in a thread pool
-            let items_clone = items.clone();
+            let items_clone = items;
             let res_tx = summary_res_tx_bg.clone();
             let res_tx_error = summary_res_tx_bg.clone();
             let handle = tokio::task::spawn_blocking(move || {

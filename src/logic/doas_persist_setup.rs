@@ -80,8 +80,7 @@ pub fn doas_conf_has_persist_rule(contents: &str) -> bool {
 #[must_use]
 pub fn pacsea_doas_persist_configured() -> bool {
     std::fs::read_to_string("/etc/doas.conf")
-        .ok()
-        .is_some_and(|contents| doas_conf_has_persist_rule(&contents))
+        .is_ok_and(|contents| doas_conf_has_persist_rule(&contents))
 }
 
 /// What: Build a recommended `doas.conf` persist snippet for the selected profile.

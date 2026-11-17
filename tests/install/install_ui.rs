@@ -211,7 +211,7 @@ fn ui_preflight_exec_empty_logs() {
             log_lines: ref logs,
             ..
         } => {
-            assert!(logs.is_empty());
+            assert_eq!(logs.as_slice(), [] as [String; 0]);
         }
         _ => panic!("Expected PreflightExec modal"),
     }
@@ -480,7 +480,7 @@ fn ui_preflight_exec_risk_levels() {
             verbose: false,
             log_lines: log_lines.clone(),
             abortable: true,
-            header_chips: header_chips.clone(),
+            header_chips,
             success: None,
         };
 

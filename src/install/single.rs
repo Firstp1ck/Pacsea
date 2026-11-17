@@ -90,9 +90,8 @@ fn try_spawn_terminal(
 /// Details:
 /// - Prefers GNOME terminals when running under GNOME desktop, otherwise uses default ordering.
 fn get_terminal_preferences() -> &'static [(&'static str, &'static [&'static str], bool)] {
-    let is_gnome = std::env::var("XDG_CURRENT_DESKTOP")
-        .ok()
-        .is_some_and(|v| v.to_uppercase().contains("GNOME"));
+    let is_gnome =
+        std::env::var("XDG_CURRENT_DESKTOP").is_ok_and(|v| v.to_uppercase().contains("GNOME"));
     if is_gnome {
         &[
             ("gnome-terminal", &["--", "bash", "-lc"], false),

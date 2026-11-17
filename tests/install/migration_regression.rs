@@ -251,7 +251,7 @@ fn sandbox_parser_contract_survives_migration() {
 
     assert_eq!(depends, vec!["foo", "bar>=1.2"]);
     assert_eq!(make, vec!["cmake", "ninja"]);
-    assert!(check.is_empty());
-    assert!(optional.is_empty());
+    assert_eq!(check, [] as [String; 0]);
+    assert_eq!(optional, [] as [String; 0]);
     assert_eq!(conflicts, vec!["old-pkg"]);
 }
