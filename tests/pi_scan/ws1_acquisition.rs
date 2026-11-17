@@ -497,6 +497,106 @@ fn archive_paths_links_duplicates_and_conflicts_are_rejected() {
     );
 }
 
+/// Build a tar shaped like `git archive --format=tar <commit>` output.
+///
+/// Details:
+/// - Git writes a leading pax global header (`g`) carrying the commit id, followed by the
+///   tree entries; this mirrors that layout with the `tar` crate builder.
+fn git_archive_shaped_tar(entries: &[(&str, &[u8])]) -> Vec<u8> {
+    let mut output = Vec::new();
+    {
+        let mut builder = tar::Builder::new(&mut output);
+        let comment = b"52 comment=0123456789abcdef0123456789abcdef01234567\n";
+        let mut global = tar::Header::new_ustar();
+        global.set_entry_type(tar::EntryType::XGlobalHeader);
+        global.set_size(comment.len() as u64);
+        global.set_mode(0o666);
+        global.set_cksum();
+        builder
+            .append_data(&mut global, "pax_global_header", Cursor::new(&comment[..]))
+            .expect("append pax global header");
+        builder
+            .append_pax_extensions([("path", b"nested/long-name.txt".as_slice())])
+            .expect("append pax local header");
+        let mut header = tar::Header::new_ustar();
+        header.set_size(4);
+        header.set_mode(0o644);
+        header.set_cksum();
+        builder
+            .append_data(&mut header, "placeholder", Cursor::new(&b"long"[..]))
+            .expect("append pax-named entry");
+        for (path, content) in entries {
+            let mut header = tar::Header::new_ustar();
+            header.set_size(content.len() as u64);
+            header.set_mode(0o644);
+            header.set_cksum();
+            builder
+                .append_data(&mut header, path, Cursor::new(*content))
+                .expect("append git-archive entry");
+        }
+        builder.finish().expect("finish git-archive-shaped tar");
+    }
+    output
+}
+
+/// What: Verify pax global and local metadata headers are skipped, not rejected.
+///
+/// Inputs:
+/// - A tar laid out like real `git archive` output with a leading `pax_global_header`.
+///
+/// Output:
+/// - A Complete report containing every regular file and no metadata pseudo-entry.
+///
+/// Details:
+/// - Regression for recipe trees and upstream Git sources reporting Incomplete with zero files.
+#[test]
+fn git_archive_pax_headers_are_metadata_not_entries() {
+    let tar = git_archive_shaped_tar(&[("PKGBUILD", b"pkgname=demo"), ("src/a.c", b"int a;")]);
+    let report = inspect_source(
+        "recipe.tar",
+        &tar,
+        ArchiveFormat::Tar,
+        ArchiveLimits::default(),
+    );
+    assert_eq!(
+        report.status,
+        AcquisitionStatus::Complete,
+        "{:?}",
+        report.reasons
+    );
+    assert!(report.manifest.find_entry("source", "PKGBUILD").is_some());
+    assert!(report.manifest.find_entry("source", "src/a.c").is_some());
+    assert!(
+        report
+            .manifest
+            .find_entry("source", "nested/long-name.txt")
+            .is_some()
+    );
+    assert!(
+        report
+            .manifest
+            .find_entry("source", "pax_global_header")
+            .is_none()
+    );
+
+    let fifo_after_global = {
+        let mut bytes = git_archive_shaped_tar(&[]);
+        bytes.truncate(bytes.len() - 1024);
+        bytes.extend(raw_tar_with_path(b"fifo", b"", b'6'));
+        bytes
+    };
+    assert_eq!(
+        inspect_source(
+            "fifo.tar",
+            &fifo_after_global,
+            ArchiveFormat::Tar,
+            ArchiveLimits::default()
+        )
+        .status,
+        AcquisitionStatus::Incomplete
+    );
+}
+
 /// What: Verify entry, aggregate, ratio, depth, and compiled-limit violations are explicit.
 ///
 /// Inputs:

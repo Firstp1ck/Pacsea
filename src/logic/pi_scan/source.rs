@@ -754,6 +754,11 @@ fn inspect_tar(context: &mut InspectionContext, bytes: &[u8]) -> Result<(), Insp
         let mut entry =
             entry_result.map_err(|error| failed(format!("invalid tar entry: {error}")))?;
         let entry_type = entry.header().entry_type();
+        // `git archive` emits a leading pax global header; pax headers carry metadata for the
+        // stream or the next entry and never become files, so they are skipped, not rejected.
+        if is_pax_metadata(entry_type) {
+            continue;
+        }
         let directory = entry_type.is_dir();
         let path_bytes = entry.path_bytes();
         let raw_path =
@@ -783,6 +788,20 @@ fn inspect_tar(context: &mut InspectionContext, bytes: &[u8]) -> Result<(), Insp
         context.append_file(&path, &file_bytes, mode & 0o111 != 0)?;
     }
     Ok(())
+}
+
+/// What: Report whether a tar entry type is a pax metadata header rather than archive content.
+///
+/// Inputs:
+/// - `entry_type`: Header entry type of the current tar record.
+///
+/// Output:
+/// - `true` for pax global (`g`) and pax local extended (`x`) headers.
+///
+/// Details:
+/// - Links, devices, FIFOs and unknown types are not metadata and stay rejected by callers.
+fn is_pax_metadata(entry_type: tar::EntryType) -> bool {
+    entry_type.is_pax_global_extensions() || entry_type.is_pax_local_extensions()
 }
 
 /// Iterate ZIP entries and permit only Stored/Deflate regular files and directories.
