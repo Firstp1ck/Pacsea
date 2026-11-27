@@ -695,8 +695,8 @@ fn handle_change_sort(app: &mut AppState, details_tx: &mpsc::UnboundedSender<Pac
 /// - `Some(false)` if selection was handled, `None` otherwise
 ///
 /// Details:
-/// - Package mode display order: List installed (1), Update system (2), TUI Optional Deps (3), Repositories (4), News management (5)
-/// - News mode display order: Update system (1), TUI Optional Deps (2), Repositories (3), Package mode (4)
+/// - Package mode display order: List installed (1), Update system (2), TUI Optional Deps (3), Repositories (4), Open Pi Scan Workspace (5), News management (6).
+/// - News mode display order: Update system (1), TUI Optional Deps (2), Repositories (3), Open Pi Scan Workspace (4), Package mode (5).
 /// - Closes the options menu when a selection is handled.
 /// - Note: News age toggle (idx 5 in News mode) is not displayed in menu but handler remains for compatibility.
 fn handle_options_menu_numeric(
@@ -707,7 +707,6 @@ fn handle_options_menu_numeric(
     let news_mode = matches!(app.app_mode, crate::state::types::AppMode::News);
     let config_editor_mode = matches!(app.app_mode, crate::state::types::AppMode::ConfigEditor);
     let handled = if news_mode {
-        // News mode display order: Update system (1), TUI Optional Deps (2), Repositories (3), Package mode (4)
         match idx {
             0 => {
                 handle_options_system_update(app);
@@ -722,10 +721,14 @@ fn handle_options_menu_numeric(
                 true
             }
             3 => {
-                handle_mode_toggle(app, details_tx);
+                crate::events::pi_scan::open_workspace(app);
                 true
             }
             4 => {
+                handle_mode_toggle(app, details_tx);
+                true
+            }
+            5 => {
                 handle_news_age_toggle(app);
                 true
             }
@@ -765,7 +768,6 @@ fn handle_options_menu_numeric(
             _ => false,
         }
     } else {
-        // Package mode display order: List installed (1), Update system (2), TUI Optional Deps (3), Repositories (4), News management (5)
         match idx {
             0 => {
                 handle_options_installed_only_toggle(app, details_tx);
@@ -784,6 +786,10 @@ fn handle_options_menu_numeric(
                 true
             }
             4 => {
+                crate::events::pi_scan::open_workspace(app);
+                true
+            }
+            5 => {
                 handle_mode_toggle(app, details_tx);
                 true
             }
@@ -865,6 +871,25 @@ fn handle_menu_numeric_selection(
     }
 }
 
+/// What: Report whether Package-only global chords apply in the current app mode.
+///
+/// Inputs:
+/// - `app`: Current application state whose mode owns the active interaction surface.
+///
+/// Output:
+/// - `true` only when hidden Package-pane state may be addressed by global chords.
+///
+/// Details:
+/// - Config Editor and Pi Scan own their navigation keys, so Package-only PKGBUILD,
+///   comments, and sorting chords must not preempt either mode. Exit, help, and reload
+///   remain independently global and do not use this helper.
+const fn package_global_chords_apply(app: &AppState) -> bool {
+    !matches!(
+        app.app_mode,
+        crate::state::types::AppMode::ConfigEditor | crate::state::types::AppMode::PiScan
+    )
+}
+
 /// What: Handle global keybinds (help, theme reload, exit, PKGBUILD, comments, sort).
 ///
 /// Inputs:
@@ -919,9 +944,7 @@ fn handle_global_keybinds(
     }
 
     // Comments toggle - check FIRST before other keybinds to ensure it's not intercepted
-    if !matches!(app.app_mode, crate::state::types::AppMode::ConfigEditor)
-        && matches_keybind(ke, &km.comments_toggle)
-    {
+    if package_global_chords_apply(app) && matches_keybind(ke, &km.comments_toggle) {
         tracing::debug!("[Keybind] Comments toggle matched, calling handle_toggle_comments");
         return Some(handle_toggle_comments(app, comments_tx));
     }
@@ -948,19 +971,19 @@ fn handle_global_keybinds(
 
     // PKGBUILD toggle (only if no modal is active - modals should handle their own keys)
     if matches!(app.modal, crate::state::Modal::None)
-        && !matches!(app.app_mode, crate::state::types::AppMode::ConfigEditor)
+        && package_global_chords_apply(app)
         && matches_keybind(ke, &km.show_pkgbuild)
     {
         return Some(handle_toggle_pkgbuild(app, pkgb_tx));
     }
     if matches!(app.modal, crate::state::Modal::None)
-        && !matches!(app.app_mode, crate::state::types::AppMode::ConfigEditor)
+        && package_global_chords_apply(app)
         && matches_keybind(ke, &km.run_pkgbuild_checks)
     {
         return Some(handle_run_pkgbuild_checks(app, pkgb_check_tx));
     }
     if matches!(app.modal, crate::state::Modal::None)
-        && !matches!(app.app_mode, crate::state::types::AppMode::ConfigEditor)
+        && package_global_chords_apply(app)
         && matches_keybind(ke, &km.cycle_pkgbuild_sections)
     {
         return Some(handle_cycle_pkgbuild_sections(app));
@@ -968,7 +991,7 @@ fn handle_global_keybinds(
 
     // Sort change (only if no modal is active - modals should handle their own keys)
     if matches!(app.modal, crate::state::Modal::None)
-        && !matches!(app.app_mode, crate::state::types::AppMode::ConfigEditor)
+        && package_global_chords_apply(app)
         && matches_keybind(ke, &km.change_sort)
     {
         return Some(handle_change_sort(app, details_tx));
@@ -997,7 +1020,7 @@ fn handle_config_menu_selection(
     let repos_path = crate::theme::config_dir().join("repos.conf");
     if idx == 4 && !matches!(app.app_mode, crate::state::types::AppMode::ConfigEditor) {
         app.app_mode = crate::state::types::AppMode::ConfigEditor;
-        app.config_editor_state = super::modals::build_config_editor_state();
+        app.config_editor_state = super::modals::build_config_editor_state(app);
         app.config_menu_open = false;
         app.artix_filter_menu_open = false;
         app.custom_repos_filter_menu_open = false;
@@ -1155,14 +1178,14 @@ mod tests {
     /// What: Verify the help overlay shortcut activates the Help modal.
     ///
     /// Inputs:
-    /// - Default keymap (F1 assigned to help overlay).
-    /// - `F1` key event with no modifiers.
+    /// - Default keymap with `?` as the sole help-overlay shortcut.
+    /// - `?` key event with no modifiers.
     ///
     /// Output:
     /// - Handler returns `false` and sets `app.modal` to `Modal::Help`.
     ///
     /// Details:
-    /// - Confirms `BackTab` normalization does not interfere with regular function keys.
+    /// - Guards the discoverable printable shortcut and prevents stale `F1` defaults.
     fn global_help_overlay_opens_modal() {
         let mut app = new_app();
         let (details_tx, _details_rx) = mpsc::unbounded_channel::<PackageItem>();
@@ -1172,8 +1195,11 @@ mod tests {
         let (pkgb_check_tx, _pkgb_check_rx) =
             mpsc::unbounded_channel::<crate::state::PkgbuildCheckRequest>();
 
+        assert_eq!(app.keymap.help_overlay.len(), 1);
+        assert_eq!(app.keymap.help_overlay[0].code, KeyCode::Char('?'));
+
         let exit = handle_global_key(
-            KeyEvent::new(KeyCode::F(1), KeyModifiers::empty()),
+            KeyEvent::new(KeyCode::Char('?'), KeyModifiers::empty()),
             &mut app,
             &details_tx,
             &pkgb_tx,
@@ -1334,6 +1360,35 @@ mod tests {
         );
         assert_eq!(handled, Some(false));
         assert!(app.config_menu_open);
+    }
+
+    /// What: Verify the Options menu opens the Pi Scan workspace from Package and News modes.
+    ///
+    /// Inputs:
+    /// - Package-mode item index 4 and News-mode item index 3.
+    ///
+    /// Output:
+    /// - Both selections switch to `AppMode::PiScan` and close the Options menu.
+    ///
+    /// Details:
+    /// - Guards the numbered-key path for the new mode-independent workspace entry.
+    #[test]
+    fn options_menu_numeric_opens_pi_scan_from_package_and_news() {
+        let (details_tx, _details_rx) = mpsc::unbounded_channel::<PackageItem>();
+        for (mode, index) in [
+            (crate::state::types::AppMode::Package, 4),
+            (crate::state::types::AppMode::News, 3),
+        ] {
+            let mut app = new_app();
+            app.app_mode = mode;
+            app.options_menu_open = true;
+
+            let handled = handle_options_menu_numeric(index, &mut app, &details_tx);
+
+            assert_eq!(handled, Some(false));
+            assert!(matches!(app.app_mode, crate::state::types::AppMode::PiScan));
+            assert!(!app.options_menu_open);
+        }
     }
 
     #[test]

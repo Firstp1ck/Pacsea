@@ -33,7 +33,7 @@ fn handle_config_menu_numeric_selection(idx: usize, app: &mut AppState) -> bool 
 
     if idx == 4 && !matches!(app.app_mode, crate::state::types::AppMode::ConfigEditor) {
         app.app_mode = crate::state::types::AppMode::ConfigEditor;
-        app.config_editor_state = super::super::modals::build_config_editor_state();
+        app.config_editor_state = super::super::modals::build_config_editor_state(app);
         app.config_menu_open = false;
         return true;
     }
@@ -730,6 +730,13 @@ fn handle_keymap_actions(
 
     if matches_any(ke, &app.keymap.search_normal_export) {
         handle_export(app);
+        return true;
+    }
+
+    if matches_any(ke, &app.keymap.search_normal_pi_scan)
+        && matches!(app.app_mode, crate::state::types::AppMode::Package)
+    {
+        crate::events::pi_scan::open_from_search(app);
         return true;
     }
 

@@ -1,6 +1,4 @@
-use std::env;
 use std::fs;
-use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 use std::time::SystemTime;
 
@@ -86,16 +84,7 @@ pub fn settings() -> Settings {
     let mut out = Settings::default();
     // Load settings from settings.conf (or legacy pacsea.conf)
     let settings_path = resolve_settings_config_path()
-        .or_else(|| {
-            crate::theme::paths::config_dir_override().map(|root| root.join("settings.conf"))
-        })
-        .or_else(|| {
-            env::var("XDG_CONFIG_HOME")
-                .ok()
-                .map(PathBuf::from)
-                .or_else(|| env::var("HOME").ok().map(|h| Path::new(&h).join(".config")))
-                .map(|base| base.join("pacsea").join("settings.conf"))
-        });
+        .or_else(|| crate::theme::paths::default_config_file_path("settings.conf"));
 
     let settings_metadata = settings_path.as_ref().and_then(|p| fs::metadata(p).ok());
     let settings_mtime = settings_metadata.as_ref().and_then(|m| m.modified().ok());
@@ -212,6 +201,7 @@ mod tests {
         let cfg = base.join(".config").join("pacsea");
         let _ = std::fs::create_dir_all(&cfg);
         unsafe { std::env::set_var("HOME", base.display().to_string()) };
+        crate::theme::set_home_config_enabled(true);
 
         // Write settings.conf with values and bad sum (should reset to defaults)
         let settings_path = cfg.join("settings.conf");
@@ -238,6 +228,7 @@ mod tests {
             [] as [crate::theme::types::KeyChord; 0]
         );
 
+        crate::theme::set_home_config_enabled(false);
         unsafe {
             if let Some(v) = orig_home {
                 std::env::set_var("HOME", v);

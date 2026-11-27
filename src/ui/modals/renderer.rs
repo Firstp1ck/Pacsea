@@ -569,6 +569,23 @@ impl ModalRenderer for Modal {
                 render_loading_modal(f, area, &message);
                 Self::Loading { message }
             }
+            Self::ClosingPiScan => {
+                misc::render_closing_pi_scan(f, area);
+                Self::ClosingPiScan
+            }
+            Self::ConfirmPiScanContinuation {
+                confirmation,
+                scroll,
+            } => {
+                let rect = misc::pi_scan_continuation_area(area);
+                app.pi_scan.continuation_buttons =
+                    misc::pi_scan_continuation_button_rects(app, rect);
+                misc::render_pi_scan_continuation(f, app, area, &confirmation, scroll);
+                Self::ConfirmPiScanContinuation {
+                    confirmation,
+                    scroll,
+                }
+            }
             Self::ConfirmInstall { items } => {
                 let ctx = ConfirmInstallContext { items };
                 render_confirm_install_modal(f, app, area, ctx)

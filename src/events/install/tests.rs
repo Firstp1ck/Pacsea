@@ -72,6 +72,7 @@ fn install_enter_opens_confirm_install() {
     let cfg = base.join(".config").join("pacsea");
     let _ = std::fs::create_dir_all(&cfg);
     unsafe { std::env::set_var("HOME", base.display().to_string()) };
+    crate::theme::set_home_config_enabled(true);
     unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
 
     // Write settings.conf with skip_preflight = false
@@ -127,6 +128,7 @@ fn install_enter_opens_confirm_install() {
         _ => panic!("Preflight modal not opened"),
     }
 
+    crate::theme::set_home_config_enabled(false);
     unsafe {
         if let Some(v) = orig_home {
             std::env::set_var("HOME", v);
@@ -171,6 +173,7 @@ fn install_enter_bypasses_preflight_with_skip_flag() {
     let cfg = base.join(".config").join("pacsea");
     let _ = std::fs::create_dir_all(&cfg);
     unsafe { std::env::set_var("HOME", base.display().to_string()) };
+    crate::theme::set_home_config_enabled(true);
     unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
 
     // Write settings.conf with skip_preflight = false
@@ -208,6 +211,7 @@ fn install_enter_bypasses_preflight_with_skip_flag() {
         _ => panic!("Expected Preflight when skip_preflight=false"),
     }
 
+    crate::theme::set_home_config_enabled(false);
     unsafe {
         if let Some(v) = orig_home {
             std::env::set_var("HOME", v);

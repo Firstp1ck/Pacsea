@@ -198,6 +198,82 @@ fn build_global_bindings(
         km.change_sort.first().copied(),
         "app.modals.help.key_labels.change_sorting",
     );
+    for (chord, label_key) in [
+        (
+            km.config_menu_toggle.first().copied(),
+            "app.modals.help.key_labels.config_lists_menu",
+        ),
+        (
+            km.options_menu_toggle.first().copied(),
+            "app.modals.help.key_labels.options_menu",
+        ),
+        (
+            km.panels_menu_toggle.first().copied(),
+            "app.modals.help.key_labels.panels_menu",
+        ),
+        (
+            km.search_normal_open_status.first().copied(),
+            "app.modals.help.key_labels.open_arch_status",
+        ),
+        (
+            km.search_normal_import.first().copied(),
+            "app.modals.help.normal_mode.import",
+        ),
+        (
+            km.search_normal_export.first().copied(),
+            "app.modals.help.normal_mode.export",
+        ),
+        (
+            km.search_normal_updates.first().copied(),
+            "app.modals.help.normal_mode.updates",
+        ),
+        (
+            km.search_normal_pi_scan.first().copied(),
+            "app.modals.help.key_labels.open_pi_scan",
+        ),
+    ] {
+        add_binding_if_some(lines, app, th, chord, label_key);
+    }
+}
+
+/// What: Build the localized Pi Scan workspace and wizard help section.
+///
+/// Inputs:
+/// - `lines`: Mutable help-line collection.
+/// - `app`: Application state for translations and configured chords.
+/// - `th`: Active theme used for the configured chord label.
+/// - `km`: Effective keymap.
+///
+/// Output:
+/// - Adds entry, workspace page actions, scrolling, and wizard controls.
+///
+/// Details:
+/// - The config-editor setup entry uses the effective configured chord rather than a literal.
+fn build_pi_scan_help(
+    lines: &mut Vec<Line<'static>>,
+    app: &AppState,
+    th: &crate::theme::Theme,
+    km: &crate::theme::KeyMap,
+) {
+    add_section_header(lines, app, th, "app.modals.help.sections.pi_scan");
+    add_binding_if_some(
+        lines,
+        app,
+        th,
+        km.search_normal_pi_scan.first().copied(),
+        "app.modals.help.key_labels.open_pi_scan",
+    );
+    add_binding_if_some(
+        lines,
+        app,
+        th,
+        km.config_editor_pi_scan_setup.first().copied(),
+        "app.modals.help.key_labels.pi_scan_setup",
+    );
+    lines.extend(parse_yaml_lines(&i18n::t(
+        app,
+        "app.modals.help.pi_scan_lines",
+    )));
 }
 
 /// What: Build search pane keybindings section.
@@ -328,11 +404,7 @@ fn build_search_normal_bindings(
         || !km.search_normal_select_left.is_empty()
         || !km.search_normal_select_right.is_empty()
         || !km.search_normal_delete.is_empty()
-        || !km.search_normal_clear.is_empty()
-        || !km.search_normal_open_status.is_empty()
-        || !km.config_menu_toggle.is_empty()
-        || !km.options_menu_toggle.is_empty()
-        || !km.panels_menu_toggle.is_empty();
+        || !km.search_normal_clear.is_empty();
 
     if !has_normal_bindings {
         return;
@@ -381,34 +453,6 @@ fn build_search_normal_bindings(
         th,
         km.search_normal_clear.first().copied(),
         "app.modals.help.key_labels.clear_input",
-    );
-    add_binding_if_some(
-        lines,
-        app,
-        th,
-        km.search_normal_open_status.first().copied(),
-        "app.modals.help.key_labels.open_arch_status",
-    );
-    add_binding_if_some(
-        lines,
-        app,
-        th,
-        km.config_menu_toggle.first().copied(),
-        "app.modals.help.key_labels.config_lists_menu",
-    );
-    add_binding_if_some(
-        lines,
-        app,
-        th,
-        km.options_menu_toggle.first().copied(),
-        "app.modals.help.key_labels.options_menu",
-    );
-    add_binding_if_some(
-        lines,
-        app,
-        th,
-        km.panels_menu_toggle.first().copied(),
-        "app.modals.help.key_labels.panels_menu",
     );
 }
 
@@ -641,6 +685,7 @@ pub fn render_help(f: &mut Frame, app: &mut AppState, area: Rect) {
     lines.push(Line::from(""));
 
     // Build all sections using helper functions
+    build_pi_scan_help(&mut lines, app, &th, km);
     build_global_bindings(&mut lines, app, &th, km);
     lines.push(Line::from(""));
 

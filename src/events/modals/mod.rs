@@ -4,11 +4,36 @@ mod common;
 /// Key handling for the integrated TUI config editor modal.
 mod config_editor;
 pub(super) use config_editor::build_initial_state as build_config_editor_state;
-pub(in crate::events) use config_editor::handle_config_editor_mode_key;
+pub(in crate::events) use config_editor::{
+    handle_config_editor_mode_key, handle_config_editor_mouse,
+};
 /// Key handling for the optional doas persist setup wizard modal.
 mod doas_persist_setup;
 mod foreign_overlap;
 mod handlers;
+
+/// What: Route a continuation mouse button through the guarded keyboard path.
+///
+/// Inputs: Current application/modal and whether the clicked button confirms.
+///
+/// Output: Dispatches confirmation or cancels without changing authority checks.
+///
+/// Details: Reuses the exact-result binding validation used by Enter.
+pub(in crate::events) fn activate_pi_scan_continuation_button(app: &mut AppState, confirm: bool) {
+    let modal = app.modal.clone();
+    handlers::handle_confirm_pi_scan_continuation_modal(
+        crossterm::event::KeyEvent::new(
+            if confirm {
+                crossterm::event::KeyCode::Enter
+            } else {
+                crossterm::event::KeyCode::Esc
+            },
+            crossterm::event::KeyModifiers::NONE,
+        ),
+        app,
+        &modal,
+    );
+}
 mod import;
 mod install;
 mod optional_deps;
@@ -67,6 +92,9 @@ pub(super) fn handle_modal_key(
             handlers::handle_confirm_aur_update_modal(ke, app, &modal)
         }
         Modal::ConfirmAurVote { .. } => handlers::handle_confirm_aur_vote_modal(ke, app, &modal),
+        Modal::ConfirmPiScanContinuation { .. } => {
+            handlers::handle_confirm_pi_scan_continuation_modal(ke, app, &modal)
+        }
         Modal::WarnAurRepoDuplicate { .. } => {
             handlers::handle_warn_aur_repo_duplicate_modal(ke, app, &modal)
         }
@@ -94,10 +122,10 @@ pub(super) fn handle_modal_key(
         Modal::GnomeTerminalPrompt => handlers::handle_gnome_terminal_prompt_modal(ke, app, modal),
         Modal::ImportHelp => handlers::handle_import_help_modal(ke, app, add_tx, modal),
         Modal::None => false,
-        Modal::Loading { .. } => {
-            // Loading modal - ignore key input while waiting for background task
+        Modal::Loading { .. } | Modal::ClosingPiScan => {
+            // Non-interactive status modals ignore key input while work settles.
             app.modal = modal;
-            true // Consume key to prevent propagation
+            true
         }
         Modal::Preflight { .. } => {
             // Preflight is handled separately in preflight.rs

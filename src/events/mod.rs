@@ -17,6 +17,8 @@ mod guardrails;
 mod install;
 mod modals;
 mod mouse;
+/// Optional Pi Scan workspace input handling.
+pub mod pi_scan;
 mod preflight;
 /// Recent packages event handling module.
 mod recent;
@@ -160,6 +162,64 @@ pub fn handle_event(
     )
 }
 
+/// What: Disarm double-x on every key except a plain x or shifted X.
+///
+/// Inputs: Key event and active workspace state.
+///
+/// Output: Clears the pending cancellation for other keys.
+///
+/// Details: Runs before global and modal routing, so keys consumed by Help still disarm it.
+fn disarm_pi_scan_cancel_on_other_key(ke: &crossterm::event::KeyEvent, app: &mut AppState) {
+    if app.app_mode == AppMode::PiScan
+        && !matches!(
+            (ke.code, ke.modifiers),
+            (KeyCode::Char('x'), crossterm::event::KeyModifiers::NONE)
+                | (KeyCode::Char('X'), crossterm::event::KeyModifiers::SHIFT)
+        )
+    {
+        app.pi_scan.cancel_armed = None;
+    }
+}
+
+/// What: Report whether a focused Pi Scan text field owns one printable key.
+///
+/// Inputs:
+/// - `ke`: Pressed terminal key.
+/// - `app`: Current application and wizard focus state.
+///
+/// Output:
+/// - `true` when the key must reach wizard editing before global printable chords.
+///
+/// Details:
+/// - This gives field text precedence over the global `?` help chord without affecting
+///   non-printable global exit or reload shortcuts.
+fn pi_scan_text_field_owns_printable_key(ke: &crossterm::event::KeyEvent, app: &AppState) -> bool {
+    matches!(app.app_mode, AppMode::PiScan)
+        && matches!(app.modal, crate::state::Modal::None)
+        && app
+            .pi_scan
+            .wizard
+            .as_ref()
+            .is_some_and(crate::state::PiScanSetupWizardState::focuses_text_field)
+        && matches!(ke.code, KeyCode::Char(character) if !character.is_control())
+        && (ke.modifiers.is_empty() || ke.modifiers == KeyModifiers::SHIFT)
+}
+
+/// What: Give an open config popup precedence over printable global shortcuts.
+///
+/// Inputs: Key event and current application/editor state.
+///
+/// Output: Whether the popup owns this printable key.
+///
+/// Details: Recording remains intercepted earlier; list/search global shortcuts are unchanged.
+fn config_editor_popup_owns_printable_key(ke: &crossterm::event::KeyEvent, app: &AppState) -> bool {
+    matches!(app.app_mode, AppMode::ConfigEditor)
+        && matches!(app.modal, crate::state::Modal::None)
+        && app.config_editor_state.popup.is_some()
+        && matches!(ke.code, KeyCode::Char(ch) if !ch.is_control())
+        && (ke.modifiers.is_empty() || ke.modifiers == KeyModifiers::SHIFT)
+}
+
 #[allow(clippy::too_many_arguments)]
 /// What: Event dispatcher variant that includes PKGBUILD checks channel wiring.
 pub fn handle_event_with_pkgbuild_checks(
@@ -201,6 +261,20 @@ pub fn handle_event_with_pkgbuild_checks(
             })
         {
             modals::handle_config_editor_mode_key(*ke, app);
+            return false;
+        }
+
+        if config_editor_popup_owns_printable_key(ke, app) {
+            modals::handle_config_editor_mode_key(*ke, app);
+            return false;
+        }
+
+        disarm_pi_scan_cancel_on_other_key(ke, app);
+
+        // A focused Pi Scan text field owns printable input before the global
+        // help chord so `?` remains ordinary field content.
+        if pi_scan_text_field_owns_printable_key(ke, app) {
+            pi_scan::handle_key(*ke, app);
             return false;
         }
 
@@ -247,6 +321,12 @@ pub fn handle_event_with_pkgbuild_checks(
 
         // If any modal remains open after handling above, consume the key to prevent main window interaction
         if !matches!(app.modal, crate::state::Modal::None) {
+            return false;
+        }
+
+        // Pi Scan is a first-class keyboard workspace.
+        if matches!(app.app_mode, AppMode::PiScan) {
+            pi_scan::handle_key(*ke, app);
             return false;
         }
 
@@ -308,6 +388,75 @@ pub fn handle_event_with_pkgbuild_checks(
 #[cfg(all(test, not(target_os = "windows")))]
 mod tests {
     use super::*;
+
+    /// A `ClosingPiScan` modal captures printable keys even when a wizard field has focus.
+    #[test]
+    fn closing_pi_scan_prevents_wizard_text_editing() {
+        let mut app = AppState {
+            app_mode: AppMode::PiScan,
+            ..AppState::default()
+        };
+        app.pi_scan.begin_setup_wizard(true);
+        let wizard = app.pi_scan.wizard.as_mut().expect("wizard");
+        wizard.step = crate::state::PiScanSetupStep::PiReadiness;
+        wizard.focus = 0;
+        wizard.candidate.binary.clear();
+        app.modal = crate::state::Modal::ClosingPiScan;
+        let (qtx, _qrx) = mpsc::unbounded_channel();
+        let (dtx, _drx) = mpsc::unbounded_channel();
+        let (ptx, _prx) = mpsc::unbounded_channel();
+        let (atx, _arx) = mpsc::unbounded_channel();
+        let (pkgb_tx, _pkgb_rx) = mpsc::unbounded_channel();
+        let (comments_tx, _comments_rx) = mpsc::unbounded_channel();
+        let (pkgb_check_tx, _pkgb_check_rx) = mpsc::unbounded_channel();
+        assert!(!handle_event_with_pkgbuild_checks(
+            &CEvent::Key(KeyEvent::new(KeyCode::Char('n'), KeyModifiers::NONE)),
+            &mut app,
+            &qtx,
+            &dtx,
+            &ptx,
+            &atx,
+            &pkgb_tx,
+            &comments_tx,
+            &pkgb_check_tx,
+        ));
+        assert_eq!(
+            app.pi_scan
+                .wizard
+                .as_ref()
+                .expect("wizard")
+                .candidate
+                .binary,
+            ""
+        );
+        assert!(matches!(app.modal, crate::state::Modal::ClosingPiScan));
+    }
+
+    /// Only plain x and shifted X retain a pending scan cancellation through global routing.
+    #[test]
+    fn modified_cancel_key_and_other_key_disarm() {
+        let mut app = AppState {
+            app_mode: AppMode::PiScan,
+            ..AppState::default()
+        };
+        app.pi_scan.cancel_armed = Some(77);
+        disarm_pi_scan_cancel_on_other_key(
+            &KeyEvent::new(KeyCode::Char('x'), KeyModifiers::ALT),
+            &mut app,
+        );
+        assert!(app.pi_scan.cancel_armed.is_none());
+        app.pi_scan.cancel_armed = Some(77);
+        disarm_pi_scan_cancel_on_other_key(
+            &KeyEvent::new(KeyCode::Char('X'), KeyModifiers::SHIFT),
+            &mut app,
+        );
+        assert_eq!(app.pi_scan.cancel_armed, Some(77));
+        disarm_pi_scan_cancel_on_other_key(
+            &KeyEvent::new(KeyCode::Char('?'), KeyModifiers::NONE),
+            &mut app,
+        );
+        assert!(app.pi_scan.cancel_armed.is_none());
+    }
     use crossterm::event::{
         Event as CEvent, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent,
         MouseEventKind,
