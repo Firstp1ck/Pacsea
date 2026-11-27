@@ -1101,17 +1101,25 @@
           728,
           496,
           690
-        ],
-        "track": [
-          {
-            "at": 0.65,
-            "move": 0.65,
-            "x": 280,
-            "y": 488
-          }
         ]
       },
       "spotlights": [
+        {
+          "rect": {
+            "target": "#prompt-package-1",
+            "pad": 3
+          },
+          "from": 0,
+          "to": 5
+        },
+        {
+          "rect": {
+            "target": "#prompt-package-2",
+            "pad": 3
+          },
+          "from": 0,
+          "to": 5
+        },
         {
           "rect": {
             "target": "#point",
@@ -1131,14 +1139,14 @@
         "bold": "Interactive authentication",
         "rest": "The terminal handles the prompt through PAM.",
         "box": [
-          280,
-          488,
+          728,
+          496,
           690
         ],
         "track": [
           {
-            "at": 0.65,
-            "move": 0.65,
+            "at": 1.4,
+            "move": 1.4,
             "x": 48,
             "y": 184
           }

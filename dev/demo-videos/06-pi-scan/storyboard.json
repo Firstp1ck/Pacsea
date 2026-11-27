@@ -332,14 +332,38 @@
         ],
         "track": [
           {
-            "at": 0.65,
-            "move": 0.65,
-            "x": 72,
-            "y": 304
+            "at": 1.2,
+            "move": 1.2,
+            "x": 758,
+            "y": 145
           }
         ]
       },
       "spotlights": [
+        {
+          "rect": {
+            "target": "#price",
+            "pad": 3
+          },
+          "from": 0,
+          "to": 6
+        },
+        {
+          "rect": {
+            "target": "#price-source",
+            "pad": 3
+          },
+          "from": 0,
+          "to": 6
+        },
+        {
+          "rect": {
+            "target": "#disclosure",
+            "pad": 3
+          },
+          "from": 0,
+          "to": 6
+        },
         {
           "rect": {
             "target": "#point",
@@ -367,9 +391,17 @@
         "bold": "Allow foreground scans",
         "rest": "Paid runs you start need separate consent.",
         "box": [
-          72,
-          304,
+          758,
+          145,
           690
+        ],
+        "track": [
+          {
+            "at": 1.4,
+            "move": 1.4,
+            "x": 72,
+            "y": 304
+          }
         ]
       },
       "spotlights": [

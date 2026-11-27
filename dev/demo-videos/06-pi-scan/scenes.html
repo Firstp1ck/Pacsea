@@ -223,10 +223,10 @@
 <template id="review-disclosure" data-width="1920" data-height="1080">
 <div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pi Scan preview  ·  feat/aur-scan-integrated @ 55ef9248</small></div><div class="tui"><div class="piBar">1 Scan  2 Progress  3 Results  4 Status  <span class="active">▸5 Settings</span><span class="state">Not set up</span></div><div class="wiz-head">Setup 4/7 — Pricing and privacy</div><div class="dot">● ● ● ◆ ○ ○ ○ </div><section class="box wizbox"><span class="legend">Pricing and privacy</span>
 <div class="line ">Selected route: demo/reviewer-a</div>
-<div class="line ">Maximum reserved per scan: 10000 tokens · $0.000125</div>
-<div class="line ">Pricing source: Pi's verified live model catalog (metered rate)</div>
+<div class="line "><span id="price">Maximum reserved per scan: 10000 tokens · $0.000125</span></div>
+<div class="line "><span id="price-source">Pricing source: Pi's verified live model catalog (metered rate)</span></div>
 <div class="line compact"></div>
-<div class="line warn"><span class="mark">Provider disclosure: analyzed package data leaves this machine and model calls may incur cost.</span></div>
+<div class="line warn"><span class="mark" id="disclosure">Provider disclosure: analyzed package data leaves this machine and model calls may incur cost.</span></div>
 <div class="line ">Coverage can be incomplete; results do not authorize installation.</div>
 <div class="line compact"></div>
 <div class="line " id="point" style="width:fit-content">[Space] I reviewed privacy, cost, and coverage: <span id="value-1">off</span></div></section><div class="wiz-msg">Draft only — no settings, runtime, or consent has changed.</div><div class="wiz-controls">Esc Cancel    b Back    n Next</div><div class="piHint"><span class="piTitle">Status / Help</span>　 Tab Next field　 PgUp/PgDn Scroll　 Esc Cancel</div></div></div>
