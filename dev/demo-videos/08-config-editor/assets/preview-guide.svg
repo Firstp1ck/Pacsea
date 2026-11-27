@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1888 980" width="1888" height="980">
+<!-- Headless Pacsea terminal capture or a source-file/terminal excerpt. Sample package, repository, key and status data are illustrative. -->
+<rect width="1888" height="980" fill="#1e1e2e"/>
+<g font-family="DejaVu Sans Mono, monospace" font-size="26.5" xml:space="preserve">
+<text x="0" y="22" fill="#7f849c" textLength="160" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">Pi BG: OFF</text>
+<rect x="784" y="0" width="16" height="28" fill="#585b70"/>
+<text x="784" y="22" fill="#89b4fa" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">P</text>
+<rect x="800" y="0" width="464" height="28" fill="#585b70"/>
+<text x="800" y="22" fill="#89b4fa" textLength="464" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">i Scan: Not set up · 0 queued</text>
+<text x="16" y="50" fill="#bac2de" textLength="96" lengthAdjust="spacingAndGlyphs" style="white-space:pre">1 Scan</text>
+<text x="160" y="50" fill="#bac2de" textLength="160" lengthAdjust="spacingAndGlyphs" style="white-space:pre">2 Progress</text>
+<text x="368" y="50" fill="#bac2de" textLength="144" lengthAdjust="spacingAndGlyphs" style="white-space:pre">3 Results</text>
+<text x="560" y="50" fill="#bac2de" textLength="128" lengthAdjust="spacingAndGlyphs" style="white-space:pre">4 Status</text>
+<rect x="720" y="28" width="192" height="28" fill="#74c7ec"/>
+<text x="720" y="50" fill="#1e1e2e" textLength="176" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">▸5 Settings</text>
+<text x="1696" y="50" fill="#f9e2af" textLength="192" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">○ Not set up</text>
+<text x="0" y="78" fill="#cdd6f4" textLength="1888" lengthAdjust="spacingAndGlyphs" style="white-space:pre">──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────</text>
+<text x="0" y="106" fill="#89b4fa" textLength="304" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">Setup 1/7 — Welcome</text>
+<text x="0" y="134" fill="#74c7ec" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">◆</text>
+<text x="32" y="134" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">○</text>
+<text x="64" y="134" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">○</text>
+<text x="96" y="134" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">○</text>
+<text x="128" y="134" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">○</text>
+<text x="160" y="134" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">○</text>
+<text x="192" y="134" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">○</text>
+<text x="0" y="162" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">┌</text>
+<text x="16" y="162" fill="#89b4fa" textLength="112" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">Welcome</text>
+<text x="128" y="162" fill="#7f849c" textLength="1760" lengthAdjust="spacingAndGlyphs" style="white-space:pre">─────────────────────────────────────────────────────────────────────────────────────────────────────────────┐</text>
+<text x="0" y="190" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="190" fill="#cdd6f4" textLength="1488" lengthAdjust="spacingAndGlyphs" style="white-space:pre">This seven-step wizard configures Pi Scan without editing settings.conf or restarting Pacsea.</text>
+<text x="1872" y="190" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="218" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="218" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="246" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="246" fill="#cdd6f4" textLength="1504" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Pi Scan is advisory: it can miss risks and never proves a package or installed bytes are safe.</text>
+<text x="1872" y="246" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="274" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="274" fill="#cdd6f4" textLength="1328" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Selected package recipe/source data is sent to the exact provider route you review.</text>
+<text x="1872" y="274" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="302" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="302" fill="#cdd6f4" textLength="1152" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Setup makes no package execution and discovery makes no paid model call.</text>
+<text x="1872" y="302" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="330" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="330" fill="#cdd6f4" textLength="1520" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Provider credentials remain owned by Pi; Pacsea never asks for, displays, logs, or stores them.</text>
+<text x="1872" y="330" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="358" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="358" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="386" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="386" fill="#cdd6f4" textLength="896" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Conservative defaults remain selected until final Apply.</text>
+<text x="1872" y="386" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="414" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="414" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="442" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="442" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="470" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="470" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="498" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="498" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="526" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="526" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="554" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="554" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="582" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="582" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="610" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="610" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="638" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="638" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="666" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="666" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="694" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="694" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="722" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="722" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="750" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="750" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="778" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="778" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="806" fill="#7f849c" textLength="1888" lengthAdjust="spacingAndGlyphs" style="white-space:pre">└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘</text>
+<text x="0" y="834" fill="#a6e3a1" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">✓</text>
+<text x="32" y="834" fill="#a6e3a1" textLength="928" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Draft only — no settings, runtime, or consent has changed.</text>
+<text x="0" y="862" fill="#cdd6f4" textLength="1888" lengthAdjust="spacingAndGlyphs" style="white-space:pre">──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────</text>
+<rect x="0" y="868" width="192" height="28" fill="#74c7ec"/>
+<text x="16" y="890" fill="#1e1e2e" textLength="160" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">Esc Cancel</text>
+<rect x="208" y="868" width="128" height="28" fill="#89b4fa"/>
+<text x="224" y="890" fill="#1e1e2e" textLength="96" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">n Next</text>
+<text x="0" y="918" fill="#cdd6f4" textLength="1888" lengthAdjust="spacingAndGlyphs" style="white-space:pre">──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────</text>
+<text x="0" y="946" fill="#f9e2af" textLength="1376" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Nothing is saved until you press Apply on the last step. Esc cancels the guided setup.</text>
+<text x="0" y="974" fill="#74c7ec" textLength="80" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">Enter</text>
+<text x="96" y="974" fill="#cdd6f4" textLength="96" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Select</text>
+<text x="208" y="974" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">·</text>
+<text x="240" y="974" fill="#74c7ec" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">n</text>
+<text x="272" y="974" fill="#cdd6f4" textLength="64" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Next</text>
+<text x="352" y="974" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">·</text>
+<text x="384" y="974" fill="#74c7ec" textLength="144" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">Shift+Tab</text>
+<text x="544" y="974" fill="#cdd6f4" textLength="224" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Previous field</text>
+<text x="784" y="974" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">·</text>
+<text x="816" y="974" fill="#74c7ec" textLength="144" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">PgUp/PgDn</text>
+<text x="976" y="974" fill="#cdd6f4" textLength="96" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Scroll</text>
+<text x="1088" y="974" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">·</text>
+<text x="1120" y="974" fill="#74c7ec" textLength="48" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">Esc</text>
+<text x="1184" y="974" fill="#cdd6f4" textLength="96" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Cancel</text>
+<text x="1296" y="974" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">·</text>
+<text x="1328" y="974" fill="#74c7ec" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">?</text>
+<text x="1360" y="974" fill="#cdd6f4" textLength="64" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Help</text>
+</g>
+</svg>

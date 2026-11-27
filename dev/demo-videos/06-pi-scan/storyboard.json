@@ -1,0 +1,1528 @@
+{
+  "version": 1,
+  "format": "episode",
+  "title": "Pacsea: Explore Pi Scan (feature preview)",
+  "allowTerms": [
+    "AUR",
+    "PAM",
+    "Pacsea",
+    "preflight",
+    "deps",
+    "dependencies",
+    "terminal",
+    "package",
+    "packages",
+    "Pi",
+    "PKGBUILD",
+    "sudo",
+    "CLI",
+    "cache",
+    "repository",
+    "Sandbox",
+    "toggle",
+    "configuration",
+    "build",
+    "sync",
+    "pacman"
+  ],
+  "sourceRevision": "55ef924819334b781d863a2ff2113968836cb863",
+  "width": 1920,
+  "height": 1080,
+  "fps": 24,
+  "framing": "full-app",
+  "captionMotion": "continuous",
+  "captionEase": "fast-slow",
+  "spotlightOutline": true,
+  "scenes": "scenes.html",
+  "theme": {
+    "accent": "#8bdcf3",
+    "background": "#0d0e16",
+    "glow": "transparent"
+  },
+  "production": {
+    "interface": "Feature preview from feat/aur-scan-integrated at 55ef9248. Recreated screens use fictional provider routes and prices, sample package identities, and illustrative scan results. No provider was contacted, no scan ran and no package was installed.",
+    "render": "Run t3-build python ../04-transactions/render-episode.py . from this episode folder in the integrated series checkout.",
+    "music": "Quiet Index, original episode arrangement using the discovery pilot instruments."
+  },
+  "chapters": [
+    {
+      "start": 0,
+      "title": "Pi Scan preview and guided setup"
+    },
+    {
+      "start": 29,
+      "title": "Review costs, consent and limits"
+    },
+    {
+      "start": 68,
+      "title": "Choose targets and follow progress"
+    },
+    {
+      "start": 109,
+      "title": "Inspect findings and coverage"
+    },
+    {
+      "start": 140,
+      "title": "Manage background scans and budgets"
+    },
+    {
+      "start": 163,
+      "title": "Recheck identity before install review"
+    }
+  ],
+  "steps": [
+    {
+      "scene": "opening",
+      "duration": 9,
+      "transition": "cut",
+      "caption": {
+        "number": "",
+        "bold": "Pacsea",
+        "box": [
+          1200,
+          192,
+          690
+        ]
+      },
+      "actions": [
+        {
+          "at": 0,
+          "type": "show",
+          "target": ".title-scrim",
+          "dur": 0.7,
+          "dx": 0,
+          "dy": 0
+        },
+        {
+          "at": 0.25,
+          "type": "show",
+          "target": ".title-copy",
+          "dur": 0.85,
+          "dx": 0,
+          "dy": 20
+        },
+        {
+          "at": 7.75,
+          "type": "hide",
+          "target": ".title-copy",
+          "dur": 0.7,
+          "dx": 0,
+          "dy": 10
+        },
+        {
+          "at": 8.25,
+          "type": "hide",
+          "target": ".title-scrim",
+          "dur": 0.75,
+          "dx": 0,
+          "dy": 0
+        }
+      ]
+    },
+    {
+      "scene": "general-entry",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "01",
+        "bold": "Options then 5",
+        "rest": "Open Pi Scan without adding a target.",
+        "box": [
+          1200,
+          192,
+          690
+        ],
+        "track": [
+          {
+            "at": 2.64,
+            "move": 0.84,
+            "x": 584,
+            "y": 216
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#gesture",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 1.8
+        },
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 1.8,
+          "to": 5
+        }
+      ],
+      "actions": [
+        {
+          "type": "show",
+          "at": 1.8,
+          "target": "#popup",
+          "dur": 0,
+          "dx": 0,
+          "dy": 0
+        },
+        {
+          "type": "hide",
+          "at": 1.8,
+          "target": "#previous",
+          "dur": 0,
+          "dx": 0,
+          "dy": 0
+        }
+      ]
+    },
+    {
+      "scene": "bring-an-aur-target",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "02",
+        "bold": "Shift+A on fieldnotes-git",
+        "rest": "Open setup for the selected AUR package.",
+        "box": [
+          584,
+          216,
+          690
+        ],
+        "track": [
+          {
+            "at": 2.5,
+            "move": 0.65,
+            "x": 344,
+            "y": 136
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#gesture",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 1.85
+        },
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 1.85,
+          "to": 5
+        }
+      ],
+      "actions": [
+        {
+          "type": "show",
+          "at": 1.85,
+          "target": "#wizard-entry",
+          "dur": 0,
+          "dx": 0,
+          "dy": 0
+        }
+      ]
+    },
+    {
+      "scene": "verify-pi-readiness",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "03",
+        "bold": "Verify Pi with Enter",
+        "rest": "Read the installed version before any scan.",
+        "box": [
+          344,
+          136,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.65,
+            "move": 0.65,
+            "x": 56,
+            "y": 160
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 1.95
+        },
+        {
+          "from": 1.95,
+          "to": 5,
+          "rect": {
+            "target": "#value-1",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "0.84.0"
+        },
+        {
+          "at": 2.34,
+          "type": "text",
+          "target": "#value-2",
+          "html": "Pi readiness verified; choose an exact advertised route."
+        }
+      ]
+    },
+    {
+      "scene": "pick-the-exact-route",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "04",
+        "bold": "Choose an exact route",
+        "rest": "Select a provider and model advertised by Pi.",
+        "box": [
+          56,
+          160,
+          690
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 5
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "demo/reviewer-a"
+        }
+      ]
+    },
+    {
+      "scene": "review-disclosure",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "number": "05",
+        "bold": "Read the provider disclosure",
+        "rest": "Check where package data goes and its cost.",
+        "box": [
+          56,
+          160,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.65,
+            "move": 0.65,
+            "x": 72,
+            "y": 304
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 6
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "on"
+        }
+      ]
+    },
+    {
+      "scene": "permit-foreground-scans",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "06",
+        "bold": "Allow foreground scans",
+        "rest": "Paid runs you start need separate consent.",
+        "box": [
+          72,
+          304,
+          690
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 5
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "on"
+        }
+      ]
+    },
+    {
+      "scene": "watch-for-updates",
+      "duration": 4,
+      "transition": "cut",
+      "caption": {
+        "number": "07",
+        "bold": "Allow observation",
+        "rest": "Pacsea may watch for package updates.",
+        "box": [
+          72,
+          304,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.65,
+            "move": 0.65,
+            "x": 56,
+            "y": 328
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 4
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "on"
+        }
+      ]
+    },
+    {
+      "scene": "choose-background-policy",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "08",
+        "bold": "Choose paid background access",
+        "rest": "This is a separate decision from observation.",
+        "box": [
+          56,
+          328,
+          690
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 5
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "on"
+        }
+      ]
+    },
+    {
+      "scene": "choose-fallback-policy",
+      "duration": 4,
+      "transition": "cut",
+      "caption": {
+        "number": "09",
+        "bold": "Choose a fallback",
+        "rest": "This example leaves backup models off.",
+        "box": [
+          56,
+          328,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.65,
+            "move": 0.65,
+            "x": 72,
+            "y": 304
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 4
+        }
+      ]
+    },
+    {
+      "scene": "set-per-scan-tokens",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "10",
+        "bold": "Set a token limit",
+        "rest": "Zero removes the per-scan token ceiling.",
+        "box": [
+          72,
+          304,
+          690
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 5
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "0_"
+        }
+      ]
+    },
+    {
+      "scene": "review-the-draft",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "11",
+        "bold": "Review the draft",
+        "rest": "Check the route and permissions before applying.",
+        "box": [
+          72,
+          304,
+          690
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 5
+        }
+      ]
+    },
+    {
+      "scene": "activate-the-runtime",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "12",
+        "bold": "Press a to apply",
+        "rest": "Pacsea rechecks the route, pricing and consent.",
+        "box": [
+          72,
+          304,
+          690
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 5
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "Pi Scan is verified and ready; no Pacsea restart is required."
+        },
+        {
+          "at": 2.34,
+          "type": "text",
+          "target": "#value-2",
+          "html": "Pi Scan setup completed and the production runtime is connected."
+        }
+      ]
+    },
+    {
+      "scene": "chapter-12",
+      "duration": 8,
+      "transition": "cut",
+      "caption": {
+        "number": "",
+        "bold": "Follow a scan",
+        "box": [
+          72,
+          304,
+          690
+        ],
+        "track": [
+          {
+            "at": 1.25,
+            "move": 1.25,
+            "x": 152,
+            "y": 144
+          }
+        ]
+      },
+      "actions": [
+        {
+          "at": 0,
+          "type": "show",
+          "target": ".title-scrim",
+          "dur": 0.7,
+          "dx": 0,
+          "dy": 0
+        },
+        {
+          "at": 0.25,
+          "type": "show",
+          "target": ".title-copy",
+          "dur": 0.85,
+          "dx": 0,
+          "dy": 20
+        },
+        {
+          "at": 6.75,
+          "type": "hide",
+          "target": ".title-copy",
+          "dur": 0.7,
+          "dx": 0,
+          "dy": 10
+        },
+        {
+          "at": 7.25,
+          "type": "hide",
+          "target": ".title-scrim",
+          "dur": 0.75,
+          "dx": 0,
+          "dy": 0
+        }
+      ],
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 8,
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          }
+        }
+      ]
+    },
+    {
+      "scene": "select-scan-targets",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "13",
+        "bold": "Tick the scan targets",
+        "rest": "Space selects each AUR package.",
+        "box": [
+          152,
+          144,
+          690
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 5
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "[x]"
+        }
+      ]
+    },
+    {
+      "scene": "dry-run-preview",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "number": "14",
+        "bold": "Preview a dry run",
+        "rest": "Enter previews the command without charges.",
+        "box": [
+          152,
+          144,
+          690
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#before",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 1.95
+        },
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 1.95,
+          "to": 6
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "Dry-run process preview: pi --mode rpc --no-session --offline … reviewer-a"
+        },
+        {
+          "at": 2.34,
+          "type": "text",
+          "target": "#value-2",
+          "html": "Dry-run makes no Pi/model call and mutates no scanner queue, consent, budget, result, or durable state."
+        }
+      ]
+    },
+    {
+      "scene": "queue-selected-packages",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "15",
+        "bold": "Enter queues checked targets",
+        "rest": "Live mode freezes each package version.",
+        "box": [
+          152,
+          144,
+          690
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 5
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "waiting · version: e38065a62ad4"
+        },
+        {
+          "at": 2.34,
+          "type": "text",
+          "target": "#value-2",
+          "html": "The selected packages are now waiting to be scanned."
+        }
+      ]
+    },
+    {
+      "scene": "follow-the-phase",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "16",
+        "bold": "Open Progress with 2",
+        "rest": "Follow the active package and its current phase.",
+        "box": [
+          152,
+          144,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.65,
+            "move": 0.65,
+            "x": 152,
+            "y": 216
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 5
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "Pi is analyzing the package and validating its response"
+        }
+      ]
+    },
+    {
+      "scene": "pause-queued-work",
+      "duration": 4,
+      "transition": "cut",
+      "caption": {
+        "number": "17",
+        "bold": "Press p to pause",
+        "rest": "The active scan may finish first.",
+        "box": [
+          152,
+          216,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.65,
+            "move": 0.65,
+            "x": 88,
+            "y": 264
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 4
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "Pause queued until the active scan finishes."
+        }
+      ]
+    },
+    {
+      "scene": "cancel-an-active-scan",
+      "duration": 4,
+      "transition": "cut",
+      "caption": {
+        "number": "18",
+        "bold": "Press x twice",
+        "rest": "Confirm cancellation of the active scan.",
+        "box": [
+          88,
+          264,
+          690
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 4
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "Cancelling active scan…"
+        }
+      ]
+    },
+    {
+      "scene": "retry-checked-failures",
+      "duration": 4,
+      "transition": "cut",
+      "caption": {
+        "number": "19",
+        "bold": "Press r to retry",
+        "rest": "Queue checked, cancelled targets again.",
+        "box": [
+          88,
+          264,
+          690
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 4
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "fieldnotes-git @ e38065a62ad4"
+        }
+      ]
+    },
+    {
+      "scene": "chapter-19",
+      "duration": 8,
+      "transition": "cut",
+      "caption": {
+        "number": "",
+        "bold": "Read the evidence",
+        "box": [
+          88,
+          264,
+          690
+        ],
+        "track": [
+          {
+            "at": 1.25,
+            "move": 1.25,
+            "x": 328,
+            "y": 144
+          }
+        ]
+      },
+      "actions": [
+        {
+          "at": 0,
+          "type": "show",
+          "target": ".title-scrim",
+          "dur": 0.7,
+          "dx": 0,
+          "dy": 0
+        },
+        {
+          "at": 0.25,
+          "type": "show",
+          "target": ".title-copy",
+          "dur": 0.85,
+          "dx": 0,
+          "dy": 20
+        },
+        {
+          "at": 6.75,
+          "type": "hide",
+          "target": ".title-copy",
+          "dur": 0.7,
+          "dx": 0,
+          "dy": 10
+        },
+        {
+          "at": 7.25,
+          "type": "hide",
+          "target": ".title-scrim",
+          "dur": 0.75,
+          "dx": 0,
+          "dy": 0
+        }
+      ],
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 8,
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          }
+        }
+      ]
+    },
+    {
+      "scene": "read-results",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "20",
+        "bold": "Open Results with 3",
+        "rest": "Select fieldnotes-git to inspect its finding.",
+        "box": [
+          328,
+          144,
+          690
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 5
+        }
+      ]
+    },
+    {
+      "scene": "inspect-the-evidence",
+      "duration": 7,
+      "transition": "cut",
+      "caption": {
+        "number": "21",
+        "bold": "Enter opens the report",
+        "rest": "Read the cited PKGBUILD line and finding.",
+        "box": [
+          328,
+          144,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.65,
+            "move": 0.65,
+            "x": 472,
+            "y": 256
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 7
+        }
+      ]
+    },
+    {
+      "scene": "show-technical-details",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "22",
+        "bold": "Press t for details",
+        "rest": "Read the commit in the validated record.",
+        "box": [
+          472,
+          256,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.65,
+            "move": 0.65,
+            "x": 440,
+            "y": 216
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 3.1
+        },
+        {
+          "from": 3.1,
+          "to": 5,
+          "rect": {
+            "target": "#value-4",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "shown · press t to hide"
+        },
+        {
+          "at": 2.34,
+          "type": "text",
+          "target": "#value-2",
+          "html": "Canonical validated-data view:"
+        },
+        {
+          "at": 2.72,
+          "type": "text",
+          "target": "#value-3",
+          "html": "package_base: fieldnotes-git"
+        },
+        {
+          "at": 3.1,
+          "type": "text",
+          "target": "#value-4",
+          "html": "commit_oid: e38065a62ad4497fb89931df11560ad2ca776b11"
+        }
+      ]
+    },
+    {
+      "scene": "recognize-incomplete-coverage",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "number": "23",
+        "bold": "Check the second report",
+        "rest": "fieldnotes-cli has incomplete file coverage.",
+        "box": [
+          440,
+          216,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.65,
+            "move": 0.65,
+            "x": 88,
+            "y": 248
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 6
+        }
+      ]
+    },
+    {
+      "scene": "check-status",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "24",
+        "bold": "Open Status with 4",
+        "rest": "Check the hourly background scan limit.",
+        "box": [
+          88,
+          248,
+          690
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 5
+        }
+      ]
+    },
+    {
+      "scene": "adjust-blocked-budgets",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "25",
+        "bold": "Press b to adjust",
+        "rest": "Review which blocked limits would change.",
+        "box": [
+          88,
+          248,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.65,
+            "move": 0.65,
+            "x": 112,
+            "y": 456
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 5
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "Unlimited"
+        },
+        {
+          "at": 2.34,
+          "type": "text",
+          "target": "#value-2",
+          "html": "  Double affected limits"
+        },
+        {
+          "at": 2.72,
+          "type": "text",
+          "target": "#value-3",
+          "html": "▸ Set affected limits to Unlimited"
+        }
+      ]
+    },
+    {
+      "scene": "change-background-policy",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "26",
+        "bold": "Shift+B toggles background",
+        "rest": "An active background scan may finish.",
+        "box": [
+          112,
+          456,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.65,
+            "move": 0.65,
+            "x": 88,
+            "y": 264
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 5
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "Off"
+        },
+        {
+          "at": 2.34,
+          "type": "text",
+          "target": "#value-2",
+          "html": "Background scans are disabled; an active background scan may finish."
+        }
+      ]
+    },
+    {
+      "scene": "use-the-background-chip",
+      "duration": 4,
+      "transition": "cut",
+      "caption": {
+        "number": "27",
+        "bold": "Toggle Pi BG",
+        "rest": "The package browser shows the same switch.",
+        "box": [
+          88,
+          264,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.89,
+            "move": 0.89,
+            "x": 720,
+            "y": 128
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 4
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "ON"
+        }
+      ]
+    },
+    {
+      "scene": "reopen-setup",
+      "duration": 4,
+      "transition": "cut",
+      "caption": {
+        "number": "28",
+        "bold": "Reopen guided setup",
+        "rest": "Press w on Settings to revisit configuration.",
+        "box": [
+          720,
+          128,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.65,
+            "move": 0.65,
+            "x": 344,
+            "y": 136
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 4
+        }
+      ]
+    },
+    {
+      "scene": "review-and-continue",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "number": "29",
+        "bold": "Press c to continue",
+        "rest": "Pacsea will recheck the source identities.",
+        "box": [
+          344,
+          136,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.65,
+            "move": 0.65,
+            "x": 328,
+            "y": 472
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 6
+        }
+      ]
+    },
+    {
+      "scene": "refuse-a-changed-identity",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "number": "30",
+        "bold": "A changed identity stops here",
+        "rest": "Review again or rescan the changed package.",
+        "box": [
+          328,
+          472,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.65,
+            "move": 0.65,
+            "x": 288,
+            "y": 320
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 6
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "AUR HEAD changed after the scan; the result is stale and must be re-acknowledged or rescanned."
+        }
+      ]
+    },
+    {
+      "scene": "return-to-the-install-list",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "number": "31",
+        "bold": "Confirm a matching version",
+        "rest": "The reviewed package enters the usual install list.",
+        "box": [
+          288,
+          320,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.65,
+            "move": 0.65,
+            "x": 560,
+            "y": 448
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#before",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 1.95
+        },
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 1.95,
+          "to": 6
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "fieldnotes-git"
+        }
+      ]
+    },
+    {
+      "scene": "credits",
+      "duration": 9,
+      "transition": "cut",
+      "caption": {
+        "number": "",
+        "bold": "Ready for install review",
+        "box": [
+          560,
+          448,
+          690
+        ]
+      },
+      "actions": [
+        {
+          "at": 0,
+          "type": "show",
+          "target": ".title-scrim",
+          "dur": 0.7,
+          "dx": 0,
+          "dy": 0
+        },
+        {
+          "at": 0.25,
+          "type": "show",
+          "target": ".title-copy",
+          "dur": 0.85,
+          "dx": 0,
+          "dy": 20
+        },
+        {
+          "at": 7.75,
+          "type": "show",
+          "target": ".end-fade",
+          "dur": 1.2,
+          "dx": 0,
+          "dy": 0
+        }
+      ],
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 9,
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          }
+        }
+      ]
+    }
+  ]
+}

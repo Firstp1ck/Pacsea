@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1920" height="1080" viewBox="0 0 1920 1080" font-family="DejaVu Sans Mono, monospace">
+  <title>Pacsea: Read Arch news</title>
+  <rect width="1920" height="1080" fill="#1e1e2e"/>
+  <image x="107" y="75" width="155" height="155" xlink:href="pacsea.svg"/>
+  <text x="296" y="201" font-size="135" font-weight="bold" fill="#cdd6f4">Pacsea</text>
+  <text x="106" y="398" font-size="143" fill="#f5f6ff">Read Arch news</text>
+  <rect x="115" y="505" width="1690" height="302" rx="17" fill="#242434" stroke="#63677c" stroke-width="5"/>
+  <text x="169" y="590" font-size="59" fill="#a6adc8">News Feed</text>
+  <rect x="144" y="630" width="1632" height="133" rx="5" fill="#45475a"/>
+  <text x="170" y="725" font-size="86" font-weight="bold" fill="#a9e6f4">[Advisories Installed]</text>
+  <text x="119" y="935" font-size="65" fill="#b6bfd7">Filter advisories and save articles</text>
+</svg>

@@ -1,0 +1,699 @@
+<!-- Pacsea interface recreation with illustrative local fixtures. -->
+<style>
+.terminal { position:absolute; left:165px;top:175px;width:1590px;height:706px; padding:55px 24px 22px; border:2px solid #43475d; border-radius:17px; background:#1e1e2e;color:#cdd6f4; font:23px/1.38 'DejaVu Sans Mono',monospace; box-shadow:0 26px 90px #0007; }
+.chrome { position:absolute;left:0;right:0;top:0; height:42px; padding:7px 20px; border-bottom:1px solid #39394d;background:#181825;border-radius:15px 15px 0 0; display:flex;align-items:center;gap:8px; color:#a6adc8; font-size:17px; }
+.chrome i { display:block;width:10px;height:10px;border-radius:100%;background:#6c7086; }
+.chrome b { margin-left:12px; font-weight:400; }
+.chrome small { margin-left:auto; font-size:16px; }
+.tui { position:relative;height:100%; }
+.bar { display:flex;gap:11px;align-items:center; border-bottom:1px solid #45475a;padding:0 5px 8px; font-size:19px; color:#bac2de; }
+.bar .filter,.bar .menu { background:#a6e3a1;color:#11111b;padding:0 4px; }
+.bar .menu { background:#b4befe; }
+.bar .right { margin-left:auto; }
+.box,.dialog,.termview { border:1px solid #62657d;position:relative;padding:17px 15px 12px; }
+.legend { position:absolute;top:-15px;left:12px;color:#bac2de;background:#1e1e2e;padding:0 7px;font-size:20px;line-height:26px; }
+.box.focus { border-color:#cba6f7; }
+.box.focus .legend {color:#cba6f7;}
+.results {height:231px;margin-top:13px;overflow:visible;}
+.mid {display:grid;grid-template-columns:20% 45% 1fr;gap:11px;margin:20px 0; }
+.mid .box { min-height:92px; }
+.mid.installed {grid-template-columns:15% 40% 1fr 1fr;}
+.info {height:142px;}
+.hint {color:#a6adc8;font-size:18px;line-height:1.5;margin-top:10px;}
+.line {min-height:32px;overflow-wrap:anywhere;white-space:pre-wrap;}
+.line.compact {min-height:16px;}
+.head {color:#cba6f7;font-weight:bold;}
+.ok {color:#a6e3a1;}
+.warn {color:#f9e2af;}
+.red {color:#f38ba8;}
+.sky {color:#89dceb;}
+.muted {color:#a6adc8;}
+.sel {background:#323349;color:#cdd6f4;}
+.mark {display:inline-block;max-width:100%;}
+.shade {position:absolute;inset:0;background:#11111ba8;}
+.dialog {position:absolute;left:50%;top:49%;transform:translate(-50%,-50%);width:1190px;min-height:286px;padding:29px 30px 26px;background:#181825;border:3px double #b4befe;box-shadow:0 18px 55px #08091288;}
+.dialog .legend {background:#181825;font-size:23px;color:#b4befe;font-weight:700;}
+.dialog .hint {border-top:1px solid #45475a;margin-top:17px;padding-top:11px;}
+.dialog.danger {border-color:#f38ba8;} .danger .legend {color:#f38ba8;}
+.dialog.menu-pop {left:auto;right:3px;top:32px;transform:none;width:500px;min-height:0;}
+.dialog.wide {width:1390px;}
+.tabs {margin:4px 0 19px;border-bottom:1px solid #45475a;padding:2px 0 12px;color:#a6adc8;white-space:pre;}
+.active {background:#cba6f7;color:#181825;font-weight:bold;padding:1px 6px;}
+.pfchips {color:#89dceb;font-size:21px;margin-bottom:6px;}
+.split {position:absolute;inset:24px 38px;display:grid;grid-template-columns:30% 1fr;gap:7px;}
+.split .box {background:#1e1e2e;border:3px double #b4befe;padding:22px 18px;}
+.split .legend {color:#b4befe;}
+.split .hint {position:absolute;bottom:14px;right:10px;left:14px;}
+.termview {margin:17px 0;height:87%;padding:24px 25px;}
+.termview .hint {position:absolute;left:25px;bottom:12px;}
+.monoscreen {height:100%;background:#181825;padding:20px 25px;border:1px solid #45475a;}
+.piBar {border-bottom:1px solid #585b70;padding:4px 0 13px; color:#bac2de;}
+.piHint {position:absolute;bottom:0;left:0;right:0;padding:6px 18px;border:1px solid #6c7086;font-size:18px;color:#bac2de;}
+.piTitle {color:#cba6f7;font-weight:bold;}
+.dot {color:#cba6f7;letter-spacing:4px;font-size:19px;}
+
+
+#ev-stage {background:#0d0e16;}
+.terminal {left:16px;top:10px;width:1888px;height:1056px;padding:63px 16px 18px;border:2px solid #8d91a9;border-radius:14px;box-shadow:none;font-size:25px;}
+.chrome {height:44px;background:#323242;border-bottom:2px solid #555568;border-radius:12px 12px 0 0;font:600 23px/1.2 'DejaVu Sans',sans-serif;gap:11px;color:#e6e7f0;}
+.chrome img {width:28px;height:28px;} .chrome b {margin:0;}
+.chrome small {font:400 20px/1.2 'DejaVu Sans Mono',monospace;color:#c1c5d4;}
+.bar {font-size:22px;gap:12px;} .results{height:345px;}
+.mid {margin:21px 0;} .mid .box {min-height:142px;}
+.info {height:325px;} .hint{font-size:21px;}
+.tui>.hint, #installed>.hint {position:absolute;left:5px;bottom:0;}
+.line {min-height:35px;line-height:1.4;}
+.dialog {width:1430px;min-height:300px;top:50%;padding:30px 32px;}
+.dialog.wide {width:1650px;} .dialog.menu-pop {width:540px;top:52px;}
+.dialog .hint{font-size:20px;} .legend{font-size:23px;} .tabs{font-size:24px;}
+.split {inset:38px 20px 36px;} .termview {height:85%;}
+.wizbox {height:405px;} .wizbox .line {font-size:24px;min-height:33px;}
+.wiz-msg,.wiz-controls,.piHint {font-size:22px;}
+.piBar {font-size:24px;white-space:pre-wrap;}
+.monoscreen>.hint:empty {display:none;}
+.ev-scene {background:#0d0e16;} .ev-scene:has(.ev-shade[hidden])::after {content:"";position:absolute;inset:0;background:rgba(0,0,0,.58);pointer-events:none;}
+/* A chapter or line change must leave the badge and both baselines in place. */
+.ev-continuous .ev-cap-placed {
+  display: grid; grid-template-columns: 36px minmax(0, 1fr);
+  grid-template-rows: 31px 29px; align-content: center; align-items: center;
+  column-gap: 13px; height: 88px; min-height: 88px; padding: 9px 15px;
+  font: 500 23px/29px "DejaVu Sans", sans-serif; letter-spacing: -.45px;
+  background: #181c29; border: 1px solid #677185; border-radius: 12px;
+  box-shadow: 0 4px 16px #080b12aa;
+}
+.ev-continuous .ev-num {
+  grid-column: 1; grid-row: 1 / 3; min-width: 0; margin: 0; padding: 0;
+  height: 34px; font: 600 17px/1 "DejaVu Sans Mono", monospace;
+  color: #e0e6f3; background: #303849; border-color: #555f74;
+}
+.ev-continuous .ev-bold {
+  grid-column: 2; grid-row: 1; color: #f4f6ff; font-size: 28px;
+}
+.ev-continuous .ev-rest { grid-column: 2; grid-row: 2; color: #dce3f0; }
+
+/* Only editorial shots have an unnumbered caption. The scene owns their type
+   so the picture and its lettering can have separate, frame-seekable ramps. */
+.ev-continuous .ev-cap-placed:not(:has(.ev-num)) { display: none; }
+.title-scrim, .end-fade { position: absolute; inset: 0; pointer-events: none; }
+.title-scrim { z-index: 2; background: linear-gradient(100deg, rgba(1,3,9,.74), rgba(2,4,9,.6)); }
+.title-scrim ~ .ev-shade { z-index: 1; }
+.title-copy {
+  position: absolute; z-index: 3; left: 192px; top: 246px; width: 1552px;
+  font: 480 46px/1.38 "DejaVu Sans", sans-serif; color: #e5e8f3;
+}
+.title-copy h1, .title-copy p { margin: 0; }
+.title-copy h1 {
+  font: 700 106px/1.12 "DejaVu Sans", sans-serif; letter-spacing: -5px;
+  color: #fafaff; margin: 21px 0 26px;
+}
+.title-copy .eyebrow {
+  display: flex; gap: 22px; align-items: center;
+  color: #a9e6f4; font: 600 33px/1.25 "DejaVu Sans Mono", monospace; letter-spacing: 2px;
+}
+.eyebrow::before { content: ""; width: 74px; height: 5px; background: #8bdcf3; }
+.open-title { top: 232px; }
+.open-title h1 { display: flex; align-items: center; gap: 32px; font-size: 154px; letter-spacing: -9px; }
+.open-title h1 img { width: 128px; height: 128px; }
+.chapter-title { top: 275px; }
+.chapter-title .sweep-clip { width: 388px; height: 5px; margin-top: 38px; overflow: hidden; }
+.sweep { height: 100%; background: linear-gradient(90deg, #909de4, #93e3f6); }
+.close-title { top: 190px; }
+.close-title h1 { font-size: 100px; }
+.credits {
+  width: fit-content; margin-top: 43px; padding-top: 22px; border-top: 2px solid #586473;
+  display: grid; grid-template-columns: max-content max-content; column-gap: 74px;
+  font-size: 42px; font-weight: 600;
+}
+.credits small { display: block; color: #a9e6f4; font: 400 34px/1.4 "DejaVu Sans Mono", monospace; }
+.title-copy .address { margin-top: 15px; color: #ccd5ec; font: 400 38px/1.4 "DejaVu Sans Mono", monospace; }
+.end-fade { z-index: 4; background: #020309; }
+
+</style>
+<template id="opening" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pacsea 0.8.2  ·  Example session</small></div><div class="tui"><div class="bar"><b>Results</b> <span class="menu">Sort ▾</span><span class="filter">[AUR] [core] [extra] [multilib]</span><span class="right">Updates available (4)</span><span class="menu">Config/Lists ▾</span><span class="menu">Panels ▾</span><span class="menu">Options ▾</span></div><section class="box results"><span class="legend">Results</span>
+<div class="line ">extra  syncthing          1.28.0-1    File synchronization</div>
+<div class="line ">aur    fieldnotes-git     1.4.0-1     Plain-text notes</div>
+<div class="line ">extra  ripgrep            14.1.0-1    Line-oriented search</div>
+<div class="line ">extra  fd                 10.2.0-1    Find files by name</div>
+<div class="line ">extra  bat                0.25.0-1    A cat clone with syntax highlighting</div></section><div class="mid "><section class="box "><span class="legend">Search history</span>
+<div class="line compact"></div></section><section class="box focus"><span class="legend">Search (focused) [NORMAL]</span>
+<div class="line sky">&gt; </div></section><section class="box "><span class="legend">Install List</span>
+<div class="line compact"></div></section></div><section class="box info"><span class="legend">Package Info</span>
+<div class="line sky">Repository:    extra</div>
+<div class="line ">Package Name:  syncthing</div>
+<div class="line ">Description:   Continuous file synchronization</div></section><div class="hint">F1  Help       Tab  Next pane       Esc  Search mode</div></div></div>
+<div class="title-scrim"></div><section class="title-copy open-title"><p class="eyebrow">SYSTEM MAINTENANCE</p><h1><img src="pacsea.svg" alt="">Pacsea</h1><p>Review removal and downgrade plans.<br>Choose package updates and the mirrors they use.</p></section></template>
+
+<template id="installed-scope" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>settings.conf</b><small>Pacsea 0.8.2  ·  Example session</small></div><div class="tui"><div class="monoscreen"><div class="line muted"># settings.conf</div>
+<div class="line compact"></div>
+<div class="line muted"># leaf: explicitly installed packages with no dependents</div>
+<div class="line muted"># all: all explicitly installed packages</div>
+<div class="line compact"></div>
+<div class="line "><span class="mark" id="point">installed_packages_mode = <span id="value-1">leaf</span></span></div><div class="hint"></div></div></div></div>
+</template>
+
+<template id="open-options" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pacsea 0.8.2  ·  Example session</small></div><div class="tui"><div class="bar"><b>Results</b> <span class="menu">Sort ▾</span><span class="filter">[AUR] [core] [extra] [multilib]</span><span class="right">Updates available (4)</span><span class="menu">Config/Lists ▾</span><span class="menu">Panels ▾</span><span class="menu"><span id="gesture" class="mark">Options ▾</span></span></div><section class="box results"><span class="legend">Results</span>
+<div class="line ">extra  syncthing          1.28.0-1    File synchronization</div>
+<div class="line ">aur    fieldnotes-git     1.4.0-1     Plain-text notes</div>
+<div class="line ">extra  ripgrep            14.1.0-1    Line-oriented search</div>
+<div class="line ">extra  fd                 10.2.0-1    Find files by name</div>
+<div class="line ">extra  bat                0.25.0-1    A cat clone with syntax highlighting</div></section><div class="mid "><section class="box "><span class="legend">Search history</span>
+<div class="line compact"></div></section><section class="box focus"><span class="legend">Search (focused) [NORMAL]</span>
+<div class="line sky">&gt; </div></section><section class="box "><span class="legend">Install List</span>
+<div class="line compact"></div></section></div><section class="box info"><span class="legend">Package Info</span>
+<div class="line sky">Repository:    extra</div>
+<div class="line ">Package Name:  syncthing</div>
+<div class="line ">Description:   Continuous file synchronization</div></section><div class="hint">F1  Help       Tab  Next pane       Esc  Search mode</div><div id="popup" style="position:absolute;inset:0"><div class="shade"></div><section class="dialog menu-pop"><span class="legend">Options</span>
+<div class="line sel"><span class="mark" id="point">1  List installed packages</span></div>
+<div class="line ">2  Update System</div>
+<div class="line ">3  TUI Optional Dep's</div>
+<div class="line ">4  Repositories</div>
+<div class="line ">5  News management</div></section></div></div></div>
+</template>
+
+<template id="list-installed-packages" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pacsea 0.8.2  ·  Example session</small></div><div class="tui"><div class="bar"><b>Results</b> <span class="menu">Sort ▾</span><span class="filter">[AUR] [core] [extra] [multilib]</span><span class="right">Updates available (4)</span><span class="menu">Config/Lists ▾</span><span class="menu">Panels ▾</span><span class="menu">Options ▾</span></div><section class="box results"><span class="legend">Results</span>
+<div class="line ">extra  syncthing          1.28.0-1    File synchronization</div>
+<div class="line ">aur    fieldnotes-git     1.4.0-1     Plain-text notes</div>
+<div class="line ">extra  ripgrep            14.1.0-1    Line-oriented search</div>
+<div class="line ">extra  fd                 10.2.0-1    Find files by name</div>
+<div class="line ">extra  bat                0.25.0-1    A cat clone with syntax highlighting</div></section><div class="mid "><section class="box "><span class="legend">Search history</span>
+<div class="line compact"></div></section><section class="box focus"><span class="legend">Search (focused) [NORMAL]</span>
+<div class="line sky">&gt; </div></section><section class="box "><span class="legend">Install List</span>
+<div class="line compact"></div></section></div><section class="box info"><span class="legend">Package Info</span>
+<div class="line sky">Repository:    extra</div>
+<div class="line ">Package Name:  syncthing</div>
+<div class="line ">Description:   Continuous file synchronization</div></section><div class="hint">F1  Help       Tab  Next pane       Esc  Search mode</div><div class="shade"></div><section class="dialog menu-pop"><span class="legend">Options</span>
+<div class="line "><span id="gesture" class="mark">1  List installed packages</span></div>
+<div class="line ">2  Update System</div>
+<div class="line ">3  TUI Optional Dep's</div>
+<div class="line ">4  Repositories</div>
+<div class="line ">5  News management</div></section><div id="installed" style="position:absolute;inset:0;background:#1e1e2e"><div class="bar"><b>Results</b> <span class="menu">Sort ▾</span><span class="filter">[AUR] [core] [extra] [multilib]</span><span class="right"></span><span class="menu">Config/Lists ▾</span><span class="menu">Panels ▾</span><span class="menu">Options ▾</span></div><section class="box results"><span class="legend">Results</span>
+<div class="line sel"><span class="mark" id="point">▶ extra  fieldnotes        1.4.0-1  [Installed]</span></div>
+<div class="line ">extra  syncthing        1.28.0-1 [Installed]</div>
+<div class="line ">extra  fd               10.2.0-1 [Installed]</div>
+<div class="line ">extra  ripgrep          14.1.0-1 [Installed]</div></section><div class="mid installed"><section class="box "><span class="legend">Search history</span>
+<div class="line compact"></div></section><section class="box focus"><span class="legend">Search (focused) [NORMAL]</span>
+<div class="line sky">&gt; </div></section><section class="box "><span class="legend">Downgrade List</span>
+<div class="line compact"></div></section><section class="box "><span class="legend">Remove List</span>
+<div class="line compact"></div></section></div><section class="box info"><span class="legend">Package Info</span>
+<div class="line sky">Repository:    extra</div>
+<div class="line ">Package Name:  fieldnotes</div>
+<div class="line ">Version:       1.4.0-1</div></section><div class="hint">F1  Help       Tab  Next pane       Esc  Search mode</div></div></div></div>
+</template>
+
+<template id="mark-for-removal" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pacsea 0.8.2  ·  Example session</small></div><div class="tui"><div class="bar"><b>Results</b> <span class="menu">Sort ▾</span><span class="filter">[AUR] [core] [extra] [multilib]</span><span class="right"></span><span class="menu">Config/Lists ▾</span><span class="menu">Panels ▾</span><span class="menu">Options ▾</span></div><section class="box results"><span class="legend">Results</span>
+<div class="line sel"><span id="gesture" class="mark">▶ extra  fieldnotes        1.4.0-1  [Installed]</span></div>
+<div class="line ">extra  syncthing        1.28.0-1 [Installed]</div>
+<div class="line ">extra  fd               10.2.0-1 [Installed]</div>
+<div class="line ">extra  ripgrep          14.1.0-1 [Installed]</div></section><div class="mid installed"><section class="box "><span class="legend">Search history</span>
+<div class="line compact"></div></section><section class="box focus"><span class="legend">Search (focused) [NORMAL]</span>
+<div class="line sky">&gt; </div></section><section class="box "><span class="legend">Downgrade List</span>
+<div class="line compact"></div></section><section class="box "><span class="legend" id="before">Remove List</span>
+<div class="line "><span class="mark" id="point"><span id="value-1">　</span></span></div></section></div><section class="box info"><span class="legend">Package Info</span>
+<div class="line sky">Repository:    extra</div>
+<div class="line ">Package Name:  fieldnotes</div>
+<div class="line ">Version:       1.4.0-1</div></section><div class="hint">F1  Help       Tab  Next pane       Esc  Search mode</div></div></div>
+</template>
+
+<template id="mark-for-downgrade" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pacsea 0.8.2  ·  Example session</small></div><div class="tui"><div class="bar"><b>Results</b> <span class="menu">Sort ▾</span><span class="filter">[AUR] [core] [extra] [multilib]</span><span class="right"></span><span class="menu">Config/Lists ▾</span><span class="menu">Panels ▾</span><span class="menu">Options ▾</span></div><section class="box results"><span class="legend">Results</span>
+<div class="line "> extra  fieldnotes        1.4.0-1  [Installed]</div>
+<div class="line sel">▶ extra  syncthing        1.28.0-1 [Installed]</div>
+<div class="line ">extra  fd               10.2.0-1 [Installed]</div>
+<div class="line ">extra  ripgrep          14.1.0-1 [Installed]</div></section><div class="mid installed"><section class="box "><span class="legend">Search history</span>
+<div class="line compact"></div></section><section class="box focus"><span class="legend">Search (focused) [NORMAL]</span>
+<div class="line sky">&gt; </div></section><section class="box "><span class="legend" id="before">Downgrade List</span>
+<div class="line "><span class="mark" id="point"><span id="value-1">　</span></span></div></section><section class="box "><span class="legend">Remove List</span>
+<div class="line ">fieldnotes</div></section></div><section class="box info"><span class="legend">Package Info</span>
+<div class="line sky">Repository:    extra</div>
+<div class="line ">Package Name:  fieldnotes</div>
+<div class="line ">Version:       1.4.0-1</div></section><div class="hint">F1  Help       Tab  Next pane       Esc  Search mode</div></div></div>
+</template>
+
+<template id="focus-remove" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pacsea 0.8.2  ·  Example session</small></div><div class="tui"><div class="bar"><b>Results</b> <span class="menu">Sort ▾</span><span class="filter">[AUR] [core] [extra] [multilib]</span><span class="right"></span><span class="menu">Config/Lists ▾</span><span class="menu">Panels ▾</span><span class="menu">Options ▾</span></div><section class="box results"><span class="legend">Results</span>
+<div class="line sel">▶ extra  fieldnotes        1.4.0-1  [Installed]</div>
+<div class="line ">extra  syncthing        1.28.0-1 [Installed]</div>
+<div class="line ">extra  fd               10.2.0-1 [Installed]</div>
+<div class="line ">extra  ripgrep          14.1.0-1 [Installed]</div></section><div class="mid installed"><section class="box "><span class="legend">Search history</span>
+<div class="line compact"></div></section><section class="box "><span class="legend">Search</span>
+<div class="line sky">&gt; </div></section><section class="box "><span class="legend">Downgrade List</span>
+<div class="line ">syncthing</div></section><section class="box focus"><span class="legend">Remove List (focused)</span>
+<div class="line sel"><span class="mark" id="point">▶ fieldnotes</span></div></section></div><section class="box info"><span class="legend">Package Info</span>
+<div class="line sky">Repository:    extra</div>
+<div class="line ">Package Name:  fieldnotes</div>
+<div class="line ">Version:       1.4.0-1</div></section><div class="hint">F1  Help       Tab  Next pane       Esc  Search mode</div></div></div>
+</template>
+
+<template id="check-dependents" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pacsea 0.8.2  ·  Example session</small></div><div class="tui"><div class="bar"><b>Results</b> <span class="menu">Sort ▾</span><span class="filter">[AUR] [core] [extra] [multilib]</span><span class="right"></span><span class="menu">Config/Lists ▾</span><span class="menu">Panels ▾</span><span class="menu">Options ▾</span></div><section class="box results"><span class="legend">Results</span>
+<div class="line sel">▶ extra  fieldnotes        1.4.0-1  [Installed]</div>
+<div class="line ">extra  syncthing        1.28.0-1 [Installed]</div>
+<div class="line ">extra  fd               10.2.0-1 [Installed]</div>
+<div class="line ">extra  ripgrep          14.1.0-1 [Installed]</div></section><div class="mid installed"><section class="box "><span class="legend">Search history</span>
+<div class="line compact"></div></section><section class="box "><span class="legend">Search</span>
+<div class="line sky">&gt; </div></section><section class="box "><span class="legend">Downgrade List</span>
+<div class="line ">syncthing</div></section><section class="box focus"><span class="legend">Remove List (focused)</span>
+<div class="line ">fieldnotes</div></section></div><section class="box info"><span class="legend">Package Info</span>
+<div class="line sky">Repository:    extra</div>
+<div class="line ">Package Name:  fieldnotes</div>
+<div class="line ">Version:       1.4.0-1</div></section><div class="hint">F1  Help       Tab  Next pane       Esc  Search mode</div><div id="popup" style="position:absolute;inset:0"><div class="shade"></div><section class="dialog "><span class="legend">Preflight: Remove</span><div class="pfchips">[1]   [DL: 0 B]   [Size: −2.4 MiB]   <span class="warn">[Risk: Medium (1)]</span></div><div class="tabs"><span class="active">✓ [Summary]</span>   ✓ Deps   ✓ Files   ✓ Services   ✓ Sandbox</div>
+<div class="line sky">Cascade mode: -R (targets only)</div>
+<div class="line compact"></div>
+<div class="line head">Removal impact overview:</div>
+<div class="line ">fieldnotes → 1 dependent(s) (1 direct)</div>
+<div class="line compact"></div>
+<div class="line warn"><span class="mark" id="point">1 dependent package(s) currently block removal.</span></div>
+<div class="line ">• fieldnotes-export</div><div class="hint">m: toggle cascade mode   •   d: dry-run   •   p: proceed   •   q: close</div></section></div></div></div>
+</template>
+
+<template id="compare-removal-modes" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pacsea 0.8.2  ·  Example session</small></div><div class="tui"><div class="bar"><b>Results</b> <span class="menu">Sort ▾</span><span class="filter">[AUR] [core] [extra] [multilib]</span><span class="right"></span><span class="menu">Config/Lists ▾</span><span class="menu">Panels ▾</span><span class="menu">Options ▾</span></div><section class="box results"><span class="legend">Results</span>
+<div class="line sel">▶ extra  fieldnotes        1.4.0-1  [Installed]</div>
+<div class="line ">extra  syncthing        1.28.0-1 [Installed]</div>
+<div class="line ">extra  fd               10.2.0-1 [Installed]</div>
+<div class="line ">extra  ripgrep          14.1.0-1 [Installed]</div></section><div class="mid installed"><section class="box "><span class="legend">Search history</span>
+<div class="line compact"></div></section><section class="box "><span class="legend">Search</span>
+<div class="line sky">&gt; </div></section><section class="box "><span class="legend">Downgrade List</span>
+<div class="line ">syncthing</div></section><section class="box focus"><span class="legend">Remove List (focused)</span>
+<div class="line ">fieldnotes</div></section></div><section class="box info"><span class="legend">Package Info</span>
+<div class="line sky">Repository:    extra</div>
+<div class="line ">Package Name:  fieldnotes</div>
+<div class="line ">Version:       1.4.0-1</div></section><div class="hint">F1  Help       Tab  Next pane       Esc  Search mode</div><div class="shade"></div><section class="dialog "><span class="legend">Preflight: Remove</span><div class="pfchips">[1]   [DL: 0 B]   [Size: −2.4 MiB]   <span class="warn">[Risk: Medium (1)]</span></div><div class="tabs"><span class="active">✓ [Summary]</span>   ✓ Deps   ✓ Files   ✓ Services   ✓ Sandbox</div>
+<div class="line sky"><span class="mark" id="point">Cascade mode: <span id="value-1">-R (targets only)</span></span></div>
+<div class="line compact"></div>
+<div class="line head">Removal plan preview</div>
+<div class="line ">fieldnotes</div>
+<div class="line compact"></div>
+<div class="line warn"><span id="value-2">Dependents (not removed in current mode):</span></div>
+<div class="line ">• fieldnotes-export</div><div class="hint">m: toggle cascade mode   •   d: dry-run   •   p: proceed   •   q: close</div></section></div></div>
+</template>
+
+<template id="focus-downgrade" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pacsea 0.8.2  ·  Example session</small></div><div class="tui"><div class="bar"><b>Results</b> <span class="menu">Sort ▾</span><span class="filter">[AUR] [core] [extra] [multilib]</span><span class="right"></span><span class="menu">Config/Lists ▾</span><span class="menu">Panels ▾</span><span class="menu">Options ▾</span></div><section class="box results"><span class="legend">Results</span>
+<div class="line sel">▶ extra  fieldnotes        1.4.0-1  [Installed]</div>
+<div class="line ">extra  syncthing        1.28.0-1 [Installed]</div>
+<div class="line ">extra  fd               10.2.0-1 [Installed]</div>
+<div class="line ">extra  ripgrep          14.1.0-1 [Installed]</div></section><div class="mid installed"><section class="box "><span class="legend">Search history</span>
+<div class="line compact"></div></section><section class="box "><span class="legend">Search</span>
+<div class="line sky">&gt; </div></section><section class="box focus"><span class="legend">Downgrade List (focused)</span>
+<div class="line sel"><span class="mark" id="point">▶ syncthing</span></div></section><section class="box "><span class="legend">Remove List</span>
+<div class="line ">fieldnotes</div></section></div><section class="box info"><span class="legend">Package Info</span>
+<div class="line sky">Repository:    extra</div>
+<div class="line ">Package Name:  fieldnotes</div>
+<div class="line ">Version:       1.4.0-1</div></section><div class="hint">F1  Help       Tab  Next pane       Esc  Search mode</div></div></div>
+</template>
+
+<template id="review-a-downgrade" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pacsea 0.8.2  ·  Example session</small></div><div class="tui"><div class="bar"><b>Results</b> <span class="menu">Sort ▾</span><span class="filter">[AUR] [core] [extra] [multilib]</span><span class="right"></span><span class="menu">Config/Lists ▾</span><span class="menu">Panels ▾</span><span class="menu">Options ▾</span></div><section class="box results"><span class="legend">Results</span>
+<div class="line sel">▶ extra  fieldnotes        1.4.0-1  [Installed]</div>
+<div class="line ">extra  syncthing        1.28.0-1 [Installed]</div>
+<div class="line ">extra  fd               10.2.0-1 [Installed]</div>
+<div class="line ">extra  ripgrep          14.1.0-1 [Installed]</div></section><div class="mid installed"><section class="box "><span class="legend">Search history</span>
+<div class="line compact"></div></section><section class="box "><span class="legend">Search</span>
+<div class="line sky">&gt; </div></section><section class="box focus"><span class="legend">Downgrade List (focused)</span>
+<div class="line ">syncthing</div></section><section class="box "><span class="legend">Remove List</span>
+<div class="line ">fieldnotes</div></section></div><section class="box info"><span class="legend">Package Info</span>
+<div class="line sky">Repository:    extra</div>
+<div class="line ">Package Name:  fieldnotes</div>
+<div class="line ">Version:       1.4.0-1</div></section><div class="hint">F1  Help       Tab  Next pane       Esc  Search mode</div><div id="popup" style="position:absolute;inset:0"><div class="shade"></div><section class="dialog "><span class="legend">Preflight: Downgrade</span><div class="pfchips">[1]   [DL: 0 B]   [Size: 0 B]   [Risk: Low (0)]</div><div class="tabs"><span class="active">✓ [Summary]</span>   ✓ Deps   ✓ Files   ✓ Services   ✓ Sandbox</div>
+<div class="line head">Per-package overview:</div>
+<div class="line "><span class="mark" id="point">• syncthing [extra] 1.28.0-1</span></div><div class="hint">d: dry-run   •   p: proceed   •   q: close</div></section></div></div></div>
+</template>
+
+<template id="choose-an-older-version" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>downgrade   /   illustrative version picker</b><small>Pacsea 0.8.2  ·  Example session</small></div><div class="tui"><div class="monoscreen"><div class="line sky">downgrade syncthing</div>
+<div class="line compact"></div>
+<div class="line ">  1   extra   syncthing   1.27.10-1</div>
+<div class="line sel"><span class="mark" id="point"><span id="value-1">  2   extra   syncthing   1.27.12-1</span></span></div>
+<div class="line ">  3   extra   syncthing   1.28.0-1</div>
+<div class="line compact"></div>
+<div class="line muted">Available versions depend on cache and archive contents.</div><div class="hint"></div></div></div></div>
+</template>
+
+<template id="chapter-11" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>downgrade   /   illustrative version picker</b><small>Pacsea 0.8.2  ·  Example session</small></div><div class="tui"><div class="monoscreen"><div class="line sky">downgrade syncthing</div>
+<div class="line compact"></div>
+<div class="line ">  1   extra   syncthing   1.27.10-1</div>
+<div class="line sel"><span class="mark" id="point"><span id="value-1">▶ 2   extra   syncthing   1.27.12-1</span></span></div>
+<div class="line ">  3   extra   syncthing   1.28.0-1</div>
+<div class="line compact"></div>
+<div class="line muted">Available versions depend on cache and archive contents.</div><div class="hint"></div></div></div></div>
+<div class="title-scrim"></div><section class="title-copy chapter-title"><p class="eyebrow">AVAILABLE UPDATES</p><h1>Choose a package batch</h1><p>The downgrade picker offered an older syncthing build.<br>Now compare pending upgrades and choose which to review.</p></section></template>
+
+<template id="inspect-pending-updates" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pacsea 0.8.2  ·  Example session</small></div><div class="tui"><div class="bar"><b>Results</b> <span class="menu">Sort ▾</span><span class="filter">[AUR] [core] [extra] [multilib]</span><span class="right">Updates available (4)</span><span class="menu">Config/Lists ▾</span><span class="menu">Panels ▾</span><span class="menu">Options ▾</span></div><section class="box results"><span class="legend">Results</span>
+<div class="line ">extra  syncthing          1.28.0-1    File synchronization</div>
+<div class="line ">aur    fieldnotes-git     1.4.0-1     Plain-text notes</div>
+<div class="line ">extra  ripgrep            14.1.0-1    Line-oriented search</div>
+<div class="line ">extra  fd                 10.2.0-1    Find files by name</div>
+<div class="line ">extra  bat                0.25.0-1    A cat clone with syntax highlighting</div></section><div class="mid "><section class="box "><span class="legend">Search history</span>
+<div class="line compact"></div></section><section class="box focus"><span class="legend">Search (focused) [NORMAL]</span>
+<div class="line sky">&gt; </div></section><section class="box "><span class="legend">Install List</span>
+<div class="line compact"></div></section></div><section class="box info"><span class="legend">Package Info</span>
+<div class="line sky">Repository:    extra</div>
+<div class="line ">Package Name:  syncthing</div>
+<div class="line ">Description:   Continuous file synchronization</div></section><div class="hint">F1  Help       Tab  Next pane       Esc  Search mode</div><div id="popup" style="position:absolute;inset:0"><div class="shade"></div><section class="dialog wide"><span class="legend">Available Updates</span>
+<div class="line head">Available Package Updates</div>
+<div class="line compact"></div>
+<div class="line sel">▶ extra/firefox               <span class="mark" id="point">145.0-1     -&gt; 146.0-1</span></div>
+<div class="line ">  extra/firefox-i18n-de       145.0-1     -&gt; 146.0-1</div>
+<div class="line ">  extra/syncthing             1.27.12-1   -&gt; 1.28.0-1</div>
+<div class="line ">  aur/fieldnotes-git          1.3.0-1     -&gt; 1.4.0-1</div><div class="hint">↑/k ↓/j Move   PgUp/PgDn Page   / Filter   Space Toggle   a All   Enter Update   Esc Close</div></section></div></div></div>
+</template>
+
+<template id="navigate-updates" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pacsea 0.8.2  ·  Example session</small></div><div class="tui"><div class="bar"><b>Results</b> <span class="menu">Sort ▾</span><span class="filter">[AUR] [core] [extra] [multilib]</span><span class="right">Updates available (4)</span><span class="menu">Config/Lists ▾</span><span class="menu">Panels ▾</span><span class="menu">Options ▾</span></div><section class="box results"><span class="legend">Results</span>
+<div class="line ">extra  syncthing          1.28.0-1    File synchronization</div>
+<div class="line ">aur    fieldnotes-git     1.4.0-1     Plain-text notes</div>
+<div class="line ">extra  ripgrep            14.1.0-1    Line-oriented search</div>
+<div class="line ">extra  fd                 10.2.0-1    Find files by name</div>
+<div class="line ">extra  bat                0.25.0-1    A cat clone with syntax highlighting</div></section><div class="mid "><section class="box "><span class="legend">Search history</span>
+<div class="line compact"></div></section><section class="box focus"><span class="legend">Search (focused) [NORMAL]</span>
+<div class="line sky">&gt; </div></section><section class="box "><span class="legend">Install List</span>
+<div class="line compact"></div></section></div><section class="box info"><span class="legend">Package Info</span>
+<div class="line sky">Repository:    extra</div>
+<div class="line ">Package Name:  syncthing</div>
+<div class="line ">Description:   Continuous file synchronization</div></section><div class="hint">F1  Help       Tab  Next pane       Esc  Search mode</div><div class="shade"></div><section class="dialog wide"><span class="legend">Available Updates</span>
+<div class="line head">Available Package Updates</div>
+<div class="line compact"></div>
+<div class="line ">   extra/firefox               145.0-1     -&gt; 146.0-1</div>
+<div class="line sel"><span class="mark" id="point"><span id="value-1">　</span> extra/firefox-i18n-de       145.0-1     -&gt; 146.0-1</span></div>
+<div class="line ">  extra/syncthing             1.27.12-1   -&gt; 1.28.0-1</div>
+<div class="line ">  aur/fieldnotes-git          1.3.0-1     -&gt; 1.4.0-1</div><div class="hint">↑/k ↓/j Move   PgUp/PgDn Page   / Filter   Space Toggle   a All   Enter Update   Esc Close</div></section></div></div>
+</template>
+
+<template id="filter-the-list" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pacsea 0.8.2  ·  Example session</small></div><div class="tui"><div class="bar"><b>Results</b> <span class="menu">Sort ▾</span><span class="filter">[AUR] [core] [extra] [multilib]</span><span class="right">Updates available (4)</span><span class="menu">Config/Lists ▾</span><span class="menu">Panels ▾</span><span class="menu">Options ▾</span></div><section class="box results"><span class="legend">Results</span>
+<div class="line ">extra  syncthing          1.28.0-1    File synchronization</div>
+<div class="line ">aur    fieldnotes-git     1.4.0-1     Plain-text notes</div>
+<div class="line ">extra  ripgrep            14.1.0-1    Line-oriented search</div>
+<div class="line ">extra  fd                 10.2.0-1    Find files by name</div>
+<div class="line ">extra  bat                0.25.0-1    A cat clone with syntax highlighting</div></section><div class="mid "><section class="box "><span class="legend">Search history</span>
+<div class="line compact"></div></section><section class="box focus"><span class="legend">Search (focused) [NORMAL]</span>
+<div class="line sky">&gt; </div></section><section class="box "><span class="legend">Install List</span>
+<div class="line compact"></div></section></div><section class="box info"><span class="legend">Package Info</span>
+<div class="line sky">Repository:    extra</div>
+<div class="line ">Package Name:  syncthing</div>
+<div class="line ">Description:   Continuous file synchronization</div></section><div class="hint">F1  Help       Tab  Next pane       Esc  Search mode</div><div class="shade"></div><section class="dialog wide"><span class="legend">Available Updates</span>
+<div class="line head">Available Package Updates</div>
+<div class="line compact"></div>
+<div class="line sel">▶ extra/firefox               145.0-1     -&gt; 146.0-1</div>
+<div class="line ">  extra/firefox-i18n-de       145.0-1     -&gt; 146.0-1</div>
+<div class="line "><span id="others">  extra/syncthing             1.27.12-1   -&gt; 1.28.0-1</span></div><div class="hint">↑/k ↓/j Move   PgUp/PgDn Page   / Filter   Space Toggle   a All   Enter Update   Esc Close   |   <span class="mark" id="point">/<span id="query"></span></span></div></section></div></div>
+</template>
+
+<template id="mark-a-batch" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pacsea 0.8.2  ·  Example session</small></div><div class="tui"><div class="bar"><b>Results</b> <span class="menu">Sort ▾</span><span class="filter">[AUR] [core] [extra] [multilib]</span><span class="right">Updates available (4)</span><span class="menu">Config/Lists ▾</span><span class="menu">Panels ▾</span><span class="menu">Options ▾</span></div><section class="box results"><span class="legend">Results</span>
+<div class="line ">extra  syncthing          1.28.0-1    File synchronization</div>
+<div class="line ">aur    fieldnotes-git     1.4.0-1     Plain-text notes</div>
+<div class="line ">extra  ripgrep            14.1.0-1    Line-oriented search</div>
+<div class="line ">extra  fd                 10.2.0-1    Find files by name</div>
+<div class="line ">extra  bat                0.25.0-1    A cat clone with syntax highlighting</div></section><div class="mid "><section class="box "><span class="legend">Search history</span>
+<div class="line compact"></div></section><section class="box focus"><span class="legend">Search (focused) [NORMAL]</span>
+<div class="line sky">&gt; </div></section><section class="box "><span class="legend">Install List</span>
+<div class="line compact"></div></section></div><section class="box info"><span class="legend">Package Info</span>
+<div class="line sky">Repository:    extra</div>
+<div class="line ">Package Name:  syncthing</div>
+<div class="line ">Description:   Continuous file synchronization</div></section><div class="hint">F1  Help       Tab  Next pane       Esc  Search mode</div><div class="shade"></div><section class="dialog wide"><span class="legend">Available Updates</span>
+<div class="line head">Available Package Updates</div>
+<div class="line compact"></div>
+<div class="line "><span class="mark" id="point"><span id="value-1">▶</span> extra/firefox               145.0-1     -&gt; 146.0-1</span></div>
+<div class="line "><span id="gesture" class="mark"><span id="value-2">　</span> extra/firefox-i18n-de       145.0-1     -&gt; 146.0-1</span></div><div class="hint">↑/k ↓/j Move   PgUp/PgDn Page   / Filter   Space Toggle   a All   Enter Update   Esc Close   |   /firefox</div></section></div></div>
+</template>
+
+<template id="review-selected-updates" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pacsea 0.8.2  ·  Example session</small></div><div class="tui"><div class="bar"><b>Results</b> <span class="menu">Sort ▾</span><span class="filter">[AUR] [core] [extra] [multilib]</span><span class="right">Updates available (4)</span><span class="menu">Config/Lists ▾</span><span class="menu">Panels ▾</span><span class="menu">Options ▾</span></div><section class="box results"><span class="legend">Results</span>
+<div class="line ">extra  syncthing          1.28.0-1    File synchronization</div>
+<div class="line ">aur    fieldnotes-git     1.4.0-1     Plain-text notes</div>
+<div class="line ">extra  ripgrep            14.1.0-1    Line-oriented search</div>
+<div class="line ">extra  fd                 10.2.0-1    Find files by name</div>
+<div class="line ">extra  bat                0.25.0-1    A cat clone with syntax highlighting</div></section><div class="mid "><section class="box "><span class="legend">Search history</span>
+<div class="line compact"></div></section><section class="box focus"><span class="legend">Search (focused) [NORMAL]</span>
+<div class="line sky">&gt; </div></section><section class="box "><span class="legend">Install List</span>
+<div class="line compact"></div></section></div><section class="box info"><span class="legend">Package Info</span>
+<div class="line sky">Repository:    extra</div>
+<div class="line ">Package Name:  syncthing</div>
+<div class="line ">Description:   Continuous file synchronization</div></section><div class="hint">F1  Help       Tab  Next pane       Esc  Search mode</div><div id="popup" style="position:absolute;inset:0"><div class="shade"></div><section class="dialog "><span class="legend">Preflight: Install</span><div class="pfchips">[2]   [DL: 78.4 MiB]   [Size: +4.2 MiB]   <span class="warn">[Risk: Medium (2)]</span></div><div class="tabs"><span class="active">✓ [Summary]</span>   ✓ Deps   ✓ Files   ✓ Services   ✓ Sandbox</div>
+<div class="line head">Per-package overview:</div>
+<div class="line "><span class="mark" id="point">• firefox [extra] 145.0-1 → 146.0-1</span></div>
+<div class="line ">• firefox-i18n-de [extra] 145.0-1 → 146.0-1</div>
+<div class="line compact"></div>
+<div class="line warn">2 upgrade(s)</div><div class="hint">d: dry-run   •   p: proceed   •   q: close</div></section></div></div></div>
+</template>
+
+<template id="chapter-16" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pacsea 0.8.2  ·  Example session</small></div><div class="tui"><div class="bar"><b>Results</b> <span class="menu">Sort ▾</span><span class="filter">[AUR] [core] [extra] [multilib]</span><span class="right">Updates available (4)</span><span class="menu">Config/Lists ▾</span><span class="menu">Panels ▾</span><span class="menu">Options ▾</span></div><section class="box results"><span class="legend">Results</span>
+<div class="line ">extra  syncthing          1.28.0-1    File synchronization</div>
+<div class="line ">aur    fieldnotes-git     1.4.0-1     Plain-text notes</div>
+<div class="line ">extra  ripgrep            14.1.0-1    Line-oriented search</div>
+<div class="line ">extra  fd                 10.2.0-1    Find files by name</div>
+<div class="line ">extra  bat                0.25.0-1    A cat clone with syntax highlighting</div></section><div class="mid "><section class="box "><span class="legend">Search history</span>
+<div class="line compact"></div></section><section class="box focus"><span class="legend">Search (focused) [NORMAL]</span>
+<div class="line sky">&gt; </div></section><section class="box "><span class="legend">Install List</span>
+<div class="line compact"></div></section></div><section class="box info"><span class="legend">Package Info</span>
+<div class="line sky">Repository:    extra</div>
+<div class="line ">Package Name:  syncthing</div>
+<div class="line ">Description:   Continuous file synchronization</div></section><div class="hint">F1  Help       Tab  Next pane       Esc  Search mode</div><div id="popup" style="position:absolute;inset:0"><div class="shade"></div><section class="dialog "><span class="legend">Preflight: Install</span><div class="pfchips">[2]   [DL: 78.4 MiB]   [Size: +4.2 MiB]   <span class="warn">[Risk: Medium (2)]</span></div><div class="tabs"><span class="active">✓ [Summary]</span>   ✓ Deps   ✓ Files   ✓ Services   ✓ Sandbox</div>
+<div class="line head">Per-package overview:</div>
+<div class="line "><span class="mark" id="point">• firefox [extra] 145.0-1 → 146.0-1</span></div>
+<div class="line ">• firefox-i18n-de [extra] 145.0-1 → 146.0-1</div>
+<div class="line compact"></div>
+<div class="line warn">2 upgrade(s)</div><div class="hint">d: dry-run   •   p: proceed   •   q: close</div></section></div></div></div>
+<div class="title-scrim"></div><section class="title-copy chapter-title"><p class="eyebrow">SYSTEM UPDATE</p><h1>Plan a full update</h1><p>You reviewed two Firefox updates together.<br>Choose official and AUR updates, cache cleanup and mirrors.</p></section></template>
+
+<template id="open-system-update" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pacsea 0.8.2  ·  Example session</small></div><div class="tui"><div class="bar"><b>Results</b> <span class="menu">Sort ▾</span><span class="filter">[AUR] [core] [extra] [multilib]</span><span class="right">Updates available (4)</span><span class="menu">Config/Lists ▾</span><span class="menu">Panels ▾</span><span class="menu">Options ▾</span></div><section class="box results"><span class="legend">Results</span>
+<div class="line ">extra  syncthing          1.28.0-1    File synchronization</div>
+<div class="line ">aur    fieldnotes-git     1.4.0-1     Plain-text notes</div>
+<div class="line ">extra  ripgrep            14.1.0-1    Line-oriented search</div>
+<div class="line ">extra  fd                 10.2.0-1    Find files by name</div>
+<div class="line ">extra  bat                0.25.0-1    A cat clone with syntax highlighting</div></section><div class="mid "><section class="box "><span class="legend">Search history</span>
+<div class="line compact"></div></section><section class="box focus"><span class="legend">Search (focused) [NORMAL]</span>
+<div class="line sky">&gt; </div></section><section class="box "><span class="legend">Install List</span>
+<div class="line compact"></div></section></div><section class="box info"><span class="legend">Package Info</span>
+<div class="line sky">Repository:    extra</div>
+<div class="line ">Package Name:  syncthing</div>
+<div class="line ">Description:   Continuous file synchronization</div></section><div class="hint">F1  Help       Tab  Next pane       Esc  Search mode</div><div id="popup" style="position:absolute;inset:0"><div class="shade"></div><section class="dialog "><span class="legend">Update System</span>
+<div class="line head">System Update</div>
+<div class="line compact"></div>
+<div class="line ">[ ] Update Arch Mirrors</div>
+<div class="line ">[x] Update Pacman   ◄ Normal (-Syu) ►</div>
+<div class="line "><span class="mark" id="point">[x] Update AUR (paru/yay)</span></div>
+<div class="line ">[ ] Remove Cache (pacman/yay)</div>
+<div class="line compact"></div>
+<div class="line ">Country (Mirrors): Worldwide   •   Count: 10</div><div class="hint">Space: toggle   •   Left/Right: change country   •   -/+ change count   •   Enter: run   •   Esc: cancel</div></section></div></div></div>
+</template>
+
+<template id="choose-sync-mode" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pacsea 0.8.2  ·  Example session</small></div><div class="tui"><div class="bar"><b>Results</b> <span class="menu">Sort ▾</span><span class="filter">[AUR] [core] [extra] [multilib]</span><span class="right">Updates available (4)</span><span class="menu">Config/Lists ▾</span><span class="menu">Panels ▾</span><span class="menu">Options ▾</span></div><section class="box results"><span class="legend">Results</span>
+<div class="line ">extra  syncthing          1.28.0-1    File synchronization</div>
+<div class="line ">aur    fieldnotes-git     1.4.0-1     Plain-text notes</div>
+<div class="line ">extra  ripgrep            14.1.0-1    Line-oriented search</div>
+<div class="line ">extra  fd                 10.2.0-1    Find files by name</div>
+<div class="line ">extra  bat                0.25.0-1    A cat clone with syntax highlighting</div></section><div class="mid "><section class="box "><span class="legend">Search history</span>
+<div class="line compact"></div></section><section class="box focus"><span class="legend">Search (focused) [NORMAL]</span>
+<div class="line sky">&gt; </div></section><section class="box "><span class="legend">Install List</span>
+<div class="line compact"></div></section></div><section class="box info"><span class="legend">Package Info</span>
+<div class="line sky">Repository:    extra</div>
+<div class="line ">Package Name:  syncthing</div>
+<div class="line ">Description:   Continuous file synchronization</div></section><div class="hint">F1  Help       Tab  Next pane       Esc  Search mode</div><div class="shade"></div><section class="dialog "><span class="legend">Update System</span>
+<div class="line head">System Update</div>
+<div class="line compact"></div>
+<div class="line ">[ ] Update Arch Mirrors</div>
+<div class="line ">[x] Update Pacman   <span class="mark" id="point">◄ <span id="value-1">Normal (-Syu)</span> ►</span></div>
+<div class="line ">[x] Update AUR (paru/yay)</div>
+<div class="line ">[ ] Remove Cache (pacman/yay)</div>
+<div class="line compact"></div>
+<div class="line ">Country (Mirrors): Worldwide   •   Count: 10</div><div class="hint">Space: toggle   •   Left/Right: change country   •   -/+ change count   •   Enter: run   •   Esc: cancel</div></section></div></div>
+</template>
+
+<template id="choose-cache-cleanup" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pacsea 0.8.2  ·  Example session</small></div><div class="tui"><div class="bar"><b>Results</b> <span class="menu">Sort ▾</span><span class="filter">[AUR] [core] [extra] [multilib]</span><span class="right">Updates available (4)</span><span class="menu">Config/Lists ▾</span><span class="menu">Panels ▾</span><span class="menu">Options ▾</span></div><section class="box results"><span class="legend">Results</span>
+<div class="line ">extra  syncthing          1.28.0-1    File synchronization</div>
+<div class="line ">aur    fieldnotes-git     1.4.0-1     Plain-text notes</div>
+<div class="line ">extra  ripgrep            14.1.0-1    Line-oriented search</div>
+<div class="line ">extra  fd                 10.2.0-1    Find files by name</div>
+<div class="line ">extra  bat                0.25.0-1    A cat clone with syntax highlighting</div></section><div class="mid "><section class="box "><span class="legend">Search history</span>
+<div class="line compact"></div></section><section class="box focus"><span class="legend">Search (focused) [NORMAL]</span>
+<div class="line sky">&gt; </div></section><section class="box "><span class="legend">Install List</span>
+<div class="line compact"></div></section></div><section class="box info"><span class="legend">Package Info</span>
+<div class="line sky">Repository:    extra</div>
+<div class="line ">Package Name:  syncthing</div>
+<div class="line ">Description:   Continuous file synchronization</div></section><div class="hint">F1  Help       Tab  Next pane       Esc  Search mode</div><div class="shade"></div><section class="dialog "><span class="legend">Update System</span>
+<div class="line head">System Update</div>
+<div class="line compact"></div>
+<div class="line ">[ ] Update Arch Mirrors</div>
+<div class="line ">[x] Update Pacman   ◄ Force Sync (-Syyu) ►</div>
+<div class="line ">[x] Update AUR (paru/yay)</div>
+<div class="line sel"><span class="mark" id="point"><span id="value-1">[ ]</span> Remove Cache (pacman/yay)</span></div>
+<div class="line compact"></div>
+<div class="line ">Country (Mirrors): Worldwide   •   Count: 10</div><div class="hint">Space: toggle   •   Left/Right: change country   •   -/+ change count   •   Enter: run   •   Esc: cancel</div></section></div></div>
+</template>
+
+<template id="choose-mirrors" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pacsea 0.8.2  ·  Example session</small></div><div class="tui"><div class="bar"><b>Results</b> <span class="menu">Sort ▾</span><span class="filter">[AUR] [core] [extra] [multilib]</span><span class="right">Updates available (4)</span><span class="menu">Config/Lists ▾</span><span class="menu">Panels ▾</span><span class="menu">Options ▾</span></div><section class="box results"><span class="legend">Results</span>
+<div class="line ">extra  syncthing          1.28.0-1    File synchronization</div>
+<div class="line ">aur    fieldnotes-git     1.4.0-1     Plain-text notes</div>
+<div class="line ">extra  ripgrep            14.1.0-1    Line-oriented search</div>
+<div class="line ">extra  fd                 10.2.0-1    Find files by name</div>
+<div class="line ">extra  bat                0.25.0-1    A cat clone with syntax highlighting</div></section><div class="mid "><section class="box "><span class="legend">Search history</span>
+<div class="line compact"></div></section><section class="box focus"><span class="legend">Search (focused) [NORMAL]</span>
+<div class="line sky">&gt; </div></section><section class="box "><span class="legend">Install List</span>
+<div class="line compact"></div></section></div><section class="box info"><span class="legend">Package Info</span>
+<div class="line sky">Repository:    extra</div>
+<div class="line ">Package Name:  syncthing</div>
+<div class="line ">Description:   Continuous file synchronization</div></section><div class="hint">F1  Help       Tab  Next pane       Esc  Search mode</div><div class="shade"></div><section class="dialog "><span class="legend">Update System</span>
+<div class="line head">System Update</div>
+<div class="line compact"></div>
+<div class="line "><span class="mark" id="point"><span id="value-1">[ ]</span> Update Arch Mirrors</span></div>
+<div class="line ">[x] Update Pacman   ◄ Force Sync (-Syyu) ►</div>
+<div class="line ">[x] Update AUR (paru/yay)</div>
+<div class="line ">[x] Remove Cache (pacman/yay)</div>
+<div class="line compact"></div>
+<div class="line ">Country (Mirrors): Worldwide   •   Count: 10</div><div class="hint">Space: toggle   •   Left/Right: change country   •   -/+ change count   •   Enter: run   •   Esc: cancel</div></section></div></div>
+</template>
+
+<template id="set-country-and-count" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pacsea 0.8.2  ·  Example session</small></div><div class="tui"><div class="bar"><b>Results</b> <span class="menu">Sort ▾</span><span class="filter">[AUR] [core] [extra] [multilib]</span><span class="right">Updates available (4)</span><span class="menu">Config/Lists ▾</span><span class="menu">Panels ▾</span><span class="menu">Options ▾</span></div><section class="box results"><span class="legend">Results</span>
+<div class="line ">extra  syncthing          1.28.0-1    File synchronization</div>
+<div class="line ">aur    fieldnotes-git     1.4.0-1     Plain-text notes</div>
+<div class="line ">extra  ripgrep            14.1.0-1    Line-oriented search</div>
+<div class="line ">extra  fd                 10.2.0-1    Find files by name</div>
+<div class="line ">extra  bat                0.25.0-1    A cat clone with syntax highlighting</div></section><div class="mid "><section class="box "><span class="legend">Search history</span>
+<div class="line compact"></div></section><section class="box focus"><span class="legend">Search (focused) [NORMAL]</span>
+<div class="line sky">&gt; </div></section><section class="box "><span class="legend">Install List</span>
+<div class="line compact"></div></section></div><section class="box info"><span class="legend">Package Info</span>
+<div class="line sky">Repository:    extra</div>
+<div class="line ">Package Name:  syncthing</div>
+<div class="line ">Description:   Continuous file synchronization</div></section><div class="hint">F1  Help       Tab  Next pane       Esc  Search mode</div><div class="shade"></div><section class="dialog "><span class="legend">Update System</span>
+<div class="line head">System Update</div>
+<div class="line compact"></div>
+<div class="line ">[x] Update Arch Mirrors</div>
+<div class="line ">[x] Update Pacman   ◄ Force Sync (-Syyu) ►</div>
+<div class="line ">[x] Update AUR (paru/yay)</div>
+<div class="line ">[x] Remove Cache (pacman/yay)</div>
+<div class="line compact"></div>
+<div class="line ">Country (Mirrors): <span class="mark" id="point"><span id="value-1">Worldwide</span>   •   Count: <span id="value-2">10</span></span></div><div class="hint">Space: toggle   •   Left/Right: change country   •   -/+ change count   •   Enter: run   •   Esc: cancel</div></section></div></div>
+</template>
+
+<template id="arch-mirrors" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>mirror command   /   annotated transcript</b><small>Pacsea 0.8.2  ·  Example session</small></div><div class="tui"><div class="monoscreen"><div class="line muted"># Default mirror route · inspect the generated command</div>
+<div class="line compact"></div>
+<div class="line sky"><span class="mark" id="point">reflector</span> --verbose --country Germany --protocol https</div>
+<div class="line ">  --sort rate --latest 20 --download-timeout 6</div>
+<div class="line ">  --save /etc/pacman.d/mirrorlist</div>
+<div class="line compact"></div>
+<div class="line muted"><span id="value-1">　</span></div><div class="hint"></div></div></div></div>
+</template>
+
+<template id="manjaro-mirrors" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>mirror command   /   annotated transcript</b><small>Pacsea 0.8.2  ·  Example session</small></div><div class="tui"><div class="monoscreen"><div class="line muted"># Manjaro · worldwide</div>
+<div class="line compact"></div>
+<div class="line sky">pacman-mirrors --fasttrack 11</div>
+<div class="line compact"></div>
+<div class="line muted"># Manjaro · one selected region</div>
+<div class="line sky"><span class="mark" id="point"><span id="value-1">　</span></span></div><div class="hint"></div></div></div></div>
+</template>
+
+<template id="artix-mirrors" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>mirror command   /   annotated transcript</b><small>Pacsea 0.8.2  ·  Example session</small></div><div class="tui"><div class="monoscreen"><div class="line muted"># Artix · worldwide or one entry country</div>
+<div class="line compact"></div>
+<div class="line sky"><span class="mark" id="point">rate-mirrors --protocol=https --allow-root --entry-country=Germany</span></div>
+<div class="line ">  --country-neighbors-per-country=3 --top-mirrors-number-to-retest=11</div>
+<div class="line ">  --max-jumps=10 artix</div>
+<div class="line compact"></div>
+<div class="line warn"><span id="value-1">　</span></div><div class="hint"></div></div></div></div>
+</template>
+
+<template id="rank-distro-lists" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>mirror command   /   annotated transcript</b><small>Pacsea 0.8.2  ·  Example session</small></div><div class="tui"><div class="monoscreen"><div class="line muted"># EndeavourOS</div>
+<div class="line compact"></div>
+<div class="line sky">eos-rankmirrors</div>
+<div class="line ok">  → reflector</div>
+<div class="line compact"></div>
+<div class="line muted"># CachyOS</div>
+<div class="line sky"><span class="mark" id="point">cachyos-rate-mirrors</span></div>
+<div class="line ok">  <span id="value-1">　</span></div><div class="hint"></div></div></div></div>
+</template>
+
+<template id="run-chosen-tasks" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pacsea 0.8.2  ·  Example session</small></div><div class="tui"><div class="bar"><b>Results</b> <span class="menu">Sort ▾</span><span class="filter">[AUR] [core] [extra] [multilib]</span><span class="right">Updates available (4)</span><span class="menu">Config/Lists ▾</span><span class="menu">Panels ▾</span><span class="menu">Options ▾</span></div><section class="box results"><span class="legend">Results</span>
+<div class="line ">extra  syncthing          1.28.0-1    File synchronization</div>
+<div class="line ">aur    fieldnotes-git     1.4.0-1     Plain-text notes</div>
+<div class="line ">extra  ripgrep            14.1.0-1    Line-oriented search</div>
+<div class="line ">extra  fd                 10.2.0-1    Find files by name</div>
+<div class="line ">extra  bat                0.25.0-1    A cat clone with syntax highlighting</div></section><div class="mid "><section class="box "><span class="legend">Search history</span>
+<div class="line compact"></div></section><section class="box focus"><span class="legend">Search (focused) [NORMAL]</span>
+<div class="line sky">&gt; </div></section><section class="box "><span class="legend">Install List</span>
+<div class="line compact"></div></section></div><section class="box info"><span class="legend">Package Info</span>
+<div class="line sky">Repository:    extra</div>
+<div class="line ">Package Name:  syncthing</div>
+<div class="line ">Description:   Continuous file synchronization</div></section><div class="hint">F1  Help       Tab  Next pane       Esc  Search mode</div><div id="popup" style="position:absolute;inset:0"><div class="shade"></div><div class="split"><section class="box "><span class="legend">Plan</span>
+<div class="line sky">[Summary]  Deps  Files</div>
+<div class="line muted">Services  Sandbox</div>
+<div class="line compact"></div>
+<div class="line head">Packages:</div>
+<div class="line ">　</div></section><section class="box "><span class="legend" id="before">Preflight: Install</span>
+<div class="line ">:: Synchronizing package databases…</div>
+<div class="line ">:: Starting full system upgrade…</div>
+<div class="line ok"><span class="mark" id="point"><span id="value-1">　</span></span></div>
+<div class="line compact"></div>
+<div class="line muted">AUR helper: paru / yay</div>
+<div class="line "><div class="hint">l: verbose=OFF    •    q/Esc/Enter: close</div></div></section></div></div></div></div>
+</template>
+
+<template id="continue-after-success" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>system update   /   annotated transcript</b><small>Pacsea 0.8.2  ·  Example session</small></div><div class="tui"><div class="monoscreen"><div class="line muted"># Official update completed successfully</div>
+<div class="line compact"></div>
+<div class="line ok">pacman -Syyu      exit 0</div>
+<div class="line compact"></div>
+<div class="line sky"><span class="mark" id="point"><span id="value-1">Waiting for the official update…</span></span></div>
+<div class="line compact"></div>
+<div class="line muted">AUR helper: paru if available, otherwise yay.</div>
+<div class="line muted">Missing both helpers: this step exits with code 127.</div><div class="hint"></div></div></div></div>
+</template>
+
+<template id="handle-official-failures" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pacsea 0.8.2  ·  Example session</small></div><div class="tui"><div class="bar"><b>Results</b> <span class="menu">Sort ▾</span><span class="filter">[AUR] [core] [extra] [multilib]</span><span class="right">Updates available (4)</span><span class="menu">Config/Lists ▾</span><span class="menu">Panels ▾</span><span class="menu">Options ▾</span></div><section class="box results"><span class="legend">Results</span>
+<div class="line ">extra  syncthing          1.28.0-1    File synchronization</div>
+<div class="line ">aur    fieldnotes-git     1.4.0-1     Plain-text notes</div>
+<div class="line ">extra  ripgrep            14.1.0-1    Line-oriented search</div>
+<div class="line ">extra  fd                 10.2.0-1    Find files by name</div>
+<div class="line ">extra  bat                0.25.0-1    A cat clone with syntax highlighting</div></section><div class="mid "><section class="box "><span class="legend">Search history</span>
+<div class="line compact"></div></section><section class="box focus"><span class="legend">Search (focused) [NORMAL]</span>
+<div class="line sky">&gt; </div></section><section class="box "><span class="legend">Install List</span>
+<div class="line compact"></div></section></div><section class="box info"><span class="legend">Package Info</span>
+<div class="line sky">Repository:    extra</div>
+<div class="line ">Package Name:  syncthing</div>
+<div class="line ">Description:   Continuous file synchronization</div></section><div class="hint">F1  Help       Tab  Next pane       Esc  Search mode</div><div id="popup" style="position:absolute;inset:0"><div class="shade"></div><section class="dialog danger"><span class="legend">Continue AUR Update?</span>
+<div class="line red">Pacman update failed (exit code: 1).</div>
+<div class="line compact"></div>
+<div class="line "><span class="mark" id="point">Do you want to continue with AUR update anyway?</span></div>
+<div class="line compact"></div>
+<div class="line warn">This may fail if AUR packages require newer official packages.</div><div class="hint">Press Enter/Y to continue, Esc/Q/N to cancel</div></section></div></div></div>
+</template>
+
+<template id="credits" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pacsea 0.8.2  ·  Example session</small></div><div class="tui"><div class="bar"><b>Results</b> <span class="menu">Sort ▾</span><span class="filter">[AUR] [core] [extra] [multilib]</span><span class="right">Updates available (4)</span><span class="menu">Config/Lists ▾</span><span class="menu">Panels ▾</span><span class="menu">Options ▾</span></div><section class="box results"><span class="legend">Results</span>
+<div class="line ">extra  syncthing          1.28.0-1    File synchronization</div>
+<div class="line ">aur    fieldnotes-git     1.4.0-1     Plain-text notes</div>
+<div class="line ">extra  ripgrep            14.1.0-1    Line-oriented search</div>
+<div class="line ">extra  fd                 10.2.0-1    Find files by name</div>
+<div class="line ">extra  bat                0.25.0-1    A cat clone with syntax highlighting</div></section><div class="mid "><section class="box "><span class="legend">Search history</span>
+<div class="line compact"></div></section><section class="box focus"><span class="legend">Search (focused) [NORMAL]</span>
+<div class="line sky">&gt; </div></section><section class="box "><span class="legend">Install List</span>
+<div class="line compact"></div></section></div><section class="box info"><span class="legend">Package Info</span>
+<div class="line sky">Repository:    extra</div>
+<div class="line ">Package Name:  syncthing</div>
+<div class="line ">Description:   Continuous file synchronization</div></section><div class="hint">F1  Help       Tab  Next pane       Esc  Search mode</div><div id="popup" style="position:absolute;inset:0"><div class="shade"></div><section class="dialog danger"><span class="legend">Continue AUR Update?</span>
+<div class="line red">Pacman update failed (exit code: 1).</div>
+<div class="line compact"></div>
+<div class="line "><span class="mark" id="point">Do you want to continue with AUR update anyway?</span></div>
+<div class="line compact"></div>
+<div class="line warn">This may fail if AUR packages require newer official packages.</div><div class="hint">Press Enter/Y to continue, Esc/Q/N to cancel</div></section></div></div></div>
+<div class="title-scrim"></div><section class="title-copy close-title"><p class="eyebrow">SYSTEM UPDATE REVIEWED</p><h1>Decide what runs next</h1><p>The example shows the AUR handoff after pacman.<br>If the official update fails, Pacsea asks how to proceed.</p><div class="credits"><div><small>Project</small>Pacsea / Firstpick</div><div><small>Original music</small>Quiet Index</div></div><p class="address">github.com/Firstp1ck/Pacsea</p></section><div class="end-fade"></div></template>

@@ -1,0 +1,14 @@
+Search Arch packages from the shell, inspect JSON with jq and save an installed-package list. See the syntax for install, remove and update operations, then read Arch news and open the interactive browser in dry-run mode.
+
+00:00 Check the CLI and search Arch packages
+00:42 List installed packages and save a file
+01:17 Review install, remove and update commands
+02:04 Read Arch news and select runtime options
+02:38 Cache clearing and interactive dry run
+
+The examples recreate a Bash session with illustrative output. Scenes marked “After v0.8.2 · main c2d62f9e” show the later JSON output, file removal, mirror refresh and config-directory options. Both builds report 0.8.2. Direct install, remove, update and cache commands are shown unsubmitted. --dry-run applies to the interactive browser.
+
+Original music: “Quiet Index,” composed and synthesized for the Pacsea series and arranged to this episode.
+
+Pacsea on GitHub
+https://github.com/Firstp1ck/Pacsea

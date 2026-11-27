@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1888 980" width="1888" height="980">
+<!-- Headless Pacsea terminal capture or a source-file/terminal excerpt. Sample package, repository, key and status data are illustrative. -->
+<rect width="1888" height="980" fill="#1e1e2e"/>
+<g font-family="DejaVu Sans Mono, monospace" font-size="26.5" xml:space="preserve">
+<rect x="0" y="0" width="32" height="28" fill="#313244"/>
+<rect x="32" y="0" width="256" height="28" fill="#313244"/>
+<text x="32" y="22" fill="#cba6f7" textLength="256" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">aur-sleuth setup</text>
+<text x="48" y="162" fill="#cdd6f4" textLength="336" lengthAdjust="spacingAndGlyphs" style="white-space:pre">aur-sleuth not found.</text>
+<text x="48" y="218" fill="#cdd6f4" textLength="304" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Install aur-sleuth:</text>
+<text x="80" y="246" fill="#cdd6f4" textLength="576" lengthAdjust="spacingAndGlyphs" style="white-space:pre">1) system (/usr/local) requires sudo</text>
+<text x="80" y="274" fill="#cdd6f4" textLength="288" lengthAdjust="spacingAndGlyphs" style="white-space:pre">2) user (~/.local)</text>
+<text x="80" y="302" fill="#cdd6f4" textLength="144" lengthAdjust="spacingAndGlyphs" style="white-space:pre">3) cancel</text>
+<text x="48" y="330" fill="#cdd6f4" textLength="272" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Choose [1/2/3]: 2</text>
+<text x="48" y="358" fill="#cdd6f4" textLength="1296" lengthAdjust="spacingAndGlyphs" style="white-space:pre">OPENAI_BASE_URL (e.g. https://openrouter.ai/api/v1 or http://localhost:11434/v1):</text>
+<text x="48" y="386" fill="#cdd6f4" textLength="1088" lengthAdjust="spacingAndGlyphs" style="white-space:pre">OPENAI_MODEL (e.g. qwen/qwen3-30b-a3b-instruct-2507 or llama3.1:8b):</text>
+<text x="48" y="414" fill="#cdd6f4" textLength="240" lengthAdjust="spacingAndGlyphs" style="white-space:pre">OPENAI_API_KEY:</text>
+<text x="48" y="442" fill="#cdd6f4" textLength="400" lengthAdjust="spacingAndGlyphs" style="white-space:pre">MAX_LLM_JOBS (default 3):</text>
+</g>
+</svg>

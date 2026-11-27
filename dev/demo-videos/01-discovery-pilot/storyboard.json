@@ -1,0 +1,2378 @@
+{
+  "version": 1,
+  "title": "Pacsea: Find and review Arch packages",
+  "width": 1920,
+  "height": 1080,
+  "fps": 24,
+  "framing": "full-app",
+  "scenes": "scenes.html",
+  "theme": {
+    "accent": "#b4befe",
+    "background": "#0d0e16",
+    "glow": "transparent"
+  },
+  "allowTerms": [
+    "AUR",
+    "Ctrl",
+    "PKGBUILD",
+    "Preflight",
+    "ShellCheck",
+    "Namcap"
+  ],
+  "sourceRevision": "c2d62f9ee7ab0669f3b3b5b1754c0132e5cbae52",
+  "production": {
+    "interface": "Complete 116-column, 34-row native Ratatui TestBackend buffers exported as SVG. The terminal title bar and cursor treatment are recreated. Preflight is enabled for this demonstration.",
+    "fixtures": "Package rows, descriptions, versions, popularity, build recipes, check outcomes, comments, vote state, history, paths and transaction sizes are illustrative. No checker, vote, package transaction or live API was run.",
+    "render": "From this folder, run t3-build python render-pilot.py ~/.codex/skills/explainer-video to render with the approved score, build both excerpts and refresh the sheet. Run t3-build node check-motion.mjs ~/.codex/skills/explainer-video for the native targets, caption motion and encoded master."
+  },
+  "chapters": [
+    {
+      "start": 0,
+      "title": "Package discovery and search"
+    },
+    {
+      "start": 44,
+      "title": "Compare the matches"
+    },
+    {
+      "start": 73,
+      "title": "Inspect an AUR recipe"
+    },
+    {
+      "start": 122,
+      "title": "Build the install list"
+    },
+    {
+      "start": 179.5,
+      "title": "Review your choice"
+    }
+  ],
+  "steps": [
+    {
+      "scene": "discovery-intro",
+      "duration": 8,
+      "transition": "cut",
+      "caption": {
+        "number": "",
+        "bold": "Pacsea",
+        "box": [
+          385,
+          326,
+          552
+        ]
+      },
+      "spotlights": [
+        {
+          "anchor": [
+            13,
+            "Search (focused)"
+          ],
+          "from": 0,
+          "to": 8,
+          "rect": [
+            509,
+            440,
+            262,
+            31
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "at": 0,
+          "type": "show",
+          "target": ".title-scrim",
+          "dur": 0.75,
+          "dx": 0,
+          "dy": 0
+        },
+        {
+          "at": 0.25,
+          "type": "show",
+          "target": ".title-copy",
+          "dur": 0.75,
+          "dx": 0,
+          "dy": 30
+        },
+        {
+          "at": 7,
+          "type": "hide",
+          "target": ".title-copy",
+          "dur": 0.625,
+          "dx": 0,
+          "dy": 14
+        },
+        {
+          "at": 7.25,
+          "type": "hide",
+          "target": ".title-scrim",
+          "dur": 0.75,
+          "dx": 0,
+          "dy": 0
+        }
+      ]
+    },
+    {
+      "scene": "search-ripgrep",
+      "duration": 7,
+      "transition": "cut",
+      "caption": {
+        "number": "01",
+        "bold": "Type a package name",
+        "rest": "to see matching packages.",
+        "box": [
+          385,
+          326,
+          552
+        ],
+        "track": [
+          {
+            "at": 5.4,
+            "x": 95,
+            "y": 238,
+            "move": 1.3
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "anchor": [
+            13,
+            "Search (focused)"
+          ],
+          "from": 0,
+          "to": 1.15,
+          "rect": [
+            509,
+            440,
+            262,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            14,
+            "> r"
+          ],
+          "from": 1.15,
+          "to": 1.39,
+          "rect": [
+            509,
+            469,
+            54,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            14,
+            "> ri"
+          ],
+          "from": 1.39,
+          "to": 1.63,
+          "rect": [
+            509,
+            469,
+            70,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            14,
+            "> rip"
+          ],
+          "from": 1.63,
+          "to": 1.87,
+          "rect": [
+            509,
+            469,
+            86,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            14,
+            "> ripg"
+          ],
+          "from": 1.87,
+          "to": 2.11,
+          "rect": [
+            509,
+            469,
+            102,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            14,
+            "> ripgr"
+          ],
+          "from": 2.11,
+          "to": 2.35,
+          "rect": [
+            509,
+            469,
+            118,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            14,
+            "> ripgre"
+          ],
+          "from": 2.35,
+          "to": 2.59,
+          "rect": [
+            509,
+            469,
+            134,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            14,
+            "> ripgrep"
+          ],
+          "from": 2.59,
+          "to": 4.1,
+          "rect": [
+            509,
+            469,
+            150,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            2,
+            "ripgrep"
+          ],
+          "from": 4.1,
+          "to": 7,
+          "rect": [
+            173,
+            121,
+            118,
+            31
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.15,
+          "type": "class",
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        },
+        {
+          "at": 1.39,
+          "type": "class",
+          "target": "#frame-3",
+          "remove": "hidden-frame"
+        },
+        {
+          "at": 1.63,
+          "type": "class",
+          "target": "#frame-4",
+          "remove": "hidden-frame"
+        },
+        {
+          "at": 1.87,
+          "type": "class",
+          "target": "#frame-5",
+          "remove": "hidden-frame"
+        },
+        {
+          "at": 2.11,
+          "type": "class",
+          "target": "#frame-6",
+          "remove": "hidden-frame"
+        },
+        {
+          "at": 2.35,
+          "type": "class",
+          "target": "#frame-7",
+          "remove": "hidden-frame"
+        },
+        {
+          "at": 2.59,
+          "type": "class",
+          "target": "#frame-8",
+          "remove": "hidden-frame"
+        },
+        {
+          "at": 4.1,
+          "type": "class",
+          "target": "#frame-9",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "read-sources",
+      "duration": 7,
+      "transition": "cut",
+      "caption": {
+        "number": "02",
+        "bold": "extra means official.",
+        "rest": "AUR packages come from the community.",
+        "box": [
+          95,
+          238,
+          552
+        ]
+      },
+      "spotlights": [
+        {
+          "anchor": [
+            2,
+            "extra"
+          ],
+          "from": 0,
+          "to": 3.5,
+          "rect": [
+            77,
+            121,
+            86,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            4,
+            "AUR"
+          ],
+          "from": 3.5,
+          "to": 7,
+          "rect": [
+            237,
+            179,
+            54,
+            31
+          ]
+        }
+      ]
+    },
+    {
+      "scene": "clear-and-toggle",
+      "duration": 7,
+      "transition": "cut",
+      "caption": {
+        "number": "03",
+        "bold": "Shift+Del clears search.",
+        "rest": "Ctrl+F turns on fuzzy matching.",
+        "box": [
+          95,
+          238,
+          552
+        ],
+        "track": [
+          {
+            "at": 1.35,
+            "x": 445,
+            "y": 341,
+            "move": 1.35
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "anchor": [
+            14,
+            "> ripgrep"
+          ],
+          "from": 0,
+          "to": 2.25,
+          "rect": [
+            509,
+            469,
+            150,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            14,
+            ">"
+          ],
+          "from": 2.25,
+          "to": 4.5,
+          "rect": [
+            509,
+            469,
+            22,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            13,
+            "[FUZZY]"
+          ],
+          "from": 4.5,
+          "to": 7,
+          "rect": [
+            781,
+            440,
+            118,
+            31
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "at": 2.25,
+          "type": "class",
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        },
+        {
+          "at": 4.5,
+          "type": "class",
+          "target": "#frame-3",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "match-letters",
+      "duration": 7,
+      "transition": "cut",
+      "caption": {
+        "number": "04",
+        "bold": "Type a few letters.",
+        "rest": "Names match those letters in order.",
+        "box": [
+          445,
+          341,
+          552
+        ],
+        "track": [
+          {
+            "at": 3.85,
+            "x": 95,
+            "y": 238,
+            "move": 1.45
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "anchor": [
+            14,
+            ">"
+          ],
+          "from": 0,
+          "to": 1.15,
+          "rect": [
+            509,
+            469,
+            22,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            14,
+            "> r"
+          ],
+          "from": 1.15,
+          "to": 1.65,
+          "rect": [
+            509,
+            469,
+            54,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            14,
+            "> rg"
+          ],
+          "from": 1.65,
+          "to": 2.4,
+          "rect": [
+            509,
+            469,
+            70,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            2,
+            "ripgrep"
+          ],
+          "from": 2.4,
+          "to": 7,
+          "rect": [
+            173,
+            121,
+            118,
+            31
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.15,
+          "type": "class",
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        },
+        {
+          "at": 1.65,
+          "type": "class",
+          "target": "#frame-3",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "recall-search",
+      "duration": 8,
+      "transition": "cut",
+      "caption": {
+        "number": "05",
+        "bold": "Choose a past search.",
+        "rest": "Press Enter in history to repeat it.",
+        "box": [
+          95,
+          238,
+          552
+        ],
+        "track": [
+          {
+            "at": 0.95,
+            "x": 112,
+            "y": 336,
+            "move": 0.95
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "anchor": [
+            13,
+            "Search history"
+          ],
+          "from": 0,
+          "to": 1.65,
+          "rect": [
+            45,
+            440,
+            230,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            14,
+            "▶ ripgrep"
+          ],
+          "from": 1.65,
+          "to": 4.25,
+          "rect": [
+            45,
+            469,
+            150,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            14,
+            "> ripgrep"
+          ],
+          "from": 4.25,
+          "to": 8,
+          "rect": [
+            509,
+            469,
+            150,
+            31
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.65,
+          "type": "class",
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        },
+        {
+          "at": 4.25,
+          "type": "class",
+          "target": "#frame-3",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "browse-matches",
+      "duration": 8,
+      "transition": "cut",
+      "caption": {
+        "number": "06",
+        "bold": "Press Esc to browse.",
+        "rest": "j moves down. k moves up.",
+        "box": [
+          112,
+          336,
+          552
+        ],
+        "track": [
+          {
+            "at": 0.8,
+            "x": 112,
+            "y": 282,
+            "move": 0.8
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "anchor": [
+            2,
+            "ripgrep"
+          ],
+          "from": 0,
+          "to": 2.5,
+          "rect": [
+            173,
+            121,
+            118,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            3,
+            "ripgrep-all"
+          ],
+          "from": 2.5,
+          "to": 4,
+          "rect": [
+            173,
+            150,
+            182,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            4,
+            "ripgrep-git"
+          ],
+          "from": 4,
+          "to": 5.25,
+          "rect": [
+            301,
+            179,
+            182,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            3,
+            "ripgrep-all"
+          ],
+          "from": 5.25,
+          "to": 6.4,
+          "rect": [
+            173,
+            150,
+            182,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            4,
+            "ripgrep-git"
+          ],
+          "from": 6.4,
+          "to": 8,
+          "rect": [
+            301,
+            179,
+            182,
+            31
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "at": 1,
+          "type": "class",
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        },
+        {
+          "at": 2.5,
+          "type": "class",
+          "target": "#frame-3",
+          "remove": "hidden-frame"
+        },
+        {
+          "at": 4,
+          "type": "class",
+          "target": "#frame-4",
+          "remove": "hidden-frame"
+        },
+        {
+          "at": 5.25,
+          "type": "class",
+          "target": "#frame-5",
+          "remove": "hidden-frame"
+        },
+        {
+          "at": 6.4,
+          "type": "class",
+          "target": "#frame-6",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "read-markers",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "number": "07",
+        "bold": "OOD means outdated.",
+        "rest": "ORPHAN means no maintainer.",
+        "box": [
+          112,
+          282,
+          552
+        ]
+      },
+      "spotlights": [
+        {
+          "anchor": [
+            5,
+            "[OOD]"
+          ],
+          "from": 0,
+          "to": 3,
+          "rect": [
+            301,
+            208,
+            86,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            5,
+            "[ORPHAN]"
+          ],
+          "from": 3,
+          "to": 6,
+          "rect": [
+            397,
+            208,
+            134,
+            31
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "at": 0,
+          "type": "class",
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "filter-sources",
+      "duration": 7,
+      "transition": "cut",
+      "caption": {
+        "number": "08",
+        "bold": "Click AUR to hide its results.",
+        "rest": "Click again to bring them back.",
+        "box": [
+          112,
+          282,
+          552
+        ]
+      },
+      "spotlights": [
+        {
+          "anchor": [
+            1,
+            "[AUR]"
+          ],
+          "from": 0,
+          "to": 1.8,
+          "rect": [
+            381,
+            92,
+            86,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            1,
+            "Results (2)"
+          ],
+          "from": 1.8,
+          "to": 3.9,
+          "rect": [
+            45,
+            92,
+            182,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            1,
+            "[AUR]"
+          ],
+          "from": 3.9,
+          "to": 4.8,
+          "rect": [
+            381,
+            92,
+            86,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            1,
+            "Results (4)"
+          ],
+          "from": 4.8,
+          "to": 7,
+          "rect": [
+            45,
+            92,
+            182,
+            31
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.8,
+          "type": "class",
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        },
+        {
+          "at": 4.8,
+          "type": "class",
+          "target": "#frame-3",
+          "remove": "hidden-frame"
+        }
+      ],
+      "cursor": [
+        {
+          "at": 0,
+          "x": 510,
+          "y": 181
+        },
+        {
+          "at": 1.8,
+          "move": 0.65,
+          "x": 430,
+          "y": 111,
+          "click": true
+        },
+        {
+          "at": 4.8,
+          "x": 430,
+          "y": 111,
+          "click": true
+        },
+        {
+          "at": 5.5,
+          "x": 430,
+          "y": 111,
+          "hide": true
+        }
+      ]
+    },
+    {
+      "scene": "sort-packages",
+      "duration": 8,
+      "transition": "cut",
+      "caption": {
+        "number": "09",
+        "bold": "Open Sort.",
+        "rest": "Choose AUR popularity.",
+        "box": [
+          112,
+          282,
+          552
+        ]
+      },
+      "spotlights": [
+        {
+          "anchor": [
+            1,
+            "Sort v"
+          ],
+          "from": 0,
+          "to": 1.5,
+          "rect": [
+            253,
+            92,
+            102,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            4,
+            "AUR popularity"
+          ],
+          "from": 1.5,
+          "to": 3.8,
+          "rect": [
+            269,
+            179,
+            230,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            2,
+            "Pop: 1.28"
+          ],
+          "from": 3.8,
+          "to": 8,
+          "rect": [
+            77,
+            121,
+            150,
+            31
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.5,
+          "type": "class",
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        },
+        {
+          "at": 3.8,
+          "type": "class",
+          "target": "#frame-3",
+          "remove": "hidden-frame"
+        }
+      ],
+      "cursor": [
+        {
+          "at": 0,
+          "x": 410,
+          "y": 183
+        },
+        {
+          "at": 1.5,
+          "move": 0.65,
+          "x": 320,
+          "y": 109,
+          "click": true
+        },
+        {
+          "at": 3.8,
+          "move": 0.65,
+          "x": 379,
+          "y": 198,
+          "click": true
+        },
+        {
+          "at": 4.5,
+          "x": 379,
+          "y": 198,
+          "hide": true
+        }
+      ]
+    },
+    {
+      "scene": "community-comments",
+      "duration": 7,
+      "transition": "cut",
+      "caption": {
+        "number": "10",
+        "bold": "Select an AUR result.",
+        "rest": "Ctrl+T opens its comments.",
+        "box": [
+          112,
+          282,
+          552
+        ],
+        "track": [
+          {
+            "at": 4.25,
+            "x": 1012,
+            "y": 477,
+            "move": 2.45
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "anchor": [
+            2,
+            "AUR ripgrep-git"
+          ],
+          "from": 0,
+          "to": 1.8,
+          "rect": [
+            237,
+            121,
+            246,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            18,
+            "Comments"
+          ],
+          "from": 1.8,
+          "to": 3.4,
+          "rect": [
+            973,
+            585,
+            134,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            20,
+            "This package follows the development branch."
+          ],
+          "from": 3.4,
+          "to": 7,
+          "rect": [
+            973,
+            643,
+            710,
+            31
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.8,
+          "type": "class",
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "vote-dialog",
+      "duration": 7,
+      "transition": "cut",
+      "caption": {
+        "number": "11",
+        "bold": "Ctrl+E opens a vote.",
+        "rest": "Esc cancels it.",
+        "box": [
+          1012,
+          477,
+          552
+        ],
+        "track": [
+          {
+            "at": 2.55,
+            "x": 308,
+            "y": 165,
+            "move": 2.55
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "anchor": [
+            2,
+            "AUR ripgrep-git"
+          ],
+          "from": 0,
+          "to": 3.1,
+          "rect": [
+            237,
+            121,
+            246,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            8,
+            "Confirm AUR vote for 'ripgrep-git'?"
+          ],
+          "from": 3.1,
+          "to": 5,
+          "rect": [
+            253,
+            295,
+            566,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            12,
+            "Esc/q to cancel."
+          ],
+          "from": 5,
+          "to": 7,
+          "rect": [
+            653,
+            411,
+            262,
+            31
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "at": 3.1,
+          "type": "class",
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "inspect-aur-recipe",
+      "duration": 12,
+      "transition": "cut",
+      "caption": {
+        "number": "12",
+        "bold": "Keep the AUR package selected.",
+        "rest": "Ctrl+X opens its PKGBUILD.",
+        "box": [
+          308,
+          165,
+          552
+        ],
+        "track": [
+          {
+            "at": 5.7,
+            "x": 472,
+            "y": 491,
+            "move": 2.1
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "anchor": [
+            2,
+            "AUR ripgrep-git"
+          ],
+          "from": 0,
+          "to": 3.6,
+          "rect": [
+            237,
+            121,
+            246,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            19,
+            "Loading PKGBUILD…"
+          ],
+          "from": 3.6,
+          "to": 4.5,
+          "rect": [
+            973,
+            614,
+            278,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            19,
+            "pkgname=ripgrep-git"
+          ],
+          "from": 4.5,
+          "to": 7.5,
+          "rect": [
+            973,
+            614,
+            310,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            22,
+            "git+https://github.com/BurntSushi/ripgrep.git"
+          ],
+          "from": 7.5,
+          "to": 12,
+          "rect": [
+            1117,
+            701,
+            726,
+            31
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "at": 3.6,
+          "type": "class",
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        },
+        {
+          "at": 4.5,
+          "type": "class",
+          "target": "#frame-3",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "reload-recipe",
+      "duration": 9,
+      "transition": "cut",
+      "caption": {
+        "number": "13",
+        "bold": "Press Ctrl+X twice.",
+        "rest": "Close and reopen to reload the recipe.",
+        "box": [
+          472,
+          491,
+          552
+        ]
+      },
+      "spotlights": [
+        {
+          "anchor": [
+            19,
+            "pkgname=ripgrep-git"
+          ],
+          "from": 0,
+          "to": 1.5,
+          "rect": [
+            973,
+            614,
+            310,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            20,
+            "Package Name: ripgrep-git"
+          ],
+          "from": 1.5,
+          "to": 4.75,
+          "rect": [
+            45,
+            643,
+            406,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            19,
+            "Loading PKGBUILD…"
+          ],
+          "from": 4.75,
+          "to": 6.3,
+          "rect": [
+            973,
+            614,
+            278,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            19,
+            "pkgname=ripgrep-git"
+          ],
+          "from": 6.3,
+          "to": 9,
+          "rect": [
+            973,
+            614,
+            310,
+            31
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.5,
+          "type": "class",
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        },
+        {
+          "at": 4.75,
+          "type": "class",
+          "target": "#frame-3",
+          "remove": "hidden-frame"
+        },
+        {
+          "at": 6.3,
+          "type": "class",
+          "target": "#frame-4",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "run-checks",
+      "duration": 8,
+      "transition": "cut",
+      "caption": {
+        "number": "14",
+        "bold": "Ctrl+K runs static checks",
+        "rest": "on the selected PKGBUILD.",
+        "box": [
+          472,
+          491,
+          552
+        ],
+        "track": [
+          {
+            "at": 1.55,
+            "move": 1.55,
+            "x": 928,
+            "y": 476
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "anchor": [
+            18,
+            "Run checks"
+          ],
+          "from": 0,
+          "to": 2.15,
+          "rect": [
+            1373,
+            585,
+            166,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            21,
+            "Status: Running"
+          ],
+          "from": 2.15,
+          "to": 4.6,
+          "rect": [
+            973,
+            672,
+            246,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            21,
+            "Status: Complete"
+          ],
+          "from": 4.6,
+          "to": 8,
+          "rect": [
+            973,
+            672,
+            262,
+            31
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "at": 2.15,
+          "type": "class",
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        },
+        {
+          "at": 4.6,
+          "type": "class",
+          "target": "#frame-3",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "read-checks",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "number": "15",
+        "bold": "Ctrl+D cycles results.",
+        "rest": "Read ShellCheck, then Namcap.",
+        "box": [
+          928,
+          476,
+          552
+        ]
+      },
+      "spotlights": [
+        {
+          "anchor": [
+            21,
+            "Status: Complete"
+          ],
+          "from": 0,
+          "to": 1.5,
+          "rect": [
+            973,
+            672,
+            262,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            19,
+            "ShellCheck"
+          ],
+          "from": 1.5,
+          "to": 3.85,
+          "rect": [
+            1037,
+            614,
+            166,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            19,
+            "Namcap"
+          ],
+          "from": 3.85,
+          "to": 4.8,
+          "rect": [
+            1037,
+            614,
+            102,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            20,
+            "(no findings)"
+          ],
+          "from": 4.8,
+          "to": 6,
+          "rect": [
+            1005,
+            643,
+            214,
+            31
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.5,
+          "type": "class",
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        },
+        {
+          "at": 3.85,
+          "type": "class",
+          "target": "#frame-3",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "build-install-list",
+      "duration": 8.25,
+      "transition": "cut",
+      "caption": {
+        "number": "",
+        "bold": "Build the install list",
+        "box": [
+          928,
+          476,
+          552
+        ],
+        "track": [
+          {
+            "at": 6,
+            "move": 2,
+            "x": 184,
+            "y": 238
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "anchor": [
+            13,
+            "Install List"
+          ],
+          "from": 0,
+          "to": 8.25,
+          "rect": [
+            1309,
+            440,
+            198,
+            31
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "at": 0,
+          "type": "show",
+          "target": ".title-scrim",
+          "dur": 0.75,
+          "dx": 0,
+          "dy": 0
+        },
+        {
+          "at": 0.25,
+          "type": "show",
+          "target": ".title-copy",
+          "dur": 0.75,
+          "dx": 0,
+          "dy": 30
+        },
+        {
+          "at": 0.25,
+          "type": "show",
+          "target": ".sweep",
+          "dur": 0.875,
+          "dx": -388,
+          "dy": 0
+        },
+        {
+          "at": 7.25,
+          "type": "hide",
+          "target": ".title-copy",
+          "dur": 0.625,
+          "dx": 0,
+          "dy": 14
+        },
+        {
+          "at": 7.5,
+          "type": "hide",
+          "target": ".title-scrim",
+          "dur": 0.75,
+          "dx": 0,
+          "dy": 0
+        }
+      ]
+    },
+    {
+      "scene": "queue-choice",
+      "duration": 8,
+      "transition": "cut",
+      "caption": {
+        "number": "16",
+        "bold": "Select an official result.",
+        "rest": "Space adds it to the install list.",
+        "box": [
+          184,
+          238,
+          552
+        ],
+        "track": [
+          {
+            "at": 7.35,
+            "x": 1170,
+            "y": 334,
+            "move": 2.75
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "anchor": [
+            1,
+            "[AUR]"
+          ],
+          "from": 0,
+          "to": 1.9,
+          "rect": [
+            381,
+            92,
+            86,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            3,
+            "extra ripgrep-all"
+          ],
+          "from": 1.9,
+          "to": 4.6,
+          "rect": [
+            77,
+            150,
+            278,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            14,
+            "extra ripgrep-all"
+          ],
+          "from": 4.6,
+          "to": 8,
+          "rect": [
+            1373,
+            469,
+            278,
+            31
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "at": 0.75,
+          "type": "class",
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        },
+        {
+          "at": 1.9,
+          "type": "class",
+          "target": "#frame-3",
+          "remove": "hidden-frame"
+        },
+        {
+          "at": 2.9,
+          "type": "class",
+          "target": "#frame-4",
+          "remove": "hidden-frame"
+        },
+        {
+          "at": 4.6,
+          "type": "class",
+          "target": "#frame-5",
+          "remove": "hidden-frame"
+        }
+      ],
+      "cursor": [
+        {
+          "at": 0.75,
+          "x": 550,
+          "y": 175
+        },
+        {
+          "at": 1.9,
+          "move": 0.75,
+          "x": 425,
+          "y": 109,
+          "click": true
+        },
+        {
+          "at": 2.9,
+          "move": 0.65,
+          "x": 250,
+          "y": 165,
+          "click": true
+        },
+        {
+          "at": 3.5,
+          "x": 250,
+          "y": 165,
+          "hide": true
+        }
+      ]
+    },
+    {
+      "scene": "queue-history",
+      "duration": 10,
+      "transition": "cut",
+      "caption": {
+        "number": "17",
+        "bold": "Choose a search from history.",
+        "rest": "Space queues a matching package.",
+        "box": [
+          1170,
+          334,
+          552
+        ],
+        "track": [
+          {
+            "at": 3,
+            "x": 85,
+            "y": 357,
+            "move": 3
+          },
+          {
+            "at": 8.5,
+            "x": 1170,
+            "y": 334,
+            "move": 3
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "anchor": [
+            15,
+            "fd"
+          ],
+          "from": 0,
+          "to": 2,
+          "rect": [
+            77,
+            498,
+            38,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            15,
+            "▶ fd"
+          ],
+          "from": 2,
+          "to": 5.5,
+          "rect": [
+            45,
+            498,
+            70,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            14,
+            "extra fd"
+          ],
+          "from": 5.5,
+          "to": 10,
+          "rect": [
+            1373,
+            469,
+            134,
+            31
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "at": 2,
+          "type": "class",
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        },
+        {
+          "at": 5.5,
+          "type": "class",
+          "target": "#frame-3",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "prune-list",
+      "duration": 8,
+      "transition": "cut",
+      "caption": {
+        "number": "18",
+        "bold": "Press /, type a name.",
+        "rest": "Esc exits find. Del removes the row.",
+        "box": [
+          1170,
+          334,
+          552
+        ]
+      },
+      "spotlights": [
+        {
+          "anchor": [
+            14,
+            "extra fd"
+          ],
+          "from": 0,
+          "to": 1,
+          "rect": [
+            1373,
+            469,
+            134,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            13,
+            "Install List (focused)"
+          ],
+          "from": 1,
+          "to": 2.1,
+          "rect": [
+            1309,
+            440,
+            358,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            14,
+            "extra fd"
+          ],
+          "from": 2.1,
+          "to": 5.4,
+          "rect": [
+            1373,
+            469,
+            134,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            14,
+            "extra ripgrep-all"
+          ],
+          "from": 5.4,
+          "to": 8,
+          "rect": [
+            1373,
+            469,
+            278,
+            31
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "at": 1,
+          "type": "class",
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        },
+        {
+          "at": 2.1,
+          "type": "class",
+          "target": "#frame-3",
+          "remove": "hidden-frame"
+        },
+        {
+          "at": 2.4,
+          "type": "class",
+          "target": "#frame-4",
+          "remove": "hidden-frame"
+        },
+        {
+          "at": 4.35,
+          "type": "class",
+          "target": "#frame-5",
+          "remove": "hidden-frame"
+        },
+        {
+          "at": 5.4,
+          "type": "class",
+          "target": "#frame-6",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "export-list",
+      "duration": 8.5,
+      "transition": "cut",
+      "caption": {
+        "number": "19",
+        "bold": "Shift+E exports the list.",
+        "rest": "Pacsea shows the saved file’s path.",
+        "box": [
+          1170,
+          334,
+          552
+        ],
+        "track": [
+          {
+            "at": 0.95,
+            "x": 1295,
+            "y": 452,
+            "move": 0.95
+          },
+          {
+            "at": 5.05,
+            "x": 1275,
+            "y": 839,
+            "move": 1.65
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "anchor": [
+            17,
+            "Export"
+          ],
+          "from": 0,
+          "to": 3.4,
+          "rect": [
+            1645,
+            556,
+            102,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            31,
+            "~/.config/pacsea/export/install_list_20250506_1.txt"
+          ],
+          "from": 3.4,
+          "to": 8.5,
+          "rect": [
+            1005,
+            962,
+            822,
+            31
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.5,
+          "type": "class",
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        },
+        {
+          "at": 3.4,
+          "type": "class",
+          "target": "#frame-3",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "import-list",
+      "duration": 7.75,
+      "transition": "cut",
+      "caption": {
+        "number": "20",
+        "bold": "Shift+I opens Import.",
+        "rest": "Use one package name per line.",
+        "box": [
+          1275,
+          839,
+          552
+        ],
+        "track": [
+          {
+            "at": 6.4,
+            "move": 2.5,
+            "x": 325,
+            "y": 889
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "anchor": [
+            33,
+            "[Shift+I]"
+          ],
+          "from": 0,
+          "to": 3.9,
+          "rect": [
+            1661,
+            1020,
+            150,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            20,
+            "vim"
+          ],
+          "from": 3.9,
+          "to": 5.8,
+          "rect": [
+            285,
+            643,
+            54,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            21,
+            "paru"
+          ],
+          "from": 5.8,
+          "to": 7.25,
+          "rect": [
+            285,
+            672,
+            70,
+            31
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "at": 3.9,
+          "type": "class",
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        },
+        {
+          "at": 7.25,
+          "type": "class",
+          "target": "#frame-3",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "help-shortcuts",
+      "duration": 7,
+      "transition": "cut",
+      "caption": {
+        "number": "21",
+        "bold": "F1 opens Help.",
+        "box": [
+          325,
+          889,
+          552
+        ],
+        "rest": "Find the fuzzy-search shortcut.",
+        "track": [
+          {
+            "at": 2.2,
+            "move": 0.9,
+            "x": 325,
+            "y": 977
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "anchor": [
+            27,
+            "[F1] Help"
+          ],
+          "from": 0,
+          "to": 1.95,
+          "rect": [
+            525,
+            846,
+            150,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            27,
+            "Toggle fuzzy search  [Ctrl+F]"
+          ],
+          "from": 1.95,
+          "to": 7,
+          "rect": [
+            205,
+            846,
+            470,
+            31
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "class",
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "review-list",
+      "duration": 7.5,
+      "transition": "cut",
+      "caption": {
+        "number": "22",
+        "bold": "Focus the Install List.",
+        "rest": "Enter opens Preflight when enabled.",
+        "box": [
+          325,
+          977,
+          552
+        ],
+        "track": [
+          {
+            "at": 1.95,
+            "move": 1.95,
+            "x": 709,
+            "y": 364
+          },
+          {
+            "at": 4.8,
+            "move": 1.75,
+            "x": 296,
+            "y": 62
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "anchor": [
+            13,
+            "Install List (focused)"
+          ],
+          "from": 0,
+          "to": 4.375,
+          "rect": [
+            1309,
+            440,
+            358,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            4,
+            "Preflight: Install"
+          ],
+          "from": 4.375,
+          "to": 5.8,
+          "rect": [
+            221,
+            179,
+            294,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            9,
+            "No conflicts or upgrades required."
+          ],
+          "from": 5.8,
+          "to": 7.5,
+          "rect": [
+            205,
+            324,
+            550,
+            31
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "at": 4.375,
+          "type": "class",
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        },
+        {
+          "at": 5.8,
+          "type": "class",
+          "target": "#frame-3",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "read-size",
+      "duration": 7,
+      "transition": "cut",
+      "caption": {
+        "number": "23",
+        "bold": "DL shows download size.",
+        "rest": "Size shows added disk space.",
+        "box": [
+          296,
+          62,
+          552
+        ]
+      },
+      "spotlights": [
+        {
+          "anchor": [
+            5,
+            "[DL: 2.1 MiB]"
+          ],
+          "from": 0,
+          "to": 3.5,
+          "rect": [
+            269,
+            208,
+            214,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            5,
+            "[Size: +6.5 MiB]"
+          ],
+          "from": 3.5,
+          "to": 7,
+          "rect": [
+            493,
+            208,
+            262,
+            31
+          ]
+        }
+      ]
+    },
+    {
+      "scene": "keep-choice",
+      "duration": 8,
+      "transition": "cut",
+      "caption": {
+        "number": "24",
+        "bold": "Press q to close Preflight.",
+        "rest": "Your package stays queued.",
+        "box": [
+          296,
+          62,
+          552
+        ],
+        "track": [
+          {
+            "at": 4.35,
+            "x": 1170,
+            "y": 334,
+            "move": 2.65
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "anchor": [
+            4,
+            "Preflight: Install"
+          ],
+          "from": 0,
+          "to": 1.7,
+          "rect": [
+            221,
+            179,
+            294,
+            31
+          ]
+        },
+        {
+          "anchor": [
+            14,
+            "extra ripgrep-all"
+          ],
+          "from": 1.7,
+          "to": 8,
+          "rect": [
+            1373,
+            469,
+            278,
+            31
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.7,
+          "type": "class",
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "end-credits",
+      "duration": 9,
+      "transition": "cut",
+      "caption": {
+        "number": "",
+        "bold": "Ready in the install list",
+        "box": [
+          1170,
+          334,
+          552
+        ]
+      },
+      "spotlights": [
+        {
+          "anchor": [
+            14,
+            "extra ripgrep-all"
+          ],
+          "from": 0,
+          "to": 9,
+          "rect": [
+            1373,
+            469,
+            278,
+            31
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "at": 0,
+          "type": "show",
+          "target": ".title-scrim",
+          "dur": 0.75,
+          "dx": 0,
+          "dy": 0
+        },
+        {
+          "at": 0.25,
+          "type": "show",
+          "target": ".title-copy",
+          "dur": 0.75,
+          "dx": 0,
+          "dy": -18
+        },
+        {
+          "at": 7.75,
+          "type": "show",
+          "target": ".end-fade",
+          "dur": 1.2083333333,
+          "dx": 0,
+          "dy": 0
+        }
+      ]
+    }
+  ],
+  "captionMotion": "continuous",
+  "captionEase": "fast-slow",
+  "spotlightOutline": true,
+  "format": "episode"
+}

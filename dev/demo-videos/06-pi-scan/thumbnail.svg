@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <title>Pacsea: Preview Pi Scan</title>
+  <desc>Pacsea's terminal palette and an excerpt from Results.</desc>
+  <rect width="1920" height="1080" fill="#1e1e2e"/>
+  <g font-family="DejaVu Sans Mono, monospace">
+    <image x="106" y="65" width="156" height="156" xlink:href="pacsea.svg"/>
+    <text x="290" y="192" font-size="134" font-weight="bold" fill="#cdd6f4">Pacsea</text>
+    <text x="110" y="417" font-size="155" fill="#e7e8f5">Preview Pi Scan</text>
+    <rect x="118" y="536" width="1668" height="303" rx="13" fill="none" stroke="#6c7086" stroke-width="5"/>
+    <rect x="157" y="508" width="282" height="54" fill="#1e1e2e"/>
+    <text x="178" y="555" font-size="54" fill="#b4befe">Results</text>
+    <rect x="129" y="687" width="1646" height="130" fill="#363649"/>
+    <text x="180" y="659" font-size="93" fill="#cdd6f4">fieldnotes-git</text>
+    <text x="180" y="784" font-size="93" font-weight="bold" fill="#89dceb">1 finding to review</text>
+    <text x="116" y="952" font-size="65" fill="#a6adc8">AUR package review</text>
+  </g>
+</svg>

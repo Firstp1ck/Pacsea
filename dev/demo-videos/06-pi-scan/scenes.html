@@ -1,0 +1,569 @@
+<!-- Pacsea interface recreation with illustrative local fixtures. -->
+<style>
+.terminal { position:absolute; left:165px;top:175px;width:1590px;height:706px; padding:55px 24px 22px; border:2px solid #43475d; border-radius:17px; background:#1e1e2e;color:#cdd6f4; font:23px/1.38 'DejaVu Sans Mono',monospace; box-shadow:0 26px 90px #0007; }
+.chrome { position:absolute;left:0;right:0;top:0; height:42px; padding:7px 20px; border-bottom:1px solid #39394d;background:#181825;border-radius:15px 15px 0 0; display:flex;align-items:center;gap:8px; color:#a6adc8; font-size:17px; }
+.chrome i { display:block;width:10px;height:10px;border-radius:100%;background:#6c7086; }
+.chrome b { margin-left:12px; font-weight:400; }
+.chrome small { margin-left:auto; font-size:16px; }
+.tui { position:relative;height:100%; }
+.bar { display:flex;gap:11px;align-items:center; border-bottom:1px solid #45475a;padding:0 5px 8px; font-size:19px; color:#bac2de; }
+.bar .filter,.bar .menu { background:#a6e3a1;color:#11111b;padding:0 4px; }
+.bar .menu { background:#b4befe; }
+.bar .right { margin-left:auto; }
+.box,.dialog,.termview { border:1px solid #62657d;position:relative;padding:17px 15px 12px; }
+.legend { position:absolute;top:-15px;left:12px;color:#bac2de;background:#1e1e2e;padding:0 7px;font-size:20px;line-height:26px; }
+.box.focus { border-color:#cba6f7; }
+.box.focus .legend {color:#cba6f7;}
+.results {height:231px;margin-top:13px;overflow:visible;}
+.mid {display:grid;grid-template-columns:20% 45% 1fr;gap:11px;margin:20px 0; }
+.mid .box { min-height:92px; }
+.mid.installed {grid-template-columns:15% 40% 1fr 1fr;}
+.info {height:142px;}
+.hint {color:#a6adc8;font-size:18px;line-height:1.5;margin-top:10px;}
+.line {min-height:32px;overflow-wrap:anywhere;white-space:pre-wrap;}
+.line.compact {min-height:16px;}
+.head {color:#cba6f7;font-weight:bold;}
+.ok {color:#a6e3a1;}
+.warn {color:#f9e2af;}
+.red {color:#f38ba8;}
+.sky {color:#89dceb;}
+.muted {color:#a6adc8;}
+.sel {background:#323349;color:#cdd6f4;}
+.mark {display:inline-block;max-width:100%;}
+.shade {position:absolute;inset:0;background:#11111ba8;}
+.dialog {position:absolute;left:50%;top:49%;transform:translate(-50%,-50%);width:1190px;min-height:286px;padding:29px 30px 26px;background:#181825;border:3px double #b4befe;box-shadow:0 18px 55px #08091288;}
+.dialog .legend {background:#181825;font-size:23px;color:#b4befe;font-weight:700;}
+.dialog .hint {border-top:1px solid #45475a;margin-top:17px;padding-top:11px;}
+.dialog.danger {border-color:#f38ba8;} .danger .legend {color:#f38ba8;}
+.dialog.menu-pop {left:auto;right:3px;top:32px;transform:none;width:500px;min-height:0;}
+.dialog.wide {width:1390px;}
+.tabs {margin:4px 0 19px;border-bottom:1px solid #45475a;padding:2px 0 12px;color:#a6adc8;white-space:pre;}
+.active {background:#cba6f7;color:#181825;font-weight:bold;padding:1px 6px;}
+.pfchips {color:#89dceb;font-size:21px;margin-bottom:6px;}
+.split {position:absolute;inset:24px 38px;display:grid;grid-template-columns:30% 1fr;gap:7px;}
+.split .box {background:#1e1e2e;border:3px double #b4befe;padding:22px 18px;}
+.split .legend {color:#b4befe;}
+.split .hint {position:absolute;bottom:14px;right:10px;left:14px;}
+.termview {margin:17px 0;height:87%;padding:24px 25px;}
+.termview .hint {position:absolute;left:25px;bottom:12px;}
+.monoscreen {height:100%;background:#181825;padding:20px 25px;border:1px solid #45475a;}
+.piBar {border-bottom:1px solid #585b70;padding:4px 0 13px; color:#bac2de;}
+.piHint {position:absolute;bottom:0;left:0;right:0;padding:6px 18px;border:1px solid #6c7086;font-size:18px;color:#bac2de;}
+.piTitle {color:#cba6f7;font-weight:bold;}
+.dot {color:#cba6f7;letter-spacing:4px;font-size:19px;}
+
+
+.piBar {color:#bac2de;white-space:pre;}
+.piBar .active {background:#74c7ec;}
+.piBar .state {float:right;color:#a6e3a1;}
+.termview {height:78%;margin-top:21px;}
+.wiz-head {margin:11px 0 7px;color:#cba6f7;font-weight:bold;}
+.wizbox {margin:18px 0 11px;height:330px;padding:18px 20px;}
+.wizbox .line {font-size:22px;line-height:1.37;min-height:29px;}
+.wizbox .compact {min-height:11px;}
+.wiz-msg {font-size:19px;color:#a6e3a1;}
+.wiz-controls {margin-top:10px;border-top:1px solid #45475a;padding-top:8px;color:#89dceb;white-space:pre;}
+
+
+#ev-stage {background:#0d0e16;}
+.terminal {left:16px;top:10px;width:1888px;height:1056px;padding:63px 16px 18px;border:2px solid #8d91a9;border-radius:14px;box-shadow:none;font-size:25px;}
+.chrome {height:44px;background:#323242;border-bottom:2px solid #555568;border-radius:12px 12px 0 0;font:600 23px/1.2 'DejaVu Sans',sans-serif;gap:11px;color:#e6e7f0;}
+.chrome img {width:28px;height:28px;} .chrome b {margin:0;}
+.chrome small {font:400 20px/1.2 'DejaVu Sans Mono',monospace;color:#c1c5d4;}
+.bar {font-size:22px;gap:12px;} .results{height:345px;}
+.mid {margin:21px 0;} .mid .box {min-height:142px;}
+.info {height:325px;} .hint{font-size:21px;}
+.tui>.hint, #installed>.hint {position:absolute;left:5px;bottom:0;}
+.line {min-height:35px;line-height:1.4;}
+.dialog {width:1430px;min-height:300px;top:50%;padding:30px 32px;}
+.dialog.wide {width:1650px;} .dialog.menu-pop {width:540px;top:52px;}
+.dialog .hint{font-size:20px;} .legend{font-size:23px;} .tabs{font-size:24px;}
+.split {inset:38px 20px 36px;} .termview {height:85%;}
+.wizbox {height:405px;} .wizbox .line {font-size:24px;min-height:33px;}
+.wiz-msg,.wiz-controls,.piHint {font-size:22px;}
+.piBar {font-size:24px;white-space:pre-wrap;}
+.monoscreen>.hint:empty {display:none;}
+.ev-scene {background:#0d0e16;} .ev-scene:has(.ev-shade[hidden])::after {content:"";position:absolute;inset:0;background:rgba(0,0,0,.58);pointer-events:none;}
+/* A chapter or line change must leave the badge and both baselines in place. */
+.ev-continuous .ev-cap-placed {
+  display: grid; grid-template-columns: 36px minmax(0, 1fr);
+  grid-template-rows: 31px 29px; align-content: center; align-items: center;
+  column-gap: 13px; height: 88px; min-height: 88px; padding: 9px 15px;
+  font: 500 23px/29px "DejaVu Sans", sans-serif; letter-spacing: -.45px;
+  background: #181c29; border: 1px solid #677185; border-radius: 12px;
+  box-shadow: 0 4px 16px #080b12aa;
+}
+.ev-continuous .ev-num {
+  grid-column: 1; grid-row: 1 / 3; min-width: 0; margin: 0; padding: 0;
+  height: 34px; font: 600 17px/1 "DejaVu Sans Mono", monospace;
+  color: #e0e6f3; background: #303849; border-color: #555f74;
+}
+.ev-continuous .ev-bold {
+  grid-column: 2; grid-row: 1; color: #f4f6ff; font-size: 28px;
+}
+.ev-continuous .ev-rest { grid-column: 2; grid-row: 2; color: #dce3f0; }
+
+/* Only editorial shots have an unnumbered caption. The scene owns their type
+   so the picture and its lettering can have separate, frame-seekable ramps. */
+.ev-continuous .ev-cap-placed:not(:has(.ev-num)) { display: none; }
+.title-scrim, .end-fade { position: absolute; inset: 0; pointer-events: none; }
+.title-scrim { z-index: 2; background: linear-gradient(100deg, rgba(1,3,9,.74), rgba(2,4,9,.6)); }
+.title-scrim ~ .ev-shade { z-index: 1; }
+.title-copy {
+  position: absolute; z-index: 3; left: 192px; top: 246px; width: 1552px;
+  font: 480 46px/1.38 "DejaVu Sans", sans-serif; color: #e5e8f3;
+}
+.title-copy h1, .title-copy p { margin: 0; }
+.title-copy h1 {
+  font: 700 106px/1.12 "DejaVu Sans", sans-serif; letter-spacing: -5px;
+  color: #fafaff; margin: 21px 0 26px;
+}
+.title-copy .eyebrow {
+  display: flex; gap: 22px; align-items: center;
+  color: #a9e6f4; font: 600 33px/1.25 "DejaVu Sans Mono", monospace; letter-spacing: 2px;
+}
+.eyebrow::before { content: ""; width: 74px; height: 5px; background: #8bdcf3; }
+.open-title { top: 232px; }
+.open-title h1 { display: flex; align-items: center; gap: 32px; font-size: 154px; letter-spacing: -9px; }
+.open-title h1 img { width: 128px; height: 128px; }
+.chapter-title { top: 275px; }
+.chapter-title .sweep-clip { width: 388px; height: 5px; margin-top: 38px; overflow: hidden; }
+.sweep { height: 100%; background: linear-gradient(90deg, #909de4, #93e3f6); }
+.close-title { top: 190px; }
+.close-title h1 { font-size: 100px; }
+.credits {
+  width: fit-content; margin-top: 43px; padding-top: 22px; border-top: 2px solid #586473;
+  display: grid; grid-template-columns: max-content max-content; column-gap: 74px;
+  font-size: 42px; font-weight: 600;
+}
+.credits small { display: block; color: #a9e6f4; font: 400 34px/1.4 "DejaVu Sans Mono", monospace; }
+.title-copy .address { margin-top: 15px; color: #ccd5ec; font: 400 38px/1.4 "DejaVu Sans Mono", monospace; }
+.end-fade { z-index: 4; background: #020309; }
+
+</style>
+<template id="opening" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pi Scan preview  ·  feat/aur-scan-integrated @ 55ef9248</small></div><div class="tui"><div class="bar"><b>Results</b> <span class="menu">Sort ▾</span><span class="filter">[AUR] [core] [extra] [multilib]</span><span class="right">Pi BG: SETUP</span><span class="menu">Config/Lists ▾</span><span class="menu">Panels ▾</span><span class="menu">Options ▾</span></div><section class="box results"><span class="legend">Results</span>
+<div class="line sel">▶ aur    fieldnotes-git     1.4.0-1    Plain-text notes</div>
+<div class="line ">aur    fieldnotes-cli     1.2.0-1    Command-line reader</div></section><div class="mid "><section class="box "><span class="legend">Search history</span>
+<div class="line compact"></div></section><section class="box focus"><span class="legend">Search (focused) [NORMAL]</span>
+<div class="line sky">&gt; </div></section><section class="box "><span class="legend">Install List</span>
+<div class="line compact"></div></section></div><section class="box info"><span class="legend">Package Info</span>
+<div class="line sky">Repository:    aur</div>
+<div class="line ">Package Name:  fieldnotes-git</div>
+<div class="line ">Description:   Plain-text notes</div></section><div class="hint">F1  Help       Tab  Next pane       Esc  Search mode</div></div></div>
+<div class="title-scrim"></div><section class="title-copy open-title"><p class="eyebrow">PI SCAN  /  FEATURE PREVIEW</p><h1><img src="pacsea.svg" alt="">Pacsea</h1><p>Choose a provider, permissions and spending limits.<br>Follow an AUR scan and inspect the evidence before installing.</p></section></template>
+
+<template id="general-entry" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pi Scan preview  ·  feat/aur-scan-integrated @ 55ef9248</small></div><div class="tui"><div class="bar"><b>Results</b> <span class="menu">Sort ▾</span><span class="filter">[AUR] [core] [extra] [multilib]</span><span class="right">Pi BG: OFF</span><span class="menu">Config/Lists ▾</span><span class="menu">Panels ▾</span><span class="menu">Options ▾</span></div><section class="box results"><span class="legend">Results</span>
+<div class="line ">extra  syncthing          1.28.0-1    File synchronization</div>
+<div class="line ">aur    fieldnotes-git     1.4.0-1     Plain-text notes</div>
+<div class="line ">extra  ripgrep            14.1.0-1    Line-oriented search</div>
+<div class="line ">extra  fd                 10.2.0-1    Find files by name</div>
+<div class="line ">extra  bat                0.25.0-1    A cat clone with syntax highlighting</div></section><div class="mid "><section class="box "><span class="legend">Search history</span>
+<div class="line compact"></div></section><section class="box focus"><span class="legend">Search (focused) [NORMAL]</span>
+<div class="line sky">&gt; </div></section><section class="box "><span class="legend">Install List</span>
+<div class="line compact"></div></section></div><section class="box info"><span class="legend">Package Info</span>
+<div class="line sky">Repository:    extra</div>
+<div class="line ">Package Name:  syncthing</div>
+<div class="line ">Description:   Continuous file synchronization</div></section><div class="hint">F1  Help       Tab  Next pane       Esc  Search mode</div><div id="previous" style="position:absolute;inset:0"><div class="shade"></div><section class="dialog menu-pop"><span class="legend">Options</span>
+<div class="line ">1  List installed packages</div>
+<div class="line ">2  Update System</div>
+<div class="line ">3  TUI Optional Dep's</div>
+<div class="line ">4  Repositories</div>
+<div class="line sel"><span id="gesture" class="mark">5  Open Pi Scan Workspace</span></div>
+<div class="line ">6  News management</div></section></div><div id="popup" style="position:absolute;inset:0"><div style="position:absolute;inset:0;background:#1e1e2e"><div class="piBar">1 Scan  2 Progress  3 Results  <span class="active">▸4 Status</span>  5 Settings<span class="state">Ready</span></div><section class="box termview"><span class="legend">Status</span>
+<div class="line head">Right now</div>
+<div class="line ">[B] Background scans: Off</div>
+<div class="line ">Current scan: <span class="mark" id="point">Nothing is scanning</span></div>
+<div class="line ">Waiting: 0</div>
+<div class="line compact"></div>
+<div class="line head">Permissions</div>
+<div class="line ">  Watch for package updates: not allowed</div></section><div class="piHint"><span class="piTitle">Status / Help</span>　 Status workspace · no package added</div></div></div></div></div>
+</template>
+
+<template id="bring-an-aur-target" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pi Scan preview  ·  feat/aur-scan-integrated @ 55ef9248</small></div><div class="tui"><div class="bar"><b>Results</b> <span class="menu">Sort ▾</span><span class="filter">[AUR] [core] [extra] [multilib]</span><span class="right">Pi BG: SETUP</span><span class="menu">Config/Lists ▾</span><span class="menu">Panels ▾</span><span class="menu">Options ▾</span></div><section class="box results"><span class="legend">Results</span>
+<div class="line sel"><span id="gesture" class="mark">▶ aur    fieldnotes-git     1.4.0-1    Plain-text notes</span></div>
+<div class="line ">aur    fieldnotes-cli     1.2.0-1    Command-line reader</div></section><div class="mid "><section class="box "><span class="legend">Search history</span>
+<div class="line compact"></div></section><section class="box focus"><span class="legend">Search (focused) [NORMAL]</span>
+<div class="line sky">&gt; </div></section><section class="box "><span class="legend">Install List</span>
+<div class="line compact"></div></section></div><section class="box info"><span class="legend">Package Info</span>
+<div class="line sky">Repository:    aur</div>
+<div class="line ">Package Name:  fieldnotes-git</div>
+<div class="line ">Description:   Plain-text notes</div></section><div class="hint">F1  Help       Tab  Next pane       Esc  Search mode</div><div id="wizard-entry" style="position:absolute;inset:0;background:#1e1e2e"><div class="piBar">1 Scan  2 Progress  3 Results  4 Status  <span class="active">▸5 Settings</span><span class="state">Not set up</span></div><div class="wiz-head" id="point" style="width:fit-content">Setup 1/7 — Welcome</div><div class="dot">◆ ○ ○ ○ ○ ○ ○ </div><section class="box wizbox"><span class="legend">Welcome</span>
+<div class="line "><span class="mark">This seven-step wizard configures Pi Scan without editing settings.conf or restarting Pacsea.</span></div>
+<div class="line compact"></div>
+<div class="line ">Selected package recipe/source data is sent to the exact provider route you review.</div>
+<div class="line ">Provider credentials remain owned by Pi; Pacsea never asks for, displays, logs, or stores them.</div>
+<div class="line compact"></div>
+<div class="line muted">Conservative defaults remain selected until final Apply.</div></section><div class="wiz-msg">Draft only — no settings, runtime, or consent has changed.</div><div class="wiz-controls">Esc Cancel    n Next</div><div class="piHint"><span class="piTitle">Status / Help</span>　 Tab Next field　 PgUp/PgDn Scroll　 Esc Cancel</div></div></div></div>
+</template>
+
+<template id="verify-pi-readiness" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pi Scan preview  ·  feat/aur-scan-integrated @ 55ef9248</small></div><div class="tui"><div class="piBar">1 Scan  2 Progress  3 Results  4 Status  <span class="active">▸5 Settings</span><span class="state">Not set up</span></div><div class="wiz-head">Setup 2/7 — Pi readiness</div><div class="dot">● ◆ ○ ○ ○ ○ ○ </div><section class="box wizbox"><span class="legend">Pi readiness</span>
+<div class="line ">Pi executable: pi_</div>
+<div class="line sel"><span class="mark" id="point">[Enter] Verify without a model call</span></div>
+<div class="line compact"></div>
+<div class="line ">Verified Pi version: <span id="value-1">—</span></div>
+<div class="line compact"></div>
+<div class="line muted">The probe uses version/help/capability metadata only; it does not submit a prompt.</div></section><div class="wiz-msg"><span id="value-2">Verifying Pi without a model call…</span></div><div class="wiz-controls">Esc Cancel    b Back    n Next</div><div class="piHint"><span class="piTitle">Status / Help</span>　 Tab Next field　 PgUp/PgDn Scroll　 Esc Cancel</div></div></div>
+</template>
+
+<template id="pick-the-exact-route" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pi Scan preview  ·  feat/aur-scan-integrated @ 55ef9248</small></div><div class="tui"><div class="piBar">1 Scan  2 Progress  3 Results  4 Status  <span class="active">▸5 Settings</span><span class="state">Not set up</span></div><div class="wiz-head">Setup 3/7 — Route</div><div class="dot">● ● ◆ ○ ○ ○ ○ </div><section class="box wizbox"><span class="legend">Route</span>
+<div class="line ">Choose only from exact provider/model identifiers advertised by this verified Pi probe.</div>
+<div class="line compact"></div>
+<div class="line sel"><span class="mark" id="point">← Primary route: <span id="value-1">demo/reviewer-b</span> →</span></div>
+<div class="line ">← Thinking: medium →</div>
+<div class="line ">Advertised exact routes: 2</div>
+<div class="line compact"></div>
+<div class="line muted">Arbitrary route text is unavailable; re-probe if Pi configuration changes.</div></section><div class="wiz-msg">Draft only — no settings, runtime, or consent has changed.</div><div class="wiz-controls">Esc Cancel    b Back    n Next</div><div class="piHint"><span class="piTitle">Status / Help</span>　 Tab Next field　 PgUp/PgDn Scroll　 Esc Cancel</div></div></div>
+</template>
+
+<template id="review-disclosure" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pi Scan preview  ·  feat/aur-scan-integrated @ 55ef9248</small></div><div class="tui"><div class="piBar">1 Scan  2 Progress  3 Results  4 Status  <span class="active">▸5 Settings</span><span class="state">Not set up</span></div><div class="wiz-head">Setup 4/7 — Pricing and privacy</div><div class="dot">● ● ● ◆ ○ ○ ○ </div><section class="box wizbox"><span class="legend">Pricing and privacy</span>
+<div class="line ">Selected route: demo/reviewer-a</div>
+<div class="line ">Maximum reserved per scan: 10000 tokens · $0.000125</div>
+<div class="line ">Pricing source: Pi's verified live model catalog (metered rate)</div>
+<div class="line compact"></div>
+<div class="line warn"><span class="mark">Provider disclosure: analyzed package data leaves this machine and model calls may incur cost.</span></div>
+<div class="line ">Coverage can be incomplete; results do not authorize installation.</div>
+<div class="line compact"></div>
+<div class="line " id="point" style="width:fit-content">[Space] I reviewed privacy, cost, and coverage: <span id="value-1">off</span></div></section><div class="wiz-msg">Draft only — no settings, runtime, or consent has changed.</div><div class="wiz-controls">Esc Cancel    b Back    n Next</div><div class="piHint"><span class="piTitle">Status / Help</span>　 Tab Next field　 PgUp/PgDn Scroll　 Esc Cancel</div></div></div>
+</template>
+
+<template id="permit-foreground-scans" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pi Scan preview  ·  feat/aur-scan-integrated @ 55ef9248</small></div><div class="tui"><div class="piBar">1 Scan  2 Progress  3 Results  4 Status  <span class="active">▸5 Settings</span><span class="state">Not set up</span></div><div class="wiz-head">Setup 4/7 — Pricing and privacy</div><div class="dot">● ● ● ◆ ○ ○ ○ </div><section class="box wizbox"><span class="legend">Pricing and privacy</span>
+<div class="line ">Selected route: demo/reviewer-a</div>
+<div class="line compact"></div>
+<div class="line ">Coverage can be incomplete; results do not authorize installation.</div>
+<div class="line compact"></div>
+<div class="line ">[Space] I reviewed privacy, cost, and coverage: on</div>
+<div class="line sel"><span class="mark" id="point">[Space] I separately allow foreground paid execution: <span id="value-1">off</span></span></div>
+<div class="line ">[Space] I separately accept any displayed readiness warning: off</div></section><div class="wiz-msg">Draft only — no settings, runtime, or consent has changed.</div><div class="wiz-controls">Esc Cancel    b Back    n Next</div><div class="piHint"><span class="piTitle">Status / Help</span>　 Tab Next field　 PgUp/PgDn Scroll　 Esc Cancel</div></div></div>
+</template>
+
+<template id="watch-for-updates" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pi Scan preview  ·  feat/aur-scan-integrated @ 55ef9248</small></div><div class="tui"><div class="piBar">1 Scan  2 Progress  3 Results  4 Status  <span class="active">▸5 Settings</span><span class="state">Not set up</span></div><div class="wiz-head">Setup 5/7 — Optional behavior</div><div class="dot">● ● ● ● ◆ ○ ○ </div><section class="box wizbox"><span class="legend">Optional behavior</span>
+<div class="line sel"><span class="mark" id="point">[Space] Read-only background observation: <span id="value-1">off</span></span></div>
+<div class="line ">[Space] Paid background execution: off</div>
+<div class="line ">← Ordered exact fallback: off ▾ →</div>
+<div class="line ">← Background starts/hour (0 = Unlimited): 5 →</div>
+<div class="line ">← Background tokens/24h (0 = Unlimited): 500000 →</div>
+<div class="line ">← Background cost USD/24h (0 = Unlimited): Unlimited →</div>
+<div class="line ">← Max tokens per scan (0 = Unlimited): 10000 →</div></section><div class="wiz-msg">Draft only — no settings, runtime, or consent has changed.</div><div class="wiz-controls">Esc Cancel    b Back    n Next</div><div class="piHint"><span class="piTitle">Status / Help</span>　 Tab Next field　 PgUp/PgDn Scroll　 Esc Cancel</div></div></div>
+</template>
+
+<template id="choose-background-policy" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pi Scan preview  ·  feat/aur-scan-integrated @ 55ef9248</small></div><div class="tui"><div class="piBar">1 Scan  2 Progress  3 Results  4 Status  <span class="active">▸5 Settings</span><span class="state">Not set up</span></div><div class="wiz-head">Setup 5/7 — Optional behavior</div><div class="dot">● ● ● ● ◆ ○ ○ </div><section class="box wizbox"><span class="legend">Optional behavior</span>
+<div class="line ">[Space] Read-only background observation: on</div>
+<div class="line sel"><span class="mark" id="point">[Space] Paid background execution: <span id="value-1">off</span></span></div>
+<div class="line ">← Ordered exact fallback: off ▾ →</div>
+<div class="line ">← Background starts/hour (0 = Unlimited): 5 →</div>
+<div class="line ">← Background tokens/24h (0 = Unlimited): 500000 →</div>
+<div class="line ">← Background cost USD/24h (0 = Unlimited): Unlimited →</div>
+<div class="line ">← Max tokens per scan (0 = Unlimited): 10000 →</div></section><div class="wiz-msg">Draft only — no settings, runtime, or consent has changed.</div><div class="wiz-controls">Esc Cancel    b Back    n Next</div><div class="piHint"><span class="piTitle">Status / Help</span>　 Tab Next field　 PgUp/PgDn Scroll　 Esc Cancel</div></div></div>
+</template>
+
+<template id="choose-fallback-policy" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pi Scan preview  ·  feat/aur-scan-integrated @ 55ef9248</small></div><div class="tui"><div class="piBar">1 Scan  2 Progress  3 Results  4 Status  <span class="active">▸5 Settings</span><span class="state">Not set up</span></div><div class="wiz-head">Setup 5/7 — Optional behavior</div><div class="dot">● ● ● ● ◆ ○ ○ </div><section class="box wizbox"><span class="legend">Optional behavior</span>
+<div class="line ">[Space] Read-only background observation: on</div>
+<div class="line ">[Space] Paid background execution: on</div>
+<div class="line ">← Ordered exact fallback: off ▾ →</div>
+<div class="line ">← Background starts/hour (0 = Unlimited): 5 →</div>
+<div class="line ">← Background tokens/24h (0 = Unlimited): 500000 →</div>
+<div class="line ">← Background cost USD/24h (0 = Unlimited): Unlimited →</div>
+<div class="line ">← Max tokens per scan (0 = Unlimited): 10000 →</div></section><div class="wiz-msg">Draft only — no settings, runtime, or consent has changed.</div><div class="wiz-controls">Esc Cancel    b Back    n Next</div><div class="piHint"><span class="piTitle">Status / Help</span>　 Tab Next field　 PgUp/PgDn Scroll　 Esc Cancel</div><div id="popup" style="position:absolute;inset:0"><div class="shade"></div><section class="dialog "><span class="legend">Choose a backup model · 1/2</span>
+<div class="line ">Search: _</div>
+<div class="line compact"></div>
+<div class="line sel"><span class="mark" id="point">▸ ✔ Off — no backup model</span></div>
+<div class="line ">    demo/reviewer-b</div><div class="hint">↑↓ move · type to search · Enter choose · Esc close</div></section></div></div></div>
+</template>
+
+<template id="set-per-scan-tokens" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pi Scan preview  ·  feat/aur-scan-integrated @ 55ef9248</small></div><div class="tui"><div class="piBar">1 Scan  2 Progress  3 Results  4 Status  <span class="active">▸5 Settings</span><span class="state">Not set up</span></div><div class="wiz-head">Setup 5/7 — Optional behavior</div><div class="dot">● ● ● ● ◆ ○ ○ </div><section class="box wizbox"><span class="legend">Optional behavior</span>
+<div class="line ">← Background tokens/24h (0 = Unlimited): 500000 →</div>
+<div class="line ">← Background cost USD/24h (0 = Unlimited): Unlimited →</div>
+<div class="line ">← Result retention days: 30 →</div>
+<div class="line ">Credential-free HTTPS proxy: —_</div>
+<div class="line compact"></div>
+<div class="line sel"><span class="mark" id="point">← Max tokens per scan (0 = Unlimited): <span id="value-1">10000_</span> →</span></div></section><div class="wiz-msg">Draft only — no settings, runtime, or consent has changed.</div><div class="wiz-controls">Esc Cancel    b Back    n Next</div><div class="piHint"><span class="piTitle">Status / Help</span>　 Tab Next field　 PgUp/PgDn Scroll　 Esc Cancel</div></div></div>
+</template>
+
+<template id="review-the-draft" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pi Scan preview  ·  feat/aur-scan-integrated @ 55ef9248</small></div><div class="tui"><div class="piBar">1 Scan  2 Progress  3 Results  4 Status  <span class="active">▸5 Settings</span><span class="state">Not set up</span></div><div class="wiz-head">Setup 6/7 — Review</div><div class="dot">● ● ● ● ● ◆ ○ </div><section class="box wizbox"><span class="legend">Review</span>
+<div class="line ">Binary · exact route · thinking: pi · demo/reviewer-a · medium</div>
+<div class="line ">Verified Pi version: 0.84.0</div>
+<div class="line ">Ordered fallback: off</div>
+<div class="line ">Disclosure / foreground paid / observation / background paid / fallback / readiness:</div>
+<div class="line ">  on / on / on / on / off / off</div>
+<div class="line compact"></div>
+<div class="line sky"><span class="mark" id="point">Candidate validation made no durable change.</span></div></section><div class="wiz-msg">Draft only — no settings, runtime, or consent has changed.</div><div class="wiz-controls">Esc Cancel    b Back    a Apply</div><div class="piHint"><span class="piTitle">Status / Help</span>　 Tab Next field　 PgUp/PgDn Scroll　 Esc Cancel</div></div></div>
+</template>
+
+<template id="activate-the-runtime" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pi Scan preview  ·  feat/aur-scan-integrated @ 55ef9248</small></div><div class="tui"><div class="piBar">1 Scan  2 Progress  3 Results  4 Status  <span class="active">▸5 Settings</span><span class="state"></span></div><div class="wiz-head">Setup 7/7 — Activate</div><div class="dot">● ● ● ● ● ● ◆ </div><section class="box wizbox"><span class="legend">Activate</span>
+<div class="line "><span class="mark" id="point"><span id="value-1">Revalidating exact route, pricing, limits, and consent binding…</span></span></div>
+<div class="line compact"></div>
+<div class="line ">No queue work is exposed before the candidate transaction commits.</div>
+<div class="line compact"></div>
+<div class="line muted">Ready means configured and connected, not that any package is safe.</div></section><div class="wiz-msg"><span id="value-2">Constructing and health-checking the candidate runtime…</span></div><div class="wiz-controls">Esc Close</div><div class="piHint"><span class="piTitle">Status / Help</span>　 Tab Next field　 PgUp/PgDn Scroll　 Esc Cancel</div></div></div>
+</template>
+
+<template id="chapter-12" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pi Scan preview  ·  feat/aur-scan-integrated @ 55ef9248</small></div><div class="tui"><div class="piBar">1 Scan  2 Progress  3 Results  4 Status  <span class="active">▸5 Settings</span><span class="state"></span></div><div class="wiz-head">Setup 7/7 — Activate</div><div class="dot">● ● ● ● ● ● ◆ </div><section class="box wizbox"><span class="legend">Activate</span>
+<div class="line "><span class="mark" id="point"><span id="value-1">Pi Scan is verified and ready; no Pacsea restart is required.</span></span></div>
+<div class="line compact"></div>
+<div class="line ">No queue work is exposed before the candidate transaction commits.</div>
+<div class="line compact"></div>
+<div class="line muted">Ready means configured and connected, not that any package is safe.</div></section><div class="wiz-msg"><span id="value-2">Pi Scan setup completed and the production runtime is connected.</span></div><div class="wiz-controls">Esc Close</div><div class="piHint"><span class="piTitle">Status / Help</span>　 Tab Next field　 PgUp/PgDn Scroll　 Esc Cancel</div></div></div>
+<div class="title-scrim"></div><section class="title-copy chapter-title"><p class="eyebrow">PI SCAN  /  QUEUE</p><h1>Follow a scan</h1><p>The provider and spending rules are set.<br>Choose the AUR targets, then follow the active scan.</p></section></template>
+
+<template id="select-scan-targets" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pi Scan preview  ·  feat/aur-scan-integrated @ 55ef9248</small></div><div class="tui"><div class="piBar"><span class="active">▸1 Scan</span>  2 Progress  3 Results  4 Status  5 Settings<span class="state">Ready</span></div><section class="box termview"><span class="legend">Scan</span>
+<div class="line ">Tick the AUR packages you want checked, then press Enter to start the scan.</div>
+<div class="line compact"></div>
+<div class="line head">Packages</div>
+<div class="line sky">[x] fieldnotes-git — not scanned yet · version: —</div>
+<div class="line sel"><span class="mark" id="point"><span id="value-1">[ ]</span> fieldnotes-cli — not scanned yet · version: —</span></div></section><div class="piHint"><span class="piTitle">Status / Help</span>　 Space Tick   Enter Start scan</div></div></div>
+</template>
+
+<template id="dry-run-preview" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pi Scan preview  ·  feat/aur-scan-integrated @ 55ef9248</small></div><div class="tui"><div class="piBar"><span class="active">▸1 Scan</span>  2 Progress  3 Results  4 Status  5 Settings<span class="state">Ready</span></div><section class="box termview"><span class="legend" id="before">Scan</span>
+<div class="line ">Tick the AUR packages you want checked, then press Enter to start the scan.</div>
+<div class="line compact"></div>
+<div class="line head">Packages</div>
+<div class="line ">[x] fieldnotes-git — not scanned yet · version: —</div>
+<div class="line compact"></div>
+<div class="line">[x] fieldnotes-cli — not scanned yet · version: —</div><div class="line sky"><span class="mark" id="point"><span id="value-1">　</span></span></div>
+<div class="line "><span id="value-2">　</span></div></section><div class="piHint"><span class="piTitle">Status / Help</span>　 Enter Preview</div></div></div>
+</template>
+
+<template id="queue-selected-packages" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pi Scan preview  ·  feat/aur-scan-integrated @ 55ef9248</small></div><div class="tui"><div class="piBar"><span class="active">▸1 Scan</span>  2 Progress  3 Results  4 Status  5 Settings<span class="state">Ready</span></div><section class="box termview"><span class="legend">Scan</span>
+<div class="line ">Tick the AUR packages you want checked, then press Enter to start the scan.</div>
+<div class="line compact"></div>
+<div class="line head">Packages</div>
+<div class="line sky"><span class="mark" id="point">[x] fieldnotes-git — <span id="value-1">not scanned yet · version: —</span></span></div>
+<div class="line ">[x] fieldnotes-cli — waiting · version: 340a8fcc035e</div></section><div class="piHint"><span class="piTitle">Status / Help</span>　 <span id="value-2">Checking the selected packages before scanning</span></div></div></div>
+</template>
+
+<template id="follow-the-phase" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pi Scan preview  ·  feat/aur-scan-integrated @ 55ef9248</small></div><div class="tui"><div class="piBar">1 Scan  <span class="active">▸2 Progress</span>  3 Results  4 Status  5 Settings<span class="state">Ready</span></div><section class="box termview"><span class="legend">Progress</span>
+<div class="line head">This session</div>
+<div class="line sky">⠹ [░░░░░░░░░░] 0/2 · 1 scanning · 1 waiting</div>
+<div class="line compact"></div>
+<div class="line head">Now</div>
+<div class="line ">  Current scan: fieldnotes-git @ e38065a62ad4</div>
+<div class="line ">  Current step: <span class="mark" id="point"><span id="value-1">Acquiring and integrity-checking package sources</span></span></div>
+<div class="line compact"></div>
+<div class="line head">Waiting</div>
+<div class="line ">  fieldnotes-cli @ 340a8fcc035e</div></section><div class="piHint"><span class="piTitle">Status / Help</span>　 p Pause    x Cancel</div></div></div>
+</template>
+
+<template id="pause-queued-work" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pi Scan preview  ·  feat/aur-scan-integrated @ 55ef9248</small></div><div class="tui"><div class="piBar">1 Scan  <span class="active">▸2 Progress</span>  3 Results  4 Status  5 Settings<span class="state">Ready</span></div><section class="box termview"><span class="legend">Progress</span>
+<div class="line head">This session</div>
+<div class="line sky">⠹ [░░░░░░░░░░] 0/2 · 1 scanning · 1 waiting</div>
+<div class="line compact"></div>
+<div class="line head">Now</div>
+<div class="line ">  Current scan: fieldnotes-git @ e38065a62ad4</div>
+<div class="line ">  Current step: Validating the result against the frozen target</div>
+<div class="line compact"></div>
+<div class="line warn"><span class="mark" id="point"><span id="value-1">Requesting pause…</span></span></div></section><div class="piHint"><span class="piTitle">Status / Help</span>　 p Pause / Resume</div></div></div>
+</template>
+
+<template id="cancel-an-active-scan" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pi Scan preview  ·  feat/aur-scan-integrated @ 55ef9248</small></div><div class="tui"><div class="piBar">1 Scan  <span class="active">▸2 Progress</span>  3 Results  4 Status  5 Settings<span class="state">Ready</span></div><section class="box termview"><span class="legend">Progress</span>
+<div class="line head">This session</div>
+<div class="line sky">⠹ [░░░░░░░░░░] 0/2 · 1 scanning · 1 waiting</div>
+<div class="line compact"></div>
+<div class="line head">Now</div>
+<div class="line ">  Current scan: fieldnotes-git @ e38065a62ad4</div>
+<div class="line ">  Current step: Acquiring and integrity-checking package sources</div>
+<div class="line compact"></div>
+<div class="line warn"><span class="mark" id="point"><span id="value-1">Press x again to cancel the scan</span></span></div></section><div class="piHint"><span class="piTitle">Status / Help</span>　 x Cancel</div></div></div>
+</template>
+
+<template id="retry-checked-failures" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pi Scan preview  ·  feat/aur-scan-integrated @ 55ef9248</small></div><div class="tui"><div class="piBar">1 Scan  <span class="active">▸2 Progress</span>  3 Results  4 Status  5 Settings<span class="state">Ready</span></div><section class="box termview"><span class="legend">Progress</span>
+<div class="line head">This session</div>
+<div class="line warn">1 cancelled   ·   1 done</div>
+<div class="line compact"></div>
+<div class="line head">Now</div>
+<div class="line ">  Nothing is scanning right now.</div>
+<div class="line compact"></div>
+<div class="line head">Waiting</div>
+<div class="line ">  <span class="mark" id="point"><span id="value-1">Nothing is waiting.</span></span></div></section><div class="piHint"><span class="piTitle">Status / Help</span>　 r Retry failed scans</div></div></div>
+</template>
+
+<template id="chapter-19" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pi Scan preview  ·  feat/aur-scan-integrated @ 55ef9248</small></div><div class="tui"><div class="piBar">1 Scan  <span class="active">▸2 Progress</span>  3 Results  4 Status  5 Settings<span class="state">Ready</span></div><section class="box termview"><span class="legend">Progress</span>
+<div class="line head">This session</div>
+<div class="line warn">1 cancelled   ·   1 done</div>
+<div class="line compact"></div>
+<div class="line head">Now</div>
+<div class="line ">  Nothing is scanning right now.</div>
+<div class="line compact"></div>
+<div class="line head">Waiting</div>
+<div class="line ">  <span class="mark" id="point"><span id="value-1">fieldnotes-git @ e38065a62ad4</span></span></div></section><div class="piHint"><span class="piTitle">Status / Help</span>　 r Retry failed scans</div></div></div>
+<div class="title-scrim"></div><section class="title-copy chapter-title"><p class="eyebrow">PI SCAN  /  RESULTS</p><h1>Read the evidence</h1><p>The example scan has finished.<br>Open its finding, inspect coverage and recheck the package identity.</p></section></template>
+
+<template id="read-results" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pi Scan preview  ·  feat/aur-scan-integrated @ 55ef9248</small></div><div class="tui"><div class="piBar">1 Scan  2 Progress  <span class="active">▸3 Results</span>  4 Status  5 Settings<span class="state">Ready</span></div><section class="box termview"><span class="legend">Results</span>
+<div class="line warn">AI-assisted reviews can miss problems. A clean result does not prove a package is safe.</div>
+<div class="line compact"></div>
+<div class="line head">Scanned packages</div>
+<div class="line sky">› ⚠ fieldnotes-git  <span class="mark" id="point">1 finding to review [medium] · Up to date</span></div>
+<div class="line ">  ⚠ fieldnotes-cli  No problems found, but some files could not be checked</div></section><div class="piHint"><span class="piTitle">Status / Help</span>　 Enter Show report</div></div></div>
+</template>
+
+<template id="inspect-the-evidence" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pi Scan preview  ·  feat/aur-scan-integrated @ 55ef9248</small></div><div class="tui"><div class="piBar">1 Scan  2 Progress  <span class="active">▸3 Results</span>  4 Status  5 Settings<span class="state">Ready</span></div><section class="box termview"><span class="legend">Report</span>
+<div class="line head">Review summary</div>
+<div class="line ">  Result: 1 finding needs review</div>
+<div class="line ">  Package version: Matches the version that was scanned</div>
+<div class="line compact"></div>
+<div class="line head">Findings</div>
+<div class="line warn">  [medium] Unpinned source revision</div>
+<div class="line ">  Location: PKGBUILD:8</div>
+<div class="line ">  <span class="mark" id="point">Evidence: The source refers to a moving branch.</span></div></section><div class="piHint"><span class="piTitle">Status / Help</span>　 [c] Review &amp; continue   t Technical details   Esc Back to results</div></div></div>
+</template>
+
+<template id="show-technical-details" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pi Scan preview  ·  feat/aur-scan-integrated @ 55ef9248</small></div><div class="tui"><div class="piBar">1 Scan  2 Progress  <span class="active">▸3 Results</span>  4 Status  5 Settings<span class="state">Ready</span></div><section class="box termview"><span class="legend">Report</span>
+<div class="line head">Technical details</div>
+<div class="line "><span class="mark" id="point"><span id="value-1">hidden · press t to show</span></span></div>
+<div class="line compact"></div>
+<div class="line "><span id="value-2">　</span></div>
+<div class="line "><span id="value-3">　</span></div>
+<div class="line "><span id="value-4">　</span></div></section><div class="piHint"><span class="piTitle">Status / Help</span>　 [c] Review &amp; continue   t Technical details</div></div></div>
+</template>
+
+<template id="recognize-incomplete-coverage" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pi Scan preview  ·  feat/aur-scan-integrated @ 55ef9248</small></div><div class="tui"><div class="piBar">1 Scan  2 Progress  <span class="active">▸3 Results</span>  4 Status  5 Settings<span class="state">Ready</span></div><section class="box termview"><span class="legend">Report</span>
+<div class="line head">Review summary</div>
+<div class="line ">  Result: No findings, but part of the package could not be checked</div>
+<div class="line ">  Coverage: Some files could not be checked</div>
+<div class="line compact"></div>
+<div class="line head">What could not be checked</div>
+<div class="line sky">Package: fieldnotes-cli</div><div class="line warn"><span class="mark" id="point">The model did not successfully read any package file, so this result is not a full review.</span></div></section><div class="piHint"><span class="piTitle">Status / Help</span>　 [c] Review &amp; continue   Esc Back to results</div></div></div>
+</template>
+
+<template id="check-status" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pi Scan preview  ·  feat/aur-scan-integrated @ 55ef9248</small></div><div class="tui"><div class="piBar">1 Scan  2 Progress  3 Results  <span class="active">▸4 Status</span>  5 Settings<span class="state">Ready</span></div><section class="box termview"><span class="legend">Status</span>
+<div class="line head">Right now</div>
+<div class="line ">  [B] Background scans: On</div>
+<div class="line ">  Current scan: Nothing is scanning</div>
+<div class="line ">  Waiting: 1</div>
+<div class="line compact"></div>
+<div class="line head">Background scan limits</div>
+<div class="line ">  <span class="mark" id="point">Scans started (last hour): 5 / 5</span></div>
+<div class="line ">  AI usage, last 24 h (tokens): 18300 / 500000</div>
+<div class="line ">  Cost, last 24 h: $0.02 / Unlimited</div></section><div class="piHint"><span class="piTitle">Status / Help</span>　 b Adjust unattended budgets    B Background scans</div></div></div>
+</template>
+
+<template id="adjust-blocked-budgets" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pi Scan preview  ·  feat/aur-scan-integrated @ 55ef9248</small></div><div class="tui"><div class="piBar">1 Scan  2 Progress  3 Results  <span class="active">▸4 Status</span>  5 Settings<span class="state">Ready</span></div><section class="box termview"><span class="legend">Status</span>
+<div class="line head">Right now</div>
+<div class="line ">  [B] Background scans: On</div>
+<div class="line ">  Current scan: Nothing is scanning</div>
+<div class="line ">  Waiting: 1</div>
+<div class="line compact"></div>
+<div class="line head">Background scan limits</div>
+<div class="line ">  Scans started (last hour): 5 / 5</div>
+<div class="line ">  AI usage, last 24 h (tokens): 18300 / 500000</div>
+<div class="line ">  Cost, last 24 h: $0.02 / Unlimited</div></section><div class="piHint"><span class="piTitle">Status / Help</span>　 b Adjust unattended budgets</div><div id="popup" style="position:absolute;inset:0"><div class="shade"></div><section class="dialog "><span class="legend">Adjust unattended budgets</span>
+<div class="line ">Choose how to adjust every limit currently blocking the next background scan.</div>
+<div class="line compact"></div>
+<div class="line ">background starts/hour: 5 → <span id="value-1">10</span></div>
+<div class="line compact"></div>
+<div class="line "><span id="value-2">▸ Double affected limits</span></div>
+<div class="line "><span class="mark" id="point"><span id="value-3">  Set affected limits to Unlimited</span></span></div>
+<div class="line compact"></div>
+<div class="line warn">Unlimited removes these spending ceilings.</div><div class="hint">←/→ Choose   •   Enter Apply   •   Esc Cancel</div></section></div></div></div>
+</template>
+
+<template id="change-background-policy" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pi Scan preview  ·  feat/aur-scan-integrated @ 55ef9248</small></div><div class="tui"><div class="piBar">1 Scan  2 Progress  3 Results  <span class="active">▸4 Status</span>  5 Settings<span class="state">Ready</span></div><section class="box termview"><span class="legend">Status</span>
+<div class="line head">Right now</div>
+<div class="line ">  <span class="mark" id="point">[B] Background scans: <span id="value-1">On</span></span></div>
+<div class="line ">  Current scan: Nothing is scanning</div>
+<div class="line ">  Waiting: 1</div>
+<div class="line compact"></div>
+<div class="line head">Background scan limits</div>
+<div class="line ">  Scans started (last hour): 5 / 5</div>
+<div class="line ">  AI usage, last 24 h (tokens): 18300 / 500000</div>
+<div class="line ">  Cost, last 24 h: $0.02 / Unlimited</div></section><div class="piHint"><span class="piTitle">Status / Help</span>　 <span id="value-2">B Background scans</span></div></div></div>
+</template>
+
+<template id="use-the-background-chip" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pi Scan preview  ·  feat/aur-scan-integrated @ 55ef9248</small></div><div class="tui"><div class="bar"><b>Results</b> <span class="menu">Sort ▾</span><span class="filter">[AUR] [core] [extra] [multilib]</span><span class="right"><span class="mark" id="point">Pi BG: <span id="value-1">OFF</span></span></span><span class="menu">Config/Lists ▾</span><span class="menu">Panels ▾</span><span class="menu">Options ▾</span></div><section class="box results"><span class="legend">Results</span>
+<div class="line sel">▶ aur    fieldnotes-git     1.4.0-1    Plain-text notes</div></section><div class="mid "><section class="box "><span class="legend">Search history</span>
+<div class="line compact"></div></section><section class="box focus"><span class="legend">Search (focused) [NORMAL]</span>
+<div class="line sky">&gt; </div></section><section class="box "><span class="legend">Install List</span>
+<div class="line compact"></div></section></div><section class="box info"><span class="legend">Package Info</span>
+<div class="line sky">Repository:    aur</div>
+<div class="line ">Package Name:  fieldnotes-git</div></section><div class="hint">F1  Help       Tab  Next pane       Esc  Search mode</div></div></div>
+</template>
+
+<template id="reopen-setup" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pi Scan preview  ·  feat/aur-scan-integrated @ 55ef9248</small></div><div class="tui"><div class="piBar">1 Scan  2 Progress  3 Results  4 Status  <span class="active">▸5 Settings</span><span class="state">Ready</span></div><section class="box termview"><span class="legend">Settings</span>
+<div class="line sel">▶ <span class="mark" id="point">Run guided setup</span></div>
+<div class="line ">  Check that setup works</div>
+<div class="line ">  [x] Background scans</div>
+<div class="line ">  [x] I understand what data is sent and what it may cost</div>
+<div class="line ">  [x] Check for package updates in the background (read-only)</div>
+<div class="line ">  [x] Allow scans I start to use the paid AI model</div>
+<div class="line ">  [ ] Allow backup models if the main model fails</div></section><div class="piHint"><span class="piTitle">Status / Help</span>　 w Guided setup   v Check setup   B Background scans</div></div></div>
+</template>
+
+<template id="review-and-continue" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pi Scan preview  ·  feat/aur-scan-integrated @ 55ef9248</small></div><div class="tui"><div class="piBar">1 Scan  2 Progress  <span class="active">▸3 Results</span>  4 Status  5 Settings<span class="state">Ready</span></div><section class="box termview"><span class="legend">Report</span>
+<div class="line head">Review summary</div>
+<div class="line ">  Result: 1 finding needs review</div>
+<div class="line ">  Package version: Matches the version that was scanned</div>
+<div class="line compact"></div>
+<div class="line head">Findings</div>
+<div class="line warn">  [medium] Unpinned source revision</div>
+<div class="line ">  Location: PKGBUILD:8</div>
+<div class="line ">  Evidence: The source refers to a moving branch.</div></section><div class="piHint"><span class="piTitle">Status / Help</span>　 [c] Review &amp; continue</div><div id="popup" style="position:absolute;inset:0"><div class="shade"></div><section class="dialog "><span class="legend">Review &amp; continue</span>
+<div class="line sky">Package: fieldnotes-git</div>
+<div class="line compact"></div>
+<div class="line head">Confirming will record:</div>
+<div class="line ">No additional risk acknowledgement is required.</div>
+<div class="line compact"></div>
+<div class="line head">Next process steps</div>
+<div class="line ">1. <span class="mark" id="point">Pacsea rechecks the current AUR HEAD and all mutable-source identities.</span></div>
+<div class="line ">2. If any identity changed, continuation stops so you can review or rescan.</div><div class="hint">[ Enter Confirm ]    [ Esc Cancel ]</div></section></div></div></div>
+</template>
+
+<template id="refuse-a-changed-identity" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pi Scan preview  ·  feat/aur-scan-integrated @ 55ef9248</small></div><div class="tui"><div class="piBar">1 Scan  2 Progress  <span class="active">▸3 Results</span>  4 Status  5 Settings<span class="state">Ready</span></div><section class="box termview"><span class="legend">Report</span>
+<div class="line head">Review summary</div>
+<div class="line ">  Package version: Package changed after this scan</div>
+<div class="line compact"></div>
+<div class="line warn"><span class="mark" id="point">Package changed since scan</span></div>
+<div class="line compact"></div>
+<div class="line "><span id="value-1">　</span></div></section><div class="piHint"><span class="piTitle">Status / Help</span>　 Esc Back to results</div></div></div>
+</template>
+
+<template id="return-to-the-install-list" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pi Scan preview  ·  feat/aur-scan-integrated @ 55ef9248</small></div><div class="tui"><div class="bar"><b>Results</b> <span class="menu">Sort ▾</span><span class="filter">[AUR] [core] [extra] [multilib]</span><span class="right">Pi BG: ON</span><span class="menu">Config/Lists ▾</span><span class="menu">Panels ▾</span><span class="menu">Options ▾</span></div><section class="box results"><span class="legend">Results</span>
+<div class="line sel">▶ aur    fieldnotes-git     1.4.0-1    Plain-text notes</div></section><div class="mid "><section class="box "><span class="legend">Search history</span>
+<div class="line compact"></div></section><section class="box focus"><span class="legend">Search (focused) [NORMAL]</span>
+<div class="line sky">&gt; </div></section><section class="box "><span class="legend" id="before">Install List</span>
+<div class="line "><span class="mark" id="point"><span id="value-1">　</span></span></div></section></div><section class="box info"><span class="legend">Package Info</span>
+<div class="line sky">Repository:    aur</div>
+<div class="line ">Package Name:  fieldnotes-git</div></section><div class="hint">F1  Help       Tab  Next pane       Esc  Search mode</div></div></div>
+</template>
+
+<template id="credits" data-width="1920" data-height="1080">
+<div class="terminal"><div class="chrome"><img src="pacsea.svg" alt=""><b>Pacsea</b><small>Pi Scan preview  ·  feat/aur-scan-integrated @ 55ef9248</small></div><div class="tui"><div class="bar"><b>Results</b> <span class="menu">Sort ▾</span><span class="filter">[AUR] [core] [extra] [multilib]</span><span class="right">Pi BG: ON</span><span class="menu">Config/Lists ▾</span><span class="menu">Panels ▾</span><span class="menu">Options ▾</span></div><section class="box results"><span class="legend">Results</span>
+<div class="line sel">▶ aur    fieldnotes-git     1.4.0-1    Plain-text notes</div></section><div class="mid "><section class="box "><span class="legend">Search history</span>
+<div class="line compact"></div></section><section class="box focus"><span class="legend">Search (focused) [NORMAL]</span>
+<div class="line sky">&gt; </div></section><section class="box "><span class="legend" id="before">Install List</span>
+<div class="line "><span class="mark" id="point"><span id="value-1">fieldnotes-git</span></span></div></section></div><section class="box info"><span class="legend">Package Info</span>
+<div class="line sky">Repository:    aur</div>
+<div class="line ">Package Name:  fieldnotes-git</div></section><div class="hint">F1  Help       Tab  Next pane       Esc  Search mode</div></div></div>
+<div class="title-scrim"></div><section class="title-copy close-title"><p class="eyebrow">PI SCAN  /  FEATURE PREVIEW</p><h1>Ready for install review</h1><p>A matching fieldnotes-git revision is in the install list.<br>Its scan report remains available for review.</p><div class="credits"><div><small>Project</small>Pacsea / Firstpick</div><div><small>Original music</small>Quiet Index</div></div><p class="address">github.com/Firstp1ck/Pacsea</p></section><div class="end-fade"></div></template>

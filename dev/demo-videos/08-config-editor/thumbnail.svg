@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1920" height="1080" viewBox="0 0 1920 1080" font-family="DejaVu Sans Mono, monospace">
+  <title>Pacsea: Config editor</title>
+  <desc>The fuzzy-search preference in Pacsea's edit dialog, with true selected.</desc>
+  <rect width="1920" height="1080" fill="#1e1e2e"/>
+  <image x="108" y="67" width="156" height="156" xlink:href="../../../data/assets/pacsea.svg"/>
+  <text x="296" y="195" font-weight="bold" font-size="136" fill="#cdd6f4">Pacsea</text>
+  <text x="106" y="397" font-size="154" fill="#cdd6f4">Config editor</text>
+  <!-- Boolean editor excerpt from assets/fuzzy-on.svg. -->
+  <path d="M115 542V525Q115 509 131 509H164 M1011 509H1777Q1793 509 1793 525V822Q1793 838 1777 838H131Q115 838 115 822V542"
+        fill="#181825" stroke="#f9e2af" stroke-width="5"/>
+  <text x="182" y="529" font-size="66" font-weight="bold" fill="#f9e2af">Edit · Fuzzy search</text>
+  <rect x="193" y="632" width="596" height="141" fill="#45475a"/>
+  <g font-size="111" xml:space="preserve">
+    <text x="222" y="737" fill="#cdd6f4">[ true ]</text>
+    <text x="967" y="737" fill="#7f849c">[ false ]</text>
+  </g>
+</svg>

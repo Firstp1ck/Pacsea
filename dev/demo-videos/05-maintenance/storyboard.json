@@ -1,0 +1,1371 @@
+{
+  "version": 1,
+  "format": "episode",
+  "title": "Pacsea: Maintain an Arch installation",
+  "allowTerms": [
+    "AUR",
+    "PAM",
+    "Pacsea",
+    "preflight",
+    "deps",
+    "dependencies",
+    "terminal",
+    "package",
+    "packages",
+    "Pi",
+    "PKGBUILD",
+    "sudo",
+    "CLI",
+    "cache",
+    "repository",
+    "Sandbox",
+    "toggle",
+    "configuration",
+    "build",
+    "sync",
+    "pacman"
+  ],
+  "sourceRevision": "c2d62f9ee7ab0669f3b3b5b1754c0132e5cbae52",
+  "width": 1920,
+  "height": 1080,
+  "fps": 24,
+  "framing": "full-app",
+  "captionMotion": "continuous",
+  "captionEase": "fast-slow",
+  "spotlightOutline": true,
+  "scenes": "scenes.html",
+  "theme": {
+    "accent": "#8bdcf3",
+    "background": "#0d0e16",
+    "glow": "transparent"
+  },
+  "production": {
+    "interface": "Pacsea 0.8.2, revision c2d62f9e. Recreated screens use example package versions, mirror routes and command output. No packages, caches or mirror lists were changed.",
+    "render": "Run t3-build python ../04-transactions/render-episode.py . from this episode folder in the integrated series checkout.",
+    "music": "Quiet Index, original episode arrangement using the discovery pilot instruments."
+  },
+  "chapters": [
+    {
+      "start": 0,
+      "title": "Browse installed packages"
+    },
+    {
+      "start": 34,
+      "title": "Review removal and downgrade plans"
+    },
+    {
+      "start": 68,
+      "title": "Select pending package updates"
+    },
+    {
+      "start": 102,
+      "title": "Plan a full system update"
+    },
+    {
+      "start": 136,
+      "title": "Compare distribution mirror tools"
+    },
+    {
+      "start": 157,
+      "title": "Follow the official and AUR updates"
+    }
+  ],
+  "steps": [
+    {
+      "scene": "opening",
+      "duration": 9,
+      "transition": "cut",
+      "caption": {
+        "number": "",
+        "bold": "Pacsea",
+        "box": [
+          64,
+          288,
+          690
+        ]
+      },
+      "actions": [
+        {
+          "at": 0,
+          "type": "show",
+          "target": ".title-scrim",
+          "dur": 0.7,
+          "dx": 0,
+          "dy": 0
+        },
+        {
+          "at": 0.25,
+          "type": "show",
+          "target": ".title-copy",
+          "dur": 0.85,
+          "dx": 0,
+          "dy": 20
+        },
+        {
+          "at": 7.75,
+          "type": "hide",
+          "target": ".title-copy",
+          "dur": 0.7,
+          "dx": 0,
+          "dy": 10
+        },
+        {
+          "at": 8.25,
+          "type": "hide",
+          "target": ".title-scrim",
+          "dur": 0.75,
+          "dx": 0,
+          "dy": 0
+        }
+      ]
+    },
+    {
+      "scene": "installed-scope",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "01",
+        "bold": "Include explicit installs",
+        "rest": "Use all to include packages with dependents.",
+        "box": [
+          64,
+          288,
+          690
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 5
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "all"
+        }
+      ]
+    },
+    {
+      "scene": "open-options",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "02",
+        "bold": "Open Options",
+        "rest": "Shift+O opens the menu from Normal mode.",
+        "box": [
+          64,
+          288,
+          690
+        ],
+        "track": [
+          {
+            "at": 1.25,
+            "move": 1.25,
+            "x": 1040,
+            "y": 56
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#gesture",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 1.45
+        },
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 1.45,
+          "to": 5
+        }
+      ],
+      "actions": [
+        {
+          "type": "show",
+          "at": 1.45,
+          "target": "#popup",
+          "dur": 0,
+          "dx": 0,
+          "dy": 0
+        }
+      ]
+    },
+    {
+      "scene": "list-installed-packages",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "03",
+        "bold": "Press 1",
+        "rest": "Browse the installed package list.",
+        "box": [
+          1040,
+          56,
+          690
+        ],
+        "track": [
+          {
+            "at": 2.2,
+            "move": 0.65,
+            "x": 784,
+            "y": 144
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#gesture",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 1.55
+        },
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 1.55,
+          "to": 5
+        }
+      ],
+      "actions": [
+        {
+          "type": "show",
+          "at": 1.55,
+          "target": "#installed",
+          "dur": 0,
+          "dx": 0,
+          "dy": 0
+        }
+      ]
+    },
+    {
+      "scene": "mark-for-removal",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "04",
+        "bold": "Space queues a removal",
+        "rest": "fieldnotes enters the Remove List.",
+        "box": [
+          784,
+          144,
+          690
+        ],
+        "track": [
+          {
+            "at": 2.6,
+            "move": 0.65,
+            "x": 1088,
+            "y": 368
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#gesture",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 1.95
+        },
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 1.95,
+          "to": 5
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "fieldnotes"
+        }
+      ]
+    },
+    {
+      "scene": "mark-for-downgrade",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "05",
+        "bold": "Ctrl+Space queues a downgrade",
+        "rest": "Put syncthing in the other list.",
+        "box": [
+          1088,
+          368,
+          690
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#before",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 1.95
+        },
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 1.95,
+          "to": 5
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "syncthing"
+        }
+      ]
+    },
+    {
+      "scene": "focus-remove",
+      "duration": 4,
+      "transition": "cut",
+      "caption": {
+        "number": "06",
+        "bold": "Focus Remove",
+        "rest": "Tab until the Remove List has focus.",
+        "box": [
+          1088,
+          368,
+          690
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 4
+        }
+      ]
+    },
+    {
+      "scene": "check-dependents",
+      "duration": 7,
+      "transition": "cut",
+      "caption": {
+        "number": "07",
+        "bold": "Read the removal impact",
+        "rest": "fieldnotes-export still needs fieldnotes.",
+        "box": [
+          1088,
+          368,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.65,
+            "move": 0.65,
+            "x": 784,
+            "y": 512
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 7
+        }
+      ]
+    },
+    {
+      "scene": "compare-removal-modes",
+      "duration": 7,
+      "transition": "cut",
+      "caption": {
+        "number": "08",
+        "bold": "Press m to compare",
+        "rest": "Inspect the flags and affected packages.",
+        "box": [
+          784,
+          512,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.65,
+            "move": 0.65,
+            "x": 744,
+            "y": 568
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 7
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "-Rs (remove dependents)"
+        },
+        {
+          "at": 2.34,
+          "type": "text",
+          "target": "#value-2",
+          "html": "Cascade will also remove these package(s):"
+        },
+        {
+          "at": 3.95,
+          "type": "text",
+          "target": "#value-1",
+          "text": "-Rns (dependents + configs)"
+        }
+      ]
+    },
+    {
+      "scene": "focus-downgrade",
+      "duration": 4,
+      "transition": "cut",
+      "caption": {
+        "number": "09",
+        "bold": "Focus Downgrade",
+        "rest": "Leave the removal plan and select syncthing.",
+        "box": [
+          744,
+          568,
+          690
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 4
+        }
+      ]
+    },
+    {
+      "scene": "review-a-downgrade",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "10",
+        "bold": "Enter opens Preflight",
+        "rest": "Check the installed version before proceeding.",
+        "box": [
+          744,
+          568,
+          690
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 5
+        }
+      ]
+    },
+    {
+      "scene": "choose-an-older-version",
+      "duration": 7,
+      "transition": "cut",
+      "caption": {
+        "number": "11",
+        "bold": "Choose an older version",
+        "rest": "The downgrade tool lists available builds.",
+        "box": [
+          744,
+          568,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.67,
+            "move": 0.67,
+            "x": 384,
+            "y": 240
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 7
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "▶ 2   extra   syncthing   1.27.12-1"
+        }
+      ]
+    },
+    {
+      "scene": "chapter-11",
+      "duration": 8,
+      "transition": "cut",
+      "caption": {
+        "number": "",
+        "bold": "Choose a package batch",
+        "box": [
+          384,
+          240,
+          690
+        ],
+        "track": [
+          {
+            "at": 1.25,
+            "move": 1.25,
+            "x": 400,
+            "y": 384
+          }
+        ]
+      },
+      "actions": [
+        {
+          "at": 0,
+          "type": "show",
+          "target": ".title-scrim",
+          "dur": 0.7,
+          "dx": 0,
+          "dy": 0
+        },
+        {
+          "at": 0.25,
+          "type": "show",
+          "target": ".title-copy",
+          "dur": 0.85,
+          "dx": 0,
+          "dy": 20
+        },
+        {
+          "at": 6.75,
+          "type": "hide",
+          "target": ".title-copy",
+          "dur": 0.7,
+          "dx": 0,
+          "dy": 10
+        },
+        {
+          "at": 7.25,
+          "type": "hide",
+          "target": ".title-scrim",
+          "dur": 0.75,
+          "dx": 0,
+          "dy": 0
+        }
+      ],
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 8,
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          }
+        }
+      ]
+    },
+    {
+      "scene": "inspect-pending-updates",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "number": "12",
+        "bold": "Open Available Updates",
+        "rest": "Shift+U shows installed and offered versions.",
+        "box": [
+          400,
+          384,
+          690
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 6
+        }
+      ]
+    },
+    {
+      "scene": "navigate-updates",
+      "duration": 4,
+      "transition": "cut",
+      "caption": {
+        "number": "13",
+        "bold": "Move down with j",
+        "rest": "Compare the language pack with Firefox.",
+        "box": [
+          400,
+          384,
+          690
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 4
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "▶"
+        }
+      ]
+    },
+    {
+      "scene": "filter-the-list",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "14",
+        "bold": "Filter with /",
+        "rest": "Type firefox to keep the matching rows.",
+        "box": [
+          400,
+          384,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.65,
+            "move": 0.65,
+            "x": 440,
+            "y": 544
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 5
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.66,
+          "type": "type",
+          "target": "#query",
+          "text": "firefox",
+          "cps": 7
+        },
+        {
+          "at": 1.81,
+          "type": "hide",
+          "target": "#others"
+        }
+      ]
+    },
+    {
+      "scene": "mark-a-batch",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "15",
+        "bold": "Space marks each row",
+        "rest": "Select the browser and its language pack.",
+        "box": [
+          440,
+          544,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.65,
+            "move": 0.65,
+            "x": 280,
+            "y": 592
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 3.51
+        },
+        {
+          "rect": {
+            "target": "#gesture",
+            "pad": 4
+          },
+          "from": 3.51,
+          "to": 5
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "●"
+        },
+        {
+          "at": 2.34,
+          "type": "text",
+          "target": "#value-2",
+          "html": "◉"
+        },
+        {
+          "at": 2.35,
+          "type": "text",
+          "target": "#value-2",
+          "text": "▶"
+        },
+        {
+          "at": 3.51,
+          "type": "text",
+          "target": "#value-2",
+          "text": "◉"
+        }
+      ]
+    },
+    {
+      "scene": "review-selected-updates",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "number": "16",
+        "bold": "Enter reviews both upgrades",
+        "rest": "Their old and new versions appear together.",
+        "box": [
+          280,
+          592,
+          690
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 6
+        }
+      ]
+    },
+    {
+      "scene": "chapter-16",
+      "duration": 8,
+      "transition": "cut",
+      "caption": {
+        "number": "",
+        "bold": "Plan a full update",
+        "box": [
+          280,
+          592,
+          690
+        ]
+      },
+      "actions": [
+        {
+          "at": 0,
+          "type": "show",
+          "target": ".title-scrim",
+          "dur": 0.7,
+          "dx": 0,
+          "dy": 0
+        },
+        {
+          "at": 0.25,
+          "type": "show",
+          "target": ".title-copy",
+          "dur": 0.85,
+          "dx": 0,
+          "dy": 20
+        },
+        {
+          "at": 6.75,
+          "type": "hide",
+          "target": ".title-copy",
+          "dur": 0.7,
+          "dx": 0,
+          "dy": 10
+        },
+        {
+          "at": 7.25,
+          "type": "hide",
+          "target": ".title-scrim",
+          "dur": 0.75,
+          "dx": 0,
+          "dy": 0
+        }
+      ],
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 8,
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          }
+        }
+      ]
+    },
+    {
+      "scene": "open-system-update",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "number": "17",
+        "bold": "Open Update System",
+        "rest": "Shift+O then 2 opens the task list.",
+        "box": [
+          280,
+          592,
+          690
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 6
+        }
+      ]
+    },
+    {
+      "scene": "choose-sync-mode",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "18",
+        "bold": "Choose the sync mode",
+        "rest": "Left or Right switches to a forced refresh.",
+        "box": [
+          280,
+          592,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.65,
+            "move": 0.65,
+            "x": 280,
+            "y": 624
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 5
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "Force Sync (-Syyu)"
+        }
+      ]
+    },
+    {
+      "scene": "choose-cache-cleanup",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "19",
+        "bold": "Choose cache cleanup",
+        "rest": "Space changes the selected cache action.",
+        "box": [
+          280,
+          624,
+          690
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 5
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "[x]"
+        }
+      ]
+    },
+    {
+      "scene": "choose-mirrors",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "20",
+        "bold": "Enable mirror updates",
+        "rest": "Select the mirror task before choosing a region.",
+        "box": [
+          280,
+          624,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.65,
+            "move": 0.65,
+            "x": 376,
+            "y": 512
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 5
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "[x]"
+        }
+      ]
+    },
+    {
+      "scene": "set-country-and-count",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "21",
+        "bold": "Choose country and count",
+        "rest": "Use the arrows and + to adjust the list.",
+        "box": [
+          376,
+          512,
+          690
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 5
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "Germany"
+        },
+        {
+          "at": 2.34,
+          "type": "text",
+          "target": "#value-2",
+          "html": "11"
+        }
+      ]
+    },
+    {
+      "scene": "arch-mirrors",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "22",
+        "bold": "Arch uses reflector",
+        "rest": "Germany limits the search to one country.",
+        "box": [
+          376,
+          512,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.65,
+            "move": 0.65,
+            "x": 64,
+            "y": 208
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 5
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "reflector not found; skipping mirror update"
+        }
+      ]
+    },
+    {
+      "scene": "manjaro-mirrors",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "23",
+        "bold": "Manjaro uses pacman-mirrors",
+        "rest": "Choose worldwide or country-specific ranking.",
+        "box": [
+          64,
+          208,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.65,
+            "move": 0.65,
+            "x": 64,
+            "y": 288
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 1.95,
+          "to": 5
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "pacman-mirrors --method rank --country Germany"
+        }
+      ]
+    },
+    {
+      "scene": "artix-mirrors",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "number": "24",
+        "bold": "Artix uses rate-mirrors",
+        "rest": "Pick a single entry country for ranking.",
+        "box": [
+          64,
+          288,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.65,
+            "move": 0.65,
+            "x": 384,
+            "y": 200
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 6
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "Error: rate-mirrors is not installed and no AUR helper (yay/paru) found."
+        }
+      ]
+    },
+    {
+      "scene": "rank-distro-lists",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "25",
+        "bold": "Rank distribution mirrors",
+        "rest": "Each tool ranks its distribution’s mirrors.",
+        "box": [
+          384,
+          200,
+          690
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 5
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "→ reflector"
+        }
+      ]
+    },
+    {
+      "scene": "run-chosen-tasks",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "26",
+        "bold": "Enter runs selected tasks",
+        "rest": "This example shows the official update first.",
+        "box": [
+          384,
+          200,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.65,
+            "move": 0.65,
+            "x": 384,
+            "y": 264
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#before",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 1.95
+        },
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 1.95,
+          "to": 5
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": ":: Processing package changes…"
+        }
+      ]
+    },
+    {
+      "scene": "continue-after-success",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "27",
+        "bold": "Continue with AUR updates",
+        "rest": "Pacsea uses paru or yay after the official update.",
+        "box": [
+          384,
+          264,
+          690
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 5
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "Starting AUR update…"
+        }
+      ]
+    },
+    {
+      "scene": "handle-official-failures",
+      "duration": 7,
+      "transition": "cut",
+      "caption": {
+        "number": "28",
+        "bold": "If pacman fails",
+        "rest": "Choose whether the AUR update should still run.",
+        "box": [
+          384,
+          264,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.65,
+            "move": 0.65,
+            "x": 288,
+            "y": 384
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 7
+        }
+      ]
+    },
+    {
+      "scene": "credits",
+      "duration": 9,
+      "transition": "cut",
+      "caption": {
+        "number": "",
+        "bold": "Decide what runs next",
+        "box": [
+          288,
+          384,
+          690
+        ]
+      },
+      "actions": [
+        {
+          "at": 0,
+          "type": "show",
+          "target": ".title-scrim",
+          "dur": 0.7,
+          "dx": 0,
+          "dy": 0
+        },
+        {
+          "at": 0.25,
+          "type": "show",
+          "target": ".title-copy",
+          "dur": 0.85,
+          "dx": 0,
+          "dy": 20
+        },
+        {
+          "at": 7.75,
+          "type": "show",
+          "target": ".end-fade",
+          "dur": 1.2,
+          "dx": 0,
+          "dy": 0
+        }
+      ],
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 9,
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          }
+        }
+      ]
+    }
+  ]
+}

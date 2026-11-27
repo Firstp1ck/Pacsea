@@ -1,0 +1,15 @@
+Use Pacsea to review a removal with a dependent package, choose an older package version, and select individual upgrades. Open Update System to compare official and AUR updates, cache cleanup and the mirror tools used by different Arch-based distributions.
+
+00:00 Browse installed packages
+00:34 Review removal and downgrade plans
+01:08 Select pending package updates
+01:42 Plan a full system update
+02:16 Compare distribution mirror tools
+02:37 Follow the official and AUR updates
+
+Pacsea 0.8.2, revision c2d62f9e. Recreated screens use example package versions, mirror routes and command output. No packages, caches or mirror lists were changed.
+
+Original music: “Quiet Index,” composed and synthesized for the Pacsea series.
+
+Pacsea on GitHub
+https://github.com/Firstp1ck/Pacsea

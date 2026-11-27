@@ -1,0 +1,442 @@
+<style>
+
+.shell {
+  position:absolute;
+  inset:78px 110px 151px;
+  border:2px solid #354655;
+  border-radius:16px;
+  overflow:hidden;
+  background:#111922;
+  color:#dbe6ed;
+  box-shadow:0 24px 70px #030507;
+  font:23px/1.46 'DejaVu Sans Mono',monospace;
+}
+
+.bar {
+  height:58px;
+  background:#202e3a;
+  display:flex;
+  align-items:center;
+  padding:0 29px;
+  gap:13px;
+  border-bottom:1px solid #394955;
+  color:#b1c3d0;
+  font-size:19px;
+}
+
+.dot {
+  border-radius:50%;
+  width:12px;
+  height:12px;
+  background:#82919a;
+}
+
+.tab {
+  margin-left:20px;
+  color:#e5eff6;
+}
+
+.location {
+  margin-left:auto;
+}
+
+.history,.active,.output {
+  margin:20px 38px;
+  white-space:pre-wrap;
+  overflow-wrap:anywhere;
+}
+
+.history {
+  height:226px;
+  overflow:hidden;
+  color:#8c9daa;
+  font-size:21px;
+}
+
+.active {
+  border-top:1px solid #354553;
+  padding-top:19px;
+}
+
+.prompt {
+  color:#73d5bd;
+  font-weight:bold;
+}
+
+.dir {
+  color:#94b9ec;
+}
+
+.command {
+  color:#eef4f7;
+}
+
+.cursor {
+  display:inline-block;
+  background:#93e4ce;
+  width:11px;
+  height:25px;
+  vertical-align:-4px;
+}
+
+.output {
+  color:#d4e0e9;
+  font-size:22px;
+  margin-top:10px;
+  width:fit-content;
+  max-width:94%;
+}
+
+.out {
+  width:fit-content;
+}
+
+.footer {
+  position:absolute;
+  bottom:0;
+  left:0;
+  right:0;
+  border-top:1px solid #34434c;
+  background:#1c2934;
+  padding:6px 25px;
+  font:17px 'DejaVu Sans Mono';
+  color:#8da3b2;
+}
+
+.footer b {
+  color:#a8daca;
+}
+
+.history b {
+  color:#a6b9c9;
+  font-weight:500;
+}
+
+.shell {inset:12px 16px 16px;border-radius:12px;font-size:29px;}
+.bar {height:51px;font-size:22px;}
+.history {height:294px;font-size:25px;}
+.output {font-size:26px;}
+.footer {font-size:21px;padding:11px 26px;}
+.build {color:#89dceb;margin-left:28px;}
+
+/* A chapter or line change must leave the badge and both baselines in place. */
+.ev-continuous .ev-cap-placed {
+  display: grid; grid-template-columns: 36px minmax(0, 1fr);
+  grid-template-rows: 31px 29px; align-content: center; align-items: center;
+  column-gap: 13px; height: 88px; min-height: 88px; padding: 9px 15px;
+  font: 500 23px/29px "DejaVu Sans", sans-serif; letter-spacing: -.45px;
+  background: #181c29; border: 1px solid #677185; border-radius: 12px;
+  box-shadow: 0 4px 16px #080b12aa;
+}
+.ev-continuous .ev-num {
+  grid-column: 1; grid-row: 1 / 3; min-width: 0; margin: 0; padding: 0;
+  height: 34px; font: 600 17px/1 "DejaVu Sans Mono", monospace;
+  color: #e0e6f3; background: #303849; border-color: #555f74;
+}
+.ev-continuous .ev-bold {
+  grid-column: 2; grid-row: 1; color: #f4f6ff; font-size: 26px;
+}
+.ev-continuous .ev-rest { grid-column: 2; grid-row: 2; color: #dce3f0; }
+
+/* Only editorial shots have an unnumbered caption. The scene owns their type
+   so the picture and its lettering can have separate, frame-seekable ramps. */
+.ev-continuous .ev-cap-placed:not(:has(.ev-num)) { display: none; }
+.title-scrim, .end-fade { position: absolute; inset: 0; pointer-events: none; }
+.title-scrim { z-index: 2; background: linear-gradient(100deg, rgba(1,3,9,.74), rgba(2,4,9,.6)); }
+.title-scrim ~ .ev-shade { z-index: 1; }
+.title-copy {
+  position: absolute; z-index: 3; left: 192px; top: 246px; width: 1552px;
+  font: 480 46px/1.38 "DejaVu Sans", sans-serif; color: #e5e8f3;
+}
+.title-copy h1, .title-copy p { margin: 0; }
+.title-copy h1 {
+  font: 700 106px/1.12 "DejaVu Sans", sans-serif; letter-spacing: -5px;
+  color: #fafaff; margin: 21px 0 26px;
+}
+.title-copy .eyebrow {
+  display: flex; gap: 22px; align-items: center;
+  color: #a9e6f4; font: 600 33px/1.25 "DejaVu Sans Mono", monospace; letter-spacing: 2px;
+}
+.eyebrow::before { content: ""; width: 74px; height: 5px; background: #8bdcf3; }
+.open-title { top: 232px; }
+.open-title h1 { display: flex; align-items: center; gap: 32px; font-size: 154px; letter-spacing: -9px; }
+.open-title h1 img { width: 128px; height: 128px; }
+.chapter-title { top: 275px; }
+.chapter-title .sweep-clip { width: 388px; height: 5px; margin-top: 38px; overflow: hidden; }
+.sweep { height: 100%; background: linear-gradient(90deg, #909de4, #93e3f6); }
+.close-title { top: 190px; }
+.close-title h1 { font-size: 100px; }
+.credits {
+  width: fit-content; margin-top: 43px; padding-top: 22px; border-top: 2px solid #586473;
+  display: grid; grid-template-columns: max-content max-content; column-gap: 74px;
+  font-size: 42px; font-weight: 600;
+}
+.credits small { display: block; color: #a9e6f4; font: 400 34px/1.4 "DejaVu Sans Mono", monospace; }
+.title-copy .project-url { margin-top: 15px; color: #ccd5ec; font: 400 38px/1.4 "DejaVu Sans Mono", monospace; }
+.end-fade { z-index: 4; background: #020309; }
+
+.ev-scene { background:#0e1019; }
+.ev-cap-placed span { white-space:nowrap; }
+.hidden-state {visibility:hidden}
+.card-back {position:absolute;inset:0;filter:brightness(.51)}
+.title-scrim {background:linear-gradient(100deg, rgba(1,3,9,.82),rgba(2,4,9,.61))}
+</style>
+<template id="opening" data-width="1920" data-height="1080">
+<div class="card-back"><div class="shell"><div class="bar"><i class="dot"></i><span class="tab">Terminal</span><span class="location">bash · ~/packages</span></div>
+<div class="history"><b>❯ </b>pacsea --help | head -3
+A fast, friendly TUI for browsing and installing Arch and AUR packages
+
+Usage: pacsea [OPTIONS]</div>
+<div class="active"><span class="prompt">demo@arch</span><span class="dir"> ~/packages</span><br><span class="prompt">❯ </span><span id="cmd" class="command">pacsea -V</span><span id="caret" class="cursor" style="display:none"></span></div>
+<div class="output" id="result">pacsea 0.8.2</div>
+<div class="footer"><b>1  bash</b>　·　 ~/packages</div></div></div><div class="title-scrim"></div><section class="title-copy open-title"><p class="eyebrow">COMMAND LINE</p><h1><img src="pacsea.svg" alt="">Pacsea</h1><p>Search packages and save an installed list.<br>See which commands change an Arch system.</p></section>
+</template>
+<template id="version" data-width="1920" data-height="1080">
+<div class="shell"><div class="bar"><i class="dot"></i><span class="tab">Terminal</span><span class="location">bash · ~/packages</span><span class="build">v0.8.2</span></div>
+<div class="history"><b>❯ </b>pacsea --help | head -3
+A fast, friendly TUI for browsing and installing Arch and AUR packages
+
+Usage: pacsea [OPTIONS]</div>
+<div class="active"><span class="prompt">demo@arch</span><span class="dir"> ~/packages</span><br><span class="prompt">❯ </span><span id="cmd" class="command"></span><span id="caret" class="cursor"></span></div>
+<div class="output hidden-state" id="result"><span id="result-text">pacsea 0.8.2</span></div>
+<div class="footer"><b>1  bash</b>　·　 ~/packages</div></div>
+</template>
+<template id="search" data-width="1920" data-height="1080">
+<div class="shell"><div class="bar"><i class="dot"></i><span class="tab">Terminal</span><span class="location">bash · ~/packages</span><span class="build">v0.8.2</span></div>
+<div class="history"><b>❯ </b>pacsea --help | grep -- --search | tail -1
+  -s, --search &lt;SEARCH&gt;          Search for packages from command line</div>
+<div class="active"><span class="prompt">demo@arch</span><span class="dir"> ~/packages</span><br><span class="prompt">❯ </span><span id="cmd" class="command"></span><span id="caret" class="cursor"></span></div>
+<div class="output hidden-state" id="result"><span id="result-text">extra/ripgrep 14.1.0-1</span>
+    A search tool that combines the usability of ag with the raw speed of grep
+aur/ripgrep-git 14.1.0.r5-1 (+12 0.50)
+    Development version of ripgrep</div>
+<div class="footer"><b>1  bash</b>　·　 ~/packages</div></div>
+</template>
+<template id="json" data-width="1920" data-height="1080">
+<div class="shell"><div class="bar"><i class="dot"></i><span class="tab">Terminal</span><span class="location">bash · ~/packages</span><span class="build">After v0.8.2 · main c2d62f9e</span></div>
+<div class="history"><b>❯ </b>pacsea -V
+pacsea 0.8.2</div>
+<div class="active"><span class="prompt">demo@arch</span><span class="dir"> ~/packages</span><br><span class="prompt">❯ </span><span id="cmd" class="command"></span><span id="caret" class="cursor"></span></div>
+<div class="output hidden-state" id="result">{
+  "description": "A search tool that combines the usability of ag with the raw speed of grep",
+  <span id="result-text">"name": "ripgrep"</span>,
+  "repo": "extra",
+  "version": "14.1.0-1"
+}</div>
+<div class="footer"><b>1  bash</b>　·　 ~/packages</div></div>
+</template>
+<template id="schema" data-width="1920" data-height="1080">
+<div class="shell"><div class="bar"><i class="dot"></i><span class="tab">Terminal</span><span class="location">bash · ~/packages</span><span class="build">After v0.8.2 · main c2d62f9e</span></div>
+<div class="history"><b>❯ </b>pacsea -s ripgrep --json | jq '.data | keys'
+[
+  "query",
+  "results",
+  "tool"
+]</div>
+<div class="active"><span class="prompt">demo@arch</span><span class="dir"> ~/packages</span><br><span class="prompt">❯ </span><span id="cmd" class="command"></span><span id="caret" class="cursor"></span></div>
+<div class="output hidden-state" id="result">{
+  "command": "search",
+  <span id="result-text">"schema_version": 1</span>
+}</div>
+<div class="footer"><b>1  bash</b>　·　 ~/packages</div></div>
+</template>
+<template id="explicit" data-width="1920" data-height="1080">
+<div class="shell"><div class="bar"><i class="dot"></i><span class="tab">Terminal</span><span class="location">bash · ~/packages</span><span class="build">v0.8.2</span></div>
+<div class="history"><b>❯ </b>pacman -Qetq
+bat
+fd
+ripgrep</div>
+<div class="active"><span class="prompt">demo@arch</span><span class="dir"> ~/packages</span><br><span class="prompt">❯ </span><span id="cmd" class="command"></span><span id="caret" class="cursor"></span></div>
+<div class="output hidden-state" id="result"><span id="result-text" style="display:inline-block">bat
+fd
+ripgrep</span></div>
+<div class="footer"><b>1  bash</b>　·　 ~/packages</div></div>
+</template>
+<template id="exp-flag" data-width="1920" data-height="1080">
+<div class="shell"><div class="bar"><i class="dot"></i><span class="tab">Terminal</span><span class="location">bash · ~/packages</span><span class="build">v0.8.2</span></div>
+<div class="history"><b>❯ </b>pacsea --list
+bat
+fd
+ripgrep</div>
+<div class="active"><span class="prompt">demo@arch</span><span class="dir"> ~/packages</span><br><span class="prompt">❯ </span><span id="cmd" class="command"></span><span id="caret" class="cursor"></span></div>
+<div class="output hidden-state" id="result"><span id="result-text" style="display:inline-block">bat
+fd
+ripgrep</span></div>
+<div class="footer"><b>1  bash</b>　·　 ~/packages</div></div>
+</template>
+<template id="implicit" data-width="1920" data-height="1080">
+<div class="shell"><div class="bar"><i class="dot"></i><span class="tab">Terminal</span><span class="location">bash · ~/packages</span><span class="build">v0.8.2</span></div>
+<div class="history"><b>❯ </b>pacman -Qq | sort | comm -23 - &lt;(pacman -Qetq | sort)
+glibc
+lz4
+pcre2</div>
+<div class="active"><span class="prompt">demo@arch</span><span class="dir"> ~/packages</span><br><span class="prompt">❯ </span><span id="cmd" class="command"></span><span id="caret" class="cursor"></span></div>
+<div class="output hidden-state" id="result"><span id="result-text" style="display:inline-block">glibc
+lz4
+pcre2</span></div>
+<div class="footer"><b>1  bash</b>　·　 ~/packages</div></div>
+</template>
+<template id="all" data-width="1920" data-height="1080">
+<div class="shell"><div class="bar"><i class="dot"></i><span class="tab">Terminal</span><span class="location">bash · ~/packages</span><span class="build">v0.8.2</span></div>
+<div class="history"><b>❯ </b>pacman -Qq | wc -l
+6</div>
+<div class="active"><span class="prompt">demo@arch</span><span class="dir"> ~/packages</span><br><span class="prompt">❯ </span><span id="cmd" class="command"></span><span id="caret" class="cursor"></span></div>
+<div class="output hidden-state" id="result"><span id="result-text" style="display:inline-block">bat
+fd
+glibc
+lz4
+pcre2
+ripgrep</span></div>
+<div class="footer"><b>1  bash</b>　·　 ~/packages</div></div>
+</template>
+<template id="save-list" data-width="1920" data-height="1080">
+<div class="shell"><div class="bar"><i class="dot"></i><span class="tab">Terminal</span><span class="location">bash · ~/packages</span><span class="build">v0.8.2</span></div>
+<div class="history"><b>❯ </b>pwd
+/home/demo/packages</div>
+<div class="active"><span class="prompt">demo@arch</span><span class="dir"> ~/packages</span><br><span class="prompt">❯ </span><span id="cmd" class="command"></span><span id="caret" class="cursor"></span></div>
+<div class="output hidden-state" id="result"><span id="result-text" style="display:inline-block">bat
+fd
+ripgrep</span></div>
+<div class="footer"><b>1  bash</b>　·　 ~/packages</div></div>
+</template>
+<template id="operations-chapter" data-width="1920" data-height="1080">
+<div class="card-back"><div class="shell"><div class="bar"><i class="dot"></i><span class="tab">Terminal</span><span class="location">bash · ~/packages</span><span class="build">v0.8.2</span></div>
+<div class="history"><b>❯ </b>pacsea --help | grep -- '--install &lt;'
+  -i, --install &lt;INSTALL&gt;...     Install packages from command line
+                                 (comma-separated or space-separated)</div>
+<div class="active"><span class="prompt">demo@arch</span><span class="dir"> ~/packages</span><br><span class="prompt">❯ </span><span id="cmd" class="command"></span><span id="caret" class="cursor"></span></div>
+<div class="output" id="result"></div>
+<div class="footer">Example at the prompt · command unsubmitted</div></div></div><div class="title-scrim"></div><section class="title-copy chapter-title"><p class="eyebrow">DIRECT PACKAGE COMMANDS</p><h1>Review before Enter</h1><p>You have a package list. The next commands can<br>change your system. Each stays at the prompt here.</p></section>
+</template>
+<template id="install" data-width="1920" data-height="1080">
+<div class="shell"><div class="bar"><i class="dot"></i><span class="tab">Terminal</span><span class="location">bash · ~/packages</span><span class="build">v0.8.2</span></div>
+<div class="history"><b>❯ </b>pacsea --help | grep -- '--install &lt;'
+  -i, --install &lt;INSTALL&gt;...     Install packages from command line
+                                 (comma-separated or space-separated)</div>
+<div class="active"><span class="prompt">demo@arch</span><span class="dir"> ~/packages</span><br><span class="prompt">❯ </span><span id="cmd" class="command"></span><span id="caret" class="cursor"></span></div>
+<div class="output" id="result"></div>
+<div class="footer">Example at the prompt · command unsubmitted</div></div>
+</template>
+<template id="install-file" data-width="1920" data-height="1080">
+<div class="shell"><div class="bar"><i class="dot"></i><span class="tab">Terminal</span><span class="location">bash · ~/packages</span><span class="build">v0.8.2</span></div>
+<div class="history"><b>❯ </b>cat tools.txt
+bat
+fd
+ripgrep</div>
+<div class="active"><span class="prompt">demo@arch</span><span class="dir"> ~/packages</span><br><span class="prompt">❯ </span><span id="cmd" class="command"></span><span id="caret" class="cursor"></span></div>
+<div class="output" id="result"></div>
+<div class="footer">Example at the prompt · command unsubmitted</div></div>
+</template>
+<template id="remove" data-width="1920" data-height="1080">
+<div class="shell"><div class="bar"><i class="dot"></i><span class="tab">Terminal</span><span class="location">bash · ~/packages</span><span class="build">v0.8.2</span></div>
+<div class="history"><b>❯ </b>pacsea --help | grep -- '--remove &lt;'
+  -r, --remove &lt;REMOVE&gt;...       Remove packages from command line
+                                 (e.g., pacsea -r PACKAGE1 PACKAGE2 or pacsea --remove PACKAGE)</div>
+<div class="active"><span class="prompt">demo@arch</span><span class="dir"> ~/packages</span><br><span class="prompt">❯ </span><span id="cmd" class="command"></span><span id="caret" class="cursor"></span></div>
+<div class="output" id="result"></div>
+<div class="footer">Example at the prompt · command unsubmitted</div></div>
+</template>
+<template id="remove-file" data-width="1920" data-height="1080">
+<div class="shell"><div class="bar"><i class="dot"></i><span class="tab">Terminal</span><span class="location">bash · ~/packages</span><span class="build">After v0.8.2 · main c2d62f9e</span></div>
+<div class="history"><b>❯ </b>cat remove.txt
+# Remove these packages
+fd
+ripgrep</div>
+<div class="active"><span class="prompt">demo@arch</span><span class="dir"> ~/packages</span><br><span class="prompt">❯ </span><span id="cmd" class="command"></span><span id="caret" class="cursor"></span></div>
+<div class="output" id="result"></div>
+<div class="footer">Example at the prompt · command unsubmitted</div></div>
+</template>
+<template id="update" data-width="1920" data-height="1080">
+<div class="shell"><div class="bar"><i class="dot"></i><span class="tab">Terminal</span><span class="location">bash · ~/packages</span><span class="build">v0.8.2</span></div>
+<div class="history"><b>❯ </b>pacsea --help | grep -- '--update '
+  -u, --update                   System update (sync + update, e.g., pacsea --update)</div>
+<div class="active"><span class="prompt">demo@arch</span><span class="dir"> ~/packages</span><br><span class="prompt">❯ </span><span id="cmd" class="command"></span><span id="caret" class="cursor"></span></div>
+<div class="output" id="result"></div>
+<div class="footer">Example at the prompt · command unsubmitted</div></div>
+</template>
+<template id="mirrors" data-width="1920" data-height="1080">
+<div class="shell"><div class="bar"><i class="dot"></i><span class="tab">Terminal</span><span class="location">bash · ~/packages</span><span class="build">After v0.8.2 · main c2d62f9e</span></div>
+<div class="history"><b>❯ </b>grep -E '^(selected_countries|mirror_count)' ~/.config/pacsea/settings.conf
+selected_countries = Switzerland,Germany
+mirror_count = 8</div>
+<div class="active"><span class="prompt">demo@arch</span><span class="dir"> ~/packages</span><br><span class="prompt">❯ </span><span id="cmd" class="command"></span><span id="caret" class="cursor"></span></div>
+<div class="output" id="result"></div>
+<div class="footer">Example at the prompt · command unsubmitted</div></div>
+</template>
+<template id="news" data-width="1920" data-height="1080">
+<div class="shell"><div class="bar"><i class="dot"></i><span class="tab">Terminal</span><span class="location">bash · ~/packages</span><span class="build">v0.8.2</span></div>
+<div class="history"><b>❯ </b>pacsea --help | grep -- '--unread '
+      --unread                   List unread news (use with --news)</div>
+<div class="active"><span class="prompt">demo@arch</span><span class="dir"> ~/packages</span><br><span class="prompt">❯ </span><span id="cmd" class="command"></span><span id="caret" class="cursor"></span></div>
+<div class="output hidden-state" id="result"><span id="result-text" style="display:inline-block">[UNREAD] 2025-11-06 - waydroid &gt;= 1.5.4-3 update may require manual intervention
+  URL: https://archlinux.org/news/waydroid-154-3-update-may-require-manual-intervention/</span>
+
+Arch Linux News: https://archlinux.org/news/</div>
+<div class="footer"><b>1  bash</b>　·　 ~/packages</div></div>
+</template>
+<template id="news-read" data-width="1920" data-height="1080">
+<div class="shell"><div class="bar"><i class="dot"></i><span class="tab">Terminal</span><span class="location">bash · ~/packages</span><span class="build">After v0.8.2 · main c2d62f9e</span></div>
+<div class="history"><b>❯ </b>pacsea -n -a --json | jq '.data.filter'
+"all"</div>
+<div class="active"><span class="prompt">demo@arch</span><span class="dir"> ~/packages</span><br><span class="prompt">❯ </span><span id="cmd" class="command"></span><span id="caret" class="cursor"></span></div>
+<div class="output hidden-state" id="result"><span id="result-text">"read"</span></div>
+<div class="footer"><b>1  bash</b>　·　 ~/packages</div></div>
+</template>
+<template id="config" data-width="1920" data-height="1080">
+<div class="shell"><div class="bar"><i class="dot"></i><span class="tab">Terminal</span><span class="location">bash · ~/packages</span><span class="build">After v0.8.2 · main c2d62f9e</span></div>
+<div class="history"><b>❯ </b>ls ~/pacsea-demo
+lists  logs  settings.conf</div>
+<div class="active"><span class="prompt">demo@arch</span><span class="dir"> ~/packages</span><br><span class="prompt">❯ </span><span id="cmd" class="command"></span><span id="caret" class="cursor"></span></div>
+<div class="output hidden-state" id="result"><span id="result-text" style="display:inline-block">bat
+fd
+ripgrep</span></div>
+<div class="footer"><b>1  bash</b>　·　 ~/packages</div></div>
+</template>
+<template id="logging" data-width="1920" data-height="1080">
+<div class="shell"><div class="bar"><i class="dot"></i><span class="tab">Terminal</span><span class="location">bash · ~/packages</span><span class="build">v0.8.2</span></div>
+<div class="history"><b>❯ </b>pacsea -v -l --exp
+bat
+fd
+ripgrep</div>
+<div class="active"><span class="prompt">demo@arch</span><span class="dir"> ~/packages</span><br><span class="prompt">❯ </span><span id="cmd" class="command"></span><span id="caret" class="cursor"></span></div>
+<div class="output hidden-state" id="result"><span id="result-text" style="display:inline-block">bat
+fd
+ripgrep</span></div>
+<div class="footer"><b>1  bash</b>　·　 ~/packages</div></div>
+</template>
+<template id="no-color" data-width="1920" data-height="1080">
+<div class="shell"><div class="bar"><i class="dot"></i><span class="tab">Terminal</span><span class="location">bash · ~/packages</span><span class="build">v0.8.2</span></div>
+<div class="history"><b>❯ </b>pacsea --help | grep -- --no-color
+      --no-color                 Disable colored output</div>
+<div class="active"><span class="prompt">demo@arch</span><span class="dir"> ~/packages</span><br><span class="prompt">❯ </span><span id="cmd" class="command"></span><span id="caret" class="cursor"></span></div>
+<div class="output" id="result"></div>
+<div class="footer">Example at the prompt · command unsubmitted</div></div>
+</template>
+<template id="clear-cache" data-width="1920" data-height="1080">
+<div class="shell"><div class="bar"><i class="dot"></i><span class="tab">Terminal</span><span class="location">bash · ~/packages</span><span class="build">v0.8.2</span></div>
+<div class="history"><b>❯ </b>pacsea -h | grep -- --clear-cache
+      --clear-cache              Clear all cache files (dependencies, files, services, sandbox) and exit</div>
+<div class="active"><span class="prompt">demo@arch</span><span class="dir"> ~/packages</span><br><span class="prompt">❯ </span><span id="cmd" class="command"></span><span id="caret" class="cursor"></span></div>
+<div class="output" id="result"></div>
+<div class="footer">Example at the prompt · command unsubmitted</div></div>
+</template>
+<template id="dry-run" data-width="1920" data-height="1080">
+<div class="shell"><div class="bar"><i class="dot"></i><span class="tab">Terminal</span><span class="location">bash · ~/packages</span><span class="build">v0.8.2</span></div>
+<div class="history"><b>❯ </b>pacsea --help | grep -- --dry-run
+      --dry-run                  Perform a dry run without making actual changes
+
+# Launch the interactive browser to rehearse a transaction.</div>
+<div class="active"><span class="prompt">demo@arch</span><span class="dir"> ~/packages</span><br><span class="prompt">❯ </span><span id="cmd" class="command"></span><span id="caret" class="cursor"></span></div>
+<div class="output" id="result"></div>
+<div class="footer">Example at the prompt · command unsubmitted</div></div>
+</template>
+<template id="credits" data-width="1920" data-height="1080">
+<div class="card-back"><div class="shell"><div class="bar"><i class="dot"></i><span class="tab">Terminal</span><span class="location">bash · ~/packages</span><span class="build">v0.8.2</span></div>
+<div class="history"><b>❯ </b>pacsea --help | grep -- --dry-run
+      --dry-run                  Perform a dry run without making actual changes
+
+# Launch the interactive browser to rehearse a transaction.</div>
+<div class="active"><span class="prompt">demo@arch</span><span class="dir"> ~/packages</span><br><span class="prompt">❯ </span><span id="cmd" class="command">pacsea --dry-run</span><span id="caret" class="cursor"></span></div>
+<div class="output" id="result"></div>
+<div class="footer">Example at the prompt · command unsubmitted</div></div></div><div class="title-scrim"></div><section class="title-copy close-title"><p class="eyebrow">READY AT THE PROMPT</p><h1>Choose what runs</h1><p>Your list is ready. Use the interactive dry run<br>to review a transaction before applying it.</p><div class="credits"><div><small>Project</small>Pacsea / Firstpick</div><div><small>Original music</small>Quiet Index</div></div><div class="project-url">github.com/Firstp1ck/Pacsea</div></section><div class="end-fade"></div>
+</template>

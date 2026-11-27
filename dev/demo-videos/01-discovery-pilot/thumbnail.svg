@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1920" height="1080" viewBox="0 0 1920 1080"
+     font-family="DejaVu Sans Mono, monospace">
+  <title>Pacsea: Find Arch packages</title>
+  <desc>Package discovery in Pacsea. A terminal results excerpt shows two official packages, with ripgrep-all selected.</desc>
+  <!-- Render with DejaVu Sans Mono installed: inkscape thumbnail.svg -o thumbnail.png -->
+  <rect width="1920" height="1080" fill="#1e1e2e"/>
+
+  <image x="111" y="66" width="158" height="158" xlink:href="../../../data/assets/pacsea.svg"/>
+  <text x="294" y="191" font-size="133" font-weight="bold" fill="#cdd6f4">Pacsea</text>
+  <text x="111" y="383" font-size="138" fill="#cdd6f4">Find Arch packages</text>
+
+  <!-- First two rows of assets/all-selected.svg. -->
+  <g id="results">
+    <path d="M120 506 Q120 493 133 493 H157 M560 493 H1787 Q1800 493 1800 506
+             V811 Q1800 824 1787 824 H133 Q120 824 120 811 V506"
+          fill="none" stroke="#585b70" stroke-width="5"/>
+    <text x="178" y="510" font-size="54" fill="#9399b2">Results (4)</text>
+
+    <rect x="129" y="670" width="1662" height="133" fill="#45475a"/>
+    <g font-size="110">
+      <text x="161" y="768" fill="#cdd6f4">&gt;</text>
+      <g fill="#a6e3a1">
+        <text x="279" y="636">extra</text>
+        <text x="279" y="768">extra</text>
+      </g>
+      <g fill="#cdd6f4" font-weight="bold">
+        <text x="691" y="636">ripgrep</text>
+        <text x="691" y="768">ripgrep-all</text>
+      </g>
+    </g>
+  </g>
+
+  <text x="117" y="945" font-size="68" fill="#a6adc8">Official repositories and the AUR</text>
+</svg>

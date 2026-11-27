@@ -1,0 +1,333 @@
+<style>
+.ev-scene { background: #0d0e16; }
+.ev-scene::before {
+  content: ""; position: absolute; inset: 10px 16px 14px;
+  border: 2px solid #8d91a9; border-radius: 14px;
+  background: linear-gradient(to bottom, #323242 0 42px, #555568 42px 44px, #1e1e2e 44px);
+}
+.window-title {
+  position: absolute; left: 36px; top: 18px; display: flex; gap: 12px; align-items: center;
+  color: #e6e7f0; font: 600 23px/29px "DejaVu Sans", sans-serif;
+}
+.window-title img { width: 28px; height: 28px; }
+.window-controls { position: absolute; top: 24px; right: 40px; width: 84px; height: 16px; }
+.terminal { position: absolute; left: 32px; top: 64px; width: 1856px; height: 986px; }
+.ev-scene:has(.ev-shade[hidden])::after {
+  content: ""; position: absolute; inset: 0; background: rgba(0,0,0,.58); pointer-events: none;
+}
+.hidden-frame { visibility: hidden; }
+/* A chapter or line change must leave the badge and both baselines in place. */
+.ev-continuous .ev-cap-placed {
+  display: grid; grid-template-columns: 36px minmax(0, 1fr);
+  grid-template-rows: 31px 29px; align-content: center; align-items: center;
+  column-gap: 13px; height: 88px; min-height: 88px; padding: 9px 15px;
+  font: 500 23px/29px "DejaVu Sans", sans-serif; letter-spacing: -.45px;
+  background: #181c29; border: 1px solid #677185; border-radius: 12px;
+  box-shadow: 0 4px 16px #080b12aa;
+}
+.ev-continuous .ev-num {
+  grid-column: 1; grid-row: 1 / 3; min-width: 0; margin: 0; padding: 0;
+  height: 34px; font: 600 17px/1 "DejaVu Sans Mono", monospace;
+  color: #e0e6f3; background: #303849; border-color: #555f74;
+}
+.ev-continuous .ev-bold {
+  grid-column: 2; grid-row: 1; color: #f4f6ff; font-size: 26px;
+}
+.ev-continuous .ev-rest { grid-column: 2; grid-row: 2; color: #dce3f0; }
+
+/* Only editorial shots have an unnumbered caption. The scene owns their type
+   so the picture and its lettering can have separate, frame-seekable ramps. */
+.ev-continuous .ev-cap-placed:not(:has(.ev-num)) { display: none; }
+.title-scrim, .end-fade { position: absolute; inset: 0; pointer-events: none; }
+.title-scrim { z-index: 2; background: linear-gradient(100deg, rgba(1,3,9,.74), rgba(2,4,9,.6)); }
+.title-scrim ~ .ev-shade { z-index: 1; }
+.title-copy {
+  position: absolute; z-index: 3; left: 192px; top: 246px; width: 1552px;
+  font: 480 46px/1.38 "DejaVu Sans", sans-serif; color: #e5e8f3;
+}
+.title-copy h1, .title-copy p { margin: 0; }
+.title-copy h1 {
+  font: 700 106px/1.12 "DejaVu Sans", sans-serif; letter-spacing: -5px;
+  color: #fafaff; margin: 21px 0 26px;
+}
+.title-copy .eyebrow {
+  display: flex; gap: 22px; align-items: center;
+  color: #a9e6f4; font: 600 33px/1.25 "DejaVu Sans Mono", monospace; letter-spacing: 2px;
+}
+.eyebrow::before { content: ""; width: 74px; height: 5px; background: #8bdcf3; }
+.open-title { top: 232px; }
+.open-title h1 { display: flex; align-items: center; gap: 32px; font-size: 154px; letter-spacing: -9px; }
+.open-title h1 img { width: 128px; height: 128px; }
+.chapter-title { top: 275px; }
+.chapter-title .sweep-clip { width: 388px; height: 5px; margin-top: 38px; overflow: hidden; }
+.sweep { height: 100%; background: linear-gradient(90deg, #909de4, #93e3f6); }
+.close-title { top: 190px; }
+.close-title h1 { font-size: 100px; }
+.credits {
+  width: fit-content; margin-top: 43px; padding-top: 22px; border-top: 2px solid #586473;
+  display: grid; grid-template-columns: max-content max-content; column-gap: 74px;
+  font-size: 42px; font-weight: 600;
+}
+.credits small { display: block; color: #a9e6f4; font: 400 34px/1.4 "DejaVu Sans Mono", monospace; }
+.title-copy .address { margin-top: 15px; color: #ccd5ec; font: 400 38px/1.4 "DejaVu Sans Mono", monospace; }
+.end-fade { z-index: 4; background: #020309; }
+</style>
+<template id="discovery-intro" data-width="1920" data-height="1080">
+  <div class="window-title"><img src="pacsea.svg" alt="">Pacsea</div>
+  <svg class="window-controls" viewBox="0 0 84 16" aria-hidden="true"><path d="M1 13h12 M35 3h10v10H35z M70 3l10 10m0-10L70 13" stroke="#bbc0d2" stroke-width="1.5" fill="none"/></svg>
+  <img id="frame-1" class="terminal" src="assets/page-first.svg" alt="Pacsea package browser">
+  <div class="title-scrim"></div>
+  <section class="title-copy open-title">
+    <p class="eyebrow">PACKAGE DISCOVERY</p>
+    <h1><img src="pacsea.svg" alt="">Pacsea</h1>
+    <p>Search official repositories and the AUR.<br>
+       Inspect a build recipe, then choose what to queue.</p>
+  </section>
+</template>
+<template id="page-results" data-width="1920" data-height="1080">
+  <div class="window-title"><img src="pacsea.svg" alt="">Pacsea</div>
+  <svg class="window-controls" viewBox="0 0 84 16" aria-hidden="true"><path d="M1 13h12 M35 3h10v10H35z M70 3l10 10m0-10L70 13" stroke="#bbc0d2" stroke-width="1.5" fill="none"/></svg>
+  <img id="frame-1" class="terminal" src="assets/page-first.svg" alt="Pacsea package browser">
+  <img id="frame-2" class="terminal hidden-frame" src="assets/page-ten.svg" alt="Pacsea package browser">
+  <img id="frame-3" class="terminal hidden-frame" src="assets/page-first.svg" alt="Pacsea package browser">
+</template>
+<template id="search-ripgrep" data-width="1920" data-height="1080">
+  <div class="window-title"><img src="pacsea.svg" alt="">Pacsea</div>
+  <svg class="window-controls" viewBox="0 0 84 16" aria-hidden="true"><path d="M1 13h12 M35 3h10v10H35z M70 3l10 10m0-10L70 13" stroke="#bbc0d2" stroke-width="1.5" fill="none"/></svg>
+  <img id="frame-1" class="terminal" src="assets/page-first.svg" alt="Pacsea package browser">
+  <img id="frame-2" class="terminal hidden-frame" src="../01-discovery-pilot/assets/type-1.svg" alt="Pacsea package browser">
+  <img id="frame-3" class="terminal hidden-frame" src="../01-discovery-pilot/assets/type-2.svg" alt="Pacsea package browser">
+  <img id="frame-4" class="terminal hidden-frame" src="../01-discovery-pilot/assets/type-3.svg" alt="Pacsea package browser">
+  <img id="frame-5" class="terminal hidden-frame" src="../01-discovery-pilot/assets/type-4.svg" alt="Pacsea package browser">
+  <img id="frame-6" class="terminal hidden-frame" src="../01-discovery-pilot/assets/type-5.svg" alt="Pacsea package browser">
+  <img id="frame-7" class="terminal hidden-frame" src="../01-discovery-pilot/assets/type-6.svg" alt="Pacsea package browser">
+  <img id="frame-8" class="terminal hidden-frame" src="../01-discovery-pilot/assets/type-7.svg" alt="Pacsea package browser">
+  <img id="frame-9" class="terminal hidden-frame" src="../01-discovery-pilot/assets/matches.svg" alt="Pacsea package browser">
+</template>
+<template id="read-sources" data-width="1920" data-height="1080">
+  <div class="window-title"><img src="pacsea.svg" alt="">Pacsea</div>
+  <svg class="window-controls" viewBox="0 0 84 16" aria-hidden="true"><path d="M1 13h12 M35 3h10v10H35z M70 3l10 10m0-10L70 13" stroke="#bbc0d2" stroke-width="1.5" fill="none"/></svg>
+  <img id="frame-1" class="terminal" src="../01-discovery-pilot/assets/matches.svg" alt="Pacsea package browser">
+</template>
+<template id="edit-query" data-width="1920" data-height="1080">
+  <div class="window-title"><img src="pacsea.svg" alt="">Pacsea</div>
+  <svg class="window-controls" viewBox="0 0 84 16" aria-hidden="true"><path d="M1 13h12 M35 3h10v10H35z M70 3l10 10m0-10L70 13" stroke="#bbc0d2" stroke-width="1.5" fill="none"/></svg>
+  <img id="frame-1" class="terminal" src="../01-discovery-pilot/assets/matches.svg" alt="Pacsea package browser">
+  <img id="frame-2" class="terminal hidden-frame" src="assets/edit-type-one.svg" alt="Pacsea package browser">
+  <img id="frame-3" class="terminal hidden-frame" src="assets/edit-type-two.svg" alt="Pacsea package browser">
+  <img id="frame-4" class="terminal hidden-frame" src="assets/edit-start.svg" alt="Pacsea package browser">
+  <img id="frame-5" class="terminal hidden-frame" src="assets/edit-one.svg" alt="Pacsea package browser">
+  <img id="frame-6" class="terminal hidden-frame" src="assets/edit-two.svg" alt="Pacsea package browser">
+  <img id="frame-7" class="terminal hidden-frame" src="assets/edit-three.svg" alt="Pacsea package browser">
+  <img id="frame-8" class="terminal hidden-frame" src="assets/edit-trim.svg" alt="Pacsea package browser">
+  <img id="frame-9" class="terminal hidden-frame" src="assets/edit-done.svg" alt="Pacsea package browser">
+</template>
+<template id="clear-and-toggle" data-width="1920" data-height="1080">
+  <div class="window-title"><img src="pacsea.svg" alt="">Pacsea</div>
+  <svg class="window-controls" viewBox="0 0 84 16" aria-hidden="true"><path d="M1 13h12 M35 3h10v10H35z M70 3l10 10m0-10L70 13" stroke="#bbc0d2" stroke-width="1.5" fill="none"/></svg>
+  <img id="frame-1" class="terminal" src="../01-discovery-pilot/assets/matches.svg" alt="Pacsea package browser">
+  <img id="frame-2" class="terminal hidden-frame" src="../01-discovery-pilot/assets/cleared.svg" alt="Pacsea package browser">
+  <img id="frame-3" class="terminal hidden-frame" src="../01-discovery-pilot/assets/fuzzy-empty.svg" alt="Pacsea package browser">
+</template>
+<template id="match-letters" data-width="1920" data-height="1080">
+  <div class="window-title"><img src="pacsea.svg" alt="">Pacsea</div>
+  <svg class="window-controls" viewBox="0 0 84 16" aria-hidden="true"><path d="M1 13h12 M35 3h10v10H35z M70 3l10 10m0-10L70 13" stroke="#bbc0d2" stroke-width="1.5" fill="none"/></svg>
+  <img id="frame-1" class="terminal" src="../01-discovery-pilot/assets/fuzzy-empty.svg" alt="Pacsea package browser">
+  <img id="frame-2" class="terminal hidden-frame" src="../01-discovery-pilot/assets/fuzzy-0.svg" alt="Pacsea package browser">
+  <img id="frame-3" class="terminal hidden-frame" src="../01-discovery-pilot/assets/fuzzy-1.svg" alt="Pacsea package browser">
+</template>
+<template id="recall-search" data-width="1920" data-height="1080">
+  <div class="window-title"><img src="pacsea.svg" alt="">Pacsea</div>
+  <svg class="window-controls" viewBox="0 0 84 16" aria-hidden="true"><path d="M1 13h12 M35 3h10v10H35z M70 3l10 10m0-10L70 13" stroke="#bbc0d2" stroke-width="1.5" fill="none"/></svg>
+  <img id="frame-1" class="terminal" src="../01-discovery-pilot/assets/fuzzy-1.svg" alt="Pacsea package browser">
+  <img id="frame-2" class="terminal hidden-frame" src="../01-discovery-pilot/assets/history-query.svg" alt="Pacsea package browser">
+  <img id="frame-3" class="terminal hidden-frame" src="../01-discovery-pilot/assets/restored.svg" alt="Pacsea package browser">
+</template>
+<template id="browse-matches" data-width="1920" data-height="1080">
+  <div class="window-title"><img src="pacsea.svg" alt="">Pacsea</div>
+  <svg class="window-controls" viewBox="0 0 84 16" aria-hidden="true"><path d="M1 13h12 M35 3h10v10H35z M70 3l10 10m0-10L70 13" stroke="#bbc0d2" stroke-width="1.5" fill="none"/></svg>
+  <img id="frame-1" class="terminal" src="../01-discovery-pilot/assets/restored.svg" alt="Pacsea package browser">
+  <img id="frame-2" class="terminal hidden-frame" src="../01-discovery-pilot/assets/normal.svg" alt="Pacsea package browser">
+  <img id="frame-3" class="terminal hidden-frame" src="../01-discovery-pilot/assets/all-selected.svg" alt="Pacsea package browser">
+  <img id="frame-4" class="terminal hidden-frame" src="../01-discovery-pilot/assets/git-selected.svg" alt="Pacsea package browser">
+  <img id="frame-5" class="terminal hidden-frame" src="../01-discovery-pilot/assets/all-selected.svg" alt="Pacsea package browser">
+  <img id="frame-6" class="terminal hidden-frame" src="../01-discovery-pilot/assets/git-selected.svg" alt="Pacsea package browser">
+</template>
+<template id="read-markers" data-width="1920" data-height="1080">
+  <div class="window-title"><img src="pacsea.svg" alt="">Pacsea</div>
+  <svg class="window-controls" viewBox="0 0 84 16" aria-hidden="true"><path d="M1 13h12 M35 3h10v10H35z M70 3l10 10m0-10L70 13" stroke="#bbc0d2" stroke-width="1.5" fill="none"/></svg>
+  <img id="frame-1" class="terminal" src="../01-discovery-pilot/assets/git-selected.svg" alt="Pacsea package browser">
+  <img id="frame-2" class="terminal hidden-frame" src="../01-discovery-pilot/assets/marked.svg" alt="Pacsea package browser">
+</template>
+<template id="filter-sources" data-width="1920" data-height="1080">
+  <div class="window-title"><img src="pacsea.svg" alt="">Pacsea</div>
+  <svg class="window-controls" viewBox="0 0 84 16" aria-hidden="true"><path d="M1 13h12 M35 3h10v10H35z M70 3l10 10m0-10L70 13" stroke="#bbc0d2" stroke-width="1.5" fill="none"/></svg>
+  <img id="frame-1" class="terminal" src="../01-discovery-pilot/assets/marked.svg" alt="Pacsea package browser">
+  <img id="frame-2" class="terminal hidden-frame" src="../01-discovery-pilot/assets/official.svg" alt="Pacsea package browser">
+  <img id="frame-3" class="terminal hidden-frame" src="../01-discovery-pilot/assets/all-selected.svg" alt="Pacsea package browser">
+</template>
+<template id="custom-repository" data-width="1920" data-height="1080">
+  <div class="window-title"><img src="pacsea.svg" alt="">Pacsea</div>
+  <svg class="window-controls" viewBox="0 0 84 16" aria-hidden="true"><path d="M1 13h12 M35 3h10v10H35z M70 3l10 10m0-10L70 13" stroke="#bbc0d2" stroke-width="1.5" fill="none"/></svg>
+  <img id="frame-1" class="terminal" src="assets/custom-base.svg" alt="Pacsea package browser">
+  <img id="frame-2" class="terminal hidden-frame" src="assets/custom-menu.svg" alt="Pacsea package browser">
+  <img id="frame-3" class="terminal hidden-frame" src="assets/custom-off.svg" alt="Pacsea package browser">
+  <img id="frame-4" class="terminal hidden-frame" src="assets/custom-result.svg" alt="Pacsea package browser">
+</template>
+<template id="sort-packages" data-width="1920" data-height="1080">
+  <div class="window-title"><img src="pacsea.svg" alt="">Pacsea</div>
+  <svg class="window-controls" viewBox="0 0 84 16" aria-hidden="true"><path d="M1 13h12 M35 3h10v10H35z M70 3l10 10m0-10L70 13" stroke="#bbc0d2" stroke-width="1.5" fill="none"/></svg>
+  <img id="frame-1" class="terminal" src="../01-discovery-pilot/assets/all-selected.svg" alt="Pacsea package browser">
+  <img id="frame-2" class="terminal hidden-frame" src="../01-discovery-pilot/assets/sort-menu.svg" alt="Pacsea package browser">
+  <img id="frame-3" class="terminal hidden-frame" src="../01-discovery-pilot/assets/aur-first.svg" alt="Pacsea package browser">
+</template>
+<template id="community-comments" data-width="1920" data-height="1080">
+  <div class="window-title"><img src="pacsea.svg" alt="">Pacsea</div>
+  <svg class="window-controls" viewBox="0 0 84 16" aria-hidden="true"><path d="M1 13h12 M35 3h10v10H35z M70 3l10 10m0-10L70 13" stroke="#bbc0d2" stroke-width="1.5" fill="none"/></svg>
+  <img id="frame-1" class="terminal" src="../01-discovery-pilot/assets/aur-first.svg" alt="Pacsea package browser">
+  <img id="frame-2" class="terminal hidden-frame" src="../01-discovery-pilot/assets/comments.svg" alt="Pacsea package browser">
+</template>
+<template id="vote-dialog" data-width="1920" data-height="1080">
+  <div class="window-title"><img src="pacsea.svg" alt="">Pacsea</div>
+  <svg class="window-controls" viewBox="0 0 84 16" aria-hidden="true"><path d="M1 13h12 M35 3h10v10H35z M70 3l10 10m0-10L70 13" stroke="#bbc0d2" stroke-width="1.5" fill="none"/></svg>
+  <img id="frame-1" class="terminal" src="../01-discovery-pilot/assets/comments.svg" alt="Pacsea package browser">
+  <img id="frame-2" class="terminal hidden-frame" src="../01-discovery-pilot/assets/vote.svg" alt="Pacsea package browser">
+</template>
+<template id="inspect-aur-recipe" data-width="1920" data-height="1080">
+  <div class="window-title"><img src="pacsea.svg" alt="">Pacsea</div>
+  <svg class="window-controls" viewBox="0 0 84 16" aria-hidden="true"><path d="M1 13h12 M35 3h10v10H35z M70 3l10 10m0-10L70 13" stroke="#bbc0d2" stroke-width="1.5" fill="none"/></svg>
+  <img id="frame-1" class="terminal" src="../01-discovery-pilot/assets/recipe-closed.svg" alt="Pacsea package browser">
+  <img id="frame-2" class="terminal hidden-frame" src="../01-discovery-pilot/assets/recipe-loading.svg" alt="Pacsea package browser">
+  <img id="frame-3" class="terminal hidden-frame" src="../01-discovery-pilot/assets/recipe.svg" alt="Pacsea package browser">
+</template>
+<template id="reload-recipe" data-width="1920" data-height="1080">
+  <div class="window-title"><img src="pacsea.svg" alt="">Pacsea</div>
+  <svg class="window-controls" viewBox="0 0 84 16" aria-hidden="true"><path d="M1 13h12 M35 3h10v10H35z M70 3l10 10m0-10L70 13" stroke="#bbc0d2" stroke-width="1.5" fill="none"/></svg>
+  <img id="frame-1" class="terminal" src="../01-discovery-pilot/assets/recipe.svg" alt="Pacsea package browser">
+  <img id="frame-2" class="terminal hidden-frame" src="../01-discovery-pilot/assets/recipe-closed.svg" alt="Pacsea package browser">
+  <img id="frame-3" class="terminal hidden-frame" src="../01-discovery-pilot/assets/recipe-loading.svg" alt="Pacsea package browser">
+  <img id="frame-4" class="terminal hidden-frame" src="../01-discovery-pilot/assets/recipe.svg" alt="Pacsea package browser">
+</template>
+<template id="copy-recipe" data-width="1920" data-height="1080">
+  <div class="window-title"><img src="pacsea.svg" alt="">Pacsea</div>
+  <svg class="window-controls" viewBox="0 0 84 16" aria-hidden="true"><path d="M1 13h12 M35 3h10v10H35z M70 3l10 10m0-10L70 13" stroke="#bbc0d2" stroke-width="1.5" fill="none"/></svg>
+  <img id="frame-1" class="terminal" src="../01-discovery-pilot/assets/recipe.svg" alt="Pacsea package browser">
+  <img id="frame-2" class="terminal hidden-frame" src="assets/copy-done.svg" alt="Pacsea package browser">
+</template>
+<template id="run-checks" data-width="1920" data-height="1080">
+  <div class="window-title"><img src="pacsea.svg" alt="">Pacsea</div>
+  <svg class="window-controls" viewBox="0 0 84 16" aria-hidden="true"><path d="M1 13h12 M35 3h10v10H35z M70 3l10 10m0-10L70 13" stroke="#bbc0d2" stroke-width="1.5" fill="none"/></svg>
+  <img id="frame-1" class="terminal" src="../01-discovery-pilot/assets/recipe.svg" alt="Pacsea package browser">
+  <img id="frame-2" class="terminal hidden-frame" src="../01-discovery-pilot/assets/running.svg" alt="Pacsea package browser">
+  <img id="frame-3" class="terminal hidden-frame" src="../01-discovery-pilot/assets/checked.svg" alt="Pacsea package browser">
+</template>
+<template id="read-checks" data-width="1920" data-height="1080">
+  <div class="window-title"><img src="pacsea.svg" alt="">Pacsea</div>
+  <svg class="window-controls" viewBox="0 0 84 16" aria-hidden="true"><path d="M1 13h12 M35 3h10v10H35z M70 3l10 10m0-10L70 13" stroke="#bbc0d2" stroke-width="1.5" fill="none"/></svg>
+  <img id="frame-1" class="terminal" src="../01-discovery-pilot/assets/checked.svg" alt="Pacsea package browser">
+  <img id="frame-2" class="terminal hidden-frame" src="../01-discovery-pilot/assets/shellcheck.svg" alt="Pacsea package browser">
+  <img id="frame-3" class="terminal hidden-frame" src="../01-discovery-pilot/assets/namcap.svg" alt="Pacsea package browser">
+</template>
+<template id="build-install-list" data-width="1920" data-height="1080">
+  <div class="window-title"><img src="pacsea.svg" alt="">Pacsea</div>
+  <svg class="window-controls" viewBox="0 0 84 16" aria-hidden="true"><path d="M1 13h12 M35 3h10v10H35z M70 3l10 10m0-10L70 13" stroke="#bbc0d2" stroke-width="1.5" fill="none"/></svg>
+  <img id="frame-1" class="terminal" src="../01-discovery-pilot/assets/namcap.svg" alt="Pacsea package browser">
+  <div class="title-scrim"></div>
+  <section class="title-copy chapter-title">
+    <p class="eyebrow">CHAPTER 04 / 05</p>
+    <h1>Build the install list</h1>
+    <p>You checked the selected AUR build recipe.<br>
+       Now choose an official package for the install list.</p>
+    <div class="sweep-clip" aria-hidden="true"><div class="sweep"></div></div>
+  </section>
+</template>
+<template id="queue-choice" data-width="1920" data-height="1080">
+  <div class="window-title"><img src="pacsea.svg" alt="">Pacsea</div>
+  <svg class="window-controls" viewBox="0 0 84 16" aria-hidden="true"><path d="M1 13h12 M35 3h10v10H35z M70 3l10 10m0-10L70 13" stroke="#bbc0d2" stroke-width="1.5" fill="none"/></svg>
+  <img id="frame-1" class="terminal" src="../01-discovery-pilot/assets/namcap.svg" alt="Pacsea package browser">
+  <img id="frame-2" class="terminal hidden-frame" src="../01-discovery-pilot/assets/recipe-closed.svg" alt="Pacsea package browser">
+  <img id="frame-3" class="terminal hidden-frame" src="../01-discovery-pilot/assets/official.svg" alt="Pacsea package browser">
+  <img id="frame-4" class="terminal hidden-frame" src="../01-discovery-pilot/assets/ready-queue.svg" alt="Pacsea package browser">
+  <img id="frame-5" class="terminal hidden-frame" src="../01-discovery-pilot/assets/queued.svg" alt="Pacsea package browser">
+</template>
+<template id="queue-history" data-width="1920" data-height="1080">
+  <div class="window-title"><img src="pacsea.svg" alt="">Pacsea</div>
+  <svg class="window-controls" viewBox="0 0 84 16" aria-hidden="true"><path d="M1 13h12 M35 3h10v10H35z M70 3l10 10m0-10L70 13" stroke="#bbc0d2" stroke-width="1.5" fill="none"/></svg>
+  <img id="frame-1" class="terminal" src="../01-discovery-pilot/assets/queued.svg" alt="Pacsea package browser">
+  <img id="frame-2" class="terminal hidden-frame" src="../01-discovery-pilot/assets/history-fd.svg" alt="Pacsea package browser">
+  <img id="frame-3" class="terminal hidden-frame" src="../01-discovery-pilot/assets/two-queued.svg" alt="Pacsea package browser">
+</template>
+<template id="prune-list" data-width="1920" data-height="1080">
+  <div class="window-title"><img src="pacsea.svg" alt="">Pacsea</div>
+  <svg class="window-controls" viewBox="0 0 84 16" aria-hidden="true"><path d="M1 13h12 M35 3h10v10H35z M70 3l10 10m0-10L70 13" stroke="#bbc0d2" stroke-width="1.5" fill="none"/></svg>
+  <img id="frame-1" class="terminal" src="../01-discovery-pilot/assets/two-queued.svg" alt="Pacsea package browser">
+  <img id="frame-2" class="terminal hidden-frame" src="../01-discovery-pilot/assets/list-focus.svg" alt="Pacsea package browser">
+  <img id="frame-3" class="terminal hidden-frame" src="../01-discovery-pilot/assets/find-f.svg" alt="Pacsea package browser">
+  <img id="frame-4" class="terminal hidden-frame" src="../01-discovery-pilot/assets/find-fd.svg" alt="Pacsea package browser">
+  <img id="frame-5" class="terminal hidden-frame" src="../01-discovery-pilot/assets/list-focus.svg" alt="Pacsea package browser">
+  <img id="frame-6" class="terminal hidden-frame" src="../01-discovery-pilot/assets/list-final.svg" alt="Pacsea package browser">
+</template>
+<template id="clear-queue" data-width="1920" data-height="1080">
+  <div class="window-title"><img src="pacsea.svg" alt="">Pacsea</div>
+  <svg class="window-controls" viewBox="0 0 84 16" aria-hidden="true"><path d="M1 13h12 M35 3h10v10H35z M70 3l10 10m0-10L70 13" stroke="#bbc0d2" stroke-width="1.5" fill="none"/></svg>
+  <img id="frame-1" class="terminal" src="../01-discovery-pilot/assets/list-final.svg" alt="Pacsea package browser">
+  <img id="frame-2" class="terminal hidden-frame" src="assets/clear-after.svg" alt="Pacsea package browser">
+  <img id="frame-3" class="terminal hidden-frame" src="assets/requeue-ready.svg" alt="Pacsea package browser">
+  <img id="frame-4" class="terminal hidden-frame" src="assets/requeue-done.svg" alt="Pacsea package browser">
+</template>
+<template id="export-list" data-width="1920" data-height="1080">
+  <div class="window-title"><img src="pacsea.svg" alt="">Pacsea</div>
+  <svg class="window-controls" viewBox="0 0 84 16" aria-hidden="true"><path d="M1 13h12 M35 3h10v10H35z M70 3l10 10m0-10L70 13" stroke="#bbc0d2" stroke-width="1.5" fill="none"/></svg>
+  <img id="frame-1" class="terminal" src="../01-discovery-pilot/assets/list-final.svg" alt="Pacsea package browser">
+  <img id="frame-2" class="terminal hidden-frame" src="../01-discovery-pilot/assets/export-base.svg" alt="Pacsea package browser">
+  <img id="frame-3" class="terminal hidden-frame" src="../01-discovery-pilot/assets/export.svg" alt="Pacsea package browser">
+</template>
+<template id="import-list" data-width="1920" data-height="1080">
+  <div class="window-title"><img src="pacsea.svg" alt="">Pacsea</div>
+  <svg class="window-controls" viewBox="0 0 84 16" aria-hidden="true"><path d="M1 13h12 M35 3h10v10H35z M70 3l10 10m0-10L70 13" stroke="#bbc0d2" stroke-width="1.5" fill="none"/></svg>
+  <img id="frame-1" class="terminal" src="../01-discovery-pilot/assets/export-base.svg" alt="Pacsea package browser">
+  <img id="frame-2" class="terminal hidden-frame" src="../01-discovery-pilot/assets/import.svg" alt="Pacsea package browser">
+  <img id="frame-3" class="terminal hidden-frame" src="../01-discovery-pilot/assets/export-base.svg" alt="Pacsea package browser">
+</template>
+<template id="help-shortcuts" data-width="1920" data-height="1080">
+  <div class="window-title"><img src="pacsea.svg" alt="">Pacsea</div>
+  <svg class="window-controls" viewBox="0 0 84 16" aria-hidden="true"><path d="M1 13h12 M35 3h10v10H35z M70 3l10 10m0-10L70 13" stroke="#bbc0d2" stroke-width="1.5" fill="none"/></svg>
+  <img id="frame-1" class="terminal" src="../01-discovery-pilot/assets/export-base.svg" alt="Pacsea package browser">
+  <img id="frame-2" class="terminal hidden-frame" src="../01-discovery-pilot/assets/help.svg" alt="Pacsea package browser">
+</template>
+<template id="review-list" data-width="1920" data-height="1080">
+  <div class="window-title"><img src="pacsea.svg" alt="">Pacsea</div>
+  <svg class="window-controls" viewBox="0 0 84 16" aria-hidden="true"><path d="M1 13h12 M35 3h10v10H35z M70 3l10 10m0-10L70 13" stroke="#bbc0d2" stroke-width="1.5" fill="none"/></svg>
+  <img id="frame-1" class="terminal" src="../01-discovery-pilot/assets/list-final.svg" alt="Pacsea package browser">
+  <img id="frame-2" class="terminal hidden-frame" src="../01-discovery-pilot/assets/preflight-wait.svg" alt="Pacsea package browser">
+  <img id="frame-3" class="terminal hidden-frame" src="../01-discovery-pilot/assets/preflight.svg" alt="Pacsea package browser">
+</template>
+<template id="read-size" data-width="1920" data-height="1080">
+  <div class="window-title"><img src="pacsea.svg" alt="">Pacsea</div>
+  <svg class="window-controls" viewBox="0 0 84 16" aria-hidden="true"><path d="M1 13h12 M35 3h10v10H35z M70 3l10 10m0-10L70 13" stroke="#bbc0d2" stroke-width="1.5" fill="none"/></svg>
+  <img id="frame-1" class="terminal" src="../01-discovery-pilot/assets/preflight.svg" alt="Pacsea package browser">
+</template>
+<template id="keep-choice" data-width="1920" data-height="1080">
+  <div class="window-title"><img src="pacsea.svg" alt="">Pacsea</div>
+  <svg class="window-controls" viewBox="0 0 84 16" aria-hidden="true"><path d="M1 13h12 M35 3h10v10H35z M70 3l10 10m0-10L70 13" stroke="#bbc0d2" stroke-width="1.5" fill="none"/></svg>
+  <img id="frame-1" class="terminal" src="../01-discovery-pilot/assets/preflight.svg" alt="Pacsea package browser">
+  <img id="frame-2" class="terminal hidden-frame" src="../01-discovery-pilot/assets/list-final.svg" alt="Pacsea package browser">
+</template>
+<template id="end-credits" data-width="1920" data-height="1080">
+  <div class="window-title"><img src="pacsea.svg" alt="">Pacsea</div>
+  <svg class="window-controls" viewBox="0 0 84 16" aria-hidden="true"><path d="M1 13h12 M35 3h10v10H35z M70 3l10 10m0-10L70 13" stroke="#bbc0d2" stroke-width="1.5" fill="none"/></svg>
+  <img class="terminal" src="../01-discovery-pilot/assets/list-final.svg" alt="Final install list with one package queued">
+  <div class="title-scrim"></div>
+  <section class="title-copy close-title">
+    <p class="eyebrow">PREFLIGHT REVIEW COMPLETE</p>
+    <h1>Ready in the install list</h1>
+    <p>Your package is still queued after review.<br>
+       Nothing has been installed.</p>
+    <div class="credits">
+      <div><small>Project</small>Pacsea / Firstpick</div>
+      <div><small>Original music</small>Quiet Index</div>
+    </div>
+    <p class="address">github.com/Firstp1ck/Pacsea</p>
+  </section>
+  <div class="end-fade"></div>
+</template>

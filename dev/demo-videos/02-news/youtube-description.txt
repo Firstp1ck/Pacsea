@@ -1,0 +1,14 @@
+Use Pacsea to narrow Arch news and advisories to the items you want to read. Compare an update’s package versions, open the original article, manage bookmarks and check Arch service status.
+
+00:00 Open News management
+00:37 Filter sources, dates and read status
+00:59 Sort, search and recall a query
+01:34 Read articles and manage bookmarks
+02:32 Review the news window and service status
+
+The recreated Pacsea 0.8.2 interface follows main at c2d62f9e. The articles, package inventory, versions, dates, read markers and status screens are fixtures. Filter examples begin with independent views of the same feed.
+
+Original music: “Quiet Index,” composed and synthesized for the Pacsea series and arranged to this episode.
+
+Pacsea on GitHub
+https://github.com/Firstp1ck/Pacsea

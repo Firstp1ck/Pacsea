@@ -1,0 +1,490 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1888 980" width="1888" height="980">
+<!-- Headless Pacsea terminal capture or a source-file/terminal excerpt. Sample package, repository, key and status data are illustrative. -->
+<rect width="1888" height="980" fill="#1e1e2e"/>
+<g font-family="DejaVu Sans Mono, monospace" font-size="26.5" xml:space="preserve">
+<rect x="0" y="0" width="512" height="28" fill="#181825"/>
+<rect x="512" y="0" width="16" height="28" fill="#181825"/>
+<text x="512" y="22" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">U</text>
+<rect x="528" y="0" width="320" height="28" fill="#181825"/>
+<text x="528" y="22" fill="#cba6f7" textLength="320" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">pdates available (3)</text>
+<rect x="848" y="0" width="512" height="28" fill="#181825"/>
+<rect x="1360" y="0" width="16" height="28" fill="#181825"/>
+<text x="1360" y="22" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">C</text>
+<rect x="1376" y="0" width="208" height="28" fill="#181825"/>
+<text x="1376" y="22" fill="#cba6f7" textLength="208" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">onfig/Lists v</text>
+<rect x="1584" y="0" width="16" height="28" fill="#181825"/>
+<rect x="1600" y="0" width="16" height="28" fill="#181825"/>
+<text x="1600" y="22" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">P</text>
+<rect x="1616" y="0" width="112" height="28" fill="#181825"/>
+<text x="1616" y="22" fill="#cba6f7" textLength="112" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">anels v</text>
+<rect x="1728" y="0" width="16" height="28" fill="#181825"/>
+<rect x="1744" y="0" width="16" height="28" fill="#181825"/>
+<text x="1744" y="22" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">O</text>
+<rect x="1760" y="0" width="128" height="28" fill="#181825"/>
+<text x="1760" y="22" fill="#cba6f7" textLength="128" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">ptions v</text>
+<rect x="0" y="28" width="16" height="28" fill="#181825"/>
+<text x="0" y="50" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">╭</text>
+<rect x="16" y="28" width="176" height="28" fill="#181825"/>
+<text x="16" y="50" fill="#7f849c" textLength="176" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Results (4)</text>
+<rect x="192" y="28" width="32" height="28" fill="#181825"/>
+<rect x="224" y="28" width="96" height="28" fill="#181825"/>
+<text x="224" y="50" fill="#cba6f7" textLength="96" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">Sort v</text>
+<rect x="320" y="28" width="32" height="28" fill="#181825"/>
+<rect x="352" y="28" width="80" height="28" fill="#181825"/>
+<text x="352" y="50" fill="#11111b" textLength="80" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">[AUR]</text>
+<rect x="432" y="28" width="16" height="28" fill="#181825"/>
+<rect x="448" y="28" width="96" height="28" fill="#181825"/>
+<text x="448" y="50" fill="#11111b" textLength="96" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">[core]</text>
+<rect x="544" y="28" width="16" height="28" fill="#181825"/>
+<rect x="560" y="28" width="112" height="28" fill="#181825"/>
+<text x="560" y="50" fill="#11111b" textLength="112" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">[extra]</text>
+<rect x="672" y="28" width="16" height="28" fill="#181825"/>
+<rect x="688" y="28" width="160" height="28" fill="#181825"/>
+<text x="688" y="50" fill="#11111b" textLength="160" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">[multilib]</text>
+<rect x="848" y="28" width="16" height="28" fill="#181825"/>
+<rect x="864" y="28" width="144" height="28" fill="#181825"/>
+<text x="864" y="50" fill="#cba6f7" textLength="144" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">[Repos] v</text>
+<rect x="1008" y="28" width="880" height="28" fill="#181825"/>
+<text x="1008" y="50" fill="#585b70" textLength="880" lengthAdjust="spacingAndGlyphs" style="white-space:pre">──────────────────────────────────────────────────────╮</text>
+<rect x="0" y="56" width="16" height="28" fill="#181825"/>
+<text x="0" y="78" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="16" y="56" width="32" height="28" fill="#181825"/>
+<text x="16" y="78" fill="#cdd6f4" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">&gt;</text>
+<rect x="48" y="56" width="96" height="28" fill="#181825"/>
+<text x="48" y="78" fill="#a6e3a1" textLength="80" lengthAdjust="spacingAndGlyphs" style="white-space:pre">extra</text>
+<rect x="144" y="56" width="64" height="28" fill="#181825"/>
+<text x="144" y="78" fill="#cdd6f4" textLength="64" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">ripg</text>
+<rect x="208" y="56" width="1472" height="28" fill="#181825"/>
+<text x="208" y="78" fill="#7f849c" textLength="1472" lengthAdjust="spacingAndGlyphs" style="white-space:pre">╭──────────────────────────────────────────────────────────────────────────────────────────╮</text>
+<rect x="1680" y="56" width="192" height="28" fill="#181825"/>
+<rect x="1872" y="56" width="16" height="28" fill="#181825"/>
+<text x="1872" y="78" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="0" y="84" width="16" height="28" fill="#181825"/>
+<text x="0" y="106" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="16" y="84" width="32" height="28" fill="#181825"/>
+<rect x="48" y="84" width="96" height="28" fill="#181825"/>
+<text x="48" y="106" fill="#a6e3a1" textLength="80" lengthAdjust="spacingAndGlyphs" style="white-space:pre">extra</text>
+<rect x="144" y="84" width="64" height="28" fill="#181825"/>
+<text x="144" y="106" fill="#cdd6f4" textLength="64" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">ripg</text>
+<rect x="208" y="84" width="16" height="28" fill="#181825"/>
+<text x="208" y="106" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="224" y="84" width="352" height="28" fill="#181825"/>
+<text x="224" y="106" fill="#cba6f7" textLength="336" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">AUR vs new repository</text>
+<rect x="576" y="84" width="1088" height="28" fill="#181825"/>
+<rect x="1664" y="84" width="16" height="28" fill="#181825"/>
+<text x="1664" y="106" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="1680" y="84" width="192" height="28" fill="#181825"/>
+<rect x="1872" y="84" width="16" height="28" fill="#181825"/>
+<text x="1872" y="106" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="0" y="112" width="16" height="28" fill="#181825"/>
+<text x="0" y="134" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="16" y="112" width="32" height="28" fill="#181825"/>
+<rect x="48" y="112" width="64" height="28" fill="#181825"/>
+<text x="48" y="134" fill="#f9e2af" textLength="48" lengthAdjust="spacingAndGlyphs" style="white-space:pre">AUR</text>
+<rect x="112" y="112" width="96" height="28" fill="#181825"/>
+<text x="112" y="134" fill="#cdd6f4" textLength="96" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">ripgre</text>
+<rect x="208" y="112" width="16" height="28" fill="#181825"/>
+<text x="208" y="134" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="224" y="112" width="1440" height="28" fill="#181825"/>
+<rect x="1664" y="112" width="16" height="28" fill="#181825"/>
+<text x="1664" y="134" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="1680" y="112" width="192" height="28" fill="#181825"/>
+<rect x="1872" y="112" width="16" height="28" fill="#181825"/>
+<text x="1872" y="134" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="0" y="140" width="16" height="28" fill="#181825"/>
+<text x="0" y="162" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="16" y="140" width="32" height="28" fill="#181825"/>
+<rect x="48" y="140" width="64" height="28" fill="#181825"/>
+<text x="48" y="162" fill="#f9e2af" textLength="48" lengthAdjust="spacingAndGlyphs" style="white-space:pre">AUR</text>
+<rect x="112" y="140" width="96" height="28" fill="#181825"/>
+<text x="112" y="162" fill="#cdd6f4" textLength="96" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">ripgre</text>
+<rect x="208" y="140" width="16" height="28" fill="#181825"/>
+<text x="208" y="162" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="224" y="140" width="1232" height="28" fill="#181825"/>
+<text x="224" y="162" fill="#f38ba8" textLength="1232" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">Migration will reinstall packages from the repository, replacing your current</text>
+<rect x="1456" y="140" width="208" height="28" fill="#181825"/>
+<rect x="1664" y="140" width="16" height="28" fill="#181825"/>
+<text x="1664" y="162" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="1680" y="140" width="192" height="28" fill="#181825"/>
+<rect x="1872" y="140" width="16" height="28" fill="#181825"/>
+<text x="1872" y="162" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="0" y="168" width="16" height="28" fill="#181825"/>
+<text x="0" y="190" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="16" y="168" width="192" height="28" fill="#181825"/>
+<rect x="208" y="168" width="16" height="28" fill="#181825"/>
+<text x="208" y="190" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="224" y="168" width="368" height="28" fill="#181825"/>
+<text x="224" y="190" fill="#f38ba8" textLength="368" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">AUR-installed packages.</text>
+<rect x="592" y="168" width="1072" height="28" fill="#181825"/>
+<rect x="1664" y="168" width="16" height="28" fill="#181825"/>
+<text x="1664" y="190" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="1680" y="168" width="192" height="28" fill="#181825"/>
+<rect x="1872" y="168" width="16" height="28" fill="#181825"/>
+<text x="1872" y="190" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="0" y="196" width="16" height="28" fill="#181825"/>
+<text x="0" y="218" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="16" y="196" width="192" height="28" fill="#181825"/>
+<rect x="208" y="196" width="16" height="28" fill="#181825"/>
+<text x="208" y="218" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="224" y="196" width="1440" height="28" fill="#181825"/>
+<rect x="1664" y="196" width="16" height="28" fill="#181825"/>
+<text x="1664" y="218" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="1680" y="196" width="192" height="28" fill="#181825"/>
+<rect x="1872" y="196" width="16" height="28" fill="#181825"/>
+<text x="1872" y="218" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="0" y="224" width="16" height="28" fill="#181825"/>
+<text x="0" y="246" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="16" y="224" width="192" height="28" fill="#181825"/>
+<rect x="208" y="224" width="16" height="28" fill="#181825"/>
+<text x="208" y="246" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="224" y="224" width="1440" height="28" fill="#181825"/>
+<text x="224" y="246" fill="#cdd6f4" textLength="1328" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Following commands will be run: pacman -Rns --noconfirm removes the AUR install and</text>
+<rect x="1664" y="224" width="16" height="28" fill="#181825"/>
+<text x="1664" y="246" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="1680" y="224" width="192" height="28" fill="#181825"/>
+<rect x="1872" y="224" width="16" height="28" fill="#181825"/>
+<text x="1872" y="246" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="0" y="252" width="16" height="28" fill="#181825"/>
+<text x="0" y="274" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="16" y="252" width="192" height="28" fill="#181825"/>
+<rect x="208" y="252" width="16" height="28" fill="#181825"/>
+<text x="208" y="274" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="224" y="252" width="1440" height="28" fill="#181825"/>
+<text x="224" y="274" fill="#cdd6f4" textLength="1424" lengthAdjust="spacingAndGlyphs" style="white-space:pre">dependencies no longer needed (other packages can be removed if nothing depends on them).</text>
+<rect x="1664" y="252" width="16" height="28" fill="#181825"/>
+<text x="1664" y="274" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="1680" y="252" width="192" height="28" fill="#181825"/>
+<rect x="1872" y="252" width="16" height="28" fill="#181825"/>
+<text x="1872" y="274" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="0" y="280" width="16" height="28" fill="#181825"/>
+<text x="0" y="302" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="16" y="280" width="192" height="28" fill="#181825"/>
+<rect x="208" y="280" width="16" height="28" fill="#181825"/>
+<text x="208" y="302" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="224" y="280" width="1440" height="28" fill="#181825"/>
+<text x="224" y="302" fill="#cdd6f4" textLength="1344" lengthAdjust="spacingAndGlyphs" style="white-space:pre">After that, pacman -S --needed --noconfirm installs the same packages from the added</text>
+<rect x="1664" y="280" width="16" height="28" fill="#181825"/>
+<text x="1664" y="302" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="1680" y="280" width="192" height="28" fill="#181825"/>
+<rect x="1872" y="280" width="16" height="28" fill="#181825"/>
+<text x="1872" y="302" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="0" y="308" width="16" height="28" fill="#181825"/>
+<text x="0" y="330" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="16" y="308" width="192" height="28" fill="#181825"/>
+<rect x="208" y="308" width="16" height="28" fill="#181825"/>
+<text x="208" y="330" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="224" y="308" width="1440" height="28" fill="#181825"/>
+<text x="224" y="330" fill="#cdd6f4" textLength="176" lengthAdjust="spacingAndGlyphs" style="white-space:pre">repository.</text>
+<rect x="1664" y="308" width="16" height="28" fill="#181825"/>
+<text x="1664" y="330" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="1680" y="308" width="192" height="28" fill="#181825"/>
+<rect x="1872" y="308" width="16" height="28" fill="#181825"/>
+<text x="1872" y="330" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="0" y="336" width="16" height="28" fill="#181825"/>
+<text x="0" y="358" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="16" y="336" width="192" height="28" fill="#181825"/>
+<rect x="208" y="336" width="16" height="28" fill="#181825"/>
+<text x="208" y="358" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="224" y="336" width="1440" height="28" fill="#181825"/>
+<rect x="1664" y="336" width="16" height="28" fill="#181825"/>
+<text x="1664" y="358" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="1680" y="336" width="192" height="28" fill="#181825"/>
+<rect x="1872" y="336" width="16" height="28" fill="#181825"/>
+<text x="1872" y="358" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="0" y="364" width="16" height="28" fill="#181825"/>
+<text x="0" y="386" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="16" y="364" width="192" height="28" fill="#181825"/>
+<rect x="208" y="364" width="16" height="28" fill="#181825"/>
+<text x="208" y="386" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="224" y="364" width="1440" height="28" fill="#181825"/>
+<text x="224" y="386" fill="#cdd6f4" textLength="1424" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Packages will update normally via pacman -Syu (pulls packages from the added repository).</text>
+<rect x="1664" y="364" width="16" height="28" fill="#181825"/>
+<text x="1664" y="386" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="1680" y="364" width="192" height="28" fill="#181825"/>
+<rect x="1872" y="364" width="16" height="28" fill="#181825"/>
+<text x="1872" y="386" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="0" y="392" width="16" height="28" fill="#181825"/>
+<text x="0" y="414" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="16" y="392" width="192" height="28" fill="#181825"/>
+<rect x="208" y="392" width="16" height="28" fill="#181825"/>
+<text x="208" y="414" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="224" y="392" width="1440" height="28" fill="#181825"/>
+<rect x="1664" y="392" width="16" height="28" fill="#181825"/>
+<text x="1664" y="414" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="1680" y="392" width="192" height="28" fill="#181825"/>
+<rect x="1872" y="392" width="16" height="28" fill="#181825"/>
+<text x="1872" y="414" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="0" y="420" width="16" height="28" fill="#181825"/>
+<text x="0" y="442" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="16" y="420" width="192" height="28" fill="#181825"/>
+<rect x="208" y="420" width="16" height="28" fill="#181825"/>
+<text x="208" y="442" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="224" y="420" width="1440" height="28" fill="#181825"/>
+<text x="224" y="442" fill="#cdd6f4" textLength="1424" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Read the package list and command summary carefully before sudo. The repo package may not</text>
+<rect x="1664" y="420" width="16" height="28" fill="#181825"/>
+<text x="1664" y="442" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="1680" y="420" width="192" height="28" fill="#181825"/>
+<rect x="1872" y="420" width="16" height="28" fill="#181825"/>
+<text x="1872" y="442" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="0" y="448" width="16" height="28" fill="#181825"/>
+<text x="0" y="470" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="16" y="448" width="192" height="28" fill="#181825"/>
+<rect x="208" y="448" width="16" height="28" fill="#181825"/>
+<text x="208" y="470" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="224" y="448" width="1440" height="28" fill="#181825"/>
+<text x="224" y="470" fill="#cdd6f4" textLength="608" lengthAdjust="spacingAndGlyphs" style="white-space:pre">match what your AUR PKGBUILD gave you.</text>
+<rect x="1664" y="448" width="16" height="28" fill="#181825"/>
+<text x="1664" y="470" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="1680" y="448" width="192" height="28" fill="#181825"/>
+<rect x="1872" y="448" width="16" height="28" fill="#181825"/>
+<text x="1872" y="470" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="0" y="476" width="208" height="28" fill="#181825"/>
+<text x="0" y="498" fill="#585b70" textLength="208" lengthAdjust="spacingAndGlyphs" style="white-space:pre">╰────────────</text>
+<rect x="208" y="476" width="16" height="28" fill="#181825"/>
+<text x="208" y="498" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="224" y="476" width="1440" height="28" fill="#181825"/>
+<rect x="1664" y="476" width="16" height="28" fill="#181825"/>
+<text x="1664" y="498" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="1680" y="476" width="208" height="28" fill="#181825"/>
+<text x="1680" y="498" fill="#585b70" textLength="208" lengthAdjust="spacingAndGlyphs" style="white-space:pre">────────────╯</text>
+<rect x="0" y="504" width="16" height="28" fill="#181825"/>
+<text x="0" y="526" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">╭</text>
+<rect x="16" y="504" width="208" height="28" fill="#181825"/>
+<text x="16" y="526" fill="#7f849c" textLength="208" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Search histo│</text>
+<rect x="224" y="504" width="1040" height="28" fill="#181825"/>
+<text x="224" y="526" fill="#bac2de" textLength="1040" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Affected packages (AUR install; repository also ships this name):</text>
+<rect x="1264" y="504" width="400" height="28" fill="#181825"/>
+<rect x="1664" y="504" width="48" height="28" fill="#181825"/>
+<text x="1664" y="526" fill="#7f849c" textLength="48" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│st</text>
+<rect x="1712" y="504" width="176" height="28" fill="#181825"/>
+<text x="1712" y="526" fill="#45475a" textLength="176" lengthAdjust="spacingAndGlyphs" style="white-space:pre">──────────╮</text>
+<rect x="0" y="532" width="16" height="28" fill="#181825"/>
+<text x="0" y="554" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="16" y="532" width="192" height="28" fill="#181825"/>
+<text x="16" y="554" fill="#a6adc8" textLength="144" lengthAdjust="spacingAndGlyphs" style="white-space:pre">alacritty</text>
+<rect x="208" y="532" width="16" height="28" fill="#181825"/>
+<text x="208" y="554" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="224" y="532" width="1440" height="28" fill="#181825"/>
+<text x="224" y="554" fill="#cdd6f4" textLength="224" lengthAdjust="spacingAndGlyphs" style="white-space:pre">inkpad 2.4.0-1</text>
+<rect x="1664" y="532" width="16" height="28" fill="#181825"/>
+<text x="1664" y="554" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="1680" y="532" width="192" height="28" fill="#181825"/>
+<rect x="1872" y="532" width="16" height="28" fill="#181825"/>
+<text x="1872" y="554" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="0" y="560" width="16" height="28" fill="#181825"/>
+<text x="0" y="582" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="16" y="560" width="192" height="28" fill="#181825"/>
+<rect x="208" y="560" width="16" height="28" fill="#181825"/>
+<text x="208" y="582" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="224" y="560" width="1440" height="28" fill="#181825"/>
+<text x="224" y="582" fill="#cdd6f4" textLength="320" lengthAdjust="spacingAndGlyphs" style="white-space:pre">inkpad-tools 2.4.0-1</text>
+<rect x="1664" y="560" width="16" height="28" fill="#181825"/>
+<text x="1664" y="582" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="1680" y="560" width="192" height="28" fill="#181825"/>
+<rect x="1872" y="560" width="16" height="28" fill="#181825"/>
+<text x="1872" y="582" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="0" y="588" width="16" height="28" fill="#181825"/>
+<text x="0" y="610" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="16" y="588" width="192" height="28" fill="#181825"/>
+<rect x="208" y="588" width="16" height="28" fill="#181825"/>
+<text x="208" y="610" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="224" y="588" width="1440" height="28" fill="#181825"/>
+<rect x="1664" y="588" width="16" height="28" fill="#181825"/>
+<text x="1664" y="610" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="1680" y="588" width="192" height="28" fill="#181825"/>
+<rect x="1872" y="588" width="16" height="28" fill="#181825"/>
+<text x="1872" y="610" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="0" y="616" width="208" height="28" fill="#181825"/>
+<text x="0" y="638" fill="#45475a" textLength="208" lengthAdjust="spacingAndGlyphs" style="white-space:pre">╰────────────</text>
+<rect x="208" y="616" width="16" height="28" fill="#181825"/>
+<text x="208" y="638" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="224" y="616" width="864" height="28" fill="#181825"/>
+<text x="224" y="638" fill="#bac2de" textLength="240" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Enter: continue</text>
+<text x="496" y="638" fill="#bac2de" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">•</text>
+<text x="544" y="638" fill="#bac2de" textLength="256" lengthAdjust="spacingAndGlyphs" style="white-space:pre">↑/↓: scroll list</text>
+<text x="832" y="638" fill="#bac2de" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">•</text>
+<text x="880" y="638" fill="#bac2de" textLength="208" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Esc/q: cancel</text>
+<rect x="1088" y="616" width="576" height="28" fill="#181825"/>
+<rect x="1664" y="616" width="16" height="28" fill="#181825"/>
+<text x="1664" y="638" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="1680" y="616" width="64" height="28" fill="#181825"/>
+<text x="1680" y="638" fill="#cba6f7" textLength="64" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">port</text>
+<rect x="1744" y="616" width="32" height="28" fill="#181825"/>
+<text x="1744" y="638" fill="#45475a" textLength="32" lengthAdjust="spacingAndGlyphs" style="white-space:pre">──</text>
+<rect x="1776" y="616" width="16" height="28" fill="#181825"/>
+<text x="1776" y="638" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">I</text>
+<rect x="1792" y="616" width="80" height="28" fill="#181825"/>
+<text x="1792" y="638" fill="#cba6f7" textLength="80" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">mport</text>
+<rect x="1872" y="616" width="16" height="28" fill="#181825"/>
+<text x="1872" y="638" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">╯</text>
+<rect x="0" y="644" width="16" height="28" fill="#181825"/>
+<text x="0" y="666" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">╭</text>
+<rect x="16" y="644" width="208" height="28" fill="#181825"/>
+<text x="16" y="666" fill="#7f849c" textLength="208" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Package Info│</text>
+<rect x="224" y="644" width="1440" height="28" fill="#181825"/>
+<rect x="1664" y="644" width="16" height="28" fill="#181825"/>
+<text x="1664" y="666" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="1680" y="644" width="208" height="28" fill="#181825"/>
+<text x="1680" y="666" fill="#585b70" textLength="208" lengthAdjust="spacingAndGlyphs" style="white-space:pre">────────────╮</text>
+<rect x="0" y="672" width="16" height="28" fill="#181825"/>
+<text x="0" y="694" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="16" y="672" width="192" height="28" fill="#181825"/>
+<text x="16" y="694" fill="#74c7ec" textLength="176" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">Repository:</text>
+<rect x="208" y="672" width="16" height="28" fill="#181825"/>
+<text x="208" y="694" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="224" y="672" width="1440" height="28" fill="#181825"/>
+<rect x="1664" y="672" width="16" height="28" fill="#181825"/>
+<text x="1664" y="694" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="1680" y="672" width="192" height="28" fill="#181825"/>
+<rect x="1872" y="672" width="16" height="28" fill="#181825"/>
+<text x="1872" y="694" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="0" y="700" width="16" height="28" fill="#181825"/>
+<text x="0" y="722" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="16" y="700" width="192" height="28" fill="#181825"/>
+<text x="16" y="722" fill="#74c7ec" textLength="192" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">Package Name</text>
+<rect x="208" y="700" width="16" height="28" fill="#181825"/>
+<text x="208" y="722" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="224" y="700" width="1440" height="28" fill="#181825"/>
+<rect x="1664" y="700" width="16" height="28" fill="#181825"/>
+<text x="1664" y="722" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="1680" y="700" width="192" height="28" fill="#181825"/>
+<rect x="1872" y="700" width="16" height="28" fill="#181825"/>
+<text x="1872" y="722" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="0" y="728" width="16" height="28" fill="#181825"/>
+<text x="0" y="750" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="16" y="728" width="144" height="28" fill="#181825"/>
+<text x="16" y="750" fill="#74c7ec" textLength="128" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">Version:</text>
+<rect x="160" y="728" width="48" height="28" fill="#181825"/>
+<text x="160" y="750" fill="#cdd6f4" textLength="48" lengthAdjust="spacingAndGlyphs" style="white-space:pre">14.</text>
+<rect x="208" y="728" width="16" height="28" fill="#181825"/>
+<text x="208" y="750" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="224" y="728" width="1440" height="28" fill="#181825"/>
+<rect x="1664" y="728" width="16" height="28" fill="#181825"/>
+<text x="1664" y="750" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="1680" y="728" width="192" height="28" fill="#181825"/>
+<rect x="1872" y="728" width="16" height="28" fill="#181825"/>
+<text x="1872" y="750" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="0" y="756" width="16" height="28" fill="#181825"/>
+<text x="0" y="778" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="16" y="756" width="192" height="28" fill="#181825"/>
+<text x="16" y="778" fill="#74c7ec" textLength="192" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">Description:</text>
+<rect x="208" y="756" width="16" height="28" fill="#181825"/>
+<text x="208" y="778" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="224" y="756" width="1440" height="28" fill="#181825"/>
+<rect x="1664" y="756" width="16" height="28" fill="#181825"/>
+<text x="1664" y="778" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="1680" y="756" width="192" height="28" fill="#181825"/>
+<rect x="1872" y="756" width="16" height="28" fill="#181825"/>
+<text x="1872" y="778" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="0" y="784" width="16" height="28" fill="#181825"/>
+<text x="0" y="806" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="16" y="784" width="192" height="28" fill="#181825"/>
+<text x="16" y="806" fill="#74c7ec" textLength="192" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">Architecture</text>
+<rect x="208" y="784" width="16" height="28" fill="#181825"/>
+<text x="208" y="806" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="224" y="784" width="1440" height="28" fill="#181825"/>
+<rect x="1664" y="784" width="16" height="28" fill="#181825"/>
+<text x="1664" y="806" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="1680" y="784" width="192" height="28" fill="#181825"/>
+<rect x="1872" y="784" width="16" height="28" fill="#181825"/>
+<text x="1872" y="806" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="0" y="812" width="16" height="28" fill="#181825"/>
+<text x="0" y="834" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="16" y="812" width="80" height="28" fill="#181825"/>
+<text x="16" y="834" fill="#74c7ec" textLength="64" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">URL:</text>
+<rect x="96" y="812" width="112" height="28" fill="#181825"/>
+<text x="96" y="834" fill="#cba6f7" textLength="112" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">https:/</text>
+<rect x="208" y="812" width="16" height="28" fill="#181825"/>
+<text x="208" y="834" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="224" y="812" width="1440" height="28" fill="#181825"/>
+<rect x="1664" y="812" width="16" height="28" fill="#181825"/>
+<text x="1664" y="834" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="1680" y="812" width="192" height="28" fill="#181825"/>
+<rect x="1872" y="812" width="16" height="28" fill="#181825"/>
+<text x="1872" y="834" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="0" y="840" width="208" height="28" fill="#181825"/>
+<text x="0" y="862" fill="#585b70" textLength="208" lengthAdjust="spacingAndGlyphs" style="white-space:pre">╰────────────</text>
+<rect x="208" y="840" width="16" height="28" fill="#181825"/>
+<text x="208" y="862" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="224" y="840" width="1440" height="28" fill="#181825"/>
+<rect x="1664" y="840" width="16" height="28" fill="#181825"/>
+<text x="1664" y="862" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="1680" y="840" width="208" height="28" fill="#181825"/>
+<text x="1680" y="862" fill="#585b70" textLength="208" lengthAdjust="spacingAndGlyphs" style="white-space:pre">────────────╯</text>
+<rect x="0" y="868" width="16" height="28" fill="#181825"/>
+<rect x="16" y="868" width="160" height="28" fill="#181825"/>
+<text x="16" y="890" fill="#7f849c" textLength="128" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">GLOBALS:</text>
+<rect x="176" y="868" width="32" height="28" fill="#181825"/>
+<rect x="208" y="868" width="16" height="28" fill="#181825"/>
+<text x="208" y="890" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="224" y="868" width="1440" height="28" fill="#181825"/>
+<rect x="1664" y="868" width="16" height="28" fill="#181825"/>
+<text x="1664" y="890" fill="#7f849c" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="1680" y="868" width="16" height="28" fill="#181825"/>
+<text x="1680" y="890" fill="#bac2de" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">D</text>
+<rect x="1696" y="868" width="48" height="28" fill="#181825"/>
+<text x="1728" y="890" fill="#9399b2" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">|</text>
+<rect x="1744" y="868" width="128" height="28" fill="#181825"/>
+<rect x="1872" y="868" width="16" height="28" fill="#181825"/>
+<rect x="0" y="896" width="16" height="28" fill="#181825"/>
+<rect x="16" y="896" width="128" height="28" fill="#181825"/>
+<text x="16" y="918" fill="#cdd6f4" textLength="128" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">[Ctrl+T]</text>
+<rect x="144" y="896" width="64" height="28" fill="#181825"/>
+<text x="160" y="918" fill="#bac2de" textLength="48" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Sho</text>
+<rect x="208" y="896" width="1472" height="28" fill="#181825"/>
+<text x="208" y="918" fill="#7f849c" textLength="1472" lengthAdjust="spacingAndGlyphs" style="white-space:pre">╰──────────────────────────────────────────────────────────────────────────────────────────╯</text>
+<rect x="1680" y="896" width="96" height="28" fill="#181825"/>
+<text x="1680" y="918" fill="#bac2de" textLength="96" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Namcap</text>
+<rect x="1776" y="896" width="48" height="28" fill="#181825"/>
+<text x="1808" y="918" fill="#9399b2" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">|</text>
+<rect x="1824" y="896" width="48" height="28" fill="#181825"/>
+<rect x="1872" y="896" width="16" height="28" fill="#181825"/>
+<rect x="0" y="924" width="16" height="28" fill="#181825"/>
+<rect x="16" y="924" width="176" height="28" fill="#181825"/>
+<text x="16" y="946" fill="#cdd6f4" textLength="176" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">[Shift+Tab]</text>
+<rect x="192" y="924" width="272" height="28" fill="#181825"/>
+<text x="208" y="946" fill="#bac2de" textLength="256" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Change Sort Mode</text>
+<rect x="464" y="924" width="80" height="28" fill="#181825"/>
+<text x="496" y="946" fill="#9399b2" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">|</text>
+<rect x="544" y="924" width="80" height="28" fill="#181825"/>
+<text x="544" y="946" fill="#cdd6f4" textLength="80" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">[Esc]</text>
+<rect x="624" y="924" width="192" height="28" fill="#181825"/>
+<text x="640" y="946" fill="#bac2de" textLength="176" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Insert Mode</text>
+<rect x="816" y="924" width="80" height="28" fill="#181825"/>
+<text x="848" y="946" fill="#9399b2" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">|</text>
+<rect x="896" y="924" width="976" height="28" fill="#181825"/>
+<rect x="1872" y="924" width="16" height="28" fill="#181825"/>
+<rect x="0" y="952" width="16" height="28" fill="#181825"/>
+<rect x="16" y="952" width="160" height="28" fill="#181825"/>
+<text x="16" y="974" fill="#cba6f7" textLength="112" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">SEARCH:</text>
+<rect x="176" y="952" width="32" height="28" fill="#181825"/>
+<rect x="208" y="952" width="112" height="28" fill="#181825"/>
+<text x="208" y="974" fill="#cdd6f4" textLength="112" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">[↑ / ↓]</text>
+<rect x="320" y="952" width="80" height="28" fill="#181825"/>
+<text x="336" y="974" fill="#bac2de" textLength="64" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Move</text>
+<rect x="400" y="952" width="80" height="28" fill="#181825"/>
+<text x="432" y="974" fill="#9399b2" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">|</text>
+<rect x="480" y="952" width="208" height="28" fill="#181825"/>
+<text x="480" y="974" fill="#cdd6f4" textLength="208" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">[PgUp / PgDn]</text>
+<rect x="688" y="952" width="160" height="28" fill="#181825"/>
+<text x="704" y="974" fill="#bac2de" textLength="144" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Move Page</text>
+<rect x="848" y="952" width="80" height="28" fill="#181825"/>
+<text x="880" y="974" fill="#9399b2" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">|</text>
+<rect x="928" y="952" width="112" height="28" fill="#181825"/>
+<text x="928" y="974" fill="#cdd6f4" textLength="112" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">[Space]</text>
+<rect x="1040" y="952" width="240" height="28" fill="#181825"/>
+<text x="1056" y="974" fill="#bac2de" textLength="224" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Add to install</text>
+<rect x="1280" y="952" width="80" height="28" fill="#181825"/>
+<text x="1312" y="974" fill="#9399b2" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">|</text>
+<rect x="1360" y="952" width="112" height="28" fill="#181825"/>
+<text x="1360" y="974" fill="#cdd6f4" textLength="112" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">[Enter]</text>
+<rect x="1472" y="952" width="128" height="28" fill="#181825"/>
+<text x="1488" y="974" fill="#bac2de" textLength="112" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Install</text>
+<rect x="1600" y="952" width="80" height="28" fill="#181825"/>
+<text x="1632" y="974" fill="#9399b2" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">|</text>
+<rect x="1680" y="952" width="128" height="28" fill="#181825"/>
+<text x="1680" y="974" fill="#cdd6f4" textLength="128" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">[Ctrl+F]</text>
+<rect x="1808" y="952" width="64" height="28" fill="#181825"/>
+<rect x="1872" y="952" width="16" height="28" fill="#181825"/>
+</g>
+</svg>

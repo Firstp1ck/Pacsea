@@ -1,0 +1,15 @@
+Preview the Pi Scan workspace in Pacsea. Configure a provider route and spending limits, follow selected AUR packages through the queue, inspect the evidence behind a finding, and recheck the package identity before returning to install review.
+
+00:00 Pi Scan preview and guided setup
+00:29 Review costs, consent and limits
+01:08 Choose targets and follow progress
+01:49 Inspect findings and coverage
+02:20 Manage background scans and budgets
+02:43 Recheck identity before install review
+
+Feature preview from feat/aur-scan-integrated at 55ef9248. Recreated screens use fictional provider routes and prices, sample package identities, and illustrative scan results. No provider was contacted, no scan ran and no package was installed.
+
+Original music: “Quiet Index,” composed and synthesized for the Pacsea series.
+
+Pacsea on GitHub
+https://github.com/Firstp1ck/Pacsea

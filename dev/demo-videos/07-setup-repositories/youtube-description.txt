@@ -1,0 +1,14 @@
+Choose first-launch tasks in Pacsea, set up optional tools and tune sudo, doas or fingerprint authentication. Read a repository recipe, inspect its signing key and pacman status, and review both kinds of AUR name collision before choosing whether to migrate or install.
+
+00:00 Choose first-launch tasks
+00:40 Check optional tools and clipboard support
+01:07 Set authentication and find shortcuts
+01:32 Add and verify a repository
+02:22 Review collisions and migration
+
+Captured on Pacsea main c2d62f9e. The interface uses native Ratatui captures. File and external-terminal views are typeset excerpts. Package names, repository entries, key status and transaction results are illustrative. No keys were imported and no host configuration or packages were changed.
+
+Original music: “Quiet Index,” composed and synthesized for the Pacsea walkthrough series.
+
+Pacsea on GitHub
+https://github.com/Firstp1ck/Pacsea

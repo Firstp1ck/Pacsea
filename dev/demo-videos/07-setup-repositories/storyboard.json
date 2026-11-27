@@ -1,0 +1,2311 @@
+{
+  "version": 1,
+  "format": "episode",
+  "title": "Pacsea: Set up tools and manage repositories",
+  "width": 1920,
+  "height": 1080,
+  "fps": 24,
+  "framing": "full-app",
+  "scenes": "scenes.html",
+  "theme": {
+    "accent": "#b4befe",
+    "background": "#0d0e16",
+    "glow": "transparent"
+  },
+  "captionMotion": "continuous",
+  "captionEase": "fast-slow",
+  "spotlightOutline": true,
+  "chapters": [
+    {
+      "start": 0,
+      "title": "Choose first-launch tasks"
+    },
+    {
+      "start": 40,
+      "title": "Check optional tools and clipboard support"
+    },
+    {
+      "start": 67,
+      "title": "Set authentication and find shortcuts"
+    },
+    {
+      "start": 92,
+      "title": "Add and verify a repository"
+    },
+    {
+      "start": 142,
+      "title": "Review collisions and migration"
+    }
+  ],
+  "production": {
+    "main": "c2d62f9ee7ab0669f3b3b5b1754c0132e5cbae52",
+    "fixtures": "Captured on Pacsea main c2d62f9e. The interface uses native Ratatui captures. File and external-terminal views are typeset excerpts. Package names, repository entries, key status and transaction results are illustrative. No keys were imported and no host configuration or packages were changed.",
+    "render": "t3-build python render.py ~/.codex/skills/explainer-video",
+    "score": "Quiet Index, rephrased at the chapter and credit entrances."
+  },
+  "steps": [
+    {
+      "scene": "open-title",
+      "duration": 8,
+      "transition": "cut",
+      "caption": {
+        "number": "",
+        "bold": "Pacsea",
+        "box": [
+          349,
+          161,
+          648
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 8,
+          "capture": "startup",
+          "anchor": [
+            7,
+            "Startup Setup Selector"
+          ],
+          "rect": [
+            349,
+            263,
+            358,
+            30
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "at": 0,
+          "type": "show",
+          "target": ".title-scrim",
+          "dur": 0.75,
+          "dx": 0,
+          "dy": 0
+        },
+        {
+          "at": 0.25,
+          "type": "show",
+          "target": ".title-copy",
+          "dur": 0.75,
+          "dx": 0,
+          "dy": 30
+        },
+        {
+          "at": 7,
+          "type": "hide",
+          "target": ".title-copy",
+          "dur": 0.625,
+          "dx": 0,
+          "dy": 14
+        },
+        {
+          "at": 7.25,
+          "type": "hide",
+          "target": ".title-scrim",
+          "dur": 0.75,
+          "dx": 0,
+          "dy": 0
+        }
+      ]
+    },
+    {
+      "scene": "step-01",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "01",
+        "bold": "Choose startup tasks",
+        "box": [
+          349,
+          161,
+          648
+        ],
+        "rest": "with the arrow keys.",
+        "track": [
+          {
+            "at": 2.75,
+            "move": 0.5,
+            "x": 333,
+            "y": 273
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 2.25,
+          "capture": "startup",
+          "anchor": [
+            7,
+            "Startup Setup Selector"
+          ],
+          "rect": [
+            349,
+            263,
+            358,
+            30
+          ]
+        },
+        {
+          "from": 2.25,
+          "to": 5,
+          "capture": "startup-before",
+          "anchor": [
+            11,
+            "[x] SSH AUR setup for voting"
+          ],
+          "rect": [
+            333,
+            375,
+            454,
+            30
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "type": "class",
+          "at": 2.25,
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "step-02",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "02",
+        "bold": "Press Space",
+        "box": [
+          333,
+          273,
+          648
+        ],
+        "rest": "to include the VirusTotal setup.",
+        "track": [
+          {
+            "at": 0.5,
+            "move": 0.5,
+            "x": 333,
+            "y": 413
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 2.25,
+          "capture": "startup-before",
+          "anchor": [
+            16,
+            "[ ] VirusTotal API setup"
+          ],
+          "rect": [
+            333,
+            515,
+            390,
+            30
+          ]
+        },
+        {
+          "from": 2.25,
+          "to": 5,
+          "capture": "startup-after",
+          "anchor": [
+            16,
+            "[x] VirusTotal API setup"
+          ],
+          "rect": [
+            333,
+            515,
+            390,
+            30
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "type": "class",
+          "at": 2.25,
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "step-03",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "03",
+        "bold": "Press Enter",
+        "box": [
+          333,
+          413,
+          648
+        ],
+        "rest": "to run the checked tasks.",
+        "track": [
+          {
+            "at": 1.25,
+            "move": 1.25,
+            "x": 772,
+            "y": 469
+          },
+          {
+            "at": 3.125,
+            "move": 0.875,
+            "x": 689,
+            "y": 178
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 2.25,
+          "capture": "startup-after",
+          "anchor": [
+            18,
+            "Enter: run selected"
+          ],
+          "rect": [
+            941,
+            571,
+            310,
+            30
+          ]
+        },
+        {
+          "from": 2.25,
+          "to": 5,
+          "capture": "ssh",
+          "anchor": [
+            5,
+            "AUR SSH Setup: Apply Key on AUR"
+          ],
+          "rect": [
+            173,
+            207,
+            502,
+            30
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "type": "class",
+          "at": 2.25,
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "step-04",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "number": "04",
+        "bold": "Open AUR with O.",
+        "box": [
+          689,
+          178,
+          648
+        ],
+        "rest": "Add your public key to enable voting.",
+        "track": [
+          {
+            "at": 4.25,
+            "move": 1.5,
+            "x": 683,
+            "y": 721
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 2.75,
+          "capture": "ssh",
+          "anchor": [
+            8,
+            "Public key file: ~/.ssh/aur_key.pub"
+          ],
+          "rect": [
+            205,
+            291,
+            566,
+            30
+          ]
+        },
+        {
+          "from": 2.75,
+          "to": 6,
+          "capture": "ssh",
+          "anchor": [
+            27,
+            "O: open login page"
+          ],
+          "rect": [
+            1037,
+            823,
+            294,
+            30
+          ]
+        }
+      ],
+      "actions": []
+    },
+    {
+      "scene": "step-05",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "number": "05",
+        "bold": "Add your VirusTotal key.",
+        "box": [
+          683,
+          721,
+          648
+        ],
+        "rest": "Scans can then look up file hashes.",
+        "track": [
+          {
+            "at": 0.708333,
+            "move": 0.708333,
+            "x": 529,
+            "y": 541
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 2.75,
+          "capture": "vt",
+          "anchor": [
+            19,
+            "API key: <empty>"
+          ],
+          "rect": [
+            253,
+            599,
+            262,
+            30
+          ]
+        },
+        {
+          "from": 2.75,
+          "to": 6,
+          "capture": "vt",
+          "anchor": [
+            21,
+            "auto-query VirusTotal by file hash."
+          ],
+          "rect": [
+            733,
+            655,
+            566,
+            30
+          ]
+        }
+      ],
+      "actions": []
+    },
+    {
+      "scene": "step-06",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "06",
+        "bold": "Esc postpones setup.",
+        "box": [
+          529,
+          541,
+          648
+        ],
+        "rest": "R hides the startup selector permanently.",
+        "track": [
+          {
+            "at": 0.5,
+            "move": 0.5,
+            "x": 651,
+            "y": 497
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 2.25,
+          "capture": "startup",
+          "anchor": [
+            18,
+            "Esc: maybe later"
+          ],
+          "rect": [
+            1325,
+            571,
+            262,
+            30
+          ]
+        },
+        {
+          "from": 2.25,
+          "to": 5,
+          "capture": "startup",
+          "anchor": [
+            19,
+            "R: never show again"
+          ],
+          "rect": [
+            381,
+            599,
+            310,
+            30
+          ]
+        }
+      ],
+      "actions": []
+    },
+    {
+      "scene": "step-07",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "07",
+        "bold": "Open Optional Deps",
+        "box": [
+          651,
+          497,
+          648
+        ],
+        "rest": "with Shift+O, then 3.",
+        "track": [
+          {
+            "at": 1.0,
+            "move": 1.0,
+            "x": 807,
+            "y": 179
+          },
+          {
+            "at": 2.958333,
+            "move": 0.708333,
+            "x": 571,
+            "y": 189
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 2.25,
+          "capture": "options",
+          "anchor": [
+            4,
+            "TUI Optional Dep's"
+          ],
+          "rect": [
+            1469,
+            179,
+            294,
+            30
+          ]
+        },
+        {
+          "from": 2.25,
+          "to": 5,
+          "capture": "optional",
+          "anchor": [
+            8,
+            "TUI Optional Deps"
+          ],
+          "rect": [
+            333,
+            291,
+            278,
+            30
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "type": "class",
+          "at": 2.25,
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "step-08",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "number": "08",
+        "bold": "Check the installed tools.",
+        "box": [
+          571,
+          189,
+          648
+        ],
+        "rest": "Review your editor, terminal and AUR helper.",
+        "track": [
+          {
+            "at": 0.5,
+            "move": 0.5,
+            "x": 491,
+            "y": 245
+          },
+          {
+            "at": 2.5,
+            "move": 0.5,
+            "x": 625,
+            "y": 262
+          },
+          {
+            "at": 4.583333,
+            "move": 0.583333,
+            "x": 609,
+            "y": 459
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0.0,
+          "to": 2.0,
+          "capture": "optional",
+          "anchor": [
+            10,
+            "Editor: nvim"
+          ],
+          "rect": [
+            333,
+            347,
+            198,
+            30
+          ]
+        },
+        {
+          "from": 2.0,
+          "to": 4.0,
+          "capture": "optional",
+          "anchor": [
+            11,
+            "Terminal: kitty"
+          ],
+          "rect": [
+            333,
+            375,
+            246,
+            30
+          ]
+        },
+        {
+          "from": 4.0,
+          "to": 6,
+          "capture": "optional",
+          "anchor": [
+            14,
+            "AUR Helper: paru"
+          ],
+          "rect": [
+            333,
+            459,
+            262,
+            30
+          ]
+        }
+      ],
+      "actions": []
+    },
+    {
+      "scene": "step-09",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "09",
+        "bold": "Match your clipboard tool",
+        "box": [
+          609,
+          459,
+          648
+        ],
+        "rest": "to KDE, Wayland or X11. Space selects it.",
+        "track": [
+          {
+            "at": 0.791667,
+            "move": 0.791667,
+            "x": 333,
+            "y": 447
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 2.25,
+          "capture": "clipboard",
+          "anchor": [
+            12,
+            "[ ] Clipboard: wl-clipboard"
+          ],
+          "rect": [
+            333,
+            403,
+            438,
+            30
+          ]
+        },
+        {
+          "from": 2.25,
+          "to": 5,
+          "capture": "clipboard-checked",
+          "anchor": [
+            12,
+            "[x] Clipboard: wl-clipboard"
+          ],
+          "rect": [
+            333,
+            403,
+            438,
+            30
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "type": "class",
+          "at": 2.25,
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "step-10",
+      "duration": 7,
+      "transition": "cut",
+      "caption": {
+        "number": "10",
+        "bold": "Set up aur-sleuth.",
+        "box": [
+          333,
+          447,
+          648
+        ],
+        "rest": "Supply a server address, model and API key.",
+        "track": [
+          {
+            "at": 0.5,
+            "move": 0.5,
+            "x": 307,
+            "y": 469
+          },
+          {
+            "at": 2.25,
+            "move": 0.5,
+            "x": 305,
+            "y": 459
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0.0,
+          "to": 1.75,
+          "capture": "sleuth",
+          "anchor": [
+            18,
+            "Security: aur-sleuth"
+          ],
+          "rect": [
+            397,
+            571,
+            326,
+            30
+          ]
+        },
+        {
+          "from": 1.75,
+          "to": 3.5,
+          "capture": "sleuth-terminal",
+          "anchor": [
+            12,
+            "OPENAI_BASE_URL"
+          ],
+          "rect": [
+            61,
+            403,
+            246,
+            30
+          ]
+        },
+        {
+          "from": 3.5,
+          "to": 5.25,
+          "capture": "sleuth-terminal",
+          "anchor": [
+            13,
+            "OPENAI_MODEL"
+          ],
+          "rect": [
+            61,
+            431,
+            198,
+            30
+          ]
+        },
+        {
+          "from": 5.25,
+          "to": 7,
+          "capture": "sleuth-terminal",
+          "anchor": [
+            14,
+            "OPENAI_API_KEY"
+          ],
+          "rect": [
+            61,
+            459,
+            230,
+            30
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "type": "class",
+          "at": 1.75,
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "step-11",
+      "duration": 4,
+      "transition": "cut",
+      "caption": {
+        "number": "11",
+        "bold": "Click Wizard",
+        "box": [
+          305,
+          459,
+          648
+        ],
+        "rest": "to reopen the startup selector.",
+        "track": [
+          {
+            "at": 1.5,
+            "move": 1.5,
+            "x": 829,
+            "y": 307
+          },
+          {
+            "at": 2.25,
+            "move": 0.5,
+            "x": 705,
+            "y": 317
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 1.75,
+          "capture": "optional",
+          "anchor": [
+            7,
+            "[Wizard]"
+          ],
+          "rect": [
+            1437,
+            263,
+            134,
+            30
+          ]
+        },
+        {
+          "from": 1.75,
+          "to": 4,
+          "capture": "startup",
+          "anchor": [
+            7,
+            "Startup Setup Selector"
+          ],
+          "rect": [
+            349,
+            263,
+            358,
+            30
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "type": "class",
+          "at": 1.75,
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "step-12",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "12",
+        "bold": "Set the sudo timeout",
+        "box": [
+          705,
+          317,
+          648
+        ],
+        "rest": "to cover a longer build."
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 2.25,
+          "capture": "startup",
+          "anchor": [
+            13,
+            "Sudo credential cache (sudoers)"
+          ],
+          "rect": [
+            397,
+            431,
+            502,
+            30
+          ]
+        },
+        {
+          "from": 2.25,
+          "to": 5,
+          "capture": "sudo",
+          "anchor": [
+            11,
+            "30 minutes (timestamp_timeout=30)"
+          ],
+          "rect": [
+            157,
+            375,
+            534,
+            30
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "type": "class",
+          "at": 2.25,
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "step-13",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "13",
+        "bold": "Using doas?",
+        "box": [
+          705,
+          317,
+          648
+        ],
+        "rest": "Choose a user-scoped persist rule.",
+        "track": [
+          {
+            "at": 0.708333,
+            "move": 0.708333,
+            "x": 481,
+            "y": 235
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 2.25,
+          "capture": "doas",
+          "anchor": [
+            6,
+            "Doas persist setup"
+          ],
+          "rect": [
+            173,
+            235,
+            294,
+            30
+          ]
+        },
+        {
+          "from": 2.25,
+          "to": 5,
+          "capture": "doas",
+          "anchor": [
+            10,
+            "Use user-scoped snippet"
+          ],
+          "rect": [
+            157,
+            347,
+            374,
+            30
+          ]
+        }
+      ],
+      "actions": []
+    },
+    {
+      "scene": "step-14",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "14",
+        "bold": "For PAM fingerprints,",
+        "box": [
+          481,
+          235,
+          648
+        ],
+        "rest": "set auth_mode to interactive.",
+        "track": [
+          {
+            "at": 2.875,
+            "move": 0.625,
+            "x": 493,
+            "y": 441
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 2.25,
+          "capture": "cfg-auth_mode",
+          "anchor": [
+            4,
+            "Authentication mode  ·  auth_mode"
+          ],
+          "rect": [
+            77,
+            179,
+            534,
+            30
+          ]
+        },
+        {
+          "from": 2.25,
+          "to": 5,
+          "capture": "auth-interactive",
+          "anchor": [
+            17,
+            "▶ interactive"
+          ],
+          "rect": [
+            493,
+            543,
+            214,
+            30
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "type": "class",
+          "at": 2.25,
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "step-15",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "15",
+        "bold": "Press F1 for Help.",
+        "box": [
+          493,
+          441,
+          648
+        ],
+        "rest": "Find the keys for moving between panes.",
+        "track": [
+          {
+            "at": 1.125,
+            "move": 1.125,
+            "x": 509,
+            "y": 833
+          },
+          {
+            "at": 3.583333,
+            "move": 1.333333,
+            "x": 571,
+            "y": 363
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 2.25,
+          "capture": "home",
+          "anchor": [
+            31,
+            "[F1] Help"
+          ],
+          "rect": [
+            509,
+            935,
+            150,
+            30
+          ]
+        },
+        {
+          "from": 2.25,
+          "to": 5,
+          "capture": "help",
+          "anchor": [
+            9,
+            "Next pane           [Tab]"
+          ],
+          "rect": [
+            205,
+            319,
+            406,
+            30
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "type": "class",
+          "at": 2.25,
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "step-16",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "16",
+        "bold": "Shift+C opens config files.",
+        "box": [
+          571,
+          363,
+          648
+        ],
+        "rest": "Shift+P controls which panes appear.",
+        "track": [
+          {
+            "at": 0.875,
+            "move": 0.875,
+            "x": 861,
+            "y": 251
+          },
+          {
+            "at": 2.75,
+            "move": 0.5,
+            "x": 903,
+            "y": 94
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 2.25,
+          "capture": "config",
+          "anchor": [
+            5,
+            "Repositories -> repos.conf"
+          ],
+          "rect": [
+            1389,
+            207,
+            422,
+            30
+          ]
+        },
+        {
+          "from": 2.25,
+          "to": 5,
+          "capture": "panels",
+          "anchor": [
+            2,
+            "Hide Recent"
+          ],
+          "rect": [
+            1565,
+            123,
+            182,
+            30
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "type": "class",
+          "at": 2.25,
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "chapter-title",
+      "duration": 8,
+      "transition": "cut",
+      "caption": {
+        "number": "",
+        "bold": "Pacsea",
+        "box": [
+          903,
+          94,
+          648
+        ],
+        "track": [
+          {
+            "at": 0.708333,
+            "move": 0.708333,
+            "x": 1145,
+            "y": 105
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 8,
+          "capture": "options",
+          "anchor": [
+            5,
+            "Repositories"
+          ],
+          "rect": [
+            1469,
+            207,
+            198,
+            30
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "at": 0,
+          "type": "show",
+          "target": ".title-scrim",
+          "dur": 0.75,
+          "dx": 0,
+          "dy": 0
+        },
+        {
+          "at": 0.25,
+          "type": "show",
+          "target": ".title-copy",
+          "dur": 0.75,
+          "dx": 0,
+          "dy": 30
+        },
+        {
+          "at": 7,
+          "type": "hide",
+          "target": ".title-copy",
+          "dur": 0.625,
+          "dx": 0,
+          "dy": 14
+        },
+        {
+          "at": 7.25,
+          "type": "hide",
+          "target": ".title-scrim",
+          "dur": 0.75,
+          "dx": 0,
+          "dy": 0
+        }
+      ]
+    },
+    {
+      "scene": "step-17",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "number": "17",
+        "bold": "Open Repositories",
+        "box": [
+          1145,
+          105,
+          648
+        ],
+        "rest": "with Shift+O, then 4. Read the four columns.",
+        "track": [
+          {
+            "at": 3.25,
+            "move": 0.5,
+            "x": 1099,
+            "y": 133
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 2.75,
+          "capture": "options",
+          "anchor": [
+            5,
+            "Repositories"
+          ],
+          "rect": [
+            1469,
+            207,
+            198,
+            30
+          ]
+        },
+        {
+          "from": 2.75,
+          "to": 6,
+          "capture": "repos",
+          "anchor": [
+            6,
+            "Repo                  Filter          Pacman      Signing key"
+          ],
+          "rect": [
+            157,
+            235,
+            982,
+            30
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "type": "class",
+          "at": 2.75,
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "step-18",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "18",
+        "bold": "Press S for the template.",
+        "box": [
+          1099,
+          133,
+          648
+        ],
+        "rest": "Shipped recipes start disabled.",
+        "track": [
+          {
+            "at": 0.625,
+            "move": 0.625,
+            "x": 1019,
+            "y": 329
+          },
+          {
+            "at": 4.166667,
+            "move": 1.916667,
+            "x": 321,
+            "y": 319
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 2.25,
+          "capture": "repos",
+          "anchor": [
+            13,
+            "s: template"
+          ],
+          "rect": [
+            1485,
+            431,
+            182,
+            30
+          ]
+        },
+        {
+          "from": 2.25,
+          "to": 5,
+          "capture": "reference",
+          "anchor": [
+            9,
+            "enabled = false"
+          ],
+          "rect": [
+            61,
+            319,
+            246,
+            30
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "type": "class",
+          "at": 2.25,
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "step-19",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "number": "19",
+        "bold": "Press O for repos.conf.",
+        "box": [
+          321,
+          319,
+          648
+        ],
+        "rest": "Give the custom source a name and server.",
+        "track": [
+          {
+            "at": 2.5,
+            "move": 0.5,
+            "x": 321,
+            "y": 234
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0.0,
+          "to": 2.0,
+          "capture": "repos",
+          "anchor": [
+            13,
+            "o: edit repos.conf"
+          ],
+          "rect": [
+            813,
+            431,
+            294,
+            30
+          ]
+        },
+        {
+          "from": 2.0,
+          "to": 4.0,
+          "capture": "recipe",
+          "anchor": [
+            7,
+            "name = \"studio\""
+          ],
+          "rect": [
+            61,
+            263,
+            246,
+            30
+          ]
+        },
+        {
+          "from": 4.0,
+          "to": 6,
+          "capture": "recipe",
+          "anchor": [
+            10,
+            "server = \"https://repo.example.invalid/studio/$arch\""
+          ],
+          "rect": [
+            61,
+            347,
+            838,
+            30
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "type": "class",
+          "at": 2.0,
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "step-20",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "20",
+        "bold": "Press R to refresh",
+        "box": [
+          321,
+          234,
+          648
+        ],
+        "rest": "a repository's declared signing key.",
+        "track": [
+          {
+            "at": 0.791667,
+            "move": 0.791667,
+            "x": 519,
+            "y": 431
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 2.25,
+          "capture": "repos",
+          "anchor": [
+            13,
+            "r: refresh key"
+          ],
+          "rect": [
+            1181,
+            431,
+            230,
+            30
+          ]
+        },
+        {
+          "from": 2.25,
+          "to": 5,
+          "capture": "key-ok",
+          "anchor": [
+            11,
+            "trusted"
+          ],
+          "rect": [
+            957,
+            375,
+            118,
+            30
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "type": "class",
+          "at": 2.25,
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "step-21",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "21",
+        "bold": "Space toggles and applies",
+        "box": [
+          519,
+          431,
+          648
+        ],
+        "rest": "an eligible managed source on Linux.",
+        "track": [
+          {
+            "at": 0.5,
+            "move": 0.5,
+            "x": 481,
+            "y": 431
+          },
+          {
+            "at": 3.041667,
+            "move": 0.791667,
+            "x": 753,
+            "y": 431
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 2.25,
+          "capture": "key-ok",
+          "anchor": [
+            13,
+            "Space: toggle+apply"
+          ],
+          "rect": [
+            157,
+            431,
+            310,
+            30
+          ]
+        },
+        {
+          "from": 2.25,
+          "to": 5,
+          "capture": "apply-auth",
+          "anchor": [
+            17,
+            "Enter your sudo password:"
+          ],
+          "rect": [
+            445,
+            543,
+            406,
+            30
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "type": "class",
+          "at": 2.25,
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "step-22",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "22",
+        "bold": "Enter applies changes",
+        "box": [
+          753,
+          431,
+          648
+        ],
+        "rest": "on Linux. Windows supports browsing.",
+        "track": [
+          {
+            "at": 2.791667,
+            "move": 0.541667,
+            "x": 881,
+            "y": 317
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 2.25,
+          "capture": "repos",
+          "anchor": [
+            13,
+            "Enter: apply"
+          ],
+          "rect": [
+            541,
+            431,
+            198,
+            30
+          ]
+        },
+        {
+          "from": 2.25,
+          "to": 5,
+          "capture": "apply-done",
+          "anchor": [
+            7,
+            "Repository configuration applied."
+          ],
+          "rect": [
+            621,
+            263,
+            534,
+            30
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "type": "class",
+          "at": 2.25,
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "step-23",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "23",
+        "bold": "Read the Pacman column.",
+        "box": [
+          881,
+          317,
+          648
+        ],
+        "rest": "The managed source now shows active."
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 2.25,
+          "capture": "key-ok",
+          "anchor": [
+            11,
+            "absent"
+          ],
+          "rect": [
+            765,
+            375,
+            102,
+            30
+          ]
+        },
+        {
+          "from": 2.25,
+          "to": 5,
+          "capture": "repo-active",
+          "anchor": [
+            11,
+            "active"
+          ],
+          "rect": [
+            765,
+            375,
+            102,
+            30
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "type": "class",
+          "at": 2.25,
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "step-24",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "24",
+        "bold": "Click the Repos filter.",
+        "box": [
+          881,
+          317,
+          648
+        ],
+        "rest": "It changes results independently of pacman.",
+        "track": [
+          {
+            "at": 0.625,
+            "move": 0.625,
+            "x": 1009,
+            "y": 150
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 2.25,
+          "capture": "filters",
+          "anchor": [
+            1,
+            "[Repos]"
+          ],
+          "rect": [
+            877,
+            95,
+            118,
+            30
+          ]
+        },
+        {
+          "from": 2.25,
+          "to": 5,
+          "capture": "filters-off",
+          "anchor": [
+            4,
+            "studio"
+          ],
+          "rect": [
+            893,
+            179,
+            102,
+            30
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "type": "class",
+          "at": 2.25,
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "step-25",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "number": "25",
+        "bold": "Check for name collisions.",
+        "box": [
+          1009,
+          150,
+          648
+        ],
+        "rest": "The new source also ships this AUR package.",
+        "track": [
+          {
+            "at": 4.625,
+            "move": 1.875,
+            "x": 481,
+            "y": 598
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 2.75,
+          "capture": "apply-done",
+          "anchor": [
+            7,
+            "Repository configuration applied."
+          ],
+          "rect": [
+            621,
+            263,
+            534,
+            30
+          ]
+        },
+        {
+          "from": 2.75,
+          "to": 6,
+          "capture": "warning1",
+          "anchor": [
+            20,
+            "inkpad 2.4.0-1"
+          ],
+          "rect": [
+            237,
+            627,
+            230,
+            30
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "type": "class",
+          "at": 2.75,
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "step-26",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "26",
+        "bold": "Esc at the first warning",
+        "box": [
+          481,
+          598,
+          648
+        ],
+        "rest": "disables this source and queues an apply.",
+        "track": [
+          {
+            "at": 3.166667,
+            "move": 0.916667,
+            "x": 267,
+            "y": 363
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 2.25,
+          "capture": "warning1",
+          "anchor": [
+            23,
+            "Esc/q: cancel"
+          ],
+          "rect": [
+            893,
+            711,
+            214,
+            30
+          ]
+        },
+        {
+          "from": 2.25,
+          "to": 5,
+          "capture": "recipe-disabled",
+          "anchor": [
+            9,
+            "enabled = false"
+          ],
+          "rect": [
+            61,
+            319,
+            246,
+            30
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "type": "class",
+          "at": 2.25,
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "step-27",
+      "duration": 7,
+      "transition": "cut",
+      "caption": {
+        "number": "27",
+        "bold": "Enter continues to migration.",
+        "box": [
+          267,
+          363,
+          648
+        ],
+        "rest": "Review the remove and reinstall commands.",
+        "track": [
+          {
+            "at": 0.875,
+            "move": 0.875,
+            "x": 443,
+            "y": 609
+          },
+          {
+            "at": 3.791667,
+            "move": 1.541667,
+            "x": 929,
+            "y": 347
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0.0,
+          "to": 2.25,
+          "capture": "warning1",
+          "anchor": [
+            23,
+            "Enter: continue"
+          ],
+          "rect": [
+            237,
+            711,
+            246,
+            30
+          ]
+        },
+        {
+          "from": 2.25,
+          "to": 4.75,
+          "capture": "warning2",
+          "anchor": [
+            8,
+            "pacman -Rns --noconfirm"
+          ],
+          "rect": [
+            749,
+            291,
+            374,
+            30
+          ]
+        },
+        {
+          "from": 4.75,
+          "to": 7,
+          "capture": "warning2",
+          "anchor": [
+            10,
+            "pacman -S --needed --noconfirm"
+          ],
+          "rect": [
+            429,
+            347,
+            486,
+            30
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "type": "class",
+          "at": 2.25,
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "step-28",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "28",
+        "bold": "Press Space to select",
+        "box": [
+          929,
+          347,
+          648
+        ],
+        "rest": "which packages to migrate.",
+        "track": [
+          {
+            "at": 1.041667,
+            "move": 1.041667,
+            "x": 561,
+            "y": 291
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 2.25,
+          "capture": "choose",
+          "anchor": [
+            8,
+            "[ ]  inkpad 2.4.0-1"
+          ],
+          "rect": [
+            237,
+            291,
+            310,
+            30
+          ]
+        },
+        {
+          "from": 2.25,
+          "to": 5,
+          "capture": "chosen",
+          "anchor": [
+            8,
+            "[x]  inkpad 2.4.0-1"
+          ],
+          "rect": [
+            237,
+            291,
+            310,
+            30
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "type": "class",
+          "at": 2.25,
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "step-29",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "number": "29",
+        "bold": "Enter opens final review.",
+        "box": [
+          561,
+          291,
+          648
+        ],
+        "rest": "Y opens sudo. Esc returns to selection.",
+        "track": [
+          {
+            "at": 1.416667,
+            "move": 1.416667,
+            "x": 1073,
+            "y": 289
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 2.75,
+          "capture": "chosen",
+          "anchor": [
+            5,
+            "Enter: open final confirm"
+          ],
+          "rect": [
+            653,
+            207,
+            406,
+            30
+          ]
+        },
+        {
+          "from": 2.75,
+          "to": 6,
+          "capture": "final",
+          "anchor": [
+            10,
+            "y: confirm and open sudo  •  Esc: back to selection"
+          ],
+          "rect": [
+            237,
+            347,
+            822,
+            30
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "type": "class",
+          "at": 2.75,
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "step-30",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "number": "30",
+        "bold": "Starting an AUR install?",
+        "box": [
+          1073,
+          289,
+          648
+        ],
+        "rest": "Esc cancels if a repository has the same name.",
+        "track": [
+          {
+            "at": 2.416667,
+            "move": 2.416667,
+            "x": 187,
+            "y": 195
+          },
+          {
+            "at": 3.458333,
+            "move": 0.708333,
+            "x": 179,
+            "y": 441
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 2.75,
+          "capture": "collision-results",
+          "anchor": [
+            3,
+            "AUR inkpad"
+          ],
+          "rect": [
+            61,
+            151,
+            166,
+            30
+          ]
+        },
+        {
+          "from": 2.75,
+          "to": 6,
+          "capture": "duplicate",
+          "anchor": [
+            17,
+            "Enter: continue AUR install  •  Esc/q: cancel"
+          ],
+          "rect": [
+            269,
+            543,
+            726,
+            30
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "type": "class",
+          "at": 2.75,
+          "target": "#frame-2",
+          "remove": "hidden-frame"
+        }
+      ]
+    },
+    {
+      "scene": "close-title",
+      "duration": 9,
+      "transition": "cut",
+      "caption": {
+        "number": "",
+        "bold": "Pacsea",
+        "box": [
+          179,
+          441,
+          648
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 9,
+          "capture": "duplicate",
+          "anchor": [
+            17,
+            "Enter: continue AUR install  •  Esc/q: cancel"
+          ],
+          "rect": [
+            269,
+            543,
+            726,
+            30
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "at": 0,
+          "type": "show",
+          "target": ".title-scrim",
+          "dur": 0.75,
+          "dx": 0,
+          "dy": 0
+        },
+        {
+          "at": 0.25,
+          "type": "show",
+          "target": ".title-copy",
+          "dur": 0.75,
+          "dx": 0,
+          "dy": 30
+        },
+        {
+          "at": 8,
+          "type": "show",
+          "target": ".end-fade",
+          "dur": 1,
+          "dx": 0,
+          "dy": 0
+        }
+      ]
+    }
+  ],
+  "music": {
+    "title": "Quiet Index",
+    "source": "../01-discovery-pilot/audio/render.py",
+    "phrases": [
+      {
+        "scene": "open-title",
+        "cells": [
+          0
+        ]
+      },
+      {
+        "scene": "step-01",
+        "cells": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ]
+      },
+      {
+        "scene": "step-07",
+        "cells": [
+          7,
+          8,
+          9,
+          10,
+          11,
+          12
+        ]
+      },
+      {
+        "scene": "step-12",
+        "cells": [
+          13,
+          14,
+          15,
+          16,
+          17,
+          18
+        ]
+      },
+      {
+        "scene": "chapter-title",
+        "cells": [
+          19
+        ]
+      },
+      {
+        "scene": "step-17",
+        "cells": [
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27
+        ]
+      },
+      {
+        "scene": "step-25",
+        "cells": [
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30
+        ]
+      },
+      {
+        "scene": "close-title",
+        "cells": [
+          31
+        ]
+      }
+    ]
+  }
+}

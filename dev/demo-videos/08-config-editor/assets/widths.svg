@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1888 980" width="1888" height="980">
+<!-- Headless Pacsea terminal capture or a source-file/terminal excerpt. Sample package, repository, key and status data are illustrative. -->
+<rect width="1888" height="980" fill="#1e1e2e"/>
+<g font-family="DejaVu Sans Mono, monospace" font-size="26.5" xml:space="preserve">
+<rect x="0" y="0" width="32" height="28" fill="#313244"/>
+<rect x="32" y="0" width="208" height="28" fill="#313244"/>
+<text x="32" y="22" fill="#cba6f7" textLength="208" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">settings.conf</text>
+<text x="48" y="162" fill="#a6adc8" textLength="1008" lengthAdjust="spacingAndGlyphs" style="white-space:pre"># Layout percentages for the middle row panes (must sum to 100)</text>
+<text x="48" y="190" fill="#89b4fa" textLength="240" lengthAdjust="spacingAndGlyphs" style="white-space:pre">layout_left_pct</text>
+<text x="304" y="190" fill="#bac2de" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">=</text>
+<text x="336" y="190" fill="#a6e3a1" textLength="32" lengthAdjust="spacingAndGlyphs" style="white-space:pre">20</text>
+<text x="48" y="218" fill="#89b4fa" textLength="272" lengthAdjust="spacingAndGlyphs" style="white-space:pre">layout_center_pct</text>
+<text x="336" y="218" fill="#bac2de" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">=</text>
+<text x="368" y="218" fill="#a6e3a1" textLength="32" lengthAdjust="spacingAndGlyphs" style="white-space:pre">60</text>
+<text x="48" y="246" fill="#89b4fa" textLength="256" lengthAdjust="spacingAndGlyphs" style="white-space:pre">layout_right_pct</text>
+<text x="320" y="246" fill="#bac2de" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">=</text>
+<text x="352" y="246" fill="#a6e3a1" textLength="32" lengthAdjust="spacingAndGlyphs" style="white-space:pre">20</text>
+<text x="48" y="274" fill="#a6adc8" textLength="1328" lengthAdjust="spacingAndGlyphs" style="white-space:pre"># Main vertical stack: comma-separated permutation of results, search, package_info</text>
+<text x="48" y="302" fill="#a6adc8" textLength="864" lengthAdjust="spacingAndGlyphs" style="white-space:pre"># Aliases: middle (search row), details (package_info)</text>
+<text x="48" y="330" fill="#89b4fa" textLength="240" lengthAdjust="spacingAndGlyphs" style="white-space:pre">main_pane_order</text>
+<text x="304" y="330" fill="#bac2de" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">=</text>
+<text x="336" y="330" fill="#a6e3a1" textLength="464" lengthAdjust="spacingAndGlyphs" style="white-space:pre">results, search, package_info</text>
+<text x="48" y="358" fill="#a6adc8" textLength="1232" lengthAdjust="spacingAndGlyphs" style="white-space:pre"># Vertical row limits (semantic per pane; not tied to top/middle/bottom slot)</text>
+<text x="48" y="386" fill="#89b4fa" textLength="320" lengthAdjust="spacingAndGlyphs" style="white-space:pre">vertical_min_results</text>
+<text x="384" y="386" fill="#bac2de" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">=</text>
+<text x="416" y="386" fill="#a6e3a1" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">3</text>
+<rect x="32" y="924" width="208" height="28" fill="#45475a"/>
+<text x="32" y="946" fill="#cdd6f4" textLength="208" lengthAdjust="spacingAndGlyphs" style="white-space:pre">settings.conf</text>
+</g>
+</svg>

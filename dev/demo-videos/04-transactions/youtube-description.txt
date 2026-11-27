@@ -1,0 +1,14 @@
+Review an official package and an AUR package together in Pacsea. Follow their dependencies, files and service choices through Preflight, select from seven optional AUR checks, then compare a dry-run preview with the prompts and summary of an example install.
+
+00:00 Review a package transaction
+00:36 Inspect the batch in Preflight
+01:12 Choose the seven AUR checks
+01:57 Preview a dry-run install
+02:09 Read live prompts and the transaction summary
+
+Pacsea 0.8.2, revision c2d62f9e. Recreated screens use example packages, scan results, authentication prompts and transaction output. No checker, model or package operation ran.
+
+Original music: “Quiet Index,” composed and synthesized for the Pacsea series.
+
+Pacsea on GitHub
+https://github.com/Firstp1ck/Pacsea

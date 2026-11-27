@@ -1,0 +1,1309 @@
+{
+  "version": 1,
+  "format": "episode",
+  "title": "Pacsea: Review a package transaction",
+  "allowTerms": [
+    "AUR",
+    "PAM",
+    "Pacsea",
+    "preflight",
+    "deps",
+    "dependencies",
+    "terminal",
+    "package",
+    "packages",
+    "Pi",
+    "PKGBUILD",
+    "sudo",
+    "CLI",
+    "cache",
+    "repository",
+    "Sandbox",
+    "toggle",
+    "configuration",
+    "build",
+    "sync",
+    "pacman"
+  ],
+  "sourceRevision": "c2d62f9ee7ab0669f3b3b5b1754c0132e5cbae52",
+  "width": 1920,
+  "height": 1080,
+  "fps": 24,
+  "framing": "full-app",
+  "captionMotion": "continuous",
+  "captionEase": "fast-slow",
+  "spotlightOutline": true,
+  "scenes": "scenes.html",
+  "theme": {
+    "accent": "#8bdcf3",
+    "background": "#0d0e16",
+    "glow": "transparent"
+  },
+  "production": {
+    "interface": "Pacsea 0.8.2, revision c2d62f9e. Recreated screens use example packages, scan results, authentication prompts and transaction output. No checker, model or package operation ran.",
+    "render": "Run t3-build python ../04-transactions/render-episode.py . from this episode folder in the integrated series checkout.",
+    "music": "Quiet Index, original episode arrangement using the discovery pilot instruments."
+  },
+  "chapters": [
+    {
+      "start": 0,
+      "title": "Review a package transaction"
+    },
+    {
+      "start": 36,
+      "title": "Inspect the batch in Preflight"
+    },
+    {
+      "start": 72,
+      "title": "Choose the seven AUR checks"
+    },
+    {
+      "start": 117,
+      "title": "Preview a dry-run install"
+    },
+    {
+      "start": 129,
+      "title": "Read live prompts and the transaction summary"
+    }
+  ],
+  "steps": [
+    {
+      "scene": "opening",
+      "duration": 9,
+      "transition": "cut",
+      "caption": {
+        "number": "",
+        "bold": "Pacsea",
+        "box": [
+          64,
+          240,
+          690
+        ]
+      },
+      "actions": [
+        {
+          "at": 0,
+          "type": "show",
+          "target": ".title-scrim",
+          "dur": 0.7,
+          "dx": 0,
+          "dy": 0
+        },
+        {
+          "at": 0.25,
+          "type": "show",
+          "target": ".title-copy",
+          "dur": 0.85,
+          "dx": 0,
+          "dy": 20
+        },
+        {
+          "at": 7.75,
+          "type": "hide",
+          "target": ".title-copy",
+          "dur": 0.7,
+          "dx": 0,
+          "dy": 10
+        },
+        {
+          "at": 8.25,
+          "type": "hide",
+          "target": ".title-scrim",
+          "dur": 0.75,
+          "dx": 0,
+          "dy": 0
+        }
+      ]
+    },
+    {
+      "scene": "enable-the-review",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "number": "01",
+        "bold": "Enable Preflight",
+        "rest": "Set skip_preflight to false.",
+        "box": [
+          64,
+          240,
+          690
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 6
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "false"
+        }
+      ]
+    },
+    {
+      "scene": "single-package",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "02",
+        "bold": "Enter reviews one result",
+        "rest": "Esc returns to the package browser.",
+        "box": [
+          64,
+          240,
+          690
+        ],
+        "track": [
+          {
+            "at": 2.2,
+            "move": 0.65,
+            "x": 144,
+            "y": 448
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#gesture",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 1.55
+        },
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 1.55,
+          "to": 5
+        }
+      ],
+      "actions": [
+        {
+          "type": "show",
+          "at": 1.55,
+          "target": "#popup",
+          "dur": 0,
+          "dx": 0,
+          "dy": 0
+        }
+      ]
+    },
+    {
+      "scene": "build-a-batch",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "number": "03",
+        "bold": "Space adds syncthing",
+        "rest": "The official package appears in Install List.",
+        "box": [
+          144,
+          448,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.65,
+            "move": 0.65,
+            "x": 160,
+            "y": 208
+          },
+          {
+            "at": 2.67,
+            "move": 0.72,
+            "x": 560,
+            "y": 544
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#gesture",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 1.95
+        },
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 1.95,
+          "to": 6
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "syncthing"
+        }
+      ]
+    },
+    {
+      "scene": "add-a-second-package",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "04",
+        "bold": "Add the AUR package",
+        "rest": "Select fieldnotes-git and press Space.",
+        "box": [
+          560,
+          544,
+          690
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#before",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 1.95
+        },
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 1.95,
+          "to": 5
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "fieldnotes-git"
+        }
+      ]
+    },
+    {
+      "scene": "focus-the-queue",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "05",
+        "bold": "Focus the install list",
+        "rest": "Enter reviews both queued packages.",
+        "box": [
+          560,
+          544,
+          690
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 5
+        }
+      ]
+    },
+    {
+      "scene": "read-the-plan",
+      "duration": 8,
+      "transition": "cut",
+      "caption": {
+        "number": "06",
+        "bold": "Read the risk factors",
+        "rest": "One AUR package contributes two points.",
+        "box": [
+          560,
+          544,
+          690
+        ],
+        "track": [
+          {
+            "at": 2.2,
+            "move": 0.65,
+            "x": 280,
+            "y": 584
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#gesture",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 1.55
+        },
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 1.55,
+          "to": 8
+        }
+      ],
+      "actions": [
+        {
+          "type": "show",
+          "at": 1.55,
+          "target": "#popup",
+          "dur": 0,
+          "dx": 0,
+          "dy": 0
+        }
+      ]
+    },
+    {
+      "scene": "inspect-dependencies",
+      "duration": 7,
+      "transition": "cut",
+      "caption": {
+        "number": "07",
+        "bold": "Open Deps",
+        "rest": "Space reveals the missing build tool.",
+        "box": [
+          280,
+          584,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.65,
+            "move": 0.65,
+            "x": 280,
+            "y": 648
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 2.72
+        },
+        {
+          "from": 2.72,
+          "to": 7,
+          "rect": {
+            "target": "#value-3",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "▾"
+        },
+        {
+          "at": 2.34,
+          "type": "text",
+          "target": "#value-2",
+          "html": "  └─ git     installed"
+        },
+        {
+          "at": 2.72,
+          "type": "text",
+          "target": "#value-3",
+          "html": "  └─ cmake   to install"
+        }
+      ]
+    },
+    {
+      "scene": "inspect-files",
+      "duration": 7,
+      "transition": "cut",
+      "caption": {
+        "number": "08",
+        "bold": "Open Files",
+        "rest": "Expand syncthing to inspect its installed paths.",
+        "box": [
+          280,
+          648,
+          690
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 2.72
+        },
+        {
+          "from": 2.72,
+          "to": 7,
+          "rect": {
+            "target": "#value-3",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "▾"
+        },
+        {
+          "at": 2.34,
+          "type": "text",
+          "target": "#value-2",
+          "html": "  ├─ /usr/bin/syncthing"
+        },
+        {
+          "at": 2.72,
+          "type": "text",
+          "target": "#value-3",
+          "html": "  └─ /usr/lib/systemd/system/syncthing@.service"
+        }
+      ]
+    },
+    {
+      "scene": "choose-service-handling",
+      "duration": 7,
+      "transition": "cut",
+      "caption": {
+        "number": "09",
+        "bold": "Space defers restart",
+        "rest": "The service can keep running until later.",
+        "box": [
+          280,
+          648,
+          690
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 7
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "[defer]"
+        }
+      ]
+    },
+    {
+      "scene": "inspect-build-dependencies",
+      "duration": 7,
+      "transition": "cut",
+      "caption": {
+        "number": "10",
+        "bold": "Inspect Sandbox",
+        "rest": "Expand the AUR package’s build dependencies.",
+        "box": [
+          280,
+          648,
+          690
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 2.34
+        },
+        {
+          "from": 2.34,
+          "to": 7,
+          "rect": {
+            "target": "#value-2",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "▾"
+        },
+        {
+          "at": 2.34,
+          "type": "text",
+          "target": "#value-2",
+          "html": "  └─ cmake   new"
+        }
+      ]
+    },
+    {
+      "scene": "chapter-10",
+      "duration": 8,
+      "transition": "cut",
+      "caption": {
+        "number": "",
+        "bold": "Scan the AUR target",
+        "box": [
+          280,
+          648,
+          690
+        ],
+        "track": [
+          {
+            "at": 1.25,
+            "move": 1.25,
+            "x": 280,
+            "y": 680
+          }
+        ]
+      },
+      "actions": [
+        {
+          "at": 0,
+          "type": "show",
+          "target": ".title-scrim",
+          "dur": 0.7,
+          "dx": 0,
+          "dy": 0
+        },
+        {
+          "at": 0.25,
+          "type": "show",
+          "target": ".title-copy",
+          "dur": 0.85,
+          "dx": 0,
+          "dy": 20
+        },
+        {
+          "at": 6.75,
+          "type": "hide",
+          "target": ".title-copy",
+          "dur": 0.7,
+          "dx": 0,
+          "dy": 10
+        },
+        {
+          "at": 7.25,
+          "type": "hide",
+          "target": ".title-scrim",
+          "dur": 0.75,
+          "dx": 0,
+          "dy": 0
+        }
+      ],
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 8,
+          "rect": {
+            "target": "#value-2",
+            "pad": 4
+          }
+        }
+      ]
+    },
+    {
+      "scene": "open-scan-configuration",
+      "duration": 7,
+      "transition": "cut",
+      "caption": {
+        "number": "11",
+        "bold": "Press s in Preflight",
+        "rest": "Choose which of seven AUR checks to run.",
+        "box": [
+          280,
+          680,
+          690
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#tools",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 7
+        }
+      ]
+    },
+    {
+      "scene": "set-scan-tools",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "number": "12",
+        "bold": "Space toggles VirusTotal",
+        "rest": "This example skips the hash lookup.",
+        "box": [
+          280,
+          680,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.65,
+            "move": 0.65,
+            "x": 280,
+            "y": 608
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 6
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "[ ]"
+        }
+      ]
+    },
+    {
+      "scene": "run-selected-checks",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "number": "13",
+        "bold": "Enter starts selected checks",
+        "rest": "Pacsea scans the first AUR target.",
+        "box": [
+          280,
+          608,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.65,
+            "move": 0.65,
+            "x": 264,
+            "y": 264
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 2.34
+        },
+        {
+          "from": 2.34,
+          "to": 6,
+          "rect": {
+            "target": "#value-2",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "Running ShellCheck…"
+        },
+        {
+          "at": 2.34,
+          "type": "text",
+          "target": "#value-2",
+          "html": "Running custom checks…"
+        }
+      ]
+    },
+    {
+      "scene": "external-audit",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "14",
+        "bold": "Read the separate terminal",
+        "rest": "aur-sleuth has its own audit output.",
+        "box": [
+          264,
+          264,
+          690
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 5
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "Inspecting PKGBUILD…"
+        }
+      ]
+    },
+    {
+      "scene": "read-scan-output",
+      "duration": 8,
+      "transition": "cut",
+      "caption": {
+        "number": "15",
+        "bold": "Read the scan summary",
+        "rest": "Check which tools contributed to the score.",
+        "box": [
+          264,
+          264,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.65,
+            "move": 0.65,
+            "x": 400,
+            "y": 312
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 1.95
+        },
+        {
+          "from": 1.95,
+          "to": 8,
+          "rect": {
+            "target": "#value-1",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "ShellCheck: errors=0 warnings=0"
+        }
+      ]
+    },
+    {
+      "scene": "return-to-review",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "16",
+        "bold": "Enter returns to Preflight",
+        "rest": "The selected AUR package stays in view.",
+        "box": [
+          400,
+          312,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.65,
+            "move": 0.65,
+            "x": 280,
+            "y": 416
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 5
+        }
+      ]
+    },
+    {
+      "scene": "preview-without-changes",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "number": "17",
+        "bold": "Press d for dry-run",
+        "rest": "The mode changes before you proceed.",
+        "box": [
+          280,
+          416,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.65,
+            "move": 0.65,
+            "x": 280,
+            "y": 456
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#before",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 1.95
+        },
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 1.95,
+          "to": 6
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "Dry-run mode enabled"
+        }
+      ]
+    },
+    {
+      "scene": "proceed-from-preflight",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "number": "18",
+        "bold": "Press p to preview",
+        "rest": "Both packages appear in the simulated plan.",
+        "box": [
+          280,
+          456,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.65,
+            "move": 0.65,
+            "x": 360,
+            "y": 280
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 1.95
+        },
+        {
+          "from": 1.95,
+          "to": 6,
+          "rect": {
+            "target": "#value-1",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "Would install fieldnotes-git"
+        }
+      ]
+    },
+    {
+      "scene": "chapter-18",
+      "duration": 8,
+      "transition": "cut",
+      "caption": {
+        "number": "",
+        "bold": "Review a live transaction",
+        "box": [
+          360,
+          280,
+          690
+        ],
+        "track": [
+          {
+            "at": 1.25,
+            "move": 1.25,
+            "x": 472,
+            "y": 520
+          }
+        ]
+      },
+      "actions": [
+        {
+          "at": 0,
+          "type": "show",
+          "target": ".title-scrim",
+          "dur": 0.7,
+          "dx": 0,
+          "dy": 0
+        },
+        {
+          "at": 0.25,
+          "type": "show",
+          "target": ".title-copy",
+          "dur": 0.85,
+          "dx": 0,
+          "dy": 20
+        },
+        {
+          "at": 6.75,
+          "type": "hide",
+          "target": ".title-copy",
+          "dur": 0.7,
+          "dx": 0,
+          "dy": 10
+        },
+        {
+          "at": 7.25,
+          "type": "hide",
+          "target": ".title-scrim",
+          "dur": 0.75,
+          "dx": 0,
+          "dy": 0
+        }
+      ],
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 8,
+          "rect": {
+            "target": "#value-1",
+            "pad": 4
+          }
+        }
+      ]
+    },
+    {
+      "scene": "reinstall-warning",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "19",
+        "bold": "Check a reinstall",
+        "rest": "The same syncthing version is already installed.",
+        "box": [
+          472,
+          520,
+          690
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 5
+        }
+      ]
+    },
+    {
+      "scene": "partial-update-warning",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "number": "20",
+        "bold": "Read partial-update warnings",
+        "rest": "This separate example updates openssl alone.",
+        "box": [
+          472,
+          520,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.65,
+            "move": 0.65,
+            "x": 728,
+            "y": 496
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 6
+        }
+      ]
+    },
+    {
+      "scene": "password-prompt",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "number": "21",
+        "bold": "Authenticate a live install",
+        "rest": "Read the package list in the prompt.",
+        "box": [
+          728,
+          496,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.65,
+            "move": 0.65,
+            "x": 280,
+            "y": 488
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 5
+        }
+      ]
+    },
+    {
+      "scene": "interactive-authentication",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "number": "22",
+        "bold": "Interactive authentication",
+        "rest": "The terminal handles the prompt through PAM.",
+        "box": [
+          280,
+          488,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.65,
+            "move": 0.65,
+            "x": 48,
+            "y": 184
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 6
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "interactive"
+        },
+        {
+          "at": 2.34,
+          "type": "text",
+          "target": "#value-2",
+          "html": "[sudo] password for demo:"
+        }
+      ]
+    },
+    {
+      "scene": "follow-integrated-output",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "number": "23",
+        "bold": "Press l for verbosity",
+        "rest": "Follow both package changes and their hooks.",
+        "box": [
+          48,
+          184,
+          690
+        ],
+        "track": [
+          {
+            "at": 1.0,
+            "move": 1.0,
+            "x": 360,
+            "y": 848
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 6
+        }
+      ],
+      "actions": [
+        {
+          "at": 1.95,
+          "type": "text",
+          "target": "#value-1",
+          "html": "(2/2) installing fieldnotes-git"
+        },
+        {
+          "at": 2.34,
+          "type": "text",
+          "target": "#value-2",
+          "html": ":: Running post-transaction hooks…"
+        },
+        {
+          "at": 2.72,
+          "type": "text",
+          "target": "#value-3",
+          "html": "ON"
+        }
+      ]
+    },
+    {
+      "scene": "read-the-outcome",
+      "duration": 8,
+      "transition": "cut",
+      "caption": {
+        "number": "24",
+        "bold": "Read the transaction summary",
+        "rest": "Check file changes and deferred restarts.",
+        "box": [
+          360,
+          848,
+          690
+        ],
+        "track": [
+          {
+            "at": 0.65,
+            "move": 0.65,
+            "x": 280,
+            "y": 552
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          },
+          "from": 0,
+          "to": 8
+        }
+      ]
+    },
+    {
+      "scene": "credits",
+      "duration": 9,
+      "transition": "cut",
+      "caption": {
+        "number": "",
+        "bold": "Read the changes",
+        "box": [
+          280,
+          552,
+          690
+        ]
+      },
+      "actions": [
+        {
+          "at": 0,
+          "type": "show",
+          "target": ".title-scrim",
+          "dur": 0.7,
+          "dx": 0,
+          "dy": 0
+        },
+        {
+          "at": 0.25,
+          "type": "show",
+          "target": ".title-copy",
+          "dur": 0.85,
+          "dx": 0,
+          "dy": 20
+        },
+        {
+          "at": 7.75,
+          "type": "show",
+          "target": ".end-fade",
+          "dur": 1.2,
+          "dx": 0,
+          "dy": 0
+        }
+      ],
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 9,
+          "rect": {
+            "target": "#point",
+            "pad": 4
+          }
+        }
+      ]
+    }
+  ]
+}

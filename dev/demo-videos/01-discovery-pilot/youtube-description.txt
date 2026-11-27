@@ -1,0 +1,14 @@
+Use Pacsea to search official Arch Linux repositories and the Arch User Repository (AUR). Compare results, inspect an AUR build recipe, and add the packages you choose to an install list. Open Preflight to review download size and disk usage before installation.
+
+00:00 Find packages in Pacsea
+00:44 Compare search results and filter by source
+01:13 Inspect the AUR recipe and run PKGBUILD checks
+02:02 Build, export and import an install list
+02:59 Review download and disk space in Preflight
+
+This walkthrough uses Pacsea 0.8.2 with example package data and check results.
+
+Original music: “Quiet Index,” composed and synthesized for this walkthrough.
+
+Pacsea on GitHub
+https://github.com/Firstp1ck/Pacsea

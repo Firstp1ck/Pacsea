@@ -1,0 +1,14 @@
+Find Arch packages in Pacsea. Page through results, edit a search, and narrow it to the repositories you use. Inspect and copy an AUR PKGBUILD, read its static checks, then queue an official package and review its download and disk size in Preflight.
+
+00:00 Package discovery and search
+00:48 Compare results and filter repositories
+01:16 Inspect and check an AUR recipe
+02:02 Build and manage the install list
+03:01 Review download and disk size
+
+Filmed with Pacsea 0.8.2 using native terminal captures and example data. The custom repository, package versions, comments, check results and sizes are illustrative. Copy used an isolated clipboard. No live check, vote or package transaction ran.
+
+Original music: “Quiet Index,” composed and synthesized for this walkthrough.
+
+Pacsea on GitHub
+https://github.com/Firstp1ck/Pacsea

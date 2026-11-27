@@ -1,0 +1,1445 @@
+{
+  "version": 1,
+  "format": "episode",
+  "title": "Pacsea: Read and filter Arch news",
+  "width": 1920,
+  "height": 1080,
+  "fps": 24,
+  "framing": "full-app",
+  "spotlightOutline": true,
+  "captionMotion": "continuous",
+  "captionEase": "fast-slow",
+  "theme": {
+    "background": "#0d0e16",
+    "glow": "transparent",
+    "accent": "#70dcff"
+  },
+  "scenes": "scenes.html",
+  "sourceRevision": "c2d62f9ee7ab0669f3b3b5b1754c0132e5cbae52",
+  "production": {
+    "fixtures": "The recreated Pacsea 0.8.2 interface follows main at c2d62f9e. The articles, package inventory, versions, dates, read markers and status screens are fixtures. Filter examples begin with independent views of the same feed.",
+    "render": "From this directory run t3-build python ../02-news/render.py . ~/.codex/skills/explainer-video. Requires the sibling 01-discovery-pilot score source, NumPy, Pillow, FFmpeg, Inkscape, Chromium and Node 22+.",
+    "music": "Quiet Index, original composition and synthesis for the Pacsea discovery pilot. The original score is rephrased at the following picture cues.",
+    "scoreAnchors": {
+      "1": "release-notes",
+      "19": "reading-chapter",
+      "20": "update-row",
+      "31": "credits"
+    }
+  },
+  "allowTerms": [
+    "AUR",
+    "Arch",
+    "CLI",
+    "JSON",
+    "jq",
+    "Pacsea",
+    "Ctrl",
+    "Shift",
+    "Esc",
+    "URL",
+    "TUI",
+    "pacman",
+    "ripgrep"
+  ],
+  "chapters": [
+    {
+      "start": 0,
+      "title": "Open News management"
+    },
+    {
+      "start": 37,
+      "title": "Filter sources, dates and read status"
+    },
+    {
+      "start": 59,
+      "title": "Sort, search and recall a query"
+    },
+    {
+      "start": 94,
+      "title": "Read articles and manage bookmarks"
+    },
+    {
+      "start": 152,
+      "title": "Review the news window and service status"
+    }
+  ],
+  "steps": [
+    {
+      "scene": "opening",
+      "duration": 8,
+      "transition": "cut",
+      "caption": {
+        "number": "",
+        "bold": "Pacsea.",
+        "box": [
+          380,
+          620,
+          585
+        ]
+      },
+      "actions": [
+        {
+          "at": 0,
+          "type": "show",
+          "target": ".title-scrim",
+          "dur": 0.75,
+          "dy": 0
+        },
+        {
+          "at": 0.25,
+          "type": "show",
+          "target": ".title-copy",
+          "dur": 0.75,
+          "dy": 28
+        },
+        {
+          "at": 6.75,
+          "type": "hide",
+          "target": ".title-copy",
+          "dur": 0.625,
+          "dy": 12
+        },
+        {
+          "at": 7.25,
+          "type": "hide",
+          "target": ".title-scrim",
+          "dur": 0.75,
+          "dy": 0
+        }
+      ]
+    },
+    {
+      "scene": "release-notes",
+      "duration": 8,
+      "transition": "cut",
+      "caption": {
+        "bold": "Press r to acknowledge.",
+        "rest": "Enter or Esc shows these notes again.",
+        "number": "01",
+        "box": [
+          380,
+          620,
+          585
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#b-hint",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": []
+    },
+    {
+      "scene": "options",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "bold": "Open Options.",
+        "rest": "Press Shift+O in Normal mode.",
+        "number": "02",
+        "box": [
+          380,
+          620,
+          585
+        ],
+        "track": [
+          {
+            "at": 1.375,
+            "move": 1.375,
+            "x": 1290,
+            "y": 131
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#b-options",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": []
+    },
+    {
+      "scene": "open-news",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "bold": "Choose News management.",
+        "rest": "Press 5 to switch to the feed.",
+        "number": "03",
+        "box": [
+          1290,
+          131,
+          585
+        ],
+        "track": [
+          {
+            "at": 0.75,
+            "move": 0.75,
+            "x": 890,
+            "y": 168
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 0.75,
+          "rect": {
+            "target": "#b-options",
+            "pad": 4
+          }
+        },
+        {
+          "from": 0.75,
+          "rect": {
+            "target": "#b-option4",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 0.75,
+          "type": "class",
+          "target": ".pop",
+          "remove": "hidden-state"
+        }
+      ],
+      "setup": [
+        {
+          "type": "class",
+          "target": ".pop",
+          "add": "hidden-state"
+        }
+      ]
+    },
+    {
+      "scene": "five-sources",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "bold": "Read the feed.",
+        "rest": "Arch news, advisories and package activity.",
+        "number": "04",
+        "box": [
+          890,
+          168,
+          585
+        ],
+        "track": [
+          {
+            "at": 0.916667,
+            "move": 0.916667,
+            "x": 191,
+            "y": 131
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#b-count",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": []
+    },
+    {
+      "scene": "source-kinds",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "bold": "Look for AUR comments.",
+        "rest": "Package updates have their own source.",
+        "number": "05",
+        "box": [
+          191,
+          131,
+          585
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#a-source4",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": []
+    },
+    {
+      "scene": "package-updates",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "bold": "Toggle Updates.",
+        "rest": "Hide official package update stories.",
+        "number": "06",
+        "box": [
+          191,
+          131,
+          585
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#b-updates",
+            "pad": 4
+          },
+          "to": 2.5
+        },
+        {
+          "from": 2.5,
+          "rect": {
+            "target": "#a-updates",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 2.5,
+          "type": "class",
+          "target": "#before",
+          "add": "hidden-state"
+        },
+        {
+          "at": 2.5,
+          "type": "class",
+          "target": "#after",
+          "remove": "hidden-state"
+        }
+      ]
+    },
+    {
+      "scene": "installed-advisories",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "bold": "Click Advisories.",
+        "rest": "Installed limits alerts to your packages.",
+        "number": "07",
+        "box": [
+          191,
+          131,
+          585
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#b-adv",
+            "pad": 4
+          },
+          "to": 2.25
+        },
+        {
+          "from": 2.25,
+          "rect": {
+            "target": "#a-adv",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 2.25,
+          "type": "class",
+          "target": "#before",
+          "add": "hidden-state"
+        },
+        {
+          "at": 2.25,
+          "type": "class",
+          "target": "#after",
+          "remove": "hidden-state"
+        }
+      ]
+    },
+    {
+      "scene": "date-range",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "bold": "Choose a date range.",
+        "rest": "Cycle through 7, 30 or 90 days, or all.",
+        "number": "08",
+        "box": [
+          191,
+          131,
+          585
+        ],
+        "track": [
+          {
+            "at": 0.75,
+            "move": 0.75,
+            "x": 355,
+            "y": 131
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#b-age",
+            "pad": 4
+          },
+          "to": 2.25
+        },
+        {
+          "from": 2.25,
+          "rect": {
+            "target": "#a-age",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 2.25,
+          "type": "class",
+          "target": "#before",
+          "add": "hidden-state"
+        },
+        {
+          "at": 2.25,
+          "type": "class",
+          "target": "#after",
+          "remove": "hidden-state"
+        }
+      ]
+    },
+    {
+      "scene": "unread-filter",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "bold": "Choose Unread.",
+        "rest": "Only unread stories remain in this view.",
+        "number": "09",
+        "box": [
+          355,
+          131,
+          585
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#b-filter",
+            "pad": 4
+          },
+          "to": 2.25
+        },
+        {
+          "from": 2.25,
+          "rect": {
+            "target": "#a-filter",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 2.25,
+          "type": "class",
+          "target": "#before",
+          "add": "hidden-state"
+        },
+        {
+          "at": 2.25,
+          "type": "class",
+          "target": "#after",
+          "remove": "hidden-state"
+        }
+      ]
+    },
+    {
+      "scene": "sort",
+      "duration": 4,
+      "transition": "cut",
+      "caption": {
+        "bold": "Open Sort.",
+        "rest": "Choose how to order the feed.",
+        "number": "10",
+        "box": [
+          355,
+          131,
+          585
+        ],
+        "track": [
+          {
+            "at": 0.75,
+            "move": 0.75,
+            "x": 274,
+            "y": 12
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#b-sort",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": []
+    },
+    {
+      "scene": "severity",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "bold": "Choose Severity.",
+        "rest": "Critical advisories come first.",
+        "number": "11",
+        "box": [
+          274,
+          12,
+          585
+        ],
+        "track": [
+          {
+            "at": 0.75,
+            "move": 0.75,
+            "x": 585,
+            "y": 184
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 0.75,
+          "rect": {
+            "target": "#b-sort",
+            "pad": 4
+          }
+        },
+        {
+          "from": 0.75,
+          "rect": {
+            "target": "#b-option4",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 0.75,
+          "type": "class",
+          "target": ".pop",
+          "remove": "hidden-state"
+        }
+      ],
+      "setup": [
+        {
+          "type": "class",
+          "target": ".pop",
+          "add": "hidden-state"
+        }
+      ]
+    },
+    {
+      "scene": "sorted",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "bold": "Read the first advisory.",
+        "rest": "High precedes Medium in this feed.",
+        "number": "12",
+        "box": [
+          585,
+          184,
+          585
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#severity-result",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": []
+    },
+    {
+      "scene": "search",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "bold": "Type ripgrep.",
+        "rest": "Search the news feed for a package.",
+        "number": "13",
+        "box": [
+          585,
+          184,
+          585
+        ],
+        "track": [
+          {
+            "at": 0.75,
+            "move": 0.75,
+            "x": 484,
+            "y": 331
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#b-searchlabel",
+            "pad": 4
+          },
+          "to": 0.75
+        },
+        {
+          "from": 0.75,
+          "rect": {
+            "target": "#b-query",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 0.5,
+          "type": "type",
+          "target": "#b-query",
+          "text": "ripgrep",
+          "cps": 4
+        }
+      ]
+    },
+    {
+      "scene": "matches",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "bold": "Check the matches.",
+        "rest": "Both an update and a comment match.",
+        "number": "14",
+        "box": [
+          484,
+          331,
+          585
+        ],
+        "track": [
+          {
+            "at": 0.75,
+            "move": 0.75,
+            "x": 97,
+            "y": 193
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#a-source1",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": []
+    },
+    {
+      "scene": "history",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "bold": "Press Left for history.",
+        "rest": "Enter restores the selected search.",
+        "number": "15",
+        "box": [
+          97,
+          193,
+          585
+        ],
+        "track": [
+          {
+            "at": 0.75,
+            "move": 0.75,
+            "x": 80,
+            "y": 367
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#b-history0",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": []
+    },
+    {
+      "scene": "restored",
+      "duration": 4,
+      "transition": "cut",
+      "caption": {
+        "bold": "The search returns.",
+        "rest": "Only the matching Arch story remains.",
+        "number": "16",
+        "box": [
+          80,
+          367,
+          585
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#a-query",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": []
+    },
+    {
+      "scene": "reading-chapter",
+      "duration": 8,
+      "transition": "cut",
+      "caption": {
+        "number": "",
+        "bold": "Read a story.",
+        "box": [
+          80,
+          367,
+          585
+        ],
+        "track": [
+          {
+            "at": 0.75,
+            "move": 0.75,
+            "x": 64,
+            "y": 219
+          }
+        ]
+      },
+      "actions": [
+        {
+          "at": 0,
+          "type": "show",
+          "target": ".title-scrim",
+          "dur": 0.75,
+          "dy": 0
+        },
+        {
+          "at": 0.25,
+          "type": "show",
+          "target": ".title-copy",
+          "dur": 0.75,
+          "dy": 28
+        },
+        {
+          "at": 6.75,
+          "type": "hide",
+          "target": ".title-copy",
+          "dur": 0.625,
+          "dy": 12
+        },
+        {
+          "at": 7.25,
+          "type": "hide",
+          "target": ".title-scrim",
+          "dur": 0.75,
+          "dy": 0
+        }
+      ]
+    },
+    {
+      "scene": "update-row",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "bold": "Select a package update.",
+        "rest": "This example opens the bat update.",
+        "number": "17",
+        "box": [
+          64,
+          219,
+          585
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#a-row2",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": []
+    },
+    {
+      "scene": "version",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "bold": "Compare versions.",
+        "rest": "The News pane shows the change.",
+        "number": "18",
+        "box": [
+          64,
+          219,
+          585
+        ],
+        "track": [
+          {
+            "at": 0.75,
+            "move": 0.75,
+            "x": 280,
+            "y": 673
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#a-text",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": []
+    },
+    {
+      "scene": "browser",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "bold": "Open an Arch article.",
+        "rest": "Choose Open in Browser on its details.",
+        "number": "19",
+        "box": [
+          280,
+          673,
+          585
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#b-open",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": []
+    },
+    {
+      "scene": "article",
+      "duration": 4,
+      "transition": "cut",
+      "caption": {
+        "bold": "Read the original article.",
+        "rest": "The link opens the selected story.",
+        "number": "20",
+        "box": [
+          280,
+          673,
+          585
+        ],
+        "track": [
+          {
+            "at": 0.75,
+            "move": 0.75,
+            "x": 214,
+            "y": 309
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#a-heading-focus",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": []
+    },
+    {
+      "scene": "mark-read",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "bold": "Press r in Normal mode.",
+        "rest": "A check marks this story as read.",
+        "number": "21",
+        "box": [
+          214,
+          309,
+          585
+        ],
+        "track": [
+          {
+            "at": 0.75,
+            "move": 0.75,
+            "x": 104,
+            "y": 131
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#b-mark0",
+            "pad": 4
+          },
+          "to": 2.25
+        },
+        {
+          "from": 2.25,
+          "rect": {
+            "target": "#a-mark0",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 2.25,
+          "type": "class",
+          "target": "#before",
+          "add": "hidden-state"
+        },
+        {
+          "at": 2.25,
+          "type": "class",
+          "target": "#after",
+          "remove": "hidden-state"
+        }
+      ]
+    },
+    {
+      "scene": "mark-unread",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "bold": "Press u for unread.",
+        "rest": "Press t to toggle either way.",
+        "number": "22",
+        "box": [
+          104,
+          131,
+          585
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#b-mark0",
+            "pad": 4
+          },
+          "to": 2.25
+        },
+        {
+          "from": 2.25,
+          "rect": {
+            "target": "#a-mark0",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 2.25,
+          "type": "class",
+          "target": "#before",
+          "add": "hidden-state"
+        },
+        {
+          "at": 2.25,
+          "type": "class",
+          "target": "#after",
+          "remove": "hidden-state"
+        }
+      ]
+    },
+    {
+      "scene": "bookmark",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "bold": "Press Space to bookmark.",
+        "rest": "The selected article appears here.",
+        "number": "23",
+        "box": [
+          104,
+          131,
+          585
+        ],
+        "track": [
+          {
+            "at": 1.041667,
+            "move": 1.041667,
+            "x": 826,
+            "y": 471
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#b-listlabel",
+            "pad": 4
+          },
+          "to": 2.25
+        },
+        {
+          "from": 2.25,
+          "rect": {
+            "target": "#a-item0",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 2.25,
+          "type": "class",
+          "target": "#before",
+          "add": "hidden-state"
+        },
+        {
+          "at": 2.25,
+          "type": "class",
+          "target": "#after",
+          "remove": "hidden-state"
+        }
+      ]
+    },
+    {
+      "scene": "reopen",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "bold": "Press Right for Bookmarks.",
+        "rest": "Enter loads the saved story.",
+        "number": "24",
+        "box": [
+          826,
+          471,
+          585
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#b-item0",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": []
+    },
+    {
+      "scene": "loaded",
+      "duration": 4,
+      "transition": "cut",
+      "caption": {
+        "bold": "Read the saved story.",
+        "rest": "Its title appears in the News pane.",
+        "number": "25",
+        "box": [
+          826,
+          471,
+          585
+        ],
+        "track": [
+          {
+            "at": 0.75,
+            "move": 0.75,
+            "x": 763,
+            "y": 560
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#a-title",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": []
+    },
+    {
+      "scene": "delete",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "bold": "Del removes the bookmark.",
+        "rest": "The article stays in the feed.",
+        "number": "26",
+        "box": [
+          763,
+          560,
+          585
+        ],
+        "track": [
+          {
+            "at": 0.75,
+            "move": 0.75,
+            "x": 826,
+            "y": 471
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#b-item0",
+            "pad": 4
+          },
+          "to": 2.25
+        },
+        {
+          "from": 2.25,
+          "rect": {
+            "target": "#a-listlabel",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 2.25,
+          "type": "class",
+          "target": "#before",
+          "add": "hidden-state"
+        },
+        {
+          "at": 2.25,
+          "type": "class",
+          "target": "#after",
+          "remove": "hidden-state"
+        }
+      ]
+    },
+    {
+      "scene": "news-window",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "bold": "Open the News window.",
+        "rest": "Press Shift+U in News management.",
+        "number": "27",
+        "box": [
+          826,
+          471,
+          585
+        ],
+        "track": [
+          {
+            "at": 0.75,
+            "move": 0.75,
+            "x": 668,
+            "y": 622
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "to": 0.75,
+          "rect": {
+            "target": "#a-listlabel",
+            "pad": 4
+          }
+        },
+        {
+          "from": 0.75,
+          "rect": {
+            "target": "#window-heading",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 0.75,
+          "type": "class",
+          "target": ".dialog",
+          "remove": "hidden-state"
+        }
+      ],
+      "setup": [
+        {
+          "type": "class",
+          "target": ".dialog",
+          "add": "hidden-state"
+        }
+      ]
+    },
+    {
+      "scene": "all-read",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "bold": "Mark the window read.",
+        "rest": "Ctrl+R marks every displayed story.",
+        "number": "28",
+        "box": [
+          668,
+          622,
+          585
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#window-shortcut",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": []
+    },
+    {
+      "scene": "read-result",
+      "duration": 4,
+      "transition": "cut",
+      "caption": {
+        "bold": "Check the list.",
+        "rest": "Each article now carries a read mark.",
+        "number": "29",
+        "box": [
+          668,
+          622,
+          585
+        ],
+        "track": [
+          {
+            "at": 0.75,
+            "move": 0.75,
+            "x": 380,
+            "y": 620
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#window-check",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": []
+    },
+    {
+      "scene": "status",
+      "duration": 4,
+      "transition": "cut",
+      "caption": {
+        "bold": "Check Arch service status.",
+        "rest": "Shift+S opens the public status page.",
+        "number": "30",
+        "box": [
+          380,
+          620,
+          585
+        ],
+        "track": [
+          {
+            "at": 0.75,
+            "move": 0.75,
+            "x": 418,
+            "y": 463
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#b-status",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": []
+    },
+    {
+      "scene": "status-page",
+      "duration": 4,
+      "transition": "cut",
+      "caption": {
+        "bold": "Read the status page.",
+        "rest": "This service snapshot is illustrative.",
+        "number": "31",
+        "box": [
+          418,
+          463,
+          585
+        ],
+        "track": [
+          {
+            "at": 0.75,
+            "move": 0.75,
+            "x": 338,
+            "y": 83
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#a-address",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": []
+    },
+    {
+      "scene": "return",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "bold": "Return to packages.",
+        "rest": "Press Shift+O, then 4.",
+        "number": "32",
+        "box": [
+          338,
+          83,
+          585
+        ],
+        "track": [
+          {
+            "at": 0.833333,
+            "move": 0.833333,
+            "x": 953,
+            "y": 152
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#b-option3",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": []
+    },
+    {
+      "scene": "package-view",
+      "duration": 4,
+      "transition": "cut",
+      "caption": {
+        "bold": "Package results return.",
+        "rest": "The install list replaces Bookmarks.",
+        "number": "33",
+        "box": [
+          953,
+          152,
+          585
+        ],
+        "track": [
+          {
+            "at": 1.125,
+            "move": 1.125,
+            "x": 97,
+            "y": 122
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#a-count",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": []
+    },
+    {
+      "scene": "credits",
+      "duration": 9,
+      "transition": "cut",
+      "caption": {
+        "number": "",
+        "bold": "Your news review is done.",
+        "box": [
+          97,
+          122,
+          585
+        ]
+      },
+      "actions": [
+        {
+          "at": 0,
+          "type": "show",
+          "target": ".title-scrim",
+          "dur": 0.75,
+          "dy": 0
+        },
+        {
+          "at": 0.25,
+          "type": "show",
+          "target": ".title-copy",
+          "dur": 0.75,
+          "dy": 28
+        },
+        {
+          "at": 7.75,
+          "type": "show",
+          "target": ".end-fade",
+          "dur": 1.25,
+          "dy": 0
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,256 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1888 980" width="1888" height="980">
+<!-- Headless Pacsea terminal capture or a source-file/terminal excerpt. Sample package, repository, key and status data are illustrative. -->
+<rect width="1888" height="980" fill="#1e1e2e"/>
+<g font-family="DejaVu Sans Mono, monospace" font-size="26.5" xml:space="preserve">
+<text x="0" y="22" fill="#7f849c" textLength="160" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">Pi BG: OFF</text>
+<rect x="496" y="0" width="16" height="28" fill="#585b70"/>
+<text x="496" y="22" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">U</text>
+<rect x="512" y="0" width="320" height="28" fill="#585b70"/>
+<text x="512" y="22" fill="#cba6f7" textLength="320" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">pdates available (3)</text>
+<rect x="864" y="0" width="16" height="28" fill="#585b70"/>
+<text x="864" y="22" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">N</text>
+<rect x="880" y="0" width="144" height="28" fill="#585b70"/>
+<text x="880" y="22" fill="#cba6f7" textLength="144" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">ews Ready</text>
+<rect x="1360" y="0" width="16" height="28" fill="#585b70"/>
+<text x="1360" y="22" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">C</text>
+<rect x="1376" y="0" width="208" height="28" fill="#585b70"/>
+<text x="1376" y="22" fill="#cba6f7" textLength="208" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">onfig/Lists v</text>
+<rect x="1600" y="0" width="16" height="28" fill="#585b70"/>
+<text x="1600" y="22" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">P</text>
+<rect x="1616" y="0" width="112" height="28" fill="#585b70"/>
+<text x="1616" y="22" fill="#cba6f7" textLength="112" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">anels v</text>
+<rect x="1744" y="0" width="16" height="28" fill="#585b70"/>
+<text x="1744" y="22" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">O</text>
+<rect x="1760" y="0" width="128" height="28" fill="#585b70"/>
+<text x="1760" y="22" fill="#cba6f7" textLength="128" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">ptions v</text>
+<text x="0" y="50" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">╭</text>
+<text x="32" y="50" fill="#cba6f7" textLength="208" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">Config editor</text>
+<text x="256" y="50" fill="#cba6f7" textLength="1632" lengthAdjust="spacingAndGlyphs" style="white-space:pre">─────────────────────────────────────────────────────────────────────────────────────────────────────╮</text>
+<text x="0" y="78" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="32" y="56" width="272" height="28" fill="#cba6f7"/>
+<text x="32" y="78" fill="#1e1e2e" textLength="272" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">[ settings.conf ]</text>
+<text x="352" y="78" fill="#a6adc8" textLength="208" lengthAdjust="spacingAndGlyphs" style="white-space:pre">keybinds.conf</text>
+<text x="640" y="78" fill="#a6adc8" textLength="160" lengthAdjust="spacingAndGlyphs" style="white-space:pre">theme.conf</text>
+<text x="880" y="78" fill="#a6adc8" textLength="144" lengthAdjust="spacingAndGlyphs" style="white-space:pre">★ Starred</text>
+<text x="1872" y="78" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="106" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="32" y="106" fill="#bac2de" textLength="112" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">Search:</text>
+<text x="160" y="106" fill="#cdd6f4" textLength="192" lengthAdjust="spacingAndGlyphs" style="white-space:pre">mirror_count</text>
+<text x="1488" y="106" fill="#7f849c" textLength="368" lengthAdjust="spacingAndGlyphs" style="white-space:pre">1 of 76 · Ctrl+R recent</text>
+<text x="1872" y="106" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="134" fill="#cba6f7" textLength="1088" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│╭ Keys ───────────────────────────────────────────────────────────╮</text>
+<text x="1088" y="134" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">╭</text>
+<text x="1120" y="134" fill="#7f849c" textLength="112" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Details</text>
+<text x="1248" y="134" fill="#585b70" textLength="624" lengthAdjust="spacingAndGlyphs" style="white-space:pre">──────────────────────────────────────╮</text>
+<text x="1872" y="134" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="162" fill="#cba6f7" textLength="32" lengthAdjust="spacingAndGlyphs" style="white-space:pre">││</text>
+<text x="48" y="162" fill="#74c7ec" textLength="112" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">Mirrors</text>
+<text x="1072" y="162" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1088" y="162" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1104" y="162" fill="#cdd6f4" textLength="192" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">Mirror count</text>
+<text x="1856" y="162" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="162" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="190" fill="#cba6f7" textLength="32" lengthAdjust="spacingAndGlyphs" style="white-space:pre">││</text>
+<rect x="32" y="168" width="32" height="28" fill="#45475a"/>
+<text x="32" y="190" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">▶</text>
+<rect x="64" y="168" width="32" height="28" fill="#45475a"/>
+<rect x="96" y="168" width="608" height="28" fill="#45475a"/>
+<text x="96" y="190" fill="#cdd6f4" textLength="192" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">Mirror count</text>
+<rect x="704" y="168" width="288" height="28" fill="#45475a"/>
+<rect x="992" y="168" width="32" height="28" fill="#45475a"/>
+<text x="992" y="190" fill="#cdd6f4" textLength="32" lengthAdjust="spacingAndGlyphs" style="white-space:pre">20</text>
+<rect x="1024" y="168" width="16" height="28" fill="#45475a"/>
+<rect x="1040" y="168" width="16" height="28" fill="#45475a"/>
+<rect x="1056" y="168" width="16" height="28" fill="#45475a"/>
+<text x="1072" y="190" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1088" y="190" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1104" y="190" fill="#bac2de" textLength="48" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Key</text>
+<text x="1296" y="190" fill="#9399b2" textLength="192" lengthAdjust="spacingAndGlyphs" style="white-space:pre">mirror_count</text>
+<text x="1856" y="190" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="190" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="218" fill="#cba6f7" textLength="32" lengthAdjust="spacingAndGlyphs" style="white-space:pre">││</text>
+<text x="1072" y="218" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1088" y="218" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1104" y="218" fill="#bac2de" textLength="112" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Current</text>
+<text x="1296" y="218" fill="#cdd6f4" textLength="32" lengthAdjust="spacingAndGlyphs" style="white-space:pre">20</text>
+<text x="1856" y="218" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="218" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="246" fill="#cba6f7" textLength="32" lengthAdjust="spacingAndGlyphs" style="white-space:pre">││</text>
+<text x="1072" y="246" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1088" y="246" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1104" y="246" fill="#bac2de" textLength="112" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Default</text>
+<text x="1296" y="246" fill="#cdd6f4" textLength="32" lengthAdjust="spacingAndGlyphs" style="white-space:pre">20</text>
+<text x="1856" y="246" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="246" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="274" fill="#cba6f7" textLength="32" lengthAdjust="spacingAndGlyphs" style="white-space:pre">││</text>
+<text x="1072" y="274" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1088" y="274" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1104" y="274" fill="#bac2de" textLength="64" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Type</text>
+<text x="1296" y="274" fill="#cdd6f4" textLength="208" lengthAdjust="spacingAndGlyphs" style="white-space:pre">integer 1–200</text>
+<text x="1856" y="274" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="274" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="302" fill="#cba6f7" textLength="32" lengthAdjust="spacingAndGlyphs" style="white-space:pre">││</text>
+<text x="1072" y="302" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1088" y="302" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1104" y="302" fill="#bac2de" textLength="112" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Applies</text>
+<text x="1296" y="302" fill="#74c7ec" textLength="160" lengthAdjust="spacingAndGlyphs" style="white-space:pre">when saved</text>
+<text x="1856" y="302" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="302" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="330" fill="#cba6f7" textLength="32" lengthAdjust="spacingAndGlyphs" style="white-space:pre">││</text>
+<text x="1072" y="330" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1088" y="330" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1104" y="330" fill="#bac2de" textLength="64" lengthAdjust="spacingAndGlyphs" style="white-space:pre">File</text>
+<text x="1296" y="330" fill="#a6adc8" textLength="480" lengthAdjust="spacingAndGlyphs" style="white-space:pre">./.config/pacsea/settings.conf</text>
+<text x="1856" y="330" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="330" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="358" fill="#cba6f7" textLength="32" lengthAdjust="spacingAndGlyphs" style="white-space:pre">││</text>
+<text x="1072" y="358" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1088" y="358" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1856" y="358" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="358" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="386" fill="#cba6f7" textLength="32" lengthAdjust="spacingAndGlyphs" style="white-space:pre">││</text>
+<text x="1072" y="386" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1088" y="386" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1104" y="386" fill="#a6adc8" textLength="720" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Number of mirrors fetched when refreshing the</text>
+<text x="1856" y="386" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="386" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="414" fill="#cba6f7" textLength="32" lengthAdjust="spacingAndGlyphs" style="white-space:pre">││</text>
+<text x="1072" y="414" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1088" y="414" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1104" y="414" fill="#a6adc8" textLength="192" lengthAdjust="spacingAndGlyphs" style="white-space:pre">mirror list.</text>
+<text x="1856" y="414" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="414" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="442" fill="#cba6f7" textLength="32" lengthAdjust="spacingAndGlyphs" style="white-space:pre">││</text>
+<text x="1072" y="442" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1088" y="442" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1856" y="442" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="442" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="470" fill="#cba6f7" textLength="32" lengthAdjust="spacingAndGlyphs" style="white-space:pre">││</text>
+<text x="1072" y="470" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1088" y="470" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1856" y="470" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="470" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="498" fill="#cba6f7" textLength="32" lengthAdjust="spacingAndGlyphs" style="white-space:pre">││</text>
+<text x="1072" y="498" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1088" y="498" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1856" y="498" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="498" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="526" fill="#cba6f7" textLength="32" lengthAdjust="spacingAndGlyphs" style="white-space:pre">││</text>
+<text x="1072" y="526" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1088" y="526" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1856" y="526" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="526" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="554" fill="#cba6f7" textLength="32" lengthAdjust="spacingAndGlyphs" style="white-space:pre">││</text>
+<text x="1072" y="554" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1088" y="554" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1856" y="554" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="554" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="582" fill="#cba6f7" textLength="32" lengthAdjust="spacingAndGlyphs" style="white-space:pre">││</text>
+<text x="1072" y="582" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1088" y="582" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1856" y="582" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="582" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="610" fill="#cba6f7" textLength="32" lengthAdjust="spacingAndGlyphs" style="white-space:pre">││</text>
+<text x="1072" y="610" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1088" y="610" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1856" y="610" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="610" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="638" fill="#cba6f7" textLength="32" lengthAdjust="spacingAndGlyphs" style="white-space:pre">││</text>
+<text x="1072" y="638" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1088" y="638" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1856" y="638" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="638" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="666" fill="#cba6f7" textLength="32" lengthAdjust="spacingAndGlyphs" style="white-space:pre">││</text>
+<text x="1072" y="666" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1088" y="666" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1856" y="666" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="666" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="694" fill="#cba6f7" textLength="32" lengthAdjust="spacingAndGlyphs" style="white-space:pre">││</text>
+<text x="1072" y="694" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1088" y="694" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1856" y="694" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="694" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="722" fill="#cba6f7" textLength="32" lengthAdjust="spacingAndGlyphs" style="white-space:pre">││</text>
+<text x="1072" y="722" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1088" y="722" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1856" y="722" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="722" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="750" fill="#cba6f7" textLength="32" lengthAdjust="spacingAndGlyphs" style="white-space:pre">││</text>
+<text x="1072" y="750" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1088" y="750" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1856" y="750" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="750" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="778" fill="#cba6f7" textLength="32" lengthAdjust="spacingAndGlyphs" style="white-space:pre">││</text>
+<text x="1072" y="778" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1088" y="778" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1856" y="778" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="778" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="806" fill="#cba6f7" textLength="32" lengthAdjust="spacingAndGlyphs" style="white-space:pre">││</text>
+<text x="1072" y="806" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1088" y="806" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1856" y="806" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="806" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="834" fill="#cba6f7" textLength="32" lengthAdjust="spacingAndGlyphs" style="white-space:pre">││</text>
+<text x="1072" y="834" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1088" y="834" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1856" y="834" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="834" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="862" fill="#cba6f7" textLength="1088" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│╰─────────────────────────────────────────────────────────────────╯</text>
+<text x="1088" y="862" fill="#585b70" textLength="784" lengthAdjust="spacingAndGlyphs" style="white-space:pre">╰───────────────────────────────────────────────╯</text>
+<text x="1872" y="862" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="890" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="890" fill="#7f849c" textLength="128" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">GLOBALS:</text>
+<rect x="176" y="868" width="128" height="28" fill="#585b70"/>
+<text x="176" y="890" fill="#cdd6f4" textLength="128" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">[Ctrl+C]</text>
+<text x="320" y="890" fill="#bac2de" textLength="64" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Exit</text>
+<text x="416" y="890" fill="#9399b2" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">|</text>
+<rect x="464" y="868" width="48" height="28" fill="#585b70"/>
+<text x="464" y="890" fill="#cdd6f4" textLength="48" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">[?]</text>
+<text x="528" y="890" fill="#bac2de" textLength="64" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Help</text>
+<text x="624" y="890" fill="#7f849c" textLength="80" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">Menus</text>
+<rect x="736" y="868" width="144" height="28" fill="#585b70"/>
+<text x="736" y="890" fill="#cdd6f4" textLength="144" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">[Shift+C]</text>
+<text x="896" y="890" fill="#bac2de" textLength="224" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Config / lists</text>
+<text x="1152" y="890" fill="#9399b2" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">|</text>
+<rect x="1200" y="868" width="144" height="28" fill="#585b70"/>
+<text x="1200" y="890" fill="#cdd6f4" textLength="144" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">[Shift+O]</text>
+<text x="1360" y="890" fill="#bac2de" textLength="112" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Options</text>
+<text x="1504" y="890" fill="#9399b2" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">|</text>
+<rect x="1552" y="868" width="144" height="28" fill="#585b70"/>
+<text x="1552" y="890" fill="#cdd6f4" textLength="144" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">[Shift+P]</text>
+<text x="1712" y="890" fill="#bac2de" textLength="96" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Panels</text>
+<text x="1872" y="890" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="918" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="918" fill="#7f849c" textLength="96" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">Editor</text>
+<rect x="144" y="896" width="224" height="28" fill="#585b70"/>
+<text x="144" y="918" fill="#cdd6f4" textLength="224" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">[↑↓ PgUp/PgDn]</text>
+<text x="384" y="918" fill="#bac2de" textLength="224" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Move selection</text>
+<text x="640" y="918" fill="#9399b2" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">|</text>
+<rect x="688" y="896" width="112" height="28" fill="#585b70"/>
+<text x="688" y="918" fill="#cdd6f4" textLength="112" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">[Enter]</text>
+<text x="816" y="918" fill="#bac2de" textLength="160" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Edit value</text>
+<text x="1008" y="918" fill="#9399b2" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">|</text>
+<rect x="1056" y="896" width="144" height="28" fill="#585b70"/>
+<text x="1056" y="918" fill="#cdd6f4" textLength="144" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">[Tab ← →]</text>
+<text x="1216" y="918" fill="#bac2de" textLength="160" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Switch tab</text>
+<text x="1408" y="918" fill="#9399b2" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">|</text>
+<rect x="1456" y="896" width="128" height="28" fill="#585b70"/>
+<text x="1456" y="918" fill="#cdd6f4" textLength="128" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">[Ctrl+B]</text>
+<text x="1600" y="918" fill="#bac2de" textLength="208" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Star / unstar</text>
+<text x="1872" y="918" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="946" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="16" y="924" width="128" height="28" fill="#585b70"/>
+<text x="16" y="946" fill="#cdd6f4" textLength="128" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">[Ctrl+R]</text>
+<text x="160" y="946" fill="#bac2de" textLength="240" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Recent searches</text>
+<text x="432" y="946" fill="#9399b2" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">|</text>
+<rect x="480" y="924" width="128" height="28" fill="#585b70"/>
+<text x="480" y="946" fill="#cdd6f4" textLength="128" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">[Ctrl+E]</text>
+<text x="624" y="946" fill="#bac2de" textLength="368" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Export effective values</text>
+<text x="1024" y="946" fill="#9399b2" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">|</text>
+<rect x="1072" y="924" width="80" height="28" fill="#585b70"/>
+<text x="1072" y="946" fill="#cdd6f4" textLength="80" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">[Esc]</text>
+<text x="1168" y="946" fill="#bac2de" textLength="192" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Clear search</text>
+<text x="1872" y="946" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="974" fill="#cba6f7" textLength="1888" lengthAdjust="spacingAndGlyphs" style="white-space:pre">╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯</text>
+</g>
+</svg>

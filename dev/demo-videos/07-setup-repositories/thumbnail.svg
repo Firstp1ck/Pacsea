@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1920" height="1080" viewBox="0 0 1920 1080" font-family="DejaVu Sans Mono, monospace">
+  <title>Pacsea: Setup and repositories</title>
+  <desc>The Pacman and Signing key columns of the selected repository show active and trusted.</desc>
+  <rect width="1920" height="1080" fill="#1e1e2e"/>
+  <image x="108" y="67" width="156" height="156" xlink:href="../../../data/assets/pacsea.svg"/>
+  <text x="296" y="195" font-weight="bold" font-size="136" fill="#cdd6f4">Pacsea</text>
+  <text x="106" y="397" font-size="137" fill="#cdd6f4">Setup &amp; repositories</text>
+  <!-- Column excerpt from the selected row in assets/repo-active.svg. -->
+  <path d="M115 542V525Q115 509 131 509H164 M855 509H1777Q1793 509 1793 525V822Q1793 838 1777 838H131Q115 838 115 822V542"
+        fill="#181825" stroke="#585b70" stroke-width="5"/>
+  <text x="182" y="529" font-size="58" fill="#a6adc8">Repositories</text>
+  <g font-size="81" fill="#a6adc8">
+    <text x="183" y="646">Pacman</text><text x="860" y="646">Signing key</text>
+  </g>
+  <rect x="135" y="682" width="1637" height="130" fill="#b4befe"/>
+  <g font-size="98" font-weight="bold" fill="#11111b">
+    <text x="182" y="779">active</text><text x="860" y="779">trusted</text>
+  </g>
+</svg>

@@ -1,0 +1,248 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1888 980" width="1888" height="980">
+<!-- Headless Pacsea terminal capture or a source-file/terminal excerpt. Sample package, repository, key and status data are illustrative. -->
+<rect width="1888" height="980" fill="#1e1e2e"/>
+<g font-family="DejaVu Sans Mono, monospace" font-size="26.5" xml:space="preserve">
+<rect x="416" y="0" width="16" height="28" fill="#585b70"/>
+<text x="416" y="22" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">U</text>
+<rect x="432" y="0" width="320" height="28" fill="#585b70"/>
+<text x="432" y="22" fill="#cba6f7" textLength="320" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">pdates available (3)</text>
+<rect x="784" y="0" width="16" height="28" fill="#585b70"/>
+<text x="784" y="22" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">N</text>
+<rect x="800" y="0" width="144" height="28" fill="#585b70"/>
+<text x="800" y="22" fill="#cba6f7" textLength="144" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">ews Ready</text>
+<rect x="1360" y="0" width="16" height="28" fill="#585b70"/>
+<text x="1360" y="22" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">C</text>
+<rect x="1376" y="0" width="208" height="28" fill="#585b70"/>
+<text x="1376" y="22" fill="#cba6f7" textLength="208" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">onfig/Lists v</text>
+<rect x="1600" y="0" width="16" height="28" fill="#585b70"/>
+<text x="1600" y="22" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">P</text>
+<rect x="1616" y="0" width="112" height="28" fill="#585b70"/>
+<text x="1616" y="22" fill="#cba6f7" textLength="112" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">anels v</text>
+<rect x="1744" y="0" width="16" height="28" fill="#585b70"/>
+<text x="1744" y="22" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">O</text>
+<rect x="1760" y="0" width="128" height="28" fill="#585b70"/>
+<text x="1760" y="22" fill="#cba6f7" textLength="128" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">ptions v</text>
+<text x="0" y="50" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">╭</text>
+<text x="32" y="50" fill="#cba6f7" textLength="464" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">Config editor — settings.conf</text>
+<text x="512" y="50" fill="#cba6f7" textLength="1376" lengthAdjust="spacingAndGlyphs" style="white-space:pre">─────────────────────────────────────────────────────────────────────────────────────╮</text>
+<text x="0" y="78" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="78" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">╭</text>
+<text x="48" y="78" fill="#7f849c" textLength="320" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Keys — settings.conf</text>
+<text x="384" y="78" fill="#45475a" textLength="1488" lengthAdjust="spacingAndGlyphs" style="white-space:pre">────────────────────────────────────────────────────────────────────────────────────────────╮</text>
+<text x="1872" y="78" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="106" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="106" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="32" y="106" fill="#bac2de" textLength="64" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">Keys</text>
+<text x="1856" y="106" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="106" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="134" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="134" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<rect x="32" y="112" width="512" height="28" fill="#45475a"/>
+<text x="32" y="134" fill="#cdd6f4" textLength="288" lengthAdjust="spacingAndGlyphs" style="white-space:pre">▶ Result sort mode</text>
+<text x="352" y="134" fill="#cdd6f4" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">·</text>
+<text x="400" y="134" fill="#cdd6f4" textLength="144" lengthAdjust="spacingAndGlyphs" style="white-space:pre">sort_mode</text>
+<text x="1856" y="134" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="134" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="162" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="162" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="64" y="162" fill="#cdd6f4" textLength="272" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Show install pane</text>
+<text x="368" y="162" fill="#cdd6f4" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">·</text>
+<text x="416" y="162" fill="#cdd6f4" textLength="272" lengthAdjust="spacingAndGlyphs" style="white-space:pre">show_install_pane</text>
+<text x="1856" y="162" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="162" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="190" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="190" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="64" y="190" fill="#cdd6f4" textLength="384" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Show search history pane</text>
+<text x="480" y="190" fill="#cdd6f4" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">·</text>
+<text x="528" y="190" fill="#cdd6f4" textLength="384" lengthAdjust="spacingAndGlyphs" style="white-space:pre">show_search_history_pane</text>
+<text x="1856" y="190" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="190" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="218" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="218" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="64" y="218" fill="#cdd6f4" textLength="192" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Mirror count</text>
+<text x="288" y="218" fill="#cdd6f4" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">·</text>
+<text x="336" y="218" fill="#cdd6f4" textLength="192" lengthAdjust="spacingAndGlyphs" style="white-space:pre">mirror_count</text>
+<text x="1856" y="218" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="218" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="246" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="246" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="64" y="246" fill="#cdd6f4" textLength="304" lengthAdjust="spacingAndGlyphs" style="white-space:pre">News max age (days)</text>
+<text x="400" y="246" fill="#cdd6f4" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">·</text>
+<text x="448" y="246" fill="#cdd6f4" textLength="272" lengthAdjust="spacingAndGlyphs" style="white-space:pre">news_max_age_days</text>
+<text x="1856" y="246" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="246" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="274" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="274" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="64" y="274" fill="#cdd6f4" textLength="256" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Clipboard suffix</text>
+<text x="352" y="274" fill="#cdd6f4" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">·</text>
+<text x="400" y="274" fill="#cdd6f4" textLength="256" lengthAdjust="spacingAndGlyphs" style="white-space:pre">clipboard_suffix</text>
+<text x="1856" y="274" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="274" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="302" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="302" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="64" y="302" fill="#cdd6f4" textLength="288" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Preferred terminal</text>
+<text x="384" y="302" fill="#cdd6f4" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">·</text>
+<text x="432" y="302" fill="#cdd6f4" textLength="288" lengthAdjust="spacingAndGlyphs" style="white-space:pre">preferred_terminal</text>
+<text x="1856" y="302" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="302" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="330" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="330" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="64" y="330" fill="#cdd6f4" textLength="400" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Privilege escalation mode</text>
+<text x="496" y="330" fill="#cdd6f4" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">·</text>
+<text x="544" y="330" fill="#cdd6f4" textLength="224" lengthAdjust="spacingAndGlyphs" style="white-space:pre">privilege_mode</text>
+<text x="1856" y="330" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="330" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="358" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="358" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="64" y="358" fill="#cdd6f4" textLength="240" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Main pane order</text>
+<text x="336" y="358" fill="#cdd6f4" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">·</text>
+<text x="384" y="358" fill="#cdd6f4" textLength="240" lengthAdjust="spacingAndGlyphs" style="white-space:pre">main_pane_order</text>
+<text x="1856" y="358" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="358" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="386" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="386" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="64" y="386" fill="#cdd6f4" textLength="288" lengthAdjust="spacingAndGlyphs" style="white-space:pre">VirusTotal API key</text>
+<text x="384" y="386" fill="#cdd6f4" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">·</text>
+<text x="432" y="386" fill="#cdd6f4" textLength="288" lengthAdjust="spacingAndGlyphs" style="white-space:pre">virustotal_api_key</text>
+<text x="1856" y="386" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="386" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="414" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="414" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="64" y="414" fill="#cdd6f4" textLength="432" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Layout: left pane width (%)</text>
+<text x="528" y="414" fill="#cdd6f4" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">·</text>
+<text x="576" y="414" fill="#cdd6f4" textLength="240" lengthAdjust="spacingAndGlyphs" style="white-space:pre">layout_left_pct</text>
+<text x="1856" y="414" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="414" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="442" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="442" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="64" y="442" fill="#cdd6f4" textLength="464" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Layout: center pane width (%)</text>
+<text x="560" y="442" fill="#cdd6f4" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">·</text>
+<text x="608" y="442" fill="#cdd6f4" textLength="272" lengthAdjust="spacingAndGlyphs" style="white-space:pre">layout_center_pct</text>
+<text x="1856" y="442" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="442" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="470" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="470" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="64" y="470" fill="#cdd6f4" textLength="448" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Layout: right pane width (%)</text>
+<text x="544" y="470" fill="#cdd6f4" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">·</text>
+<text x="592" y="470" fill="#cdd6f4" textLength="256" lengthAdjust="spacingAndGlyphs" style="white-space:pre">layout_right_pct</text>
+<text x="1856" y="470" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="470" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="498" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="498" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="64" y="498" fill="#cdd6f4" textLength="416" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Vertical: min results rows</text>
+<text x="512" y="498" fill="#cdd6f4" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">·</text>
+<text x="560" y="498" fill="#cdd6f4" textLength="320" lengthAdjust="spacingAndGlyphs" style="white-space:pre">vertical_min_results</text>
+<text x="1856" y="498" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="498" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="526" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="526" fill="#45475a" textLength="1856" lengthAdjust="spacingAndGlyphs" style="white-space:pre">╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯</text>
+<text x="1872" y="526" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="554" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="554" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">╭</text>
+<text x="32" y="554" fill="#7f849c" textLength="96" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Recent</text>
+<text x="128" y="554" fill="#45475a" textLength="256" lengthAdjust="spacingAndGlyphs" style="white-space:pre">───────────────╮</text>
+<text x="384" y="554" fill="#cba6f7" textLength="1120" lengthAdjust="spacingAndGlyphs" style="white-space:pre">╭Input───────────────────────────────────────────────────────────────╮</text>
+<text x="1504" y="554" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">╭</text>
+<text x="1520" y="554" fill="#7f849c" textLength="144" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Bookmarks</text>
+<text x="1664" y="554" fill="#45475a" textLength="208" lengthAdjust="spacingAndGlyphs" style="white-space:pre">────────────╮</text>
+<text x="1872" y="554" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="582" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="582" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="32" y="582" fill="#7f849c" textLength="304" lengthAdjust="spacingAndGlyphs" style="white-space:pre">No recent searches.</text>
+<text x="368" y="582" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="384" y="582" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1488" y="582" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1504" y="582" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1520" y="582" fill="#7f849c" textLength="304" lengthAdjust="spacingAndGlyphs" style="white-space:pre">No bookmarked keys.</text>
+<text x="1856" y="582" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="582" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="610" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="610" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="368" y="610" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="384" y="610" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="400" y="610" fill="#7f849c" textLength="544" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Tab/←/→ switch panel · Enter apply</text>
+<text x="1488" y="610" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1504" y="610" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1856" y="610" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="610" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="638" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="638" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="368" y="638" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="384" y="638" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1488" y="638" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1504" y="638" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1856" y="638" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="638" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="666" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="666" fill="#45475a" textLength="368" lengthAdjust="spacingAndGlyphs" style="white-space:pre">╰─────────────────────╯</text>
+<text x="384" y="666" fill="#cba6f7" textLength="1120" lengthAdjust="spacingAndGlyphs" style="white-space:pre">╰────────────────────────────────────────────────────────────────────╯</text>
+<text x="1504" y="666" fill="#45475a" textLength="368" lengthAdjust="spacingAndGlyphs" style="white-space:pre">╰─────────────────────╯</text>
+<text x="1872" y="666" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="694" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="694" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">╭</text>
+<text x="48" y="694" fill="#7f849c" textLength="112" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Details</text>
+<text x="176" y="694" fill="#45475a" textLength="1696" lengthAdjust="spacingAndGlyphs" style="white-space:pre">─────────────────────────────────────────────────────────────────────────────────────────────────────────╮</text>
+<text x="1872" y="694" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="722" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="722" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="32" y="722" fill="#bac2de" textLength="272" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Result sort mode:</text>
+<text x="320" y="722" fill="#7f849c" textLength="144" lengthAdjust="spacingAndGlyphs" style="white-space:pre">sort_mode</text>
+<text x="1856" y="722" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="722" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="750" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="750" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="64" y="750" fill="#a6adc8" textLength="96" lengthAdjust="spacingAndGlyphs" style="white-space:pre">value:</text>
+<text x="176" y="750" fill="#cdd6f4" textLength="192" lengthAdjust="spacingAndGlyphs" style="white-space:pre">best_matches</text>
+<text x="1856" y="750" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="750" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="778" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="778" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="64" y="778" fill="#a6adc8" textLength="656" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Order applied to the search results pane.</text>
+<text x="1856" y="778" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="778" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="806" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="806" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="64" y="806" fill="#7f849c" textLength="352" lengthAdjust="spacingAndGlyphs" style="white-space:pre">apply: applies on save</text>
+<text x="1856" y="806" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="806" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="834" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="834" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="64" y="834" fill="#a6adc8" textLength="688" lengthAdjust="spacingAndGlyphs" style="white-space:pre">active file: ./.config/pacsea/settings.conf</text>
+<text x="1856" y="834" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="834" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="862" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="862" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1856" y="862" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="1872" y="862" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="890" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="890" fill="#45475a" textLength="1856" lengthAdjust="spacingAndGlyphs" style="white-space:pre">╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯</text>
+<text x="1872" y="890" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="918" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="918" fill="#7f849c" textLength="128" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">GLOBALS:</text>
+<rect x="208" y="896" width="128" height="28" fill="#585b70"/>
+<text x="208" y="918" fill="#cdd6f4" textLength="128" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">[Ctrl+C]</text>
+<text x="352" y="918" fill="#bac2de" textLength="64" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Exit</text>
+<text x="448" y="918" fill="#9399b2" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">|</text>
+<rect x="496" y="896" width="64" height="28" fill="#585b70"/>
+<text x="496" y="918" fill="#cdd6f4" textLength="64" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">[F1]</text>
+<text x="576" y="918" fill="#bac2de" textLength="64" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Help</text>
+<text x="672" y="918" fill="#9399b2" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">|</text>
+<text x="720" y="918" fill="#7f849c" textLength="80" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">Menus</text>
+<rect x="864" y="896" width="144" height="28" fill="#585b70"/>
+<text x="864" y="918" fill="#cdd6f4" textLength="144" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">[Shift+C]</text>
+<text x="1024" y="918" fill="#bac2de" textLength="224" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Config / lists</text>
+<text x="1280" y="918" fill="#9399b2" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">|</text>
+<rect x="1328" y="896" width="144" height="28" fill="#585b70"/>
+<text x="1328" y="918" fill="#cdd6f4" textLength="144" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">[Shift+O]</text>
+<text x="1488" y="918" fill="#bac2de" textLength="112" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Options</text>
+<text x="1632" y="918" fill="#9399b2" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">|</text>
+<rect x="1680" y="896" width="144" height="28" fill="#585b70"/>
+<text x="1680" y="918" fill="#cdd6f4" textLength="144" lengthAdjust="spacingAndGlyphs" style="white-space:pre" font-weight="bold">[Shift+P]</text>
+<text x="1872" y="918" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="946" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="16" y="946" fill="#bac2de" textLength="96" lengthAdjust="spacingAndGlyphs" style="white-space:pre">Panels</text>
+<text x="144" y="946" fill="#9399b2" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">|</text>
+<text x="1872" y="946" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" style="white-space:pre">│</text>
+<text x="0" y="974" fill="#cba6f7" textLength="1888" lengthAdjust="spacingAndGlyphs" style="white-space:pre">╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯</text>
+</g>
+</svg>

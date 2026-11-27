@@ -1,0 +1,14 @@
+Use Pacsea’s config editor to change search behavior, record a shortcut and arrange the terminal panes. Then see how the feature-branch editor handles cross-tab searches, starred settings, recent queries and value suggestions.
+
+00:00 Edit, undo and save a preference
+00:40 Bookmark keys, record shortcuts and export
+01:02 Change layout, language and authentication
+01:50 Preview the tabbed config editor
+02:26 Recall searches and complete values
+
+The opening chapters use Pacsea main c2d62f9e. The tabbed editor and the Pi Scan shortcut are a preview from feat/config-editor-ux at 52036f96. Native Ratatui captures use illustrative config values and package data. File views are typeset excerpts. No host settings were changed.
+
+Original music: “Quiet Index,” composed and synthesized for the Pacsea walkthrough series.
+
+Pacsea on GitHub
+https://github.com/Firstp1ck/Pacsea

@@ -1,0 +1,1440 @@
+{
+  "version": 1,
+  "format": "episode",
+  "title": "Pacsea: Work from the command line",
+  "width": 1920,
+  "height": 1080,
+  "fps": 24,
+  "framing": "full-app",
+  "spotlightOutline": true,
+  "captionMotion": "continuous",
+  "captionEase": "fast-slow",
+  "theme": {
+    "background": "#0d0e16",
+    "glow": "transparent",
+    "accent": "#70dcff"
+  },
+  "scenes": "scenes.html",
+  "sourceRevision": "c2d62f9ee7ab0669f3b3b5b1754c0132e5cbae52",
+  "production": {
+    "fixtures": "The examples recreate a Bash session with illustrative output. Scenes marked “main · c2d62f9e” use additions after the v0.8.2 tag: JSON, removal from a file, mirror refresh and the config-directory override. Both builds report 0.8.2. Direct install, remove, update and cache commands are shown unsubmitted. --dry-run applies to the interactive browser.",
+    "render": "From this directory run t3-build python ../02-news/render.py . ~/.codex/skills/explainer-video. Requires the sibling 01-discovery-pilot score source, NumPy, Pillow, FFmpeg, Inkscape, Chromium and Node 22+.",
+    "music": "Quiet Index, original composition and synthesis for the Pacsea discovery pilot. The original score is rephrased at the following picture cues.",
+    "scoreAnchors": {
+      "1": "version",
+      "19": "operations-chapter",
+      "20": "install",
+      "31": "credits"
+    }
+  },
+  "allowTerms": [
+    "AUR",
+    "Arch",
+    "CLI",
+    "JSON",
+    "jq",
+    "Pacsea",
+    "Ctrl",
+    "Shift",
+    "Esc",
+    "URL",
+    "TUI",
+    "pacman",
+    "ripgrep"
+  ],
+  "chapters": [
+    {
+      "start": 0,
+      "title": "Check the CLI and search Arch packages"
+    },
+    {
+      "start": 42,
+      "title": "List installed packages and save a file"
+    },
+    {
+      "start": 77,
+      "title": "Review install, remove and update commands"
+    },
+    {
+      "start": 124,
+      "title": "Read Arch news and select runtime options"
+    },
+    {
+      "start": 158,
+      "title": "Cache clearing and interactive dry run"
+    }
+  ],
+  "steps": [
+    {
+      "scene": "opening",
+      "duration": 8,
+      "transition": "cut",
+      "caption": {
+        "number": "",
+        "bold": "Pacsea.",
+        "box": [
+          272,
+          523,
+          585
+        ]
+      },
+      "actions": [
+        {
+          "at": 0,
+          "type": "show",
+          "target": ".title-scrim",
+          "dur": 0.75,
+          "dy": 0
+        },
+        {
+          "at": 0.25,
+          "type": "show",
+          "target": ".title-copy",
+          "dur": 0.75,
+          "dy": 28
+        },
+        {
+          "at": 6.75,
+          "type": "hide",
+          "target": ".title-copy",
+          "dur": 0.625,
+          "dy": 12
+        },
+        {
+          "at": 7.25,
+          "type": "hide",
+          "target": ".title-scrim",
+          "dur": 0.75,
+          "dy": 0
+        }
+      ]
+    },
+    {
+      "scene": "version",
+      "duration": 7,
+      "transition": "cut",
+      "caption": {
+        "bold": "Check your version.",
+        "rest": "Use --help to see the flags in your build.",
+        "number": "01",
+        "box": [
+          272,
+          523,
+          585
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#caret",
+            "pad": 4
+          },
+          "to": 0.376
+        },
+        {
+          "from": 0.376,
+          "rect": {
+            "target": "#cmd",
+            "pad": 4
+          },
+          "to": 3.25
+        },
+        {
+          "from": 3.25,
+          "rect": {
+            "target": "#result-text",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 0.25,
+          "type": "type",
+          "target": "#cmd",
+          "text": "pacsea -V",
+          "cps": 8
+        },
+        {
+          "at": 3.25,
+          "type": "class",
+          "target": "#result",
+          "remove": "hidden-state"
+        },
+        {
+          "at": 3.25,
+          "type": "class",
+          "target": "#caret",
+          "add": "hidden-state"
+        }
+      ]
+    },
+    {
+      "scene": "search",
+      "duration": 9,
+      "transition": "cut",
+      "caption": {
+        "bold": "Search for a name.",
+        "rest": "Compare repository and AUR matches.",
+        "number": "02",
+        "box": [
+          272,
+          523,
+          585
+        ],
+        "track": [
+          {
+            "at": 0.625,
+            "move": 0.625,
+            "x": 452,
+            "y": 427
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#caret",
+            "pad": 4
+          },
+          "to": 0.376
+        },
+        {
+          "from": 0.376,
+          "rect": {
+            "target": "#cmd",
+            "pad": 4
+          },
+          "to": 3.25
+        },
+        {
+          "from": 3.25,
+          "rect": {
+            "target": "#result-text",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 0.25,
+          "type": "type",
+          "target": "#cmd",
+          "text": "pacsea -s ripgrep",
+          "cps": 8
+        },
+        {
+          "at": 3.25,
+          "type": "class",
+          "target": "#result",
+          "remove": "hidden-state"
+        },
+        {
+          "at": 3.25,
+          "type": "class",
+          "target": "#caret",
+          "add": "hidden-state"
+        }
+      ]
+    },
+    {
+      "scene": "json",
+      "duration": 10,
+      "transition": "cut",
+      "caption": {
+        "bold": "Read a JSON result.",
+        "rest": "jq selects the first package in the array.",
+        "number": "03",
+        "box": [
+          452,
+          427,
+          585
+        ],
+        "track": [
+          {
+            "at": 0.625,
+            "move": 0.625,
+            "x": 423,
+            "y": 515
+          },
+          {
+            "at": 3.875,
+            "move": 0.625,
+            "x": 423,
+            "y": 588
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#caret",
+            "pad": 4
+          },
+          "to": 0.2944782608695652
+        },
+        {
+          "from": 0.2944782608695652,
+          "rect": {
+            "target": "#cmd",
+            "pad": 4
+          },
+          "to": 3.25
+        },
+        {
+          "from": 3.25,
+          "rect": {
+            "target": "#result-text",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 0.25,
+          "type": "type",
+          "target": "#cmd",
+          "text": "pacsea --search ripgrep --json | jq '.data.results[0]'",
+          "cps": 23
+        },
+        {
+          "at": 3.25,
+          "type": "class",
+          "target": "#result",
+          "remove": "hidden-state"
+        },
+        {
+          "at": 3.25,
+          "type": "class",
+          "target": "#caret",
+          "add": "hidden-state"
+        }
+      ]
+    },
+    {
+      "scene": "schema",
+      "duration": 8,
+      "transition": "cut",
+      "caption": {
+        "bold": "Check the envelope.",
+        "rest": "Identify the command and schema version.",
+        "number": "04",
+        "box": [
+          423,
+          588,
+          585
+        ],
+        "track": [
+          {
+            "at": 0.625,
+            "move": 0.625,
+            "x": 423,
+            "y": 515
+          },
+          {
+            "at": 3.875,
+            "move": 0.625,
+            "x": 423,
+            "y": 588
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#caret",
+            "pad": 4
+          },
+          "to": 0.3065555555555556
+        },
+        {
+          "from": 0.3065555555555556,
+          "rect": {
+            "target": "#cmd",
+            "pad": 4
+          },
+          "to": 3.25
+        },
+        {
+          "from": 3.25,
+          "rect": {
+            "target": "#result-text",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 0.25,
+          "type": "type",
+          "target": "#cmd",
+          "text": "pacsea -s ripgrep --json | jq 'del(.data)'",
+          "cps": 18
+        },
+        {
+          "at": 3.25,
+          "type": "class",
+          "target": "#result",
+          "remove": "hidden-state"
+        },
+        {
+          "at": 3.25,
+          "type": "class",
+          "target": "#caret",
+          "add": "hidden-state"
+        }
+      ]
+    },
+    {
+      "scene": "explicit",
+      "duration": 7,
+      "transition": "cut",
+      "caption": {
+        "bold": "List explicit leaves.",
+        "rest": "The default matches pacman -Qetq.",
+        "number": "05",
+        "box": [
+          423,
+          588,
+          585
+        ],
+        "track": [
+          {
+            "at": 0.625,
+            "move": 0.625,
+            "x": 272,
+            "y": 523
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#caret",
+            "pad": 4
+          },
+          "to": 0.376
+        },
+        {
+          "from": 0.376,
+          "rect": {
+            "target": "#cmd",
+            "pad": 4
+          },
+          "to": 3.25
+        },
+        {
+          "from": 3.25,
+          "rect": {
+            "target": "#result-text",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 0.25,
+          "type": "type",
+          "target": "#cmd",
+          "text": "pacsea --list",
+          "cps": 8
+        },
+        {
+          "at": 3.25,
+          "type": "class",
+          "target": "#result",
+          "remove": "hidden-state"
+        },
+        {
+          "at": 3.25,
+          "type": "class",
+          "target": "#caret",
+          "add": "hidden-state"
+        }
+      ]
+    },
+    {
+      "scene": "exp-flag",
+      "duration": 5,
+      "transition": "cut",
+      "caption": {
+        "bold": "Spell out --exp.",
+        "rest": "The explicit leaf list stays the same.",
+        "number": "06",
+        "box": [
+          272,
+          523,
+          585
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#caret",
+            "pad": 4
+          },
+          "to": 0.376
+        },
+        {
+          "from": 0.376,
+          "rect": {
+            "target": "#cmd",
+            "pad": 4
+          },
+          "to": 3.25
+        },
+        {
+          "from": 3.25,
+          "rect": {
+            "target": "#result-text",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 0.25,
+          "type": "type",
+          "target": "#cmd",
+          "text": "pacsea -l --exp",
+          "cps": 8
+        },
+        {
+          "at": 3.25,
+          "type": "class",
+          "target": "#result",
+          "remove": "hidden-state"
+        },
+        {
+          "at": 3.25,
+          "type": "class",
+          "target": "#caret",
+          "add": "hidden-state"
+        }
+      ]
+    },
+    {
+      "scene": "implicit",
+      "duration": 7,
+      "transition": "cut",
+      "caption": {
+        "bold": "List the remaining packages.",
+        "rest": "--imp excludes the explicit leaves.",
+        "number": "07",
+        "box": [
+          272,
+          523,
+          585
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#caret",
+            "pad": 4
+          },
+          "to": 0.376
+        },
+        {
+          "from": 0.376,
+          "rect": {
+            "target": "#cmd",
+            "pad": 4
+          },
+          "to": 3.25
+        },
+        {
+          "from": 3.25,
+          "rect": {
+            "target": "#result-text",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 0.25,
+          "type": "type",
+          "target": "#cmd",
+          "text": "pacsea --list --imp",
+          "cps": 8
+        },
+        {
+          "at": 3.25,
+          "type": "class",
+          "target": "#result",
+          "remove": "hidden-state"
+        },
+        {
+          "at": 3.25,
+          "type": "class",
+          "target": "#caret",
+          "add": "hidden-state"
+        }
+      ]
+    },
+    {
+      "scene": "all",
+      "duration": 7,
+      "transition": "cut",
+      "caption": {
+        "bold": "List every package.",
+        "rest": "--all combines both groups.",
+        "number": "08",
+        "box": [
+          272,
+          523,
+          585
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#caret",
+            "pad": 4
+          },
+          "to": 0.376
+        },
+        {
+          "from": 0.376,
+          "rect": {
+            "target": "#cmd",
+            "pad": 4
+          },
+          "to": 3.25
+        },
+        {
+          "from": 3.25,
+          "rect": {
+            "target": "#result-text",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 0.25,
+          "type": "type",
+          "target": "#cmd",
+          "text": "pacsea -l --all",
+          "cps": 8
+        },
+        {
+          "at": 3.25,
+          "type": "class",
+          "target": "#result",
+          "remove": "hidden-state"
+        },
+        {
+          "at": 3.25,
+          "type": "class",
+          "target": "#caret",
+          "add": "hidden-state"
+        }
+      ]
+    },
+    {
+      "scene": "save-list",
+      "duration": 9,
+      "transition": "cut",
+      "caption": {
+        "bold": "Save names to a file.",
+        "rest": "Read it back, one package per line.",
+        "number": "09",
+        "box": [
+          272,
+          523,
+          585
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#caret",
+            "pad": 4
+          },
+          "to": 0.3065555555555556
+        },
+        {
+          "from": 0.3065555555555556,
+          "rect": {
+            "target": "#cmd",
+            "pad": 4
+          },
+          "to": 3.25
+        },
+        {
+          "from": 3.25,
+          "rect": {
+            "target": "#result-text",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 0.25,
+          "type": "type",
+          "target": "#cmd",
+          "text": "pacsea -l --exp > tools.txt && cat tools.txt",
+          "cps": 18
+        },
+        {
+          "at": 3.25,
+          "type": "class",
+          "target": "#result",
+          "remove": "hidden-state"
+        },
+        {
+          "at": 3.25,
+          "type": "class",
+          "target": "#caret",
+          "add": "hidden-state"
+        }
+      ]
+    },
+    {
+      "scene": "operations-chapter",
+      "duration": 8,
+      "transition": "cut",
+      "caption": {
+        "number": "",
+        "bold": "Review before Enter.",
+        "box": [
+          272,
+          523,
+          585
+        ]
+      },
+      "actions": [
+        {
+          "at": 0,
+          "type": "show",
+          "target": ".title-scrim",
+          "dur": 0.75,
+          "dy": 0
+        },
+        {
+          "at": 0.25,
+          "type": "show",
+          "target": ".title-copy",
+          "dur": 0.75,
+          "dy": 28
+        },
+        {
+          "at": 6.75,
+          "type": "hide",
+          "target": ".title-copy",
+          "dur": 0.625,
+          "dy": 12
+        },
+        {
+          "at": 7.25,
+          "type": "hide",
+          "target": ".title-scrim",
+          "dur": 0.75,
+          "dy": 0
+        }
+      ]
+    },
+    {
+      "scene": "install",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "bold": "Install by name.",
+        "rest": "List the packages after -i.",
+        "number": "10",
+        "box": [
+          272,
+          523,
+          585
+        ],
+        "track": [
+          {
+            "at": 0.625,
+            "move": 0.625,
+            "x": 80,
+            "y": 530
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#caret",
+            "pad": 4
+          },
+          "to": 0.34190909090909094
+        },
+        {
+          "from": 0.34190909090909094,
+          "rect": {
+            "target": "#cmd",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 0.25,
+          "type": "type",
+          "target": "#cmd",
+          "text": "pacsea -i ripgrep fd",
+          "cps": 11
+        }
+      ]
+    },
+    {
+      "scene": "install-file",
+      "duration": 7,
+      "transition": "cut",
+      "caption": {
+        "bold": "Read names from a file.",
+        "rest": "Capital -I takes one name per line.",
+        "number": "11",
+        "box": [
+          80,
+          530,
+          585
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#caret",
+            "pad": 4
+          },
+          "to": 0.351
+        },
+        {
+          "from": 0.351,
+          "rect": {
+            "target": "#cmd",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 0.25,
+          "type": "type",
+          "target": "#cmd",
+          "text": "pacsea -I tools.txt",
+          "cps": 10
+        }
+      ]
+    },
+    {
+      "scene": "remove",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "bold": "Remove by name.",
+        "rest": "Review each name after -r.",
+        "number": "12",
+        "box": [
+          80,
+          530,
+          585
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#caret",
+            "pad": 4
+          },
+          "to": 0.34190909090909094
+        },
+        {
+          "from": 0.34190909090909094,
+          "rect": {
+            "target": "#cmd",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 0.25,
+          "type": "type",
+          "target": "#cmd",
+          "text": "pacsea -r fd ripgrep",
+          "cps": 11
+        }
+      ]
+    },
+    {
+      "scene": "remove-file",
+      "duration": 7,
+      "transition": "cut",
+      "caption": {
+        "bold": "Remove from a file.",
+        "rest": "Capital -R reads the reviewed list.",
+        "number": "13",
+        "box": [
+          80,
+          530,
+          585
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#caret",
+            "pad": 4
+          },
+          "to": 0.34190909090909094
+        },
+        {
+          "from": 0.34190909090909094,
+          "rect": {
+            "target": "#cmd",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 0.25,
+          "type": "type",
+          "target": "#cmd",
+          "text": "pacsea -R remove.txt",
+          "cps": 11
+        }
+      ]
+    },
+    {
+      "scene": "update",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "bold": "Request a system update.",
+        "rest": "The -u command syncs and upgrades.",
+        "number": "14",
+        "box": [
+          80,
+          530,
+          585
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#caret",
+            "pad": 4
+          },
+          "to": 0.376
+        },
+        {
+          "from": 0.376,
+          "rect": {
+            "target": "#cmd",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 0.25,
+          "type": "type",
+          "target": "#cmd",
+          "text": "pacsea -u",
+          "cps": 8
+        }
+      ]
+    },
+    {
+      "scene": "mirrors",
+      "duration": 7,
+      "transition": "cut",
+      "caption": {
+        "bold": "Refresh mirrors first.",
+        "rest": "--mirrors uses your configured countries.",
+        "number": "15",
+        "box": [
+          80,
+          530,
+          585
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#caret",
+            "pad": 4
+          },
+          "to": 0.32792307692307693
+        },
+        {
+          "from": 0.32792307692307693,
+          "rect": {
+            "target": "#cmd",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 0.25,
+          "type": "type",
+          "target": "#cmd",
+          "text": "pacsea --update --mirrors",
+          "cps": 13
+        }
+      ]
+    },
+    {
+      "scene": "news",
+      "duration": 8,
+      "transition": "cut",
+      "caption": {
+        "bold": "Read unread Arch news.",
+        "rest": "The output includes the original URL.",
+        "number": "16",
+        "box": [
+          80,
+          530,
+          585
+        ],
+        "track": [
+          {
+            "at": 0.625,
+            "move": 0.625,
+            "x": 442,
+            "y": 405
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#caret",
+            "pad": 4
+          },
+          "to": 0.376
+        },
+        {
+          "from": 0.376,
+          "rect": {
+            "target": "#cmd",
+            "pad": 4
+          },
+          "to": 3.25
+        },
+        {
+          "from": 3.25,
+          "rect": {
+            "target": "#result-text",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 0.25,
+          "type": "type",
+          "target": "#cmd",
+          "text": "pacsea -n --unread",
+          "cps": 8
+        },
+        {
+          "at": 3.25,
+          "type": "class",
+          "target": "#result",
+          "remove": "hidden-state"
+        },
+        {
+          "at": 3.25,
+          "type": "class",
+          "target": "#caret",
+          "add": "hidden-state"
+        }
+      ]
+    },
+    {
+      "scene": "news-read",
+      "duration": 7,
+      "transition": "cut",
+      "caption": {
+        "bold": "Choose read articles.",
+        "rest": "Use -a with --news for both groups.",
+        "number": "17",
+        "box": [
+          442,
+          405,
+          585
+        ],
+        "track": [
+          {
+            "at": 0.625,
+            "move": 0.625,
+            "x": 305,
+            "y": 519
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#caret",
+            "pad": 4
+          },
+          "to": 0.301
+        },
+        {
+          "from": 0.301,
+          "rect": {
+            "target": "#cmd",
+            "pad": 4
+          },
+          "to": 3.25
+        },
+        {
+          "from": 3.25,
+          "rect": {
+            "target": "#result-text",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 0.25,
+          "type": "type",
+          "target": "#cmd",
+          "text": "pacsea --news --read --json | jq '.data.filter'",
+          "cps": 20
+        },
+        {
+          "at": 3.25,
+          "type": "class",
+          "target": "#result",
+          "remove": "hidden-state"
+        },
+        {
+          "at": 3.25,
+          "type": "class",
+          "target": "#caret",
+          "add": "hidden-state"
+        }
+      ]
+    },
+    {
+      "scene": "config",
+      "duration": 7,
+      "transition": "cut",
+      "caption": {
+        "bold": "Choose a config directory.",
+        "rest": "The override includes caches and logs.",
+        "number": "18",
+        "box": [
+          305,
+          519,
+          585
+        ],
+        "track": [
+          {
+            "at": 0.625,
+            "move": 0.625,
+            "x": 272,
+            "y": 523
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#caret",
+            "pad": 4
+          },
+          "to": 0.3036315789473684
+        },
+        {
+          "from": 0.3036315789473684,
+          "rect": {
+            "target": "#cmd",
+            "pad": 4
+          },
+          "to": 3.25
+        },
+        {
+          "from": 3.25,
+          "rect": {
+            "target": "#result-text",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 0.25,
+          "type": "type",
+          "target": "#cmd",
+          "text": "pacsea --config-dir ~/pacsea-demo --list --exp",
+          "cps": 19
+        },
+        {
+          "at": 3.25,
+          "type": "class",
+          "target": "#result",
+          "remove": "hidden-state"
+        },
+        {
+          "at": 3.25,
+          "type": "class",
+          "target": "#caret",
+          "add": "hidden-state"
+        }
+      ]
+    },
+    {
+      "scene": "logging",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "bold": "Set debug logging.",
+        "rest": "Verbose (-v) selects the same level.",
+        "number": "19",
+        "box": [
+          272,
+          523,
+          585
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#caret",
+            "pad": 4
+          },
+          "to": 0.3224285714285714
+        },
+        {
+          "from": 0.3224285714285714,
+          "rect": {
+            "target": "#cmd",
+            "pad": 4
+          },
+          "to": 3.25
+        },
+        {
+          "from": 3.25,
+          "rect": {
+            "target": "#result-text",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 0.25,
+          "type": "type",
+          "target": "#cmd",
+          "text": "pacsea --log-level debug -l --exp",
+          "cps": 14
+        },
+        {
+          "at": 3.25,
+          "type": "class",
+          "target": "#result",
+          "remove": "hidden-state"
+        },
+        {
+          "at": 3.25,
+          "type": "class",
+          "target": "#caret",
+          "add": "hidden-state"
+        }
+      ]
+    },
+    {
+      "scene": "no-color",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "bold": "Disable update colors.",
+        "rest": "This still requests a real update.",
+        "number": "20",
+        "box": [
+          272,
+          523,
+          585
+        ],
+        "track": [
+          {
+            "at": 0.625,
+            "move": 0.625,
+            "x": 80,
+            "y": 530
+          }
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#caret",
+            "pad": 4
+          },
+          "to": 0.3224285714285714
+        },
+        {
+          "from": 0.3224285714285714,
+          "rect": {
+            "target": "#cmd",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 0.25,
+          "type": "type",
+          "target": "#cmd",
+          "text": "pacsea --update --no-color",
+          "cps": 14
+        }
+      ]
+    },
+    {
+      "scene": "clear-cache",
+      "duration": 6,
+      "transition": "cut",
+      "caption": {
+        "bold": "Check the cache option.",
+        "rest": "Submitting it clears cached data.",
+        "number": "21",
+        "box": [
+          80,
+          530,
+          585
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#caret",
+            "pad": 4
+          },
+          "to": 0.34190909090909094
+        },
+        {
+          "from": 0.34190909090909094,
+          "rect": {
+            "target": "#cmd",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 0.25,
+          "type": "type",
+          "target": "#cmd",
+          "text": "pacsea --clear-cache",
+          "cps": 11
+        }
+      ]
+    },
+    {
+      "scene": "dry-run",
+      "duration": 9,
+      "transition": "cut",
+      "caption": {
+        "bold": "Rehearse in the TUI.",
+        "rest": "Direct installs and removals are live.",
+        "number": "22",
+        "box": [
+          80,
+          530,
+          585
+        ]
+      },
+      "spotlights": [
+        {
+          "from": 0,
+          "rect": {
+            "target": "#caret",
+            "pad": 4
+          },
+          "to": 0.3621111111111111
+        },
+        {
+          "from": 0.3621111111111111,
+          "rect": {
+            "target": "#cmd",
+            "pad": 4
+          }
+        }
+      ],
+      "actions": [
+        {
+          "at": 0.25,
+          "type": "type",
+          "target": "#cmd",
+          "text": "pacsea --dry-run",
+          "cps": 9
+        }
+      ]
+    },
+    {
+      "scene": "credits",
+      "duration": 9,
+      "transition": "cut",
+      "caption": {
+        "number": "",
+        "bold": "Choose what runs.",
+        "box": [
+          80,
+          530,
+          585
+        ]
+      },
+      "actions": [
+        {
+          "at": 0,
+          "type": "show",
+          "target": ".title-scrim",
+          "dur": 0.75,
+          "dy": 0
+        },
+        {
+          "at": 0.25,
+          "type": "show",
+          "target": ".title-copy",
+          "dur": 0.75,
+          "dy": 28
+        },
+        {
+          "at": 7.75,
+          "type": "show",
+          "target": ".end-fade",
+          "dur": 1.25,
+          "dy": 0
+        }
+      ]
+    }
+  ]
+}

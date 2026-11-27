@@ -1,0 +1,258 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1856 986" width="1856" height="986">
+<rect width="1856" height="986" fill="#1e1e2e"/>
+<rect x="496" y="0" width="16" height="29" fill="#585b70"/>
+<rect x="512" y="0" width="320" height="29" fill="#585b70"/>
+<rect x="1328" y="0" width="16" height="29" fill="#585b70"/>
+<rect x="1344" y="0" width="208" height="29" fill="#585b70"/>
+<rect x="1568" y="0" width="16" height="29" fill="#585b70"/>
+<rect x="1584" y="0" width="112" height="29" fill="#585b70"/>
+<rect x="1712" y="0" width="16" height="29" fill="#585b70"/>
+<rect x="1728" y="0" width="128" height="29" fill="#585b70"/>
+<rect x="224" y="29" width="96" height="29" fill="#585b70"/>
+<rect x="352" y="29" width="80" height="29" fill="#585b70"/>
+<rect x="448" y="29" width="96" height="29" fill="#a6e3a1"/>
+<rect x="560" y="29" width="112" height="29" fill="#a6e3a1"/>
+<rect x="688" y="29" width="160" height="29" fill="#a6e3a1"/>
+<rect x="16" y="87" width="32" height="29" fill="#45475a"/>
+<rect x="48" y="87" width="48" height="29" fill="#45475a"/>
+<rect x="96" y="87" width="16" height="29" fill="#45475a"/>
+<rect x="112" y="87" width="96" height="29" fill="#45475a"/>
+<rect x="208" y="87" width="176" height="29" fill="#45475a"/>
+<rect x="384" y="87" width="160" height="29" fill="#45475a"/>
+<rect x="544" y="87" width="64" height="29" fill="#45475a"/>
+<rect x="608" y="87" width="720" height="29" fill="#45475a"/>
+<rect x="1328" y="87" width="512" height="29" fill="#45475a"/>
+<rect x="1280" y="406" width="160" height="29" fill="#585b70"/>
+<rect x="1440" y="406" width="176" height="29" fill="#585b70"/>
+<rect x="1616" y="406" width="224" height="29" fill="#585b70"/>
+<rect x="16" y="435" width="432" height="29" fill="#585b70"/>
+<rect x="1616" y="493" width="16" height="29" fill="#585b70"/>
+<rect x="1632" y="493" width="80" height="29" fill="#585b70"/>
+<rect x="1744" y="493" width="16" height="29" fill="#585b70"/>
+<rect x="1760" y="493" width="80" height="29" fill="#585b70"/>
+<rect x="208" y="783" width="128" height="29" fill="#585b70"/>
+<rect x="496" y="783" width="64" height="29" fill="#585b70"/>
+<rect x="720" y="783" width="128" height="29" fill="#585b70"/>
+<rect x="1264" y="783" width="128" height="29" fill="#585b70"/>
+<rect x="16" y="812" width="128" height="29" fill="#585b70"/>
+<rect x="528" y="812" width="128" height="29" fill="#585b70"/>
+<rect x="1056" y="812" width="128" height="29" fill="#585b70"/>
+<rect x="16" y="841" width="176" height="29" fill="#585b70"/>
+<rect x="544" y="841" width="80" height="29" fill="#585b70"/>
+<rect x="208" y="870" width="112" height="29" fill="#585b70"/>
+<rect x="480" y="870" width="208" height="29" fill="#585b70"/>
+<rect x="928" y="870" width="112" height="29" fill="#585b70"/>
+<rect x="1360" y="870" width="112" height="29" fill="#585b70"/>
+<rect x="1680" y="870" width="128" height="29" fill="#585b70"/>
+<rect x="416" y="899" width="176" height="29" fill="#585b70"/>
+<rect x="896" y="899" width="128" height="29" fill="#585b70"/>
+<rect x="240" y="928" width="144" height="29" fill="#585b70"/>
+<rect x="608" y="928" width="112" height="29" fill="#585b70"/>
+<rect x="832" y="928" width="272" height="29" fill="#585b70"/>
+<rect x="1216" y="928" width="176" height="29" fill="#585b70"/>
+<rect x="64" y="957" width="144" height="29" fill="#585b70"/>
+<rect x="560" y="957" width="144" height="29" fill="#585b70"/>
+<rect x="992" y="957" width="144" height="29" fill="#585b70"/>
+<rect x="1632" y="957" width="144" height="29" fill="#585b70"/>
+<g font-family="DejaVu Sans Mono, monospace" font-size="26">
+<text x="496" y="23" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" font-weight="bold">U</text>
+<text x="512" y="23" fill="#cba6f7" textLength="320" lengthAdjust="spacingAndGlyphs" font-weight="bold">pdates available (3)</text>
+<text x="1328" y="23" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" font-weight="bold">C</text>
+<text x="1344" y="23" fill="#cba6f7" textLength="208" lengthAdjust="spacingAndGlyphs" font-weight="bold">onfig/Lists v</text>
+<text x="1568" y="23" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" font-weight="bold">P</text>
+<text x="1584" y="23" fill="#cba6f7" textLength="112" lengthAdjust="spacingAndGlyphs" font-weight="bold">anels v</text>
+<text x="1712" y="23" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" font-weight="bold">O</text>
+<text x="1728" y="23" fill="#cba6f7" textLength="128" lengthAdjust="spacingAndGlyphs" font-weight="bold">ptions v</text>
+<text x="0" y="52" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs">╭</text>
+<text x="16" y="52" fill="#7f849c" textLength="176" lengthAdjust="spacingAndGlyphs">Results (2)</text>
+<text x="224" y="52" fill="#cba6f7" textLength="96" lengthAdjust="spacingAndGlyphs" font-weight="bold">Sort v</text>
+<text x="352" y="52" fill="#cba6f7" textLength="80" lengthAdjust="spacingAndGlyphs" font-weight="bold">[AUR]</text>
+<text x="448" y="52" fill="#11111b" textLength="96" lengthAdjust="spacingAndGlyphs" font-weight="bold">[core]</text>
+<text x="560" y="52" fill="#11111b" textLength="112" lengthAdjust="spacingAndGlyphs" font-weight="bold">[extra]</text>
+<text x="688" y="52" fill="#11111b" textLength="160" lengthAdjust="spacingAndGlyphs" font-weight="bold">[multilib]</text>
+<text x="848" y="52" fill="#585b70" textLength="1008" lengthAdjust="spacingAndGlyphs">──────────────────────────────────────────────────────────────╮</text>
+<text x="0" y="81" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="48" y="81" fill="#a6e3a1" textLength="80" lengthAdjust="spacingAndGlyphs">extra</text>
+<text x="144" y="81" fill="#cdd6f4" textLength="112" lengthAdjust="spacingAndGlyphs" font-weight="bold">ripgrep</text>
+<text x="288" y="81" fill="#7f849c" textLength="128" lengthAdjust="spacingAndGlyphs">14.1.1-1</text>
+<text x="448" y="81" fill="#cdd6f4" textLength="16" lengthAdjust="spacingAndGlyphs">-</text>
+<text x="480" y="81" fill="#9399b2" textLength="464" lengthAdjust="spacingAndGlyphs">Search text in files by regex</text>
+<text x="1840" y="81" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="0" y="110" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="16" y="110" fill="#cdd6f4" textLength="16" lengthAdjust="spacingAndGlyphs">&gt;</text>
+<text x="48" y="110" fill="#11111b" textLength="48" lengthAdjust="spacingAndGlyphs" font-weight="bold">[+]</text>
+<text x="112" y="110" fill="#a6e3a1" textLength="80" lengthAdjust="spacingAndGlyphs">extra</text>
+<text x="208" y="110" fill="#cdd6f4" textLength="176" lengthAdjust="spacingAndGlyphs" font-weight="bold">ripgrep-all</text>
+<text x="416" y="110" fill="#7f849c" textLength="128" lengthAdjust="spacingAndGlyphs">0.10.6-1</text>
+<text x="576" y="110" fill="#cdd6f4" textLength="16" lengthAdjust="spacingAndGlyphs">-</text>
+<text x="608" y="110" fill="#9399b2" textLength="720" lengthAdjust="spacingAndGlyphs">Search text in PDFs, e-books and ZIP archives</text>
+<text x="1840" y="110" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="0" y="139" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="1840" y="139" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="0" y="168" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="1840" y="168" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="0" y="197" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="1840" y="197" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="0" y="226" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="1840" y="226" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="0" y="255" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="1840" y="255" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="0" y="284" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="1840" y="284" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="0" y="313" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="1840" y="313" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="0" y="342" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="1840" y="342" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="0" y="371" fill="#585b70" textLength="688" lengthAdjust="spacingAndGlyphs">╰──────────────────────────────────────────</text>
+<text x="704" y="371" fill="#cba6f7" textLength="464" lengthAdjust="spacingAndGlyphs" font-weight="bold">Status: Operational [Shift+S]</text>
+<text x="1168" y="371" fill="#585b70" textLength="688" lengthAdjust="spacingAndGlyphs">──────────────────────────────────────────╯</text>
+<text x="0" y="400" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs">╭</text>
+<text x="16" y="400" fill="#7f849c" textLength="224" lengthAdjust="spacingAndGlyphs">Search history</text>
+<text x="240" y="400" fill="#45475a" textLength="224" lengthAdjust="spacingAndGlyphs">─────────────╮</text>
+<text x="464" y="400" fill="#cba6f7" textLength="272" lengthAdjust="spacingAndGlyphs">╭Search (focused)</text>
+<text x="752" y="400" fill="#74c7ec" textLength="112" lengthAdjust="spacingAndGlyphs">[FUZZY]</text>
+<text x="864" y="400" fill="#cba6f7" textLength="400" lengthAdjust="spacingAndGlyphs">────────────────────────╮</text>
+<text x="1264" y="400" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs">╭</text>
+<text x="1280" y="400" fill="#7f849c" textLength="192" lengthAdjust="spacingAndGlyphs">Install List</text>
+<text x="1472" y="400" fill="#45475a" textLength="384" lengthAdjust="spacingAndGlyphs">───────────────────────╮</text>
+<text x="0" y="429" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="48" y="429" fill="#a6adc8" textLength="112" lengthAdjust="spacingAndGlyphs">ripgrep</text>
+<text x="448" y="429" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="464" y="429" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="480" y="429" fill="#74c7ec" textLength="16" lengthAdjust="spacingAndGlyphs">&gt;</text>
+<text x="512" y="429" fill="#cdd6f4" textLength="112" lengthAdjust="spacingAndGlyphs">ripgrep</text>
+<text x="1248" y="429" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="1264" y="429" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="1280" y="429" fill="#cdd6f4" textLength="16" lengthAdjust="spacingAndGlyphs">▶</text>
+<text x="1344" y="429" fill="#cdd6f4" textLength="80" lengthAdjust="spacingAndGlyphs">extra</text>
+<text x="1440" y="429" fill="#cdd6f4" textLength="176" lengthAdjust="spacingAndGlyphs" font-weight="bold">ripgrep-all</text>
+<text x="1648" y="429" fill="#cdd6f4" textLength="128" lengthAdjust="spacingAndGlyphs">0.10.6-1</text>
+<text x="1840" y="429" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="0" y="458" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="16" y="458" fill="#cdd6f4" textLength="64" lengthAdjust="spacingAndGlyphs">▶ fd</text>
+<text x="448" y="458" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="464" y="458" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="1248" y="458" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="1264" y="458" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="1840" y="458" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="0" y="487" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="48" y="487" fill="#a6adc8" textLength="48" lengthAdjust="spacingAndGlyphs">bat</text>
+<text x="448" y="487" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="464" y="487" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="1248" y="487" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="1264" y="487" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="1840" y="487" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="0" y="516" fill="#45475a" textLength="464" lengthAdjust="spacingAndGlyphs">╰───────────────────────────╯</text>
+<text x="464" y="516" fill="#cba6f7" textLength="800" lengthAdjust="spacingAndGlyphs">╰────────────────────────────────────────────────╯</text>
+<text x="1264" y="516" fill="#45475a" textLength="352" lengthAdjust="spacingAndGlyphs">╰─────────────────────</text>
+<text x="1616" y="516" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" font-weight="bold">E</text>
+<text x="1632" y="516" fill="#cba6f7" textLength="80" lengthAdjust="spacingAndGlyphs" font-weight="bold">xport</text>
+<text x="1712" y="516" fill="#45475a" textLength="32" lengthAdjust="spacingAndGlyphs">──</text>
+<text x="1744" y="516" fill="#cba6f7" textLength="16" lengthAdjust="spacingAndGlyphs" font-weight="bold">I</text>
+<text x="1760" y="516" fill="#cba6f7" textLength="80" lengthAdjust="spacingAndGlyphs" font-weight="bold">mport</text>
+<text x="1840" y="516" fill="#45475a" textLength="16" lengthAdjust="spacingAndGlyphs">╯</text>
+<text x="0" y="545" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs">╭</text>
+<text x="16" y="545" fill="#7f849c" textLength="192" lengthAdjust="spacingAndGlyphs">Package Info</text>
+<text x="208" y="545" fill="#585b70" textLength="1648" lengthAdjust="spacingAndGlyphs">──────────────────────────────────────────────────────────────────────────────────────────────────────╮</text>
+<text x="0" y="574" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="16" y="574" fill="#74c7ec" textLength="176" lengthAdjust="spacingAndGlyphs" font-weight="bold">Repository:</text>
+<text x="208" y="574" fill="#cdd6f4" textLength="80" lengthAdjust="spacingAndGlyphs">extra</text>
+<text x="1840" y="574" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="0" y="603" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="16" y="603" fill="#74c7ec" textLength="208" lengthAdjust="spacingAndGlyphs" font-weight="bold">Package Name:</text>
+<text x="240" y="603" fill="#cdd6f4" textLength="176" lengthAdjust="spacingAndGlyphs">ripgrep-all</text>
+<text x="1840" y="603" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="0" y="632" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="16" y="632" fill="#74c7ec" textLength="128" lengthAdjust="spacingAndGlyphs" font-weight="bold">Version:</text>
+<text x="160" y="632" fill="#cdd6f4" textLength="128" lengthAdjust="spacingAndGlyphs">0.10.6-1</text>
+<text x="1840" y="632" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="0" y="661" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="16" y="661" fill="#74c7ec" textLength="192" lengthAdjust="spacingAndGlyphs" font-weight="bold">Description:</text>
+<text x="224" y="661" fill="#cdd6f4" textLength="720" lengthAdjust="spacingAndGlyphs">Search text in PDFs, e-books and ZIP archives</text>
+<text x="1840" y="661" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="0" y="690" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="16" y="690" fill="#74c7ec" textLength="208" lengthAdjust="spacingAndGlyphs" font-weight="bold">Architecture:</text>
+<text x="240" y="690" fill="#cdd6f4" textLength="96" lengthAdjust="spacingAndGlyphs">x86_64</text>
+<text x="1840" y="690" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="0" y="719" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="16" y="719" fill="#74c7ec" textLength="64" lengthAdjust="spacingAndGlyphs" font-weight="bold">URL:</text>
+<text x="96" y="719" fill="#cba6f7" textLength="624" lengthAdjust="spacingAndGlyphs" font-weight="bold">https://github.com/phiresky/ripgrep-all</text>
+<text x="1840" y="719" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="0" y="748" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="16" y="748" fill="#74c7ec" textLength="144" lengthAdjust="spacingAndGlyphs" font-weight="bold">Licences:</text>
+<text x="176" y="748" fill="#cdd6f4" textLength="272" lengthAdjust="spacingAndGlyphs">AGPL-3.0-or-later</text>
+<text x="1840" y="748" fill="#585b70" textLength="16" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="0" y="777" fill="#585b70" textLength="1856" lengthAdjust="spacingAndGlyphs">╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯</text>
+<text x="16" y="806" fill="#7f849c" textLength="128" lengthAdjust="spacingAndGlyphs" font-weight="bold">GLOBALS:</text>
+<text x="208" y="806" fill="#cdd6f4" textLength="128" lengthAdjust="spacingAndGlyphs" font-weight="bold">[Ctrl+C]</text>
+<text x="352" y="806" fill="#bac2de" textLength="64" lengthAdjust="spacingAndGlyphs">Exit</text>
+<text x="448" y="806" fill="#9399b2" textLength="16" lengthAdjust="spacingAndGlyphs">|</text>
+<text x="496" y="806" fill="#cdd6f4" textLength="64" lengthAdjust="spacingAndGlyphs" font-weight="bold">[F1]</text>
+<text x="576" y="806" fill="#bac2de" textLength="64" lengthAdjust="spacingAndGlyphs">Help</text>
+<text x="672" y="806" fill="#9399b2" textLength="16" lengthAdjust="spacingAndGlyphs">|</text>
+<text x="720" y="806" fill="#cdd6f4" textLength="128" lengthAdjust="spacingAndGlyphs" font-weight="bold">[Ctrl+R]</text>
+<text x="864" y="806" fill="#bac2de" textLength="320" lengthAdjust="spacingAndGlyphs">Reload configuration</text>
+<text x="1216" y="806" fill="#9399b2" textLength="16" lengthAdjust="spacingAndGlyphs">|</text>
+<text x="1264" y="806" fill="#cdd6f4" textLength="128" lengthAdjust="spacingAndGlyphs" font-weight="bold">[Ctrl+X]</text>
+<text x="1408" y="806" fill="#bac2de" textLength="288" lengthAdjust="spacingAndGlyphs">Show/Hide PKGBUILD</text>
+<text x="1728" y="806" fill="#9399b2" textLength="16" lengthAdjust="spacingAndGlyphs">|</text>
+<text x="16" y="835" fill="#cdd6f4" textLength="128" lengthAdjust="spacingAndGlyphs" font-weight="bold">[Ctrl+T]</text>
+<text x="160" y="835" fill="#bac2de" textLength="288" lengthAdjust="spacingAndGlyphs">Show/Hide Comments</text>
+<text x="480" y="835" fill="#9399b2" textLength="16" lengthAdjust="spacingAndGlyphs">|</text>
+<text x="528" y="835" fill="#cdd6f4" textLength="128" lengthAdjust="spacingAndGlyphs" font-weight="bold">[Ctrl+K]</text>
+<text x="672" y="835" fill="#bac2de" textLength="304" lengthAdjust="spacingAndGlyphs">Run PKGBUILD checks</text>
+<text x="1008" y="835" fill="#9399b2" textLength="16" lengthAdjust="spacingAndGlyphs">|</text>
+<text x="1056" y="835" fill="#cdd6f4" textLength="128" lengthAdjust="spacingAndGlyphs" font-weight="bold">[Ctrl+D]</text>
+<text x="1200" y="835" fill="#bac2de" textLength="576" lengthAdjust="spacingAndGlyphs">Cycle PKGBUILD / ShellCheck / Namcap</text>
+<text x="1808" y="835" fill="#9399b2" textLength="16" lengthAdjust="spacingAndGlyphs">|</text>
+<text x="16" y="864" fill="#cdd6f4" textLength="176" lengthAdjust="spacingAndGlyphs" font-weight="bold">[Shift+Tab]</text>
+<text x="208" y="864" fill="#bac2de" textLength="256" lengthAdjust="spacingAndGlyphs">Change Sort Mode</text>
+<text x="496" y="864" fill="#9399b2" textLength="16" lengthAdjust="spacingAndGlyphs">|</text>
+<text x="544" y="864" fill="#cdd6f4" textLength="80" lengthAdjust="spacingAndGlyphs" font-weight="bold">[Esc]</text>
+<text x="640" y="864" fill="#bac2de" textLength="176" lengthAdjust="spacingAndGlyphs">Insert Mode</text>
+<text x="848" y="864" fill="#9399b2" textLength="16" lengthAdjust="spacingAndGlyphs">|</text>
+<text x="16" y="893" fill="#cba6f7" textLength="112" lengthAdjust="spacingAndGlyphs" font-weight="bold">SEARCH:</text>
+<text x="208" y="893" fill="#cdd6f4" textLength="112" lengthAdjust="spacingAndGlyphs" font-weight="bold">[↑ / ↓]</text>
+<text x="336" y="893" fill="#bac2de" textLength="64" lengthAdjust="spacingAndGlyphs">Move</text>
+<text x="432" y="893" fill="#9399b2" textLength="16" lengthAdjust="spacingAndGlyphs">|</text>
+<text x="480" y="893" fill="#cdd6f4" textLength="208" lengthAdjust="spacingAndGlyphs" font-weight="bold">[PgUp / PgDn]</text>
+<text x="704" y="893" fill="#bac2de" textLength="144" lengthAdjust="spacingAndGlyphs">Move Page</text>
+<text x="880" y="893" fill="#9399b2" textLength="16" lengthAdjust="spacingAndGlyphs">|</text>
+<text x="928" y="893" fill="#cdd6f4" textLength="112" lengthAdjust="spacingAndGlyphs" font-weight="bold">[Space]</text>
+<text x="1056" y="893" fill="#bac2de" textLength="224" lengthAdjust="spacingAndGlyphs">Add to install</text>
+<text x="1312" y="893" fill="#9399b2" textLength="16" lengthAdjust="spacingAndGlyphs">|</text>
+<text x="1360" y="893" fill="#cdd6f4" textLength="112" lengthAdjust="spacingAndGlyphs" font-weight="bold">[Enter]</text>
+<text x="1488" y="893" fill="#bac2de" textLength="112" lengthAdjust="spacingAndGlyphs">Install</text>
+<text x="1632" y="893" fill="#9399b2" textLength="16" lengthAdjust="spacingAndGlyphs">|</text>
+<text x="1680" y="893" fill="#cdd6f4" textLength="128" lengthAdjust="spacingAndGlyphs" font-weight="bold">[Ctrl+F]</text>
+<text x="16" y="922" fill="#bac2de" textLength="320" lengthAdjust="spacingAndGlyphs">Toggle normal search</text>
+<text x="368" y="922" fill="#9399b2" textLength="16" lengthAdjust="spacingAndGlyphs">|</text>
+<text x="416" y="922" fill="#cdd6f4" textLength="176" lengthAdjust="spacingAndGlyphs" font-weight="bold">[Shift+Del]</text>
+<text x="640" y="922" fill="#bac2de" textLength="176" lengthAdjust="spacingAndGlyphs">Clear input</text>
+<text x="848" y="922" fill="#9399b2" textLength="16" lengthAdjust="spacingAndGlyphs">|</text>
+<text x="896" y="922" fill="#cdd6f4" textLength="128" lengthAdjust="spacingAndGlyphs" font-weight="bold">[Ctrl+E]</text>
+<text x="1040" y="922" fill="#bac2de" textLength="576" lengthAdjust="spacingAndGlyphs">Toggle AUR vote for selected package</text>
+<text x="1648" y="922" fill="#9399b2" textLength="16" lengthAdjust="spacingAndGlyphs">|</text>
+<text x="16" y="951" fill="#cba6f7" textLength="192" lengthAdjust="spacingAndGlyphs" font-weight="bold">Normal Mode:</text>
+<text x="240" y="951" fill="#cdd6f4" textLength="144" lengthAdjust="spacingAndGlyphs" font-weight="bold">[Esc / I]</text>
+<text x="400" y="951" fill="#bac2de" textLength="192" lengthAdjust="spacingAndGlyphs">Insert Mode:</text>
+<text x="608" y="951" fill="#cdd6f4" textLength="112" lengthAdjust="spacingAndGlyphs" font-weight="bold">[j / k]</text>
+<text x="736" y="951" fill="#bac2de" textLength="80" lengthAdjust="spacingAndGlyphs">move,</text>
+<text x="832" y="951" fill="#cdd6f4" textLength="272" lengthAdjust="spacingAndGlyphs" font-weight="bold">[Ctrl+d / Ctrl+u]</text>
+<text x="1120" y="951" fill="#bac2de" textLength="80" lengthAdjust="spacingAndGlyphs">page,</text>
+<text x="1216" y="951" fill="#cdd6f4" textLength="176" lengthAdjust="spacingAndGlyphs" font-weight="bold">[Shift+Del]</text>
+<text x="1408" y="951" fill="#bac2de" textLength="176" lengthAdjust="spacingAndGlyphs">Clear input</text>
+<text x="16" y="980" fill="#bac2de" textLength="16" lengthAdjust="spacingAndGlyphs">•</text>
+<text x="64" y="980" fill="#cdd6f4" textLength="144" lengthAdjust="spacingAndGlyphs" font-weight="bold">[Shift+C]</text>
+<text x="224" y="980" fill="#bac2de" textLength="256" lengthAdjust="spacingAndGlyphs">Open Config/List</text>
+<text x="512" y="980" fill="#bac2de" textLength="16" lengthAdjust="spacingAndGlyphs">•</text>
+<text x="560" y="980" fill="#cdd6f4" textLength="144" lengthAdjust="spacingAndGlyphs" font-weight="bold">[Shift+O]</text>
+<text x="720" y="980" fill="#bac2de" textLength="192" lengthAdjust="spacingAndGlyphs">Open Options</text>
+<text x="944" y="980" fill="#bac2de" textLength="16" lengthAdjust="spacingAndGlyphs">•</text>
+<text x="992" y="980" fill="#cdd6f4" textLength="144" lengthAdjust="spacingAndGlyphs" font-weight="bold">[Shift+P]</text>
+<text x="1152" y="980" fill="#bac2de" textLength="176" lengthAdjust="spacingAndGlyphs">Open Panels</text>
+<text x="1360" y="980" fill="#bac2de" textLength="240" lengthAdjust="spacingAndGlyphs">• Install List:</text>
+<text x="1632" y="980" fill="#cdd6f4" textLength="144" lengthAdjust="spacingAndGlyphs" font-weight="bold">[Shift+I]</text>
+<path d="M624 430h13" stroke="#b4befe" stroke-width="3"/>
+</g>
+</svg>
